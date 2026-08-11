@@ -18,7 +18,8 @@ serde.workspace = true
 tracing.workspace = true
 
 # internal dependencies
-iota-sdk-ext = { workspace = true, features = ["types"] }
+iota-protocol-config.workspace = true
+iota-sdk-ext = { workspace = true, features = ["ed25519", "bech32", "types"] }
 iota-types.workspace = true
 move-vm-config.workspace = true
 
@@ -37,8 +38,8 @@ reqwest.workspace = true
 serde_yaml.workspace = true
 
 # internal dependencies
-iota-genesis-common.workspace = true
 iota-keys.workspace = true
+iota-metrics.workspace = true
 iota-names.workspace = true
 prometheus-filtered.workspace = true
 starfish-config.workspace = true

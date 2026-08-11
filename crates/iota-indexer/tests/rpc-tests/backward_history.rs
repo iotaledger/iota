@@ -13,11 +13,11 @@ use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions, ObjectChange,
 };
-use iota_sdk_ext::types::{Address, ObjectId};
-use iota_types::{
-    base_types::SequenceNumber,
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+use iota_sdk_ext::{
+    crypto::simple::SimpleKeypair,
+    types::{Address, ObjectId, Version},
 };
+use iota_types::crypto::{AccountKeyPair, get_key_pair};
 use jsonrpsee::http_client::HttpClient;
 
 use crate::{
@@ -35,7 +35,7 @@ pub async fn call_test_fn(
     client: &HttpClient,
     store: &PgIndexerStore,
     sender: Address,
-    keypair: &IotaKeyPair,
+    keypair: &SimpleKeypair,
     package_id: ObjectId,
     function: &str,
     arguments: Vec<IotaJsonValue>,
@@ -81,7 +81,7 @@ pub async fn call_test_fn(
 /// response.
 pub fn first_created(
     resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
-) -> (ObjectId, SequenceNumber) {
+) -> (ObjectId, Version) {
     resp.object_changes
         .as_ref()
         .unwrap()
@@ -99,7 +99,7 @@ pub fn first_created(
 fn unwrapped_version(
     resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
     object_id: ObjectId,
-) -> SequenceNumber {
+) -> Version {
     resp.object_changes
         .as_ref()
         .unwrap()
@@ -119,7 +119,7 @@ fn unwrapped_version(
 fn unwrapped_then_deleted_version(
     resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
     object_id: ObjectId,
-) -> SequenceNumber {
+) -> Version {
     resp.effects
         .as_ref()
         .unwrap()
@@ -142,7 +142,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
     runtime.block_on(async move {
         // --- Set up a funded address ---
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let keypair = SimpleKeypair::from(keypair);
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

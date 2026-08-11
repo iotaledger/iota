@@ -4,11 +4,13 @@
 
 use std::collections::{HashMap, hash_map::Entry};
 
-use iota_sdk_ext::types::{ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_ext::types::{
+    ExecutionError, ExecutionStatus, ObjectId, Transaction, TransactionEffects,
+};
 use iota_types::{
-    effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
+    effects::{InputSharedObject, TransactionEffectsAPI},
     messages_checkpoint::{CheckpointTimestamp, VerifiedCheckpoint},
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionAPI,
 };
 use moka::{ops::compute::Op, sync::Cache};
 
@@ -183,7 +185,7 @@ impl CongestionTracker {
                         effects.transaction_digest()
                     )
                 })
-                .transaction_data()
+                .transaction()
                 .gas_price();
 
             // Skip system transactions
@@ -235,7 +237,7 @@ impl CongestionTracker {
     #[allow(dead_code)]
     pub fn get_prediction_suggested_gas_price_legacy(
         &self,
-        transaction: &TransactionData,
+        transaction: &Transaction,
     ) -> Option<u64> {
         self.get_suggested_gas_price_for_objects(
             transaction
@@ -248,7 +250,7 @@ impl CongestionTracker {
 
     /// Get the largest hotness value among all mutable input shared objects
     /// accessed by `transaction`.
-    pub fn get_prediction_suggested_gas_price(&self, transaction: &TransactionData) -> Option<u64> {
+    pub fn get_prediction_suggested_gas_price(&self, transaction: &Transaction) -> Option<u64> {
         let (_, hotness) = self
             .get_max_hotness_per_tx(
                 transaction

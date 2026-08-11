@@ -6,9 +6,6 @@ teams:
   - iotaledger/vm-language
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/transactions/sponsored-transactions/use-sponsored-transactions.json';
-
 # Use Sponsored Transactions
 
 [Sponsored transactions](about-sponsored-transactions.mdx) in IOTA enable one address (the sponsor) to pay the gas fees for a [transaction](../transactions.mdx) initiated by another address (the user).
@@ -18,7 +15,6 @@ You can leverage IOTA sponsored transactions to:
 - **Sponsor user-initiated transactions**: Pay the gas fees for transactions that users initiate.
 - **Sponsor your own transactions**: Cover the gas fees for transactions you start.
 - **Provide a wildcard `GasData` object**: Offer users a `GasData` object that covers gas fees for their transactions, as long as the budget is sufficient.
-
 
 :::danger Risks of Sponsored Transactions
 
@@ -121,7 +117,7 @@ The following code blocks describe the `TransactionData` structure for sponsored
 
 ```rust
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
-pub struct TransactionDataV1 {
+pub struct TransactionV1 {
 pub kind: TransactionKind,
 pub sender: IotaAddress,
 pub gas_data: GasData,
@@ -140,5 +136,3 @@ pub price: u64,
 pub budget: u64,
 }
 ```
-
-<Quiz questions={questions} />

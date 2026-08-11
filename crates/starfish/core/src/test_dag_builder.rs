@@ -14,10 +14,11 @@ use starfish_config::{AuthorityIndex, ProtocolKeyPair};
 
 use crate::{
     CommitRef, CommittedSubDag,
+    authority_set::AuthoritySet,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, Round, Slot,
-        TestBlockHeader, Transaction, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions, genesis_block_headers,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
+        StrongVote, TestBlockHeader, TestBlockHeaderVersion, Transaction, TransactionsCommitment,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions, genesis_block_headers,
     },
     commit::{CertifiedCommit, CommitAPI, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
@@ -121,6 +122,10 @@ pub(crate) struct DagBuilder {
     protocol_keypair: Option<Vec<ProtocolKeyPair>>,
 
     encoder: Box<dyn ShardEncoder + Send + Sync>,
+
+    // Per authority, the blocks whose transactions that authority has acknowledged so far. Stands
+    // in for `DagState::are_transactions_available` when computing strong votes.
+    available_transactions: Vec<HashSet<BlockRef>>,
 }
 /// The `AncestorSelection` enum is an interim data structure used to specify
 /// how ancestors should be selected for a block in the `DagBuilder`. `UseLast`
@@ -158,6 +163,7 @@ impl DagBuilder {
         let encoder = create_encoder(&context);
         Self {
             last_committed_rounds: vec![0; context.committee.size()],
+            available_transactions: vec![HashSet::new(); context.committee.size()],
             context,
             leader_schedule,
             wave_length: WAVE_LENGTH,
@@ -581,23 +587,27 @@ impl DagBuilder {
         };
 
         let mut references = Vec::new();
+        let version = TestBlockHeaderVersion::from_context(&self.context);
 
         for (authority, ancestors) in connections {
             let author = authority.value() as u8;
             let base_ts = round as BlockTimestampMs * 1000;
+            let acknowledgments = transaction_acks
+                .get(&authority)
+                .cloned()
+                .unwrap_or_default();
+            let strong_vote = self.strong_vote(round, authority, &ancestors, &acknowledgments);
             let block = VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(round, author)
+                    .set_version(version)
                     .set_ancestors(ancestors)
-                    .set_acknowledgments(
-                        transaction_acks
-                            .get(&authority)
-                            .cloned()
-                            .unwrap_or_default(),
-                    )
+                    .set_acknowledgments(acknowledgments)
                     .set_timestamp_ms(base_ts + author as u64)
+                    .set_strong_vote(strong_vote)
                     .build(),
             );
             references.push(block.reference());
+            self.record_own_block(block.reference());
             self.block_headers.insert(block.reference(), block.clone());
         }
         let mut rng = StdRng::from_entropy();
@@ -630,6 +640,61 @@ impl DagBuilder {
             self.transactions.insert(block_ref, verified_transactions);
         }
         self.last_ancestors = references;
+    }
+
+    /// The strong vote a block at `round` by `author` carries, mirroring
+    /// `Core::compute_strong_vote`: it pins the leader at `round - 1` and lists
+    /// the authorities whose transactions `author` has not acknowledged. Takes
+    /// `acknowledgments` as well as `ancestors` because the block's own
+    /// acknowledgments count towards what it has, so they have to be recorded
+    /// before the vote is derived. `None` when the block does not link the
+    /// leader, since an author that has not seen the leader block cannot vote
+    /// on it, and `None` while `consensus_starfish_speed` is off, where
+    /// headers are V1 and nothing reads the recorded transactions.
+    fn strong_vote(
+        &mut self,
+        round: Round,
+        author: AuthorityIndex,
+        ancestors: &[BlockRef],
+        acknowledgments: &[BlockRef],
+    ) -> Option<StrongVote> {
+        if !self.context.protocol_config.consensus_starfish_speed() {
+            return None;
+        }
+        self.available_transactions[author].extend(acknowledgments.iter().copied());
+
+        let leader_round = round - 1;
+        let leader_authority = self.leader_schedule.elect_leader(leader_round, 0);
+        let mut missing = AuthoritySet::new();
+        if leader_round == GENESIS_ROUND {
+            // A genesis block carries no transactions, so none can be missing.
+        } else {
+            let leader_ref = ancestors
+                .iter()
+                .find(|r| r.round == leader_round && r.author == leader_authority)?;
+            let leader_header = self.block_headers.get(leader_ref)?;
+            let available = &self.available_transactions[author];
+            if !available.contains(leader_ref) {
+                missing.insert(leader_authority);
+            }
+            for ack in leader_header.acknowledgments() {
+                if !available.contains(ack) {
+                    missing.insert(ack.author);
+                }
+            }
+        }
+        Some(StrongVote {
+            leader_authority,
+            missing,
+        })
+    }
+
+    /// Records that an author holds the transactions of the block it just
+    /// built.
+    fn record_own_block(&mut self, block_ref: BlockRef) {
+        if self.context.protocol_config.consensus_starfish_speed() {
+            self.available_transactions[block_ref.author].insert(block_ref);
+        }
     }
 }
 /// Refer to doc comments for [`DagBuilder`] for usage information.
@@ -1080,12 +1145,20 @@ impl<'a> LayerBuilder<'a> {
     ) {
         let mut references = Vec::new();
         let mut rng = StdRng::from_entropy();
+        let version = TestBlockHeaderVersion::from_context(&self.dag_builder.context);
 
         for (authority, ancestors) in connections {
             if self.should_skip_block(round, authority) {
                 continue;
             };
             let num_blocks = self.num_blocks_to_create(authority);
+            let acknowledgments = transaction_acknowledgments
+                .get(&authority)
+                .cloned()
+                .unwrap_or_default();
+            let strong_vote =
+                self.dag_builder
+                    .strong_vote(round, authority, &ancestors, &acknowledgments);
 
             for num_block in 0..num_blocks {
                 let timestamp = self.block_timestamp(authority, round, num_block);
@@ -1103,15 +1176,12 @@ impl<'a> LayerBuilder<'a> {
                 .unwrap();
 
                 let test_block_header = TestBlockHeader::new(round, authority.value() as u8)
+                    .set_version(version)
                     .set_ancestors(ancestors.clone())
-                    .set_acknowledgments(
-                        transaction_acknowledgments
-                            .get(&authority)
-                            .cloned()
-                            .unwrap_or_default(),
-                    )
+                    .set_acknowledgments(acknowledgments.clone())
                     .set_timestamp_ms(timestamp)
                     .set_commitment(commitment)
+                    .set_strong_vote(strong_vote)
                     .build();
                 let block_header =
                     if let Some(protocol_keypair) = self.dag_builder.protocol_keypair.as_ref() {
@@ -1131,6 +1201,7 @@ impl<'a> LayerBuilder<'a> {
                 );
 
                 references.push(block_header.reference());
+                self.dag_builder.record_own_block(block_header.reference());
                 self.dag_builder
                     .block_headers
                     .insert(block_header.reference(), block_header.clone());

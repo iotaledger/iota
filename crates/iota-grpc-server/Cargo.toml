@@ -35,11 +35,17 @@ iota-core.workspace = true
 iota-metrics.workspace = true
 iota-node-storage.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types", "grpc"] }
+iota-sdk-ext = { workspace = true, features = ["grpc", "types"] }
 iota-types.workspace = true
 move-core-types.workspace = true
 prometheus-filtered.workspace = true
 
 [dev-dependencies]
+# external dependencies
+async-trait.workspace = true
+
+# internal dependencies
+iota-sdk-ext = { workspace = true, features = ["grpc"] }
 iota-test-transaction-builder.workspace = true
+move-binary-format.workspace = true
 typed-store-error.workspace = true

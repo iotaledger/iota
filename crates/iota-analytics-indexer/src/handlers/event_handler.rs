@@ -9,11 +9,8 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::type_and_fields_from_move_event_data;
 use iota_package_resolver::Resolver;
-use iota_sdk_ext::types::{Event, TypeTag};
-use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES, digests::TransactionDigest, effects::TransactionEvents,
-    full_checkpoint_content::CheckpointData,
-};
+use iota_sdk_ext::types::{Event, TransactionDigest, TransactionEvents, TypeTag};
+use iota_types::{SYSTEM_PACKAGE_ADDRESSES, full_checkpoint_content::CheckpointData};
 use move_core_types::annotated_value::MoveValue;
 use tokio::sync::Mutex;
 

@@ -5,7 +5,7 @@
 
 use std::{fmt, sync::Arc};
 
-use iota_types::{storage::ObjectStore, transaction::Transaction};
+use iota_types::{storage::ObjectStore, transaction::TransactionEnvelope};
 use once_cell::sync::Lazy;
 use proptest::{prelude::*, strategy::Union};
 
@@ -53,7 +53,7 @@ pub trait AUTransactionGen: fmt::Debug {
         &self,
         universe: &mut AccountUniverse,
         exec: &mut Executor,
-    ) -> (Transaction, ExecutionResult);
+    ) -> (TransactionEnvelope, ExecutionResult);
 
     /// Creates an arced version of this transaction, suitable for dynamic
     /// dispatch.
@@ -70,7 +70,7 @@ impl AUTransactionGen for Arc<dyn AUTransactionGen> {
         &self,
         universe: &mut AccountUniverse,
         exec: &mut Executor,
-    ) -> (Transaction, ExecutionResult) {
+    ) -> (TransactionEnvelope, ExecutionResult) {
         (**self).apply(universe, exec)
     }
 }

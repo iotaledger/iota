@@ -8,7 +8,10 @@ use std::{
 };
 
 use fastcrypto::traits::KeyPair;
-use iota_sdk_ext::types::crypto::{Intent, IntentScope};
+use iota_sdk_ext::types::{
+    SenderSignedTransaction,
+    crypto::{Intent, IntentScope},
+};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_name::{DeserializeNameAdapter, SerializeNameAdapter};
@@ -24,7 +27,6 @@ use crate::{
     error::IotaResult,
     executable_transaction::CertificateProof,
     messages_checkpoint::CheckpointSequenceNumber,
-    transaction::SenderSignedData,
 };
 
 pub trait Message {
@@ -180,7 +182,7 @@ where
     }
 }
 
-impl Envelope<SenderSignedData, AuthoritySignInfo> {
+impl Envelope<SenderSignedTransaction, AuthoritySignInfo> {
     #[instrument(level = "trace", skip_all)]
     pub fn verify_committee_sigs_only(&self, committee: &Committee) -> IotaResult {
         self.auth_signature.verify_secure(

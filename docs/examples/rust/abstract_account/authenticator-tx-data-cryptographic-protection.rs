@@ -12,18 +12,14 @@ use docs_examples::utils::{
     request_tokens_from_faucet,
 };
 use iota_keys::keystore::{AccountKeystore, InMemKeystore};
-use iota_sdk::{
-    IotaClient, IotaClientBuilder, rpc_types::ObjectChange, types::crypto::SignatureScheme::ED25519,
-};
+use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::ObjectChange};
 use iota_sdk_ext::types::{
-    Address, Argument, Identifier, ObjectId, Owner, SharedObjectReference, TransactionKind, TypeTag,
+    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    SharedObjectReference, SignatureScheme, Transaction, TransactionKind, TypeTag, UserSignature,
 };
 use iota_types::{
-    base_types::ObjectRef,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::GenericSignature,
-    transaction::{CallArg, Transaction, TransactionData},
-    utils::MoveAuthenticatorV1,
+    transaction::{CallArg, TransactionEnvelope},
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -56,7 +52,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = InMemKeystore::new_insecure_for_tests(0);
 
     // Derive the address of the first account and set it as default
-    let publisher = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let publisher = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     println!("Publisher address: {publisher}");
 
@@ -128,9 +129,9 @@ pub async fn create_account(
     keystore: &mut InMemKeystore,
     publisher: Address,
     package_id: &ObjectId,
-    package_metadata_ref: ObjectRef,
+    package_metadata_ref: ObjectReference,
     unlock_time: u64,
-) -> Result<ObjectRef> {
+) -> Result<ObjectReference> {
     // Create a PTB that creates an abstract account
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -196,8 +197,8 @@ pub async fn create_account(
 pub async fn create_test_transaction(
     iota_client: &IotaClient,
     recipient: Address,
-    account_ref: &ObjectRef,
-) -> Result<Transaction> {
+    account_ref: &ObjectReference,
+) -> Result<TransactionEnvelope> {
     let account_address = account_ref.object_id.into();
 
     // Create a PTB that sends some IOTA from the abstract account to the recipient
@@ -212,7 +213,7 @@ pub async fn create_test_transaction(
 
     // Create a transaction
 
-    let signature = GenericSignature::MoveAuthenticator(
+    let signature = UserSignature::MoveAuthenticator(
         MoveAuthenticatorV1::new_with_shared_account_object(
             vec![],
             vec![],
@@ -221,16 +222,19 @@ pub async fn create_test_transaction(
         .into(),
     );
 
-    Ok(Transaction::from_generic_sig_data(tx_data, vec![signature]))
+    Ok(TransactionEnvelope::from_user_sig_data(
+        tx_data,
+        vec![signature],
+    ))
 }
 
 /// Swaps the recipient in the transaction to an attacker-controlled address.
 pub fn swap_recipient_in_transaction(
-    mut transaction: Transaction,
+    mut transaction: TransactionEnvelope,
     attacker: Address,
-) -> Transaction {
-    match &mut transaction.inner_mut().intent_message.value {
-        TransactionData::V1(data) => match &mut data.kind {
+) -> TransactionEnvelope {
+    match &mut transaction.0.transaction {
+        Transaction::V1(tx) => match &mut tx.kind {
             TransactionKind::Programmable(ptb) => {
                 ptb.inputs[0] = CallArg::Pure(bcs::to_bytes(&attacker).unwrap());
             }

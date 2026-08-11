@@ -7,13 +7,13 @@ use std::{
     fmt,
 };
 
-use iota_sdk_ext::types::{Address, Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, Identifier, ObjectId, StructTag, TypeTag, Version};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
     IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
-    base_types::{EpochId, SequenceNumber},
+    base_types::EpochId,
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
@@ -85,6 +85,17 @@ impl MoveTypeTagTrait for GlobalPauseKey {
     }
 }
 
+/// Returns `Ok(())` if no input or receiving object's coin type is on a deny
+/// list for the given `address`.
+///
+/// With `cur_epoch = None`, the check reads the latest deny-list value, so
+/// denials take effect immediately; the result depends on how far the
+/// validator's execution has progressed, making it suitable only for
+/// validator-local decisions, such as pre-consensus admission. With
+/// `Some(epoch)`, the read is gated to the value settled before that epoch
+/// (entries written in epoch `E` activate in `E + 1`), making the result
+/// deterministic across validators; required where all validators must agree
+/// on the outcome, such as post-consensus validation.
 #[instrument(level = "trace", skip_all)]
 pub fn check_coin_deny_list_v1(
     address: Address,
@@ -92,6 +103,7 @@ pub fn check_coin_deny_list_v1(
     tx_receiving_objects: &ReceivingObjects,
     per_authenticator_input_objects: &Vec<&CheckedInputObjects>,
     object_store: &dyn ObjectStore,
+    cur_epoch: Option<EpochId>,
 ) -> UserInputResult {
     let coin_types = input_object_coin_types_for_denylist_check(
         tx_input_objects,
@@ -102,10 +114,10 @@ pub fn check_coin_deny_list_v1(
         let Some(deny_list) = get_per_type_coin_deny_list_v1(&coin_type, object_store) else {
             continue;
         };
-        if check_global_pause(&deny_list, object_store, None) {
+        if check_global_pause(&deny_list, object_store, cur_epoch) {
             return Err(UserInputError::CoinTypeGlobalPause { coin_type });
         }
-        if check_address_denied_by_config(&deny_list, address, object_store, None) {
+        if check_address_denied_by_config(&deny_list, address, object_store, cur_epoch) {
             return Err(UserInputError::AddressDeniedForCoin { address, coin_type });
         }
     }
@@ -234,7 +246,7 @@ pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Objec
     }
 }
 
-pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> SequenceNumber {
+pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> Version {
     get_deny_list_root_object(object_store)
         .map(|obj| {
             obj.owner

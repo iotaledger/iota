@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 pub use enum_dispatch::enum_dispatch;
-pub use iota_sdk_ext::types::crypto::{
-    BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
-    MultisigMember, MultisigMemberSignature, ThresholdUnit, WeightUnit,
-};
 use iota_sdk_ext::{
     crypto::{Verifier, multisig::MultisigVerifier},
-    types::{Address, crypto::IntentMessage},
+    types::{
+        Address,
+        crypto::{IntentMessage, MultisigAggregatedSignature},
+    },
 };
 use serde::Serialize;
 
@@ -22,7 +21,7 @@ use crate::{
 #[path = "unit_tests/multisig_tests.rs"]
 mod multisig_tests;
 
-impl AuthenticatorTrait for MultiSig {
+impl AuthenticatorTrait for MultisigAggregatedSignature {
     fn verify_claims<T>(
         &self,
         intent_message: &IntentMessage<T>,

@@ -4,11 +4,11 @@
 
 use std::{cmp::Ordering, collections::HashMap};
 
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{ObjectId, SharedObjectReference};
 use iota_types::{
     base_types::CommitRound,
     executable_transaction::VerifiedExecutableTransaction,
-    transaction::{SharedObjectRef, TransactionDataAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 use serde::{Deserialize, Serialize};
 use tracing::instrument;
@@ -253,7 +253,7 @@ impl SharedObjectCongestionTracker {
     /// tracker.
     pub(super) fn initialize_object_execution_slots(
         &mut self,
-        shared_input_objects: &[SharedObjectRef],
+        shared_input_objects: &[SharedObjectReference],
     ) {
         for obj in shared_input_objects {
             self.object_execution_slots
@@ -275,7 +275,7 @@ impl SharedObjectCongestionTracker {
     #[instrument(level = "trace", skip_all)]
     fn compute_tx_start_time(
         &self,
-        shared_input_objects: &[SharedObjectRef],
+        shared_input_objects: &[SharedObjectReference],
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
         if self
@@ -321,7 +321,7 @@ impl SharedObjectCongestionTracker {
     /// given the objects that have been checked so far.
     fn compute_min_free_execution_slot(
         &self,
-        shared_input_objects: &[SharedObjectRef],
+        shared_input_objects: &[SharedObjectReference],
         tx_duration: ExecutionTime,
         lookup_interval: ExecutionSlot,
     ) -> Option<ExecutionTime> {
@@ -510,7 +510,7 @@ impl SharedObjectCongestionTracker {
             object_ids,
             start_time,
             estimated_execution_duration,
-            transaction.transaction_data().gas_price(),
+            transaction.transaction().gas_price(),
         ))
     }
 
@@ -763,9 +763,10 @@ mod execution_slot_tests {
 
 #[cfg(test)]
 pub mod shared_object_test_utils {
+    use iota_sdk_ext::types::Version;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{SequenceNumber, random_object_ref},
+        base_types::random_object_ref,
         crypto::{AccountKeyPair, get_key_pair},
         executable_transaction::VerifiedExecutableTransaction,
         transaction::{CallArg, VerifiedTransaction},
@@ -798,9 +799,9 @@ pub mod shared_object_test_utils {
                         objects
                             .iter()
                             .map(|(id, mutable)| {
-                                CallArg::Shared(SharedObjectRef::new(
+                                CallArg::Shared(SharedObjectReference::new(
                                     *id,
-                                    SequenceNumber::default(),
+                                    Version::default(),
                                     *mutable,
                                 ))
                             })
@@ -814,7 +815,7 @@ pub mod shared_object_test_utils {
 
     pub(crate) fn initialize_tracker_and_compute_tx_start_time(
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
-        shared_input_objects: &[SharedObjectRef],
+        shared_input_objects: &[SharedObjectReference],
         tx_duration: ExecutionTime,
     ) -> Option<ExecutionTime> {
         shared_object_congestion_tracker.initialize_object_execution_slots(shared_input_objects);
@@ -846,10 +847,12 @@ pub mod shared_object_test_utils {
         )
     }
 
-    pub fn construct_shared_input_objects(objects: &[(ObjectId, bool)]) -> Vec<SharedObjectRef> {
+    pub fn construct_shared_input_objects(
+        objects: &[(ObjectId, bool)],
+    ) -> Vec<SharedObjectReference> {
         objects
             .iter()
-            .map(|(id, mutable)| SharedObjectRef::new(*id, SequenceNumber::default(), *mutable))
+            .map(|(id, mutable)| SharedObjectReference::new(*id, Version::default(), *mutable))
             .collect()
     }
 }
@@ -857,7 +860,7 @@ pub mod shared_object_test_utils {
 #[cfg(test)]
 mod object_cost_tests {
     use iota_protocol_config::PerObjectCongestionControlMode;
-    use iota_types::digests::TransactionDigest;
+    use iota_sdk_ext::types::TransactionDigest;
     use rstest::rstest;
 
     use super::{shared_object_test_utils::*, *};

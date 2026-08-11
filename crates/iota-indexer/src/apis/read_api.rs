@@ -16,12 +16,11 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_ext::{
-    grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField},
-    types::ObjectId,
+    grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField},
+    types::{ObjectId, TransactionDigest, Version},
 };
 use iota_types::{
-    base_types::SequenceNumber,
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     iota_serde::BigInt,
     object::{ObjectRead, PastObjectRead},
 };
@@ -53,7 +52,7 @@ impl ReadApi {
         match self.inner.get_checkpoint_with_fallback(id).await {
             Ok(Some(checkpoint)) => Ok(checkpoint),
             Ok(None) => Err(IndexerError::InvalidArgument(format!(
-                "Checkpoint {id:?} not found"
+                "Checkpoint {id} not found"
             ))),
             Err(e) => Err(e),
         }
@@ -81,7 +80,7 @@ impl ReadApi {
             ObjectRead::Exists(object_ref, o, layout) => {
                 let mut display_fields = None;
                 if options.show_display {
-                    match self.inner.get_display_fields(&o, &layout).await {
+                    match self.inner.get_rendered_display_fields(&o, &layout).await {
                         Ok(rendered_fields) => display_fields = Some(rendered_fields),
                         Err(e) => {
                             return Ok(IotaObjectResponse::new(
@@ -129,7 +128,7 @@ impl ReadApi {
                 let display_fields = if options.show_display {
                     let rendered_fields = self
                         .inner
-                        .get_display_fields(&object, &layout)
+                        .get_rendered_display_fields(&object, &layout)
                         .await
                         .map_err(internal_error)?;
 
@@ -165,28 +164,20 @@ impl ReadApi {
         &self,
         digest: TransactionDigest,
     ) -> IndexerResult<bool> {
-        match self
+        let result = self
             .fullnode_grpc_client
-            .get_transactions(
-                &[digest],
-                Some(ReadMask::from(TransactionField::TRANSACTION_DIGEST)),
-            )
-            .await
-        {
-            Ok(txns) => {
-                let executed_tx = txns.into_inner().pop().ok_or_else(|| {
-                    IndexerError::Grpc("there should be one tx lookup response".into())
-                })?;
+            .get_transactions([digest], TransactionField::TRANSACTION_DIGEST)
+            .await?
+            .into_inner()
+            .pop()
+            .ok_or_else(|| IndexerError::Grpc("there should be one tx lookup response".into()))?;
 
-                Ok(executed_tx.transaction()?.digest()? == digest)
-            }
-            Err(e) => {
-                if matches!(e, iota_sdk_ext::grpc_client::Error::Server(ref e) if e.to_tonic_status().code() == tonic::Code::NotFound)
-                {
-                    return Ok(false);
-                }
-                Err(IndexerError::from(e))
-            }
+        match result {
+            Ok(executed_tx) => Ok(executed_tx.transaction()?.digest()? == digest),
+            // The node reports a transaction it has not indexed as a per-digest
+            // `NOT_FOUND`.
+            Err(e) if e.is_not_found() => Ok(false),
+            Err(e) => Err(IndexerError::from(e)),
         }
     }
 }
@@ -335,7 +326,7 @@ impl ReadApiServer for ReadApi {
     async fn try_get_object_before_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> RpcResult<IotaPastObjectResponse> {
         let past_object_read = self
             .inner

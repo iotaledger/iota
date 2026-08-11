@@ -32,14 +32,15 @@ mod ingestion_tests {
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
     };
-    use iota_sdk_ext::types::{Address, Identifier, ObjectId, Owner, StructTag};
+    use iota_sdk_ext::types::{
+        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, Transaction,
+        TransactionEffects, Version,
+    };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{ObjectRef, SequenceNumber},
-        crypto::KeypairTraits,
-        effects::{TransactionEffects, TransactionEffectsAPI},
+        effects::TransactionEffectsAPI,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+        transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use simulacrum::Simulacrum;
     use tempfile::tempdir;
@@ -833,12 +834,11 @@ mod ingestion_tests {
 
         indexer_wait_for_checkpoint(&pg_store, 2).await;
 
-        let make_version_row =
-            |id: ObjectId, version: SequenceNumber, cp: i64| StoredObjectVersion {
-                object_id: id.as_bytes().to_vec(),
-                object_version: version.as_u64() as i64,
-                cp_sequence_number: cp,
-            };
+        let make_version_row = |id: ObjectId, version: Version, cp: i64| StoredObjectVersion {
+            object_id: id.as_bytes().to_vec(),
+            object_version: version.as_u64() as i64,
+            cp_sequence_number: cp,
+        };
 
         // checkpoint 1: gas mutated twice + two coins created
         let mut cp1_expected = vec![
@@ -868,19 +868,19 @@ mod ingestion_tests {
     }
 
     /// Executes transaction in simulacrum, asserts success and returns effects.
-    fn execute_signed(sim: &Simulacrum, tx_data: TransactionData) -> TransactionEffects {
+    fn execute_signed(sim: &Simulacrum, tx: Transaction) -> TransactionEffects {
         let (sender, key) = sim.with_keystore(|ks| {
             let (s, k) = ks.accounts().next().unwrap();
-            (*s, k.copy())
+            (*s, k.clone())
         });
-        assert_eq!(tx_data.sender(), sender);
-        let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
+        assert_eq!(tx.sender(), sender);
+        let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
         let (effects, err) = sim.execute_transaction(tx).unwrap();
         assert!(err.is_none(), "tx failed: {err:?}");
         effects
     }
 
-    fn pick_gas(sim: &Simulacrum, sender: Address) -> ObjectRef {
+    fn pick_gas(sim: &Simulacrum, sender: Address) -> ObjectReference {
         sim.with_store(|s| {
             s.owned_objects(sender)
                 .find(|o| o.is_gas_coin())
@@ -1097,7 +1097,7 @@ mod ingestion_tests {
         indexer_wait_for_checkpoint(&pg_store, 6).await;
 
         let assert_present =
-            |rows: &[StoredObjectVersion], id: ObjectId, version: SequenceNumber, label: &str| {
+            |rows: &[StoredObjectVersion], id: ObjectId, version: Version, label: &str| {
                 assert!(
                     rows.iter().any(|r| r.object_id == id.as_bytes().to_vec()
                         && r.object_version == version.as_u64() as i64),

@@ -18,7 +18,7 @@ use iota_types::{
 use tokio::{sync::mpsc, task::JoinHandle};
 use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::{
     IngestionError, IngestionResult, Reducer, Worker, executor::MAX_CHECKPOINTS_IN_PROGRESS,
@@ -399,17 +399,17 @@ impl<W: Worker + 'static> WorkerPool<W> {
                         },
                         Some(checkpoint) = worker_recv.recv() => {
                             let sequence_number = checkpoint.checkpoint_summary.sequence_number;
-                            info!("received checkpoint for processing {sequence_number} for workflow {task_name}", );
+                            debug!("received checkpoint for processing {sequence_number} for workflow {task_name}", );
                             let start_time = Instant::now();
                             let status = Self::process_checkpoint_with_retry(worker_id, &worker, checkpoint, reset_backoff(&backoff), &token).await;
                             if matches!(status, WorkerStatus::Running((_,_, None))) {
-                                info!("checkpoint {sequence_number} for workflow {task_name} filtered out");
+                                debug!("checkpoint {sequence_number} for workflow {task_name} filtered out");
                             }
                             let trigger_shutdown = matches!(status, WorkerStatus::Shutdown(_));
                             if cloned_progress_sender.send(status).await.is_err() || trigger_shutdown {
                                 break;
                             }
-                            info!(
+                            debug!(
                                 "finished checkpoint processing {sequence_number} for workflow {task_name} in {:?}",
                                 start_time.elapsed()
                             );
@@ -432,7 +432,8 @@ impl<W: Worker + 'static> WorkerPool<W> {
     /// leaves `checkpoint_contents` (the list of all transaction digests in
     /// the original checkpoint) completely untouched.
     fn should_skip_filtered_checkpoint(checkpoint: &CheckpointData) -> bool {
-        !checkpoint.checkpoint_contents.inner().is_empty() && checkpoint.transactions.is_empty()
+        !checkpoint.checkpoint_contents.transactions().is_empty()
+            && checkpoint.transactions.is_empty()
     }
 
     /// Attempts to process a checkpoint with exponential backoff retries on

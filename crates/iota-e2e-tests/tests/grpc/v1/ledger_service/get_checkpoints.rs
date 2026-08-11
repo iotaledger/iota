@@ -6,10 +6,7 @@ use std::time::Duration;
 use futures::StreamExt;
 use iota_macros::sim_test;
 use iota_sdk_ext::{
-    grpc_client::{
-        ReadMask,
-        read_mask_fields::{CheckpointEventField, CheckpointResponseField},
-    },
+    grpc_client::read_mask_fields::CheckpointResponseField,
     grpc_types::{
         field::FieldMaskUtil,
         read_masks::GET_CHECKPOINT_READ_MASK,
@@ -329,6 +326,17 @@ async fn get_checkpoint_readmask_scenarios() {
             vec!["transactions.transaction.digest", "transactions.timestamp"],
         ),
         (
+            "transactions derived changes (balance_changes + object_changes)",
+            Some(FieldMask::from_paths([
+                "transactions.balance_changes",
+                "transactions.object_changes",
+            ])),
+            vec![
+                "transactions.balance_changes",
+                "transactions.object_changes",
+            ],
+        ),
+        (
             "full readmask",
             Some(FieldMask::from_paths([
                 "checkpoint",
@@ -516,6 +524,17 @@ async fn stream_checkpoints_readmask_scenarios() {
             vec!["transactions.effects.digest", "transactions.timestamp"],
         ),
         (
+            "stream transactions derived changes (balance_changes + object_changes)",
+            Some(FieldMask::from_paths([
+                "transactions.balance_changes",
+                "transactions.object_changes",
+            ])),
+            vec![
+                "transactions.balance_changes",
+                "transactions.object_changes",
+            ],
+        ),
+        (
             "stream full readmask",
             Some(FieldMask::from_paths([
                 "checkpoint",
@@ -648,11 +667,7 @@ async fn test_event_filtering() {
 
     // get the latest checkpoint sequence number
     let latest_checkpoint_seq = client
-        .get_checkpoint_latest(
-            Some(ReadMask::from(CheckpointResponseField::ALL)),
-            None,
-            None,
-        )
+        .get_checkpoint_latest(None, None, CheckpointResponseField::ALL)
         .await
         .expect("Failed to get latest checkpoint")
         .body()
@@ -663,9 +678,9 @@ async fn test_event_filtering() {
         .stream_checkpoints(
             Some(0),
             Some(latest_checkpoint_seq),
-            Some(ReadMask::from(CheckpointEventField::ALL)),
             None,
             Some(sender_filter),
+            CheckpointResponseField::EVENTS,
         )
         .await
         .expect("Failed to create sender events stream");
@@ -710,9 +725,9 @@ async fn test_event_filtering() {
         .stream_checkpoints(
             Some(0),
             Some(latest_checkpoint_seq),
-            Some(ReadMask::from(CheckpointEventField::ALL)),
             None,
             Some(nft_filter),
+            CheckpointResponseField::EVENTS,
         )
         .await
         .expect("Failed to create NFT events stream");
@@ -755,9 +770,9 @@ async fn test_event_filtering() {
         .stream_checkpoints(
             Some(0),
             Some(latest_checkpoint_seq),
-            Some(ReadMask::from(CheckpointEventField::ALL)),
             None,
             Some(any_filter),
+            CheckpointResponseField::EVENTS,
         )
         .await
         .expect("Failed to create all events stream");

@@ -62,6 +62,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "object",
             "object_bag",
             "object_table",
+            "module_metadata",
             "package",
             "pay",
             "poseidon",

@@ -40,20 +40,22 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-use iota_sdk_ext::types::{Address, MovePackage, ObjectId, Owner, StructTag, UpgradeInfo};
+use iota_sdk_ext::{
+    crypto::simple::SimpleKeypair,
+    types::{
+        Address, ObjectId, ObjectReference, Owner, SignatureScheme, StructTag,
+        move_package::{MovePackage, UpgradeInfo},
+    },
+};
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    base_types::ObjectRef,
-    crypto::{
-        AccountKeyPair, Ed25519IotaSignature, IotaKeyPair, IotaSignatureInner,
-        Secp256k1IotaSignature, SignatureScheme, get_key_pair,
-    },
+    crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GasCoin,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
     },
 };
 use move_package::{BuildConfig as MoveBuildConfig, lock_file::schema::ManagedPackage};
@@ -265,10 +267,10 @@ fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> io::Result<()> 
     Ok(())
 }
 
-/// Copy a `tests/data/<pkg>/` Move package into a fresh `TempDir` so
-/// parallel PTB `--publish` / `--upgrade` tests don't race on the
-/// shared on-disk `build/` and `Move.lock`. The caller must keep the
-/// returned `TempDir` alive (drop deletes it).
+/// Copy an in-tree Move package into a fresh `TempDir` so parallel
+/// tests publishing the same package don't race on the shared on-disk
+/// `build/` and `Move.lock`. The caller must keep the returned
+/// `TempDir` alive (drop deletes it).
 fn isolate_test_package(src_pkg: &Path) -> (TempDir, PathBuf) {
     let temp_dir = tempfile::TempDir::new().unwrap();
     let dst_pkg = temp_dir.path().join(src_pkg.file_name().unwrap());
@@ -358,10 +360,12 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
     // Add 3 accounts
     for _ in 0..3 {
-        context
-            .config_mut()
-            .keystore_mut()
-            .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+        context.config_mut().keystore_mut().add_key(
+            None,
+            SimpleKeypair::from(
+                get_key_pair::<iota_sdk_ext::crypto::ed25519::Ed25519PrivateKey>().1,
+            ),
+        )?;
     }
 
     // Print all addresses
@@ -705,18 +709,25 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
     }
 
     // Update lock file for both packages
+    let chain_identifier = context
+        .get_client()
+        .await?
+        .read_api()
+        .get_chain_identifier()
+        .await?;
+    let env_alias = context.active_env()?.alias().clone();
     for (pkg_path, package_id, _) in &packages_with_upgrade_cap {
         let mut build_config = BuildConfig::new_for_testing().config;
         build_config.lock_file = Some(pkg_path.join("Move.lock"));
         iota_package_management::update_lock_file_with_package_id(
-            context,
+            chain_identifier.clone(),
+            &env_alias,
             iota_package_management::LockCommand::Publish,
             build_config.install_dir,
             build_config.lock_file,
             (*package_id).into(),
             1,
-        )
-        .await?;
+        )?;
     }
 
     let publish_ptb_string = format!(
@@ -820,15 +831,22 @@ async fn publish_package_for_upgrade(
     // Update lock file
     let mut build_config = BuildConfig::new_for_testing().config;
     build_config.lock_file = Some(package_path.join("Move.lock"));
+    let chain_identifier = context
+        .get_client()
+        .await?
+        .read_api()
+        .get_chain_identifier()
+        .await?;
+    let env_alias = context.active_env()?.alias().clone();
     iota_package_management::update_lock_file_with_package_id(
-        context,
+        chain_identifier,
+        &env_alias,
         iota_package_management::LockCommand::Publish,
         build_config.install_dir,
         build_config.lock_file,
         package_addr.into(),
         1,
-    )
-    .await?;
+    )?;
 
     Ok(upgrade_cap_id)
 }
@@ -1562,7 +1580,7 @@ async fn test_package_management_on_publish_command() -> Result<(), anyhow::Erro
     .await?;
 
     // Get Package ID and version
-    let ObjectRef {
+    let ObjectReference {
         object_id: expect_original_id,
         version: expect_version,
         ..
@@ -2823,14 +2841,14 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     .await?;
 
     // Get Original Package ID and version
-    let ObjectRef {
+    let ObjectReference {
         object_id: expect_original_id,
         ..
     } = get_new_package_obj_from_response(&publish_response)
         .ok_or_else(|| anyhow::anyhow!("No package object response"))?;
 
     // Get Upgraded Package ID and version
-    let ObjectRef {
+    let ObjectReference {
         object_id: expect_upgrade_latest_id,
         version: expect_upgrade_version,
         ..
@@ -3278,7 +3296,7 @@ async fn test_switch_command() -> Result<(), anyhow::Error> {
 
     // Create a new address
     let os = IotaClientCommands::NewAddress {
-        key_scheme: SignatureScheme::ED25519,
+        key_scheme: SignatureScheme::Ed25519,
         alias: None,
         derivation_path: None,
         word_length: None,
@@ -3325,7 +3343,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.public().flag() == Ed25519IotaSignature::SCHEME.flag())
+            .filter(|k| k.public().flag() == SignatureScheme::Ed25519.to_u8())
             .count(),
         5
     );
@@ -3346,7 +3364,7 @@ async fn test_new_address_command_by_flag() -> Result<(), anyhow::Error> {
             .keystore()
             .keys()
             .iter()
-            .filter(|k| k.public().flag() == Secp256k1IotaSignature::SCHEME.flag())
+            .filter(|k| k.public().flag() == SignatureScheme::Secp256k1.to_u8())
             .count(),
         1
     );
@@ -3901,20 +3919,16 @@ async fn test_split_coin() -> Result<(), anyhow::Error> {
 
 #[sim_test]
 async fn test_signature_flag() -> Result<(), anyhow::Error> {
-    let res = SignatureScheme::from_flag("0");
-    assert!(res.is_ok());
-    assert_eq!(res.unwrap().flag(), SignatureScheme::ED25519.flag());
-
-    let res = SignatureScheme::from_flag("1");
-    assert!(res.is_ok());
-    assert_eq!(res.unwrap().flag(), SignatureScheme::Secp256k1.flag());
-
-    let res = SignatureScheme::from_flag("2");
-    assert!(res.is_ok());
-    assert_eq!(res.unwrap().flag(), SignatureScheme::Secp256r1.flag());
-
-    let res = SignatureScheme::from_flag("something");
-    assert!(res.is_err());
+    assert_eq!(SignatureScheme::from_byte(0), Ok(SignatureScheme::Ed25519));
+    assert_eq!(
+        SignatureScheme::from_byte(1),
+        Ok(SignatureScheme::Secp256k1)
+    );
+    assert_eq!(
+        SignatureScheme::from_byte(2),
+        Ok(SignatureScheme::Secp256r1)
+    );
+    assert!(SignatureScheme::from_byte(0x05).is_err());
     Ok(())
 }
 
@@ -4958,7 +4972,7 @@ async fn test_transfer_sponsored() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_transfer_serialized_data() -> Result<(), anyhow::Error> {
     // Like `test_transfer` but the transaction is pre-generated and serialized into
-    // a Base64 string containing a Base64-encoded TransactionData.
+    // a Base64 string containing a Base64-encoded Transaction.
     let (mut cluster, client, rgp, o, _, a) = test_cluster_helper().await;
     let context = &mut cluster.wallet;
 
@@ -5670,6 +5684,8 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
             dump_bytecode_as_base64: false,
             generate_struct_layouts: false,
             with_unpublished_dependencies: false,
+            package_info: false,
+            protocol_build_config_args: Default::default(),
         }),
     }
     .execute()
@@ -5976,6 +5992,7 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
     let rpc = "http://127.0.0.1:9009".to_string();
     let graphql = Some("http://127.0.0.1:8000".to_string());
     let ws = Some("ws://127.0.0.1:9000".to_string());
+    let grpc = Some("http://127.0.0.1:9000".to_string());
     let basic_auth = Some("username:password".to_string());
     let faucet = Some("http://127.0.0.1:9123/v1/gas".to_string());
 
@@ -5984,6 +6001,7 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
         rpc: rpc.clone(),
         graphql: graphql.clone(),
         ws: ws.clone(),
+        grpc: grpc.clone(),
         basic_auth: basic_auth.clone(),
         faucet: faucet.clone(),
     }
@@ -6002,6 +6020,7 @@ async fn test_new_env() -> Result<(), anyhow::Error> {
     assert_eq!(*new_env.rpc(), rpc);
     assert_eq!(*new_env.graphql(), graphql);
     assert_eq!(*new_env.ws(), ws);
+    assert_eq!(*new_env.grpc(), grpc);
     assert_eq!(*new_env.basic_auth(), basic_auth);
     assert_eq!(*new_env.faucet(), faucet);
 
@@ -6624,12 +6643,13 @@ async fn setup_move_authenticator_account(
         .unwrap()
         .coin_object_id;
 
-    let package_path = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
+    let src_pkg = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap())
         .parent()
         .unwrap()
         .parent()
         .unwrap()
         .join(package_relative_path);
+    let (_temp_dir, package_path) = isolate_test_package(&src_pkg);
     let mut build_config = BuildConfig::new_for_testing().config;
     build_config.lock_file = Some(package_path.join("Move.lock"));
 
@@ -7208,4 +7228,98 @@ async fn test_move_authenticator_sender_and_sponsor_no_sponsor_args() -> Result<
     assert_eq!(tx_block.data.gas_data().owner, Address::from(sponsor_aa));
 
     Ok(())
+}
+
+/// Parses `iota move build <extra_args>` through the real CLI and returns the
+/// resulting `Build` command, so the flattened `ProtocolBuildConfigArgs` is
+/// exercised exactly as it is on the command line.
+fn parse_move_build(extra_args: &[&str]) -> iota_move::build::Build {
+    use clap::Parser;
+
+    let argv = ["iota", "move", "build"]
+        .into_iter()
+        .chain(extra_args.iter().copied());
+    match IotaCommand::try_parse_from(argv).unwrap() {
+        IotaCommand::Move {
+            cmd: iota_move::Command::Build(build),
+            ..
+        } => build,
+        _ => panic!("expected `iota move build`"),
+    }
+}
+
+#[test]
+fn move_build_allow_view_function_flag_is_optional() {
+    assert_eq!(
+        parse_move_build(&[])
+            .protocol_build_config_args
+            .allow_view_function,
+        None,
+    );
+    assert_eq!(
+        parse_move_build(&["--allow-view-function", "true"])
+            .protocol_build_config_args
+            .allow_view_function,
+        Some(true),
+    );
+    assert_eq!(
+        parse_move_build(&["--allow-view-function", "false"])
+            .protocol_build_config_args
+            .allow_view_function,
+        Some(false),
+    );
+}
+
+#[test]
+fn protocol_build_config_args_resolve_to_protocol_build_config() {
+    use iota_move::build::ProtocolBuildConfigArgs;
+    use iota_move_build::ProtocolBuildConfig;
+
+    // An unset override resolves to `ProtocolBuildConfig::default()`.
+    assert_eq!(
+        ProtocolBuildConfig::from(ProtocolBuildConfigArgs::default()).allow_view_function,
+        ProtocolBuildConfig::default().allow_view_function,
+    );
+    // An explicit override wins over the default.
+    assert!(
+        ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
+            allow_view_function: Some(true),
+            max_move_package_size: None,
+        })
+        .allow_view_function
+    );
+    assert!(
+        !ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
+            allow_view_function: Some(false),
+            max_move_package_size: None,
+        })
+        .allow_view_function
+    );
+}
+
+#[test]
+fn protocol_build_config_args_fill_unset_from_keeps_user_overrides() {
+    use iota_move::build::ProtocolBuildConfigArgs;
+    use iota_move_build::ProtocolBuildConfig;
+
+    // An unset override is populated from the provided defaults.
+    let mut args = ProtocolBuildConfigArgs::default();
+    args.fill_unset_from(&ProtocolBuildConfig {
+        allow_view_function: true,
+        max_move_package_size: Some(1234),
+    });
+    assert_eq!(args.allow_view_function, Some(true));
+    assert_eq!(args.max_move_package_size, Some(1234));
+
+    // A command-line override is preserved even when the default differs.
+    let mut args = ProtocolBuildConfigArgs {
+        allow_view_function: Some(false),
+        max_move_package_size: None,
+    };
+    args.fill_unset_from(&ProtocolBuildConfig {
+        allow_view_function: true,
+        max_move_package_size: Some(1234),
+    });
+    assert_eq!(args.allow_view_function, Some(false));
+    assert_eq!(args.max_move_package_size, Some(1234));
 }

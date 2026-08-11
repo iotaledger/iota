@@ -11,15 +11,13 @@ use iota_sdk_ext::grpc_types::{
 };
 
 use crate::{
-    utils::setup_grpc_test_with_builder,
+    utils::setup_grpc_test,
     v1::header::{parse_u64_header, verify_iota_headers},
 };
 
 #[sim_test]
 async fn test_response_headers() {
-    let (test_cluster, client) =
-        setup_grpc_test_with_builder(|builder| builder.with_epoch_duration_ms(2000), None, None)
-            .await;
+    let (test_cluster, client) = setup_grpc_test(None, None).await;
 
     let mut ledger_client = client.ledger_service_client();
 
@@ -53,7 +51,10 @@ async fn test_response_headers() {
 
     // Test get_epoch
     {
-        test_cluster.wait_for_epoch(Some(2)).await;
+        // Two epoch changes are needed: after the first one the latest checkpoint
+        // is still the end-of-epoch checkpoint of epoch 0.
+        test_cluster.force_new_epoch().await;
+        test_cluster.force_new_epoch().await;
 
         let request = GetEpochRequest::default().with_epoch(1);
         let response = ledger_client

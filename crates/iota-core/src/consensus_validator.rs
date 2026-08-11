@@ -8,6 +8,7 @@ use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
 use iota_types::{
+    base_types::ConciseableName,
     error::IotaError,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
@@ -18,7 +19,7 @@ use tracing::{info, instrument, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
-    checkpoints::CheckpointServiceNotify, transaction_manager::TransactionManager,
+    checkpoints::CheckpointServiceNotify,
 };
 
 /// Allows verifying the validity of transactions
@@ -26,7 +27,6 @@ use crate::{
 pub struct IotaTxValidator {
     epoch_store: Arc<AuthorityPerEpochStore>,
     checkpoint_service: Arc<dyn CheckpointServiceNotify + Send + Sync>,
-    _transaction_manager: Arc<TransactionManager>,
     metrics: Arc<IotaTxValidatorMetrics>,
 }
 
@@ -34,7 +34,6 @@ impl IotaTxValidator {
     pub fn new(
         epoch_store: Arc<AuthorityPerEpochStore>,
         checkpoint_service: Arc<dyn CheckpointServiceNotify + Send + Sync>,
-        transaction_manager: Arc<TransactionManager>,
         metrics: Arc<IotaTxValidatorMetrics>,
     ) -> Self {
         info!(
@@ -44,7 +43,6 @@ impl IotaTxValidator {
         Self {
             epoch_store,
             checkpoint_service,
-            _transaction_manager: transaction_manager,
             metrics,
         }
     }
@@ -122,6 +120,35 @@ impl IotaTxValidator {
 
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
+
+                ConsensusTransactionKind::OverloadNotificationV1(authority_name, _, percentage) => {
+                    if !self.epoch_store.protocol_config().enable_pcool_flow() {
+                        return Err(IotaError::UnsupportedFeature {
+                            error:
+                                "OverloadNotificationV1 not supported at current protocol version"
+                                    .into(),
+                        });
+                    }
+                    if *percentage > 100 {
+                        return Err(IotaError::HandleConsensusTransactionFailure(format!(
+                            "OverloadNotificationV1 with invalid percentage {percentage} from \
+                                authority {}",
+                            authority_name.concise(),
+                        )));
+                    }
+                }
+
+                // No explicit size cap on the proposed rules: the proposal is
+                // bounded by `max_transaction_size_bytes` (256 KiB), enforced
+                // on every received block by starfish's block verifier.
+                ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
+                    if !self.epoch_store.protocol_config().deny_rule_governance() {
+                        return Err(IotaError::UnsupportedFeature {
+                            error: "TransactionDenyRuleProposal not supported at current protocol version"
+                                .into(),
+                        });
+                    }
+                }
             }
         }
 
@@ -162,7 +189,7 @@ impl IotaTxValidator {
         // which is unnecessary for owned object transactions.
         // It is unnecessary to write to pending_certificates table because the
         // certs will be written via consensus output.
-        // self.transaction_manager
+        // self.execution_scheduler
         //     .enqueue_certificates(owned_tx_certs, &self.epoch_store)
         //     .wrap_err("Failed to schedule certificates for execution")
     }
@@ -239,16 +266,15 @@ mod tests {
 
     use iota_macros::sim_test;
     use iota_protocol_config::Chain;
-    use iota_sdk_ext::types::ObjectId;
+    use iota_sdk_ext::types::{ObjectId, UserSignature};
     use iota_types::{
-        crypto::Ed25519IotaSignature,
         error::IotaError,
         messages_consensus::{
             ConsensusTransaction, ConsensusTransactionKind, MisbehaviorObservationsV1,
             VersionedMisbehaviorReport,
         },
         object::Object,
-        signature::GenericSignature,
+        transaction::SenderSignedTransactionAPI,
     };
     use starfish_core::TransactionVerifier as _;
 
@@ -289,7 +315,6 @@ mod tests {
         let validator = IotaTxValidator::new(
             state.epoch_store_for_testing().clone(),
             Arc::new(CheckpointServiceNoop {}),
-            state.transaction_manager().clone(),
             metrics,
         );
         let res = validator.verify_batch(&[&first_transaction_bytes]);
@@ -311,11 +336,8 @@ mod tests {
             .into_iter()
             .map(|mut cert| {
                 // set it to an all-zero user signature
-                cert.tx_signatures_mut_for_testing()[0] = GenericSignature::Signature(
-                    iota_types::crypto::Signature::Ed25519IotaSignature(
-                        Ed25519IotaSignature::default(),
-                    ),
-                );
+                cert.tx_signatures_mut_for_testing()[0] =
+                    UserSignature::Simple(iota_types::crypto::zero_ed25519_signature());
                 bcs::to_bytes(&ConsensusTransaction::new_certificate_message(&name1, cert)).unwrap()
             })
             .collect();
@@ -365,7 +387,7 @@ mod tests {
             .await;
 
         let rgp = state.epoch_store_for_testing().reference_gas_price();
-        let gas_ref = state.get_object(&gas_object_id).await.unwrap().object_ref();
+        let gas_ref = state.get_object(&gas_object_id).unwrap().object_ref();
         let recipient = iota_types::crypto::get_key_pair::<AccountKeyPair>().0;
         let signed_tx =
             make_transfer_iota_transaction(gas_ref, recipient, None, sender, &sender_key, rgp);
@@ -374,7 +396,6 @@ mod tests {
         let validator = IotaTxValidator::new(
             state.epoch_store_for_testing().clone(),
             Arc::new(CheckpointServiceNoop {}),
-            state.transaction_manager().clone(),
             metrics,
         );
 
@@ -411,6 +432,16 @@ mod tests {
                 // IOTA and the variant is retained only for serialization
                 // compatibility.
                 ConsensusTransactionKind::NewJWKFetchedDeprecated => Some(false),
+
+                // Gated behind `enable_pcool_flow`.
+                ConsensusTransactionKind::OverloadNotificationV1(_, _, _) => {
+                    Some(config.enable_pcool_flow())
+                }
+
+                // Gated behind `deny_rule_governance`.
+                ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
+                    Some(config.deny_rule_governance())
+                }
             }
         }
 
@@ -465,6 +496,20 @@ mod tests {
             (
                 "UserTransactionV1",
                 ConsensusTransactionKind::UserTransactionV1(Box::new(signed_tx)),
+            ),
+            (
+                "OverloadNotificationV1",
+                ConsensusTransactionKind::OverloadNotificationV1(authority, 0, 50),
+            ),
+            (
+                "TransactionDenyRuleProposal",
+                ConsensusTransactionKind::TransactionDenyRuleProposal(
+                    iota_types::messages_consensus::TransactionDenyRuleProposal {
+                        authority,
+                        generation: 0,
+                        proposed_rules: Default::default(),
+                    },
+                ),
             ),
         ];
 

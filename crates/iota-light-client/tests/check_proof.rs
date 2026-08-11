@@ -50,16 +50,14 @@ async fn read_data(committee_seq: u64, seq: u64) -> (Committee, CheckpointData) 
     let summary = read_checkpoint_summary(&checkpoint_summary_path)
         .await
         .unwrap();
-    let prev_committee = summary
+    let prev_committee = &summary
         .end_of_epoch_data
         .as_ref()
         .expect("Expected all checkpoints to be end-of-epoch checkpoints")
-        .next_epoch_committee
-        .iter()
-        .cloned()
-        .collect();
+        .next_epoch_committee;
 
-    let committee = Committee::new(summary.epoch().checked_add(1).unwrap(), prev_committee);
+    let committee =
+        Committee::from_committee_members(summary.epoch().checked_add(1).unwrap(), prev_committee);
 
     let full_checkpoint_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(FIXTURES_DIR)
@@ -102,18 +100,15 @@ async fn check_can_read_test_data() {
 async fn test_new_committee() {
     let (committee, full_checkpoint) = read_test_data().await;
 
-    let new_committee_data = full_checkpoint
+    let new_committee_data = &full_checkpoint
         .checkpoint_summary
         .end_of_epoch_data
         .as_ref()
         .expect("Expected checkpoint to be end-of-epoch")
-        .next_epoch_committee
-        .iter()
-        .cloned()
-        .collect();
+        .next_epoch_committee;
 
     // Make a committee object using this
-    let new_committee = Committee::new(
+    let new_committee = Committee::from_committee_members(
         full_checkpoint
             .checkpoint_summary
             .epoch()
@@ -150,18 +145,15 @@ async fn test_incorrect_new_committee() {
 async fn test_fail_incorrect_cert() {
     let (_committee, full_checkpoint) = read_test_data().await;
 
-    let new_committee_data = full_checkpoint
+    let new_committee_data = &full_checkpoint
         .checkpoint_summary
         .end_of_epoch_data
         .as_ref()
         .expect("expected checkpoint to be end-of-epoch")
-        .next_epoch_committee
-        .iter()
-        .cloned()
-        .collect();
+        .next_epoch_committee;
 
     // Make a committee object using this
-    let new_committee = Committee::new(
+    let new_committee = Committee::from_committee_members(
         full_checkpoint
             .checkpoint_summary
             .epoch()

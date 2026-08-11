@@ -7,8 +7,6 @@ teams:
   - iotaledger/infrastructure
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/advanced-topics/custom-indexer.json';
 import CodeBlock from '@theme/CodeBlock';
 
 You can build custom indexers using the IOTA data ingestion framework, which is maintained through the [iota-data-ingestion-core][iota-data-ingestion-core] library. To create an indexer, you subscribe to a checkpoint stream with full checkpoint content. This stream can be one of the publicly available streams from IOTA, one that you set up in your local environment, or a combination of the two.
@@ -254,5 +252,3 @@ Code for the `Cargo.toml` manifest file for the custom indexer.
 Find the following source code in the [IOTA repo](https://github.com/iotaledger/iota/tree/main/examples/custom-indexer/rust).
 
 [iota-data-ingestion-core]: https://github.com/iotaledger/iota/tree/develop/crates/iota-data-ingestion-core
-
-<Quiz questions={questions} />

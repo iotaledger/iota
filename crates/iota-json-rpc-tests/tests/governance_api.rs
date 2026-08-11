@@ -14,18 +14,16 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::{ObjectData, ObjectId, Owner, StructTag};
+use iota_sdk_ext::types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest};
 use iota_swarm_config::genesis_config::{
     AccountConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_key,
-    digests::TransactionDigest,
-    governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     id::UID,
     iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner},
+    object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     quorum_driver_types::ExecuteTransactionRequestType,
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
@@ -68,7 +66,7 @@ async fn execute_add_validator_transactions(
             ),
         }
     });
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
     let gas = test_cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
@@ -101,14 +99,11 @@ async fn execute_add_validator_transactions(
         assert_eq!(validator_candidates_size, cur_validator_candidate_count + 1);
     });
 
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
+    let min_validator_joining_stake = test_cluster.protocol_config().min_validator_joining_stake();
     let stake_coin = test_cluster
         .wallet
-        .gas_for_owner_budget(
-            address,
-            MIN_VALIDATOR_JOINING_STAKE_NANOS,
-            Default::default(),
-        )
+        .gas_for_owner_budget(address, min_validator_joining_stake, Default::default())
         .await
         .unwrap()
         .1
@@ -158,7 +153,7 @@ async fn execute_add_validator_transactions(
 async fn get_stakes_with_new_validator() {
     // Create the keypair for the new validator candidate
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
 
     let mut test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
@@ -379,9 +374,12 @@ async fn test_staking() -> Result<(), anyhow::Error> {
 }
 
 #[sim_test]
-#[ignore = "https://github.com/iotaledger/iota/issues/5085"]
 async fn test_unstaking() -> Result<(), anyhow::Error> {
-    let cluster = TestClusterBuilder::new().build().await;
+    // disable pruning so that we can query the unstaked object after it is deleted
+    let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
+        .build()
+        .await;
 
     let http_client = cluster.rpc_client();
     let address = cluster.get_address_0();
@@ -515,7 +513,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
 
     let timelock_iota = {
-        MoveObject::new_from_execution(
+        MoveStruct::new_from_execution(
             StructTag::new_timelocked_gas_balance(),
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
@@ -672,7 +670,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
 
     let timelock_iota = {
-        MoveObject::new_from_execution(
+        MoveStruct::new_from_execution(
             StructTag::new_timelocked_gas_balance(),
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(
@@ -693,7 +691,9 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         storage_rebate: 0,
     };
 
+    // disable pruning so that we can query the unstaked object after it is deleted
     let cluster = TestClusterBuilder::new()
+        .disable_fullnode_pruning()
         .with_accounts(
             [AccountConfig {
                 address: Some(address),

@@ -14,15 +14,16 @@ use iota_json_rpc_types::{
     RPCTransactionRequestParams, StakeStatus, TransactionBlockBytes, TransferObjectParams,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::{Address, ObjectData, ObjectId, Owner, StructTag};
+use iota_sdk_ext::types::{
+    Address, MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest,
+};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     gas_coin::GAS,
     id::UID,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner},
+    object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     timelock::{
         label::label_struct_tag_to_string, stardust_upgrade_label::stardust_upgrade_label_type,
         timelock::TimeLock,
@@ -817,7 +818,7 @@ async fn create_cluster_with_timelocked_iota(
     let label = Option::Some(label_struct_tag_to_string(stardust_upgrade_label_type()));
 
     let timelock_iota = {
-        MoveObject::new_from_execution(
+        MoveStruct::new_from_execution(
             StructTag::new_timelocked_gas_balance(),
             OBJECT_START_VERSION,
             TimeLock::<iota_types::balance::Balance>::new(

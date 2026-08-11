@@ -10,10 +10,7 @@ use std::{
 
 use backoff::backoff::Backoff;
 use futures::{StreamExt, TryStreamExt};
-use iota_config::{
-    node::ArchiveReaderConfig,
-    object_storage_config::{ObjectStoreConfig, ObjectStoreType},
-};
+use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_metrics::spawn_monitored_task;
 use iota_sdk_ext::grpc_client::Client as GrpcClient;
 use iota_types::{
@@ -28,7 +25,7 @@ use tokio::{
     time::timeout,
 };
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 #[cfg(not(target_os = "macos"))]
 use crate::reader::fetch::init_watcher;
@@ -36,7 +33,7 @@ use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS,
     config::CheckpointReaderConfigExt,
     create_remote_store_client,
-    history::reader::HistoricalReader,
+    history::reader::{HistoricalReader, HistoricalReaderConfig},
     reader::{
         ReaderOptions,
         common::DataLimiter,
@@ -115,18 +112,27 @@ impl RemoteStore {
                 historical_url,
                 live_url,
             } => {
-                let config = ArchiveReaderConfig {
-                    download_concurrency: NonZeroUsize::new(batch_size)
-                        .expect("batch size must be greater than zero"),
-                    remote_store_config: ObjectStoreConfig {
+                let remote_store_config = if let Some(dir) = historical_url.strip_prefix("file://")
+                {
+                    ObjectStoreConfig {
+                        object_store: Some(ObjectStoreType::File),
+                        directory: Some(PathBuf::from(dir)),
+                        ..Default::default()
+                    }
+                } else {
+                    ObjectStoreConfig {
                         object_store: Some(ObjectStoreType::S3),
                         object_store_connection_limit: 20,
                         aws_endpoint: Some(historical_url),
                         aws_virtual_hosted_style_request: true,
                         no_sign_request: true,
                         ..Default::default()
-                    },
-                    use_for_pruning_watermark: false,
+                    }
+                };
+                let config = HistoricalReaderConfig {
+                    download_concurrency: NonZeroUsize::new(batch_size)
+                        .expect("batch size must be greater than zero"),
+                    remote_store_config,
                 };
                 let historical = HistoricalReader::new(config)
                     .inspect_err(|e| error!("unable to instantiate historical reader: {e}"))?;
@@ -328,9 +334,9 @@ impl CheckpointReaderActor {
             .stream_checkpoints(
                 Some(self.current_checkpoint_number),
                 None,
-                Some(iota_sdk_ext::grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA.into()),
                 self.fullnode_transaction_filter.clone().map(Into::into),
                 None,
+                iota_sdk_ext::grpc_client::CHECKPOINT_RESPONSE_CHECKPOINT_DATA,
             )
             .await
             .map_err(|e| {
@@ -402,7 +408,7 @@ impl CheckpointReaderActor {
                 Ok(_) => break,
                 Err(IngestionError::MaxCheckpointsCapacityReached) => break,
                 Err(IngestionError::CheckpointNotAvailableYet) => {
-                    break info!("historical reader does not have the requested checkpoint yet");
+                    break debug!("historical reader does not have the requested checkpoint yet");
                 }
                 Err(err) => match backoff.next_backoff() {
                     Some(duration) => {
@@ -504,7 +510,7 @@ impl CheckpointReaderActor {
             self.send_local_checkpoints_to_channel(checkpoints).await?;
         }
 
-        info!(
+        debug!(
             "Read from {remote_source}. Current checkpoint number: {}, pruning watermark: {}",
             self.current_checkpoint_number, self.last_pruned_watermark,
         );

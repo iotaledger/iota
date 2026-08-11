@@ -17,6 +17,7 @@ use crate::metrics::test_metrics;
 use crate::{
     block_header::{BlockTimestampMs, Round},
     metrics::Metrics,
+    peer_responsiveness::PeerResponsiveness,
 };
 
 /// Context contains per-epoch configuration and metrics shared by all
@@ -37,6 +38,9 @@ pub(crate) struct Context {
     pub metrics: Arc<Metrics>,
     /// Access to local clock
     pub clock: Arc<Clock>,
+    /// Tracks per-peer responsiveness and ranks candidates for synchronizer
+    /// peer selection. Shared per epoch.
+    pub peer_responsiveness: Arc<PeerResponsiveness>,
 }
 
 impl Context {
@@ -49,6 +53,7 @@ impl Context {
         metrics: Arc<Metrics>,
         clock: Arc<Clock>,
     ) -> Self {
+        let peer_responsiveness = PeerResponsiveness::new(&committee, metrics.clone());
         Self {
             epoch_start_timestamp_ms,
             own_index,
@@ -57,6 +62,7 @@ impl Context {
             protocol_config,
             metrics,
             clock,
+            peer_responsiveness,
         }
     }
 
@@ -88,6 +94,10 @@ impl Context {
             Parameters {
                 db_path: temp_dir.keep(),
                 commit_recovery_batch_size: 3,
+                // Keep peer selection deterministic (no responsiveness ranking)
+                // for the many tests that rely on stable peer order; tests that
+                // exercise ranking opt in explicitly.
+                enable_peer_responsiveness_ranking: false,
                 ..Default::default()
             },
             ProtocolConfig::get_for_max_version_UNSAFE(),

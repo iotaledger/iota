@@ -15,15 +15,16 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, Transaction, TransactionData},
+        transaction::{CallArg, TransactionEnvelope},
     },
 };
-use iota_sdk_ext::types::{Argument, Identifier, ObjectId, crypto::Intent};
-use iota_types::transaction::TransactionDataAPI;
+use iota_sdk_ext::types::{
+    Argument, Identifier, ObjectId, SignatureScheme, Transaction, crypto::Intent,
+};
+use iota_types::transaction::TransactionAPI;
 
 pub const IOTA_COIN_TYPE: u32 = 4218;
 
@@ -49,7 +50,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Derive the address of the sponsor
     let sponsor = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
-        ED25519,
+        SignatureScheme::Ed25519,
         Some(sponsor_derivation_path),
         None,
     )?;
@@ -58,7 +59,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // Derive the address of the sender
     let sender = keystore.import_from_mnemonic(
         MAIN_ADDRESS_MNEMONIC,
-        ED25519,
+        SignatureScheme::Ed25519,
         Some(sender_derivation_path),
         None,
     )?;
@@ -147,7 +148,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Create the transaction data that will be sent to the network and allow
     // sponsoring
-    let tx_data = TransactionData::new_programmable_allow_sponsor(
+    let tx = Transaction::new_programmable_allow_sponsor(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -157,17 +158,17 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     // Sender signs the transaction
-    let sender_signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
+    let sender_signature = keystore.sign_secure(&sender, &tx, Intent::iota_transaction())?;
 
     // Sponsor signs the transaction
-    let sponsor_signature = keystore.sign_secure(&sponsor, &tx_data, Intent::iota_transaction())?;
+    let sponsor_signature = keystore.sign_secure(&sponsor, &tx, Intent::iota_transaction())?;
 
     // Execute transaction; the transaction data is created using the signature of
     // the sender and of the sponsor.
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![sender_signature, sponsor_signature]),
+            TransactionEnvelope::from_data(tx, vec![sender_signature, sponsor_signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

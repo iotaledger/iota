@@ -20,11 +20,10 @@ use tokio::{
     task::JoinSet,
     time::{MissedTickBehavior, sleep},
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info, warn};
 
 use crate::{
     CommitConsumerMonitor, CommitIndex,
-    block_header::BlockRef,
     block_verifier::BlockVerifier,
     commit::{CertifiedCommit, CertifiedCommits, CommitAPI as _, CommitRange},
     commit_syncer::{
@@ -32,8 +31,7 @@ use crate::{
         fast::{FastSyncPauseSource, paused_by_fast_sync},
         fetch_loop as shared_fetch_loop, handle_fetch_join_error, requeue_partial_range,
         schedule_commit_ranges, try_start_fetches as shared_try_start_fetches,
-        verify_fetched_headers, verify_transactions_with_headers,
-        verify_transactions_with_transactions_refs,
+        verify_fetched_headers, verify_transactions_with_transactions_refs,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -42,7 +40,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
-    network::{NetworkClient, SerializedTransactionsV1, SerializedTransactionsV2},
+    network::{NetworkClient, SerializedTransactionsV2},
     transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
 };
 
@@ -164,11 +162,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         if !self.inner.sync_type.should_schedule(
             gap,
             self.inner.context.parameters.commit_sync_gap_threshold,
-            self.inner
-                .context
-                .protocol_config
-                .consensus_fast_commit_sync()
-                && self.inner.context.parameters.enable_fast_commit_syncer,
+            self.inner.context.parameters.enable_fast_commit_syncer,
         ) {
             return;
         }
@@ -354,22 +348,8 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
                 // Collect available transactions from VerifiedTransactions
                 for verified_txns in certified_commit.transactions() {
-                    let gen_tx_ref = if self
-                        .inner
-                        .context
-                        .protocol_config
-                        .consensus_fast_commit_sync()
-                    {
-                        GenericTransactionRef::TransactionRef(verified_txns.transaction_ref())
-                    } else {
-                        let Some(block_ref) = verified_txns.block_ref() else {
-                            error!(
-                                "block_ref unavailable for transactions in non-transaction-ref path"
-                            );
-                            continue;
-                        };
-                        GenericTransactionRef::BlockRef(block_ref)
-                    };
+                    let gen_tx_ref =
+                        GenericTransactionRef::TransactionRef(verified_txns.transaction_ref());
                     available_transactions.insert(gen_tx_ref);
                 }
             }
@@ -535,7 +515,6 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .commit_sync_fetch_once_latency
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
-        let consensus_fast_commit_sync = inner.context.protocol_config.consensus_fast_commit_sync();
 
         // 1. Fetch commits in the commit range from the target authority.
         let (serialized_commits, serialized_voting_block_headers) = inner
@@ -565,7 +544,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .expect("Spawn blocking should not fail")?;
 
         // 3. Fetch block headers referenced by the commits, from the same authority.
-        let mut block_refs: Vec<_> = commits
+        let block_refs: Vec<_> = commits
             .iter()
             .flat_map(|c| c.block_headers())
             .cloned()
@@ -576,36 +555,6 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .iter()
             .flat_map(|c| c.committed_transactions())
             .collect();
-
-        if !consensus_fast_commit_sync {
-            // 3b. Identify which committed transaction blocks are NOT in the committed
-            // blocks list and add them to block_refs so they get fetched together.
-            // If consensus_fast_commit_sync is true, then we fetch these transactions
-            // separately without fetching headers, so in this case we don't need to do
-            // anything here
-            let block_refs_set: BTreeSet<_> = block_refs.iter().cloned().collect();
-            let missing_tx_header_refs: ConsensusResult<Vec<BlockRef>> = committed_tx_refs
-                .iter()
-                .filter_map(|tx_ref| match tx_ref {
-                    GenericTransactionRef::BlockRef(br) => {
-                        if !block_refs_set.contains(br) {
-                            Some(Ok(*br))
-                        } else {
-                            None
-                        }
-                    }
-                    _ => Some(Err(ConsensusError::TransactionRefVariantMismatch {
-                        protocol_flag_enabled: false,
-                        expected_variant: "BlockRef",
-                        received_variant: "TransactionRef",
-                    })),
-                })
-                .collect();
-            let missing_tx_header_refs = missing_tx_header_refs?;
-
-            // Merge missing transaction headers into the main block_refs list
-            block_refs.extend(missing_tx_header_refs);
-        }
 
         let num_chunks = block_refs
             .len()
@@ -636,7 +585,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                     // errors (wrong count/ref) which classify as Untracked. When
                     // per-header faults become observable here, record them as peer
                     // misbehavior via
-                    // `inner.misbehavior_store.record_faulty_block_header`.
+                    // `inner.misbehavior_store.record_faulty_block`.
                     verify_fetched_headers(
                         target_authority,
                         request_block_refs,
@@ -696,58 +645,26 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         // Deserialize to extract BlockRef and build a map directly
                         let mut result = BTreeMap::new();
                         for serialized_bytes in serialized_transactions {
-                            let (committed_transaction_ref, serialized_transactions) =
-                                if !consensus_fast_commit_sync {
-                                    let serialized_tx: SerializedTransactionsV1 =
-                                        bcs::from_bytes(&serialized_bytes)
-                                            .map_err(ConsensusError::MalformedTransactions)?;
+                            let serialized_tx: SerializedTransactionsV2 =
+                                bcs::from_bytes(&serialized_bytes)
+                                    .map_err(ConsensusError::MalformedTransactions)?;
 
-                                    // 11. Verify the returned transactions match the requested
-                                    //     block refs.
-                                    let committed_transaction_ref =
-                                        GenericTransactionRef::BlockRef(serialized_tx.block_ref);
-                                    if !requested_block_refs_set
-                                        .contains(&committed_transaction_ref)
-                                    {
-                                        return Err(
-                                            ConsensusError::UnexpectedTransactionForCommit {
-                                                peer: target_authority,
-                                                received: committed_transaction_ref,
-                                            },
-                                        );
-                                    }
-                                    (
-                                        committed_transaction_ref,
-                                        serialized_tx.serialized_transactions,
-                                    )
-                                } else {
-                                    let serialized_tx: SerializedTransactionsV2 =
-                                        bcs::from_bytes(&serialized_bytes)
-                                            .map_err(ConsensusError::MalformedTransactions)?;
+                            // 11. Verify the returned transactions match the requested transaction
+                            //     refs.
+                            let committed_transaction_ref = GenericTransactionRef::TransactionRef(
+                                serialized_tx.transaction_ref,
+                            );
+                            if !requested_block_refs_set.contains(&committed_transaction_ref) {
+                                return Err(ConsensusError::UnexpectedTransactionForCommit {
+                                    peer: target_authority,
+                                    received: committed_transaction_ref,
+                                });
+                            }
 
-                                    // 11. Verify the returned transactions match the requested
-                                    //     transaction refs.
-                                    let committed_transaction_ref =
-                                        GenericTransactionRef::TransactionRef(
-                                            serialized_tx.transaction_ref,
-                                        );
-                                    if !requested_block_refs_set
-                                        .contains(&committed_transaction_ref)
-                                    {
-                                        return Err(
-                                            ConsensusError::UnexpectedTransactionForCommit {
-                                                peer: target_authority,
-                                                received: committed_transaction_ref,
-                                            },
-                                        );
-                                    }
-                                    (
-                                        committed_transaction_ref,
-                                        serialized_tx.serialized_transactions,
-                                    )
-                                };
-
-                            result.insert(committed_transaction_ref, serialized_transactions);
+                            result.insert(
+                                committed_transaction_ref,
+                                serialized_tx.serialized_transactions,
+                            );
                         }
 
                         Ok::<BTreeMap<GenericTransactionRef, Bytes>, ConsensusError>(result)
@@ -778,38 +695,20 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
         // 13. Verify transactions
         let mut transactions_map = if !fetched_transactions.is_empty() {
-            if !inner.context.protocol_config.consensus_fast_commit_sync() {
-                Handle::current()
-                    .spawn_blocking({
-                        let context = inner.context.clone();
-                        let fetched_block_headers_clone = fetched_block_headers.clone();
-                        move || {
-                            verify_transactions_with_headers(
-                                context,
-                                target_authority,
-                                fetched_transactions,
-                                fetched_block_headers_clone,
-                            )
-                        }
-                    })
-                    .await
-                    .expect("Spawn blocking should not fail")?
-            } else {
-                Handle::current()
-                    .spawn_blocking({
-                        let context = inner.context.clone();
+            Handle::current()
+                .spawn_blocking({
+                    let context = inner.context.clone();
 
-                        move || {
-                            verify_transactions_with_transactions_refs(
-                                &context,
-                                target_authority,
-                                fetched_transactions,
-                            )
-                        }
-                    })
-                    .await
-                    .expect("Spawn blocking should not fail")?
-            }
+                    move || {
+                        verify_transactions_with_transactions_refs(
+                            &context,
+                            target_authority,
+                            fetched_transactions,
+                        )
+                    }
+                })
+                .await
+                .expect("Spawn blocking should not fail")?
         } else {
             BTreeMap::new()
         };
@@ -880,94 +779,24 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{Arc, atomic::AtomicBool},
-        time::Duration,
-    };
+    use std::sync::{Arc, atomic::AtomicBool};
 
-    use bytes::Bytes;
     use parking_lot::RwLock;
     use starfish_config::{AuthorityIndex, Parameters};
 
     use crate::{
-        CommitConsumerMonitor, CommitDigest, CommitRef, Round,
-        block_header::{BlockRef, TestBlockHeader, VerifiedBlockHeader},
+        CommitConsumerMonitor, CommitDigest, CommitRef,
+        block_header::{TestBlockHeader, VerifiedBlockHeader},
         block_verifier::NoopBlockVerifier,
-        commit::CommitRange,
-        commit_syncer::regular::RegularCommitSyncer,
+        commit_syncer::{regular::RegularCommitSyncer, tests::FakeNetworkClient},
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core_thread::tests::MockCoreThreadDispatcher,
         dag_state::DagState,
-        error::ConsensusResult,
         header_synchronizer::HeaderSynchronizer,
         misbehavior_store::MisbehaviorStore,
-        network::{BlockBundleStream, NetworkClient},
         storage::{Store, mem_store::MemStore},
-        transaction_ref::GenericTransactionRef,
     };
-
-    #[derive(Default)]
-    struct FakeNetworkClient {}
-
-    #[async_trait::async_trait]
-    impl NetworkClient for FakeNetworkClient {
-        async fn subscribe_block_bundles(
-            &self,
-            _peer: AuthorityIndex,
-            _last_received: Round,
-            _timeout: Duration,
-        ) -> ConsensusResult<BlockBundleStream> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_transactions(
-            &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<GenericTransactionRef>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
-        }
-
-        // Returns a vector of serialized block headers
-        async fn fetch_block_headers(
-            &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
-            _highest_accepted_rounds: Vec<Round>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!();
-        }
-
-        async fn fetch_commits(
-            &self,
-            _peer: AuthorityIndex,
-            _commit_range: CommitRange,
-            _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_commits_and_transactions(
-            &self,
-            _peer: AuthorityIndex,
-            _commit_range: CommitRange,
-            _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_latest_block_headers(
-            &self,
-            _peer: AuthorityIndex,
-            _authorities: Vec<AuthorityIndex>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
-        }
-    }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn commit_syncer_start_and_pause_scheduling() {
@@ -1000,6 +829,7 @@ mod tests {
                 context.clone(),
                 core_thread_dispatcher.clone(),
                 dag_state.clone(),
+                block_verifier.clone(),
             );
         let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
@@ -1126,6 +956,7 @@ mod tests {
                     context.clone(),
                     core_thread_dispatcher.clone(),
                     dag_state.clone(),
+                    block_verifier.clone(),
                 );
             let header_synchronizer = HeaderSynchronizer::start(
                 network_client.clone(),

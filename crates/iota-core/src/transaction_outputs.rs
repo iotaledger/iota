@@ -7,14 +7,12 @@ use std::{
     sync::Arc,
 };
 
+use iota_sdk_ext::types::{ObjectReference, TransactionEffects, TransactionEvents};
 use iota_types::{
-    base_types::ObjectRef,
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
     storage::{MarkerValue, ObjectKey},
-    transaction::{TransactionDataAPI, VerifiedTransaction},
+    transaction::{TransactionAPI, VerifiedTransaction},
 };
 
 /// TransactionOutputs
@@ -26,8 +24,8 @@ pub struct TransactionOutputs {
     pub markers: Vec<(ObjectKey, MarkerValue)>,
     pub wrapped: Vec<ObjectKey>,
     pub deleted: Vec<ObjectKey>,
-    pub live_object_markers_to_delete: Vec<ObjectRef>,
-    pub new_live_object_markers_to_init: Vec<ObjectRef>,
+    pub live_object_markers_to_delete: Vec<ObjectReference>,
+    pub new_live_object_markers_to_init: Vec<ObjectReference>,
     pub written: WrittenObjects,
 }
 
@@ -57,7 +55,7 @@ impl TransactionOutputs {
         // Get the actual set of objects that have been received -- any received
         // object will show up in the modified-at set.
         let modified_at: HashSet<_> = effects.modified_at_versions().into_iter().collect();
-        let possible_to_receive = transaction.transaction_data().receiving_objects();
+        let possible_to_receive = transaction.transaction().receiving_objects();
         let received_objects = possible_to_receive
             .into_iter()
             .filter(|obj_ref| modified_at.contains(&(obj_ref.object_id, obj_ref.version)));
@@ -103,7 +101,7 @@ impl TransactionOutputs {
             .filter_map(|(id, ((version, digest), owner))| {
                 owner
                     .is_address()
-                    .then_some(ObjectRef::new(id, version, digest))
+                    .then_some(ObjectReference::new(id, version, digest))
             })
             .chain(received_objects)
             .collect();

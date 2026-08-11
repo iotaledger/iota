@@ -4,9 +4,8 @@
 
 use iota_sdk_ext::{
     grpc_types::google::rpc::{BadRequest, ErrorInfo, RetryInfo},
-    types::ObjectId,
+    types::{ObjectId, TransactionDigest},
 };
-use iota_types::digests::TransactionDigest;
 use tonic::{Code, Status};
 
 /// Main RPC error type

@@ -6,14 +6,15 @@ use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_graphql_rpc_client::simple_client::SimpleClient;
 use iota_indexer::{
-    config::PruningOptions,
+    config::RetentionConfig,
     errors::IndexerError,
     store::PgIndexerStore,
     test_utils::{IndexerTypeConfig, force_delete_database, start_test_indexer_impl},
 };
 use iota_node_storage::GrpcStateReader;
+use iota_sdk_ext::types::Transaction;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use iota_types::transaction::{Transaction, TransactionData};
+use iota_types::transaction::TransactionEnvelope;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{join, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -137,10 +138,9 @@ pub async fn serve_executor(
         true,
         None,
         format!("http://{executor_server_url}"),
-        IndexerTypeConfig::writer_mode(Some(PruningOptions {
-            epochs_to_keep,
-            ..Default::default()
-        })),
+        IndexerTypeConfig::writer_mode_with_retention(
+            epochs_to_keep.map(|epochs| RetentionConfig::new(epochs, Default::default())),
+        ),
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
@@ -256,8 +256,7 @@ async fn start_validator_with_fullnode(
                 gas_amounts: vec![DEFAULT_GAS_AMOUNT; GAS_OBJECT_COUNT],
             };
             ACCOUNT_NUM
-        ])
-        .with_fullnode_enable_grpc_api(true);
+        ]);
 
     if let Some(internal_data_source_rpc_port) = internal_data_source_rpc_port {
         test_cluster_builder =
@@ -343,7 +342,7 @@ impl Cluster {
     }
 
     /// Builds a transaction that transfers IOTA for testing.
-    pub async fn build_transfer_iota_for_test(&self) -> TransactionData {
+    pub async fn build_transfer_iota_for_test(&self) -> Transaction {
         let addresses = self.validator_fullnode_handle.wallet.get_addresses();
 
         let recipient = addresses[1];
@@ -355,7 +354,7 @@ impl Cluster {
     }
 
     /// Signs a transaction.
-    pub fn sign_transaction(&self, transaction: &TransactionData) -> Transaction {
+    pub fn sign_transaction(&self, transaction: &Transaction) -> TransactionEnvelope {
         self.validator_fullnode_handle
             .wallet
             .sign_transaction(transaction)

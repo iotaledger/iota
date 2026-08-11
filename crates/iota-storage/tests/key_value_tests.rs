@@ -7,26 +7,29 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use futures::FutureExt;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{
+    CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
+    TransactionEvents,
+    checkpoint::{CheckpointContents, CheckpointSummary},
+};
 use iota_storage::{key_value_store::*, key_value_store_metrics::KeyValueStoreMetrics};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{ExecutionDigests, VersionNumber, random_object_ref},
     committee::Committee,
     crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
-    digests::{CheckpointContentsDigest, CheckpointDigest, TransactionDigest},
-    effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::IotaResult,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-        CheckpointSummary, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
+        CheckpointSummaryExt, SignedCheckpointSummary,
     },
     object::Object,
     storage::ObjectKey,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 
-fn random_tx() -> Transaction {
+fn random_tx() -> TransactionEnvelope {
     let (sender, key): (_, AccountKeyPair) = get_key_pair();
     let gas = random_object_ref();
     TestTransactionBuilder::new(sender, gas, 1)
@@ -41,7 +44,7 @@ fn random_fx() -> TransactionEffects {
 
 #[derive(Default)]
 struct MockTxStore {
-    txs: HashMap<TransactionDigest, Transaction>,
+    txs: HashMap<TransactionDigest, TransactionEnvelope>,
     fxs: HashMap<TransactionDigest, TransactionEffects>,
     checkpoint_summaries: HashMap<CheckpointSequenceNumber, CertifiedCheckpointSummary>,
     checkpoint_contents: HashMap<CheckpointSequenceNumber, CheckpointContents>,
@@ -58,7 +61,7 @@ impl MockTxStore {
         Self::default()
     }
 
-    fn add_tx(&mut self, tx: Transaction) {
+    fn add_tx(&mut self, tx: TransactionEnvelope) {
         self.txs.insert(*tx.digest(), tx);
     }
 
@@ -66,7 +69,7 @@ impl MockTxStore {
         self.fxs.insert(*fx.transaction_digest(), fx);
     }
 
-    fn add_random_tx(&mut self) -> Transaction {
+    fn add_random_tx(&mut self) -> TransactionEnvelope {
         let tx = random_tx();
         self.add_tx(tx.clone());
         tx
@@ -86,7 +89,7 @@ impl MockTxStore {
         self.next_seq_number += 1;
 
         let (committee, keys) = Committee::new_simple_test_committee_of_size(1);
-        let summary = CheckpointSummary::new(
+        let summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             committee.epoch,
             next_seq,
@@ -117,7 +120,7 @@ impl MockTxStore {
         self.checkpoint_summaries_by_digest
             .insert(*certified.digest(), certified.clone());
         self.checkpoint_contents_by_digest
-            .insert(*contents.digest(), contents.clone());
+            .insert(contents.digest(), contents.clone());
         (certified, contents)
     }
 }
@@ -464,7 +467,7 @@ mod simtests {
 
         {
             let bytes = bcs::to_bytes(&tx).unwrap();
-            assert_eq!(tx, bcs::from_bytes::<Transaction>(&bytes).unwrap());
+            assert_eq!(tx, bcs::from_bytes::<TransactionEnvelope>(&bytes).unwrap());
 
             let bytes = bcs::to_bytes(&fx).unwrap();
             assert_eq!(fx, bcs::from_bytes::<TransactionEffects>(&bytes).unwrap());

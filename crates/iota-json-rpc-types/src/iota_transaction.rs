@@ -12,31 +12,28 @@ use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_ext::types::{
     Address, Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
-    ChangeEpochV4, Command, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
-    ExecutionError as ExecutionFailureStatus, ExecutionStatus, GenesisObject, Identifier, MoveCall,
-    ObjectId, Owner, ProgrammableTransaction, TransactionKind, TransferObjects, TypeTag,
-    VersionAssignment, gas::GasCostSummary,
+    ChangeEpochV4, Command, ConsensusCommitDigest, ConsensusDeterminedVersionAssignments,
+    EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
+    GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, SenderSignedTransaction, SharedObjectReference, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionEventsDigest,
+    TransactionKind, TransferObjects, TypeTag, UserSignature, Version, VersionAssignment,
+    gas::GasCostSummary,
 };
 use iota_types::{
-    base_types::{EpochId, ObjectRef, SequenceNumber, TransactionDigest},
-    crypto::IotaSignature,
-    digests::{ConsensusCommitDigest, ObjectDigest, TransactionEventsDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    base_types::EpochId,
+    effects::TransactionEffectsAPI,
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
-    iota_sdk_types_conversions::type_tag_core_to_sdk,
+    iota_sdk_types_conversions::{identifier_sdk_to_core, type_tag_core_to_sdk},
     iota_serde::BigInt,
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
     object::bounded_visitor::BoundedVisitor,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
-    signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
-    transaction::{
-        CallArg, InputObjectKind, SenderSignedData, SharedObjectRef, TransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{CallArg, InputObjectKind, TransactionAPI},
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -59,9 +56,8 @@ use crate::{
     iota_owner::OwnerSchema,
     iota_primitives::{
         Address as AddressSchema, Base58 as Base58Schema, Base64 as Base64Schema,
-        GenericSignature as GenericSignatureSchema, ObjectId as ObjectIdSchema,
-        SequenceNumberString as SequenceNumberStringSchema, SequenceNumberU64,
-        TypeTag as TypeTagSchema,
+        ObjectId as ObjectIdSchema, SequenceNumberString as SequenceNumberStringSchema,
+        SequenceNumberU64, TypeTag as TypeTagSchema, UserSignature as UserSignatureSchema,
     },
     object_changes::ObjectChange,
 };
@@ -273,8 +269,8 @@ pub struct IotaTransactionBlockResponse {
     /// Transaction input data
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction: Option<IotaTransactionBlock>,
-    /// BCS encoded [SenderSignedData] that includes input object references
-    /// returns empty array if `show_raw_transaction` is false
+    /// BCS encoded [SenderSignedTransaction] that includes input object
+    /// references returns empty array if `show_raw_transaction` is false
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64Schema")]
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -319,7 +315,7 @@ impl IotaTransactionBlockResponse {
     }
 
     /// Get mutated objects if any
-    pub fn mutated_objects(&self) -> impl Iterator<Item = ObjectRef> + '_ {
+    pub fn mutated_objects(&self) -> impl Iterator<Item = ObjectReference> + '_ {
         self.object_changes.iter().flat_map(|obj_changes| {
             obj_changes
                 .iter()
@@ -342,7 +338,7 @@ impl PartialEq for IotaTransactionBlockResponse {
 
 impl Display for IotaTransactionBlockResponse {
     fn fmt(&self, writer: &mut Formatter<'_>) -> fmt::Result {
-        writeln!(writer, "Transaction Digest: {}", &self.digest)?;
+        writeln!(writer, "Transaction Digest: {}", self.digest)?;
 
         if let Some(t) = &self.transaction {
             writeln!(writer, "{t}")?;
@@ -439,7 +435,7 @@ fn write_obj_changes<T: Display>(
 
 pub fn get_new_package_obj_from_response(
     response: &IotaTransactionBlockResponse,
-) -> Option<ObjectRef> {
+) -> Option<ObjectReference> {
     response.object_changes.as_ref().and_then(|changes| {
         changes
             .iter()
@@ -450,7 +446,7 @@ pub fn get_new_package_obj_from_response(
 
 pub fn get_new_package_upgrade_cap_from_response(
     response: &IotaTransactionBlockResponse,
-) -> Option<ObjectRef> {
+) -> Option<ObjectReference> {
     response.object_changes.as_ref().and_then(|changes| {
         changes
             .iter()
@@ -768,13 +764,13 @@ pub enum IotaTransactionBlockEffects {
 pub trait IotaTransactionBlockEffectsAPI {
     fn status(&self) -> &IotaExecutionStatus;
     fn into_status(self) -> IotaExecutionStatus;
-    fn shared_objects(&self) -> &[ObjectRef];
+    fn shared_objects(&self) -> &[ObjectReference];
     fn created(&self) -> &[OwnedObjectRef];
     fn mutated(&self) -> &[OwnedObjectRef];
     fn unwrapped(&self) -> &[OwnedObjectRef];
-    fn deleted(&self) -> &[ObjectRef];
-    fn unwrapped_then_deleted(&self) -> &[ObjectRef];
-    fn wrapped(&self) -> &[ObjectRef];
+    fn deleted(&self) -> &[ObjectReference];
+    fn unwrapped_then_deleted(&self) -> &[ObjectReference];
+    fn wrapped(&self) -> &[ObjectReference];
     fn gas_object(&self) -> &OwnedObjectRef;
     fn events_digest(&self) -> Option<&TransactionEventsDigest>;
     fn dependencies(&self) -> &[TransactionDigest];
@@ -784,9 +780,9 @@ pub trait IotaTransactionBlockEffectsAPI {
 
     /// Return an iterator of mutated objects, but excluding the gas object.
     fn mutated_excluding_gas(&self) -> Vec<OwnedObjectRef>;
-    fn modified_at_versions(&self) -> Vec<(ObjectId, SequenceNumber)>;
+    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)>;
     fn all_changed_objects(&self) -> Vec<(&OwnedObjectRef, WriteKind)>;
-    fn all_deleted_objects(&self) -> Vec<(&ObjectRef, DeleteKind)>;
+    fn all_deleted_objects(&self) -> Vec<(&ObjectReference, DeleteKind)>;
 }
 
 #[serde_as]
@@ -801,7 +797,7 @@ pub struct IotaTransactionBlockEffectsModifiedAtVersions {
     object_id: ObjectId,
     #[schemars(with = "SequenceNumberStringSchema")]
     #[serde_as(as = "SequenceNumberStringSchema")]
-    sequence_number: SequenceNumber,
+    sequence_number: Version,
 }
 
 /// The response from processing a transaction or a certified transaction
@@ -827,7 +823,7 @@ pub struct IotaTransactionBlockEffectsV1 {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(with = "Vec<ObjectRefSchema>")]
     #[serde_as(as = "Vec<ObjectRefSchema>")]
-    pub shared_objects: Vec<ObjectRef>,
+    pub shared_objects: Vec<ObjectReference>,
     /// The transaction digest
     #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
@@ -838,27 +834,27 @@ pub struct IotaTransactionBlockEffectsV1 {
     /// ObjectRef and owner of mutated objects, including gas object.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub mutated: Vec<OwnedObjectRef>,
-    /// ObjectRef and owner of objects that are unwrapped in this transaction.
-    /// Unwrapped objects are objects that were wrapped into other objects in
-    /// the past, and just got extracted out.
+    /// ObjectRef and owner of objects that are unwrapped in this
+    /// transaction. Unwrapped objects are objects that were wrapped into
+    /// other objects in the past, and just got extracted out.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unwrapped: Vec<OwnedObjectRef>,
     /// Object Refs of objects now deleted (the old refs).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(with = "Vec<ObjectRefSchema>")]
     #[serde_as(as = "Vec<ObjectRefSchema>")]
-    pub deleted: Vec<ObjectRef>,
+    pub deleted: Vec<ObjectReference>,
     /// Object refs of objects previously wrapped in other objects but now
     /// deleted.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(with = "Vec<ObjectRefSchema>")]
     #[serde_as(as = "Vec<ObjectRefSchema>")]
-    pub unwrapped_then_deleted: Vec<ObjectRef>,
+    pub unwrapped_then_deleted: Vec<ObjectReference>,
     /// Object refs of objects now wrapped in other objects.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     #[schemars(with = "Vec<ObjectRefSchema>")]
     #[serde_as(as = "Vec<ObjectRefSchema>")]
-    pub wrapped: Vec<ObjectRef>,
+    pub wrapped: Vec<ObjectReference>,
     /// The updated gas object reference. Have a dedicated field for convenient
     /// access. It's also included in mutated.
     pub gas_object: OwnedObjectRef,
@@ -882,7 +878,7 @@ impl IotaTransactionBlockEffectsAPI for IotaTransactionBlockEffectsV1 {
     fn into_status(self) -> IotaExecutionStatus {
         self.status
     }
-    fn shared_objects(&self) -> &[ObjectRef] {
+    fn shared_objects(&self) -> &[ObjectReference] {
         &self.shared_objects
     }
     fn created(&self) -> &[OwnedObjectRef] {
@@ -894,13 +890,13 @@ impl IotaTransactionBlockEffectsAPI for IotaTransactionBlockEffectsV1 {
     fn unwrapped(&self) -> &[OwnedObjectRef] {
         &self.unwrapped
     }
-    fn deleted(&self) -> &[ObjectRef] {
+    fn deleted(&self) -> &[ObjectReference] {
         &self.deleted
     }
-    fn unwrapped_then_deleted(&self) -> &[ObjectRef] {
+    fn unwrapped_then_deleted(&self) -> &[ObjectReference] {
         &self.unwrapped_then_deleted
     }
-    fn wrapped(&self) -> &[ObjectRef] {
+    fn wrapped(&self) -> &[ObjectReference] {
         &self.wrapped
     }
     fn gas_object(&self) -> &OwnedObjectRef {
@@ -933,7 +929,7 @@ impl IotaTransactionBlockEffectsAPI for IotaTransactionBlockEffectsV1 {
             .collect()
     }
 
-    fn modified_at_versions(&self) -> Vec<(ObjectId, SequenceNumber)> {
+    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
         self.modified_at_versions
             .iter()
             .map(|v| (v.object_id, v.sequence_number))
@@ -957,7 +953,7 @@ impl IotaTransactionBlockEffectsAPI for IotaTransactionBlockEffectsV1 {
             .collect()
     }
 
-    fn all_deleted_objects(&self) -> Vec<(&ObjectRef, DeleteKind)> {
+    fn all_deleted_objects(&self) -> Vec<(&ObjectReference, DeleteKind)> {
         self.deleted
             .iter()
             .map(|r| (r, DeleteKind::Normal))
@@ -1076,7 +1072,7 @@ fn owned_objref_string(obj: &OwnedObjectRef) -> String {
     )
 }
 
-fn objref_string(obj: &ObjectRef) -> String {
+fn objref_string(obj: &ObjectReference) -> String {
     format!(
         " ┌──\n │ ID: {} \n │ Version: {} \n │ Digest: {}\n └──",
         obj.object_id, obj.version, obj.digest
@@ -1280,7 +1276,7 @@ pub struct DevInspectArgs {
     /// The gas objects used to pay for the transaction.
     #[schemars(with = "Option<Vec<ObjectRefSchema>>")]
     #[serde_as(as = "Option<Vec<ObjectRefSchema>>")]
-    pub gas_objects: Option<Vec<ObjectRef>>,
+    pub gas_objects: Option<Vec<ObjectReference>>,
     /// Whether to skip transaction checks for the transaction.
     pub skip_checks: Option<bool>,
     /// Whether to return the raw transaction data and effects.
@@ -1501,8 +1497,7 @@ impl IotaExecutionStatus {
 
                     let module_id = ModuleId::new(
                         AccountAddress::from(location.package.into_bytes()),
-                        move_core_types::identifier::Identifier::new(location.module.as_str())
-                            .unwrap(),
+                        identifier_sdk_to_core(&location.module),
                     );
 
                     let Some(CleverError {
@@ -1603,7 +1598,7 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
     }
 }
 
-fn to_owned_ref(owned_refs: Vec<(ObjectRef, Owner)>) -> Vec<OwnedObjectRef> {
+fn to_owned_ref(owned_refs: Vec<(ObjectReference, Owner)>) -> Vec<OwnedObjectRef> {
     owned_refs
         .into_iter()
         .map(|(oref, owner)| OwnedObjectRef {
@@ -1619,7 +1614,7 @@ fn to_owned_ref(owned_refs: Vec<(ObjectRef, Owner)>) -> Vec<OwnedObjectRef> {
 pub struct IotaGasData {
     #[schemars(with = "Vec<ObjectRefSchema>")]
     #[serde_as(as = "Vec<ObjectRefSchema>")]
-    pub payment: Vec<ObjectRef>,
+    pub payment: Vec<ObjectReference>,
     #[serde_as(as = "AddressSchema")]
     #[schemars(with = "AddressSchema")]
     pub owner: Address,
@@ -1703,16 +1698,16 @@ impl IotaTransactionBlockData {
     }
 
     fn try_from_inner(
-        data: TransactionData,
+        tx: Transaction,
         transaction: IotaTransactionBlockKind,
     ) -> Result<Self, anyhow::Error> {
-        let message_version = data.message_version();
-        let sender = data.sender();
+        let message_version = tx.message_version();
+        let sender = tx.sender();
         let gas_data = IotaGasData {
-            payment: data.gas().to_vec(),
-            owner: data.gas_owner(),
-            price: data.gas_price(),
-            budget: data.gas_budget(),
+            payment: tx.gas().to_vec(),
+            owner: tx.gas_owner(),
+            price: tx.gas_price(),
+            budget: tx.gas_budget(),
         };
 
         match message_version {
@@ -1722,37 +1717,36 @@ impl IotaTransactionBlockData {
                 gas_data,
             })),
             _ => Err(anyhow::anyhow!(
-                "Support for TransactionData version {} not implemented",
-                message_version
+                "Support for Transaction version {message_version} not implemented"
             )),
         }
     }
 
     pub fn try_from_with_module_cache(
-        data: TransactionData,
+        tx: Transaction,
         module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         let transaction = IotaTransactionBlockKind::try_from_with_module_cache(
-            data.kind().clone(),
+            tx.kind().clone(),
             module_cache,
             tx_digest,
         )?;
-        Self::try_from_inner(data, transaction)
+        Self::try_from_inner(tx, transaction)
     }
 
     pub async fn try_from_with_package_resolver(
-        data: TransactionData,
+        tx: Transaction,
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         let transaction = IotaTransactionBlockKind::try_from_with_package_resolver(
-            data.kind().clone(),
+            tx.kind().clone(),
             package_resolver,
             tx_digest,
         )
         .await?;
-        Self::try_from_inner(data, transaction)
+        Self::try_from_inner(tx, transaction)
     }
 }
 
@@ -1773,24 +1767,24 @@ impl Display for IotaTransactionBlockData {
 #[serde(rename = "TransactionBlock", rename_all = "camelCase")]
 pub struct IotaTransactionBlock {
     pub data: IotaTransactionBlockData,
-    #[serde_as(as = "Vec<GenericSignatureSchema>")]
-    #[schemars(with = "Vec<GenericSignatureSchema>")]
-    pub tx_signatures: Vec<GenericSignature>,
+    #[serde_as(as = "Vec<UserSignatureSchema>")]
+    #[schemars(with = "Vec<UserSignatureSchema>")]
+    pub tx_signatures: Vec<UserSignature>,
 }
 
 impl IotaTransactionBlock {
     pub fn try_from(
-        data: SenderSignedData,
+        tx: SenderSignedTransaction,
         module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_module_cache(
-                data.intent_message().value.clone(),
+                tx.transaction().clone(),
                 module_cache,
                 tx_digest,
             )?,
-            tx_signatures: data.tx_signatures().to_vec(),
+            tx_signatures: tx.signatures().to_vec(),
         })
     }
 
@@ -1798,18 +1792,18 @@ impl IotaTransactionBlock {
     // indexer v1, so are the related `try_from` methods for nested structs like
     // IotaTransactionBlockData etc.
     pub async fn try_from_with_package_resolver(
-        data: SenderSignedData,
+        tx: SenderSignedTransaction,
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_package_resolver(
-                data.intent_message().value.clone(),
+                tx.transaction().clone(),
                 package_resolver,
                 tx_digest,
             )
             .await?,
-            tx_signatures: data.tx_signatures().to_vec(),
+            tx_signatures: tx.signatures().to_vec(),
         })
     }
 }
@@ -1824,7 +1818,7 @@ impl Display for IotaTransactionBlock {
             builder.push_record(vec![format!(
                 "   {}\n",
                 match tx_sig {
-                    GenericSignature::Signature(sig) =>
+                    UserSignature::Simple(sig) =>
                         Base64::from_bytes(sig.signature_bytes()).encoded(),
                     // the signatures for multisig and zklogin
                     // are not suited to be parsed out. they
@@ -1984,7 +1978,7 @@ pub enum IotaInputObjectKind {
     ImmOrOwnedMoveObject(
         #[schemars(with = "ObjectRefSchema")]
         #[serde_as(as = "ObjectRefSchema")]
-        ObjectRef,
+        ObjectReference,
     ),
     // A Move object that's shared and mutable.
     SharedMoveObject {
@@ -1993,7 +1987,7 @@ pub enum IotaInputObjectKind {
         id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        initial_shared_version: SequenceNumber,
+        initial_shared_version: Version,
         #[serde(default = "default_shared_object_mutability")]
         mutable: bool,
     },
@@ -2075,10 +2069,7 @@ impl IotaProgrammableTransactionBlock {
         for command in commands.iter() {
             match command {
                 Command::MoveCall(cmd) => {
-                    // Unsafe: `cmd.module` is an already validated `Identifier`
-                    let module = unsafe {
-                        move_core_types::identifier::Identifier::new_unchecked(cmd.module.as_str())
-                    };
+                    let module = identifier_sdk_to_core(&cmd.module);
                     let id = ModuleId::new(AccountAddress::new(cmd.package.into_bytes()), module);
                     let Some(types) = get_signature_types(id, &cmd.function, module_cache) else {
                         return result_types;
@@ -2482,17 +2473,17 @@ pub struct TransactionBlockBytes {
     /// the gas objects to be used
     #[schemars(with = "Vec<ObjectRefSchema>")]
     #[serde_as(as = "Vec<ObjectRefSchema>")]
-    pub gas: Vec<ObjectRef>,
+    pub gas: Vec<ObjectReference>,
     /// objects to be used in this transaction
     pub input_objects: Vec<IotaInputObjectKind>,
 }
 
 impl TransactionBlockBytes {
-    pub fn from_data(data: TransactionData) -> Result<Self, anyhow::Error> {
+    pub fn from_data(tx: Transaction) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            tx_bytes: Base64::from_bytes(bcs::to_bytes(&data)?.as_slice()),
-            gas: data.gas().to_vec(),
-            input_objects: data
+            tx_bytes: Base64::from_bytes(bcs::to_bytes(&tx)?.as_slice()),
+            gas: tx.gas().to_vec(),
+            input_objects: tx
                 .input_objects()?
                 .into_iter()
                 .map(IotaInputObjectKind::from)
@@ -2500,8 +2491,8 @@ impl TransactionBlockBytes {
         })
     }
 
-    pub fn to_data(self) -> Result<TransactionData, anyhow::Error> {
-        bcs::from_bytes::<TransactionData>(&self.tx_bytes.to_vec().map_err(|e| anyhow::anyhow!(e))?)
+    pub fn to_data(self) -> Result<Transaction, anyhow::Error> {
+        bcs::from_bytes::<Transaction>(&self.tx_bytes.to_vec().map_err(|e| anyhow::anyhow!(e))?)
             .map_err(|e| anyhow::anyhow!(e))
     }
 }
@@ -2515,14 +2506,14 @@ pub struct OwnedObjectRef {
     pub owner: Owner,
     #[schemars(with = "ObjectRefSchema")]
     #[serde_as(as = "ObjectRefSchema")]
-    pub reference: ObjectRef,
+    pub reference: ObjectReference,
 }
 
 impl OwnedObjectRef {
     pub fn object_id(&self) -> ObjectId {
         self.reference.object_id
     }
-    pub fn version(&self) -> SequenceNumber {
+    pub fn version(&self) -> Version {
         self.reference.version
     }
 }
@@ -2553,7 +2544,7 @@ impl IotaCallArg {
                     digest: object_ref.digest,
                 })
             }
-            CallArg::Shared(SharedObjectRef {
+            CallArg::Shared(SharedObjectReference {
                 object_id: id,
                 initial_shared_version,
                 mutable,
@@ -2620,7 +2611,7 @@ pub enum IotaObjectArg {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -2635,7 +2626,7 @@ pub enum IotaObjectArg {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        initial_shared_version: SequenceNumber,
+        initial_shared_version: Version,
         mutable: bool,
     },
     // A reference to a Move object that's going to be received in the transaction.
@@ -2646,7 +2637,7 @@ pub enum IotaObjectArg {
         object_id: ObjectId,
         #[schemars(with = "SequenceNumberStringSchema")]
         #[serde_as(as = "SequenceNumberStringSchema")]
-        version: SequenceNumber,
+        version: Version,
         #[serde_as(as = "Base58Schema")]
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
@@ -2656,7 +2647,7 @@ pub enum IotaObjectArg {
 #[derive(Clone)]
 pub struct EffectsWithInput {
     pub effects: IotaTransactionBlockEffects,
-    pub input: TransactionData,
+    pub input: Transaction,
 }
 
 impl From<EffectsWithInput> for IotaTransactionBlockEffects {

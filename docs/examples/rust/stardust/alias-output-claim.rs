@@ -14,16 +14,17 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        crypto::SignatureScheme::ED25519,
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::AliasOutput,
-        transaction::{CallArg, Transaction, TransactionData},
+        transaction::{CallArg, TransactionEnvelope},
     },
 };
-use iota_sdk_ext::types::{Argument, Identifier, ObjectId, TypeTag, crypto::Intent};
-use iota_types::transaction::TransactionDataAPI;
+use iota_sdk_ext::types::{
+    Argument, Identifier, ObjectId, SignatureScheme, Transaction, TypeTag, crypto::Intent,
+};
+use iota_types::transaction::TransactionAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
@@ -37,7 +38,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = setup_keystore()?;
 
     // Derive the address of the first account and set it as default.
-    let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let sender = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     println!("Sender address: {sender}");
 
@@ -181,7 +187,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create a transaction data that will be sent to the network.
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -190,13 +196,13 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     // Sign the transaction.
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&sender, &tx, Intent::iota_transaction())?;
 
     // Execute the transaction.
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

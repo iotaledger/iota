@@ -6,9 +6,6 @@ teams:
   - iotaledger/vm-language
 ---
 
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/advanced-topics/onchain-randomness.json';
-
 Generating pseudo-random values in Move is similar to solutions in other languages. A Move function can create a new instance of `RandomGenerator` and use it for generating random values of different types, for example, `generate_u128(&mut generator), generate_u8_in_range(&mut generator, 1, 6)`, or,
 
 ```move
@@ -191,5 +188,3 @@ txb.moveCall({
 });
 ...
 ```
-
-<Quiz questions={questions} />

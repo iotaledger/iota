@@ -214,7 +214,7 @@ where
                 ParsedCommand::MoveCall(Box::new(call))
             }
 
-            (tok, _) => bail!("unexpected token {}, expected command identifier", tok),
+            (tok, _) => bail!("unexpected token {tok}, expected command identifier"),
         })
     }
 
@@ -269,7 +269,7 @@ where
                 self.inner().advance(Tok::RParen)?;
                 Argument::NestedResult(i, j)
             }
-            (tok, _) => bail!("unexpected token {}, expected argument identifier", tok),
+            (tok, _) => bail!("unexpected token {tok}, expected argument identifier"),
         })
     }
 
@@ -303,7 +303,7 @@ where
         let res = parser.parse_list(|p| p.parse_type(), TypeToken::Comma, TypeToken::Gt, true)?;
         parser.advance(TypeToken::Gt)?;
         if let Ok((_, contents)) = parser.advance_any() {
-            bail!("Expected end of token stream. Got: {}", contents)
+            bail!("Expected end of token stream. Got: {contents}")
         }
         Ok(Some(res))
     }
@@ -322,7 +322,7 @@ impl ParsedCommand {
         let mut parser = CommandParser::new(tokens);
         let res = parser.parse_commands()?;
         if let Ok((_, contents)) = parser.inner().advance_any() {
-            bail!("Expected end of token stream. Got: {}", contents)
+            bail!("Expected end of token stream. Got: {contents}")
         }
         Ok(res)
     }
@@ -395,7 +395,7 @@ impl ParsedMoveCall {
             arguments,
         } = self;
         let Some(package) = address_mapping(package.as_str()) else {
-            bail!("Unable to resolve package {}", package)
+            bail!("Unable to resolve package {package}")
         };
         let type_arguments = type_arguments
             .into_iter()

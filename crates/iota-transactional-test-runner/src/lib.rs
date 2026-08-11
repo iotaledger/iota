@@ -18,24 +18,26 @@ use iota_core::authority::{
     authority_test_utils::send_and_confirm_transaction_with_execution_error,
 };
 use iota_json_rpc::authority_state::StateRead;
-use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, EventFilter};
-use iota_sdk_ext::types::{Address, Event, ObjectId, TransactionKind};
+use iota_json_rpc_types::EventFilter;
+use iota_sdk_ext::types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, Event, ObjectId, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, checkpoint::CheckpointContents,
+};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     base_types::VersionNumber,
     committee::EpochId,
-    digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError, IotaResult},
     executable_transaction::{ExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::{
         IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemStateTrait,
         iota_system_state_summary::IotaSystemStateSummary,
     },
-    messages_checkpoint::{CheckpointContentsDigest, VerifiedCheckpoint},
+    messages_checkpoint::VerifiedCheckpoint,
     object::Object,
     storage::{ObjectStore, ReadStore},
-    transaction::{InputObjects, Transaction, TransactionData},
+    transaction::{InputObjects, SenderSignedTransactionAPI, TransactionEnvelope},
+    transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 pub use move_transactional_test_runner::framework::{
     create_adapter, run_tasks_with_adapter, run_test_impl,
@@ -66,14 +68,17 @@ pub struct ValidatorWithFullnode {
 pub trait TransactionalAdapter: Send + Sync + ReadStore {
     async fn execute_txn(
         &mut self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)>;
 
-    async fn read_input_objects(&self, transaction: Transaction) -> IotaResult<InputObjects>;
+    async fn read_input_objects(
+        &self,
+        transaction: TransactionEnvelope,
+    ) -> IotaResult<InputObjects>;
 
     fn prepare_txn(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         input_objects: InputObjects,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)>;
 
@@ -92,18 +97,11 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
         amount: u64,
     ) -> anyhow::Result<TransactionEffects>;
 
-    async fn dry_run_transaction_block(
+    async fn simulate_transaction(
         &self,
-        transaction_block: TransactionData,
-        transaction_digest: TransactionDigest,
-    ) -> IotaResult<DryRunTransactionBlockResponse>;
-
-    async fn dev_inspect_transaction_block(
-        &self,
-        sender: Address,
-        transaction_kind: TransactionKind,
-        gas_price: Option<u64>,
-    ) -> IotaResult<DevInspectResults>;
+        transaction: Transaction,
+        checks: VmChecks,
+    ) -> IotaResult<SimulateTransactionResult>;
 
     async fn query_tx_events_asc(
         &self,
@@ -118,7 +116,7 @@ pub trait TransactionalAdapter: Send + Sync + ReadStore {
 impl TransactionalAdapter for ValidatorWithFullnode {
     async fn execute_txn(
         &mut self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         let with_shared = transaction.contains_shared_object();
         let (_, effects, execution_error) = send_and_confirm_transaction_with_execution_error(
@@ -132,7 +130,10 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         Ok((effects.into_data(), execution_error))
     }
 
-    async fn read_input_objects(&self, transaction: Transaction) -> IotaResult<InputObjects> {
+    async fn read_input_objects(
+        &self,
+        transaction: TransactionEnvelope,
+    ) -> IotaResult<InputObjects> {
         let tx = VerifiedExecutableTransaction::new_unchecked(
             ExecutableTransaction::new_from_data_and_sig(
                 transaction.data().clone(),
@@ -148,7 +149,7 @@ impl TransactionalAdapter for ValidatorWithFullnode {
 
     fn prepare_txn(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         input_objects: InputObjects,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         let tx = VerifiedExecutableTransaction::new_unchecked(
@@ -165,34 +166,12 @@ impl TransactionalAdapter for ValidatorWithFullnode {
         Ok((effects, error))
     }
 
-    async fn dry_run_transaction_block(
+    async fn simulate_transaction(
         &self,
-        transaction_block: TransactionData,
-        transaction_digest: TransactionDigest,
-    ) -> IotaResult<DryRunTransactionBlockResponse> {
-        self.fullnode
-            .dry_exec_transaction(transaction_block, transaction_digest)
-            .map(|result| result.0)
-    }
-
-    async fn dev_inspect_transaction_block(
-        &self,
-        sender: Address,
-        transaction_kind: TransactionKind,
-        gas_price: Option<u64>,
-    ) -> IotaResult<DevInspectResults> {
-        self.fullnode
-            .dev_inspect_transaction_block(
-                sender,
-                transaction_kind,
-                gas_price,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
-            .await
+        transaction: Transaction,
+        checks: VmChecks,
+    ) -> IotaResult<SimulateTransactionResult> {
+        self.fullnode.simulate_transaction(transaction, checks)
     }
 
     async fn query_tx_events_asc(
@@ -308,7 +287,7 @@ impl ReadStore for ValidatorWithFullnode {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        _digest: &iota_types::messages_checkpoint::CheckpointDigest,
+        _digest: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         todo!()
     }
@@ -326,9 +305,7 @@ impl ReadStore for ValidatorWithFullnode {
     fn try_get_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         self.validator
             .get_checkpoint_store()
             .get_checkpoint_contents(digest)
@@ -338,9 +315,7 @@ impl ReadStore for ValidatorWithFullnode {
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         _sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         todo!()
     }
 
@@ -417,38 +392,32 @@ impl ObjectStore for ValidatorWithFullnode {
 impl TransactionalAdapter for Simulacrum<StdRng, PersistedStore> {
     async fn execute_txn(
         &mut self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         Ok(self.execute_transaction(transaction)?)
     }
 
-    async fn read_input_objects(&self, _transaction: Transaction) -> IotaResult<InputObjects> {
+    async fn read_input_objects(
+        &self,
+        _transaction: TransactionEnvelope,
+    ) -> IotaResult<InputObjects> {
         unimplemented!("read_input_objects not supported in simulator mode")
     }
 
     fn prepare_txn(
         &self,
-        _transaction: Transaction,
+        _transaction: TransactionEnvelope,
         _input_objects: InputObjects,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         unimplemented!("prepare_txn not supported in simulator mode")
     }
 
-    async fn dev_inspect_transaction_block(
+    async fn simulate_transaction(
         &self,
-        _sender: Address,
-        _transaction_kind: TransactionKind,
-        _gas_price: Option<u64>,
-    ) -> IotaResult<DevInspectResults> {
-        unimplemented!("dev_inspect_transaction_block not supported in simulator mode")
-    }
-
-    async fn dry_run_transaction_block(
-        &self,
-        _transaction_block: TransactionData,
-        _transaction_digest: TransactionDigest,
-    ) -> IotaResult<DryRunTransactionBlockResponse> {
-        unimplemented!("dry_run_transaction_block not supported in simulator mode")
+        transaction: Transaction,
+        checks: VmChecks,
+    ) -> IotaResult<SimulateTransactionResult> {
+        Simulacrum::simulate_transaction(self, transaction, checks)
     }
 
     async fn query_tx_events_asc(

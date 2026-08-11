@@ -13,12 +13,11 @@ use iota_types::{
     committee::EpochId,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
 };
-use prometheus_filtered::Registry;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
     Clock, CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast};
 use tracing::info;
 
 use crate::{
@@ -49,6 +48,7 @@ pub struct StarfishManager {
     client: Arc<LazyStarfishClient>,
     consensus_handler: Mutex<Option<StarfishConsensusHandler>>,
     consumer_monitor: ArcSwapOption<CommitConsumerMonitor>,
+    consumer_monitor_sender: broadcast::Sender<Arc<CommitConsumerMonitor>>,
 }
 
 impl StarfishManager {
@@ -63,6 +63,7 @@ impl StarfishManager {
         metrics: Arc<ConsensusManagerMetrics>,
         client: Arc<LazyStarfishClient>,
     ) -> Self {
+        let (consumer_monitor_sender, _) = broadcast::channel(1);
         Self {
             protocol_keypair: ProtocolKeyPair::new(protocol_keypair),
             network_keypair: NetworkKeyPair::new(network_keypair),
@@ -75,6 +76,7 @@ impl StarfishManager {
             consensus_handler: Mutex::new(None),
             boot_counter: Mutex::new(0),
             consumer_monitor: ArcSwapOption::empty(),
+            consumer_monitor_sender,
         }
     }
 
@@ -127,16 +129,19 @@ impl ConsensusManagerTrait for StarfishManager {
             .find(|(_, a)| a.protocol_key == own_protocol_key)
             .expect("Own authority should be among the consensus authorities!");
 
-        // Opt into the protective consensus gRPC resource limits via an
-        // environment variable, for gradual rollout on a subset of validators
-        // without changing the default (inert) behaviour.
+        // Apply the protective consensus gRPC resource limits by default,
+        // filling only the bounds left unconfigured so explicit node config is
+        // respected. A node can opt out via the environment variable without a
+        // redeploy; these are local operational parameters, so heterogeneous
+        // values across validators are safe.
         let parameters = {
             let mut p = parameters;
             if matches!(
                 std::env::var("CONSENSUS_GRPC_PROTECTIVE_LIMITS").as_deref(),
-                Ok("1") | Ok("true")
+                Ok("0") | Ok("false")
             ) {
-                info!("Applying protective consensus gRPC limits for validator {own_index}");
+                info!("Consensus gRPC protective limits disabled for validator {own_index}");
+            } else {
                 p.tonic.apply_protective();
             }
             p
@@ -161,7 +166,10 @@ impl ConsensusManagerTrait for StarfishManager {
             p
         };
 
-        let registry = Registry::new_custom(Some("consensus".to_string()), None).unwrap();
+        let registry = self
+            .registry_service
+            .new_registry_custom(Some("consensus".to_string()), None)
+            .unwrap();
 
         let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
 
@@ -211,7 +219,7 @@ impl ConsensusManagerTrait for StarfishManager {
             last_processed_commit,
             consensus_handler,
             commit_receiver,
-            monitor,
+            monitor.clone(),
         );
 
         {
@@ -243,6 +251,9 @@ impl ConsensusManagerTrait for StarfishManager {
 
         // Initialize the client to send transactions to this Starfish instance.
         self.client.set(client);
+
+        // Send the consumer monitor to the replay waiter.
+        let _ = self.consumer_monitor_sender.send(monitor);
     }
 
     async fn shutdown(&self) {
@@ -278,8 +289,8 @@ impl ConsensusManagerTrait for StarfishManager {
         Running::False != *self.running.lock().await
     }
 
-    fn replay_waiter(&self) -> Option<ReplayWaiter> {
-        let authority = self.authority.load_full()?;
-        Some(ReplayWaiter::new(authority))
+    fn replay_waiter(&self) -> ReplayWaiter {
+        let consumer_monitor_receiver = self.consumer_monitor_sender.subscribe();
+        ReplayWaiter::new(consumer_monitor_receiver)
     }
 }

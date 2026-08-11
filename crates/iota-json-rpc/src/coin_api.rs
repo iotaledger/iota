@@ -327,7 +327,7 @@ impl CoinReadApiServer for CoinReadApi {
         Ok(IotaCirculatingSupply {
             value: circulating_supply,
             circulating_supply_percentage,
-            at_checkpoint: *latest_cp.sequence_number(),
+            at_checkpoint: latest_cp.sequence_number(),
         })
     }
 }
@@ -563,7 +563,10 @@ impl CoinReadInternal for CoinReadInternalImpl {
 mod tests {
     use expect_test::expect;
     use iota_json_rpc_types::Coin;
-    use iota_sdk_ext::types::{StructTag, TypeTag};
+    use iota_sdk_ext::types::{
+        CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TransactionEffects,
+        TransactionEvents, TypeTag, Version,
+    };
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
@@ -572,14 +575,12 @@ mod tests {
     };
     use iota_types::{
         balance::Supply,
-        base_types::SequenceNumber,
         coin::TreasuryCap,
-        digests::{ObjectDigest, TransactionDigest},
-        effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
+        effects::TransactionEffectsExtForTesting,
         error::{IotaError, IotaResult},
         id::UID,
-        messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
-        object::{MoveObjectExt, Object},
+        messages_checkpoint::CheckpointSequenceNumber,
+        object::{MoveStructExt, Object},
         parse_iota_struct_tag,
         utils::create_fake_transaction,
     };
@@ -610,7 +611,7 @@ mod tests {
                 digest: TransactionDigest,
             ) -> IotaResult<Option<CheckpointSequenceNumber>>;
 
-            async fn get_object(&self, object_id: ObjectId, version: SequenceNumber) -> IotaResult<Option<Object>>;
+            async fn get_object(&self, object_id: ObjectId, version: Version) -> IotaResult<Option<Object>>;
             async fn multi_get_objects(&self, object_keys: &[iota_types::storage::ObjectKey]) -> IotaResult<Vec<Option<Object>>>;
 
             async fn multi_get_transactions_perpetual_checkpoints(
@@ -696,7 +697,7 @@ mod tests {
         Coin {
             coin_type: coin_type_string,
             coin_object_id: object_id,
-            version: SequenceNumber::from_u64(1),
+            version: Version::from_u64(1),
             digest: ObjectDigest::from(arr),
             balance,
             previous_transaction: TransactionDigest::from(arr),
@@ -973,8 +974,7 @@ mod tests {
     }
 
     mod get_all_coins_tests {
-        use iota_sdk_ext::types::Owner;
-        use iota_types::object::MoveObject;
+        use iota_sdk_ext::types::{MoveStruct, Owner};
 
         use super::{super::*, *};
 
@@ -1013,7 +1013,7 @@ mod tests {
                 get_test_coin(Some("0xAAA"), CoinType::Gas),
             ];
             let coins_clone = coins.clone();
-            let coin_move_object = MoveObject::new_gas_coin(
+            let coin_move_object = MoveStruct::new_gas_coin(
                 coins[0].version,
                 coins[0].coin_object_id,
                 coins[0].balance,

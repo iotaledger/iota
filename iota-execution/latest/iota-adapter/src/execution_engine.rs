@@ -18,8 +18,10 @@ mod checked {
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_ext::types::{
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, ExecutionStatus, GenesisTransaction, Identifier, ObjectId,
-        ProgrammableTransaction, RandomnessStateUpdate, TransactionKind, gas::GasCostSummary,
+        EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
+        MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
+        SharedObjectReference, SystemPackage, TransactionDigest, TransactionEffects,
+        TransactionKind, Version, gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -30,10 +32,9 @@ mod checked {
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
-        base_types::{SequenceNumber, TransactionDigest, TxContext},
+        base_types::TxContext,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
-        effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
@@ -43,15 +44,12 @@ mod checked {
         iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams},
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
-        move_authenticator::{MoveAuthenticator, MoveAuthenticatorExt},
+        move_authenticator::MoveAuthenticatorExt,
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
-        transaction::{
-            CallArg, CheckedInputObjects, GasData, InputObjects, SharedObjectRef, SystemPackage,
-            TransactionKindExt,
-        },
+        transaction::{CallArg, CheckedInputObjects, InputObjects, TransactionKindExt},
     };
     use move_binary_format::CompiledModule;
     use move_trace_format::format::MoveTraceBuilder;
@@ -82,7 +80,7 @@ mod checked {
     pub fn execute_transaction_to_effects<Mode: ExecutionMode>(
         store: &dyn BackingStore,
         input_objects: CheckedInputObjects,
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
@@ -179,7 +177,7 @@ mod checked {
         shared_object_refs: Vec<SharedInput>,
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
@@ -301,7 +299,7 @@ mod checked {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(
@@ -447,6 +445,9 @@ mod checked {
             },
         );
 
+        let authentication_execution_result =
+            report_authentication_error(authentication_execution_result, protocol_config);
+
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
         // authenticate function and a result which is either empty or an error.
@@ -491,7 +492,7 @@ mod checked {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(
@@ -543,7 +544,7 @@ mod checked {
         );
 
         // Run each authenticator in sequence; return on first failure.
-        authenticators.into_iter().try_for_each(
+        let authentication_execution_result = authenticators.into_iter().try_for_each(
             |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
                 match authenticator_function_ref {
                     AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
@@ -565,7 +566,9 @@ mod checked {
                     }
                 }
             },
-        )
+        );
+
+        report_authentication_error(authentication_execution_result, protocol_config)
     }
 
     // This function implements the authentication execution. It checks that the
@@ -628,7 +631,7 @@ mod checked {
                 unreachable!("Only programmable transactions are allowed");
             };
             AuthContext::new_from_components(
-                authenticator.digest(),
+                authenticator.digest().into(),
                 auth_context_data.sender_auth_digest,
                 auth_context_data.sponsor_auth_digest,
                 auth_context_data
@@ -704,7 +707,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
@@ -792,7 +795,7 @@ mod checked {
         enable_expensive_checks: bool,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
             Result<
@@ -898,6 +901,22 @@ mod checked {
         }
 
         (cost_summary, result)
+    }
+
+    /// When enabled by the protocol config, report a failure of the Move
+    /// authentication as a distinct
+    /// [`ExecutionErrorKind::MoveAuthentication`], dropping the
+    /// authenticator's internal command index so it is not attributed to a
+    /// command of the programmable transaction.
+    fn report_authentication_error<T>(
+        authentication_execution_result: Result<T, ExecutionError>,
+        protocol_config: &ProtocolConfig,
+    ) -> Result<T, ExecutionError> {
+        if protocol_config.report_move_authentication_error() {
+            authentication_execution_result.map_err(ExecutionError::into_move_authentication_error)
+        } else {
+            authentication_execution_result
+        }
     }
 
     /// Elaborate errors in logs if they are unexpected or their status is
@@ -1046,7 +1065,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
     ) -> Result<(), ExecutionError> {
         if deny_cert {
             Err(ExecutionError::new(
@@ -1079,11 +1098,11 @@ mod checked {
                     },
                     None,
                 )),
-                SequenceNumber::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
+                Version::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
                     ExecutionErrorKind::ExecutionCancelledDueToRandomnessUnavailable,
                     None,
                 )),
-                _ => panic!("invalid cancellation reason SequenceNumber: {reason}"),
+                _ => panic!("invalid cancellation reason Version: {reason}"),
             }
         } else {
             Ok(())
@@ -1931,7 +1950,7 @@ mod checked {
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         ObjectId::RANDOMNESS_STATE,
                         update.randomness_obj_initial_shared_version,
                         true,
@@ -1993,7 +2012,7 @@ mod checked {
         Ok(builder.finish())
     }
 
-    fn resolve_sponsor(gas_data: &GasData, transaction_signer: &Address) -> Option<Address> {
+    fn resolve_sponsor(gas_data: &GasPayment, transaction_signer: &Address) -> Option<Address> {
         let gas_owner = gas_data.owner;
         if &gas_owner == transaction_signer {
             None

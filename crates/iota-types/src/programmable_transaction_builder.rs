@@ -8,14 +8,12 @@
 use anyhow::Context;
 use indexmap::IndexMap;
 use iota_sdk_ext::types::{
-    Address, Argument, Command, Identifier, ObjectId, ProgrammableTransaction, TypeTag,
+    Address, Argument, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction,
+    SharedObjectReference, TypeTag,
 };
 use serde::Serialize;
 
-use crate::{
-    base_types::ObjectRef,
-    transaction::{CallArg, SharedObjectRef},
-};
+use crate::transaction::CallArg;
 
 #[derive(PartialEq, Eq, Hash)]
 enum BuilderArg {
@@ -76,12 +74,12 @@ impl ProgrammableTransactionBuilder {
         let obj_arg = if let Some(old_value) = self.inputs.get(&BuilderArg::Object(id)) {
             match (old_value.as_opt_shared(), obj_arg.as_opt_shared()) {
                 (
-                    Some(&SharedObjectRef {
+                    Some(&SharedObjectReference {
                         object_id: id1,
                         initial_shared_version: v1,
                         mutable: mut1,
                     }),
-                    Some(&SharedObjectRef {
+                    Some(&SharedObjectReference {
                         object_id: id2,
                         initial_shared_version: v2,
                         mutable: mut2,
@@ -91,7 +89,7 @@ impl ProgrammableTransactionBuilder {
                         id1 == id2 && id == id2,
                         "invariant violation! object has id does not match call arg"
                     );
-                    CallArg::Shared(SharedObjectRef::new(id, v2, mut1 || mut2))
+                    CallArg::Shared(SharedObjectReference::new(id, v2, mut1 || mut2))
                 }
                 _ => {
                     anyhow::ensure!(
@@ -223,7 +221,7 @@ impl ProgrammableTransactionBuilder {
     pub fn transfer_object(
         &mut self,
         recipient: Address,
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
     ) -> anyhow::Result<()> {
         let rec_arg = self.pure(recipient).unwrap();
         let obj_arg = self.obj(CallArg::ImmutableOrOwned(object_ref))?;
@@ -254,7 +252,7 @@ impl ProgrammableTransactionBuilder {
         self.pay_impl(recipients, amounts, Argument::Gas)
     }
 
-    pub fn split_coin(&mut self, recipient: Address, coin: ObjectRef, amounts: Vec<u64>) {
+    pub fn split_coin(&mut self, recipient: Address, coin: ObjectReference, amounts: Vec<u64>) {
         let coin_arg = self.obj(CallArg::ImmutableOrOwned(coin)).unwrap();
         let amounts_len = amounts.len();
         let amt_args = amounts.into_iter().map(|a| self.pure(a).unwrap()).collect();
@@ -276,7 +274,7 @@ impl ProgrammableTransactionBuilder {
     /// lengths. Or if coins is empty
     pub fn pay(
         &mut self,
-        coins: Vec<ObjectRef>,
+        coins: Vec<ObjectReference>,
         recipients: Vec<Address>,
         amounts: Vec<u64>,
     ) -> anyhow::Result<()> {

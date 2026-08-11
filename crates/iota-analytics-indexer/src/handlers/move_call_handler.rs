@@ -7,7 +7,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
 use iota_sdk_ext::types::ObjectId;
-use iota_types::{full_checkpoint_content::CheckpointData, transaction::TransactionDataAPI};
+use iota_types::{full_checkpoint_content::CheckpointData, transaction::TransactionAPI};
 use tokio::sync::Mutex;
 
 use crate::{FileType, handlers::AnalyticsHandler, tables::MoveCallEntry};
@@ -38,7 +38,7 @@ impl Worker for MoveCallHandler {
         for checkpoint_transaction in checkpoint_transactions {
             let move_calls = checkpoint_transaction
                 .transaction
-                .transaction_data()
+                .transaction()
                 .move_calls();
             self.process_move_calls(
                 checkpoint_summary.epoch,

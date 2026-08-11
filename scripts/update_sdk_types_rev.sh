@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to update the rev for iota-sdk-types and iota-sdk-crypto in the
+# Script to update the rev for iota-sdk in the
 # Cargo.toml files and update the corresponding Cargo.lock files by running
 # 'cargo check' in each directory to resolve dependencies and update the lock
 # without full compilation.

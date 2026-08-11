@@ -641,7 +641,7 @@ impl ChannelPool {
             Some(network_keypair.private_key().into_inner()),
         );
         let endpoint = tonic_rustls::Channel::from_shared(address.clone())
-            .unwrap()
+            .map_err(|e| ConsensusError::NetworkConfig(format!("invalid URI '{address}': {e}")))?
             .connect_timeout(timeout)
             .initial_connection_window_size(Some(buffer_size as u32))
             .initial_stream_window_size(Some(buffer_size as u32 / 2))
@@ -764,7 +764,24 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         // half-open subscriptions; the permit is held for the stream's lifetime.
         let permit = self.admit(RpcGroup::Subscribe, peer_index)?;
         let mut request_stream = request.into_inner();
-        let first_request = match request_stream.next().await {
+        let subscribe_request_timeout = self.context.parameters.tonic.subscribe_request_timeout;
+        let first_message = if subscribe_request_timeout.is_zero() {
+            request_stream.next().await
+        } else {
+            match tokio::time::timeout(subscribe_request_timeout, request_stream.next()).await {
+                Ok(message) => message,
+                Err(_) => {
+                    debug!(
+                        "subscribe_block_bundles() request from {} not received within {:?}",
+                        peer_index, subscribe_request_timeout
+                    );
+                    return Err(tonic::Status::deadline_exceeded(
+                        "Subscription request not received in time",
+                    ));
+                }
+            }
+        };
+        let first_request = match first_message {
             Some(Ok(r)) => r,
             Some(Err(e)) => {
                 debug!(
@@ -1036,25 +1053,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         let committed_transactions_refs: Vec<GenericTransactionRef> = request
             .block_refs
             .iter()
-            .filter_map(|r| {
-                if self.context.protocol_config.consensus_fast_commit_sync() {
-                    match bcs::from_bytes::<TransactionRef>(r) {
-                        Ok(transaction_ref) => {
-                            Some(GenericTransactionRef::TransactionRef(transaction_ref))
-                        }
-                        Err(e) => {
-                            debug!("Failed to deserialize block ref: {e:?}");
-                            None
-                        }
-                    }
-                } else {
-                    match bcs::from_bytes::<BlockRef>(r) {
-                        Ok(block_ref) => Some(GenericTransactionRef::BlockRef(block_ref)),
-                        Err(e) => {
-                            debug!("Failed to deserialize block ref: {e:?}");
-                            None
-                        }
-                    }
+            .filter_map(|r| match bcs::from_bytes::<TransactionRef>(r) {
+                Ok(transaction_ref) => Some(GenericTransactionRef::TransactionRef(transaction_ref)),
+                Err(e) => {
+                    debug!("Failed to deserialize transaction ref: {e:?}");
+                    None
                 }
             })
             .collect();
@@ -1350,7 +1353,9 @@ fn to_host_port_str(addr: &Multiaddr) -> Result<String, String> {
 
     match (iter.next(), iter.next()) {
         (Some(Protocol::Ip4(ipaddr)), Some(Protocol::Udp(port))) => Ok(format!("{ipaddr}:{port}")),
-        (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port))) => Ok(format!("{ipaddr}:{port}")),
+        (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port))) => {
+            Ok(format!("{}", SocketAddrV6::new(ipaddr, port, 0, 0)))
+        }
         (Some(Protocol::Dns(hostname)), Some(Protocol::Udp(port))) => {
             Ok(format!("{hostname}:{port}"))
         }
@@ -1696,5 +1701,57 @@ mod tests {
             max_fetch_transactions_response_bytes(&context),
             9 * serialized_transactions_size_limit(&context)
         );
+    }
+
+    /// A peer that opens a block subscription stream but never sends the
+    /// request starting it is disconnected once the deadline expires, instead
+    /// of holding a subscription slot and its connection state indefinitely.
+    #[cfg(not(msim))]
+    #[tokio::test]
+    async fn subscribe_without_request_hits_deadline() {
+        use std::time::Duration;
+
+        use futures::stream;
+        use parking_lot::Mutex;
+        use tonic::Request;
+
+        use super::{SubscribeBlockBundlesRequest, TonicManager};
+        use crate::network::test_network::TestService;
+
+        const SUBSCRIBE_REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
+
+        let (context, keys) = Context::new_for_test(4);
+        let server_index = context.committee.to_authority_index(0).unwrap();
+        let mut server_context = context.clone().with_authority_index(server_index);
+        server_context.parameters.tonic.subscribe_request_timeout = SUBSCRIBE_REQUEST_TIMEOUT;
+        let mut server = TonicManager::new(Arc::new(server_context), keys[0].0.clone());
+        server
+            .install_service(Arc::new(Mutex::new(TestService::new())))
+            .await;
+
+        let client_context = Arc::new(
+            context
+                .clone()
+                .with_authority_index(context.committee.to_authority_index(1).unwrap()),
+        );
+        let client =
+            TonicManager::<Mutex<TestService>>::new(client_context, keys[1].0.clone()).client();
+
+        let mut raw_client = client
+            .get_client(server_index, Duration::from_secs(5))
+            .await
+            .unwrap();
+        // A request stream that stays open without ever yielding the
+        // subscription request.
+        let request = Request::new(stream::pending::<SubscribeBlockBundlesRequest>());
+        let status = tokio::time::timeout(
+            SUBSCRIBE_REQUEST_TIMEOUT * 10,
+            raw_client.subscribe_block_bundles(request),
+        )
+        .await
+        .expect("server must not wait for the request past the deadline")
+        .expect_err("subscription without a request must be rejected");
+
+        assert_eq!(status.code(), tonic::Code::DeadlineExceeded);
     }
 }

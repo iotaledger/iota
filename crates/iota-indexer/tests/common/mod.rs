@@ -11,16 +11,18 @@ use std::{
     time::Duration,
 };
 
-use iota_sdk_ext::types::{Address, ObjectId};
+use iota_sdk_ext::{
+    crypto::{Signer, simple::SimpleKeypair},
+    types::{Address, ObjectId, ObjectReference, Version},
+};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
-use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_grpc_server::GrpcServerHandle;
 use iota_indexer::{
-    config::{IotaNamesOptions, JsonRpcConfig, PruningOptions},
+    config::{IotaNamesOptions, JsonRpcConfig, RetentionConfig},
     db::{ConnectionPoolConfig, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
@@ -40,12 +42,9 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
+use iota_sdk_ext::types::{TransactionDigest, crypto::SimpleSignature};
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
-    crypto::{IotaKeyPair, Signature},
-    digests::TransactionDigest,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    utils::to_sender_signed_transaction,
+    quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
     http_client::{HttpClient, HttpClientBuilder},
@@ -83,10 +82,12 @@ impl ApiTestSetup {
         GLOBAL_API_TEST_SETUP.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
 
+            // disable full node pruning: tests read `balance_changes` / `object_changes` in
+            // which needs historical data.
             let (cluster, store, client) =
                 runtime.block_on(start_test_cluster_with_read_write_indexer(
                     Some("shared_test_indexer_db"),
-                    None,
+                    Some(Box::new(|builder| builder.disable_fullnode_pruning())),
                     None,
                 ));
 
@@ -140,14 +141,14 @@ impl SimulacrumTestSetup {
 }
 
 /// Start a [`TestCluster`][`test_cluster::TestCluster`] with a `Read` &
-/// `Write` indexer. Set `epochs_to_keep` (> 0) to enable indexer pruning.
+/// `Write` indexer. Pass a `retention_config` to enable indexer pruning.
 pub async fn start_test_cluster_with_read_write_indexer(
     database_name: impl Into<Option<&str>>,
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
-    pruning_options: Option<PruningOptions>,
+    retention_config: Option<RetentionConfig>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
     let database_name = database_name.into();
-    let mut builder = TestClusterBuilder::new().with_fullnode_enable_grpc_api(true);
+    let mut builder = TestClusterBuilder::new().disable_fullnode_pruning();
 
     if let Some(builder_modifier) = builder_modifier {
         builder = builder_modifier(builder);
@@ -162,7 +163,7 @@ pub async fn start_test_cluster_with_read_write_indexer(
         true,
         None,
         cluster.grpc_url(),
-        IndexerTypeConfig::writer_mode(pruning_options),
+        IndexerTypeConfig::writer_mode_with_retention(retention_config),
         None,
     )
     .await;
@@ -259,7 +260,7 @@ pub async fn force_new_epoch_and_wait(pg_store: &PgIndexerStore, cluster: &TestC
 async fn wait_for_object(
     client: &HttpClient,
     object_id: ObjectId,
-    sequence_number: SequenceNumber,
+    version: Version,
 ) -> anyhow::Result<()> {
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
@@ -270,7 +271,7 @@ async fn wait_for_object(
 
             if obj_res
                 .data
-                .map(|obj| obj.version == sequence_number)
+                .map(|obj| obj.version == version)
                 .unwrap_or_default()
             {
                 break;
@@ -284,22 +285,14 @@ async fn wait_for_object(
 }
 
 /// Wait for the indexer to catch up to the given object sequence number
-pub async fn indexer_wait_for_object(
-    client: &HttpClient,
-    object_id: ObjectId,
-    sequence_number: SequenceNumber,
-) {
-    wait_for_object(client, object_id, sequence_number)
+pub async fn indexer_wait_for_object(client: &HttpClient, object_id: ObjectId, version: Version) {
+    wait_for_object(client, object_id, version)
         .await
         .expect("timeout waiting for indexer to catchup to given object's sequence number");
 }
 
-pub async fn node_wait_for_object(
-    cluster: &TestCluster,
-    object_id: ObjectId,
-    sequence_number: SequenceNumber,
-) {
-    wait_for_object(cluster.rpc_client(), object_id, sequence_number)
+pub async fn node_wait_for_object(cluster: &TestCluster, object_id: ObjectId, version: Version) {
+    wait_for_object(cluster.rpc_client(), object_id, version)
         .await
         .expect("timeout waiting for node to catchup to given object's sequence number");
 }
@@ -398,7 +391,7 @@ pub async fn execute_tx_and_wait_for_indexer_checkpoint(
     indexer_client: &HttpClient,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,
-    keypair: &dyn Signer<Signature>,
+    keypair: &impl Signer<SimpleSignature>,
 ) -> TransactionDigest {
     let digest = execute_tx_must_succeed(indexer_client, tx_bytes, keypair).await;
     indexer_wait_for_transaction(digest, store, indexer_client).await;
@@ -408,7 +401,7 @@ pub async fn execute_tx_and_wait_for_indexer_checkpoint(
 pub async fn execute_tx_must_succeed(
     indexer_client: &HttpClient,
     tx_bytes: TransactionBlockBytes,
-    keypair: &dyn Signer<Signature>,
+    keypair: &impl Signer<SimpleSignature>,
 ) -> TransactionDigest {
     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
     let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
@@ -558,9 +551,9 @@ pub async fn start_simulacrum_grpc_with_read_write_indexer(
 pub async fn publish_test_move_package(
     client: &HttpClient,
     address: Address,
-    account_keypair: &IotaKeyPair,
+    account_keypair: &SimpleKeypair,
     test_package_name: &str,
-) -> Result<(ObjectRef, IotaTransactionBlockResponse), anyhow::Error> {
+) -> Result<(ObjectReference, IotaTransactionBlockResponse), anyhow::Error> {
     let _lock = PACKAGE_PUBLISH_LOCK
         .get_or_init(async || Arc::new(tokio::sync::Mutex::new(0)))
         .await
@@ -577,7 +570,10 @@ pub async fn publish_test_move_package(
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.extend(["tests", "data", test_package_name]);
 
-    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+    let compiled_package = BuildConfig::new_for_testing()
+        .with_allow_view_function()
+        .build(&path)
+        .unwrap();
     let with_unpublished_deps = false;
     let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
     let dependencies = compiled_package.get_dependency_storage_package_ids();

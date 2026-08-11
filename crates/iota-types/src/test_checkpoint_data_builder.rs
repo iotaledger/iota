@@ -6,31 +6,26 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::types::{
-    Address, EndOfEpochTransactionKind, Event, Identifier, ObjectId, Owner, StructTag,
-    TransactionKind, TypeTag,
+    Address, EndOfEpochTransactionKind, Event, Identifier, MoveStruct, ObjectId, ObjectReference,
+    Owner, SenderSignedTransaction, SharedObjectReference, StructTag, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind, TypeTag, Version,
+    checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use tap::Pipe;
 
 use crate::{
-    base_types::{ExecutionDigests, ObjectRef, SequenceNumber, dbg_addr, random_object_ref},
+    base_types::{ExecutionDigests, dbg_addr, random_object_ref},
     committee::Committee,
-    digests::TransactionDigest,
-    effects::{
-        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI,
-        TransactionEffectsExtForTesting, TransactionEvents,
-    },
+    effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExtForTesting},
     event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, EndOfEpochData,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummaryExt,
     },
-    object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
+    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 
 /// A builder for creating test checkpoint data.
@@ -77,14 +72,14 @@ struct CheckpointBuilder {
 
 struct TransactionBuilder {
     sender_idx: u8,
-    gas: ObjectRef,
+    gas: ObjectReference,
     move_calls: Vec<(ObjectId, &'static str, &'static str)>,
     created_objects: BTreeMap<ObjectId, Object>,
     mutated_objects: BTreeMap<ObjectId, Object>,
     unwrapped_objects: BTreeSet<ObjectId>,
     wrapped_objects: BTreeSet<ObjectId>,
     deleted_objects: BTreeSet<ObjectId>,
-    frozen_objects: BTreeSet<ObjectRef>,
+    frozen_objects: BTreeSet<ObjectReference>,
     shared_inputs: BTreeMap<ObjectId, Shared>,
     events: Option<Vec<Event>>,
 }
@@ -95,7 +90,7 @@ struct Shared {
 }
 
 impl TransactionBuilder {
-    pub fn new(sender_idx: u8, gas: ObjectRef) -> Self {
+    pub fn new(sender_idx: u8, gas: ObjectReference) -> Self {
         Self {
             sender_idx,
             gas,
@@ -170,7 +165,7 @@ impl TestCheckpointDataBuilder {
     pub fn create_shared_object(self, object_idx: u64) -> Self {
         self.create_coin_object_with_owner(
             object_idx,
-            Owner::Shared(SequenceNumber::MIN_VALID_INCL),
+            Owner::Shared(Version::MIN_VALID_INCL),
             GAS_VALUE_FOR_TESTING,
             GAS::type_tag(),
         )
@@ -222,11 +217,11 @@ impl TestCheckpointDataBuilder {
             !self.live_objects.contains_key(&object_id),
             "Object already exists: {object_id}. Please use a different object index.",
         );
-        let move_object = MoveObject::new_coin(
+        let move_object = MoveStruct::new_coin(
             coin_type,
             // version doesn't matter since we will set it to the lamport version when we finalize
             // the transaction
-            SequenceNumber::MIN_VALID_INCL,
+            Version::MIN_VALID_INCL,
             object_id,
             balance,
         );
@@ -434,7 +429,7 @@ impl TestCheckpointDataBuilder {
             };
 
             pt_builder
-                .obj(CallArg::Shared(SharedObjectRef::new(
+                .obj(CallArg::Shared(SharedObjectReference::new(
                     *id,
                     initial_shared_version,
                     input.mutable,
@@ -443,8 +438,8 @@ impl TestCheckpointDataBuilder {
         }
 
         let pt = pt_builder.finish();
-        let tx_data = TransactionData::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
-        let tx = Transaction::new(SenderSignedData::new(tx_data, vec![]));
+        let tx = Transaction::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
+        let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx, vec![]));
 
         let wrapped_objects: Vec<_> = wrapped_objects
             .into_iter()
@@ -562,15 +557,15 @@ impl TestCheckpointDataBuilder {
         // TODO: need the system state object wrapper and dynamic field object to
         // "correctly" mock advancing epoch, at least to satisfy kv_epoch_starts
         // pipeline.
-        let end_of_epoch_tx = TransactionData::new(
+        let end_of_epoch_tx = Transaction::new(
             TransactionKind::EndOfEpoch(vec![tx_kind]),
             Address::ZERO,
             random_object_ref(),
             1,
             1,
         )
-        .pipe(|data| SenderSignedData::new(data, vec![]))
-        .pipe(Transaction::new);
+        .pipe(|tx| SenderSignedTransaction::new(tx, vec![]))
+        .pipe(TransactionEnvelope::new);
 
         let events = if !safe_mode {
             let system_epoch_info_event = SystemEpochInfoEventV2 {
@@ -608,8 +603,8 @@ impl TestCheckpointDataBuilder {
         // checkpoint with additional end of epoch data.
         let mut checkpoint = self.build_checkpoint();
         let end_of_epoch_data = EndOfEpochData {
-            next_epoch_committee: committee.voting_rights,
-            next_epoch_protocol_version: protocol_config.version,
+            next_epoch_committee: committee.committee_members(),
+            next_epoch_protocol_version: protocol_config.version.as_u64(),
             epoch_commitments: vec![],
             // Do not simulate supply changes in tests.
             epoch_supply_change: 0,
@@ -633,7 +628,7 @@ impl TestCheckpointDataBuilder {
 
         self.checkpoint_builder.network_total_transactions += transactions.len() as u64;
 
-        let checkpoint_summary = CheckpointSummary::new(
+        let checkpoint_summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             self.checkpoint_builder.epoch,
             self.checkpoint_builder.checkpoint,
@@ -704,7 +699,7 @@ mod tests {
     use super::*;
     use crate::{
         ObjectId,
-        transaction::{TransactionDataAPI, TransactionKindExt},
+        transaction::{TransactionAPI, TransactionKindExt},
     };
     #[test]
     fn test_basic_checkpoint_builder() {
@@ -715,7 +710,7 @@ mod tests {
             .finish_transaction()
             .build_checkpoint();
 
-        assert_eq!(*checkpoint.checkpoint_summary.sequence_number(), 1);
+        assert_eq!(checkpoint.checkpoint_summary.sequence_number(), 1);
         assert_eq!(checkpoint.checkpoint_summary.epoch, 5);
         assert_eq!(checkpoint.transactions.len(), 1);
         let tx = &checkpoint.transactions[0];
@@ -748,7 +743,7 @@ mod tests {
         let senders: Vec<_> = checkpoint
             .transactions
             .iter()
-            .map(|tx| tx.transaction.transaction_data().sender())
+            .map(|tx| tx.transaction.transaction().sender())
             .collect();
         assert_eq!(
             senders,
@@ -1052,7 +1047,7 @@ mod tests {
         // Verify the transaction has a move call matching the arguments provided.
         assert!(
             tx.transaction
-                .transaction_data()
+                .transaction()
                 .kind()
                 .iter_commands()
                 .any(|cmd| {

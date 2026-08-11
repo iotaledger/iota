@@ -4,9 +4,9 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use iota_sdk_ext::types::{TransactionDigest, TransactionEffects};
 use iota_types::{
-    base_types::TransactionDigest,
-    effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
+    effects::{InputSharedObject, TransactionEffectsAPI},
     storage::ObjectKey,
 };
 use tracing::trace;
@@ -225,13 +225,10 @@ impl InsertState {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_ext::types::ObjectId;
-    use iota_types::{
-        base_types::{ObjectDigest, ObjectRef, SequenceNumber},
-        effects::{
-            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
-        },
+    use iota_sdk_ext::types::{
+        ObjectDigest, ObjectId, ObjectReference, TransactionEffects, Version,
     };
+    use iota_types::effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting};
 
     use super::*;
 
@@ -263,21 +260,15 @@ mod tests {
         let mut e2 = e(d(2), vec![]);
         let mut e3 = e(d(3), vec![]);
         let obj_digest = ObjectDigest::new(Default::default());
-        e5.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(ObjectRef::new(
-            o(1),
-            SequenceNumber::from_u64(1),
-            obj_digest,
-        )));
-        e2.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(ObjectRef::new(
-            o(1),
-            SequenceNumber::from_u64(1),
-            obj_digest,
-        )));
-        e3.unsafe_add_input_shared_object_for_testing(InputSharedObject::Mutate(ObjectRef::new(
-            o(1),
-            SequenceNumber::from_u64(1),
-            obj_digest,
-        )));
+        e5.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(
+            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
+        ));
+        e2.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(
+            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
+        ));
+        e3.unsafe_add_input_shared_object_for_testing(InputSharedObject::Mutate(
+            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
+        ));
 
         let r = extract(CausalOrder::causal_sort(vec![e5, e2, e3]));
         assert_eq!(r.len(), 3);

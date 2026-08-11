@@ -4,10 +4,10 @@
 
 use std::{fmt::Formatter, sync::LazyLock};
 
-use iota_sdk_ext::types::{MovePackage, ObjectId};
+use iota_sdk_ext::types::{
+    ObjectId, ObjectReference, TransactionDigest, move_package::MovePackage,
+};
 use iota_types::{
-    base_types::ObjectRef,
-    digests::TransactionDigest,
     move_package::MovePackageExt,
     object::{OBJECT_START_VERSION, Object},
     storage::ObjectStore,
@@ -192,7 +192,7 @@ pub async fn compare_system_package<S: ObjectStore>(
     modules: &[CompiledModule],
     dependencies: Vec<ObjectId>,
     binary_config: &BinaryConfig,
-) -> Option<ObjectRef> {
+) -> Option<ObjectReference> {
     let cur_object = match object_store.try_get_object(id) {
         Ok(Some(cur_object)) => cur_object,
 

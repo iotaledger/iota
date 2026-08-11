@@ -5,21 +5,17 @@
 use std::collections::BTreeMap;
 
 use iota_json_rpc_types::ObjectChange;
-use iota_sdk_ext::types::{Address, ObjectId, Owner, StructTag};
-use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
-    effects::ObjectRemoveKind,
-    storage::WriteKind,
-};
+use iota_sdk_ext::types::{Address, ObjectId, ObjectReference, Owner, StructTag, Version};
+use iota_types::{effects::ObjectRemoveKind, storage::WriteKind};
 
 use crate::ObjectProvider;
 
 pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
     sender: Address,
-    modified_at_versions: Vec<(ObjectId, SequenceNumber)>,
-    all_changed_objects: Vec<(ObjectRef, Owner, WriteKind)>,
-    all_removed_objects: Vec<(ObjectRef, ObjectRemoveKind)>,
+    modified_at_versions: Vec<(ObjectId, Version)>,
+    all_changed_objects: Vec<(ObjectReference, Owner, WriteKind)>,
+    all_removed_objects: Vec<(ObjectReference, ObjectRemoveKind)>,
 ) -> Result<Vec<ObjectChange>, E> {
     let mut object_changes = vec![];
 

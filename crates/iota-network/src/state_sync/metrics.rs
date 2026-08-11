@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus_filtered::{
-    Histogram, IntGauge, Registry, register_histogram_with_registry,
-    register_int_gauge_with_registry,
+    Histogram, IntCounter, IntGauge, MetricLevel, Registry, register_histogram_with_registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 use tap::Pipe;
 
@@ -49,6 +49,12 @@ impl Metrics {
         }
     }
 
+    pub fn update_checkpoints_synced_from_checkpoint_archive(&self) {
+        if let Some(inner) = &self.0 {
+            inner.checkpoints_synced_from_checkpoint_archive.inc();
+        }
+    }
+
     pub fn checkpoint_summary_age_metrics(&self) -> Option<&Histogram> {
         if let Some(inner) = &self.0 {
             return Some(&inner.checkpoint_summary_age);
@@ -61,6 +67,7 @@ struct Inner {
     highest_known_checkpoint: IntGauge,
     highest_verified_checkpoint: IntGauge,
     highest_synced_checkpoint: IntGauge,
+    checkpoints_synced_from_checkpoint_archive: IntCounter,
     checkpoint_summary_age: Histogram,
 }
 
@@ -70,21 +77,32 @@ impl Inner {
             highest_known_checkpoint: register_int_gauge_with_registry!(
                 "highest_known_checkpoint",
                 "Highest known checkpoint",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
 
             highest_verified_checkpoint: register_int_gauge_with_registry!(
                 "highest_verified_checkpoint",
                 "Highest verified checkpoint",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
 
             highest_synced_checkpoint: register_int_gauge_with_registry!(
                 "highest_synced_checkpoint",
                 "Highest synced checkpoint",
-                registry
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+
+            checkpoints_synced_from_checkpoint_archive: register_int_counter_with_registry!(
+                "checkpoints_synced_from_checkpoint_archive",
+                "Checkpoints synced from checkpoint archive",
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
 
@@ -92,7 +110,8 @@ impl Inner {
                 "checkpoint_summary_age",
                 "Age of checkpoints summaries when they arrive and are verified.",
                 iota_metrics::LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
         }

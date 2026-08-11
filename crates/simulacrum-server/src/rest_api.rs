@@ -50,7 +50,7 @@ pub struct CheckpointResponse {
     pub epoch: u64,
     pub timestamp_ms: u64,
     pub network_total_transactions: u64,
-    pub content_digest: String,
+    pub contents_digest: String,
 }
 
 #[derive(Deserialize)]
@@ -99,11 +99,11 @@ pub fn checkpoint_to_response(
 ) -> CheckpointResponse {
     let checkpoint_data = checkpoint.data();
     CheckpointResponse {
-        sequence_number: *checkpoint.sequence_number(),
+        sequence_number: checkpoint.sequence_number(),
         epoch: checkpoint.epoch(),
         timestamp_ms: checkpoint_data.timestamp_ms,
         network_total_transactions: checkpoint_data.network_total_transactions,
-        content_digest: checkpoint_data.content_digest.to_string(),
+        contents_digest: checkpoint_data.contents_digest.to_string(),
     }
 }
 
@@ -115,7 +115,7 @@ pub async fn get_status(
 
     let highest_verified_checkpoint = simulacrum.get_highest_verified_checkpoint();
     let highest_verified_checkpoint_data = highest_verified_checkpoint.data();
-    let highest_checkpoint = Some(*highest_verified_checkpoint_data.sequence_number());
+    let highest_checkpoint = Some(highest_verified_checkpoint_data.sequence_number());
     let current_epoch = highest_verified_checkpoint_data.epoch;
 
     let timestamp_ms = simulacrum.with_store(|store| store.get_clock().timestamp_ms());

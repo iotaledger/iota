@@ -32,7 +32,7 @@ use crate::{
         VerifiedTransactions, genesis_blocks,
     },
     commit::{
-        CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
+        CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef, CommitVote,
         GENESIS_COMMIT_INDEX, SubDagBase, TrustedCommit, load_pending_subdag_from_store,
     },
     context::Context,
@@ -65,9 +65,9 @@ pub(crate) enum DataSource {
     /// Block headers received in bundles via block bundle streaming.
     BlockBundleStream,
 
-    /// Block headers fetched by the live/periodic header synchronizer
-    /// component.
-    HeaderSynchronizer,
+    /// Block headers the live/periodic header synchronizer requested by
+    /// reference and the peer returned.
+    HeaderSynchronizerRequested,
 
     /// Block headers loaded from persistent storage during node recovery.
     Recover,
@@ -89,6 +89,12 @@ pub(crate) enum DataSource {
     /// Transactions received via fast commit synchronization.
     FastCommitSyncer,
 
+    /// Block headers a header-sync response volunteered beyond the refs we
+    /// requested (the server's gap-fill below our requested rounds). These were
+    /// not asked for by digest, so they are subject to the one-header-per-slot
+    /// cap.
+    HeaderSynchronizerAdditional,
+
     /// Data added during testing.
     /// Only used in test code.
     #[cfg(test)]
@@ -103,7 +109,30 @@ impl DataSource {
         match self {
             DataSource::BlockStreaming
             | DataSource::BlockBundleStream
-            | DataSource::HeaderSynchronizer => true,
+            | DataSource::HeaderSynchronizerRequested
+            | DataSource::HeaderSynchronizerAdditional => true,
+            DataSource::TransactionSynchronizer
+            | DataSource::ShardReconstructor
+            | DataSource::Recover
+            | DataSource::OwnBlock
+            | DataSource::CommitSyncer
+            | DataSource::FastCommitSyncer => false,
+            #[cfg(test)]
+            DataSource::Test => false,
+        }
+    }
+
+    /// Whether the `quorum_receive_latency` metric should be recorded for
+    /// headers from this source. That metric is `now - proposal_timestamp`, so
+    /// only live network ingress reflects real propagation timing; recovery and
+    /// commit/fast sync replay stored headers whose old timestamps would skew
+    /// it.
+    pub(crate) fn records_receive_latency(&self) -> bool {
+        match self {
+            DataSource::BlockStreaming
+            | DataSource::BlockBundleStream
+            | DataSource::HeaderSynchronizerRequested
+            | DataSource::HeaderSynchronizerAdditional => true,
             DataSource::TransactionSynchronizer
             | DataSource::ShardReconstructor
             | DataSource::Recover
@@ -122,14 +151,40 @@ impl DataSource {
             DataSource::TransactionSynchronizer => "Transactions synchronizer",
             DataSource::ShardReconstructor => "Shard reconstructor",
             DataSource::BlockBundleStream => "Block headers in streaming",
-            DataSource::HeaderSynchronizer => "Header synchronizer",
+            DataSource::HeaderSynchronizerRequested => "Header synchronizer requested",
             DataSource::Recover => "Recover",
             DataSource::OwnBlock => "Own block",
             DataSource::BlockStreaming => "Block streaming",
             DataSource::CommitSyncer => "Commit syncer",
             DataSource::FastCommitSyncer => "Fast commit syncer",
+            DataSource::HeaderSynchronizerAdditional => "Header synchronizer additional",
             #[cfg(test)]
             DataSource::Test => "Test",
+        }
+    }
+
+    /// Whether headers from this source are subject to the one-header-per-slot
+    /// cap. Only the live ingress paths, whose content a peer chooses freely,
+    /// are capped. The rest are exempt for different reasons: headers requested
+    /// by digest cannot be inflated by the peer serving them, and refusing a
+    /// requested ancestor would stall linearization; commit-sync headers arrive
+    /// with a commit carrying a quorum of votes; recovery reads our own store
+    /// and our own proposals are already one per slot by construction; and the
+    /// transaction sources carry no headers at all.
+    pub(crate) fn is_subject_to_slot_cap(&self) -> bool {
+        match self {
+            DataSource::BlockStreaming
+            | DataSource::BlockBundleStream
+            | DataSource::HeaderSynchronizerAdditional => true,
+            DataSource::HeaderSynchronizerRequested
+            | DataSource::TransactionSynchronizer
+            | DataSource::ShardReconstructor
+            | DataSource::Recover
+            | DataSource::OwnBlock
+            | DataSource::CommitSyncer
+            | DataSource::FastCommitSyncer => false,
+            #[cfg(test)]
+            DataSource::Test => false,
         }
     }
 }
@@ -250,8 +305,14 @@ pub(crate) struct DagState {
     /// Rounds for latest blocks traversed by linearizer per authority.
     last_committed_rounds: Vec<Round>,
 
-    /// The committed subdags that have been scored but scores have not been
-    /// used for leader schedule yet.
+    /// Committed subdags scored since the last leader-schedule rotation, not
+    /// yet applied to the schedule. The V2 path computes its reputation
+    /// scores from these; the sliding-window path takes scores from the
+    /// window scorer instead, so there this serves only as the rotation
+    /// counter (`scoring_subdags_count`) and the just-rotated edge
+    /// (`is_scoring_subdag_empty`). Once V2 is removed it can be dropped
+    /// entirely, both roles replaced by a single recovered `u32` holding the
+    /// last rotation boundary index.
     scoring_subdag: ScoringSubdag,
 
     /// Commit votes pending to be included in new blocks. Ordered by
@@ -283,9 +344,8 @@ pub(crate) struct DagState {
     /// the next dag state flush. This is okay because we can recover
     /// reputation scores & last_committed_rounds from the commits as
     /// needed.
-    /// The index in CommitRef correspond to the first index of the next
-    /// scheduler window, while the reputation scores in CommitInfoare for
-    /// the previous window.
+    /// The `CommitRef` is the boundary commit — the last commit of the window
+    /// that just closed — so recovery resumes from its index + 1.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
     /// Misbehavior scoring metrics (in-memory + persisted buckets).
@@ -303,6 +363,9 @@ pub(crate) struct DagState {
     /// History of strong-vote complaint masks against this node's own
     /// leader rounds, keyed by leader round.
     starfish_speed_leader_hints: BTreeMap<Round, StarfishSpeedLeaderRoundHints>,
+
+    /// Commitment over an empty transaction list for this committee.
+    empty_transactions_commitment: TransactionsCommitment,
 
     /// Broadcast sender for DAG visualizer events.
     #[cfg(feature = "dag-visualizer")]
@@ -399,6 +462,9 @@ impl DagState {
             unscored_committed_subdags.len()
         );
 
+        let empty_transactions_commitment =
+            TransactionsCommitment::compute_empty_transactions_commitment(&context);
+
         let mut state = Self {
             context,
             genesis,
@@ -430,6 +496,7 @@ impl DagState {
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
             starfish_speed_leader_hints: BTreeMap::new(),
+            empty_transactions_commitment,
             #[cfg(feature = "dag-visualizer")]
             dag_visualizer_sender: None,
         };
@@ -539,7 +606,7 @@ impl DagState {
         // Reload transactions from storage
         let transactions = self
             .store
-            .scan_transactions_by_author(authority_index, eviction_round + 1, self.context.clone())
+            .scan_transactions_by_author(authority_index, eviction_round + 1)
             .expect("Database error");
         for txn in &transactions {
             self.update_transaction_metadata(txn, data_source);
@@ -618,28 +685,19 @@ impl DagState {
     }
 
     fn rebuild_scoring_subdag_from_store(&mut self) {
-        let Some(last_commit) = self.last_commit.as_ref() else {
+        let Some(last_commit_index) = self.last_commit.as_ref().map(|c| c.index()) else {
             return;
         };
 
         let commit_recovery_start_index = self.last_commit_info_index().saturating_add(1);
 
-        if commit_recovery_start_index > last_commit.index() {
+        if commit_recovery_start_index > last_commit_index {
             return;
         }
 
-        let commits = self
-            .store
-            .scan_commits((commit_recovery_start_index..=last_commit.index()).into())
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-
-        let mut unscored_subdags = Vec::with_capacity(commits.len());
-        for commit in commits {
-            let pending_subdag =
-                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])
-                    .unwrap_or_else(|e| panic!("Failed to recover pending subdag: {e:?}"));
-            unscored_subdags.push(pending_subdag.base);
-        }
+        let unscored_subdags = self.load_scoring_subdags_from_store(
+            (commit_recovery_start_index..=last_commit_index).into(),
+        );
 
         if !unscored_subdags.is_empty() {
             self.scoring_subdag.add_subdags(unscored_subdags);
@@ -738,15 +796,7 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let generic_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-            GenericTransactionRef::from(transaction_ref)
-        } else {
-            let Some(block_ref) = transactions.block_ref() else {
-                error!("block_ref unavailable for transactions in non-transaction-ref path");
-                return;
-            };
-            GenericTransactionRef::from(block_ref)
-        };
+        let generic_ref = GenericTransactionRef::from(transaction_ref);
         if self.recent_transactions_by_authority[transaction_ref.author].contains_key(&generic_ref)
         {
             if transactions.has_transactions() {
@@ -855,7 +905,29 @@ impl DagState {
         );
         #[cfg(feature = "dag-visualizer")]
         let clock_before = self.threshold_clock.get_round();
-        self.threshold_clock.add_block_header(block_ref);
+        if self.threshold_clock.add_block_header(block_ref) {
+            // Quorum latency is `now - proposal_timestamp`, so it only makes sense
+            // for live network ingress. Recovery and commit/fast sync replay stored
+            // headers whose old timestamps would record `now - old_proposal_ts`.
+            //
+            // Also only measure when the local node proposed in the round that just
+            // reached quorum, to avoid skewing the metric during idle rounds.
+            if source.records_receive_latency() {
+                let last_proposed = self.get_last_proposed_block_header();
+                if last_proposed.round() == block_ref.round {
+                    let quorum_delay_ms = self
+                        .context
+                        .clock
+                        .timestamp_utc_ms()
+                        .saturating_sub(last_proposed.timestamp_ms());
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .quorum_receive_latency
+                        .observe((quorum_delay_ms as f64) / 1000.0);
+                }
+            }
+        }
         #[cfg(feature = "dag-visualizer")]
         {
             let clock_after = self.threshold_clock.get_round();
@@ -903,11 +975,7 @@ impl DagState {
                 // Fetch transaction commitments for all acknowledged blocks in batch
                 let acknowledgments = block_header.acknowledgments();
                 let ack_transactions_commitments =
-                    if self.context.protocol_config.consensus_fast_commit_sync() {
-                        self.get_transactions_commitments_batch(acknowledgments)
-                    } else {
-                        vec![None; acknowledgments.len()]
-                    };
+                    self.get_transactions_commitments_batch(acknowledgments);
 
                 let cordial_message = CordialKnowledgeMessage::NewHeader {
                     header: block_header.clone(),
@@ -926,15 +994,7 @@ impl DagState {
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
-        let generic_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-            GenericTransactionRef::from(transaction_ref)
-        } else {
-            let Some(block_ref) = transactions.block_ref() else {
-                error!("block_ref unavailable for transactions in non-transaction-ref path");
-                return;
-            };
-            GenericTransactionRef::from(block_ref)
-        };
+        let generic_ref = GenericTransactionRef::from(transaction_ref);
         self.recent_transactions_by_authority[transaction_ref.author]
             .insert(generic_ref, transactions.clone());
         tracing::debug!("Adding transactions for {generic_ref}");
@@ -1085,6 +1145,10 @@ impl DagState {
                 transactions[index] = Some(transaction.clone());
                 continue;
             }
+            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+                transactions[index] = Some(empty);
+                continue;
+            }
             missing.push((index, transactions_ref));
         }
 
@@ -1138,6 +1202,10 @@ impl DagState {
                 transactions[index] = Some(transaction.serialized().clone());
                 continue;
             }
+            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+                transactions[index] = Some(empty.serialized().clone());
+                continue;
+            }
             missing.push((index, transactions_ref));
         }
 
@@ -1181,7 +1249,6 @@ impl DagState {
     /// Checks if verified block headers exist for the given transaction refs.
     /// Checks in-memory data (genesis and recent_block_headers) first, then
     /// falls back to storage for blocks not found in memory.
-    #[cfg_attr(test, expect(dead_code))]
     pub(crate) fn contains_verified_block_headers_for_transaction_refs(
         &self,
         tx_refs: &[TransactionRef],
@@ -1500,6 +1567,25 @@ impl DagState {
         self.get_recent_block_headers_at_slot(slot)
     }
 
+    /// Whether an accepted header exists at `block_ref`'s slot with a digest
+    /// different from `block_ref`'s — i.e. an equivocation for that slot.
+    pub(crate) fn contains_other_block_header_at_slot(&self, block_ref: &BlockRef) -> bool {
+        self.recent_headers_refs_by_authority[block_ref.author]
+            .range((
+                Included(BlockRef::new(
+                    block_ref.round,
+                    block_ref.author,
+                    BlockHeaderDigest::MIN,
+                )),
+                Included(BlockRef::new(
+                    block_ref.round,
+                    block_ref.author,
+                    BlockHeaderDigest::MAX,
+                )),
+            ))
+            .any(|existing| existing != block_ref)
+    }
+
     /// Returns headers from `recent_block_headers` at `round`. The caller must
     /// pass `round > last_commit_round()` so the lookup stays inside the
     /// not-yet-committed portion of the DAG.
@@ -1577,16 +1663,11 @@ impl DagState {
             if last.round > GENESIS_ROUND {
                 let last_header_opt = self.recent_block_headers.get(last);
                 if let Some(last_header) = last_header_opt {
-                    let transaction_ref =
-                        if self.context.protocol_config.consensus_fast_commit_sync() {
-                            GenericTransactionRef::from(TransactionRef {
-                                round: last.round,
-                                author: last.author,
-                                transactions_commitment: last_header.transactions_commitment(),
-                            })
-                        } else {
-                            GenericTransactionRef::from(*last)
-                        };
+                    let transaction_ref = GenericTransactionRef::from(TransactionRef {
+                        round: last.round,
+                        author: last.author,
+                        transactions_commitment: last_header.transactions_commitment(),
+                    });
 
                     if let Some(last_transactions) =
                         self.recent_transactions_by_authority[last.author].get(&transaction_ref)
@@ -1647,15 +1728,11 @@ impl DagState {
             let header_opt = self.recent_block_headers.get(block_ref);
             let mut block_constructed = false;
             if let Some(header) = header_opt {
-                let transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-                    GenericTransactionRef::from(TransactionRef {
-                        round: block_ref.round,
-                        author: block_ref.author,
-                        transactions_commitment: header.transactions_commitment(),
-                    })
-                } else {
-                    GenericTransactionRef::from(*block_ref)
-                };
+                let transaction_ref = GenericTransactionRef::from(TransactionRef {
+                    round: block_ref.round,
+                    author: block_ref.author,
+                    transactions_commitment: header.transactions_commitment(),
+                });
                 let transactions_opt =
                     self.recent_transactions_by_authority[block_ref.author].get(&transaction_ref);
                 if let Some(transactions) = transactions_opt {
@@ -1710,6 +1787,54 @@ impl DagState {
                 BlockHeaderDigest::MIN,
             )),
         )) {
+            let block_header = self
+                .recent_block_headers
+                .get(block_ref)
+                .expect("Block header should exist in recent block headers");
+            block_headers.push(block_header.clone());
+            if block_headers.len() >= limit {
+                break;
+            }
+        }
+        block_headers
+    }
+
+    /// Returns cached block headers from the specified authority within a given
+    /// round range, at most one per round: where the authority has several
+    /// headers in a round, the one with the lowest digest. Block headers
+    /// returned are limited to `start_round` <= round < `end_round`, up to
+    /// `limit` entries. NOTE: Only cached block headers are returned; storage
+    /// is not checked.
+    pub(crate) fn get_cached_block_headers_in_range_one_per_round(
+        &self,
+        authority: AuthorityIndex,
+        start_round: Round,
+        end_round: Round,
+        limit: usize,
+    ) -> Vec<VerifiedBlockHeader> {
+        if start_round >= end_round || limit == 0 {
+            return vec![];
+        }
+
+        let mut block_headers: Vec<VerifiedBlockHeader> = vec![];
+        for block_ref in self.recent_headers_refs_by_authority[authority].range((
+            Included(BlockRef::new(
+                start_round,
+                authority,
+                BlockHeaderDigest::MIN,
+            )),
+            Excluded(BlockRef::new(
+                end_round,
+                AuthorityIndex::MIN,
+                BlockHeaderDigest::MIN,
+            )),
+        )) {
+            if block_headers
+                .last()
+                .is_some_and(|last| last.round() == block_ref.round)
+            {
+                continue;
+            }
             let block_header = self
                 .recent_block_headers
                 .get(block_ref)
@@ -1946,6 +2071,10 @@ impl DagState {
                 exist[index] = self.get_genesis_block(tx_ref).is_some();
                 continue;
             }
+            if self.empty_transactions_for_ref(&tx_ref).is_some() {
+                exist[index] = true;
+                continue;
+            }
             if self.recent_transactions_by_authority[tx_ref.author()].contains_key(&tx_ref) {
                 exist[index] = true;
             } else {
@@ -2128,18 +2257,22 @@ impl DagState {
 
     /// Check if a block's transactions are locally available.
     pub(crate) fn are_transactions_available(&self, block_ref: &BlockRef) -> bool {
-        let transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-            let Some(header) = self.recent_block_headers.get(block_ref) else {
-                return false;
-            };
-            GenericTransactionRef::from(TransactionRef {
-                round: block_ref.round,
-                author: block_ref.author,
-                transactions_commitment: header.transactions_commitment(),
-            })
-        } else {
-            GenericTransactionRef::from(*block_ref)
+        // Genesis blocks carry no transactions.
+        if self.genesis.contains_key(block_ref) {
+            return true;
+        }
+        let Some(header) = self.recent_block_headers.get(block_ref) else {
+            return false;
         };
+        // An empty payload is fully determined by the header's commitment.
+        if header.transactions_commitment() == self.empty_transactions_commitment {
+            return true;
+        }
+        let transaction_ref = GenericTransactionRef::from(TransactionRef {
+            round: block_ref.round,
+            author: block_ref.author,
+            transactions_commitment: header.transactions_commitment(),
+        });
         self.recent_transactions_by_authority[block_ref.author].contains_key(&transaction_ref)
     }
 
@@ -2171,19 +2304,11 @@ impl DagState {
             let eviction_round = self.calculate_authority_eviction_round(authority_index);
 
             // Evict everything below split_key
-            let split_key = if self.context.protocol_config.consensus_fast_commit_sync() {
-                GenericTransactionRef::from(TransactionRef {
-                    round: eviction_round + 1,
-                    author: authority_index,
-                    transactions_commitment: TransactionsCommitment::MIN,
-                })
-            } else {
-                GenericTransactionRef::from(BlockRef::new(
-                    eviction_round + 1,
-                    authority_index,
-                    BlockHeaderDigest::MIN,
-                ))
-            };
+            let split_key = GenericTransactionRef::from(TransactionRef {
+                round: eviction_round + 1,
+                author: authority_index,
+                transactions_commitment: TransactionsCommitment::MIN,
+            });
             self.recent_shards_by_authority[authority_index] =
                 self.recent_shards_by_authority[authority_index].split_off(&split_key);
         }
@@ -2210,19 +2335,11 @@ impl DagState {
             };
 
             // Evict everything below split_key
-            let split_key = if self.context.protocol_config.consensus_fast_commit_sync() {
-                GenericTransactionRef::from(TransactionRef {
-                    round: transaction_eviction_round,
-                    author: authority_index,
-                    transactions_commitment: TransactionsCommitment::MIN,
-                })
-            } else {
-                GenericTransactionRef::from(BlockRef::new(
-                    transaction_eviction_round,
-                    authority_index,
-                    BlockHeaderDigest::MIN,
-                ))
-            };
+            let split_key = GenericTransactionRef::from(TransactionRef {
+                round: transaction_eviction_round,
+                author: authority_index,
+                transactions_commitment: TransactionsCommitment::MIN,
+            });
             self.recent_transactions_by_authority[authority_index] =
                 self.recent_transactions_by_authority[authority_index].split_off(&split_key);
         }
@@ -2264,11 +2381,7 @@ impl DagState {
     /// Drops queued commit votes whose index is at or below the network's
     /// quorum commit index minus `gc_depth`. Those votes carry no new
     /// information for peers and only bloat the in-memory tracker.
-    /// No-op when `consensus_block_restrictions` is off.
     pub(crate) fn evict_pending_commit_votes(&mut self) {
-        if !self.context.protocol_config.consensus_block_restrictions() {
-            return;
-        }
         let gc_threshold = self
             .last_known_quorum_commit_index
             .saturating_sub(self.context.protocol_config.gc_depth());
@@ -2524,18 +2637,15 @@ impl DagState {
 
             // Write all buffered data to storage
             self.store
-                .write(
-                    WriteBatch {
-                        transactions,
-                        block_headers,
-                        commits,
-                        commit_info,
-                        voting_block_headers,
-                        fast_commit_sync_flag,
-                        misbehavior_counts,
-                    },
-                    self.context.clone(),
-                )
+                .write(WriteBatch {
+                    transactions,
+                    block_headers,
+                    commits,
+                    commit_info,
+                    voting_block_headers,
+                    fast_commit_sync_flag,
+                    misbehavior_counts,
+                })
                 .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
 
             self.context
@@ -2639,12 +2749,11 @@ impl DagState {
         self.scoring_subdag.calculate_distributed_vote_scores()
     }
 
-    pub(crate) fn scoring_subdag_commit_range(&self) -> CommitIndex {
+    pub(crate) fn scoring_subdag_commit_range(&self) -> CommitRange {
         self.scoring_subdag
             .commit_range
-            .as_ref()
+            .clone()
             .expect("commit range should exist for scoring subdag")
-            .end()
     }
 
     /// The last round that should get evicted after a cache-clean-up operation.
@@ -2745,7 +2854,7 @@ impl DagState {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
     }
 
-    pub(crate) fn misbehavior_store(&self) -> &MisbehaviorStore {
+    pub(crate) fn misbehavior_store(&self) -> &Arc<MisbehaviorStore> {
         &self.misbehavior_store
     }
 
@@ -2857,13 +2966,45 @@ impl DagState {
             .set(mask.len() as i64);
         mask
     }
+
+    /// Loads the committed subdags in `range` from stored commits, for
+    /// re-scoring. The commits and their block headers must exist in the
+    /// store.
+    pub(crate) fn load_scoring_subdags_from_store(&self, range: CommitRange) -> Vec<SubDagBase> {
+        self.store
+            .scan_commits(range)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
+            .into_iter()
+            .map(|commit| {
+                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])
+                    .unwrap_or_else(|e| panic!("Failed to recover pending subdag: {e:?}"))
+                    .base
+            })
+            .collect()
+    }
+
+    /// Returns the empty transactions object for `tx_ref` when its commitment
+    /// is the commitment over an empty transaction list, `None` otherwise.
+    fn empty_transactions_for_ref(
+        &self,
+        tx_ref: &GenericTransactionRef,
+    ) -> Option<VerifiedTransactions> {
+        match tx_ref {
+            GenericTransactionRef::TransactionRef(tx_ref) => (tx_ref.transactions_commitment
+                == self.empty_transactions_commitment)
+                .then(|| VerifiedTransactions::new_empty_from_ref(*tx_ref, None)),
+            // The legacy BlockRef form carries no commitment; commits that
+            // use it derive refs from acknowledgments, which never include
+            // empty blocks.
+            GenericTransactionRef::BlockRef(_) => None,
+        }
+    }
 }
 #[cfg(test)]
 mod test {
     use std::vec;
 
     use parking_lot::RwLock;
-    use rstest::rstest;
 
     use super::*;
     use crate::{
@@ -3164,7 +3305,7 @@ mod test {
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context, store.clone());
 
         // Create test block headers for round 1 ~ 10
         let num_rounds: u32 = 10;
@@ -3184,10 +3325,7 @@ mod test {
         block_headers.clone().into_iter().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
-                    .write(
-                        WriteBatch::default().block_headers(vec![block_header]),
-                        context.clone(),
-                    )
+                    .write(WriteBatch::default().block_headers(vec![block_header]))
                     .unwrap();
             } else {
                 dag_state.accept_block_headers(vec![block_header], DataSource::Test);
@@ -3228,7 +3366,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
+        let mut dag_state = DagState::new(context, store.clone());
 
         // Create test block headers for round 1 ~ 10
         let num_rounds: u32 = 10;
@@ -3248,10 +3386,7 @@ mod test {
         block_headers.clone().into_iter().for_each(|block_header| {
             if block_header.round() <= 4 {
                 store
-                    .write(
-                        WriteBatch::default().block_headers(vec![block_header]),
-                        context.clone(),
-                    )
+                    .write(WriteBatch::default().block_headers(vec![block_header]))
                     .unwrap();
             } else {
                 dag_state.accept_block_headers(vec![block_header], DataSource::Test);
@@ -3320,16 +3455,11 @@ mod test {
         assert_eq!(result, expected_headers);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_flush_and_recovery(#[values(true, false)] consensus_fast_commit_sync: bool) {
+    async fn test_flush_and_recovery() {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
-        let (mut context, _) = Context::new_for_test(num_authorities as usize);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let (context, _) = Context::new_for_test(num_authorities as usize);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
@@ -3407,17 +3537,10 @@ mod test {
         all_transactions.extend(dag_builder.transactions(1..=num_rounds));
 
         // All transactions should be found in DagState.
-        let transactions_refs = if consensus_fast_commit_sync {
-            all_block_headers
-                .iter()
-                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
-                .collect::<Vec<_>>()
-        } else {
-            block_refs
-                .iter()
-                .map(|&br| GenericTransactionRef::from(br))
-                .collect::<Vec<_>>()
-        };
+        let transactions_refs = all_block_headers
+            .iter()
+            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .collect::<Vec<_>>();
         let result = dag_state
             .get_verified_transactions(transactions_refs.as_slice())
             .into_iter()
@@ -3458,17 +3581,10 @@ mod test {
         assert_eq!(result, block_headers);
         // Transactions from the first 5 rounds should be found in DagState.
         let vec_transactions = dag_builder.transactions(1..=5);
-        let transactions_refs = if consensus_fast_commit_sync {
-            block_headers
-                .iter()
-                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
-                .collect::<Vec<_>>()
-        } else {
-            block_refs
-                .iter()
-                .map(|&br| GenericTransactionRef::from(br))
-                .collect::<Vec<_>>()
-        };
+        let transactions_refs = block_headers
+            .iter()
+            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .collect::<Vec<_>>();
         let result = dag_state
             .get_verified_transactions(&transactions_refs)
             .into_iter()
@@ -3495,17 +3611,10 @@ mod test {
             .flatten()
             .collect::<Vec<_>>();
         assert!(retrieved_block_headers.is_empty());
-        let transactions_refs = if consensus_fast_commit_sync {
-            missing_block_headers
-                .iter()
-                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
-                .collect::<Vec<_>>()
-        } else {
-            block_refs
-                .iter()
-                .map(|&br| GenericTransactionRef::from(br))
-                .collect::<Vec<_>>()
-        };
+        let transactions_refs = missing_block_headers
+            .iter()
+            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .collect::<Vec<_>>();
         let retrieved_transactions = dag_state
             .get_verified_transactions(&transactions_refs)
             .into_iter()
@@ -3667,6 +3776,52 @@ mod test {
         assert_eq!(cached_block_headers[0].round(), 10);
     }
 
+    /// `get_cached_block_headers_in_range_one_per_round` returns one header
+    /// per round when the authority equivocated, and the limit counts kept
+    /// headers, so equivocations don't crowd out later rounds.
+    #[tokio::test]
+    async fn test_get_cached_block_headers_one_per_round() {
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = 10;
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        // Authority 1 equivocates at rounds 10 and 11; rounds 12 and 13 hold a
+        // single header each. Distinct ancestors give distinct digests.
+        for (round, versions) in [(10u32, 3u8), (11, 2), (12, 1), (13, 1)] {
+            for version in 0..versions {
+                let block_header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, 1)
+                        .set_ancestors(vec![BlockRef::new(
+                            round - 1,
+                            AuthorityIndex::new_for_test(version),
+                            BlockHeaderDigest::MIN,
+                        )])
+                        .build(),
+                );
+                dag_state.accept_block_header(block_header, DataSource::Test);
+            }
+        }
+        let authority = context.committee.to_authority_index(1).unwrap();
+
+        let headers =
+            dag_state.get_cached_block_headers_in_range_one_per_round(authority, 9, 20, 10);
+        assert_eq!(
+            headers.iter().map(|h| h.round()).collect::<Vec<_>>(),
+            vec![10, 11, 12, 13],
+        );
+
+        // The limit counts kept headers: with limit 3 the scan still reaches
+        // round 12 past the equivocations.
+        let headers =
+            dag_state.get_cached_block_headers_in_range_one_per_round(authority, 9, 20, 3);
+        assert_eq!(
+            headers.iter().map(|h| h.round()).collect::<Vec<_>>(),
+            vec![10, 11, 12],
+        );
+    }
+
     #[tokio::test]
     async fn test_get_last_cached_block_header() {
         // GIVEN
@@ -3698,7 +3853,7 @@ mod test {
             },
         }";
 
-        let dag_builder = parse_dag(dag_str).expect("Invalid dag");
+        let dag_builder = parse_dag(dag_str, false).expect("Invalid dag");
 
         // Add equivocating block for round 2 authority 3
         let block_header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 2).build());
@@ -3982,14 +4137,9 @@ mod test {
         }
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_contains_transactions(#[values(true, false)] consensus_fast_commit_sync: bool) {
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+    async fn test_contains_transactions() {
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
@@ -4012,10 +4162,7 @@ mod test {
         blocks.clone().into_iter().for_each(|block| {
             if block.round() <= 4 {
                 store
-                    .write(
-                        WriteBatch::default().transactions(vec![block.verified_transactions]),
-                        context.clone(),
-                    )
+                    .write(WriteBatch::default().transactions(vec![block.verified_transactions]))
                     .unwrap();
             } else {
                 dag_state.add_transactions(block.verified_transactions, DataSource::Test);
@@ -4027,13 +4174,7 @@ mod test {
         // is from DagState.
         let mut transactions_refs = blocks
             .iter()
-            .map(|block| {
-                if consensus_fast_commit_sync {
-                    GenericTransactionRef::from(block.transaction_ref())
-                } else {
-                    GenericTransactionRef::from(block.reference())
-                }
-            })
+            .map(|block| GenericTransactionRef::from(block.transaction_ref()))
             .collect::<Vec<_>>();
         let result = dag_state.contains_transactions(transactions_refs.clone());
 
@@ -4042,19 +4183,11 @@ mod test {
         assert_eq!(result, expected);
 
         // Now try to ask also for one block ref that is neither in cache nor in store
-        let non_existent_ref = if consensus_fast_commit_sync {
-            GenericTransactionRef::from(TransactionRef {
-                round: 11,
-                author: AuthorityIndex::new_for_test(0),
-                transactions_commitment: TransactionsCommitment::default(),
-            })
-        } else {
-            GenericTransactionRef::from(BlockRef::new(
-                11,
-                AuthorityIndex::new_for_test(0),
-                BlockHeaderDigest::default(),
-            ))
-        };
+        let non_existent_ref = GenericTransactionRef::from(TransactionRef {
+            round: 11,
+            author: AuthorityIndex::new_for_test(0),
+            transactions_commitment: TransactionsCommitment::default(),
+        });
         transactions_refs.insert(3, non_existent_ref);
         let result = dag_state.contains_transactions(transactions_refs);
 
@@ -4070,13 +4203,7 @@ mod test {
 
         let transactions_refs = blocks
             .iter()
-            .map(|block| {
-                if consensus_fast_commit_sync {
-                    GenericTransactionRef::from(block.transaction_ref())
-                } else {
-                    GenericTransactionRef::from(block.reference())
-                }
-            })
+            .map(|block| GenericTransactionRef::from(block.transaction_ref()))
             .collect::<Vec<_>>();
         let result = dag_state.contains_transactions(transactions_refs);
 
@@ -4087,18 +4214,12 @@ mod test {
         assert_eq!(result, expected);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_are_transactions_available(
-        #[values(true, false)] consensus_fast_commit_sync: bool,
-    ) {
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+    async fn test_are_transactions_available() {
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context, store);
+        let mut dag_state = DagState::new(context.clone(), store.clone());
 
         let block = VerifiedBlock::new_for_test(TestBlockHeader::new(5, 1).build());
         let block_ref = block.reference();
@@ -4114,14 +4235,88 @@ mod test {
         dag_state.add_transactions(block.verified_transactions, DataSource::Test);
         assert!(dag_state.are_transactions_available(&block_ref));
 
-        // Transactions without a header: flag-off ignores the header check;
-        // flag-on requires it.
+        // Transactions without a header: availability requires the header.
         let other = VerifiedBlock::new_for_test(TestBlockHeader::new(6, 2).build());
         let other_ref = other.reference();
         dag_state.add_transactions(other.verified_transactions, DataSource::Test);
+        assert!(!dag_state.are_transactions_available(&other_ref));
+
+        // Genesis blocks carry no transactions.
+        let genesis_ref = dag_state.genesis_blocks()[0].reference();
+        assert!(dag_state.are_transactions_available(&genesis_ref));
+
+        // A fabricated round-0 ref that is not a genesis block.
+        let fake_genesis_ref = BlockRef::new(
+            GENESIS_ROUND,
+            AuthorityIndex::new_for_test(0),
+            BlockHeaderDigest::MIN,
+        );
+        assert!(!dag_state.are_transactions_available(&fake_genesis_ref));
+
+        // A header whose commitment matches the empty transaction list is
+        // available without its payload.
+        let mut encoder = create_encoder(&context);
+        let empty_header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new_with_commitment(7, 3, &context, &mut encoder).build(),
+        );
+        let empty_ref = empty_header.reference();
+        dag_state.accept_block_header(empty_header, DataSource::Test);
+        assert!(dag_state.are_transactions_available(&empty_ref));
+
+        // The empty block stays available after a restart, from the recovered
+        // header alone.
+        dag_state.flush();
+        let dag_state = DagState::new(context, store);
+        assert!(dag_state.are_transactions_available(&empty_ref));
+    }
+
+    #[tokio::test]
+    async fn test_empty_transactions_readable_without_payload() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        let mut encoder = create_encoder(&context);
+        let empty_header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new_with_commitment(5, 2, &context, &mut encoder).build(),
+        );
+        dag_state.accept_block_header(empty_header.clone(), DataSource::Test);
+
+        // An empty-commitment ref counts as present and reads back as the
+        // empty payload, although no payload was stored. The legacy BlockRef
+        // form carries no commitment and is not recognized.
+        let tx_ref = GenericTransactionRef::from(empty_header.transaction_ref());
+        let block_ref = GenericTransactionRef::BlockRef(empty_header.reference());
         assert_eq!(
-            dag_state.are_transactions_available(&other_ref),
-            !consensus_fast_commit_sync,
+            dag_state.contains_transactions(vec![tx_ref, block_ref]),
+            vec![true, false]
+        );
+        let read = dag_state.try_get_verified_transactions(&[tx_ref]).unwrap();
+        let transactions = read[0].as_ref().unwrap();
+        assert!(!transactions.has_transactions());
+        assert_eq!(
+            transactions.transaction_ref(),
+            empty_header.transaction_ref()
+        );
+        assert_eq!(
+            dag_state.get_serialized_transactions(&[tx_ref])[0].as_ref(),
+            Some(transactions.serialized())
+        );
+
+        // A non-empty commitment without a stored payload stays missing.
+        let other = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(6, 1).build());
+        let other_ref = GenericTransactionRef::from(other.transaction_ref());
+        dag_state.accept_block_header(other, DataSource::Test);
+        assert_eq!(
+            dag_state.contains_transactions(vec![other_ref]),
+            vec![false]
+        );
+        assert!(
+            dag_state
+                .try_get_verified_transactions(&[other_ref])
+                .unwrap()[0]
+                .is_none()
         );
     }
 
@@ -4150,18 +4345,13 @@ mod test {
         assert_eq!(accepted_header, &block_header);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_eviction(#[values(true, false)] consensus_fast_commit_sync: bool) {
+    async fn test_eviction() {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         const CACHED_ROUNDS: Round = 5;
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
@@ -4233,27 +4423,13 @@ mod test {
         all_transactions.extend(dag_builder.transactions(1..=num_rounds));
         let gc_round = dag_state.gc_round_for_last_commit();
 
-        let block_refs_with_transactions_in_dag: Vec<BlockRef> = block_refs
-            .iter()
-            .filter(|x| x.round > gc_round)
-            .cloned()
-            .collect();
-
         // Get block headers above GC round
         let block_headers_above_gc = dag_builder.block_headers(gc_round + 1..=num_rounds);
 
-        // Create appropriate transaction refs based on the flag
-        let transaction_refs = if consensus_fast_commit_sync {
-            block_headers_above_gc
-                .iter()
-                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
-                .collect::<Vec<_>>()
-        } else {
-            block_refs_with_transactions_in_dag
-                .iter()
-                .map(|br| GenericTransactionRef::from(*br))
-                .collect::<Vec<_>>()
-        };
+        let transaction_refs = block_headers_above_gc
+            .iter()
+            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .collect::<Vec<_>>();
 
         let expected_transactions_in_dag = dag_builder.transactions(gc_round + 1..=num_rounds);
         // All transactions should be found in DagState or store.
@@ -4277,17 +4453,10 @@ mod test {
         );
 
         // All transactions should be found in DagState or store.
-        let transaction_refs = if consensus_fast_commit_sync {
-            all_block_headers
-                .iter()
-                .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
-                .collect::<Vec<_>>()
-        } else {
-            block_refs
-                .iter()
-                .map(|br| GenericTransactionRef::from(*br))
-                .collect::<Vec<_>>()
-        };
+        let transaction_refs = all_block_headers
+            .iter()
+            .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+            .collect::<Vec<_>>();
 
         let result = dag_state
             .get_verified_transactions(&transaction_refs)
@@ -4433,20 +4602,13 @@ mod test {
 
     /// Ensures `flush()` performs eviction even when there is nothing to write,
     /// so changes in `last_solid_subdag_base` take effect.
-    #[rstest]
     #[tokio::test]
-    async fn test_flush_evicts_transactions_without_pending_writes(
-        #[values(true, false)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_flush_evicts_transactions_without_pending_writes() {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         const CACHED_ROUNDS: Round = 5;
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
@@ -4501,20 +4663,13 @@ mod test {
 
     /// Ensures transaction eviction during fast sync does not depend on cached
     /// headers (so `recent_headers_refs_by_authority` may be empty).
-    #[rstest]
     #[tokio::test]
-    async fn test_fast_sync_transaction_eviction_without_headers(
-        #[values(true, false)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_fast_sync_transaction_eviction_without_headers() {
         telemetry_subscribers::init_for_testing();
         let num_authorities: u32 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
         const CACHED_ROUNDS: Round = 5;
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store);
@@ -4660,10 +4815,7 @@ mod test {
 
     #[tokio::test]
     async fn test_evict_pending_commit_votes() {
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let gc_depth = context.protocol_config.gc_depth();
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
@@ -4701,21 +4853,6 @@ mod test {
         unset.update_pending_commit_votes(votes);
         unset.evict_pending_commit_votes();
         assert_eq!(unset.pending_commit_votes.len(), 10);
-
-        // With the flag off the eviction is a no-op regardless of the field.
-        let (mut context_off, _) = Context::new_for_test(4);
-        context_off
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(false);
-        let context_off = Arc::new(context_off);
-        let mut dag_state_off = DagState::new(context_off, Arc::new(MemStore::new()));
-        dag_state_off.set_last_known_quorum_commit_index(1_000);
-        let votes: Vec<CommitRef> = (1..=10)
-            .map(|i| CommitRef::new(i, CommitDigest::MIN))
-            .collect();
-        dag_state_off.update_pending_commit_votes(votes);
-        dag_state_off.evict_pending_commit_votes();
-        assert_eq!(dag_state_off.pending_commit_votes.len(), 10);
     }
 
     /// Builds a 4-authority context with `consensus_starfish_speed` toggled

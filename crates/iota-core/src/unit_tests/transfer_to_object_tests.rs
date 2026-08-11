@@ -5,17 +5,16 @@
 use std::{collections::HashSet, sync::Arc};
 
 use iota_sdk_ext::types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner, ProgrammableTransaction,
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectDigest, ObjectId, ObjectReference,
+    Owner, ProgrammableTransaction, SharedObjectReference, TransactionEffects, Version,
 };
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
-    digests::ObjectDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
 };
 
 use crate::{
@@ -65,8 +64,8 @@ struct TestRunner {
     pub sender_key: AccountKeyPair,
     pub gas_object_ids: Vec<ObjectId>,
     pub authority_state: Arc<AuthorityState>,
-    pub package: ObjectRef,
-    pub upgrade_cap: ObjectRef,
+    pub package: ObjectReference,
+    pub upgrade_cap: ObjectReference,
     pub rgp: u64,
     pub aggressive_pruning_enabled: bool,
 }
@@ -86,7 +85,7 @@ impl TestRunner {
         for _ in 0..num {
             let gas_object_id = ObjectId::random();
             let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-            authority_state.insert_genesis_object(gas_object).await;
+            authority_state.insert_genesis_object(gas_object);
             gas_object_ids.push(gas_object_id);
         }
 
@@ -254,8 +253,8 @@ impl TestRunner {
 }
 
 fn get_parent_and_child(
-    created: Vec<(ObjectRef, Owner)>,
-) -> ((ObjectRef, Owner), (ObjectRef, Owner)) {
+    created: Vec<(ObjectReference, Owner)>,
+) -> ((ObjectReference, Owner), (ObjectReference, Owner)) {
     // make sure there is an object with an `Address` who matches the object ID
     // of another object.
     let created_addrs: HashSet<_> = created
@@ -428,19 +427,19 @@ async fn test_tto_invalid_receiving_arguments() {
 
         #[expect(clippy::type_complexity)]
         let mutations: Vec<(
-            Box<dyn FnOnce(ObjectRef) -> ObjectRef>,
+            Box<dyn FnOnce(ObjectReference) -> ObjectReference>,
             Box<dyn FnOnce(UserInputError) -> bool>,
         )> = vec![
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, SequenceNumber::MAX_VALID_EXCL, x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, Version::MAX_VALID_EXCL, x.digest)),
                 Box::new(|err| matches!(err, UserInputError::InvalidSequenceNumber)),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(ObjectId::ZERO, x.version, x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(ObjectId::ZERO, x.version, x.digest)),
                 Box::new(|err| matches!(err, UserInputError::ObjectNotFound { .. })),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, x.version.next().unwrap(), x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, x.version.next().unwrap(), x.digest)),
                 Box::new(|err| {
                     matches!(
                         err,
@@ -449,7 +448,7 @@ async fn test_tto_invalid_receiving_arguments() {
                 }),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, x.version.previous().unwrap(), x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, x.version.previous().unwrap(), x.digest)),
                 Box::new(|err| {
                     matches!(
                         err,
@@ -458,23 +457,23 @@ async fn test_tto_invalid_receiving_arguments() {
                 }),
             ),
             (
-                Box::new(|_: ObjectRef| package_object_ref),
+                Box::new(|_: ObjectReference| package_object_ref),
                 Box::new(|err| matches!(err, UserInputError::MovePackageAsObject { .. })),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, x.version, ObjectDigest::random())),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, x.version, ObjectDigest::random())),
                 Box::new(|err| matches!(err, UserInputError::InvalidObjectDigest { .. })),
             ),
             (
-                Box::new(|_: ObjectRef| shared.0),
+                Box::new(|_: ObjectReference| shared.0),
                 Box::new(|err| matches!(err, UserInputError::NotSharedObject)),
             ),
             (
-                Box::new(|_: ObjectRef| object_owned.0),
+                Box::new(|_: ObjectReference| object_owned.0),
                 Box::new(|err| matches!(err, UserInputError::InvalidChildObjectArgument { .. })),
             ),
             (
-                Box::new(|_: ObjectRef| immutable.0),
+                Box::new(|_: ObjectReference| immutable.0),
                 Box::new(|err| matches!(err, UserInputError::MutableParameterExpected { .. })),
             ),
         ];
@@ -1669,7 +1668,7 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef::new(
+                        .obj(CallArg::Shared(SharedObjectReference::new(
                             shared.0.object_id,
                             initial_shared_version,
                             true,
@@ -1691,7 +1690,7 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef::new(
+                        .obj(CallArg::Shared(SharedObjectReference::new(
                             shared.0.object_id,
                             initial_shared_version,
                             true,

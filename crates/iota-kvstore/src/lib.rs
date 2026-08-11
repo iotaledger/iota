@@ -6,26 +6,28 @@ use std::num::NonZeroUsize;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use iota_sdk_ext::types::Address;
+use iota_sdk_ext::types::{
+    Address, CheckpointDigest, TransactionDigest, TransactionEffects, TransactionEvents,
+    checkpoint::CheckpointContents,
+};
 use iota_types::{
-    digests::{CheckpointDigest, TransactionDigest},
-    effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use serde::{Deserialize, Serialize};
 
 /// BigTable Key Value store implementation.
 mod bigtable;
 
+#[cfg(feature = "emulator")]
+pub mod emulator;
+
 pub use bigtable::{
     client,
-    worker::{KvWorker, Table},
+    worker::{KvWorker, Table, transactions_by_address},
 };
 pub use iota_bigtable::{BigTableClient, Cell, Row, proto};
 
@@ -151,7 +153,7 @@ pub struct Checkpoint {
 /// including its effects, events, and the checkpoint number it belongs to.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TransactionData {
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
     pub checkpoint_number: CheckpointSequenceNumber,

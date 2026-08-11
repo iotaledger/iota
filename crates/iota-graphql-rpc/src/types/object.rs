@@ -18,10 +18,10 @@ use iota_indexer::{
     schema::objects,
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
-use iota_sdk_ext::types::{Owner as NativeOwner, StructTag, TypeTag};
-use iota_types::object::{
-    MoveObject as NativeMoveObject, Object as NativeObject, bounded_visitor::BoundedVisitor,
+use iota_sdk_ext::types::{
+    MoveStruct as NativeMoveStruct, Owner as NativeOwner, StructTag, TypeTag,
 };
+use iota_types::object::{Object as NativeObject, bounded_visitor::BoundedVisitor};
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
 use serde::{Deserialize, Serialize};
 
@@ -1805,7 +1805,7 @@ impl From<&Object> for OwnerImpl {
 }
 
 pub(crate) async fn deserialize_move_struct(
-    move_object: &NativeMoveObject,
+    move_object: &NativeMoveStruct,
     resolver: &PackageResolver,
 ) -> Result<(StructTag, MoveStruct), Error> {
     let struct_tag = move_object.struct_tag().clone();

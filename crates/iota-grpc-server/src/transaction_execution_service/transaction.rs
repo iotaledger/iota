@@ -15,7 +15,7 @@ use iota_sdk_ext::{
             transaction as grpc_tx,
         },
     },
-    types::TypeTag,
+    types::{Transaction, TransactionEffects, TransactionEvents, TypeTag, UserSignature},
 };
 
 use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
@@ -24,14 +24,17 @@ use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
 pub struct TransactionReadSource<'a> {
     pub reader: Arc<GrpcReader>,
     pub config: &'a iota_config::node::GrpcApiConfig,
-    pub transaction: Option<iota_sdk_ext::types::transaction::Transaction>,
-    pub signatures: Option<Vec<iota_sdk_ext::types::UserSignature>>,
-    pub effects: Option<iota_types::effects::TransactionEffects>,
-    pub events: Option<iota_types::effects::TransactionEvents>,
+    pub transaction: Option<Transaction>,
+    pub signatures: Option<Vec<UserSignature>>,
+    pub effects: Option<TransactionEffects>,
+    pub events: Option<TransactionEvents>,
     pub checkpoint: Option<u64>,
     pub timestamp_ms: Option<u64>,
     pub input_objects: Option<Vec<iota_types::object::Object>>,
     pub output_objects: Option<Vec<iota_types::object::Object>>,
+    /// Simulate-only: gas coin mocked during simulation, excluded from derived
+    /// balance changes.
+    pub mocked_coin: Option<iota_sdk_ext::types::ObjectId>,
 }
 
 impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
@@ -96,7 +99,82 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
             )?);
         }
 
+        // Derive balance changes if requested. Every producer guarantees the
+        // required source data is present when the mask requests them, so a
+        // missing field here is a server bug — error out instead of silently
+        // returning wrong (empty) changes.
+        if mask.subtree(Self::BALANCE_CHANGES_FIELD.name).is_some() {
+            let (effects, input_objects, output_objects) = source.changes_source()?;
+            self.balance_changes = Some(
+                grpc_tx::BalanceChanges::default().with_balance_changes(
+                    crate::changes::derive_balance_changes(
+                        effects,
+                        input_objects,
+                        output_objects,
+                        source.mocked_coin,
+                    )?
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                ),
+            );
+        }
+
+        // Derive object changes if requested
+        if mask.subtree(Self::OBJECT_CHANGES_FIELD.name).is_some() {
+            use iota_types::transaction::TransactionAPI as _;
+
+            let sender = source
+                .transaction
+                .as_ref()
+                .ok_or_else(|| RpcError::internal().with_context("missing transaction"))?
+                .sender();
+            let (effects, input_objects, output_objects) = source.changes_source()?;
+            self.object_changes = Some(
+                grpc_tx::ObjectChanges::default().with_object_changes(
+                    crate::changes::derive_object_changes(
+                        sender,
+                        effects,
+                        input_objects,
+                        output_objects,
+                    )?
+                    .into_iter()
+                    .map(Into::into)
+                    .collect(),
+                ),
+            );
+        }
+
         Ok(())
+    }
+}
+
+impl TransactionReadSource<'_> {
+    /// The (effects, input objects, output objects) triple the change
+    /// derivation runs on, erroring on fields the producer failed to supply.
+    fn changes_source(
+        &self,
+    ) -> Result<
+        (
+            &TransactionEffects,
+            &[iota_types::object::Object],
+            &[iota_types::object::Object],
+        ),
+        RpcError,
+    > {
+        let effects = self
+            .effects
+            .as_ref()
+            .ok_or_else(|| RpcError::internal().with_context("missing effects"))?;
+        let input_objects = self
+            .input_objects
+            .as_deref()
+            .ok_or_else(|| RpcError::internal().with_context("missing input objects"))?;
+        let output_objects = self
+            .output_objects
+            .as_deref()
+            .ok_or_else(|| RpcError::internal().with_context("missing output objects"))?;
+        Ok((effects, input_objects, output_objects))
     }
 }
 
@@ -144,7 +222,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::TransactionEffects {
             return Ok(());
         };
 
-        Merge::merge(self, effects.clone(), mask)
+        Merge::merge(self, effects, mask)
     }
 }
 
@@ -204,7 +282,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_sig::UserSignatures {
         if let Some(signatures) = source.signatures.as_ref() {
             self.signatures = signatures
                 .iter()
-                .map(|sig| grpc_sig::UserSignature::merge_from(sig.clone(), mask))
+                .map(|sig| grpc_sig::UserSignature::merge_from(sig, mask))
                 .collect::<Result<Vec<_>, _>>()?;
         }
 

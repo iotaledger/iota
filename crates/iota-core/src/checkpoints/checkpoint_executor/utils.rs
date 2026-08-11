@@ -9,10 +9,11 @@ use std::{
 
 use futures::{Stream, future::Either};
 use iota_common::fatal;
-use iota_types::{
-    base_types::{TransactionDigest, TransactionEffectsDigest},
-    message_envelope::Message,
-    messages_checkpoint::{CheckpointSequenceNumber, CheckpointSummary, VerifiedCheckpoint},
+use iota_sdk_ext::types::{
+    TransactionDigest, TransactionEffectsDigest, checkpoint::CheckpointSummary,
+};
+use iota_types::messages_checkpoint::{
+    CheckpointContentsExt, CheckpointSequenceNumber, VerifiedCheckpoint,
 };
 use strum::VariantNames;
 use tokio::sync::watch;
@@ -199,7 +200,7 @@ pub(super) fn assert_checkpoint_not_forked(
 
     let verified_checkpoint_summary = verified_checkpoint.data();
 
-    if locally_built_checkpoint.content_digest == verified_checkpoint_summary.content_digest {
+    if locally_built_checkpoint.contents_digest == verified_checkpoint_summary.contents_digest {
         // fork is in the checkpoint header
         fatal!(
             "Checkpoint fork detected in header! Locally built checkpoint: {:?}, verified checkpoint: {:?}",
@@ -208,12 +209,12 @@ pub(super) fn assert_checkpoint_not_forked(
         );
     } else {
         let local_contents = checkpoint_store
-            .get_checkpoint_contents(&locally_built_checkpoint.content_digest)
+            .get_checkpoint_contents(&locally_built_checkpoint.contents_digest)
             .expect("db error")
             .expect("contents must exist if checkpoint was built locally!");
 
         let verified_contents = checkpoint_store
-            .get_checkpoint_contents(&verified_checkpoint_summary.content_digest)
+            .get_checkpoint_contents(&verified_checkpoint_summary.contents_digest)
             .expect("db error")
             .expect("contents must exist if checkpoint has been synced!");
 
@@ -582,7 +583,7 @@ mod test {
         let output_by_stage = output_by_stage.lock();
         let output_by_order = output_by_order.lock();
         // for each stage, assert that the sequences were done in order
-        for (_, seqs) in output_by_stage.iter() {
+        for seqs in output_by_stage.values() {
             assert_eq!(seqs, &((0..30).collect::<Vec<_>>()));
         }
 

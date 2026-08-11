@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Configuration for the Validator Client Monitor
@@ -28,22 +28,15 @@ pub struct ValidatorClientMonitorConfig {
     #[serde(default = "default_health_check_timeout")]
     pub health_check_timeout: Duration,
 
-    /// Weight for reliability when computing validator scores.
-    ///
-    /// Controls importance of reliability when adjusting the validator's
-    /// latency for transaction submission selection. The higher the weight,
-    /// the more penalty is given to unreliable validators. Default to 2.0.
-    /// Value should be positive.
-    #[serde(default = "default_reliability_weight")]
-    pub reliability_weight: f64,
+    /// The share (percentage) of committee validators with good performance to
+    /// select.
+    #[serde(default = "default_exploitation_group_share")]
+    pub exploitation_group_share: usize,
 
-    /// Size of the moving window for latency measurements
-    #[serde(default = "default_latency_moving_window_size")]
-    pub latency_moving_window_size: usize,
-
-    /// Size of the moving window for reliability measurements
-    #[serde(default = "default_reliability_moving_window_size")]
-    pub reliability_moving_window_size: usize,
+    /// The share (percentage) of unknown committee validators or validators
+    /// with outdated/stale stats to select.
+    #[serde(default = "default_exploration_group_share")]
+    pub exploration_group_share: usize,
 }
 
 impl Default for ValidatorClientMonitorConfig {
@@ -51,9 +44,8 @@ impl Default for ValidatorClientMonitorConfig {
         Self {
             health_check_interval: default_health_check_interval(),
             health_check_timeout: default_health_check_timeout(),
-            reliability_weight: default_reliability_weight(),
-            latency_moving_window_size: default_latency_moving_window_size(),
-            reliability_moving_window_size: default_reliability_moving_window_size(),
+            exploitation_group_share: default_exploitation_group_share(),
+            exploration_group_share: default_exploration_group_share(),
         }
     }
 }
@@ -66,14 +58,10 @@ fn default_health_check_timeout() -> Duration {
     Duration::from_secs(2)
 }
 
-fn default_reliability_weight() -> f64 {
-    2.0
+fn default_exploitation_group_share() -> usize {
+    10
 }
 
-fn default_latency_moving_window_size() -> usize {
-    40
-}
-
-fn default_reliability_moving_window_size() -> usize {
-    20
+fn default_exploration_group_share() -> usize {
+    10
 }

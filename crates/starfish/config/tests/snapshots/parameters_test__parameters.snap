@@ -10,7 +10,7 @@ min_block_delay:
   nanos: 50000000
 soft_leader_timeout:
   secs: 0
-  nanos: 100000000
+  nanos: 5000000
 block_rate_window:
   secs: 2
   nanos: 0
@@ -46,8 +46,13 @@ tonic:
     max_header_fetches_per_peer: 0
     max_transaction_fetches_per_peer: 0
     max_commit_fetches_per_peer: 0
+  subscribe_request_timeout:
+    secs: 0
+    nanos: 0
 fast_commit_sync_batch_size: 1000
 commit_sync_gap_threshold: 1000
 enable_fast_commit_syncer: true
+enable_commit_sync_peer_selection_by_commit_votes: true
 enable_starfish_speed_adaptive_acknowledgments: true
+enable_peer_responsiveness_ranking: true
 dag_visualizer_port: ~

@@ -18,11 +18,11 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
-    use iota_sdk_ext::types::{Address, ObjectId};
+    use iota_sdk_ext::types::{Address, ObjectId, TransactionDigest};
     use iota_types::{
-        digests::{ChainIdentifier, TransactionDigest},
+        digests::ChainIdentifier,
         gas_coin::GAS,
-        transaction::{CallArg, Transaction, TransactionDataAPI},
+        transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use rand::{SeedableRng, rngs::StdRng};
     use serde_json::json;
@@ -32,7 +32,7 @@ mod tests {
 
     async fn mutation_execute_transaction(
         client: &SimpleClient,
-        signed_tx: &Transaction,
+        signed_tx: &TransactionEnvelope,
         response_fields: &str,
     ) -> GraphqlResponse {
         let (tx_bytes, sigs) = signed_tx.to_tx_bytes_and_signatures();

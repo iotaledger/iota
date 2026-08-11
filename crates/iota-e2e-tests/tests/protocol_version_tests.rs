@@ -56,9 +56,16 @@ fn test_protocol_overrides_2() {
 #[cfg(msim)]
 mod sim_only_tests {
 
-    use std::{path::PathBuf, sync::Arc};
+    use std::{
+        path::PathBuf,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
 
     use fastcrypto::encoding::Base64;
+    use iota_common::register_debug_fatal_handler;
     use iota_core::authority::framework_injection;
     use iota_framework::BuiltInFramework;
     use iota_json_rpc_api::WriteApiClient;
@@ -67,13 +74,13 @@ mod sim_only_tests {
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
     use iota_sdk_ext::types::{
-        Address, Command, Identifier, MoveCall, ObjectId, Owner, ProgrammableTransaction,
-        TransactionKind,
+        Address, Command, Identifier, MoveCall, ObjectId, ObjectReference, Owner,
+        ProgrammableTransaction, Transaction, TransactionDigest, TransactionEffects,
+        TransactionKind, Version,
     };
     use iota_types::{
-        base_types::{ConciseableName, ObjectRef, SequenceNumber},
-        digests::TransactionDigest,
-        effects::{TransactionEffects, TransactionEffectsAPI},
+        base_types::ConciseableName,
+        effects::TransactionEffectsAPI,
         id::ID,
         iota_system_state::{
             IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1, IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1,
@@ -83,9 +90,7 @@ mod sim_only_tests {
         object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         supported_protocol_versions::SupportedProtocolVersions,
-        transaction::{
-            CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionData, TransactionDataAPI,
-        },
+        transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionAPI},
     };
     use move_binary_format::CompiledModule;
     use test_cluster::TestCluster;
@@ -314,8 +319,8 @@ mod sim_only_tests {
         assert_eq!(call_canary(&cluster).await, 43);
 
         let (modified_at, mutated_to) = get_framework_upgrade_versions(&cluster).await;
-        assert_eq!(Some(SequenceNumber::from(1)), modified_at);
-        assert_eq!(Some(SequenceNumber::from(2)), mutated_to);
+        assert_eq!(Some(Version::from(1)), modified_at);
+        assert_eq!(Some(Version::from(2)), mutated_to);
     }
 
     #[sim_test]
@@ -486,7 +491,7 @@ mod sim_only_tests {
         .await
     }
 
-    async fn create_obj(cluster: &TestCluster) -> ObjectRef {
+    async fn create_obj(cluster: &TestCluster) -> ObjectReference {
         *execute_creating(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
@@ -507,7 +512,7 @@ mod sim_only_tests {
         .unwrap()
     }
 
-    async fn wrap_obj(cluster: &TestCluster, obj: ObjectRef) -> ObjectRef {
+    async fn wrap_obj(cluster: &TestCluster, obj: ObjectReference) -> ObjectReference {
         *execute_creating(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder
@@ -527,7 +532,11 @@ mod sim_only_tests {
         .unwrap()
     }
 
-    async fn transfer_obj(cluster: &TestCluster, recipient: Address, obj: ObjectRef) -> ObjectRef {
+    async fn transfer_obj(
+        cluster: &TestCluster,
+        recipient: Address,
+        obj: ObjectReference,
+    ) -> ObjectReference {
         execute(cluster, {
             let mut builder = ProgrammableTransactionBuilder::new();
             builder.transfer_object(recipient, obj).unwrap();
@@ -575,7 +584,7 @@ mod sim_only_tests {
     async fn execute_creating(
         cluster: &TestCluster,
         ptb: ProgrammableTransaction,
-    ) -> Vec<ObjectRef> {
+    ) -> Vec<ObjectReference> {
         execute(cluster, ptb)
             .await
             .created()
@@ -592,7 +601,7 @@ mod sim_only_tests {
         let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
 
         let rgp = context.get_reference_gas_price().await.unwrap();
-        let txn = context.sign_transaction(&TransactionData::new_programmable(
+        let txn = context.sign_transaction(&Transaction::new_programmable(
             sender,
             vec![gas_object],
             ptb,
@@ -617,7 +626,7 @@ mod sim_only_tests {
 
     async fn get_framework_upgrade_versions(
         cluster: &TestCluster,
-    ) -> (Option<SequenceNumber>, Option<SequenceNumber>) {
+    ) -> (Option<Version>, Option<Version>) {
         let effects = get_framework_upgrade_effects(cluster, &ObjectId::SYSTEM).await;
 
         let modified_at = effects
@@ -638,29 +647,25 @@ mod sim_only_tests {
     ) -> TransactionEffects {
         let node_handle = &cluster.fullnode_handle.iota_node;
 
-        node_handle
-            .with_async(|node| async {
-                let store = node.state().get_object_cache_reader().clone();
-                let framework = store.get_object(package);
-                let digest = framework.unwrap().previous_transaction;
-                let tx_store = node.state().get_transaction_cache_reader().clone();
-                let effects = tx_store.get_executed_effects(&digest);
-                effects.unwrap()
-            })
-            .await
+        node_handle.with(|node| {
+            let store = node.state().get_object_cache_reader().clone();
+            let framework = store.get_object(package);
+            let digest = framework.unwrap().previous_transaction;
+            let tx_store = node.state().get_transaction_cache_reader().clone();
+            let effects = tx_store.get_executed_effects(&digest);
+            effects.unwrap()
+        })
     }
 
     async fn get_object(cluster: &TestCluster, object_id: &ObjectId) -> Object {
         let node_handle = &cluster.fullnode_handle.iota_node;
 
-        node_handle
-            .with_async(|node| async {
-                node.state()
-                    .get_object_cache_reader()
-                    .get_object(object_id)
-                    .unwrap()
-            })
-            .await
+        node_handle.with(|node| {
+            node.state()
+                .get_object_cache_reader()
+                .get_object(object_id)
+                .unwrap()
+        })
     }
 
     #[sim_test]
@@ -698,6 +703,14 @@ mod sim_only_tests {
             .build()
             .await;
 
+        let framework_mismatch_counter = Arc::new(AtomicUsize::new(0));
+        register_debug_fatal_handler!("Framework mismatch -- ", {
+            let counter = framework_mismatch_counter.clone();
+            move || {
+                counter.fetch_add(1, Ordering::Relaxed);
+            }
+        });
+
         // We must stop the validators before overriding the system modules, otherwise
         // the validators may start running before the override and hence send
         // capabilities indicating that they only support the genesis system
@@ -733,6 +746,9 @@ mod sim_only_tests {
             );
             assert_eq!(committee.epoch, 2);
         });
+
+        // The debug_fatal was hit
+        assert_eq!(framework_mismatch_counter.load(Ordering::Relaxed), 1);
     }
 
     // Test that protocol version upgrade does not complete when there is no quorum
@@ -808,6 +824,7 @@ mod sim_only_tests {
         assert!(system_state.epoch_start_timestamp_ms() >= genesis_epoch_start_time + 20000);
 
         // We are getting out of safe mode soon.
+        test_cluster.wait_for_epoch_all_nodes(1).await;
         test_cluster.set_safe_mode_expected(false);
 
         // This epoch change should execute successfully without any upgrade and get us
@@ -954,8 +971,14 @@ mod sim_only_tests {
         // The system state object will be upgraded next time we execute advance_epoch
         // transaction at epoch boundary.
         let system_state = test_cluster.wait_for_epoch(Some(2)).await;
-        if let IotaSystemState::V2(inner) = system_state {
-            assert_eq!(inner.parameters.min_validator_count, 4);
+        if let IotaSystemState::V2(_) = system_state {
+            // min_validator_count is deprecated and zeroed on-chain; the enforced
+            // minimum now lives in the protocol config.
+            assert_eq!(
+                ProtocolConfig::get_for_version(FINISH.into(), Chain::Unknown)
+                    .min_validator_count(),
+                4
+            );
         } else {
             unreachable!("Unexpected iota system state version");
         }

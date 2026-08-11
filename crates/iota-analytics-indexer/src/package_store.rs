@@ -9,7 +9,7 @@ use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, error::Error as PackageResolverError,
 };
 use iota_sdk_ext::{
-    grpc_client::{Client, ReadMask, read_mask_fields::ObjectField},
+    grpc_client::{Client, read_mask_fields::ObjectField},
     types::{Address, ObjectId},
 };
 use iota_types::object::Object;
@@ -105,17 +105,20 @@ impl LocalDBPackageStore {
             }
             let objects = self
                 .fallback_client
-                .get_objects(
-                    &[(ObjectId::new(id.into_bytes()), None)],
-                    Some(ReadMask::from(ObjectField::BCS)),
-                )
+                .get_objects([ObjectId::new(id.into_bytes())], ObjectField::BCS)
                 .await
                 .map_err(grpc_err)?
                 .into_inner();
-            let proto_obj = objects
-                .into_iter()
-                .next()
-                .ok_or(PackageResolverError::PackageNotFound(id))?;
+            let proto_obj = match objects.into_iter().next() {
+                Some(Ok(proto_obj)) => proto_obj,
+                // The node reports a package it cannot serve against the ref
+                // that asked for it.
+                Some(Err(e)) if e.is_not_found() => {
+                    return Err(PackageResolverError::PackageNotFound(id));
+                }
+                Some(Err(e)) => return Err(grpc_err(e)),
+                None => return Err(PackageResolverError::PackageNotFound(id)),
+            };
             let object = proto_obj.object().map_err(grpc_err)?.into();
             self.update(&object)?;
             object

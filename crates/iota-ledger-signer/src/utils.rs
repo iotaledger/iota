@@ -8,17 +8,17 @@ use iota_sdk::{
     rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaObjectResponse},
     types::{
         base_types::ObjectType,
-        object::{MoveObject, MoveObjectExt, Object},
-        transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
+        object::{MoveStructExt, Object},
+        transaction::{InputObjectKind, TransactionAPI},
     },
 };
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{MoveStruct, ObjectId, Transaction};
 
 use crate::LedgerSignerError;
 
 pub(crate) async fn load_objects_with_client(
     client: &IotaClient,
-    transaction: &TransactionData,
+    transaction: &Transaction,
 ) -> Result<Vec<Object>, LedgerSignerError> {
     let object_ids = object_ids_from_transaction(transaction)?;
 
@@ -40,7 +40,7 @@ pub(crate) async fn load_objects_with_client(
 }
 
 fn object_ids_from_transaction(
-    transaction: &TransactionData,
+    transaction: &Transaction,
 ) -> Result<Vec<ObjectId>, LedgerSignerError> {
     let object_ids = transaction
         .gas_data()
@@ -78,7 +78,7 @@ fn object_from_response(resp: IotaObjectResponse) -> Option<Object> {
         _ => return None,
     };
 
-    let move_object = MoveObject::new_from_execution_with_limit(
+    let move_object = MoveStruct::new_from_execution_with_limit(
         move_object_type.into(),
         data.version,
         bcs_bytes,

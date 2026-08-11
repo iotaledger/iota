@@ -12,7 +12,8 @@ use iota_indexer::{
     store::PgIndexerStore, types::ObjectStatus,
 };
 use iota_json::call_args;
-use iota_types::crypto::{AccountKeyPair, IotaKeyPair, get_key_pair};
+use iota_sdk_ext::crypto::simple::SimpleKeypair;
+use iota_types::crypto::{AccountKeyPair, get_key_pair};
 
 use crate::{
     backward_history::{call_test_fn, first_created},
@@ -46,7 +47,7 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let keypair = SimpleKeypair::from(keypair);
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

@@ -46,7 +46,7 @@ CallArg:
 CancelledTransaction:
   STRUCT:
     - digest:
-        TYPENAME: Digest
+        TYPENAME: TransactionDigest
     - version_assignments:
         SEQ:
           TYPENAME: VersionAssignment
@@ -130,35 +130,36 @@ CheckpointContents:
     0:
       V1:
         NEWTYPE:
-          TYPENAME: CheckpointContentsV1
-CheckpointContentsV1:
-  STRUCT:
-    - transactions:
-        SEQ:
-          TYPENAME: ExecutionDigests
-    - user_signatures:
-        SEQ:
-          SEQ:
-            TYPENAME: GenericSignature
+          TUPLE:
+            - SEQ:
+                TYPENAME: Digests
+            - SEQ:
+                SEQ: BYTES
+CheckpointContentsDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 CheckpointData:
   STRUCT:
     - checkpoint_summary:
-        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>"
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_sdk_types::checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>"
     - checkpoint_contents:
         TYPENAME: CheckpointContents
     - transactions:
         SEQ:
           TYPENAME: CheckpointTransaction
+CheckpointDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 CheckpointSummary:
   STRUCT:
     - epoch: U64
     - sequence_number: U64
     - network_total_transactions: U64
-    - content_digest:
-        TYPENAME: Digest
+    - contents_digest:
+        TYPENAME: CheckpointContentsDigest
     - previous_digest:
         OPTION:
-          TYPENAME: Digest
+          TYPENAME: CheckpointDigest
     - epoch_rolling_gas_cost_summary:
         TYPENAME: GasCostSummary
     - timestamp_ms: U64
@@ -168,12 +169,11 @@ CheckpointSummary:
     - end_of_epoch_data:
         OPTION:
           TYPENAME: EndOfEpochData
-    - version_specific_data:
-        SEQ: U8
+    - version_specific_data: BYTES
 CheckpointTransaction:
   STRUCT:
     - transaction:
-        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>"
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_sdk_types::transaction::SenderSignedTransaction, iota_types::crypto::EmptySignInfo>"
     - effects:
         TYPENAME: TransactionEffects
     - events:
@@ -250,6 +250,9 @@ CommandArgumentError:
       SharedObjectOperationNotAllowed: UNIT
     12:
       InvalidArgumentArity: UNIT
+ConsensusCommitDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 ConsensusCommitPrologueV1:
   STRUCT:
     - epoch: U64
@@ -258,7 +261,7 @@ ConsensusCommitPrologueV1:
         OPTION: U64
     - commit_timestamp_ms: U64
     - consensus_commit_digest:
-        TYPENAME: Digest
+        TYPENAME: ConsensusCommitDigest
     - consensus_determined_version_assignments:
         TYPENAME: ConsensusDeterminedVersionAssignments
 ConsensusDeterminedVersionAssignments:
@@ -279,21 +282,27 @@ DeleteKind:
       Wrap: UNIT
 Digest:
   NEWTYPESTRUCT: BYTES
+Digests:
+  STRUCT:
+    - transaction:
+        TYPENAME: TransactionDigest
+    - effects:
+        TYPENAME: TransactionEffectsDigest
+EffectsAuxDataDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 EmptySignInfo:
   STRUCT: []
 EndOfEpochData:
   STRUCT:
-    - nextEpochCommittee:
+    - next_epoch_committee:
         SEQ:
-          TUPLE:
-            - TYPENAME: AuthorityPublicKeyBytes
-            - U64
-    - nextEpochProtocolVersion:
-        TYPENAME: ProtocolVersion
-    - epochCommitments:
+          TYPENAME: ValidatorCommitteeMember
+    - next_epoch_protocol_version: U64
+    - epoch_commitments:
         SEQ:
           TYPENAME: CheckpointCommitment
-    - epochSupplyChange: I64
+    - epoch_supply_change: I64
 EndOfEpochTransactionKind:
   ENUM:
     0:
@@ -312,6 +321,8 @@ EndOfEpochTransactionKind:
       ChangeEpochV4:
         NEWTYPE:
           TYPENAME: ChangeEpochV4
+    4:
+      TransactionDenyRulesCreate: UNIT
 Event:
   STRUCT:
     - package_id:
@@ -325,15 +336,9 @@ Event:
 ExecutionData:
   STRUCT:
     - transaction:
-        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>"
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_sdk_types::transaction::SenderSignedTransaction, iota_types::crypto::EmptySignInfo>"
     - effects:
         TYPENAME: TransactionEffects
-ExecutionDigests:
-  STRUCT:
-    - transaction:
-        TYPENAME: Digest
-    - effects:
-        TYPENAME: Digest
 ExecutionError:
   ENUM:
     0:
@@ -468,6 +473,11 @@ ExecutionError:
           - suggested_gas_price: U64
     38:
       InvalidLinkage: UNIT
+    39:
+      MoveAuthentication:
+        STRUCT:
+          - error:
+              TYPENAME: ExecutionError
 ExecutionStatus:
   ENUM:
     0:
@@ -486,8 +496,7 @@ FullCheckpointContents:
           TYPENAME: ExecutionData
     - user_signatures:
         SEQ:
-          SEQ:
-            TYPENAME: GenericSignature
+          SEQ: BYTES
 GasCostSummary:
   STRUCT:
     - computation_cost: U64
@@ -504,9 +513,6 @@ GasPayment:
         TYPENAME: Address
     - price: U64
     - budget: U64
-GenericSignature:
-  NEWTYPESTRUCT:
-    SEQ: U8
 GenesisObject:
   ENUM:
     0:
@@ -537,12 +543,6 @@ Intent:
     - scope: U8
     - version: U8
     - app_id: U8
-IntentMessage:
-  STRUCT:
-    - intent:
-        TYPENAME: Intent
-    - value:
-        TYPENAME: Transaction
 MakeMoveVector:
   STRUCT:
     - type:
@@ -629,7 +629,7 @@ Object:
     - owner:
         TYPENAME: Owner
     - previous_transaction:
-        TYPENAME: Digest
+        TYPENAME: TransactionDigest
     - storage_rebate: U64
 ObjectArg:
   ENUM:
@@ -658,6 +658,9 @@ ObjectData:
       Package:
         NEWTYPE:
           TYPENAME: MovePackage
+ObjectDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 ObjectId:
   NEWTYPESTRUCT:
     TYPENAME: Address
@@ -670,7 +673,7 @@ ObjectIn:
         STRUCT:
           - version: U64
           - digest:
-              TYPENAME: Digest
+              TYPENAME: ObjectDigest
           - owner:
               TYPENAME: Owner
 ObjectInfoRequestKind:
@@ -688,7 +691,7 @@ ObjectOut:
       ObjectWrite:
         STRUCT:
           - digest:
-              TYPENAME: Digest
+              TYPENAME: ObjectDigest
           - owner:
               TYPENAME: Owner
     2:
@@ -696,14 +699,14 @@ ObjectOut:
         STRUCT:
           - version: U64
           - digest:
-              TYPENAME: Digest
+              TYPENAME: ObjectDigest
 ObjectReference:
   STRUCT:
     - object_id:
         TYPENAME: ObjectId
     - version: U64
     - digest:
-        TYPENAME: Digest
+        TYPENAME: ObjectDigest
 Owner:
   ENUM:
     0:
@@ -757,8 +760,6 @@ ProgrammableTransaction:
     - commands:
         SEQ:
           TYPENAME: Command
-ProtocolVersion:
-  NEWTYPESTRUCT: U64
 Publish:
   STRUCT:
     - modules:
@@ -772,17 +773,18 @@ RandomnessStateUpdate:
     - randomness_round: U64
     - random_bytes: BYTES
     - randomness_obj_initial_shared_version: U64
-SenderSignedData:
+SenderSignedTransaction:
   NEWTYPESTRUCT:
     SEQ:
-      TYPENAME: SenderSignedTransaction
-SenderSignedTransaction:
+      TYPENAME: SignedTransaction
+SignedTransaction:
   STRUCT:
-    - intent_message:
-        TYPENAME: IntentMessage
-    - tx_signatures:
-        SEQ:
-          TYPENAME: GenericSignature
+    - intent:
+        TYPENAME: Intent
+    - transaction:
+        TYPENAME: Transaction
+    - signatures:
+        SEQ: BYTES
 SplitCoins:
   STRUCT:
     - coin:
@@ -813,12 +815,47 @@ Transaction:
       V1:
         NEWTYPE:
           TYPENAME: TransactionV1
+TransactionDenyRulesUpdate:
+  STRUCT:
+    - epoch: U64
+    - round: U64
+    - added_addresses:
+        SEQ:
+          TYPENAME: Address
+    - removed_addresses:
+        SEQ:
+          TYPENAME: Address
+    - added_objects:
+        SEQ:
+          TYPENAME: ObjectId
+    - removed_objects:
+        SEQ:
+          TYPENAME: ObjectId
+    - added_packages:
+        SEQ:
+          TYPENAME: ObjectId
+    - removed_packages:
+        SEQ:
+          TYPENAME: ObjectId
+    - package_publish_disabled: BOOL
+    - package_upgrade_disabled: BOOL
+    - shared_object_disabled: BOOL
+    - user_transaction_disabled: BOOL
+    - receiving_objects_disabled: BOOL
+    - move_authenticator_disabled: BOOL
+    - deny_rules_obj_initial_shared_version: U64
+TransactionDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 TransactionEffects:
   ENUM:
     0:
       V1:
         NEWTYPE:
           TYPENAME: TransactionEffectsV1
+TransactionEffectsDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 TransactionEffectsV1:
   STRUCT:
     - status:
@@ -827,15 +864,15 @@ TransactionEffectsV1:
     - gas_cost_summary:
         TYPENAME: GasCostSummary
     - transaction_digest:
-        TYPENAME: Digest
+        TYPENAME: TransactionDigest
     - gas_object_index:
         OPTION: U32
     - events_digest:
         OPTION:
-          TYPENAME: Digest
+          TYPENAME: TransactionEventsDigest
     - dependencies:
         SEQ:
-          TYPENAME: Digest
+          TYPENAME: TransactionDigest
     - lamport_version: U64
     - changed_objects:
         SEQ:
@@ -845,11 +882,14 @@ TransactionEffectsV1:
           TYPENAME: UnchangedSharedObject
     - auxiliary_data_digest:
         OPTION:
-          TYPENAME: Digest
+          TYPENAME: EffectsAuxDataDigest
 TransactionEvents:
   NEWTYPESTRUCT:
     SEQ:
       TYPENAME: Event
+TransactionEventsDigest:
+  NEWTYPESTRUCT:
+    TYPENAME: Digest
 TransactionExpiration:
   ENUM:
     0:
@@ -882,6 +922,10 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
+    6:
+      TransactionDenyRulesUpdate:
+        NEWTYPE:
+          TYPENAME: TransactionDenyRulesUpdate
 TransactionV1:
   STRUCT:
     - kind:
@@ -963,7 +1007,7 @@ UnchangedSharedKind:
         STRUCT:
           - version: U64
           - digest:
-              TYPENAME: Digest
+              TYPENAME: ObjectDigest
     1:
       MutateDeleted:
         STRUCT:
@@ -1000,21 +1044,25 @@ UpgradeInfo:
     - upgraded_id:
         TYPENAME: ObjectId
     - upgraded_version: U64
+ValidatorCommitteeMember:
+  STRUCT:
+    - public_key: BYTES
+    - stake: U64
 VersionAssignment:
   STRUCT:
     - object_id:
         TYPENAME: ObjectId
     - version: U64
-"iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
+"iota_types::message_envelope::Envelope<iota_sdk_types::checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
   STRUCT:
     - data:
         TYPENAME: CheckpointSummary
     - auth_signature:
         TYPENAME: AuthorityQuorumSignInfo
-"iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>":
+"iota_types::message_envelope::Envelope<iota_sdk_types::transaction::SenderSignedTransaction, iota_types::crypto::EmptySignInfo>":
   STRUCT:
     - data:
-        TYPENAME: SenderSignedData
+        TYPENAME: SenderSignedTransaction
     - auth_signature:
         TYPENAME: EmptySignInfo
 

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Context, Result, anyhow, ensure};
 use iota_light_client::{
     checkpoint::{
-        download_summaries_from_checkpoint_store, sync_checkpoint_list_to_latest_from_archive,
+        download_summaries_from_checkpoint_store, sync_checkpoint_list_to_latest_from_graphql,
         write_checkpoint_list,
     },
     config::Config,
@@ -37,7 +37,7 @@ pub async fn main() -> Result<()> {
     config.checkpoints_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR);
     config.validate()?;
 
-    let mut checkpoint_list = sync_checkpoint_list_to_latest_from_archive(&config)
+    let mut checkpoint_list = sync_checkpoint_list_to_latest_from_graphql(&config)
         .await
         .context("failed to sync checkpoints")?;
 
@@ -82,7 +82,7 @@ pub async fn download_checkpoints_from_checkpoint_store(
 }
 
 pub fn write_full_checkpoint(config: &Config, checkpoint: &CheckpointData) -> Result<()> {
-    let path = full_checkpoint_file_path(config, *checkpoint.checkpoint_summary.sequence_number());
+    let path = full_checkpoint_file_path(config, checkpoint.checkpoint_summary.sequence_number());
     bcs::serialize_into(
         &mut std::fs::File::create(&path).context(format!(
             "error writing checkpoint file '{}'",

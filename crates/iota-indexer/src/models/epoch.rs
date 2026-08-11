@@ -7,7 +7,9 @@ use diesel::{
     prelude::{AsChangeset, Identifiable},
 };
 use iota_json_rpc_types::{EndOfEpochInfo, EpochInfo};
+use iota_sdk_ext::types::TransactionEvents;
 use iota_types::{
+    event::SystemEpochInfoEvent,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     messages_checkpoint::CertifiedCheckpointSummary,
 };
@@ -44,6 +46,21 @@ pub struct StoredEpochInfo {
     pub minted_tokens_amount: Option<i64>,
     /// First transaction sequence number of this epoch.
     pub first_tx_sequence_number: i64,
+}
+
+/// Extracts the indexed epoch-info facts from a transaction's events.
+///
+/// Returns `None` when no `SystemEpochInfoEvent` is present, as on a safe-mode
+/// epoch boundary.
+pub(crate) fn extract_epoch_info_event(
+    events: &TransactionEvents,
+) -> Option<IndexedEpochInfoEvent> {
+    events
+        .iter()
+        .find(|event| event.is_system_epoch_info_event())
+        .cloned()
+        .map(SystemEpochInfoEvent::from)
+        .map(|event| IndexedEpochInfoEvent::from(&event))
 }
 
 impl StoredEpochInfo {
@@ -175,7 +192,7 @@ impl EndOfEpochUpdate {
         Self {
             epoch: last_checkpoint_summary.epoch as i64,
             network_total_transactions: last_checkpoint_summary.network_total_transactions as i64,
-            last_checkpoint_id: *last_checkpoint_summary.sequence_number() as i64,
+            last_checkpoint_id: last_checkpoint_summary.sequence_number() as i64,
             epoch_end_timestamp: last_checkpoint_summary.timestamp_ms as i64,
             storage_charge: event.storage_charge as i64,
             storage_rebate: event.storage_rebate as i64,

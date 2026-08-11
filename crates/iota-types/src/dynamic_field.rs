@@ -8,15 +8,14 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_sdk_ext::types::{Address, StructTag, TypeTag, crypto::HashingIntentScope};
+use iota_sdk_ext::types::{Address, ObjectDigest, StructTag, TypeTag, crypto::HashingIntentScope};
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
-    MoveTypeTagTrait, ObjectId, SequenceNumber,
-    base_types::ObjectDigest,
+    MoveTypeTagTrait, ObjectId, Version,
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
     id::UID,
@@ -63,7 +62,7 @@ pub struct DynamicFieldInfo {
     pub type_: DynamicFieldType,
     pub object_type: String,
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: ObjectDigest,
 }
 

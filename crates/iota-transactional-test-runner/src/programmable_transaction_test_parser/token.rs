@@ -151,7 +151,7 @@ impl Token for CommandToken {
                     .count();
                 (Self::Ident, len)
             }
-            _ => bail!("unrecognized token: {}", s),
+            _ => bail!("unrecognized token: {s}"),
         }))
     }
 }

@@ -162,9 +162,9 @@ pub(crate) struct PackageCursor {
     pub checkpoint_viewed_at: u64,
 }
 
-/// `DataLoader` key for fetching the storage ID of the (user) package that
-/// shares an original (aka runtime) ID with the package stored at `package_id`,
-/// and whose version is `version`.
+/// `DataLoader` key for fetching the storage ID of the (user) package at
+/// `version` that shares an original (aka runtime) ID with the package version
+/// stored at `address`.
 ///
 /// Note that this is different from looking up the historical version of an
 /// object -- the query returns the ID of the package (each version of a user

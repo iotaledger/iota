@@ -63,7 +63,7 @@ iota-names = { workspace = true, optional = true }
 iota-package-management.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
+iota-sdk-ext = { workspace = true, features = ["ed25519", "secp256k1", "bech32", "grpc", "txn-builder", "types"] }
 iota-source-validation.workspace = true
 iota-types.workspace = true
 move-analyzer.workspace = true

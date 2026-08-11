@@ -10,15 +10,11 @@ use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_ext::types::{
-    Address, ObjectId, Owner, SharedObjectReference, TypeTag, crypto::Intent,
+    Address, MoveAuthenticatorV1, ObjectId, Owner, SharedObjectReference, Transaction, TypeTag,
+    UserSignature, Version,
+    crypto::{Intent, SimpleSignature},
 };
-use iota_types::{
-    base_types::SequenceNumber,
-    crypto::Signature,
-    move_authenticator::MoveAuthenticatorV1,
-    signature::GenericSignature,
-    transaction::{CallArg, TransactionData},
-};
+use iota_types::transaction::CallArg;
 use serde::Serialize;
 
 #[derive(Serialize)]
@@ -30,7 +26,7 @@ pub struct SignData {
     // Intent struct used, see [struct Intent] for field definitions.
     pub intent: Intent,
     // Base64 encoded [struct IntentMessage] consisting of (intent || message)
-    // where message can be `TransactionData` etc.
+    // where message can be `Transaction` etc.
     pub raw_intent_msg: String,
     // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
     pub digest: String,
@@ -71,10 +67,10 @@ impl fmt::Display for ExternalKeySource {
 
 pub(crate) async fn sign_transaction(
     context: &mut WalletContext,
-    tx_data: &TransactionData,
+    tx: &Transaction,
     signer_address: &Address,
     auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
-) -> Result<GenericSignature> {
+) -> Result<UserSignature> {
     let iota_client = context.get_client().await?;
     let key = context.config().keystore().get_key(signer_address)?;
 
@@ -90,7 +86,7 @@ pub(crate) async fn sign_transaction(
             let initial_shared_version =
                 get_shared_object_version(&iota_client, signer_address).await?;
 
-            Ok(GenericSignature::MoveAuthenticator(
+            Ok(UserSignature::MoveAuthenticator(
                 MoveAuthenticatorV1::new_with_shared_account_object(
                     auth_call_args,
                     auth_type_args,
@@ -112,7 +108,7 @@ pub(crate) async fn sign_transaction(
             Ok(context
                 .config()
                 .keystore()
-                .sign_secure(signer_address, tx_data, Intent::iota_transaction())?
+                .sign_secure(signer_address, tx, Intent::iota_transaction())?
                 .into())
         }
         StoredKey::External {
@@ -138,7 +134,7 @@ pub(crate) async fn sign_transaction(
                     // pass the transaction sender to the signer to ensure the correct
                     // key is used
                     Ok(signer
-                        .sign_transaction(tx_data, signer_address)
+                        .sign_transaction(tx, signer_address)
                         .await
                         .map(|s| s.signature)?
                         .into())
@@ -156,7 +152,7 @@ pub(crate) fn sign_secure<T>(
     address: &Address,
     msg: &T,
     intent: Intent,
-) -> Result<Signature>
+) -> Result<SimpleSignature>
 where
     T: Serialize,
 {
@@ -199,7 +195,7 @@ where
 pub(crate) async fn get_shared_object_version(
     iota_client: &iota_sdk::IotaClient,
     signer_address: &Address,
-) -> Result<SequenceNumber> {
+) -> Result<Version> {
     let object_response = iota_client
         .read_api()
         .get_object_with_options(

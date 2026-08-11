@@ -11,11 +11,11 @@ use iota_indexer::{
     optimistic_indexing::IngestionPath,
 };
 use iota_json_rpc_types::IotaExecutionStatus;
-use iota_sdk_ext::types::{Event as NativeEvent, ExecutionStatus as NativeExecutionStatus};
-use iota_types::{
-    effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
-    transaction::TransactionData as NativeTransactionData,
+use iota_sdk_ext::types::{
+    Event as NativeEvent, ExecutionStatus as NativeExecutionStatus,
+    Transaction as NativeTransactionData, TransactionEffects as NativeTransactionEffects,
 };
+use iota_types::effects::TransactionEffectsAPI;
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,

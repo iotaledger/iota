@@ -1,0 +1,7 @@
+[package]
+name = "no_deps"
+version = "0.0.1"
+edition = "2024"
+
+[addresses]
+no_deps = "0x0"

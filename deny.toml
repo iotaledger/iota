@@ -68,6 +68,13 @@ ignore = [
   # proc-macro-error2 is unmaintained
   # Can be removed once `getset` updates: https://github.com/jbaublitz/getset/issues/132
   "RUSTSEC-2026-0173",
+  # quick-xml DoS advisories, only reachable transitively via `object_store`
+  # (cloud-storage list XML parsing). Fixed in quick-xml >=0.41.0, but no
+  # released `object_store` pulls it yet (latest 0.14.0 requires ^0.40.1), so
+  # there is no upgrade path. Remove once `object_store` updates quick-xml.
+  "RUSTSEC-2026-0194",
+  # Same as above
+  "RUSTSEC-2026-0195",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories

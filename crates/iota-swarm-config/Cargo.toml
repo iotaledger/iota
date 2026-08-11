@@ -27,7 +27,7 @@ iota-config.workspace = true
 iota-genesis-builder.workspace = true
 iota-names.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
+iota-sdk-ext = { workspace = true, features = ["crypto", "types"] }
 iota-types.workspace = true
 prometheus-filtered.workspace = true
 

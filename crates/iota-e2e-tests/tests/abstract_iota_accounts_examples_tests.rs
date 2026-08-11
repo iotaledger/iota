@@ -36,23 +36,20 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::types::{
-    Address, Argument, Identifier, ObjectId, Owner, ProgrammableTransaction, SharedObjectReference,
-    TypeTag, crypto::Intent,
+    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    ProgrammableTransaction, SharedObjectReference, SignatureScheme, Transaction,
+    TransactionEffects, TypeTag, UserSignature, crypto::Intent,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_CLOCK_OBJECT_ID, IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_FRAMEWORK_PACKAGE_ID,
-    base_types::ObjectRef,
-    crypto::SignatureScheme,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
-    move_authenticator::MoveAuthenticatorV1,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::GenericSignature,
     storage::WriteKind,
     transaction::{
-        CallArg, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
-        TransactionData, TransactionDataAPI, auth_digest_for_sig,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
+        TransactionEnvelope,
     },
 };
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -835,7 +832,7 @@ async fn run_dynamic_multisig_account(env: &TestEnvironment) -> PackageResult {
     let propose_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let acc_arg = b
-            .obj(CallArg::Shared(SharedObjectRef {
+            .obj(CallArg::Shared(SharedObjectReference {
                 object_id: account_ref.object_id,
                 initial_shared_version: account_ref.version,
                 mutable: true,
@@ -891,7 +888,7 @@ async fn run_dynamic_multisig_account(env: &TestEnvironment) -> PackageResult {
             return r;
         }
     };
-    let tx = Transaction::from_generic_sig_data(aa_tx_data, vec![auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(aa_tx_data, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1011,7 +1008,7 @@ async fn run_onesig(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_generic_sig_data(tx1, vec![auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx1, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1052,7 +1049,7 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
         let keystore = env.test_cluster.wallet.config_mut().keystore_mut();
         let addr = match keystore.import_from_mnemonic(
             LEAN_IMT_MNEMONIC,
-            SignatureScheme::ED25519,
+            SignatureScheme::Ed25519,
             Some(path),
             None,
         ) {
@@ -1149,9 +1146,9 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
         .keystore()
         .sign_hashed(&signer, &tx_digest)
         .expect("ed25519 sign should not fail");
-    // `Signature::as_ref()` returns `flag || sig || pk` — keep only the
+    // `Signature::to_bytes()` returns `flag || sig || pk` — keep only the
     // raw 64-byte signature, which is what the Move authenticator expects.
-    let sig_bytes = signature_full.as_ref();
+    let sig_bytes = signature_full.to_bytes();
     assert!(sig_bytes.len() > Ed25519Signature::LENGTH);
     let signature: Vec<u8> = sig_bytes[1..1 + Ed25519Signature::LENGTH].to_vec();
 
@@ -1177,7 +1174,7 @@ async fn run_lean_imt_account(env: &mut TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1223,7 +1220,7 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
     let link_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let acc_arg = b
-            .obj(CallArg::Shared(SharedObjectRef {
+            .obj(CallArg::Shared(SharedObjectReference {
                 object_id: account_ref.object_id,
                 initial_shared_version: account_ref.version,
                 mutable: true,
@@ -1291,7 +1288,7 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
         CallArg::Pure(bcs::to_bytes(&vec![vec![0xAA_u8], vec![0xBB_u8, 0xCC]]).unwrap()),
         CallArg::Pure(bcs::to_bytes(&"test".to_string()).unwrap()),
         CallArg::Pure(bcs::to_bytes(&Some(vec![0xDE_u8, 0xAD])).unwrap()),
-        CallArg::Shared(SharedObjectRef {
+        CallArg::Shared(SharedObjectReference {
             object_id: IOTA_CLOCK_OBJECT_ID,
             initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
             mutable: false,
@@ -1306,7 +1303,7 @@ async fn run_account_multi_auth(env: &TestEnvironment) -> PackageResult {
             return r;
         }
     };
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1457,7 +1454,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
     let admin_setup_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let sponsor_arg = b
-            .obj(CallArg::Shared(SharedObjectRef {
+            .obj(CallArg::Shared(SharedObjectReference {
                 object_id: sponsor_account_ref.object_id,
                 initial_shared_version: sponsor_account_ref.version,
                 mutable: true,
@@ -1535,7 +1532,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         // authenticator's PTB scan matches on the first command and the
         // subsequent commands are cheap byte-compares.
         let sponsor_arg = b
-            .obj(CallArg::Shared(SharedObjectRef {
+            .obj(CallArg::Shared(SharedObjectReference {
                 object_id: sponsor_account_ref.object_id,
                 initial_shared_version: sponsor_account_ref.version,
                 mutable: true,
@@ -1550,7 +1547,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         );
 
         let clock = b
-            .obj(CallArg::Shared(SharedObjectRef {
+            .obj(CallArg::Shared(SharedObjectReference {
                 object_id: IOTA_CLOCK_OBJECT_ID,
                 initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                 mutable: false,
@@ -1567,7 +1564,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         b.finish()
     };
 
-    let tx_data = TransactionData::new_programmable_allow_sponsor(
+    let tx = Transaction::new_programmable_allow_sponsor(
         sender_addr,
         vec![sponsor_gas],
         sponsored_pt,
@@ -1575,7 +1572,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         rgp,
         sponsor_addr,
     );
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx.digest().into_inner();
     let signature = env.sign_digest_raw(&tx_digest);
 
     let sender_auth = match make_move_authenticator(
@@ -1602,7 +1599,7 @@ async fn run_whitelist_sponsorship(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx, vec![sender_auth, sponsor_auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1645,7 +1642,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
 
     // Only the sponsor is an abstract account in this scenario — the sender
     // is a regular keypair-backed address (`env.owner`) that signs the
-    // transaction with a standard `GenericSignature::Signature`.
+    // transaction with a standard `UserSignature::Simple`.
     let sponsor_create_pt = {
         let mut b = ProgrammableTransactionBuilder::new();
         let auth_ref = match build_auth_function_ref_v1(
@@ -1697,7 +1694,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     let gas_budget = rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE;
 
     let pt = simple_sender_clock_ptb();
-    let tx_data = TransactionData::new_programmable_allow_sponsor(
+    let tx = Transaction::new_programmable_allow_sponsor(
         sender_addr,
         vec![sponsor_gas],
         pt,
@@ -1705,17 +1702,17 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
         rgp,
         sponsor_addr,
     );
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx.digest().into_inner();
 
-    // Sender: standard `GenericSignature::Signature` (ed25519 over the
-    // intent-wrapped TransactionData) — NOT a `MoveAuthenticator`. So
+    // Sender: standard `UserSignature::Simple` (ed25519 over the
+    // intent-wrapped Transaction) — NOT a `MoveAuthenticator`. So
     // `auth_ctx.sender_authenticator_function_info_v1()` is `None` on-chain.
-    let sender_auth = GenericSignature::Signature(
+    let sender_auth = UserSignature::Simple(
         env.test_cluster
             .wallet
             .config()
             .keystore()
-            .sign_secure(&env.owner, &tx_data, Intent::iota_transaction())
+            .sign_secure(&env.owner, &tx, Intent::iota_transaction())
             .expect("sender ed25519 sign should not fail"),
     );
 
@@ -1726,14 +1723,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
     //
     //   msg = ctx.digest()                  // 32 bytes
     //      || auth_ctx.sender_auth_digest() // 32 bytes — Blake2b256(sender_sig.as_ref())
-    let sender_auth_digest = match auth_digest_for_sig(&sender_auth) {
-        Ok(d) => d,
-        Err(e) => {
-            r.authenticate_outcome = Outcome::Fail;
-            r.authenticate_err = Some(format!("sender auth digest: {e:?}"));
-            return r;
-        }
-    };
+    let sender_auth_digest = sender_auth.auth_digest();
     let mut sponsor_msg = Vec::with_capacity(32 + 32);
     sponsor_msg.extend_from_slice(&tx_digest);
     sponsor_msg.extend_from_slice(sender_auth_digest.as_bytes());
@@ -1750,7 +1740,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
             .keystore()
             .sign_hashed(&env.owner, &sponsor_msg)
             .expect("ed25519 sign should not fail");
-        let bytes = raw.as_ref();
+        let bytes = raw.to_bytes();
         bytes[1..1 + Ed25519Signature::LENGTH].to_vec()
     };
     let sponsor_auth = match make_move_authenticator(
@@ -1765,7 +1755,7 @@ async fn run_sponsorship_ed25519(env: &TestEnvironment) -> PackageResult {
         }
     };
 
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![sender_auth, sponsor_auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx, vec![sender_auth, sponsor_auth]);
     let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
     r.authenticate_outcome = outcome;
     r.authenticate_err = err;
@@ -1895,7 +1885,7 @@ async fn run_account_for_benchmarks(
             .map(|&c| placeholder(c, err.clone(), "create"))
             .collect();
     }
-    let bench_refs: Vec<ObjectRef> = bench_effects
+    let bench_refs: Vec<ObjectReference> = bench_effects
         .all_changed_objects()
         .into_iter()
         .filter_map(|(oref, owner, kind)| {
@@ -1946,7 +1936,7 @@ async fn run_account_for_benchmarks(
                 continue;
             }
         };
-        let tx = Transaction::from_generic_sig_data(tx_data, vec![auth]);
+        let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![auth]);
         let (outcome, err) = execute_aa_tx_outcome(env, tx).await;
         r.authenticate_outcome = outcome;
         r.authenticate_err = err;
@@ -2005,7 +1995,7 @@ impl TestEnvironment {
         name: &str,
     ) -> anyhow::Result<(
         ObjectId,
-        ObjectRef,
+        ObjectReference,
         iota_json_rpc_types::IotaTransactionBlockResponse,
     )> {
         let path = Self::example_path(name);
@@ -2066,8 +2056,8 @@ impl TestEnvironment {
             .keystore()
             .sign_hashed(&self.owner, digest)
             .expect("ed25519 sign should not fail");
-        // `Signature::as_ref()` yields `flag || sig || pk`.
-        let bytes = sig.as_ref();
+        // `Signature::to_bytes()` yields `flag || sig || pk`.
+        let bytes = sig.to_bytes();
         assert!(bytes.len() > Ed25519Signature::LENGTH);
         bytes[1..1 + Ed25519Signature::LENGTH].to_vec()
     }
@@ -2082,7 +2072,7 @@ impl TestEnvironment {
 fn build_auth_function_ref_v1(
     builder: &mut ProgrammableTransactionBuilder,
     account_type: TypeTag,
-    package_metadata_ref: ObjectRef,
+    package_metadata_ref: ObjectReference,
     module_name: &str,
     function_name: &str,
 ) -> anyhow::Result<Argument> {
@@ -2104,7 +2094,7 @@ fn build_auth_function_ref_v1(
 /// Extract the single newly created shared object reference from a set of
 /// effects. We use this for account creation transactions which always create
 /// exactly one shared account object.
-fn first_created_shared(effects: &TransactionEffects) -> anyhow::Result<ObjectRef> {
+fn first_created_shared(effects: &TransactionEffects) -> anyhow::Result<ObjectReference> {
     effects
         .all_changed_objects()
         .into_iter()
@@ -2121,15 +2111,15 @@ fn type_tag(package: &ObjectId, module: &str, type_name: &str) -> TypeTag {
     TypeTag::from_str(&format!("{package}::{module}::{type_name}")).unwrap()
 }
 
-/// Build TransactionData with the owner as sender (and sponsor by default).
+/// Build Transaction with the owner as sender (and sponsor by default).
 async fn tx_data_from_pt(
     env: &TestEnvironment,
     pt: ProgrammableTransaction,
     sender: Address,
-    gas: ObjectRef,
-) -> TransactionData {
+    gas: ObjectReference,
+) -> Transaction {
     let gas_price = env.test_cluster.get_reference_gas_price().await;
-    TransactionData::new_programmable_allow_sponsor(
+    Transaction::new_programmable_allow_sponsor(
         sender,
         vec![gas],
         pt,
@@ -2149,7 +2139,7 @@ async fn tx_data_from_pt(
 /// `max_auth_gas`) surfaces as `Err` here rather than being smoothed over.
 async fn execute_aa_tx_outcome(
     env: &TestEnvironment,
-    tx: Transaction,
+    tx: TransactionEnvelope,
 ) -> (Outcome, Option<String>) {
     match env
         .test_cluster
@@ -2174,12 +2164,12 @@ async fn execute_aa_tx_outcome(
 // --- Shared sub-routines used by multiple scenarios -------------------------
 // ---------------------------------------------------------------------------
 
-/// Common path: build a `TransactionData` from `pt` (sender = owner), execute,
+/// Common path: build a `Transaction` from `pt` (sender = owner), execute,
 /// and return the unique created shared object as the account ref.
 async fn create_account_with_pt(
     env: &TestEnvironment,
     pt: ProgrammableTransaction,
-) -> anyhow::Result<ObjectRef> {
+) -> anyhow::Result<ObjectReference> {
     let tx_data = env
         .test_cluster
         .test_transaction_builder()
@@ -2221,7 +2211,7 @@ impl AuthCallArgs {
 
 async fn run_simple_auth_ed25519(
     env: &TestEnvironment,
-    account_ref: ObjectRef,
+    account_ref: ObjectReference,
     _pkg_id: ObjectId,
     args: AuthCallArgs,
 ) -> anyhow::Result<(Outcome, Option<String>)> {
@@ -2241,7 +2231,7 @@ async fn run_simple_auth_ed25519(
     let extra_args = match args {
         AuthCallArgs::Ed25519Only => vec![CallArg::Pure(bcs::to_bytes(&signature)?)],
         AuthCallArgs::ClockThenEd25519 => vec![
-            CallArg::Shared(SharedObjectRef {
+            CallArg::Shared(SharedObjectReference {
                 object_id: IOTA_CLOCK_OBJECT_ID,
                 initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
                 mutable: false,
@@ -2255,7 +2245,7 @@ async fn run_simple_auth_ed25519(
     };
 
     let auth = make_move_authenticator(account_ref, extra_args)?;
-    let tx = Transaction::from_generic_sig_data(tx_data, vec![auth]);
+    let tx = TransactionEnvelope::from_user_sig_data(tx_data, vec![auth]);
     Ok(execute_aa_tx_outcome(env, tx).await)
 }
 
@@ -2265,7 +2255,7 @@ async fn run_simple_auth_ed25519(
 fn simple_sender_clock_ptb() -> ProgrammableTransaction {
     let mut b = ProgrammableTransactionBuilder::new();
     let clock = b
-        .obj(CallArg::Shared(SharedObjectRef {
+        .obj(CallArg::Shared(SharedObjectReference {
             object_id: IOTA_CLOCK_OBJECT_ID,
             initial_shared_version: IOTA_CLOCK_OBJECT_SHARED_VERSION,
             mutable: false,
@@ -2348,10 +2338,10 @@ fn build_sorted_keccak_merkle_tree(leaves: &[Vec<u8>]) -> (Vec<u8>, Vec<Vec<Vec<
 
 /// Build a `MoveAuthenticator` v1 from extra args and the account ref.
 fn make_move_authenticator(
-    account_ref: ObjectRef,
+    account_ref: ObjectReference,
     extra_args: Vec<CallArg>,
-) -> anyhow::Result<GenericSignature> {
-    Ok(GenericSignature::MoveAuthenticator(
+) -> anyhow::Result<UserSignature> {
+    Ok(UserSignature::MoveAuthenticator(
         MoveAuthenticatorV1::new_with_shared_account_object(
             extra_args,
             vec![],
@@ -2367,7 +2357,7 @@ fn make_move_authenticator(
 fn find_created_shared_in_response(
     resp: &iota_json_rpc_types::IotaTransactionBlockResponse,
     expected: &TypeTag,
-) -> Option<ObjectRef> {
+) -> Option<ObjectReference> {
     let expected_struct = match expected {
         TypeTag::Struct(s) => s.as_ref(),
         _ => return None,
@@ -2380,7 +2370,9 @@ fn find_created_shared_in_response(
             version,
             digest,
             ..
-        } if object_type == expected_struct => Some(ObjectRef::new(*object_id, *version, *digest)),
+        } if object_type == expected_struct => {
+            Some(ObjectReference::new(*object_id, *version, *digest))
+        }
         _ => None,
     })
 }

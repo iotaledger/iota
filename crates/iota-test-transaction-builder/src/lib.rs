@@ -14,23 +14,21 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_ext::{
-    crypto::Signer as SdkSigner,
+    crypto::Signer,
+    grpc_client::read_mask_fields::{ObjectReadMask, OwnedObjectReadMask},
+    transaction_builder::{PTBArgumentList, TransactionBuilder},
     types::{
-        Address, Identifier, Input, ObjectId, Owner, ProgrammableTransaction, TransactionKind,
-        TypeTag,
-        crypto::{Intent, IntentMessage, SimpleSignature},
+        Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+        SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
+        UserSignature, Version,
+        crypto::{BitmapUnit, MultisigAggregatedSignature, MultisigCommittee, SimpleSignature},
     },
 };
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
-    crypto::{AccountKeyPair, Signature, Signer, get_key_pair},
-    digests::TransactionDigest,
-    multisig::{BitmapUnit, MultiSig, MultiSigPublicKey},
-    signature::GenericSignature,
+    crypto::{AccountKeyPair, get_key_pair},
     transaction::{
-        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, SharedObjectRef,
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        Transaction, TransactionData, TransactionDataAPI,
+        CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
     },
     utils::to_sender_signed_transaction,
 };
@@ -39,14 +37,14 @@ use rand::Rng;
 pub struct TestTransactionBuilder {
     test_data: TestTransactionData,
     sender: Address,
-    gas_object: ObjectRef,
+    gas_object: ObjectReference,
     gas_price: u64,
     gas_budget: Option<u64>,
     nonce: Option<u64>,
 }
 
 impl TestTransactionBuilder {
-    pub fn new(sender: Address, gas_object: ObjectRef, gas_price: u64) -> Self {
+    pub fn new(sender: Address, gas_object: ObjectReference, gas_price: u64) -> Self {
         Self {
             test_data: TestTransactionData::Empty,
             sender,
@@ -72,7 +70,7 @@ impl TestTransactionBuilder {
         self.sender
     }
 
-    pub fn gas_object(&self) -> ObjectRef {
+    pub fn gas_object(&self) -> ObjectReference {
         self.gas_object
     }
 
@@ -118,13 +116,13 @@ impl TestTransactionBuilder {
         self,
         package_id: ObjectId,
         counter_id: ObjectId,
-        counter_initial_shared_version: SequenceNumber,
+        counter_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
             "counter",
             "increment",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 counter_id,
                 counter_initial_shared_version,
                 true,
@@ -136,13 +134,13 @@ impl TestTransactionBuilder {
         self,
         package_id: ObjectId,
         counter_id: ObjectId,
-        counter_initial_shared_version: SequenceNumber,
+        counter_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
             "counter",
             "value",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 counter_id,
                 counter_initial_shared_version,
                 false,
@@ -154,13 +152,13 @@ impl TestTransactionBuilder {
         self,
         package_id: ObjectId,
         counter_id: ObjectId,
-        counter_initial_shared_version: SequenceNumber,
+        counter_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
             "counter",
             "delete",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 counter_id,
                 counter_initial_shared_version,
                 true,
@@ -181,7 +179,7 @@ impl TestTransactionBuilder {
         )
     }
 
-    pub fn call_nft_delete(self, package_id: ObjectId, nft_to_delete: ObjectRef) -> Self {
+    pub fn call_nft_delete(self, package_id: ObjectId, nft_to_delete: ObjectReference) -> Self {
         self.move_call(
             package_id,
             "testnet_nft",
@@ -190,7 +188,7 @@ impl TestTransactionBuilder {
         )
     }
 
-    pub fn call_staking(self, stake_coin: ObjectRef, validator: Address) -> Self {
+    pub fn call_staking(self, stake_coin: ObjectReference, validator: Address) -> Self {
         self.move_call(
             ObjectId::SYSTEM,
             Identifier::IOTA_SYSTEM_MODULE.as_str(),
@@ -206,13 +204,13 @@ impl TestTransactionBuilder {
     pub fn call_emit_random(
         self,
         package_id: ObjectId,
-        randomness_initial_shared_version: SequenceNumber,
+        randomness_initial_shared_version: Version,
     ) -> Self {
         self.move_call(
             package_id,
             "random",
             "new",
-            vec![CallArg::Shared(SharedObjectRef::new(
+            vec![CallArg::Shared(SharedObjectReference::new(
                 ObjectId::RANDOMNESS_STATE,
                 randomness_initial_shared_version,
                 false,
@@ -265,7 +263,7 @@ impl TestTransactionBuilder {
         )
     }
 
-    pub fn transfer(mut self, object: ObjectRef, recipient: Address) -> Self {
+    pub fn transfer(mut self, object: ObjectReference, recipient: Address) -> Self {
         self.test_data = TestTransactionData::Transfer(TransferData { object, recipient });
         self
     }
@@ -275,7 +273,7 @@ impl TestTransactionBuilder {
         self
     }
 
-    pub fn split_coin(mut self, coin: ObjectRef, amounts: Vec<u64>) -> Self {
+    pub fn split_coin(mut self, coin: ObjectReference, amounts: Vec<u64>) -> Self {
         self.test_data = TestTransactionData::SplitCoin(SplitCoinData { coin, amounts });
         self
     }
@@ -316,7 +314,7 @@ impl TestTransactionBuilder {
         self
     }
 
-    pub fn build(self) -> TransactionData {
+    pub fn build(self) -> Transaction {
         let nonce = self.nonce;
         let mut data = self.build_inner();
         if let Some(nonce) = nonce {
@@ -330,9 +328,9 @@ impl TestTransactionBuilder {
         data
     }
 
-    fn build_inner(self) -> TransactionData {
+    fn build_inner(self) -> Transaction {
         match self.test_data {
-            TestTransactionData::Move(data) => TransactionData::new_move_call(
+            TestTransactionData::Move(data) => Transaction::new_move_call(
                 self.sender,
                 data.package_id,
                 data.module,
@@ -345,7 +343,7 @@ impl TestTransactionBuilder {
                 self.gas_price,
             )
             .unwrap(),
-            TestTransactionData::Transfer(data) => TransactionData::new_transfer(
+            TestTransactionData::Transfer(data) => Transaction::new_transfer(
                 data.recipient,
                 data.object,
                 self.sender,
@@ -354,7 +352,7 @@ impl TestTransactionBuilder {
                     .unwrap_or(self.gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
                 self.gas_price,
             ),
-            TestTransactionData::TransferIota(data) => TransactionData::new_transfer_iota(
+            TestTransactionData::TransferIota(data) => Transaction::new_transfer_iota(
                 data.recipient,
                 self.sender,
                 data.amount,
@@ -363,7 +361,7 @@ impl TestTransactionBuilder {
                     .unwrap_or(self.gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER),
                 self.gas_price,
             ),
-            TestTransactionData::SplitCoin(data) => TransactionData::new_split_coin(
+            TestTransactionData::SplitCoin(data) => Transaction::new_split_coin(
                 self.sender,
                 data.coin,
                 data.amounts,
@@ -389,7 +387,7 @@ impl TestTransactionBuilder {
                     }
                 };
 
-                TransactionData::new_module(
+                Transaction::new_module(
                     self.sender,
                     self.gas_object,
                     all_module_bytes,
@@ -400,7 +398,7 @@ impl TestTransactionBuilder {
                     self.gas_price,
                 )
             }
-            TestTransactionData::Programmable(pt) => TransactionData::new_programmable(
+            TestTransactionData::Programmable(pt) => Transaction::new_programmable(
                 self.sender,
                 vec![self.gas_object],
                 pt,
@@ -414,23 +412,26 @@ impl TestTransactionBuilder {
         }
     }
 
-    pub fn build_and_sign(self, signer: &dyn Signer<Signature>) -> Transaction {
-        Transaction::from_data_and_signer(self.build(), vec![signer])
+    pub fn build_and_sign(self, signer: &impl Signer<SimpleSignature>) -> TransactionEnvelope {
+        TransactionEnvelope::from_data_and_signer(self.build(), vec![signer])
     }
 
     pub fn build_and_sign_multisig(
         self,
-        multisig_pk: MultiSigPublicKey,
-        signers: &[&dyn SdkSigner<SimpleSignature>],
+        multisig_pk: MultisigCommittee,
+        signers: &[&dyn Signer<SimpleSignature>],
         bitmap: BitmapUnit,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let data = self.build();
-        let digest = IntentMessage::new(Intent::iota_transaction(), data.clone()).signing_digest();
-        let signatures = signers.iter().map(|s| s.sign(&*digest).into()).collect();
-        let multisig =
-            GenericSignature::MultiSig(MultiSig::new_unchecked(signatures, bitmap, multisig_pk));
+        let digest = data.signing_digest();
+        let signatures = signers.iter().map(|s| s.sign(&digest).into()).collect();
+        let multisig = UserSignature::Multisig(MultisigAggregatedSignature::new_unchecked(
+            signatures,
+            bitmap,
+            multisig_pk,
+        ));
 
-        Transaction::from_generic_sig_data(data, vec![multisig])
+        TransactionEnvelope::from_user_sig_data(data, vec![multisig])
     }
 }
 
@@ -464,7 +465,7 @@ pub enum PublishData {
 }
 
 struct TransferData {
-    object: ObjectRef,
+    object: ObjectReference,
     recipient: Address,
 }
 
@@ -474,7 +475,7 @@ struct TransferIotaData {
 }
 
 struct SplitCoinData {
-    coin: ObjectRef,
+    coin: ObjectReference,
     amounts: Vec<u64>,
 }
 
@@ -491,7 +492,7 @@ struct SplitCoinData {
 pub async fn batch_make_transfer_transactions(
     context: &WalletContext,
     max_txn_num: usize,
-) -> Vec<Transaction> {
+) -> Vec<TransactionEnvelope> {
     let recipient = get_key_pair::<AccountKeyPair>().0;
     let result = context.get_all_accounts_and_gas_objects().await;
     let accounts_and_objs = result.unwrap();
@@ -503,7 +504,7 @@ pub async fn batch_make_transfer_transactions(
             if res.len() >= max_txn_num {
                 return res;
             }
-            let data = TransactionData::new_transfer_iota(
+            let tx = Transaction::new_transfer_iota(
                 recipient,
                 address,
                 Some(2),
@@ -511,7 +512,7 @@ pub async fn batch_make_transfer_transactions(
                 gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
                 gas_price,
             );
-            let tx = context.sign_transaction(&data);
+            let tx = context.sign_transaction(&tx);
             res.push(tx);
         }
     }
@@ -522,7 +523,7 @@ pub async fn make_transfer_iota_transaction(
     context: &WalletContext,
     recipient: Option<Address>,
     amount: Option<u64>,
-) -> Transaction {
+) -> TransactionEnvelope {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     context.sign_transaction(
@@ -535,7 +536,7 @@ pub async fn make_transfer_iota_transaction(
 pub async fn make_staking_transaction(
     context: &WalletContext,
     validator_address: Address,
-) -> Transaction {
+) -> TransactionEnvelope {
     let accounts_and_objs = context.get_all_accounts_and_gas_objects().await.unwrap();
     let sender = accounts_and_objs[0].0;
     let gas_object = accounts_and_objs[0].1[0];
@@ -548,7 +549,10 @@ pub async fn make_staking_transaction(
     )
 }
 
-pub async fn make_publish_transaction(context: &WalletContext, path: PathBuf) -> Transaction {
+pub async fn make_publish_transaction(
+    context: &WalletContext,
+    path: PathBuf,
+) -> TransactionEnvelope {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     context.sign_transaction(
@@ -561,7 +565,7 @@ pub async fn make_publish_transaction(context: &WalletContext, path: PathBuf) ->
 pub async fn make_publish_transaction_with_deps(
     context: &WalletContext,
     path: PathBuf,
-) -> Transaction {
+) -> TransactionEnvelope {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     context.sign_transaction(
@@ -571,7 +575,7 @@ pub async fn make_publish_transaction_with_deps(
     )
 }
 
-pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectRef {
+pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectReference {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let txn = context.sign_transaction(
@@ -585,7 +589,7 @@ pub async fn publish_package(context: &WalletContext, path: PathBuf) -> ObjectRe
 
 /// Executes a transaction to publish the `basics` package and returns the
 /// package object ref.
-pub async fn publish_basics_package(context: &WalletContext) -> ObjectRef {
+pub async fn publish_basics_package(context: &WalletContext) -> ObjectReference {
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let txn = context.sign_transaction(
@@ -601,7 +605,7 @@ pub async fn publish_basics_package(context: &WalletContext) -> ObjectRef {
 /// create a counter. Returns the package object ref and the counter object ref.
 pub async fn publish_basics_package_and_make_counter(
     context: &WalletContext,
-) -> (ObjectRef, ObjectRef) {
+) -> (ObjectReference, ObjectReference) {
     let package_ref = publish_basics_package(context).await;
     let (sender, gas_object) = context.get_one_gas_object().await.unwrap().unwrap();
     let gas_price = context.get_reference_gas_price().await.unwrap();
@@ -632,7 +636,7 @@ pub async fn increment_counter(
     gas_object_id: Option<ObjectId>,
     package_id: ObjectId,
     counter_id: ObjectId,
-    initial_shared_version: SequenceNumber,
+    initial_shared_version: Version,
 ) -> IotaTransactionBlockResponse {
     let gas_object = if let Some(gas_object_id) = gas_object_id {
         context.get_object_ref(gas_object_id).await.unwrap()
@@ -679,7 +683,7 @@ pub async fn emit_new_random_u128(
     let Owner::Shared(initial_shared_version) = random_obj_owner else {
         panic!("Expect Randomness to be shared object")
     };
-    let random_call_arg = CallArg::Shared(SharedObjectRef::new(
+    let random_call_arg = CallArg::Shared(SharedObjectReference::new(
         ObjectId::RANDOMNESS_STATE,
         initial_shared_version,
         false,
@@ -700,7 +704,7 @@ pub async fn publish_example_package(
     example_subpath: &'static str,
     sender_key_pair: &AccountKeyPair,
     sender: Address,
-    gas: ObjectRef,
+    gas: ObjectReference,
 ) -> (ObjectId, TransactionDigest) {
     let gas_price = context.get_reference_gas_price().await.unwrap();
     let tx = to_sender_signed_transaction(
@@ -739,7 +743,7 @@ pub async fn publish_simple_warrior_package(
     context: &WalletContext,
     sender_key_pair: &AccountKeyPair,
     sender: Address,
-    gas: ObjectRef,
+    gas: ObjectReference,
 ) -> (ObjectId, TransactionDigest) {
     publish_example_package(context, "simple_warrior", sender_key_pair, sender, gas).await
 }
@@ -779,7 +783,7 @@ pub async fn delete_nft(
     context: &WalletContext,
     sender: Address,
     package_id: ObjectId,
-    nft_to_delete: ObjectRef,
+    nft_to_delete: ObjectReference,
 ) -> IotaTransactionBlockResponse {
     let gas = context
         .get_one_gas_object_owned_by_address(sender)
@@ -793,6 +797,119 @@ pub async fn delete_nft(
             .build(),
     );
     context.execute_transaction_must_succeed(txn).await
+}
+
+/// Fetch one IOTA coin owned by `sender` to use as an explicit gas coin.
+///
+/// Without an explicit gas coin, [`TransactionBuilder::finish`] auto-adds
+/// every IOTA coin the sender owns as gas inputs and merges the leftover into
+/// one output coin, breaking tests that observe the sender's coin count.
+pub async fn select_gas_coin(
+    grpc_client: &iota_sdk_ext::grpc_client::Client,
+    sender: Address,
+) -> ObjectId {
+    let gas_coin = grpc_client
+        .list_owned_objects(
+            sender,
+            Some(StructTag::new_gas_coin()),
+            Some(1),
+            None,
+            OwnedObjectReadMask::default(),
+        )
+        .collect(Some(1))
+        .await
+        .expect("failed to fetch gas coin")
+        .into_inner()
+        .into_iter()
+        .next()
+        .expect("sender has no gas coin");
+    *gas_coin
+        .object_reference()
+        .expect("gas coin missing object reference")
+        .object_id()
+}
+
+/// Build a Move-call transaction ready to be signed, paying gas from a single
+/// coin picked with [`select_gas_coin`].
+///
+/// `args` is anything the builder accepts as an argument list: a tuple of
+/// mixed argument types (`ObjectId` for owned objects, `SharedMut(id)` for
+/// shared mutable objects, `u64`/`Address` and other pure values), or an
+/// array/`Vec` of a single argument type.
+pub async fn move_call_tx<A: PTBArgumentList>(
+    grpc_client: &iota_sdk_ext::grpc_client::Client,
+    sender: Address,
+    package_id: ObjectId,
+    module: &str,
+    function: &str,
+    args: A,
+    gas_budget: u64,
+) -> Transaction {
+    let mut builder = TransactionBuilder::new(sender).with_client(grpc_client);
+
+    builder
+        .move_call(package_id, module, function)
+        .arguments(args);
+
+    builder.gas(vec![select_gas_coin(grpc_client, sender).await]);
+    builder.gas_budget(gas_budget);
+
+    builder
+        .finish()
+        .await
+        .expect("failed to construct move call transaction")
+}
+
+/// Build a transaction splitting `coin_to_split` into `num_coins` coins of
+/// equal value, ready to be signed. The original coin keeps the remainder.
+///
+/// `gas_coin` must differ from `coin_to_split`; when `None`, the builder
+/// selects gas automatically from the sender's IOTA coins.
+pub async fn split_coin_equal_tx(
+    grpc_client: &iota_sdk_ext::grpc_client::Client,
+    sender: Address,
+    coin_to_split: ObjectId,
+    num_coins: u64,
+    gas_coin: Option<ObjectId>,
+    gas_budget: u64,
+) -> Transaction {
+    let coin_object = grpc_client
+        .get_objects([coin_to_split], ObjectReadMask::default())
+        .await
+        .expect("failed to fetch coin")
+        .into_inner()
+        .into_iter()
+        .next()
+        .expect("no result for the requested coin")
+        .expect("coin not found")
+        .object()
+        .expect("invalid coin object");
+    let coin_balance = iota_sdk_ext::types::Coin::try_from_object(&coin_object)
+        .expect("object is not a coin")
+        .balance();
+
+    // Create `num_coins - 1` new coins of equal value; the original keeps the
+    // remainder.
+    let amount_per_split = coin_balance / num_coins;
+    let split_amounts: Vec<u64> = vec![amount_per_split; (num_coins - 1) as usize];
+
+    let mut builder = TransactionBuilder::new(sender).with_client(grpc_client);
+
+    // Split off the new coin and transfer it back to the sender; an untransferred
+    // `Coin` would be an unused PTB value (coins have no `drop`) and the
+    // transaction would be rejected.
+    let new_coin = builder.split_coins(coin_to_split, split_amounts).arg();
+    builder.transfer_objects(sender, [new_coin]);
+
+    if let Some(gas) = gas_coin {
+        builder.gas([gas]);
+    }
+    builder.gas_budget(gas_budget);
+
+    builder
+        .finish()
+        .await
+        .expect("failed to construct split coin transaction")
 }
 
 #[cfg(test)]

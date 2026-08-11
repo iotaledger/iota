@@ -22,7 +22,6 @@ use iota_config::{
     p2p::SeedPeer,
 };
 use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
-use iota_genesis_builder::{SnapshotSource, SnapshotUrl};
 #[cfg(feature = "indexer")]
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
@@ -34,7 +33,7 @@ use iota_indexer::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
-use iota_sdk_ext::types::Address;
+use iota_sdk_ext::{crypto::simple::SimpleKeypair, types::Address};
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
     genesis_config::GenesisConfig,
@@ -42,7 +41,6 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
-use iota_types::{base_types::address_from_iota_pub_key, crypto::IotaKeyPair};
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{info, warn};
@@ -239,14 +237,6 @@ pub enum LocalnetCommand {
         /// genesis with the desired number of validators.
         #[arg(long, help = "The number of validators in the network.")]
         committee_size: Option<usize>,
-        /// The path to local migration snapshot files
-        #[arg(long, name = "path", num_args(0..))]
-        local_migration_snapshots: Vec<PathBuf>,
-        /// Remotely stored migration snapshots.
-        #[arg(long, name = "iota|<full-url>", num_args(0..))]
-        remote_migration_snapshots: Vec<SnapshotUrl>,
-        #[arg(long, help = "Specify the delegator address")]
-        delegator: Option<Address>,
     },
     /// Bootstrap and initialize a new IOTA network
     Genesis {
@@ -290,14 +280,6 @@ pub enum LocalnetCommand {
             help = "Number of additional gas accounts to create for benchmarks (use for dedicated clients)"
         )]
         num_additional_gas_accounts: Option<usize>,
-        /// The path to local migration snapshot files
-        #[arg(long, name = "path", num_args(0..))]
-        local_migration_snapshots: Vec<PathBuf>,
-        /// Remotely stored migration snapshots.
-        #[arg(long, name = "iota|<full-url>", num_args(0..))]
-        remote_migration_snapshots: Vec<SnapshotUrl>,
-        #[arg(long, help = "Specify the delegator address")]
-        delegator: Option<Address>,
         /// Set `admin-interface-address` config. This flag
         /// accepts also a port, a host, or both (e.g., 0.0.0.0:1337).
         /// When providing a specific value, please use the = sign between the
@@ -327,9 +309,6 @@ impl LocalnetCommand {
                 no_full_node,
                 committee_size,
                 epoch_duration_ms,
-                local_migration_snapshots,
-                remote_migration_snapshots,
-                delegator,
             } => {
                 start(
                     config_dir.clone(),
@@ -346,9 +325,6 @@ impl LocalnetCommand {
                     data_ingestion_dir,
                     no_full_node,
                     committee_size,
-                    local_migration_snapshots,
-                    remote_migration_snapshots,
-                    delegator,
                 )
                 .await
             }
@@ -363,9 +339,6 @@ impl LocalnetCommand {
                 with_faucet,
                 committee_size,
                 num_additional_gas_accounts,
-                local_migration_snapshots,
-                remote_migration_snapshots,
-                delegator,
                 admin_interface_address,
             } => {
                 genesis(
@@ -379,9 +352,6 @@ impl LocalnetCommand {
                     with_faucet,
                     committee_size,
                     num_additional_gas_accounts,
-                    local_migration_snapshots,
-                    remote_migration_snapshots,
-                    delegator,
                     admin_interface_address,
                 )
                 .await
@@ -404,9 +374,6 @@ async fn start(
     #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
     committee_size: Option<usize>,
-    local_migration_snapshots: Vec<PathBuf>,
-    remote_migration_snapshots: Vec<SnapshotUrl>,
-    delegator: Option<Address>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
         ensure!(
@@ -464,25 +431,7 @@ async fn start(
             .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
 
         swarm_builder = swarm_builder.committee_size(committee_size);
-        let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
-        let local_snapshots = local_migration_snapshots
-            .into_iter()
-            .map(SnapshotSource::Local);
-        let remote_snapshots = remote_migration_snapshots
-            .into_iter()
-            .map(SnapshotSource::S3);
-        genesis_config.migration_sources = local_snapshots.chain(remote_snapshots).collect();
-
-        // A delegator must be supplied when migration snapshots are provided.
-        if !genesis_config.migration_sources.is_empty() {
-            if let Some(delegator) = delegator {
-                // Add a delegator account to the genesis.
-                genesis_config = genesis_config.add_delegator(delegator);
-            } else {
-                bail!("a delegator must be supplied when migration snapshots are provided.");
-            }
-        }
-
+        let genesis_config = GenesisConfig::custom_genesis(1, 100);
         swarm_builder = swarm_builder.with_genesis_config(genesis_config);
         let epoch_duration_ms = epoch_duration_ms.unwrap_or(DEFAULT_EPOCH_DURATION_MS);
         swarm_builder = swarm_builder.with_epoch_duration_ms(epoch_duration_ms);
@@ -509,9 +458,6 @@ async fn start(
                 false,
                 committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE),
                 None,
-                local_migration_snapshots,
-                remote_migration_snapshots,
-                delegator,
                 None,
             )
             .await
@@ -795,8 +741,9 @@ async fn start(
             let kp = swarm.config_mut().account_keys.swap_remove(0);
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-            let address: Address = address_from_iota_pub_key(kp.public());
-            keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
+            let kp = SimpleKeypair::from(kp);
+            let address: Address = kp.public_key().derive_address();
+            keystore.add_key(None, kp).unwrap();
             IotaClientConfig::new(keystore)
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])
                 .with_active_address(address)
@@ -856,9 +803,6 @@ async fn genesis(
     with_faucet: bool,
     committee_size: usize,
     num_additional_gas_accounts: Option<usize>,
-    local_migration_snapshots: Vec<PathBuf>,
-    remote_migration_snapshots: Vec<SnapshotUrl>,
-    delegator: Option<Address>,
     admin_interface_address: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {
@@ -944,9 +888,12 @@ async fn genesis(
                 keystore.save()?;
 
                 // Calculate extra allocations (validator, faucet)
+                let validator_low_stake_threshold = GenesisConfig::default()
+                    .protocol_config()
+                    .validator_low_stake_threshold();
                 let validator_extra = num_validators as u64
                     * (iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
-                        + iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS);
+                        + validator_low_stake_threshold);
                 let mut faucet_extra = 0u64;
                 if with_faucet {
                     faucet_extra = iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
@@ -976,23 +923,6 @@ async fn genesis(
             }
         }
     };
-    let local_snapshots = local_migration_snapshots
-        .into_iter()
-        .map(SnapshotSource::Local);
-    let remote_snapshots = remote_migration_snapshots
-        .into_iter()
-        .map(SnapshotSource::S3);
-    genesis_conf.migration_sources = local_snapshots.chain(remote_snapshots).collect();
-
-    // A delegator must be supplied when migration snapshots are provided.
-    if !genesis_conf.migration_sources.is_empty() {
-        if let Some(delegator) = delegator {
-            // Add a delegator account to the genesis.
-            genesis_conf = genesis_conf.add_delegator(delegator);
-        } else {
-            bail!("a delegator must be supplied when migration snapshots are provided.");
-        }
-    }
 
     // Adds an extra faucet account to the genesis
     if with_faucet {
@@ -1037,7 +967,7 @@ async fn genesis(
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     for key in &network_config.account_keys {
-        keystore.add_key(None, IotaKeyPair::Ed25519(key.copy()))?;
+        keystore.add_key(None, SimpleKeypair::from(key.clone()))?;
     }
     let active_address = keystore.addresses().pop();
 

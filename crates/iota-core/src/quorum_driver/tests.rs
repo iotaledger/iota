@@ -13,16 +13,15 @@ use std::{
 
 use iota_common::sync::notify_read::{NotifyRead, Registration};
 use iota_macros::{register_fail_point, sim_test};
-use iota_sdk_ext::types::Address;
+use iota_sdk_ext::types::{Address, TransactionDigest};
 use iota_types::{
-    base_types::TransactionDigest,
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair},
     effects::TransactionEffectsAPI,
     object::{Object, generate_test_gas_objects},
     quorum_driver_types::{
         ExecuteTransactionRequestV1, QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use tokio::time::timeout;
 
@@ -36,7 +35,10 @@ use crate::{
     unit_test_utils::init_local_authorities,
 };
 
-async fn setup() -> (AuthorityAggregator<LocalAuthorityClient>, Transaction) {
+async fn setup() -> (
+    AuthorityAggregator<LocalAuthorityClient>,
+    TransactionEnvelope,
+) {
     let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
     let gas_object = Object::with_owner_for_testing(sender);
     let (aggregator, authorities, genesis, _) =
@@ -56,7 +58,12 @@ async fn setup() -> (AuthorityAggregator<LocalAuthorityClient>, Transaction) {
     (aggregator, tx)
 }
 
-fn make_tx(gas: &Object, sender: Address, keypair: &AccountKeyPair, gas_price: u64) -> Transaction {
+fn make_tx(
+    gas: &Object,
+    sender: Address,
+    keypair: &AccountKeyPair,
+    gas_price: u64,
+) -> TransactionEnvelope {
     make_transfer_iota_transaction(
         gas.object_ref(),
         Address::random(),

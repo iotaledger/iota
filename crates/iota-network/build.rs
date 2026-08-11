@@ -33,7 +33,7 @@ fn main() -> Result<()> {
             Method::builder()
                 .name("transaction")
                 .route_name("Transaction")
-                .input_type("iota_types::transaction::Transaction")
+                .input_type("iota_types::transaction::TransactionEnvelope")
                 .output_type("iota_types::messages_grpc::HandleTransactionResponse")
                 .codec_path(codec_path)
                 .build(),
@@ -225,7 +225,7 @@ fn build_anemo_services(out_dir: &Path) {
             anemo_build::manual::Method::builder()
                 .name("get_checkpoint_contents")
                 .route_name("GetCheckpointContents")
-                .request_type("iota_types::messages_checkpoint::CheckpointContentsDigest")
+                .request_type("iota_sdk_ext::types::CheckpointContentsDigest")
                 .response_type("Option<iota_types::messages_checkpoint::FullCheckpointContents>")
                 .codec_path(codec_path)
                 .build(),

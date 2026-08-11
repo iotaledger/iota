@@ -7,10 +7,11 @@ use arc_swap::ArcSwap;
 use fastcrypto::traits::KeyPair;
 use futures::FutureExt;
 use iota_metrics::{RegistryService, monitored_mpsc::unbounded_channel};
+use iota_sdk_ext::types::checkpoint::{CheckpointContents, CheckpointSummary};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_types::{
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary},
+    messages_checkpoint::CertifiedCheckpointSummary,
 };
 use prometheus_filtered::Registry;
 use starfish_core::{
@@ -108,7 +109,6 @@ async fn test_starfish_manager() {
                 IotaTxValidator::new(
                     epoch_store.clone(),
                     Arc::new(CheckpointServiceNoop {}),
-                    state.transaction_manager().clone(),
                     IotaTxValidatorMetrics::new(&Registry::new()),
                 ),
             )
@@ -176,7 +176,7 @@ async fn test_starfish_consensus_handler_handles_older_commits() {
         epoch_store.clone(),
         state.clone(),
         checkpoint_service_for_testing(state.clone()),
-        state.transaction_manager().clone(),
+        state.execution_scheduler().clone(),
         state.get_object_cache_reader().clone(),
         state.get_transaction_cache_reader().clone(),
         Arc::new(ArcSwap::default()),

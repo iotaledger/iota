@@ -7,18 +7,21 @@ use std::{collections::HashSet, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::{Identifier, ObjectId, gas::GasCostSummary};
+use iota_sdk_ext::types::{
+    Identifier, ObjectId, SharedObjectReference, Transaction,
+    checkpoint::{CheckpointContents, CheckpointSummary},
+    gas::GasCostSummary,
+};
 use iota_types::{
     base_types::ExecutionDigests,
     crypto::deterministic_random_account_key,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
-        CheckpointSummary, SignedCheckpointSummary,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSignatureMessage,
+        CheckpointSummaryExt, SignedCheckpointSummary,
     },
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TransactionData, TransactionDataAPI,
+        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI,
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
@@ -33,6 +36,7 @@ use crate::{
     authority::{AuthorityState, authority_tests::init_state_with_objects},
     checkpoints::CheckpointServiceNoop,
     consensus_handler::SequencedConsensusTransaction,
+    execution_scheduler::ExecutionSchedulerAPI,
     mock_consensus::with_block_status,
 };
 
@@ -61,19 +65,19 @@ pub async fn test_certificates(
     let rgp = epoch_store.reference_gas_price();
 
     let mut certificates = Vec::new();
-    let shared_object_arg = CallArg::Shared(SharedObjectRef::new(
+    let shared_object_arg = CallArg::Shared(SharedObjectReference::new(
         shared_object.id(),
         shared_object.version(),
         true,
     ));
     for gas_object in test_gas_objects() {
         // Object digest may be different in genesis than originally generated.
-        let gas_object = authority.get_object(&gas_object.id()).await.unwrap();
+        let gas_object = authority.get_object(&gas_object.id()).unwrap();
         // Make a sample transaction.
         let module = "object_basics";
         let function = "create";
 
-        let data = TransactionData::new_move_call(
+        let tx = Transaction::new_move_call(
             sender,
             ObjectId::FRAMEWORK,
             Identifier::from_static(module),
@@ -93,7 +97,7 @@ pub async fn test_certificates(
         .unwrap();
 
         let transaction = epoch_store
-            .verify_transaction(to_sender_signed_transaction(data, &keypair))
+            .verify_transaction(to_sender_signed_transaction(tx, &keypair))
             .unwrap();
 
         // Submit the transaction and assemble a certificate.
@@ -196,7 +200,7 @@ pub fn make_consensus_adapter_for_test(
 
             if self.execute {
                 self.state
-                    .transaction_manager()
+                    .execution_scheduler()
                     .enqueue(transactions, epoch_store);
             }
 
@@ -223,6 +227,7 @@ pub fn make_consensus_adapter_for_test(
         None,
         None,
         metrics,
+        50,
     ))
 }
 
@@ -348,7 +353,7 @@ async fn submit_checkpoint_signature_to_consensus_adapter() {
         ))],
     );
 
-    let checkpoint_summary = CheckpointSummary::new(
+    let checkpoint_summary = CheckpointSummary::new_with_protocol_config(
         &ProtocolConfig::get_for_max_version_UNSAFE(),
         0,
         2,
@@ -533,6 +538,7 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
+            50,
         ));
 
         adapter.submit_recovered(&epoch_store);
@@ -614,6 +620,7 @@ async fn submit_recovered_end_of_publish_crash_recovery() {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
+            50,
         ));
 
         adapter.submit_recovered(&epoch_store);

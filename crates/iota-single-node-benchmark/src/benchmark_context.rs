@@ -10,14 +10,16 @@ use std::{
 
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
-use iota_sdk_ext::types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId, ObjectReference, TransactionEffects, Version};
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
-    transaction::{CertifiedTransaction, SignedTransaction, Transaction, VerifiedTransaction},
+    transaction::{
+        CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction, TransactionEnvelope,
+        VerifiedTransaction,
+    },
 };
 use tracing::info;
 
@@ -76,7 +78,7 @@ impl BenchmarkContext {
         self.validator.clone()
     }
 
-    pub(crate) async fn publish_package(&mut self, publish_data: PublishData) -> ObjectRef {
+    pub(crate) async fn publish_package(&mut self, publish_data: PublishData) -> ObjectReference {
         let mut gas_objects = self.admin_account.gas_objects.deref().clone();
         let (package, updated_gas) = self
             .validator
@@ -99,7 +101,7 @@ impl BenchmarkContext {
         &mut self,
         move_package: ObjectId,
         num_dynamic_fields: u64,
-    ) -> HashMap<Address, ObjectRef> {
+    ) -> HashMap<Address, ObjectReference> {
         let mut root_objects = HashMap::new();
 
         if num_dynamic_fields == 0 {
@@ -120,7 +122,7 @@ impl BenchmarkContext {
         let cache_commit = self.validator().get_validator().get_cache_commit().clone();
         for effects in results {
             let batch =
-                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
+                cache_commit.build_db_batch(effects.epoch(), 0, &[*effects.transaction_digest()]);
 
             cache_commit.commit_transaction_outputs(
                 effects.epoch(),
@@ -147,7 +149,7 @@ impl BenchmarkContext {
         &mut self,
         move_package: ObjectId,
         num_shared_objects: usize,
-    ) -> Vec<(ObjectId, SequenceNumber)> {
+    ) -> Vec<(ObjectId, Version)> {
         let mut shared_objects = Vec::new();
 
         if num_shared_objects == 0 {
@@ -191,7 +193,7 @@ impl BenchmarkContext {
             // For checkpoint executor, in order to commit a checkpoint it is required
             // previous versions of objects are already committed.
             let batch =
-                cache_commit.build_db_batch(effects.epoch(), &[*effects.transaction_digest()]);
+                cache_commit.build_db_batch(effects.epoch(), 0, &[*effects.transaction_digest()]);
             cache_commit.commit_transaction_outputs(
                 effects.epoch(),
                 batch,
@@ -206,7 +208,7 @@ impl BenchmarkContext {
     pub(crate) async fn generate_transactions(
         &self,
         tx_generator: Arc<dyn TxGenerator>,
-    ) -> Vec<Transaction> {
+    ) -> Vec<TransactionEnvelope> {
         info!(
             "{}: Creating {} transactions",
             tx_generator.name(),
@@ -227,7 +229,7 @@ impl BenchmarkContext {
 
     pub(crate) async fn certify_transactions(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
         skip_signing: bool,
     ) -> Vec<CertifiedTransaction> {
         info!("Creating transaction certificates");
@@ -361,7 +363,7 @@ impl BenchmarkContext {
     /// Benchmark parallel signing a vector of transactions and measure the TPS.
     pub(crate) async fn benchmark_transaction_signing(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
         print_sample_tx: bool,
     ) {
         if print_sample_tx {
@@ -404,7 +406,7 @@ impl BenchmarkContext {
             .build_checkpoints(transactions, effects, checkpoint_size)
             .await;
         info!("Built {} checkpoints", checkpoints.len());
-        let last_checkpoint_seq = *checkpoints.last().unwrap().0.sequence_number();
+        let last_checkpoint_seq = checkpoints.last().unwrap().0.sequence_number();
         let checkpoint_executor = validator.create_checkpoint_executor();
         for (checkpoint, contents) in checkpoints {
             let state = validator.get_validator();
@@ -439,7 +441,7 @@ impl BenchmarkContext {
 
     async fn execute_raw_transactions(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
     ) -> Vec<TransactionEffects> {
         let tasks: FuturesUnordered<_> = transactions
             .into_iter()
@@ -485,7 +487,7 @@ impl BenchmarkContext {
         }
     }
 
-    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectId, ObjectRef>) {
+    fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectId, ObjectReference>) {
         info!("Refreshing gas objects");
         for account in self.user_accounts.values_mut() {
             let refreshed_gas_objects: Vec<_> = account
@@ -504,7 +506,7 @@ impl BenchmarkContext {
     }
     pub(crate) async fn validator_sign_transactions(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
     ) -> Vec<HandleTransactionResponse> {
         info!(
             "Started signing {} transactions. You can now attach a profiler",

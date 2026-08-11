@@ -22,18 +22,23 @@ fn protective_preset_enables_bounds_and_default_stays_inert() {
     assert_eq!(protective.admission.max_header_fetches_per_peer, 32);
     assert_eq!(protective.admission.max_transaction_fetches_per_peer, 16);
     assert!(protective.admission.max_commit_fetches_per_peer > 0);
+    assert_eq!(
+        protective.subscribe_request_timeout,
+        std::time::Duration::from_secs(30)
+    );
 
-    // The default must stay inert so behaviour is unchanged unless opted in.
+    // The config defaults stay inert; the preset is applied at node start.
     let inert = starfish_config::TonicParameters::default();
     assert_eq!(inert.max_concurrent_streams, 0);
     assert!(inert.request_timeout.is_zero());
     assert_eq!(inert.max_inbound_message_size, 0);
     assert_eq!(inert.admission.max_header_fetches_per_peer, 0);
+    assert!(inert.subscribe_request_timeout.is_zero());
 }
 
 #[test]
 fn apply_protective_preserves_operator_transport_fields() {
-    // Operator-customised transport settings that must survive opting in.
+    // Operator-customised transport settings that must survive the preset.
     let mut tonic = starfish_config::TonicParameters {
         keepalive_interval: std::time::Duration::from_secs(11),
         connection_buffer_size: 9 << 20,
@@ -53,6 +58,36 @@ fn apply_protective_preserves_operator_transport_fields() {
     assert_eq!(tonic.connection_buffer_size, 9 << 20);
     assert_eq!(tonic.excessive_message_size, 5 << 20);
     assert_eq!(tonic.message_size_limit, 7 << 20);
+}
+
+#[test]
+fn apply_protective_preserves_operator_set_bounds() {
+    let mut tonic = starfish_config::TonicParameters {
+        max_concurrent_streams: 128,
+        request_timeout: std::time::Duration::from_secs(30),
+        max_inbound_message_size: 4 << 20,
+        admission: starfish_config::AdmissionParameters {
+            max_header_fetches_per_peer: 5,
+            ..Default::default()
+        },
+        subscribe_request_timeout: std::time::Duration::from_secs(3),
+        ..Default::default()
+    };
+
+    tonic.apply_protective();
+
+    // Explicitly configured bounds win over the preset.
+    assert_eq!(tonic.max_concurrent_streams, 128);
+    assert_eq!(tonic.request_timeout, std::time::Duration::from_secs(30));
+    assert_eq!(tonic.max_inbound_message_size, 4 << 20);
+    assert_eq!(
+        tonic.subscribe_request_timeout,
+        std::time::Duration::from_secs(3)
+    );
+    // An admission block with any explicitly configured cap is kept as-is,
+    // not mixed with preset values.
+    assert_eq!(tonic.admission.max_header_fetches_per_peer, 5);
+    assert_eq!(tonic.admission.max_subscriptions_per_peer, 0);
 }
 
 #[test]
@@ -96,6 +131,10 @@ tonic:
     assert_eq!(
         parameters.tonic.admission.max_commit_fetches_per_peer,
         defaults.tonic.admission.max_commit_fetches_per_peer
+    );
+    assert_eq!(
+        parameters.tonic.subscribe_request_timeout,
+        defaults.tonic.subscribe_request_timeout
     );
 }
 

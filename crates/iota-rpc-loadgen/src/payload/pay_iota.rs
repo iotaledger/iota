@@ -4,12 +4,11 @@
 
 use async_trait::async_trait;
 use futures::future::join_all;
-use iota_sdk_ext::types::Address;
-use iota_types::{
-    crypto::{EncodeDecodeBase64, IotaKeyPair},
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{TransactionData, TransactionDataAPI},
+use iota_sdk_ext::{
+    crypto::{ToFromBech32, simple::SimpleKeypair},
+    types::{Address, Transaction},
 };
+use iota_types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionAPI};
 use tracing::debug;
 
 use crate::payload::{
@@ -36,14 +35,14 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
         let gas_payments = gas_payment.unwrap();
 
         let keypair =
-            IotaKeyPair::decode_base64(&encoded_keypair).expect("Decoding keypair should not fail");
+            SimpleKeypair::from_bech32(&encoded_keypair).expect("Decoding keypair should not fail");
 
         debug!(
             "Transfer IOTA {} time to {recipient} with {amount} NANOS with {gas_payments:?}",
             gas_payments.len()
         );
 
-        let sender = Address::from(&keypair.public());
+        let sender = keypair.public_key().derive_address();
         // TODO: For write operations, we usually just want to submit the transaction to
         // fullnode Let's figure out what's the best way to support other mode
         // later
@@ -54,7 +53,7 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
             .await
             .expect("unable to fetch gas price");
         join_all(gas_payments.iter().map(|gas| async {
-            let tx = TransactionData::new_transfer_iota(
+            let tx = Transaction::new_transfer_iota(
                 recipient,
                 sender,
                 Some(amount),

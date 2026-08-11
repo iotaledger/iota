@@ -9,9 +9,10 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_package_resolver::Resolver;
+use iota_sdk_ext::types::TransactionEffects;
 use iota_types::{
     SYSTEM_PACKAGE_ADDRESSES,
-    effects::{TransactionEffects, TransactionEffectsExt},
+    effects::TransactionEffectsExt,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::Object,
 };

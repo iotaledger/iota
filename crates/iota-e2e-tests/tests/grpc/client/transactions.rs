@@ -3,8 +3,8 @@
 
 use iota_macros::sim_test;
 use iota_sdk_ext::{
-    grpc_client::{ReadMask, read_mask_fields::TransactionField},
-    types::Digest,
+    grpc_client::read_mask_fields::TransactionField,
+    grpc_types::read_mask_fields::TransactionReadMask, types::TransactionDigest,
 };
 
 use super::{
@@ -23,7 +23,7 @@ async fn get_transactions_scenarios() {
 
     // Test: get single transaction
     let transactions = client
-        .get_transactions(&[digest1], None)
+        .get_transactions([digest1], TransactionReadMask::default())
         .await
         .expect("Failed to get transaction");
     assert_eq!(
@@ -31,9 +31,11 @@ async fn get_transactions_scenarios() {
         1,
         "Expected exactly one transaction"
     );
+    let tx = transactions.body()[0]
+        .as_ref()
+        .expect("Transaction should be found");
     assert_eq!(
-        transactions.body()[0]
-            .transaction()
+        tx.transaction()
             .expect("Failed to get transaction from executed transaction")
             .digest()
             .expect("Failed to get digest from transaction"),
@@ -41,8 +43,7 @@ async fn get_transactions_scenarios() {
         "Transaction digest should match requested digest"
     );
     assert!(
-        !transactions.body()[0]
-            .signatures()
+        !tx.signatures()
             .expect("Failed to get signatures from transaction")
             .signatures
             .is_empty(),
@@ -51,7 +52,7 @@ async fn get_transactions_scenarios() {
 
     // Test: get batch of transactions
     let transactions = client
-        .get_transactions(&[digest1, digest2], None)
+        .get_transactions([digest1, digest2], TransactionReadMask::default())
         .await
         .expect("Failed to get transactions");
     assert_eq!(
@@ -61,6 +62,8 @@ async fn get_transactions_scenarios() {
     );
     assert_eq!(
         transactions.body()[0]
+            .as_ref()
+            .expect("First transaction should be found")
             .transaction()
             .expect("Failed to get transaction from executed transaction")
             .digest()
@@ -70,6 +73,8 @@ async fn get_transactions_scenarios() {
     );
     assert_eq!(
         transactions.body()[1]
+            .as_ref()
+            .expect("Second transaction should be found")
             .transaction()
             .expect("Failed to get transaction from executed transaction")
             .digest()
@@ -80,7 +85,7 @@ async fn get_transactions_scenarios() {
 
     // Test: empty input returns an error
     let err = client
-        .get_transactions(&[], None)
+        .get_transactions([], TransactionReadMask::default())
         .await
         .expect_err("Empty input should return an error");
     assert!(
@@ -88,26 +93,43 @@ async fn get_transactions_scenarios() {
         "Expected EmptyRequest error, got: {err}"
     );
 
-    // Test: nonexistent transaction returns not-found error
-    let fake_digest = Digest::new([0u8; 32]);
-    let result = client.get_transactions(&[fake_digest], None).await;
-    assert_server_not_found(result);
+    // Test: a nonexistent transaction is reported against the digest that asked
+    // for it, not as a failure of the call
+    let fake_digest = TransactionDigest::new([0u8; 32]);
+    let mut results = client
+        .get_transactions([fake_digest], TransactionReadMask::default())
+        .await
+        .expect("The call itself should succeed")
+        .into_inner();
+    assert_eq!(results.len(), 1, "Expected one result per requested digest");
+    assert_server_not_found(results.pop().expect("Length asserted above"));
 
-    // Test: mixed valid/invalid returns error
-    let fake_digest = Digest::new([0u8; 32]);
-    let result = client.get_transactions(&[digest1, fake_digest], None).await;
+    // Test: a missing transaction fails only its own slot, leaving the
+    // transactions the node could serve intact
+    let fake_digest = TransactionDigest::new([0u8; 32]);
+    let mut results = client
+        .get_transactions([digest1, fake_digest], TransactionReadMask::default())
+        .await
+        .expect("The call itself should succeed")
+        .into_inner();
+    assert_eq!(results.len(), 2, "Expected one result per requested digest");
+    let missing = results.pop().expect("Length asserted above");
+    let found = results.pop().expect("Length asserted above");
     assert!(
-        result.is_err(),
-        "Mixed valid/invalid should return an error when encountering invalid digest"
+        found.is_ok(),
+        "The transaction that exists should still be returned, got: {found:?}"
     );
+    assert_server_not_found(missing);
 
     // Test: response fields match the default mask (transaction, signatures,
     // checkpoint, timestamp).
     let transactions = client
-        .get_transactions(&[digest1], None)
+        .get_transactions([digest1], TransactionReadMask::default())
         .await
         .expect("Failed to get transaction");
-    let tx = &transactions.body()[0];
+    let tx = transactions.body()[0]
+        .as_ref()
+        .expect("Transaction should be found");
     assert_eq!(
         tx.transaction()
             .expect("Failed to get transaction from executed transaction")
@@ -136,14 +158,13 @@ async fn get_transactions_scenarios() {
 
     // Test: invalid read mask causes deserialization error
     let result = client
-        .get_transactions(
-            &[digest1],
-            Some(ReadMask::from(TransactionField::TRANSACTION_DIGEST)),
-        )
+        .get_transactions([digest1], TransactionField::TRANSACTION_DIGEST)
         .await;
 
     let transactions = result.expect("request should work");
     let conversion_result = transactions.body()[0]
+        .as_ref()
+        .expect("Transaction should be found")
         .transaction()
         .expect("Failed to get transaction from executed transaction")
         .transaction()

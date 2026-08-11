@@ -13,8 +13,7 @@ use itertools::Itertools as _;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 #[cfg(test)]
-use tracing::debug;
-use tracing::warn;
+use tracing::trace;
 
 /// Block Suspender is a private module unless under test.
 #[cfg(not(test))]
@@ -31,6 +30,7 @@ use crate::{
     block_manager::block_suspender::BlockSuspender,
     context::Context,
     dag_state::{DagState, DataSource},
+    error::ConsensusError,
 };
 
 /// Combine headers accepted via the regular path with headers unsuspended by
@@ -151,11 +151,6 @@ impl BlockManager {
     /// Cheap when the floor has not advanced since the last call: a single
     /// read-locked field access on `DagState` and a comparison.
     fn maybe_evict_below_gc_floor(&mut self) -> Vec<VerifiedBlockHeader> {
-        // Gated on `consensus_block_restrictions`. Off the flag, BlockManager
-        // retains its original "fetch every missing ancestor forever" behavior.
-        if !self.context.protocol_config.consensus_block_restrictions() {
-            return vec![];
-        }
         let gc_floor = self.dag_state.read().gc_round_for_last_commit();
         if gc_floor <= self.last_gc_floor_applied {
             return vec![];
@@ -214,6 +209,7 @@ impl BlockManager {
         let blocks = drop_far_future(&self.context, &self.dag_state, blocks, source, |b| {
             b.round()
         });
+        let blocks = self.drop_over_slot_cap(blocks, source, |b| b.reference());
 
         let block_headers: Vec<_> = blocks
             .iter()
@@ -262,6 +258,7 @@ impl BlockManager {
             drop_far_future(&self.context, &self.dag_state, block_headers, source, |h| {
                 h.round()
             });
+        let block_headers = self.drop_over_slot_cap(block_headers, source, |h| h.reference());
 
         // Headers are added through synchronizer, commit syncer and cordial
         // dissemination.
@@ -357,17 +354,11 @@ impl BlockManager {
         }
 
         if let Some(blocks) = blocks {
-            // Mirrors the gate in `filter_out_already_processed_and_sort`: when
-            // the `consensus_block_restrictions` flag is on, a block at or below the GC
-            // floor cannot be sequenced and its header is dropped on arrival.
-            // Suspending its transactions would leave them stranded until the
-            // floor advanced again, allowing the map to grow between sweeps.
-            let gc_filter_round: Option<Round> =
-                if self.context.protocol_config.consensus_block_restrictions() {
-                    Some(self.last_gc_floor_applied)
-                } else {
-                    None
-                };
+            // Mirrors the drop in `filter_out_already_processed_and_sort`: a block
+            // at or below the GC floor cannot be sequenced and its header is dropped
+            // on arrival. Suspending its transactions would leave them stranded
+            // until the floor advanced again, letting the map grow between sweeps.
+            let gc_filter_round = self.last_gc_floor_applied;
             let mut accepted_transactions_from_blocks = vec![];
             for block in blocks {
                 if block_refs_to_be_accepted.contains(&block.reference())
@@ -375,7 +366,7 @@ impl BlockManager {
                 {
                     accepted_transactions_from_blocks.push(block.verified_transactions);
                 } else if block.verified_transactions.has_transactions()
-                    && gc_filter_round.is_none_or(|f| block.round() > f)
+                    && block.round() > gc_filter_round
                 {
                     // optimization to avoid suspending 0 set verified transactions.
                     self.suspended_transactions
@@ -407,7 +398,7 @@ impl BlockManager {
 
         block_refs.sort_by_key(|b| b.round);
 
-        debug!(
+        trace!(
             "Trying to find blocks: {}",
             block_refs.iter().map(|b| b.to_string()).join(",")
         );
@@ -543,23 +534,16 @@ impl BlockManager {
         incoming_headers: Vec<VerifiedBlockHeader>,
         present_header_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
     ) -> BTreeMap<VerifiedBlockHeader, BTreeSet<BlockRef>> {
-        // Off the `consensus_block_restrictions` flag, every absent ancestor is treated
-        // as missing (legacy behavior). With the flag on, ancestors at or below
-        // the GC floor cannot affect any not-yet-sequenced block and are
-        // skipped.
-        let gc_filter_round: Option<Round> =
-            if self.context.protocol_config.consensus_block_restrictions() {
-                Some(self.last_gc_floor_applied)
-            } else {
-                None
-            };
+        // Ancestors at or below the GC floor cannot affect any not-yet-sequenced
+        // block and are skipped.
+        let gc_filter_round = self.last_gc_floor_applied;
         let mut missing_ancestors = BTreeMap::new();
         for incoming_header in incoming_headers {
             let ancestors: &[BlockRef] = incoming_header.ancestors();
             let mut missing_ancestors_set = BTreeSet::new();
             for ancestor in ancestors {
                 let found = present_header_and_ancestor_refs_in_dag_state.contains(ancestor);
-                let below_gc = gc_filter_round.is_some_and(|f| ancestor.round <= f);
+                let below_gc = ancestor.round <= gc_filter_round;
                 if !found && !below_gc {
                     missing_ancestors_set.insert(*ancestor);
                 }
@@ -576,19 +560,13 @@ impl BlockManager {
         present_header_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
         source: DataSource,
     ) -> Vec<VerifiedBlockHeader> {
-        let gc_filter_round: Option<Round> =
-            if self.context.protocol_config.consensus_block_restrictions() {
-                Some(self.last_gc_floor_applied)
-            } else {
-                None
-            };
+        let gc_filter_round = self.last_gc_floor_applied;
         let mut filtered = block_headers
             .into_iter()
             .filter_map(|block_header| {
-                // With the `consensus_block_restrictions` flag on, drop incoming headers whose
-                // own round is at or below the GC floor; nothing they carry can
-                // be sequenced anymore.
-                if gc_filter_round.is_some_and(|f| block_header.round() <= f) {
+                // Drop incoming headers whose own round is at or below the GC
+                // floor; nothing they carry can be sequenced anymore.
+                if block_header.round() <= gc_filter_round {
                     self.context
                         .metrics
                         .node_metrics
@@ -620,6 +598,71 @@ impl BlockManager {
             .collect::<Vec<_>>();
         filtered.sort_by_key(|h| h.round());
         filtered
+    }
+
+    /// Drops items whose slot already holds a header with a different digest,
+    /// be it accepted, suspended, or earlier in this batch. Only
+    /// peer-controlled sources are filtered, the rest pass through unchanged.
+    ///
+    /// A drop means two headers of one slot passed signature verification, so
+    /// the author is charged a provable fault.
+    fn drop_over_slot_cap<T>(
+        &self,
+        items: Vec<T>,
+        source: DataSource,
+        ref_of: impl Fn(&T) -> BlockRef,
+    ) -> Vec<T> {
+        if !source.is_subject_to_slot_cap() {
+            return items;
+        }
+        let dag_state = self.dag_state.read();
+        let misbehavior_store = dag_state.misbehavior_store().clone();
+        let mut admitted_by_slot: BTreeMap<(Round, AuthorityIndex), BlockHeaderDigest> =
+            BTreeMap::new();
+        items
+            .into_iter()
+            .filter(|item| {
+                let block_ref = ref_of(item);
+                let slot = (block_ref.round, block_ref.author);
+                let admit = match admitted_by_slot.get(&slot) {
+                    Some(admitted_digest) => *admitted_digest == block_ref.digest,
+                    None => {
+                        let other_exists = dag_state
+                            .contains_other_block_header_at_slot(&block_ref)
+                            || self
+                                .block_suspender
+                                .contains_other_header_at_slot(&block_ref);
+                        if !other_exists {
+                            admitted_by_slot.insert(slot, block_ref.digest);
+                        }
+                        !other_exists
+                    }
+                };
+                if !admit {
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .dropped_slot_cap_headers_total
+                        .with_label_values(&[
+                            self.context.authority_hostname(block_ref.author),
+                            source.as_str(),
+                        ])
+                        .inc();
+                    // No relaying peer is known at this level; passing the
+                    // author as the peer leaves the author's provable fault as
+                    // the only charge.
+                    misbehavior_store.record_faulty_block(
+                        block_ref.author,
+                        block_ref.author,
+                        &ConsensusError::BlockHeaderEquivocation {
+                            authority: block_ref.author,
+                            round: block_ref.round,
+                        },
+                    );
+                }
+                admit
+            })
+            .collect()
     }
 }
 
@@ -1117,7 +1160,7 @@ mod tests {
         let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
 
         // Create a DAG with 2 rounds
-        let mut dag_builder = DagBuilder::new(context.clone());
+        let mut dag_builder = DagBuilder::new(context);
         dag_builder.layers(1..=2).build();
 
         let round_1_headers = dag_builder
@@ -1171,13 +1214,7 @@ mod tests {
         let has_transactions_results = dag_state.read().contains_transactions(
             round_2_blocks
                 .iter()
-                .map(|b| {
-                    if context.protocol_config.consensus_fast_commit_sync() {
-                        GenericTransactionRef::TransactionRef(b.transaction_ref())
-                    } else {
-                        GenericTransactionRef::BlockRef(b.reference())
-                    }
-                })
+                .map(|b| GenericTransactionRef::TransactionRef(b.transaction_ref()))
                 .collect(),
         );
 
@@ -1258,18 +1295,13 @@ mod tests {
         }
     }
 
-    /// With the `consensus_block_restrictions` flag on and a non-zero gc_floor,
-    /// an incoming header whose only missing ancestor is below the floor is
-    /// accepted directly, not suspended, and is not registered for
-    /// fetching.
+    /// An incoming header whose only missing ancestor is below a non-zero GC
+    /// floor is accepted directly and is not registered for fetching.
     #[tokio::test]
     async fn gc_eviction_accepts_header_with_only_old_missing_ancestors() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
@@ -1421,7 +1453,7 @@ mod tests {
         // One round past the ceiling: dropped for every far-future-bounded source.
         for source in [
             DataSource::BlockBundleStream,
-            DataSource::HeaderSynchronizer,
+            DataSource::HeaderSynchronizerRequested,
         ] {
             let store = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
@@ -1492,10 +1524,7 @@ mod tests {
     async fn gc_eviction_does_not_suspend_old_block_transactions() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
@@ -1575,10 +1604,7 @@ mod tests {
     async fn gc_eviction_drops_suspended_transactions_below_floor() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
@@ -1609,10 +1635,7 @@ mod tests {
     async fn gc_eviction_sweep_is_idempotent_when_floor_unchanged() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
@@ -1633,17 +1656,15 @@ mod tests {
         assert_eq!(block_manager.last_gc_floor_applied, first_floor);
     }
 
-    /// With the `consensus_block_restrictions` flag off, the sweep is fully
-    /// disabled: no eviction, no floor advance, no filtering of low-round
-    /// ancestors.
+    /// Accepting a header advances the applied gc floor to the commit's gc
+    /// floor: the sweep runs on every accept, so a header whose only missing
+    /// ancestor is below that floor is accepted (not suspended) and the floor
+    /// is recorded as applied.
     #[tokio::test]
-    async fn gc_eviction_disabled_when_flag_off() {
+    async fn gc_eviction_advances_applied_floor_on_accept() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(false);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
@@ -1654,20 +1675,19 @@ mod tests {
 
         let mut block_manager = BlockManager::new(context, dag_state.clone());
 
-        // A header with a missing ancestor far below the would-be gc_floor
-        // should still be suspended (legacy behavior).
         let gc_floor = dag_state.read().gc_round_for_last_commit();
         assert!(gc_floor > 0);
         let old_ancestor = block_ref(gc_floor.saturating_sub(10), 0);
         let h = header(gc_floor + 50, 1, vec![old_ancestor]);
 
-        let (accepted, missing) = block_manager.try_accept_block_headers(vec![h], DataSource::Test);
+        let (accepted, missing) =
+            block_manager.try_accept_block_headers(vec![h.clone()], DataSource::Test);
+        assert_eq!(accepted, vec![h]);
         assert!(
-            accepted.is_empty(),
-            "header should be suspended when flag off"
+            missing.is_empty(),
+            "old ancestor below gc_floor should not be reported as missing"
         );
-        assert_eq!(missing, BTreeSet::from([old_ancestor]));
-        assert_eq!(block_manager.last_gc_floor_applied, 0);
+        assert_eq!(block_manager.last_gc_floor_applied, gc_floor);
     }
 
     /// A header suspended at an earlier (lower) gc_floor must not be promoted
@@ -1679,10 +1699,7 @@ mod tests {
     async fn gc_eviction_filters_stale_unsuspended_headers() {
         use gc_eviction_helpers::*;
 
-        let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+        let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let gc_depth = context.protocol_config.gc_depth();
 
@@ -1711,5 +1728,175 @@ mod tests {
         );
         // Suspender state is still cleaned up by the cascade.
         assert!(block_manager.block_suspender.is_empty());
+    }
+
+    /// A second header for an (author, round) slot is dropped for capped
+    /// sources — whether the first copy is accepted, suspended, or earlier in
+    /// the same batch — while an exact duplicate passes through to the regular
+    /// dedup.
+    #[tokio::test]
+    async fn slot_cap_drops_second_header_for_slot() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let misbehavior_store = dag_state.read().misbehavior_store().clone();
+        let mut block_manager = BlockManager::new(context.clone(), dag_state);
+        let faults = |authority: u8| {
+            let crate::misbehavior_store::MisbehaviorCounts::V1(counts) =
+                &misbehavior_store.snapshot_totals()[authority as usize];
+            (
+                counts.faulty_blocks_provable,
+                counts.faulty_blocks_unprovable,
+            )
+        };
+        let slot_cap_drops = |source: DataSource| {
+            context
+                .metrics
+                .node_metrics
+                .dropped_slot_cap_headers_total
+                .with_label_values(&[
+                    context.authority_hostname(AuthorityIndex::new_for_test(1)),
+                    source.as_str(),
+                ])
+                .get()
+        };
+
+        // Two headers for slot (author 1, round 50), different digests, both
+        // with the same missing ancestor. The first is suspended; the second
+        // is dropped by the cap even though nothing is accepted yet.
+        let missing_ancestor = block_ref(30, 0);
+        let first = header(50, 1, vec![missing_ancestor]);
+        let equivocation = {
+            let mut ancestors = vec![missing_ancestor];
+            ancestors.push(block_ref(30, 2));
+            header(50, 1, ancestors)
+        };
+        assert_ne!(first.reference(), equivocation.reference());
+
+        let (accepted, _) = block_manager
+            .try_accept_block_headers(vec![first.clone()], DataSource::BlockBundleStream);
+        assert!(accepted.is_empty());
+        assert!(
+            block_manager
+                .suspended_blocks_refs()
+                .contains(&first.reference())
+        );
+
+        let (accepted, missing) = block_manager
+            .try_accept_block_headers(vec![equivocation.clone()], DataSource::BlockBundleStream);
+        assert!(accepted.is_empty());
+        assert!(
+            missing.is_empty(),
+            "a dropped header's ancestors must not be queued to fetch"
+        );
+        assert!(
+            !block_manager
+                .suspended_blocks_refs()
+                .contains(&equivocation.reference()),
+            "the second header for the slot must not grow the suspender"
+        );
+        assert_eq!(slot_cap_drops(DataSource::BlockBundleStream), 1);
+        assert_eq!(
+            faults(1),
+            (1, 0),
+            "two verified headers for one slot are the author's provable fault, \
+             and no relaying peer is charged for it"
+        );
+
+        // A repeat of the suspended header is neither a drop nor a fault.
+        let (accepted, _) =
+            block_manager.try_accept_block_headers(vec![first], DataSource::BlockStreaming);
+        assert!(accepted.is_empty());
+        assert_eq!(slot_cap_drops(DataSource::BlockStreaming), 0);
+        assert_eq!(faults(1), (1, 0));
+
+        // Same-batch case at a fresh slot: two different digests in one call,
+        // only the first survives.
+        let batch_first = header(60, 1, vec![block_ref(59, 0)]);
+        let batch_second = header(60, 1, vec![block_ref(59, 2)]);
+        let (accepted, _) = block_manager.try_accept_block_headers(
+            vec![batch_first.clone(), batch_second.clone()],
+            DataSource::BlockBundleStream,
+        );
+        assert!(accepted.is_empty());
+        assert!(
+            block_manager
+                .suspended_blocks_refs()
+                .contains(&batch_first.reference())
+        );
+        assert!(
+            !block_manager
+                .suspended_blocks_refs()
+                .contains(&batch_second.reference())
+        );
+        assert_eq!(slot_cap_drops(DataSource::BlockBundleStream), 2);
+        assert_eq!(faults(1), (2, 0));
+        assert_eq!(faults(0), (0, 0), "only the equivocating author is charged");
+    }
+
+    /// A header the cap dropped is still accepted when it arrives from an
+    /// exempt source: as a requested ref via the header synchronizer, or from
+    /// certified catch-up.
+    #[tokio::test]
+    async fn slot_cap_exempts_requested_and_certified_sources() {
+        use gc_eviction_helpers::*;
+
+        for exempt_source in [
+            DataSource::HeaderSynchronizerRequested,
+            DataSource::CommitSyncer,
+        ] {
+            let (context, _) = Context::new_for_test(4);
+            let context = Arc::new(context);
+            let store = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+
+            let missing_ancestor = block_ref(30, 0);
+            let first = header(50, 1, vec![missing_ancestor]);
+            let equivocation = header(50, 1, vec![missing_ancestor, block_ref(30, 2)]);
+
+            block_manager.try_accept_block_headers(vec![first], DataSource::BlockBundleStream);
+            let (_, _) =
+                block_manager.try_accept_block_headers(vec![equivocation.clone()], exempt_source);
+            assert!(
+                block_manager
+                    .suspended_blocks_refs()
+                    .contains(&equivocation.reference()),
+                "{} must bypass the slot cap",
+                exempt_source.as_str()
+            );
+        }
+    }
+
+    /// Fetch-response gap-fill headers run under their own source and are
+    /// subject to the cap, unlike the requested refs.
+    #[tokio::test]
+    async fn slot_cap_applies_to_header_synchronizer_additional() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context, dag_state);
+
+        let missing_ancestor = block_ref(30, 0);
+        let first = header(50, 1, vec![missing_ancestor]);
+        let equivocation = header(50, 1, vec![missing_ancestor, block_ref(30, 2)]);
+
+        block_manager.try_accept_block_headers(vec![first], DataSource::BlockBundleStream);
+        block_manager.try_accept_block_headers(
+            vec![equivocation.clone()],
+            DataSource::HeaderSynchronizerAdditional,
+        );
+        assert!(
+            !block_manager
+                .suspended_blocks_refs()
+                .contains(&equivocation.reference()),
+            "gap-fill extras must be subject to the slot cap"
+        );
     }
 }

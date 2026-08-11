@@ -18,18 +18,15 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_ext::types::{
-    Address, Identifier, ObjectId, Owner, ProgrammableTransaction, StructTag, TransactionKind,
-    crypto::{Intent, UserSignature},
+    Address, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+    SharedObjectReference, StructTag, Transaction, TransactionKind,
+    crypto::{Intent, MultisigAggregatedSignature, MultisigCommittee, UserSignature},
 };
 use iota_types::{
-    base_types::ObjectRef,
     crypto::PublicKey,
-    multisig::{MultiSig, MultiSigPublicKey},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    signature::GenericSignature,
     transaction::{
-        CallArg, InputObjectKind, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI, TransactionKindExt,
+        CallArg, InputObjectKind, TransactionAPI, TransactionEnvelope, TransactionKindExt,
     },
 };
 
@@ -147,13 +144,13 @@ impl Client {
         // (4) Check whether the game has ended or not.
         let mut builder = ProgrammableTransactionBuilder::new();
         let g = if let Owner::Shared(initial_shared_version) = owner {
-            builder.obj(CallArg::Shared(SharedObjectRef::new(
+            builder.obj(CallArg::Shared(SharedObjectReference::new(
                 id,
                 initial_shared_version,
                 false,
             )))?
         } else {
-            builder.obj(CallArg::ImmutableOrOwned(ObjectRef::new(
+            builder.obj(CallArg::ImmutableOrOwned(ObjectReference::new(
                 object_id, version, digest,
             )))?
         };
@@ -212,9 +209,9 @@ impl Client {
     }
 
     /// Look for a `TurnCap` for the given `game` owned by the wallet's active
-    /// address, and return its `ObjectRef`. Fails if no such `TurnCap` can
-    /// be found.
-    pub(crate) async fn turn_cap(&mut self, game: &Game) -> Result<ObjectRef> {
+    /// address, and return its `ObjectReference`. Fails if no such `TurnCap`
+    /// can be found.
+    pub(crate) async fn turn_cap(&mut self, game: &Game) -> Result<ObjectReference> {
         let player = self.wallet.active_address()?;
         let client = self.client().await?;
         let game_id = game.object_ref().object_id;
@@ -267,7 +264,7 @@ impl Client {
                     .context("INTERNAL ERROR: Failed to deserialize TurnCap.")?;
 
                 if turn_cap.game == game_id {
-                    return Ok(ObjectRef::new(object_id, version, digest));
+                    return Ok(ObjectReference::new(object_id, version, digest));
                 }
             }
 
@@ -351,7 +348,7 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared(SharedObjectRef::new(
+        let g = builder.obj(CallArg::Shared(SharedObjectReference::new(
             game.board.id,
             initial_shared_version,
             true,
@@ -377,7 +374,7 @@ impl Client {
     pub async fn delete_owned_game(
         &mut self,
         game: &game::Owned,
-        game_ref: ObjectRef,
+        game_ref: ObjectReference,
     ) -> Result<()> {
         let player = self.wallet.active_address()?;
 
@@ -393,7 +390,7 @@ impl Client {
             vec![g],
         );
 
-        let admin_key: MultiSigPublicKey =
+        let admin_key: MultisigCommittee =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
         let admin = Address::from(&admin_key);
 
@@ -428,7 +425,7 @@ impl Client {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let g = builder.obj(CallArg::Shared(SharedObjectRef::new(
+        let g = builder.obj(CallArg::Shared(SharedObjectReference::new(
             game.board.id,
             initial_shared_version,
             true,
@@ -458,8 +455,8 @@ impl Client {
     pub async fn make_owned_move(
         &mut self,
         game: &game::Owned,
-        game_ref: ObjectRef,
-        cap_ref: ObjectRef,
+        game_ref: ObjectReference,
+        cap_ref: ObjectReference,
         row: u8,
         col: u8,
     ) -> Result<()> {
@@ -513,7 +510,7 @@ impl Client {
                 return None;
             }
 
-            Some(ObjectRef::new(object_id, version, digest))
+            Some(ObjectReference::new(object_id, version, digest))
         }) else {
             bail!("Can't find Mark");
         };
@@ -533,7 +530,7 @@ impl Client {
             vec![g, m],
         );
 
-        let admin_key: MultiSigPublicKey =
+        let admin_key: MultisigCommittee =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
         let admin = Address::from(&admin_key);
 
@@ -555,8 +552,8 @@ impl Client {
 
     /// Execute a PTB, expecting it to create a shared or owned Game, and return
     /// its ObjectId.
-    async fn execute_for_game(&self, data: TransactionData) -> Result<ObjectId> {
-        let tx = self.wallet.sign_transaction(&data);
+    async fn execute_for_game(&self, tx: Transaction) -> Result<ObjectId> {
+        let tx = self.wallet.sign_transaction(&tx);
         let IotaTransactionBlockResponse {
             object_changes: Some(object_changes),
             ..
@@ -596,11 +593,11 @@ impl Client {
         &self,
         sender: Address,
         tx: ProgrammableTransaction,
-    ) -> Result<TransactionData> {
+    ) -> Result<Transaction> {
         self.build_tx_data_with_sponsor(sender, None, tx).await
     }
 
-    /// Do gas estimation and coin selection to create a `TransactionData` from
+    /// Do gas estimation and coin selection to create a `Transaction` from
     /// a `ProgrammableTransaction`. If `sponsor` is provided, it will be
     /// used as the gas sponsor, and coin selection will fetch coins owned
     /// by this address, otherwise coins will be selected from the `sender`'
@@ -610,7 +607,7 @@ impl Client {
         sender: Address,
         sponsor: Option<Address>,
         tx: ProgrammableTransaction,
-    ) -> Result<TransactionData> {
+    ) -> Result<Transaction> {
         let client = self.client().await?;
 
         let max_budget = self.max_gas_budget().await?;
@@ -657,11 +654,11 @@ impl Client {
 
         let payment = vec![gas_coin];
         Ok(if let Some(sponsor) = sponsor {
-            TransactionData::new_with_gas_coins_allow_sponsor(
+            Transaction::new_with_gas_coins_allow_sponsor(
                 tx_kind, sender, payment, budget, gas_price, sponsor,
             )
         } else {
-            TransactionData::new_with_gas_coins(tx_kind, sender, payment, budget, gas_price)
+            Transaction::new_with_gas_coins(tx_kind, sender, payment, budget, gas_price)
         })
     }
 
@@ -685,7 +682,7 @@ impl Client {
         owner: Address,
         balance: u64,
         tx: &TransactionKind,
-    ) -> Result<ObjectRef> {
+    ) -> Result<ObjectReference> {
         let exclude = tx
             .input_objects()?
             .into_iter()
@@ -710,35 +707,34 @@ impl Client {
     async fn multi_sig_transaction(
         &self,
         sender: Address,
-        admin_key: MultiSigPublicKey,
-        data: TransactionData,
-    ) -> Result<Transaction> {
-        let sponsor_sig: GenericSignature = self
+        admin_key: MultisigCommittee,
+        tx: Transaction,
+    ) -> Result<TransactionEnvelope> {
+        let sponsor_sig: UserSignature = self
             .wallet
             .config()
             .keystore()
-            .sign_secure(&sender, &data, Intent::iota_transaction())
+            .sign_secure(&sender, &tx, Intent::iota_transaction())
             .context("Signing transaction")?
             .into();
 
-        let member_sig: UserSignature = sponsor_sig
-            .clone()
-            .try_into()
-            .context("Converting sponsor signature for multisig")?;
+        let multi_sig: UserSignature =
+            MultisigAggregatedSignature::new(vec![sponsor_sig.clone()], admin_key)
+                .context("Signing as admin")?
+                .into();
 
-        let multi_sig: GenericSignature = MultiSig::new(vec![member_sig], admin_key)
-            .context("Signing as admin")?
-            .into();
-
-        Ok(Transaction::from_generic_sig_data(
-            data,
+        Ok(TransactionEnvelope::from_user_sig_data(
+            tx,
             vec![multi_sig, sponsor_sig],
         ))
     }
 
     /// Execute the transaction, and check whether it succeeded or failed.
     /// Transaction execution failure is treated as an error.
-    async fn execute_transaction(&self, tx: Transaction) -> Result<IotaTransactionBlockResponse> {
+    async fn execute_transaction(
+        &self,
+        tx: TransactionEnvelope,
+    ) -> Result<IotaTransactionBlockResponse> {
         let response = self
             .wallet
             .execute_transaction_may_fail(tx)

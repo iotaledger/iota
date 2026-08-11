@@ -5,7 +5,7 @@ use std::{fs::File, path::Path, str::FromStr, sync::Arc};
 
 use hex::FromHex;
 use iota_indexer::{
-    config::PruningOptions,
+    config::RetentionConfig,
     models::transactions::StoredTransaction,
     store::{PgIndexerStore, package_resolver::IndexerStorePackageResolver},
     test_utils::{TestDatabase, db_url},
@@ -21,15 +21,17 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_ext::types::{Identifier, ObjectId};
+use iota_sdk_ext::{
+    crypto::simple::SimpleKeypair,
+    types::{Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version},
+};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
     publish_simple_warrior_package,
 };
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
-    digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
+    crypto::{AccountKeyPair, get_key_pair},
+    digests::ChainIdentifier,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,
@@ -375,7 +377,7 @@ fn get_checkpoint_by_digest_not_found() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(Digest(\"11111111111111111111111111111111\")) not found`"}"#,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(11111111111111111111111111111111) not found`"}"#,
         ));
     });
 }
@@ -1487,7 +1489,7 @@ fn try_get_past_object_object_not_exists() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let object_id = ObjectId::random();
-        let version = SequenceNumber::default();
+        let version = Version::default();
 
         let result = client
             .try_get_past_object(object_id, version.into(), None)
@@ -1655,13 +1657,13 @@ fn try_get_past_object_object_deleted() {
         let deleted_version = nft_object_ref.version.next().unwrap();
 
         let result = client
-            .try_get_object_before_version(nft_object_id, SequenceNumber::MAX_VALID_EXCL)
+            .try_get_object_before_version(nft_object_id, Version::MAX_VALID_EXCL)
             .await
             .expect("rpc call should succeed");
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::ObjectDeleted(ObjectRef::new(
+            IotaPastObjectResponse::ObjectDeleted(ObjectReference::new(
                 nft_object_ref.object_id,
                 deleted_version,
                 ObjectDigest::OBJECT_DELETED,
@@ -1677,7 +1679,7 @@ fn try_get_past_object_object_deleted() {
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::ObjectDeleted(ObjectRef::new(
+            IotaPastObjectResponse::ObjectDeleted(ObjectReference::new(
                 nft_object_ref.object_id,
                 deleted_version,
                 ObjectDigest::OBJECT_DELETED,
@@ -1723,9 +1725,9 @@ fn try_multi_get_past_objects() {
         let object_1 = ObjectId::random();
         let object_2 = ObjectId::random();
         let object_3 = ObjectId::random();
-        let version_1 = SequenceNumber::default();
-        let version_2 = SequenceNumber::default();
-        let version_3 = SequenceNumber::default();
+        let version_1 = Version::default();
+        let version_2 = Version::default();
+        let version_3 = Version::default();
 
         let requests = vec![
             IotaGetPastObjectRequest {
@@ -1975,10 +1977,7 @@ fn get_chain_identifier_with_pruning_enabled() {
         let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
             Some("test_get_chain_identifier_with_pruning_enabled"),
             None,
-            Some(PruningOptions {
-                epochs_to_keep: Some(1),
-                ..Default::default()
-            }),
+            Some(RetentionConfig::new(1, Default::default())),
         )
         .await;
 
@@ -2082,7 +2081,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .created()
             .iter()
             .map(|sword| sword.reference)
-            .collect::<Vec<ObjectRef>>();
+            .collect::<Vec<ObjectReference>>();
 
         let sword_object_ref = *sword_object_ref
             .first()
@@ -2171,7 +2170,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .created()
             .iter()
             .map(|warrior| warrior.reference)
-            .collect::<Vec<ObjectRef>>();
+            .collect::<Vec<ObjectReference>>();
 
         let warrior_object_ref = *warrior_object_ref
             .first()
@@ -2479,7 +2478,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             .unwrapped()
             .iter()
             .map(|sword| sword.reference)
-            .collect::<Vec<ObjectRef>>();
+            .collect::<Vec<ObjectReference>>();
 
         assert_eq!(
             sword_object_ref.len(),
@@ -2587,7 +2586,7 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let keypair = SimpleKeypair::from(keypair);
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

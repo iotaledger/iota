@@ -11,19 +11,24 @@ use common::MockGrpcStateReader;
 use iota_config::node::GrpcApiConfig;
 use iota_grpc_server::GrpcServerHandle;
 use iota_sdk_ext::{
-    grpc_client::{
-        CheckpointStreamItem, Client, ReadMask, read_mask_fields::CheckpointResponseField,
+    grpc_client::{CheckpointStreamItem, Client, read_mask_fields::CheckpointResponseField},
+    grpc_types::{
+        read_mask_fields::CheckpointResponseReadMask,
+        v1::{filter, ledger_service::checkpoint_data},
     },
-    grpc_types::v1::{filter, ledger_service::checkpoint_data},
-    types::{Address, Event, Identifier, ObjectId, StructTag},
+    types::{
+        Address, Event, Identifier, ObjectId, Owner, StructTag, TransactionEffects,
+        TransactionEvents,
+    },
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{TestEffectsBuilder, TransactionEvents},
+    effects::{TestEffectsBuilder, TransactionEffectsAPI as _, TransactionEffectsExt as _},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::CheckpointSequenceNumber,
+    object::Object,
 };
 use prost::Message;
 use tokio_stream::StreamExt;
@@ -39,6 +44,33 @@ fn mock_checkpoint_data(sequence_number: u64) -> CheckpointData {
     }
 }
 
+/// Input/output object sets matching `effects` (all plain gas coins owned by
+/// `sender`). Checkpoint transactions must carry complete object sets — a
+/// wildcard read mask derives change fields from them and errors on gaps.
+fn objects_for_effects(
+    sender: Address,
+    effects: &TransactionEffects,
+) -> (Vec<Object>, Vec<Object>) {
+    let owner = Owner::Address(sender);
+    let input_objects = effects
+        .modified_at_versions()
+        .into_iter()
+        .map(|(id, version)| Object::with_id_owner_version_for_testing(id, version, owner))
+        .collect();
+    let output_objects = effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(object_ref, _, _)| {
+            Object::with_id_owner_version_for_testing(
+                object_ref.object_id,
+                object_ref.version,
+                owner,
+            )
+        })
+        .collect();
+    (input_objects, output_objects)
+}
+
 /// Create checkpoint data with a transaction from a specific sender.
 fn mock_checkpoint_data_with_sender(
     sequence_number: u64,
@@ -50,6 +82,7 @@ fn mock_checkpoint_data_with_sender(
         .transfer(random_object_ref(), sender)
         .build_and_sign(key);
     let effects = TestEffectsBuilder::new(transaction.data()).build();
+    let (input_objects, output_objects) = objects_for_effects(sender, &effects);
     CheckpointData {
         checkpoint_summary: common::mock_summary(
             sequence_number,
@@ -60,8 +93,8 @@ fn mock_checkpoint_data_with_sender(
             transaction,
             effects,
             events: None,
-            input_objects: vec![],
-            output_objects: vec![],
+            input_objects,
+            output_objects,
         }],
     }
 }
@@ -80,13 +113,14 @@ fn build_large_checkpoint_transactions() -> Vec<CheckpointTransaction> {
             .build_and_sign(&key);
 
         let effects = TestEffectsBuilder::new(transaction.data()).build();
+        let (input_objects, output_objects) = objects_for_effects(sender, &effects);
 
         transactions.push(CheckpointTransaction {
             transaction,
             effects,
             events: None,
-            input_objects: vec![],  // Empty for simplicity
-            output_objects: vec![], // Empty for simplicity
+            input_objects,
+            output_objects,
         });
     }
 
@@ -176,7 +210,13 @@ async fn test_start_sequence_number_only() {
     let range = (Some(5), None);
 
     let mut stream = client
-        .stream_checkpoints(range.0, range.1, None, None, None)
+        .stream_checkpoints(
+            range.0,
+            range.1,
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await
         .unwrap();
 
@@ -226,7 +266,13 @@ async fn test_start_and_future_end_sequence_number() {
     let range = (Some(3), Some(15));
 
     let mut stream = client
-        .stream_checkpoints(range.0, range.1, None, None, None)
+        .stream_checkpoints(
+            range.0,
+            range.1,
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await
         .unwrap();
 
@@ -271,7 +317,13 @@ async fn test_historical_end_sequence_number_only() {
     let range = (None, Some(4));
 
     let mut stream = client
-        .stream_checkpoints(range.0, range.1, None, None, None)
+        .stream_checkpoints(
+            range.0,
+            range.1,
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await
         .unwrap();
 
@@ -313,7 +365,13 @@ async fn test_future_end_sequence_number_only_full() {
     let range = (None, Some(100));
 
     let mut stream = client
-        .stream_checkpoints(range.0, range.1, None, None, None)
+        .stream_checkpoints(
+            range.0,
+            range.1,
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await
         .unwrap();
 
@@ -355,7 +413,13 @@ async fn test_both_indices_omitted() {
     let range = (None, None);
 
     let mut stream = client
-        .stream_checkpoints(range.0, range.1, None, None, None)
+        .stream_checkpoints(
+            range.0,
+            range.1,
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await
         .unwrap();
 
@@ -411,7 +475,13 @@ async fn test_historical_to_live_gap_fill() {
     let range = (Some(0), None);
 
     let mut stream = client
-        .stream_checkpoints(range.0, range.1, None, None, None)
+        .stream_checkpoints(
+            range.0,
+            range.1,
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await
         .unwrap();
 
@@ -488,7 +558,13 @@ async fn test_gap_fill_with_slow_client() {
     let range = (Some(0), None);
 
     let mut stream = client
-        .stream_checkpoints(range.0, range.1, None, None, None)
+        .stream_checkpoints(
+            range.0,
+            range.1,
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await
         .unwrap();
 
@@ -543,7 +619,7 @@ async fn test_chunked_checkpoint_streaming() {
 
     // Test individual checkpoint retrieval
     let individual_checkpoint = client
-        .get_checkpoint_by_sequence_number(0, None, None, None)
+        .get_checkpoint_by_sequence_number(0, None, None, CheckpointResponseReadMask::default())
         .await
         .expect("get_checkpoint should work");
 
@@ -559,7 +635,13 @@ async fn test_chunked_checkpoint_streaming() {
 
     // Test streaming checkpoints - this should also work with small chunks
     let mut stream = client
-        .stream_checkpoints(Some(0), Some(0), None, None, None)
+        .stream_checkpoints(
+            Some(0),
+            Some(0),
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await
         .unwrap();
 
@@ -592,7 +674,14 @@ async fn test_filter_checkpoints_validation() {
 
     // filter_checkpoints=true with no filters should fail
     let result = client
-        .stream_checkpoints_filtered(Some(0), Some(5), None, None, None, None)
+        .stream_checkpoints_filtered(
+            Some(0),
+            Some(5),
+            None,
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await;
     assert!(result.is_err(), "expected error when no filters are set");
 
@@ -610,10 +699,10 @@ async fn test_filter_checkpoints_validation() {
         .stream_checkpoints_filtered(
             Some(0),
             Some(5),
-            Some(ReadMask::from(CheckpointResponseField::CHECKPOINT)),
-            Some(tx_filter),
+            tx_filter,
             None,
             None,
+            CheckpointResponseField::CHECKPOINT,
         )
         .await;
     assert!(
@@ -649,13 +738,13 @@ async fn test_filter_checkpoints_streaming() {
         .stream_checkpoints_filtered(
             None,
             None,
-            Some(ReadMask::from(&[
+            make_tx_filter(),
+            None,
+            None,
+            [
                 CheckpointResponseField::CHECKPOINT,
                 CheckpointResponseField::TRANSACTIONS,
-            ])),
-            Some(make_tx_filter()),
-            None,
-            None,
+            ],
         )
         .await
         .unwrap();
@@ -699,13 +788,13 @@ async fn test_filter_checkpoints_streaming() {
         .stream_checkpoints_filtered(
             None,
             None,
-            Some(ReadMask::from(&[
+            make_tx_filter(),
+            None,
+            None,
+            [
                 CheckpointResponseField::CHECKPOINT,
                 CheckpointResponseField::TRANSACTIONS,
-            ])),
-            Some(make_tx_filter()),
-            None,
-            None,
+            ],
         )
         .await
         .unwrap();
@@ -766,7 +855,7 @@ async fn test_get_checkpoint_pruned_returns_not_found() {
     // Requesting checkpoint 0 (genesis, still in DB) should fail because it's below
     // lowest_available_checkpoint
     let result = client
-        .get_checkpoint_by_sequence_number(0, None, None, None)
+        .get_checkpoint_by_sequence_number(0, None, None, CheckpointResponseReadMask::default())
         .await;
     assert!(result.is_err(), "Expected error for pruned checkpoint");
     match result.unwrap_err() {
@@ -785,7 +874,7 @@ async fn test_get_checkpoint_pruned_returns_not_found() {
 
     // Requesting checkpoint 5 (at lowest_available) should succeed
     let result = client
-        .get_checkpoint_by_sequence_number(5, None, None, None)
+        .get_checkpoint_by_sequence_number(5, None, None, CheckpointResponseReadMask::default())
         .await;
     assert!(result.is_ok(), "Checkpoint at lowest_available should work");
 
@@ -815,7 +904,13 @@ async fn test_stream_checkpoints_subscriber_cap() {
 
     // Open two streams up to the cap.
     let mut stream1 = client
-        .stream_checkpoints(range.0, range.1, None, None, None)
+        .stream_checkpoints(
+            range.0,
+            range.1,
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await
         .expect("first subscribe should succeed");
     stream1
@@ -826,7 +921,13 @@ async fn test_stream_checkpoints_subscriber_cap() {
         .expect("first stream item should not be an error");
 
     let mut stream2 = client
-        .stream_checkpoints(range.0, range.1, None, None, None)
+        .stream_checkpoints(
+            range.0,
+            range.1,
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await
         .expect("second subscribe should succeed");
     stream2
@@ -838,7 +939,13 @@ async fn test_stream_checkpoints_subscriber_cap() {
 
     // A third subscribe must be rejected with Unavailable.
     match client
-        .stream_checkpoints(range.0, range.1, None, None, None)
+        .stream_checkpoints(
+            range.0,
+            range.1,
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await
     {
         Err(iota_sdk_ext::grpc_client::Error::Grpc(status)) => {
@@ -855,7 +962,13 @@ async fn test_stream_checkpoints_subscriber_cap() {
     let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
     let _stream3 = loop {
         match client
-            .stream_checkpoints(range.0, range.1, None, None, None)
+            .stream_checkpoints(
+                range.0,
+                range.1,
+                None,
+                None,
+                CheckpointResponseReadMask::default(),
+            )
             .await
         {
             Ok(s) => break s,
@@ -891,7 +1004,13 @@ async fn test_stream_checkpoint_pruned_start_returns_not_found() {
     // lowest_available_checkpoint. The error surfaces at the RPC level
     // since the pruning check happens before the stream is created.
     let result = client
-        .stream_checkpoints(Some(0), Some(10), None, None, None)
+        .stream_checkpoints(
+            Some(0),
+            Some(10),
+            None,
+            None,
+            CheckpointResponseReadMask::default(),
+        )
         .await;
 
     match result {
@@ -949,12 +1068,13 @@ fn build_checkpoint_transactions_with_events(
         } else {
             None
         };
+        let (input_objects, output_objects) = objects_for_effects(sender, &effects);
         transactions.push(CheckpointTransaction {
             transaction,
             effects,
             events,
-            input_objects: vec![],
-            output_objects: vec![],
+            input_objects,
+            output_objects,
         });
     }
     transactions

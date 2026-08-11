@@ -25,12 +25,11 @@ tracing.workspace = true
 bin-version.workspace = true
 iota-config.workspace = true
 iota-faucet.workspace = true
-iota-genesis-builder.workspace = true
 iota-graphql-rpc = { workspace = true, optional = true }
 iota-indexer = { workspace = true, optional = true }
 iota-keys.workspace = true
 iota-sdk.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
+iota-sdk-ext = { workspace = true, features = ["crypto", "types"] }
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true

@@ -4,7 +4,7 @@
 
 use authority_tests::send_and_confirm_transaction;
 use bcs;
-use iota_sdk_ext::types::Identifier;
+use iota_sdk_ext::types::{ExecutionStatus, Identifier, Owner};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -34,11 +34,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         builder
             .transfer_object(
                 recipient,
-                authority_state
-                    .get_object(obj_id)
-                    .await
-                    .unwrap()
-                    .object_ref(),
+                authority_state.get_object(obj_id).unwrap().object_ref(),
             )
             .unwrap()
     }
@@ -58,12 +54,11 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
             )
             .unwrap();
     }
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![
             authority_state
                 .get_object(&all_ids[N])
-                .await
                 .unwrap()
                 .object_ref(),
         ],
@@ -72,7 +67,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         rgp,
     );
 
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let response = send_and_confirm_transaction(&authority_state, tx).await?;
     let effects = response.1.into_data();
     assert_eq!(effects.status(), &ExecutionStatus::Success);
@@ -119,11 +114,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
         builder
             .transfer_object(
                 recipient,
-                authority_state
-                    .get_object(obj_id)
-                    .await
-                    .unwrap()
-                    .object_ref(),
+                authority_state.get_object(obj_id).unwrap().object_ref(),
             )
             .unwrap()
     }
@@ -136,12 +127,11 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
             vec![],
         )
         .unwrap();
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![
             authority_state
                 .get_object(&all_ids[N])
-                .await
                 .unwrap()
                 .object_ref(),
         ],
@@ -150,7 +140,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
         rgp,
     );
 
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
 
     let response = send_and_confirm_transaction(&authority_state, tx).await?.1;
     let effects = response.into_data();
@@ -176,9 +166,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
         sender,
         49999, // We need 50000
     );
-    authority_state
-        .insert_genesis_object(gas_object.clone())
-        .await;
+    authority_state.insert_genesis_object(gas_object.clone());
 
     const N: usize = 10;
     let mut builder = ProgrammableTransactionBuilder::new();
@@ -198,7 +186,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
             )
             .unwrap();
     }
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_object.object_ref()],
         builder.finish(),
@@ -206,7 +194,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
         rgp,
     );
 
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let response = send_and_confirm_transaction(&authority_state, tx).await;
 
     assert!(matches!(

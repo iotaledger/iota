@@ -26,7 +26,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -37,14 +37,10 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -61,10 +57,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -90,9 +83,12 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
@@ -124,7 +120,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -135,14 +131,10 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -159,10 +151,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -188,9 +177,12 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
@@ -222,7 +214,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -233,14 +225,10 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -257,10 +245,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -286,9 +271,12 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
@@ -320,7 +308,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -331,14 +319,10 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -355,10 +339,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -384,9 +365,12 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
@@ -418,7 +402,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -429,14 +413,10 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -453,10 +433,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -482,9 +459,12 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
@@ -516,7 +496,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -527,14 +507,10 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -551,10 +527,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -580,9 +553,12 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~
@@ -614,7 +590,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -625,14 +601,10 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
-      max-checkpoints-in-batch: 10
-      max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
       local-execution-timeout-sec: 30
-    db-checkpoint-config:
-      perform-db-checkpoints-at-epoch-end: false
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -649,10 +621,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -678,9 +647,12 @@ validator_configs:
       check-system-overload-at-signing: true
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
+      max-transaction-manager-queue-length-soft-limit-pct: 50
     execution-cache-config:
       writeback-cache: {}
+    full-checkpoint-contents-cache-size-mb: 1024
     enable-validator-tx-finalizer: true
+    enable-soft-locking: true
     verifier-signing-config:
       max-per-fun-meter-units: ~
       max-per-mod-meter-units: ~

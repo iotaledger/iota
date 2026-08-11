@@ -84,11 +84,7 @@ impl MetricsPushClient {
                 Ok(body) => body,
                 Err(error) => format!("couldn't decode response body; {error}"),
             };
-            return Err(anyhow::anyhow!(
-                "metrics push failed: [{}]:{}",
-                status,
-                body
-            ));
+            return Err(anyhow::anyhow!("metrics push failed: [{status}]:{body}"));
         }
 
         debug!("successfully pushed metrics to {url}");

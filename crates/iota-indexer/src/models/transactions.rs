@@ -11,11 +11,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_ext::types::{Event, TypeTag};
-use iota_types::{
-    digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEvents},
-    transaction::SenderSignedData,
+use iota_sdk_ext::types::{
+    Event, SenderSignedTransaction, TransactionDigest, TransactionEffects, TransactionEvents,
+    TypeTag,
 };
 use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout};
 #[cfg(feature = "shared_test_runtime")]
@@ -277,9 +275,9 @@ impl StoredTransaction {
             .then_some(self.checkpoint_sequence_number as u64);
 
         let transaction = if options.show_input {
-            let sender_signed_data = self.try_into_sender_signed_data()?;
+            let sender_signed_tx = self.try_into_sender_signed_transaction()?;
             let tx_block = IotaTransactionBlock::try_from_with_package_resolver(
-                sender_signed_data,
+                sender_signed_tx,
                 package_resolver,
                 tx_digest,
             )
@@ -401,15 +399,15 @@ impl StoredTransaction {
         })
     }
 
-    pub fn try_into_sender_signed_data(&self) -> IndexerResult<SenderSignedData> {
-        let sender_signed_data: SenderSignedData =
-            bcs::from_bytes(&self.raw_transaction).map_err(|e| {
+    pub fn try_into_sender_signed_transaction(&self) -> IndexerResult<SenderSignedTransaction> {
+        let sender_signed_tx: SenderSignedTransaction = bcs::from_bytes(&self.raw_transaction)
+            .map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
-                    "Can't convert raw_transaction of {} into SenderSignedData. Error: {e}",
+                    "Can't convert raw_transaction of {} into SenderSignedTransaction. Error: {e}",
                     self.tx_sequence_number
                 ))
             })?;
-        Ok(sender_signed_data)
+        Ok(sender_signed_tx)
     }
 
     pub async fn try_into_iota_transaction_effects(

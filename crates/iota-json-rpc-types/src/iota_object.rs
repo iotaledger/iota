@@ -14,17 +14,16 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::types::{
-    Address, Identifier, ObjectData, ObjectId, Owner, StructTag,
+    Address, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
+    StructTag, TransactionDigest, Version,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
-    base_types::{
-        ObjectDigest, ObjectInfo, ObjectRef, ObjectType, SequenceNumber, TransactionDigest,
-    },
+    base_types::{ObjectInfo, ObjectType},
     error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,
-    object::{MoveObject, MoveObjectExt, Object, ObjectInner, ObjectRead},
+    object::{MoveStructExt, Object, ObjectInner, ObjectRead},
 };
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::annotated_value::{MoveStructLayout, MoveValue};
@@ -156,7 +155,7 @@ impl IotaObjectResponse {
         })
     }
 
-    pub fn object_ref_if_exists(&self) -> Option<ObjectRef> {
+    pub fn object_ref_if_exists(&self) -> Option<ObjectReference> {
         match (&self.data, &self.error) {
             (Some(obj_data), None) => Some(obj_data.object_ref()),
             _ => None,
@@ -206,7 +205,7 @@ pub struct IotaObjectData {
     /// Object version.
     #[serde_as(as = "SequenceNumberStringSchema")]
     #[schemars(with = "SequenceNumberStringSchema")]
-    pub version: SequenceNumber,
+    pub version: Version,
     /// Base64 string representing the object digest
     #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
@@ -255,7 +254,7 @@ pub struct IotaObjectData {
 
 impl IotaObjectData {
     pub fn new(
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
         obj: Object,
         layout: impl Into<Option<MoveStructLayout>>,
         options: &IotaObjectDataOptions,
@@ -274,7 +273,7 @@ impl IotaObjectData {
             ..
         } = options;
 
-        let ObjectRef {
+        let ObjectReference {
             object_id,
             version,
             digest,
@@ -340,8 +339,8 @@ impl IotaObjectData {
         })
     }
 
-    pub fn object_ref(&self) -> ObjectRef {
-        ObjectRef::new(self.object_id, self.version, self.digest)
+    pub fn object_ref(&self) -> ObjectReference {
+        ObjectReference::new(self.object_id, self.version, self.digest)
     }
 
     pub fn object_type(&self) -> anyhow::Result<ObjectType> {
@@ -605,7 +604,7 @@ impl TryInto<Object> for IotaObjectData {
         let protocol_config = ProtocolConfig::get_for_min_version();
         let data = match self.bcs {
             Some(IotaRawData::MoveObject(o)) => ObjectData::Struct({
-                MoveObject::new_from_execution(
+                MoveStruct::new_from_execution(
                     o.type_().clone(),
                     o.version.into(),
                     o.bcs_bytes,
@@ -662,8 +661,8 @@ pub struct ObjectRefSchema {
     pub digest: ObjectDigest,
 }
 
-impl SerializeAs<ObjectRef> for ObjectRefSchema {
-    fn serialize_as<S>(source: &ObjectRef, serializer: S) -> Result<S::Ok, S::Error>
+impl SerializeAs<ObjectReference> for ObjectRefSchema {
+    fn serialize_as<S>(source: &ObjectReference, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -672,8 +671,8 @@ impl SerializeAs<ObjectRef> for ObjectRefSchema {
     }
 }
 
-impl<'de> DeserializeAs<'de, ObjectRef> for ObjectRefSchema {
-    fn deserialize_as<D>(deserializer: D) -> Result<ObjectRef, D::Error>
+impl<'de> DeserializeAs<'de, ObjectReference> for ObjectRefSchema {
+    fn deserialize_as<D>(deserializer: D) -> Result<ObjectReference, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -682,8 +681,8 @@ impl<'de> DeserializeAs<'de, ObjectRef> for ObjectRefSchema {
     }
 }
 
-impl From<ObjectRef> for ObjectRefSchema {
-    fn from(oref: ObjectRef) -> Self {
+impl From<ObjectReference> for ObjectRefSchema {
+    fn from(oref: ObjectReference) -> Self {
         Self {
             object_id: oref.object_id,
             version: oref.version.into(),
@@ -692,16 +691,16 @@ impl From<ObjectRef> for ObjectRefSchema {
     }
 }
 
-impl From<ObjectRefSchema> for ObjectRef {
+impl From<ObjectRefSchema> for ObjectReference {
     fn from(oref: ObjectRefSchema) -> Self {
-        ObjectRef::new(oref.object_id, oref.version.into(), oref.digest)
+        ObjectReference::new(oref.object_id, oref.version.into(), oref.digest)
     }
 }
 
 pub trait IotaData: Sized {
     type ObjectType;
     type PackageType;
-    fn try_from_object(object: MoveObject, layout: MoveStructLayout)
+    fn try_from_object(object: MoveStruct, layout: MoveStructLayout)
     -> Result<Self, anyhow::Error>;
     fn try_from_package(package: MovePackage) -> Result<Self, anyhow::Error>;
     fn try_as_move(&self) -> Option<&Self::ObjectType>;
@@ -722,7 +721,7 @@ impl IotaData for IotaRawData {
     type ObjectType = IotaRawMoveObject;
     type PackageType = IotaRawMovePackage;
 
-    fn try_from_object(object: MoveObject, _: MoveStructLayout) -> Result<Self, anyhow::Error> {
+    fn try_from_object(object: MoveStruct, _: MoveStructLayout) -> Result<Self, anyhow::Error> {
         Ok(Self::MoveObject(object.into()))
     }
 
@@ -772,7 +771,7 @@ impl IotaData for IotaParsedData {
     type PackageType = IotaMovePackage;
 
     fn try_from_object(
-        object: MoveObject,
+        object: MoveStruct,
         layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self::MoveObject(Box::new(
@@ -842,7 +841,7 @@ impl Display for IotaParsedData {
         match self {
             IotaParsedData::MoveObject(o) => {
                 writeln!(writer, "{}: {}", "type".bold().bright_black(), o.type_)?;
-                write!(writer, "{}", &o.fields)?;
+                write!(writer, "{}", o.fields)?;
             }
             IotaParsedData::Package(p) => {
                 write!(
@@ -884,10 +883,10 @@ impl IotaParsedData {
 }
 
 pub trait IotaMoveObject: Sized {
-    fn try_from_layout(object: MoveObject, layout: MoveStructLayout)
+    fn try_from_layout(object: MoveStruct, layout: MoveStructLayout)
     -> Result<Self, anyhow::Error>;
 
-    fn try_from(o: MoveObject, resolver: &impl GetModule) -> Result<Self, anyhow::Error> {
+    fn try_from(o: MoveStruct, resolver: &impl GetModule) -> Result<Self, anyhow::Error> {
         let layout = o.get_layout(resolver)?;
         Self::try_from_layout(o, layout)
     }
@@ -908,7 +907,7 @@ pub struct IotaParsedMoveObject {
 
 impl IotaMoveObject for IotaParsedMoveObject {
     fn try_from_layout(
-        object: MoveObject,
+        object: MoveStruct,
         layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         let move_struct = object.to_move_struct(&layout)?.into();
@@ -990,8 +989,8 @@ pub struct IotaRawMoveObject {
     pub bcs_bytes: Vec<u8>,
 }
 
-impl From<MoveObject> for IotaRawMoveObject {
-    fn from(o: MoveObject) -> Self {
+impl From<MoveStruct> for IotaRawMoveObject {
+    fn from(o: MoveStruct) -> Self {
         Self {
             type_: o.struct_tag().clone(),
             version: o.version().into(),
@@ -1002,7 +1001,7 @@ impl From<MoveObject> for IotaRawMoveObject {
 
 impl IotaMoveObject for IotaRawMoveObject {
     fn try_from_layout(
-        object: MoveObject,
+        object: MoveStruct,
         _layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
@@ -1185,7 +1184,7 @@ pub enum IotaPastObjectResponse {
     ObjectDeleted(
         #[schemars(with = "ObjectRefSchema")]
         #[serde_as(as = "ObjectRefSchema")]
-        ObjectRef,
+        ObjectReference,
     ),
     /// The object exists but not found with this version
     VersionNotFound(
@@ -1289,7 +1288,7 @@ pub struct IotaGetPastObjectRequest {
     /// the version of the queried object.
     #[schemars(with = "SequenceNumberStringSchema")]
     #[serde_as(as = "SequenceNumberStringSchema")]
-    pub version: SequenceNumber,
+    pub version: Version,
 }
 
 #[serde_as]

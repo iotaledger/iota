@@ -171,5 +171,5 @@ fn snapshot_path_for_version(version: u64) -> anyhow::Result<PathBuf> {
         .range(version..)
         .next()
         .map(|v| snapshot_dir.join(v.to_string()))
-        .ok_or_else(|| anyhow::anyhow!("No snapshot found for version {}", version))
+        .ok_or_else(|| anyhow::anyhow!("No snapshot found for version {version}"))
 }

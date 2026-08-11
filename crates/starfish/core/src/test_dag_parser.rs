@@ -280,10 +280,19 @@ impl<E: std::fmt::Debug> From<nom::Err<E>> for ParseDagError {
 ///     Round 8 : { * },
 ///     }";
 ///
-/// let dag_builder = parse_dag(dag_str).expect("Invalid dag"); // parse DAG DSL
+/// let dag_builder = parse_dag(dag_str, false).expect("Invalid dag"); // parse DAG DSL
 /// dag_builder.print(); // print the parsed DAG
 /// ```
-pub(crate) fn parse_dag(dag_string: &str) -> Result<DagBuilder, ParseDagError> {
+///
+/// `starfish_speed` sets the flag on the context the DAG is built with, which
+/// selects the header version and whether blocks carry strong votes. Strong
+/// votes follow from the acknowledgments each block is given: a block whose
+/// acknowledgments miss the leader's data blames the leader instead of voting
+/// for it.
+pub(crate) fn parse_dag(
+    dag_string: &str,
+    starfish_speed: bool,
+) -> Result<DagBuilder, ParseDagError> {
     // Parse subsequent rounds
     // remove whitespace from the input
     let cleaned: String = dag_string.chars().filter(|c| !c.is_whitespace()).collect();
@@ -291,7 +300,11 @@ pub(crate) fn parse_dag(dag_string: &str) -> Result<DagBuilder, ParseDagError> {
 
     let (mut input, num_authors) = preceded(tag("DAG{"), parse_genesis)(input)?;
 
-    let context = Arc::new(Context::new_for_test(num_authors as usize).0);
+    let mut context = Context::new_for_test(num_authors as usize).0;
+    context
+        .protocol_config
+        .set_consensus_starfish_speed_for_testing(starfish_speed);
+    let context = Arc::new(context);
     let mut dag_builder = DagBuilder::new(context);
     loop {
         match parse_round(input) {
@@ -344,7 +357,7 @@ mod tests {
                 C -> ([-A5],[]),
             }
          }";
-        let result = parse_dag(dag_str);
+        let result = parse_dag(dag_str, false);
         assert!(result.is_ok());
 
         let dag_builder = result.unwrap();

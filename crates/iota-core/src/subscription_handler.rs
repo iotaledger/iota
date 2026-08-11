@@ -8,7 +8,8 @@ use iota_json_rpc_types::{
     EffectsWithInput, EventFilter, IotaEvent, IotaTransactionBlockEffects,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, TransactionFilter,
 };
-use iota_types::{error::IotaResult, transaction::TransactionData};
+use iota_sdk_ext::types::Transaction;
+use iota_types::error::IotaResult;
 use prometheus_filtered::{
     IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
@@ -86,7 +87,7 @@ impl SubscriptionHandler {
     #[instrument(level = "trace", skip_all, fields(tx_digest =? effects.transaction_digest()), err)]
     pub fn process_tx(
         &self,
-        input: &TransactionData,
+        input: &Transaction,
         effects: &IotaTransactionBlockEffects,
         events: &IotaTransactionBlockEvents,
     ) -> IotaResult {

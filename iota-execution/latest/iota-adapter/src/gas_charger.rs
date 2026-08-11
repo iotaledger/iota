@@ -7,17 +7,16 @@ pub use checked::*;
 
 #[iota_macros::with_checked_arithmetic]
 pub mod checked {
-
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_ext::types::{ObjectData, ObjectId, gas::GasCostSummary};
+    use iota_sdk_ext::types::{
+        ObjectData, ObjectId, ObjectReference, TransactionDigest, gas::GasCostSummary,
+    };
     use iota_types::{
-        base_types::ObjectRef,
         deny_list_v1::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
-        digests::TransactionDigest,
         error::ExecutionError,
         gas::{IotaGasStatus, deduct_gas},
         gas_model::tables::GasStatus,
-        object::MoveObjectExt,
+        object::MoveStructExt,
     };
     use tracing::trace;
 
@@ -37,7 +36,7 @@ pub mod checked {
         tx_digest: TransactionDigest,
         #[expect(unused)]
         gas_model_version: u64,
-        gas_coins: Vec<ObjectRef>,
+        gas_coins: Vec<ObjectReference>,
         // this is the first gas coin in `gas_coins` and the one that all others will
         // be smashed into. It can be None for system transactions when `gas_coins` is empty.
         smashed_gas_coin: Option<ObjectId>,
@@ -47,7 +46,7 @@ pub mod checked {
     impl GasCharger {
         pub fn new(
             tx_digest: TransactionDigest,
-            gas_coins: Vec<ObjectRef>,
+            gas_coins: Vec<ObjectReference>,
             gas_status: IotaGasStatus,
             protocol_config: &ProtocolConfig,
         ) -> Self {
@@ -73,7 +72,7 @@ pub mod checked {
 
         // TODO: there is only one caller to this function that should not exist
         // otherwise.       Explore way to remove it.
-        pub(crate) fn gas_coins(&self) -> &[ObjectRef] {
+        pub(crate) fn gas_coins(&self) -> &[ObjectReference] {
             &self.gas_coins
         }
 

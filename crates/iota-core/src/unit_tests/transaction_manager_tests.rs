@@ -4,15 +4,14 @@
 
 use std::{time::Duration, vec};
 
-use iota_sdk_ext::types::{ObjectId, Owner, VersionAssignment};
+use iota_sdk_ext::types::{ObjectId, Owner, SharedObjectReference, Version, VersionAssignment};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::SequenceNumber,
     crypto::deterministic_random_account_key,
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     storage::InputKey,
-    transaction::{CallArg, SharedObjectRef, VerifiedTransaction},
+    transaction::{CallArg, VerifiedTransaction},
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, error::TryRecvError, unbounded_channel},
@@ -21,7 +20,9 @@ use tokio::{
 
 use crate::{
     authority::{AuthorityState, authority_tests::init_state_with_objects},
-    transaction_manager::{PendingTransaction, TransactionManager},
+    execution_scheduler::{
+        ExecutionSchedulerAPI, PendingTransaction, transaction_manager::TransactionManager,
+    },
 };
 
 #[expect(clippy::disallowed_methods)] // allow unbounded_channel()
@@ -61,6 +62,50 @@ fn get_input_keys(objects: &[Object]) -> Vec<InputKey> {
             version: object.version(),
         })
         .collect()
+}
+
+/// Reconfiguration must drop every pending and executing entry. This is the
+/// legacy baseline the `ExecutionScheduler` reproduces via `within_alive_epoch`
+/// cancellation; pinning it here documents the exact post-reconfigure invariant
+/// (all internal maps empty, inflight count 0) that the scheduler tests target.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_reconfigure_drops_all_pending_and_executing_state() {
+    let (owner, _keypair) = deterministic_random_account_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+    transaction_manager.check_empty_for_testing();
+
+    // One transaction becomes ready immediately (existing gas, empty input) and,
+    // once received, sits in `executing_transactions`.
+    let executing_tx = make_transaction(gas_object, vec![]);
+    transaction_manager.enqueue(vec![executing_tx.clone()], &state.epoch_store_for_testing());
+    let ready = rx_ready_transactions.recv().await.unwrap();
+    assert_eq!(ready.transaction.digest(), executing_tx.digest());
+
+    // A second transaction waits on a gas object that is not available, so it
+    // stays in `pending_transactions`.
+    let missing_gas = Object::with_id_owner_version_for_testing(
+        ObjectId::random(),
+        0.into(),
+        Owner::Address(owner),
+    );
+    let pending_tx = make_transaction(missing_gas, vec![]);
+    transaction_manager.enqueue(vec![pending_tx.clone()], &state.epoch_store_for_testing());
+    sleep(Duration::from_secs(1)).await;
+
+    // Both are inflight: one executing, one pending.
+    assert_eq!(transaction_manager.inflight_queue_len(), 2);
+
+    // Reconfiguration replaces the inner state wholesale, dropping both.
+    transaction_manager.reconfigure(1);
+
+    transaction_manager.check_empty_for_testing();
+    // Both count surfaces must read 0: the internal queue length and the trait
+    // method that feeds overload admission (today a plain delegation — asserting
+    // both pins that relationship should either implementation change).
+    assert_eq!(transaction_manager.inflight_queue_len(), 0);
+    assert_eq!(transaction_manager.num_pending_transactions(), 0);
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -225,8 +270,11 @@ async fn transaction_manager_object_dependency() {
 
     // Enqueue two transactions with the same shared object input in read-only mode.
     let shared_version = 1000.into();
-    let shared_object_arg_read =
-        CallArg::Shared(SharedObjectRef::new(shared_object.id(), 0.into(), false));
+    let shared_object_arg_read = CallArg::Shared(SharedObjectReference::new(
+        shared_object.id(),
+        0.into(),
+        false,
+    ));
     let transaction_read_0 =
         make_transaction(gas_objects[0].clone(), vec![shared_object_arg_read.clone()]);
     let transaction_read_1 = make_transaction(gas_objects[1].clone(), vec![shared_object_arg_read]);
@@ -246,8 +294,11 @@ async fn transaction_manager_object_dependency() {
         .unwrap();
 
     // Enqueue one transaction with the same shared object in mutable mode.
-    let shared_object_arg_default =
-        CallArg::Shared(SharedObjectRef::new(shared_object.id(), 0.into(), true));
+    let shared_object_arg_default = CallArg::Shared(SharedObjectReference::new(
+        shared_object.id(),
+        0.into(),
+        true,
+    ));
     let transaction_default = make_transaction(
         gas_objects[2].clone(),
         vec![shared_object_arg_default.clone()],
@@ -263,8 +314,11 @@ async fn transaction_manager_object_dependency() {
     // Enqueue one transaction with two readonly shared object inputs,
     // `shared_object` and `shared_object_2`.
     let shared_version_2 = 1000.into();
-    let shared_object_arg_read_2 =
-        CallArg::Shared(SharedObjectRef::new(shared_object_2.id(), 0.into(), false));
+    let shared_object_arg_read_2 = CallArg::Shared(SharedObjectReference::new(
+        shared_object_2.id(),
+        0.into(),
+        false,
+    ));
     let transaction_read_2 = make_transaction(
         gas_objects[3].clone(),
         vec![shared_object_arg_default, shared_object_arg_read_2],
@@ -730,10 +784,16 @@ async fn transaction_manager_with_cancelled_transactions() {
     assert!(rx_ready_transactions.try_recv().is_err());
 
     // Enqueue one transaction with 2 shared object inputs and 1 owned input.
-    let shared_object_arg_1 =
-        CallArg::Shared(SharedObjectRef::new(shared_object_1.id(), 0.into(), true));
-    let shared_object_arg_2 =
-        CallArg::Shared(SharedObjectRef::new(shared_object_2.id(), 0.into(), true));
+    let shared_object_arg_1 = CallArg::Shared(SharedObjectReference::new(
+        shared_object_1.id(),
+        0.into(),
+        true,
+    ));
+    let shared_object_arg_2 = CallArg::Shared(SharedObjectReference::new(
+        shared_object_2.id(),
+        0.into(),
+        true,
+    ));
 
     // Changes the desired owned object version to a higher version. We will make it
     // available later.
@@ -751,10 +811,10 @@ async fn transaction_manager_with_cancelled_transactions() {
         .set_shared_object_versions_for_testing(
             cancelled_transaction.digest(),
             &[
-                VersionAssignment::new(shared_object_1.id(), SequenceNumber::CANCELLED_READ),
+                VersionAssignment::new(shared_object_1.id(), Version::CANCELLED_READ),
                 VersionAssignment::new(
                     shared_object_2.id(),
-                    SequenceNumber::new_congested_with_suggested_gas_price(101).unwrap(),
+                    Version::new_congested_with_suggested_gas_price(101).unwrap(),
                 ),
             ],
         )

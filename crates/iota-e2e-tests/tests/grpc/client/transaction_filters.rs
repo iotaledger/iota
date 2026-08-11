@@ -11,9 +11,9 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use iota_macros::sim_test;
-use iota_sdk_ext::{
-    grpc_client::{ReadMask, read_mask_fields::CheckpointTransactionField},
-    grpc_types::v1::{filter as grpc_filter, types as grpc_types},
+use iota_sdk_ext::grpc_types::{
+    read_mask_fields::CheckpointResponseField,
+    v1::{filter as grpc_filter, types as grpc_types},
 };
 use iota_types::transaction::CallArg;
 use tokio::time::timeout;
@@ -96,12 +96,12 @@ async fn test_transaction_filter_scenarios() {
                 .stream_checkpoints(
                     Some(0),
                     Some(latest_seq),
-                    Some(ReadMask::from(&[
-                        CheckpointTransactionField::TRANSACTION_BCS,
-                        CheckpointTransactionField::EFFECTS_BCS,
-                    ])),
                     Some(tx_filter),
                     None,
+                    [
+                        CheckpointResponseField::TRANSACTIONS_TRANSACTION_BCS,
+                        CheckpointResponseField::TRANSACTIONS_EFFECTS_BCS,
+                    ],
                 )
                 .await
                 .expect("Failed to create stream");

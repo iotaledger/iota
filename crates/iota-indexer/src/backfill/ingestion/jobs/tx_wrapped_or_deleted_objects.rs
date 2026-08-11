@@ -4,7 +4,10 @@
 use std::sync::Arc;
 
 use diesel::RunQueryDsl;
-use iota_types::{effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData};
+use iota_types::{
+    effects::TransactionEffectsExt, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointContentsExt,
+};
 
 use crate::{
     backfill::ingestion::IngestionBackfill,
@@ -28,10 +31,10 @@ impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
         let transactions = &checkpoint.transactions;
         let checkpoint_seq = checkpoint_summary.sequence_number;
 
-        if checkpoint_contents.size() != transactions.len() {
+        if checkpoint_contents.len() != transactions.len() {
             return Err(IndexerError::FullNodeReading(format!(
                 "checkpoint content size mismatch at checkpoint {checkpoint_seq}: expected {}, found {}",
-                checkpoint_contents.size(),
+                checkpoint_contents.len(),
                 transactions.len()
             )));
         }

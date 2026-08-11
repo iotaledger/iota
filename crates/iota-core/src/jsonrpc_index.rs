@@ -8,7 +8,7 @@
 use std::{
     cmp::{max, min},
     collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -19,15 +19,14 @@ use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
-use iota_sdk_ext::types::{Address, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_ext::types::{
+    Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest,
+    TransactionEvents, TransactionEventsDigest, TypeTag, Version,
+};
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
-    base_types::{
-        ObjectDigest, ObjectInfo, ObjectRef, SequenceNumber, TransactionDigest, TxSequenceNumber,
-    },
-    digests::TransactionEventsDigest,
+    base_types::{ObjectInfo, TxSequenceNumber},
     dynamic_field::{self, DynamicFieldInfo},
-    effects::TransactionEvents,
     error::{IotaError, IotaResult, UserInputError},
     inner_temporary_store::TxCoins,
     object::Object,
@@ -86,7 +85,7 @@ pub struct ObjectIndexChanges {
 
 #[derive(Clone, Serialize, Deserialize, Ord, PartialOrd, Eq, PartialEq, Debug)]
 pub struct CoinInfo {
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: ObjectDigest,
     pub balance: u64,
     pub previous_transaction: TransactionDigest,
@@ -624,7 +623,7 @@ impl IndexStore {
         &self,
         sender: Address,
         active_inputs: impl Iterator<Item = ObjectId>,
-        mutated_objects: impl Iterator<Item = (ObjectRef, Owner)> + Clone,
+        mutated_objects: impl Iterator<Item = (ObjectReference, Owner)> + Clone,
         move_functions: impl Iterator<Item = (ObjectId, String, String)> + Clone,
         events: &TransactionEvents,
         object_index_changes: ObjectIndexChanges,
@@ -1444,14 +1443,6 @@ impl IndexStore {
         self.tables.owner_index.is_empty()
     }
 
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // We are checkpointing the whole db
-        self.tables
-            .transactions_from_addr
-            .checkpoint_db(path)
-            .map_err(Into::into)
-    }
-
     /// This method first gets the balance from `per_coin_type_balance` cache.
     /// On a cache miss, it gets the balance for passed in `coin_type` from
     /// the `all_balance` cache. Only on the second cache miss, we go to the
@@ -1686,11 +1677,9 @@ impl IndexStore {
 mod tests {
     use std::collections::BTreeMap;
 
-    use iota_sdk_ext::types::{Address, ObjectId, Owner};
+    use iota_sdk_ext::types::{Address, ObjectId, Owner, TransactionDigest, TransactionEvents};
     use iota_types::{
         base_types::{ObjectInfo, ObjectType},
-        digests::TransactionDigest,
-        effects::TransactionEvents,
         gas_coin::GAS,
         object,
     };

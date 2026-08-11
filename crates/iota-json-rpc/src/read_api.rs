@@ -28,20 +28,19 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_ext::types::{Address, ObjectId, StructTag};
+use iota_sdk_ext::types::{
+    Address, ObjectId, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
+};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
-    base_types::{SequenceNumber, TransactionDigest},
     collection_types::VecMap,
     display::DisplayVersionUpdatedEvent,
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
     iota_serde::BigInt,
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
-    object::{MoveObjectExt, Object, ObjectRead, PastObjectRead},
-    transaction::{Transaction, TransactionDataAPI},
+    object::{MoveStructExt, Object, ObjectRead, PastObjectRead},
+    transaction::{TransactionAPI, TransactionEnvelope},
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
@@ -77,7 +76,7 @@ pub struct ReadApi {
 #[derive(Default)]
 struct IntermediateTransactionResponse {
     digest: TransactionDigest,
-    transaction: Option<Transaction>,
+    transaction: Option<TransactionEnvelope>,
     effects: Option<TransactionEffects>,
     events: Option<IotaTransactionBlockEvents>,
     checkpoint_seq: Option<CheckpointSequenceNumber>,
@@ -95,7 +94,7 @@ impl IntermediateTransactionResponse {
         }
     }
 
-    pub fn transaction(&self) -> &Option<Transaction> {
+    pub fn transaction(&self) -> &Option<TransactionEnvelope> {
         &self.transaction
     }
 }
@@ -372,12 +371,7 @@ impl ReadApi {
             let mut results = vec![];
             for resp in temp_response.values() {
                 let input_objects = if let Some(tx) = resp.transaction() {
-                    tx.data()
-                        .inner()
-                        .intent_message
-                        .value
-                        .input_objects()
-                        .unwrap_or_default()
+                    tx.data().transaction().input_objects().unwrap_or_default()
                 } else {
                     // don't have the input tx, so not much we can do. perhaps this is an Err?
                     Vec::new()
@@ -427,8 +421,7 @@ impl ReadApi {
                             )
                         })?
                         .data()
-                        .intent_message()
-                        .value
+                        .transaction()
                         .sender(),
                     effects.modified_at_versions(),
                     effects.all_changed_objects(),
@@ -597,7 +590,7 @@ impl ReadApiServer for ReadApi {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse> {
         async move {
-            let version: SequenceNumber = version.into();
+            let version: Version = version.into();
             let state = self.state.clone();
             let past_read = spawn_monitored_task!(async move {
             state.get_past_object_read(&object_id, version)
@@ -654,7 +647,7 @@ impl ReadApiServer for ReadApi {
     async fn try_get_object_before_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> RpcResult<IotaPastObjectResponse> {
         let version = self
             .state
@@ -777,9 +770,7 @@ impl ReadApiServer for ReadApi {
             .map_err(Error::from)??;
             let input_objects = transaction
                 .data()
-                .inner()
-                .intent_message
-                .value
+                .transaction()
                 .input_objects()
                 .unwrap_or_default();
 
@@ -888,7 +879,7 @@ impl ReadApiServer for ReadApi {
                 if let (Some(effects), Some(input)) =
                     (&temp_response.effects, &temp_response.transaction)
                 {
-                    let sender = input.data().intent_message().value.sender();
+                    let sender = input.data().transaction().sender();
                     let object_changes = get_object_changes(
                         &object_cache,
                         sender,
@@ -1121,8 +1112,8 @@ pub enum ObjectDisplayError {
     #[error("Failed to extract layout")]
     Layout,
 
-    #[error("Failed to extract Move object")]
-    MoveObject,
+    #[error("Failed to extract Move struct")]
+    MoveStruct,
 
     #[error(transparent)]
     Deserialization(#[from] IotaError),
@@ -1204,7 +1195,7 @@ fn get_move_struct(
     let layout = layout.as_ref().ok_or_else(|| ObjectDisplayError::Layout)?;
     Ok(o.data
         .as_opt_struct()
-        .ok_or_else(|| ObjectDisplayError::MoveObject)?
+        .ok_or_else(|| ObjectDisplayError::MoveStruct)?
         .to_move_struct(layout)?)
 }
 
@@ -1288,8 +1279,7 @@ fn get_value_from_move_struct(
     }
     if parts.len() > MAX_DISPLAY_NESTED_LEVEL {
         Err(anyhow!(
-            "Display template value nested depth cannot exist {}",
-            MAX_DISPLAY_NESTED_LEVEL
+            "Display template value nested depth cannot exist {MAX_DISPLAY_NESTED_LEVEL}"
         ))?;
     }
     let mut current_value = &IotaMoveValue::Struct(move_struct.clone());
@@ -1468,7 +1458,11 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_ext::types::gas::GasCostSummary;
+    use iota_sdk_ext::types::{
+        CheckpointDigest, TransactionEffectsDigest, TransactionEvents,
+        checkpoint::{CheckpointContents, CheckpointSummary},
+        gas::GasCostSummary,
+    };
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
@@ -1478,12 +1472,10 @@ mod tests {
     use iota_types::{
         base_types::ExecutionDigests,
         crypto::AuthorityStrongQuorumSignInfo,
-        digests::TransactionEffectsDigest,
-        effects::TransactionEvents,
         error::IotaResult,
         message_envelope::Envelope,
         messages_checkpoint::{
-            CertifiedCheckpointSummary, CheckpointContents, CheckpointDigest, CheckpointSummary,
+            CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummaryExt,
         },
         object::Object,
         storage::ObjectKey,
@@ -1597,7 +1589,7 @@ mod tests {
             async fn get_object(
                 &self,
                 object_id: ObjectId,
-                version: SequenceNumber,
+                version: Version,
             ) -> IotaResult<Option<Object>>;
 
             async fn multi_get_objects(
@@ -1639,7 +1631,7 @@ mod tests {
         seq: CheckpointSequenceNumber,
         contents: &CheckpointContents,
     ) -> CertifiedCheckpointSummary {
-        let summary = CheckpointSummary::new(
+        let summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             0,
             seq,

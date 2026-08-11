@@ -3,7 +3,8 @@
 
 use iota_macros::sim_test;
 use iota_sdk_ext::{
-    grpc_client::{Error, ReadMask, read_mask_fields::TransactionField},
+    grpc_client::{Error, read_mask_fields::TransactionField},
+    grpc_types::read_mask_fields::ExecuteTransactionReadMask,
     types::{Address, UserSignature},
 };
 use iota_test_transaction_builder::make_transfer_iota_transaction;
@@ -17,7 +18,7 @@ async fn execute_transaction_transfer() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result = client
-        .execute_transaction(signed_tx, None, None)
+        .execute_transaction(signed_tx, None, ExecuteTransactionReadMask::default())
         .await
         .expect("Failed to execute transaction");
 
@@ -61,11 +62,9 @@ async fn execute_transaction_transfer_outputs() {
 
     let tx =
         make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(amount)).await;
-    let signed_tx: iota_sdk_ext::types::SignedTransaction =
-        tx.try_into().expect("SDK type conversion failed");
 
     let result = client
-        .execute_transaction(signed_tx, None, None)
+        .execute_transaction(tx.into(), None, ExecuteTransactionReadMask::default())
         .await
         .expect("Failed to execute transaction");
 
@@ -99,11 +98,7 @@ async fn execute_transaction_minimal_mask() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result = client
-        .execute_transaction(
-            signed_tx,
-            Some(ReadMask::from(TransactionField::EFFECTS)),
-            None,
-        )
+        .execute_transaction(signed_tx, None, TransactionField::EFFECTS)
         .await
         .expect("Failed to execute transaction");
 
@@ -154,7 +149,9 @@ async fn execute_transaction_invalid_signature() {
         bcs::from_bytes(&sig_bytes).expect("Corrupted signature should still deserialize");
     signed_tx.signatures = vec![corrupted_sig];
 
-    let result = client.execute_transaction(signed_tx, None, None).await;
+    let result = client
+        .execute_transaction(signed_tx, None, ExecuteTransactionReadMask::default())
+        .await;
 
     // With batch semantics, per-item validation errors come back as Error::Server
     let err = result.expect_err("Expected error for invalid signature");
@@ -179,7 +176,11 @@ async fn execute_transaction_idempotency() {
     let signed_tx = create_signed_transaction(&test_cluster).await;
 
     let result1 = client
-        .execute_transaction(signed_tx.clone(), None, None)
+        .execute_transaction(
+            signed_tx.clone(),
+            None,
+            ExecuteTransactionReadMask::default(),
+        )
         .await
         .expect("First execution should succeed");
 
@@ -200,7 +201,7 @@ async fn execute_transaction_idempotency() {
     // The server uses TransactionOrchestrator with a NotifyRead pub-sub mechanism
     // that naturally returns cached effects for duplicates.
     let result2 = client
-        .execute_transaction(signed_tx, None, None)
+        .execute_transaction(signed_tx, None, ExecuteTransactionReadMask::default())
         .await
         .expect("Re-execution should return cached result");
 

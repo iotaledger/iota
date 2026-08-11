@@ -10,12 +10,14 @@ use iota_core::{
     test_utils::send_and_confirm_transaction,
 };
 use iota_move_build::BuildConfig;
-use iota_sdk_ext::types::{ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_ext::types::{
+    ExecutionError, ExecutionStatus, ObjectId, Transaction, TransactionEffects,
+};
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaError,
     object::Object,
-    transaction::{Transaction, TransactionData, TransactionDataAPI},
+    transaction::{TransactionAPI, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use tokio::runtime::Runtime;
@@ -96,16 +98,16 @@ impl Executor {
     }
 
     pub fn add_object(&mut self, object: Object) {
-        self.rt.block_on(self.state.insert_genesis_object(object));
+        self.state.insert_genesis_object(object);
     }
 
     pub fn add_objects(&mut self, objects: &[Object]) {
-        self.rt.block_on(self.state.insert_genesis_objects(objects));
+        self.state.insert_genesis_objects(objects);
     }
 
-    pub fn execute_transaction(&mut self, txn: Transaction) -> ExecutionResult {
+    pub fn execute_transaction(&mut self, tx: TransactionEnvelope) -> ExecutionResult {
         self.rt
-            .block_on(send_and_confirm_transaction(&self.state, None, txn))
+            .block_on(send_and_confirm_transaction(&self.state, None, tx))
             .map(|(_, effects)| effects.into_data().status().clone())
     }
 
@@ -119,7 +121,7 @@ impl Executor {
         // let gas_obj_ref =
         // account.current_coins.last().unwrap().object_ref();
         let gas_object = account.new_gas_object(self);
-        let data = TransactionData::new_module(
+        let tx = Transaction::new_module(
             account.initial_data.account.address,
             gas_object.object_ref(),
             modules,
@@ -127,7 +129,7 @@ impl Executor {
             PUBLISH_BUDGET,
             1000,
         );
-        let txn = to_sender_signed_transaction(data, &account.initial_data.account.key);
+        let txn = to_sender_signed_transaction(tx, &account.initial_data.account.key);
         let effects = self
             .rt
             .block_on(send_and_confirm_transaction(&self.state, None, txn))
@@ -145,7 +147,7 @@ impl Executor {
 
     pub fn execute_transactions(
         &mut self,
-        txn: impl IntoIterator<Item = Transaction>,
+        txn: impl IntoIterator<Item = TransactionEnvelope>,
     ) -> Vec<ExecutionResult> {
         txn.into_iter()
             .map(|txn| self.execute_transaction(txn))

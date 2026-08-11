@@ -22,19 +22,19 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_network::default_iota_network_config;
+use iota_sdk_ext::types::UserSignature;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    crypto::Ed25519IotaSignature,
     quorum_driver_types::ExecuteTransactionRequestType,
-    signature::GenericSignature,
     traffic_control::{
         FreqThresholdConfig, PolicyConfig, PolicyType, RemoteFirewallConfig,
         TrafficControlReconfigParams, Weight,
     },
+    transaction::SenderSignedTransactionAPI,
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 #[tokio::test]
 async fn test_validator_traffic_control_noop() -> Result<(), anyhow::Error> {
@@ -124,9 +124,9 @@ async fn test_fullnode_traffic_control_ok() -> Result<(), anyhow::Error> {
         // 2 x rpc.discover - those are not sent by the test scenario
         // 5 x iotax_getOwnedObjects
         // 1 x iotax_getReferenceGasPrice
-        // 2 x iota_executeTransactionBlock
+        // 3 x iota_executeTransactionBlock
         // 1 x iota_getTransactionBlock
-        spam_policy_type: PolicyType::TestNConnIP(11),
+        spam_policy_type: PolicyType::TestNConnIP(12),
         // This should never be invoked when set as an error policy
         // as we are not sending requests that error
         error_policy_type: PolicyType::TestPanicOnInvocation,
@@ -234,6 +234,9 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
 #[tokio::test]
 async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
+    // Under the P-COOL flow `handle_transaction` is rejected before signature
+    // verification, so the errors this policy counts never reach the tally.
+    let _pcool_guard = override_pcool_flow(false);
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
@@ -263,12 +266,17 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     let mut tx = txns.swap_remove(0);
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
-    signatures.push(GenericSignature::Signature(
-        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+    signatures.push(UserSignature::Simple(
+        iota_types::crypto::zero_ed25519_signature(),
     ));
 
     // it should take no more than 4 requests to be added to the blocklist
-    for _ in 0..n {
+    for i in 0..n {
+        // Give the background tally task time to apply the blocklist before
+        // the last request, which is expected to be rejected.
+        if i == n - 1 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
         let response = auth_client.handle_transaction(tx.clone(), None).await;
         if let Err(err) = response {
             if err.to_string().contains("Too many requests") {
@@ -288,6 +296,9 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
 async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
 -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
+    // Under the P-COOL flow `handle_transaction` is rejected before signature
+    // verification, so the errors this policy counts never reach the tally.
+    let _pcool_guard = override_pcool_flow(false);
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 100,
@@ -314,8 +325,8 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
     let mut tx = txns.swap_remove(0);
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
-    signatures.push(GenericSignature::Signature(
-        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+    signatures.push(UserSignature::Simple(
+        iota_types::crypto::zero_ed25519_signature(),
     ));
 
     // Before reconfiguring the policy, we should not block any requests due to dry
@@ -406,7 +417,12 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     assert!(confirmed_local_execution.unwrap());
 
     // it should take no more than 4 requests to be added to the blocklist
-    for _ in 0..txn_count {
+    for i in 0..txn_count {
+        // Give the background tally task time to apply the blocklist before
+        // the last request, which is expected to be rejected.
+        if i == txn_count - 1 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
         let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
             .await;
@@ -455,7 +471,12 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
     );
 
     // it should take no more than 4 requests to be added to the blocklist
-    for _ in 0..txn_count {
+    for i in 0..txn_count {
+        // Give the background tally task time to apply the blocklist before
+        // the last request, which is expected to be rejected.
+        if i == txn_count - 1 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
         let txn = txns.swap_remove(0);
         let tx_digest = txn.digest();
         let (tx_bytes, _signatures) = txn.to_tx_bytes_and_signatures();
@@ -495,6 +516,9 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
 #[tokio::test]
 async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
+    // Under the P-COOL flow `handle_transaction` is rejected before signature
+    // verification, so the errors this policy counts never reach the tally.
+    let _pcool_guard = override_pcool_flow(false);
     let n = 5;
     let port = 65000;
     let policy_config = PolicyConfig {
@@ -535,8 +559,8 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     let mut tx = txns.swap_remove(0);
     let signatures = tx.tx_signatures_mut_for_testing();
     signatures.pop();
-    signatures.push(GenericSignature::Signature(
-        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+    signatures.push(UserSignature::Simple(
+        iota_types::crypto::zero_ed25519_signature(),
     ));
 
     // start test firewall server
@@ -925,6 +949,33 @@ async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), 
         .unwrap();
 
     // Test request with ExecuteTransactionRequestType::WaitForEffectsCert
+    // Use the same txn which should return local finalized effects
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+    let params = rpc_params![
+        tx_bytes,
+        signatures,
+        IotaTransactionBlockResponseOptions::new().with_effects(),
+        ExecuteTransactionRequestType::WaitForEffectsCert
+    ];
+    let response: IotaTransactionBlockResponse = jsonrpc_client
+        .request("iota_executeTransactionBlock", params)
+        .await
+        .unwrap();
+
+    let IotaTransactionBlockResponse {
+        effects,
+        confirmed_local_execution,
+        ..
+    } = response;
+    assert_eq!(effects.unwrap().transaction_digest(), tx_digest);
+    assert!(confirmed_local_execution.unwrap());
+
+    // Test request with ExecuteTransactionRequestType::WaitForEffectsCert
+    // Use a different txn to avoid the case where the txn effects are already
+    // cached locally
+    let txn = txns.swap_remove(0);
+    let tx_digest = txn.digest();
+
     let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
     let params = rpc_params![
         tx_bytes,

@@ -16,7 +16,7 @@ colored.workspace = true
 fastcrypto.workspace = true
 futures.workspace = true
 futures-core = "0.3.21"
-getset.workspace = true
+getset = "0.1"
 jsonrpsee.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
@@ -34,7 +34,7 @@ iota-json.workspace = true
 iota-json-rpc-api.workspace = true
 iota-json-rpc-types.workspace = true
 iota-keys.workspace = true
-iota-sdk-ext = { workspace = true, features = ["types"] }
+iota-sdk-ext = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1", "bech32", "grpc", "types"] }
 iota-transaction-builder.workspace = true
 iota-types.workspace = true
 # NOTE: It's important to keep the above dependency list short.

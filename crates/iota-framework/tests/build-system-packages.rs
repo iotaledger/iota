@@ -10,7 +10,8 @@ use std::{
 
 use anyhow::Result;
 use capitalize::Capitalize;
-use iota_move_build::{BuildConfig, IotaPackageHooks};
+use iota_move_build::{BuildConfig, IotaPackageHooks, ProtocolBuildConfig};
+use iota_types::supported_protocol_versions::ProtocolConfig;
 use move_binary_format::{CompiledModule, file_format::Visibility};
 use move_compiler::editions::Edition;
 use move_docgen::DocgenFlags;
@@ -113,6 +114,7 @@ fn build_packages(
         "move-stdlib",
         "stardust",
         config,
+        None,
     );
 }
 
@@ -127,12 +129,14 @@ fn build_packages_with_move_config(
     stdlib_dir: &str,
     stardust_dir: &str,
     config: MoveBuildConfig,
+    protocol_config: Option<&ProtocolConfig>,
 ) {
     let stdlib_pkg = BuildConfig {
         config: config.clone(),
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
     .build(stdlib_path)
     .unwrap();
@@ -141,6 +145,7 @@ fn build_packages_with_move_config(
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
     .build(iota_framework_path)
     .unwrap();
@@ -149,6 +154,7 @@ fn build_packages_with_move_config(
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
     .build(iota_system_path)
     .unwrap();
@@ -157,6 +163,7 @@ fn build_packages_with_move_config(
         run_bytecode_verifier: true,
         print_diags_to_stderr: false,
         chain_id: None, // Framework pkg addr is agnostic to chain, resolves from Move.toml
+        protocol_build_config: ProtocolBuildConfig::from(protocol_config),
     }
     .build(stardust_path)
     .unwrap();
@@ -294,7 +301,9 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
         // from mdx. MDX also strips leading whitespace inside `<code>` blocks
         // (it parses the content as a paragraph), which silently drops indentation
         // from Move implementations — encode leading spaces as `&nbsp;` so the
-        // browser still renders them as regular spaces.
+        // browser still renders them as regular spaces. Escape `*` as well: MDX
+        // parses the block content as markdown, so a pair of `*` (e.g. two `*x`
+        // dereferences) would be read as emphasis and mangle the code.
         let content = code_regex.replace_all(&content, |caps: &regex::Captures| {
             let match_content = caps.get(0).unwrap().as_str();
             let code_content = caps.get(1).unwrap().as_str();
@@ -303,6 +312,7 @@ fn relocate_docs(files: &[(String, String)], output: &mut BTreeMap<String, Strin
             }
             let escaped = code_content
                 .replace('{', "\\{")
+                .replace('*', "\\*")
                 .split('\n')
                 .map(|line| {
                     let stripped = line.trim_start_matches(' ');

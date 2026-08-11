@@ -23,15 +23,17 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
     TransactionFilterV2,
 };
-use iota_sdk_ext::types::{Address, Command, Identifier, ObjectId, StructTag, TypeTag};
-use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_sdk_ext::types::{
+    Address, Command, Identifier, ObjectId, StructTag, Transaction, TransactionDigest, TypeTag,
+};
+use iota_test_transaction_builder::{TestTransactionBuilder, split_coin_equal_tx};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{CallArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use itertools::Itertools;
@@ -565,19 +567,18 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
             )
             .await;
         indexer_wait_for_object(client, coin_to_split.object_id, coin_to_split.version).await;
-        let iota_client = cluster.wallet.get_client().await.unwrap();
+        let grpc_client = cluster.grpc_client();
 
         for _ in 0..5 {
-            let tx_data = iota_client
-                .transaction_builder()
-                .split_coin_equal(
-                    address,
-                    coin_to_split.object_id,
-                    2,
-                    Some(gas_ref.object_id),
-                    10_000_000,
-                )
-                .await?;
+            let tx_data = split_coin_equal_tx(
+                &grpc_client,
+                address,
+                coin_to_split.object_id,
+                2,
+                Some(gas_ref.object_id),
+                10_000_000,
+            )
+            .await;
 
             let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
 
@@ -680,20 +681,19 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
         )
         .await;
     indexer_wait_for_object(client, coin_to_split.object_id, coin_to_split.version).await;
-    let iota_client = cluster.wallet.get_client().await.unwrap();
+    let grpc_client = cluster.grpc_client();
     let mut expected_tx_digests = vec![];
 
     for _ in 0..5 {
-        let tx_data = iota_client
-            .transaction_builder()
-            .split_coin_equal(
-                address,
-                coin_to_split.object_id,
-                2,
-                Some(gas_ref.object_id),
-                10_000_000,
-            )
-            .await?;
+        let tx_data = split_coin_equal_tx(
+            &grpc_client,
+            address,
+            coin_to_split.object_id,
+            2,
+            Some(gas_ref.object_id),
+            10_000_000,
+        )
+        .await;
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
         let res = client
@@ -711,16 +711,15 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
     wipe_global_order_and_optimistic_tables(store); // data indexed before this point will not have global order
 
     for _ in 0..5 {
-        let tx_data = iota_client
-            .transaction_builder()
-            .split_coin_equal(
-                address,
-                coin_to_split.object_id,
-                2,
-                Some(gas_ref.object_id),
-                10_000_000,
-            )
-            .await?;
+        let tx_data = split_coin_equal_tx(
+            &grpc_client,
+            address,
+            coin_to_split.object_id,
+            2,
+            Some(gas_ref.object_id),
+            10_000_000,
+        )
+        .await;
         let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
         let res = client
@@ -861,9 +860,9 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         pt_builder.command(cmd_2);
         let pt = pt_builder.finish();
 
-        let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
+        let tx = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
 
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx, &keypair);
 
         let response = iota_client
             .quorum_driver_api()
@@ -1104,7 +1103,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
 
 async fn assert_paginated_filtered_transactions(
     client: &HttpClient,
-    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    expected_transactions_digests: &[TransactionDigest],
     filter: TransactionFilter,
     page_size: usize,
 ) -> Result<(), IndexerError> {
@@ -1144,7 +1143,7 @@ async fn assert_paginated_filtered_transactions(
 
 async fn assert_paginated_transactions_ascending(
     client: &HttpClient,
-    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    expected_transactions_digests: &[TransactionDigest],
     filter: &TransactionFilter,
     page_size: usize,
 ) -> Result<(), IndexerError> {
@@ -1186,7 +1185,7 @@ async fn assert_paginated_transactions_ascending(
 
 async fn assert_paginated_transactions_descending(
     client: &HttpClient,
-    expected_transactions_digests: &[iota_types::digests::TransactionDigest],
+    expected_transactions_digests: &[TransactionDigest],
     filter: &TransactionFilter,
     page_size: usize,
 ) -> Result<(), IndexerError> {
@@ -1509,8 +1508,8 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
         pt_builder.move_call(package_id, module, function, vec![], vec![])?;
         let pt = pt_builder.finish();
 
-        let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1_000);
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let tx = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1_000);
+        let signed_transaction = to_sender_signed_transaction(tx, &keypair);
 
         let response = iota_client
             .quorum_driver_api()

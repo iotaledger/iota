@@ -13,12 +13,11 @@ use futures::StreamExt;
 use iota_sdk::{
     rpc_types::ObjectChange,
     types::{
-        base_types::ObjectRef,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, TransactionData, TransactionDataAPI},
+        transaction::{CallArg, TransactionAPI},
     },
 };
-use iota_sdk_ext::types::{Argument, Command, TransactionKind};
+use iota_sdk_ext::types::{Argument, Command, ObjectReference, Transaction, TransactionKind};
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]
@@ -70,10 +69,9 @@ async fn main() -> Result<(), anyhow::Error> {
         let kind = TransactionKind::Programmable(pt);
 
         let gas_price = client.read_api().get_reference_gas_price().await?;
-        let tx_data =
-            TransactionData::new(kind, sender, gas_coin_ref.unwrap(), gas_budget, gas_price);
+        let tx = Transaction::new(kind, sender, gas_coin_ref.unwrap(), gas_budget, gas_price);
 
-        let transaction_response = sign_and_execute_transaction(&client, &sender, tx_data).await?;
+        let transaction_response = sign_and_execute_transaction(&client, &sender, tx).await?;
         println!("Transaction sent {}", transaction_response.digest);
 
         // Update the gas_coin_ref for the next transaction
@@ -88,7 +86,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 ..
             } = object_change
             {
-                gas_coin_ref.replace(ObjectRef::new(object_id, version, digest));
+                gas_coin_ref.replace(ObjectReference::new(object_id, version, digest));
             }
         }
     }

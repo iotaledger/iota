@@ -12,19 +12,21 @@ use std::{
 use arc_swap::ArcSwap;
 use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
-use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
-use iota_sdk_ext::types::CancelledTransaction;
+use iota_metrics::{monitored_mpsc, monitored_scope, spawn_monitored_task};
+use iota_sdk_ext::types::{
+    CancelledTransaction, ConsensusCommitDigest, SenderSignedTransaction, TransactionDigest,
+};
 use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
-    digests::ConsensusCommitDigest,
+    base_types::AuthorityName,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
-    transaction::{SenderSignedData, VerifiedTransaction},
+    transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use starfish_config::Committee as ConsensusCommittee;
+use tokio::task::JoinSet;
 use tracing::{debug, info, instrument, trace_span, warn};
 
 use crate::{
@@ -37,10 +39,13 @@ use crate::{
         backpressure::{BackpressureManager, BackpressureSubscriber},
     },
     checkpoints::{CheckpointService, CheckpointServiceNotify},
-    consensus_types::{AuthorityIndex, consensus_output_api::ConsensusOutputAPI},
+    consensus_types::{
+        AuthorityIndex,
+        consensus_output_api::{ConsensusOutputAPI, ConsensusOutputTransactions},
+    },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     scoring_decision::update_low_scoring_authorities,
-    transaction_manager::TransactionManager,
 };
 
 pub struct ConsensusHandlerInitializer {
@@ -90,7 +95,7 @@ impl ConsensusHandlerInitializer {
             self.epoch_store.clone(),
             self.state.clone(),
             self.checkpoint_service.clone(),
-            self.state.transaction_manager().clone(),
+            self.state.execution_scheduler().clone(),
             self.state.get_object_cache_reader().clone(),
             self.state.get_transaction_cache_reader().clone(),
             self.low_scoring_authorities.clone(),
@@ -138,11 +143,11 @@ pub struct ConsensusHandler<C> {
 const PROCESSED_CACHE_CAP: usize = 1024 * 1024;
 
 impl<C> ConsensusHandler<C> {
-    pub fn new(
+    pub(crate) fn new(
         epoch_store: Arc<AuthorityPerEpochStore>,
         state: Arc<AuthorityState>,
         checkpoint_service: Arc<C>,
-        transaction_manager: Arc<TransactionManager>,
+        execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         cache_reader: Arc<dyn ObjectCacheRead>,
         tx_reader: Arc<dyn TransactionCacheRead>,
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
@@ -159,7 +164,7 @@ impl<C> ConsensusHandler<C> {
             last_consensus_stats.stats = ConsensusStats::new(committee.size());
         }
         let transaction_scheduler =
-            AsyncTransactionScheduler::start(transaction_manager, epoch_store.clone());
+            AsyncTransactionScheduler::start(execution_scheduler, epoch_store.clone());
 
         // Seed the gauges so series exist from epoch start, not only after the
         // first commit.
@@ -201,8 +206,26 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         info!("Ignoring prior consensus commit for round {:?}", round);
     }
 
+    /// Test-only wrapper that performs BCS deserialization inline before
+    /// delegating to [`Self::handle_consensus_output`]. In production the
+    /// deserialization is performed on the [`StarfishConsensusHandler`]
+    /// pipeline stage that feeds the handler.
+    #[cfg(test)]
+    async fn handle_consensus_output_for_test(
+        &mut self,
+        consensus_output: impl ConsensusOutputAPI,
+    ) {
+        let block_transactions = consensus_output.transactions();
+        self.handle_consensus_output(consensus_output, block_transactions)
+            .await;
+    }
+
     #[instrument("handle_consensus_output", level = "trace", skip_all)]
-    async fn handle_consensus_output(&mut self, consensus_output: impl ConsensusOutputAPI) {
+    async fn handle_consensus_output(
+        &mut self,
+        consensus_output: impl ConsensusOutputAPI,
+        block_transactions: ConsensusOutputTransactions,
+    ) {
         // This may block until one of two conditions happens:
         // - Number of uncommitted transactions in the writeback cache goes below the
         //   backpressure threshold.
@@ -302,7 +325,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         {
             let span = trace_span!("process_consensus_certs");
             let _guard = span.enter();
-            for (authority_index, authority_transactions) in consensus_output.transactions() {
+            for (authority_index, authority_transactions) in block_transactions {
                 // TODO: consider only messages within 1~3 rounds of the leader?
                 for (transaction, serialized_len) in authority_transactions {
                     let kind = classify(&transaction);
@@ -314,11 +337,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                         .consensus_handler_transaction_sizes
                         .with_label_values(&[kind])
                         .observe(serialized_len as f64);
-                    if matches!(
-                        &transaction.kind,
-                        ConsensusTransactionKind::CertifiedTransaction(_)
-                            | ConsensusTransactionKind::UserTransactionV1(_)
-                    ) {
+                    if transaction.is_user_certificate() || transaction.kind.is_user_transaction() {
                         self.last_consensus_stats
                             .stats
                             .inc_num_user_transactions(authority_index as usize);
@@ -458,11 +477,11 @@ struct AsyncTransactionScheduler {
 
 impl AsyncTransactionScheduler {
     pub fn start(
-        transaction_manager: Arc<TransactionManager>,
+        execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) -> Self {
         let (sender, recv) = tokio::sync::mpsc::channel(16);
-        spawn_monitored_task!(Self::run(recv, transaction_manager, epoch_store));
+        spawn_monitored_task!(Self::run(recv, execution_scheduler, epoch_store));
         Self { sender }
     }
 
@@ -473,63 +492,107 @@ impl AsyncTransactionScheduler {
 
     pub async fn run(
         mut recv: tokio::sync::mpsc::Receiver<Vec<VerifiedExecutableTransaction>>,
-        transaction_manager: Arc<TransactionManager>,
+        execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) {
         while let Some(transactions) = recv.recv().await {
             let _guard = monitored_scope("ConsensusHandler::enqueue");
-            transaction_manager.enqueue(transactions, &epoch_store);
+            execution_scheduler.enqueue(transactions, &epoch_store);
         }
     }
 }
 
+/// Capacity of the channel from the deserialize worker to the commit handler.
+/// Small and bounded: the worker prepares ~1 commit ahead (pipelining) while
+/// applying backpressure when the handler is the bottleneck, rather than
+/// buffering parsed commits unboundedly.
+const CONSENSUS_HANDLER_DESERIALIZE_CHANNEL_CAPACITY: usize = 2;
+
 /// Consensus handler used by Starfish.
 /// During initialization, the sender is passed into Starfish which can send
 /// consensus output to the channel.
+///
+/// The handler is split into two stages connected by a small bounded channel:
+///   - **Deserialize worker** — BCS-parses each commit's transactions off the
+///     handler's critical path so parsing can overlap with the handler
+///     processing the previous commit.
+///   - **Commit handler** — consumes pre-parsed commits in arrival order.
+///
+/// Both stages run as a single worker each, with a FIFO channel between them,
+/// so the original commit ordering is preserved by construction.
 pub struct StarfishConsensusHandler {
-    handle: Option<tokio::task::JoinHandle<()>>,
+    tasks: JoinSet<()>,
 }
 
 impl StarfishConsensusHandler {
     pub fn new(
         last_processed_commit_at_startup: starfish_core::CommitIndex,
         mut consensus_handler: ConsensusHandler<CheckpointService>,
-        mut receiver: UnboundedReceiver<starfish_core::CommittedSubDag>,
+        mut receiver: monitored_mpsc::UnboundedReceiver<starfish_core::CommittedSubDag>,
         commit_consumer_monitor: Arc<starfish_core::CommitConsumerMonitor>,
     ) -> Self {
-        let handle = spawn_monitored_task!(async move {
+        let mut tasks = JoinSet::new();
+
+        // Stage 1 — deserialize worker: BCS-parses each commit's transactions
+        // off the handler's critical path, so parsing overlaps the handler
+        // processing the previous commit. The channel is bounded (small) so
+        // the worker prepares ~1 commit ahead but applies backpressure
+        // (rather than buffering parsed commits unboundedly) when the handler
+        // is the bottleneck. Single-threaded; ordering is preserved (one
+        // worker, FIFO channel, one handler).
+        let (parsed_sender, mut parsed_receiver) = monitored_mpsc::channel(
+            "consensus_deserialized_commits",
+            CONSENSUS_HANDLER_DESERIALIZE_CHANNEL_CAPACITY,
+        );
+        tasks.spawn(async move {
+            while let Some(consensus_output) = receiver.recv().await {
+                let block_transactions: ConsensusOutputTransactions = {
+                    let _scope = monitored_scope("StarfishConsensusHandler::deserialize_worker");
+                    consensus_output.transactions()
+                };
+                // The send is intentionally outside the scope above: on the
+                // bounded channel it blocks when the handler is the
+                // bottleneck, and that idle-wait would otherwise inflate the
+                // deserialize_worker scope (making it read as CPU work, not
+                // waiting).
+                if parsed_sender
+                    .send((consensus_output, block_transactions))
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+
+        // Stage 2 — commit handler: processes pre-parsed commits in order.
+        tasks.spawn(async move {
             // TODO: pause when execution is overloaded, so consensus can detect the
             // backpressure.
-            while let Some(consensus_output) = receiver.recv().await {
+            while let Some((consensus_output, block_transactions)) = parsed_receiver.recv().await {
                 let commit_index = consensus_output.commit_ref.index;
                 if commit_index <= last_processed_commit_at_startup {
                     consensus_handler.handle_prior_consensus_output(consensus_output);
                 } else {
                     consensus_handler
-                        .handle_consensus_output(consensus_output)
+                        .handle_consensus_output(consensus_output, block_transactions)
                         .await;
                 }
                 commit_consumer_monitor.set_highest_handled_commit(commit_index);
             }
         });
-        Self {
-            handle: Some(handle),
-        }
+        Self { tasks }
     }
 
     pub async fn abort(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-            let _ = handle.await;
-        }
+        self.tasks.abort_all();
+        while self.tasks.join_next().await.is_some() {}
     }
 }
 
 impl Drop for StarfishConsensusHandler {
     fn drop(&mut self) {
-        if let Some(handle) = self.handle.take() {
-            handle.abort();
-        }
+        self.tasks.abort_all();
     }
 }
 
@@ -560,6 +623,10 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::NewJWKFetchedDeprecated => "new_jwk_fetched_deprecated",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
         ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => "randomness_dkg_confirmation",
+        ConsensusTransactionKind::OverloadNotificationV1(_, _, _) => "overload_notification_v1",
+        ConsensusTransactionKind::TransactionDenyRuleProposal(_) => {
+            "transaction_deny_rule_proposal"
+        }
     }
 }
 
@@ -663,22 +730,35 @@ impl SequencedConsensusTransactionKind {
         }
     }
 
+    /// Returns the digest for transactions that get executed -- user-originated
+    /// (`CertifiedTransaction` and `UserTransactionV1`) and system transactions
+    /// -- and `None` for internal consensus messages (checkpoint signatures,
+    /// capability notifications, randomness DKG, etc.). Used to build
+    /// checkpoint roots and to schedule transactions for execution.
     pub fn executable_transaction_digest(&self) -> Option<TransactionDigest> {
         match self {
-            SequencedConsensusTransactionKind::External(ext) => match &ext.kind {
-                ConsensusTransactionKind::CertifiedTransaction(txn) => Some(*txn.digest()),
-                ConsensusTransactionKind::UserTransactionV1(txn) => Some(*txn.digest()),
-                _ => None,
-            },
+            SequencedConsensusTransactionKind::External(ext) => ext.kind.transaction_digest(),
             SequencedConsensusTransactionKind::System(txn) => Some(*txn.digest()),
+        }
+    }
+
+    /// Returns the digest only for user-originated transaction kinds
+    /// (`CertifiedTransaction` and `UserTransactionV1`). Used by post-consensus
+    /// load shedding to guarantee that no internal consensus messages
+    /// (checkpoint signatures, capability notifications, randomness DKG, etc.)
+    /// and system transactions are eligible to be dropped.
+    pub fn user_transaction_digest(&self) -> Option<TransactionDigest> {
+        match self {
+            SequencedConsensusTransactionKind::External(ext) => ext.kind.transaction_digest(),
+            SequencedConsensusTransactionKind::System(_) => None,
         }
     }
 
     pub fn is_end_of_publish(&self) -> bool {
         match self {
-            SequencedConsensusTransactionKind::External(ext) => {
-                matches!(ext.kind, ConsensusTransactionKind::EndOfPublish(..))
-            }
+            // Delegate to the `ConsensusTransaction` helper so the kind check
+            // stays in one place.
+            SequencedConsensusTransactionKind::External(ext) => ext.is_end_of_publish(),
             SequencedConsensusTransactionKind::System(_) => false,
         }
     }
@@ -694,10 +774,11 @@ impl SequencedConsensusTransaction {
     }
 
     pub fn is_end_of_publish(&self) -> bool {
-        if let SequencedConsensusTransactionKind::External(ref transaction) = self.transaction {
-            matches!(transaction.kind, ConsensusTransactionKind::EndOfPublish(..))
-        } else {
-            false
+        // Delegate to the `ConsensusTransaction` helper so the kind check
+        // stays in one place.
+        match &self.transaction {
+            SequencedConsensusTransactionKind::External(ext) => ext.is_end_of_publish(),
+            SequencedConsensusTransactionKind::System(_) => false,
         }
     }
 
@@ -708,45 +789,46 @@ impl SequencedConsensusTransaction {
         )
     }
 
+    /// Returns `true` if this is a user-originated transaction
+    /// (`CertifiedTransaction` or `UserTransactionV1`) that uses randomness.
+    /// Non-user kinds (internal consensus messages, system transactions) are
+    /// always `false`, since only user transactions can request randomness.
     pub fn is_user_tx_with_randomness(&self) -> bool {
         match &self.transaction {
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
-                ..
-            }) => certificate.uses_randomness(),
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
-                ..
-            }) => transaction.uses_randomness(),
-            _ => false,
-        }
-    }
-
-    pub fn as_shared_object_txn(&self) -> Option<&SenderSignedData> {
-        match &self.transaction {
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::CertifiedTransaction(certificate),
-                ..
-            }) if certificate.contains_shared_object() => Some(certificate.data()),
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(transaction),
-                ..
-            }) if transaction.contains_shared_object() => Some(transaction.data()),
-            SequencedConsensusTransactionKind::System(txn) if txn.contains_shared_object() => {
-                Some(txn.data())
+            SequencedConsensusTransactionKind::External(ext) => {
+                ext.kind.as_sender_signed_transaction()
             }
-            _ => None,
+            SequencedConsensusTransactionKind::System(_) => None,
+        }
+        .is_some_and(|data| data.uses_randomness())
+    }
+
+    /// Returns the transaction data if this is a user-originated
+    /// (`CertifiedTransaction` or `UserTransactionV1`) or system transaction
+    /// that touches at least one shared object, and `None` otherwise (internal
+    /// consensus messages, or a transaction with only owned objects).
+    pub fn as_shared_object_txn(&self) -> Option<&SenderSignedTransaction> {
+        match &self.transaction {
+            SequencedConsensusTransactionKind::External(ext) => ext
+                .kind
+                .as_sender_signed_transaction()
+                .filter(|data| data.contains_shared_object()),
+            SequencedConsensusTransactionKind::System(txn) => {
+                txn.contains_shared_object().then(|| txn.data())
+            }
         }
     }
 
+    /// Returns `true` only for a raw, uncertified user transaction
+    /// (`UserTransactionV1`). Certified user transactions and system
+    /// transactions are not included.
     pub fn is_user_transaction(&self) -> bool {
-        matches!(
-            &self.transaction,
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(_),
-                ..
-            })
-        )
+        match &self.transaction {
+            // Classification of user-transaction kinds lives on the enum helper,
+            // so a new kind only has to be handled in one place there.
+            SequencedConsensusTransactionKind::External(ext) => ext.kind.is_user_transaction(),
+            SequencedConsensusTransactionKind::System(_) => false,
+        }
     }
 }
 
@@ -839,7 +921,7 @@ mod tests {
     use arc_swap::ArcSwap;
     use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering, ProtocolConfig};
-    use iota_sdk_ext::types::{Address, ObjectId};
+    use iota_sdk_ext::types::{Address, ObjectId, SenderSignedTransaction, Transaction};
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
@@ -851,15 +933,12 @@ mod tests {
         supported_protocol_versions::{
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
-        transaction::{
-            CertifiedTransaction, SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-            TransactionData, TransactionDataAPI,
-        },
+        transaction::{CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
         utils::to_sender_signed_transaction,
     };
     use prometheus_filtered::Registry;
     use starfish_core::{
-        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader, Transaction,
+        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader,
         VerifiedBlockHeader, VerifiedTransactions,
     };
 
@@ -903,7 +982,7 @@ mod tests {
             epoch_store,
             state.clone(),
             Arc::new(CheckpointServiceNoop {}),
-            state.transaction_manager().clone(),
+            state.execution_scheduler().clone(),
             state.get_object_cache_reader().clone(),
             state.get_transaction_cache_reader().clone(),
             Arc::new(ArcSwap::default()),
@@ -933,7 +1012,7 @@ mod tests {
             );
             let tx_batch = VerifiedTransactions::new_for_test(
                 &header,
-                vec![Transaction::new(transaction_bytes)],
+                vec![starfish_core::Transaction::new(transaction_bytes)],
             );
             headers.push(header);
             subdag_transactions.push(tx_batch);
@@ -960,7 +1039,8 @@ mod tests {
 
         // AND processing the consensus output once
         {
-            let waiter = consensus_handler.handle_consensus_output(committed_sub_dag.clone());
+            let waiter =
+                consensus_handler.handle_consensus_output_for_test(committed_sub_dag.clone());
             pin_mut!(waiter);
 
             // waiter should not complete within 5 seconds
@@ -1001,7 +1081,7 @@ mod tests {
         // THEN the consensus stats do not update
         for _ in 0..2 {
             consensus_handler
-                .handle_consensus_output(committed_sub_dag.clone())
+                .handle_consensus_output_for_test(committed_sub_dag.clone())
                 .await;
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats_1, last_consensus_stats_2);
@@ -1053,7 +1133,7 @@ mod tests {
             epoch_store.clone(),
             state.clone(),
             Arc::new(CheckpointServiceNoop {}),
-            state.transaction_manager().clone(),
+            state.execution_scheduler().clone(),
             state.get_object_cache_reader().clone(),
             state.get_transaction_cache_reader().clone(),
             Arc::new(ArcSwap::default()),
@@ -1068,14 +1148,10 @@ mod tests {
         let mut subdag_transactions = Vec::new();
 
         for (i, (owned_obj, gas_obj)) in owned_objects.iter().zip(gas_objects.iter()).enumerate() {
-            let owned_ref = state
-                .get_object(&owned_obj.id())
-                .await
-                .unwrap()
-                .object_ref();
-            let gas_ref = state.get_object(&gas_obj.id()).await.unwrap().object_ref();
+            let owned_ref = state.get_object(&owned_obj.id()).unwrap().object_ref();
+            let gas_ref = state.get_object(&gas_obj.id()).unwrap().object_ref();
 
-            let tx_data = TransactionData::new_transfer(
+            let tx = Transaction::new_transfer(
                 recipient,
                 owned_ref,
                 sender,
@@ -1083,7 +1159,7 @@ mod tests {
                 rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
                 rgp,
             );
-            let tx = to_sender_signed_transaction(tx_data, &sender_key);
+            let tx = to_sender_signed_transaction(tx, &sender_key);
             let verified_tx = epoch_store.verify_transaction(tx).unwrap();
 
             let consensus_tx = ConsensusTransaction {
@@ -1098,7 +1174,7 @@ mod tests {
             );
             let tx_batch = VerifiedTransactions::new_for_test(
                 &header,
-                vec![Transaction::new(transaction_bytes)],
+                vec![starfish_core::Transaction::new(transaction_bytes)],
             );
             headers.push(header);
             subdag_transactions.push(tx_batch);
@@ -1120,7 +1196,7 @@ mod tests {
 
         // WHEN processing the consensus output
         consensus_handler
-            .handle_consensus_output(committed_sub_dag.clone())
+            .handle_consensus_output_for_test(committed_sub_dag.clone())
             .await;
 
         // THEN the stats reflect the UserTransactionV1 transactions
@@ -1144,7 +1220,7 @@ mod tests {
         // AND processing the same output multiple times does not update the stats
         for _ in 0..2 {
             consensus_handler
-                .handle_consensus_output(committed_sub_dag.clone())
+                .handle_consensus_output_for_test(committed_sub_dag.clone())
                 .await;
             let last_consensus_stats_2 = consensus_handler.last_consensus_stats.clone();
             assert_eq!(last_consensus_stats, last_consensus_stats_2);
@@ -1231,7 +1307,7 @@ mod tests {
                     format!("cap({})", cap.generation)
                 }
                 ConsensusTransactionKind::CertifiedTransaction(txn) => {
-                    format!("user({})", txn.transaction_data().gas_price())
+                    format!("user({})", txn.transaction().gas_price())
                 }
                 _ => unreachable!(),
             },
@@ -1263,8 +1339,8 @@ mod tests {
 
     fn user_txn(gas_price: u64) -> VerifiedSequencedConsensusTransaction {
         let (committee, keypairs) = Committee::new_simple_test_committee();
-        let data = SenderSignedData::new(
-            TransactionData::new_transfer(
+        let tx = SenderSignedTransaction::new(
+            Transaction::new_transfer(
                 Address::ZERO,
                 random_object_ref(),
                 Address::ZERO,
@@ -1275,7 +1351,7 @@ mod tests {
             vec![],
         );
         txn(ConsensusTransactionKind::CertifiedTransaction(Box::new(
-            CertifiedTransaction::new_from_keypairs_for_testing(data, &keypairs, &committee),
+            CertifiedTransaction::new_from_keypairs_for_testing(tx, &keypairs, &committee),
         )))
     }
 

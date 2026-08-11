@@ -10,7 +10,7 @@ teams:
 
 The IOTA Indexer is an off-chain service that makes IOTA network data easy to query. It ingests data from an IOTA node, stores it in a PostgreSQL database, and serves it through query APIs [JSON-RPC](./json-rpc) and [GraphQL](./graphql).
 
-![Indexer architecture](../../../site/static/img/operator/indexer-functions/indexer-arch.png)
+<img src={require('../../../site/static/img/operator/indexer-functions/indexer-arch.png').default} alt="Indexer architecture" style={{maxWidth: 'min(100%, 800px)', height: 'auto'}} />
 
 ## Functions
 
@@ -60,7 +60,7 @@ Most RPC calls mentioned in [interface](/iota-api-ref) will only work with an in
 
 Alternatively to the JSON-RPC, a GraphQL [interface](../../developer/references/iota-graphql.mdx) can be used to provide read access to the Indexer database, and enable execution of transactions to the full node.
 
-![GraphQL server architecture](../../../site/static/img/operator/indexer-functions/graphql-rpc-arch.png)
+<img src={require('../../../site/static/img/operator/indexer-functions/graphql-rpc-arch.png').default} alt="GraphQL server architecture" style={{maxWidth: 'min(100%, 500px)', height: 'auto'}} />
 
 A running Indexer database instance is required for the GraphQL API to be functional, so it is advised that an Indexer sync worker is setup and started first.
 

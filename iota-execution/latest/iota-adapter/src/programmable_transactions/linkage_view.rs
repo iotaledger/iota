@@ -8,7 +8,10 @@ use std::{
     str::FromStr,
 };
 
-use iota_sdk_ext::types::{MovePackage, ObjectId, TypeOrigin, UpgradeInfo};
+use iota_sdk_ext::types::{
+    ObjectId,
+    move_package::{MovePackage, TypeOrigin, UpgradeInfo},
+};
 use iota_types::{
     error::{ExecutionError, IotaError, IotaResult},
     move_package::MovePackageExt,

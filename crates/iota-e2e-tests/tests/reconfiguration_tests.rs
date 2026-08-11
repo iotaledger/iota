@@ -31,7 +31,6 @@ use iota_types::{
     effects::TransactionEffectsAPI,
     error::IotaError,
     execution_config_utils::to_binary_config,
-    governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
         IotaSystemStateTrait, get_validator_from_table,
         iota_system_state_summary::{IotaSystemStateSummary, get_validator_by_pool_id},
@@ -39,13 +38,13 @@ use iota_types::{
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{HandleCapabilityNotificationRequestV1, HandleCertificateRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::{TransactionDataAPI, VerifiedTransaction},
+    transaction::{TransactionAPI, VerifiedTransaction},
 };
 use rand::{
     SeedableRng,
     rngs::{OsRng, StdRng},
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
 #[sim_test]
@@ -144,6 +143,7 @@ async fn test_transaction_expiration() {
 // code path may not always be tested.
 #[sim_test]
 async fn reconfig_with_revert_end_to_end_test() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new().build().await;
     let authorities = test_cluster.swarm.validator_node_handles();
     let rgp = test_cluster.get_reference_gas_price().await;
@@ -205,20 +205,17 @@ async fn reconfig_with_revert_end_to_end_test() {
         .await
         .unwrap();
 
-    authorities[reverting_authority_idx]
-        .with_async(|node| async {
-            let object = node
-                .state()
-                .get_objects(&[gas2.object_id])
-                .await
-                .into_iter()
-                .next()
-                .unwrap()
-                .unwrap();
-            // verify that authority 0 advanced object version
-            assert_eq!(2, object.version());
-        })
-        .await;
+    authorities[reverting_authority_idx].with(|node| {
+        let object = node
+            .state()
+            .get_objects(&[gas2.object_id])
+            .into_iter()
+            .next()
+            .unwrap()
+            .unwrap();
+        // verify that authority 0 advanced object version
+        assert_eq!(2, object.version());
+    });
 
     // Wait for all nodes to reach the next epoch.
     let handles: Vec<_> = authorities
@@ -238,40 +235,36 @@ async fn reconfig_with_revert_end_to_end_test() {
 
     let mut epoch = None;
     for handle in authorities.iter() {
-        handle
-            .with_async(|node| async {
-                let object = node
-                    .state()
-                    .get_objects(&[gas1.object_id])
-                    .await
-                    .into_iter()
-                    .next()
-                    .unwrap()
-                    .unwrap();
-                assert_eq!(2, object.version());
-                // Due to race conditions, it's possible that tx2 went in
-                // before 2f+1 validators sent EndOfPublish messages and close
-                // the curtain of epoch 0. So, we are asserting that
-                // the object version is either 1 or 2, but needs to be
-                // consistent in all validators.
-                // Note that previously test checked that object version == 2 on authority 0
-                let object = node
-                    .state()
-                    .get_objects(&[gas2.object_id])
-                    .await
-                    .into_iter()
-                    .next()
-                    .unwrap()
-                    .unwrap();
-                let object_version = object.version();
-                if epoch.is_none() {
-                    assert!(object_version == 1 || object_version == 2);
-                    epoch.replace(object_version);
-                } else {
-                    assert_eq!(epoch, Some(object_version));
-                }
-            })
-            .await;
+        handle.with(|node| {
+            let object = node
+                .state()
+                .get_objects(&[gas1.object_id])
+                .into_iter()
+                .next()
+                .unwrap()
+                .unwrap();
+            assert_eq!(2, object.version());
+            // Due to race conditions, it's possible that tx2 went in
+            // before 2f+1 validators sent EndOfPublish messages and close
+            // the curtain of epoch 0. So, we are asserting that
+            // the object version is either 1 or 2, but needs to be
+            // consistent in all validators.
+            // Note that previously test checked that object version == 2 on authority 0
+            let object = node
+                .state()
+                .get_objects(&[gas2.object_id])
+                .into_iter()
+                .next()
+                .unwrap()
+                .unwrap();
+            let object_version = object.version();
+            if epoch.is_none() {
+                assert!(object_version == 1 || object_version == 2);
+                epoch.replace(object_version);
+            } else {
+                assert_eq!(epoch, Some(object_version));
+            }
+        });
     }
 }
 
@@ -335,6 +328,7 @@ async fn do_test_passive_reconfig(chain: Option<Chain>) {
 // Test that transaction locks from previously epochs could be overridden.
 #[sim_test]
 async fn test_expired_locks() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(10000)
         .build()
@@ -472,6 +466,9 @@ async fn test_create_advance_epoch_tx_race() {
     // proceeded with reconfiguration.
     sleep(Duration::from_secs(1)).await;
     reconfig_delay_tx.send(()).unwrap();
+
+    // wait for reconfiguration to complete
+    test_cluster.wait_for_epoch(None).await;
 }
 
 #[sim_test]
@@ -505,6 +502,7 @@ async fn test_reconfig_with_failing_validator() {
 
 #[sim_test]
 async fn test_validator_resign_effects() {
+    let _pcool_guard = override_pcool_flow(false);
     // This test checks that validators are able to re-sign transaction effects that
     // were finalized in previous epochs. This allows authority aggregator to
     // form a new effects certificate in the new epoch.
@@ -535,7 +533,7 @@ async fn test_validator_resign_effects() {
 #[sim_test]
 async fn test_validator_candidate_pool_read() {
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
-    let address: Address = (&new_validator.account_key_pair.public()).into();
+    let address: Address = new_validator.account_key_pair.public_key().derive_address();
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
@@ -657,7 +655,7 @@ async fn test_reconfig_with_committee_change_basic() {
 
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
     let new_authority_name = new_validator.authority_key_pair.public().into();
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
     let mut test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
@@ -788,10 +786,7 @@ async fn test_reconfig_with_committee_change_basic() {
 #[sim_test]
 async fn test_reconfig_with_same_validator() {
     use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
-    use iota_types::{
-        crypto::{AuthorityPublicKeyBytes, KeypairTraits},
-        governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
-    };
+    use iota_types::crypto::{AuthorityPublicKeyBytes, KeypairTraits};
     use rand::{SeedableRng, rngs::StdRng};
 
     // ValidatorGenesisConfig doesn't impl Clone
@@ -807,20 +802,23 @@ async fn test_reconfig_with_same_validator() {
     // the node that will re-join committee
     let node_config = build_node_config();
     let node_name: AuthorityPublicKeyBytes = node_config.authority_key_pair.public().into();
-    let node_address = (&node_config.account_key_pair.public()).into();
+    let node_address = node_config.account_key_pair.public_key().derive_address();
     let mut node_handle = None;
 
     // add coins to the node at the genesis to avoid dealing with faucet
     let mut genesis_config = GenesisConfig::default();
+    let min_validator_joining_stake = genesis_config
+        .protocol_config()
+        .min_validator_joining_stake();
     genesis_config
         .accounts
         .extend(std::iter::once(AccountConfig {
             address: Some(node_address),
             gas_amounts: vec![
                 DEFAULT_GAS_AMOUNT,
-                MIN_VALIDATOR_JOINING_STAKE_NANOS,
+                min_validator_joining_stake,
                 DEFAULT_GAS_AMOUNT,
-                MIN_VALIDATOR_JOINING_STAKE_NANOS,
+                min_validator_joining_stake,
             ],
         }));
 
@@ -911,7 +909,7 @@ async fn do_test_reconfig_with_committee_change_stress() {
         .collect::<Vec<_>>();
     let addresses = candidates
         .iter()
-        .map(|c| (&c.account_key_pair.public()).into())
+        .map(|c| c.account_key_pair.public_key().derive_address())
         .collect::<Vec<Address>>();
     let mut test_cluster = TestClusterBuilder::new()
         .with_num_validators(7)
@@ -1230,7 +1228,7 @@ async fn test_authority_capabilities_incorrect_epoch_rejection() {
     // is rejected by the committee
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
     let new_authority_name = new_validator.authority_key_pair.public().into();
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
     let test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
         .build()
@@ -1317,7 +1315,7 @@ async fn add_validator_candidate(
             ),
         }
     });
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
     let gas = test_cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
@@ -1420,14 +1418,11 @@ async fn execute_add_validator_transactions(
     });
     add_validator_candidate(test_cluster, new_validator).await;
 
-    let address = (&new_validator.account_key_pair.public()).into();
+    let address = new_validator.account_key_pair.public_key().derive_address();
+    let min_validator_joining_stake = test_cluster.protocol_config().min_validator_joining_stake();
     let stake_coin = test_cluster
         .wallet
-        .gas_for_owner_budget(
-            address,
-            MIN_VALIDATOR_JOINING_STAKE_NANOS,
-            Default::default(),
-        )
+        .gas_for_owner_budget(address, min_validator_joining_stake, Default::default())
         .await
         .unwrap()
         .1

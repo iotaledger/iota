@@ -12,7 +12,7 @@ use std::{
 
 use fastcrypto::hash::{Digest, HashFunction};
 use iota_common::debug_fatal;
-use iota_macros::fail_point;
+use iota_macros::{fail_point, nondeterministic};
 use prometheus_filtered::{Histogram, HistogramTimer};
 use rocksdb::{DBPinnableSlice, Error, LiveFile, ReadOptions, WriteBatch, checkpoint::Checkpoint};
 use serde::{Serialize, de::DeserializeOwned};
@@ -32,7 +32,10 @@ use crate::{
         safe_iter::{SafeIter, SafeRevIter},
     },
     traits::{Map, TableSummary},
-    util::{be_fix_int_ser, iterator_bounds_with_range, prefix_iterator_bounds},
+    util::{
+        be_fix_int_ser, iterator_bounds_with_range, prefix_iterator_bounds,
+        prefix_iterator_bounds_with_range,
+    },
 };
 
 #[derive(Clone)]
@@ -56,19 +59,6 @@ impl ColumnFamily {
         match self {
             ColumnFamily::Rocks(name) => name,
             ColumnFamily::InMemory(name) => name,
-        }
-    }
-
-    pub(crate) fn rocks_cf<'a>(
-        &self,
-        rocks_db: &'a RocksDB,
-    ) -> Arc<rocksdb::BoundColumnFamily<'a>> {
-        match &self {
-            ColumnFamily::Rocks(name) => rocks_db
-                .underlying
-                .cf_handle(name)
-                .expect("Map-keying column family should have been checked at DB creation"),
-            _ => unreachable!("invariant is checked by the caller"),
         }
     }
 }
@@ -171,7 +161,7 @@ impl Database {
         match (&self.storage, cf) {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => Ok(db
                 .underlying
-                .get_pinned_cf_opt(&cf.rocks_cf(db), key, readopts)
+                .get_pinned_cf_opt(&rocks_cf(db, cf.name()), key, readopts)
                 .map_err(typed_store_err_from_rocks_err)?
                 .map(GetResult::Rocks)),
             (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => {
@@ -198,7 +188,7 @@ impl Database {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => {
                 let keys_vec: Vec<K> = keys.into_iter().collect();
                 let res = db.underlying.batched_multi_get_cf_opt(
-                    &cf.rocks_cf(db),
+                    &rocks_cf(db, cf.name()),
                     keys_vec.iter(),
                     // sorted_input
                     false,
@@ -227,9 +217,38 @@ impl Database {
         }
     }
 
-    pub fn drop_cf(&self, name: &str) -> Result<(), rocksdb::Error> {
+    /// Creates a new column family at runtime. Fails if a column family with
+    /// this name already exists.
+    ///
+    /// `options` hold until the database is next opened, after which a
+    /// column family the caller does not declare is opened with the
+    /// crate's options instead. Declare it to keep them.
+    #[instrument(level = "debug", skip(self, options), err)]
+    pub fn create_cf(&self, name: &str, options: &rocksdb::Options) -> Result<(), TypedStoreError> {
         match &self.storage {
-            Storage::Rocks(db) => db.underlying.drop_cf(name),
+            Storage::Rocks(db) => nondeterministic!(db.underlying.create_cf(name, options))
+                .map_err(typed_store_err_from_rocks_err),
+            Storage::InMemory(db) => {
+                db.create_cf(name);
+                Ok(())
+            }
+        }
+    }
+
+    /// Maps on the column family have to be dropped first: a map resolves
+    /// it on every operation and panics once it is gone.
+    #[instrument(level = "debug", skip(self), err)]
+    pub fn drop_cf(&self, name: &str) -> Result<(), TypedStoreError> {
+        if name == rocksdb::DEFAULT_COLUMN_FAMILY_NAME {
+            // rocksdb refuses this, but not before its wrapper has taken the
+            // handle out of its own map, losing it for the rest of the process.
+            return Err(TypedStoreError::RocksDB(format!(
+                "the {name} column family cannot be dropped"
+            )));
+        }
+        match &self.storage {
+            Storage::Rocks(db) => nondeterministic!(db.underlying.drop_cf(name))
+                .map_err(typed_store_err_from_rocks_err),
             Storage::InMemory(db) => {
                 db.drop_cf(name);
                 Ok(())
@@ -246,7 +265,7 @@ impl Database {
         let ret = match (&self.storage, cf) {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => db
                 .underlying
-                .delete_cf(&cf.rocks_cf(db), key)
+                .delete_cf(&rocks_cf(db, cf.name()), key)
                 .map_err(typed_store_err_from_rocks_err),
             (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => {
                 db.delete(cf_name, key.as_ref());
@@ -278,7 +297,7 @@ impl Database {
         let ret = match (&self.storage, cf) {
             (Storage::Rocks(db), ColumnFamily::Rocks(_)) => db
                 .underlying
-                .put_cf(&cf.rocks_cf(db), key, value)
+                .put_cf(&rocks_cf(db, cf.name()), key, value)
                 .map_err(typed_store_err_from_rocks_err),
             (Storage::InMemory(db), ColumnFamily::InMemory(cf_name)) => {
                 db.put(cf_name, key, value);
@@ -311,14 +330,74 @@ impl Database {
         }
     }
 
+    /// Flush the memtable of a single column family to SST files on disk.
+    pub(crate) fn flush_cf(&self, cf: &ColumnFamily) -> Result<(), TypedStoreError> {
+        match &self.storage {
+            // A flush blocks on RocksDB background threads; under the simulator it
+            // must run off the test thread, like the opens in `rocks/mod.rs`, or
+            // real flush durations leak into the simulated schedule. No-op outside
+            // msim.
+            Storage::Rocks(rocks) => nondeterministic!({
+                let cf_name = cf.name();
+                if let Some(handle) = rocks.underlying.cf_handle(cf_name) {
+                    rocks.underlying.flush_cf(&handle).map_err(|e| {
+                        TypedStoreError::RocksDB(format!(
+                            "Failed to flush column family {cf_name}: {e}"
+                        ))
+                    })?;
+                }
+                Ok(())
+            }),
+            // InMemory databases don't need flushing.
+            Storage::InMemory(_) => Ok(()),
+        }
+    }
+
+    /// Flush the memtables of every column family of the database to SST files
+    /// on disk.
+    pub fn flush_all(&self) -> Result<(), TypedStoreError> {
+        match &self.storage {
+            // See `flush_cf` for why the flushes run off the test thread under
+            // the simulator.
+            Storage::Rocks(rocks) => nondeterministic!({
+                for cf_name in rocks.cf_names().map_err(|e| {
+                    TypedStoreError::RocksDB(format!(
+                        "Failed to list column families of {}: {e}",
+                        rocks.underlying.path().display()
+                    ))
+                })? {
+                    if let Some(cf) = rocks.underlying.cf_handle(&cf_name) {
+                        rocks.underlying.flush_cf(&cf).map_err(|e| {
+                            TypedStoreError::RocksDB(format!(
+                                "Failed to flush column family {cf_name}: {e}"
+                            ))
+                        })?;
+                    }
+                }
+                Ok(())
+            }),
+            // InMemory databases don't need flushing.
+            Storage::InMemory(_) => Ok(()),
+        }
+    }
+
     pub fn write(&self, batch: StorageWriteBatch) -> Result<(), TypedStoreError> {
+        self.write_opt(batch, &rocksdb::WriteOptions::default())
+    }
+
+    pub fn write_opt(
+        &self,
+        batch: StorageWriteBatch,
+        write_options: &rocksdb::WriteOptions,
+    ) -> Result<(), TypedStoreError> {
         fail_point!("batch-write-before");
         let ret = match (&self.storage, batch) {
             (Storage::Rocks(rocks), StorageWriteBatch::Rocks(batch)) => rocks
                 .underlying
-                .write(batch)
+                .write_opt(batch, write_options)
                 .map_err(typed_store_err_from_rocks_err),
             (Storage::InMemory(db), StorageWriteBatch::InMemory(batch)) => {
+                // InMemory doesn't support write options.
                 db.write(batch);
                 Ok(())
             }
@@ -408,7 +487,7 @@ fn rocks_cf_from_db<'a>(
         Storage::Rocks(rocksdb) => Ok(rocksdb
             .underlying
             .cf_handle(cf_name)
-            .expect("Map-keying column family should have been checked at DB creation")),
+            .expect("the column family was deleted unexpectedly")),
         _ => Err(TypedStoreError::RocksDB(
             "using invalid batch type for the database".to_string(),
         )),
@@ -430,14 +509,12 @@ pub struct DBMap<K, V> {
     _metrics_task_cancel_handle: Arc<oneshot::Sender<()>>,
 }
 
-unsafe impl<K: Send, V: Send> Send for DBMap<K, V> {}
-
 impl<K, V> DBMap<K, V> {
     pub(crate) fn new(
         db: Arc<Database>,
         opts: &ReadWriteOptions,
         column_family: ColumnFamily,
-        is_deprecated: bool,
+        skip_metrics_reporting: bool,
     ) -> Self {
         let db_cloned = Arc::downgrade(&db);
         let db_metrics = DBMetrics::get();
@@ -445,7 +522,7 @@ impl<K, V> DBMap<K, V> {
         let cf = column_family.name().to_string();
 
         let (sender, mut recv) = tokio::sync::oneshot::channel();
-        if !is_deprecated && matches!(db.storage, Storage::Rocks(_)) {
+        if !skip_metrics_reporting && matches!(db.storage, Storage::Rocks(_)) {
             tokio::task::spawn(async move {
                 let mut interval =
                     tokio::time::interval(Duration::from_secs(CF_METRICS_REPORT_PERIOD_SECS));
@@ -487,16 +564,23 @@ impl<K, V> DBMap<K, V> {
     /// Reopens an open database as a typed map operating under a specific
     /// column family. if no column family is passed, the default column
     /// family is used.
+    ///
+    /// When `skip_metrics_reporting` is true, no periodic per-column-family
+    /// metrics task is spawned; use this for deprecated tables and for large
+    /// sets of rarely-touched column families.
     #[instrument(level = "debug", skip(db), err)]
     pub fn reopen(
         db: &Arc<Database>,
         opt_cf: Option<&str>,
         rw_options: &ReadWriteOptions,
-        is_deprecated: bool,
+        skip_metrics_reporting: bool,
     ) -> Result<Self, TypedStoreError> {
         let cf_key = opt_cf
             .unwrap_or(rocksdb::DEFAULT_COLUMN_FAMILY_NAME)
             .to_owned();
+        if db.cf_handle(&cf_key).is_none() {
+            return Err(TypedStoreError::UnregisteredColumn(cf_key));
+        }
 
         let column_family = match &db.storage {
             Storage::Rocks(_) => ColumnFamily::Rocks(cf_key),
@@ -506,7 +590,7 @@ impl<K, V> DBMap<K, V> {
             db.clone(),
             rw_options,
             column_family,
-            is_deprecated,
+            skip_metrics_reporting,
         ))
     }
 
@@ -525,6 +609,17 @@ impl<K, V> DBMap<K, V> {
             &self.db_metrics,
             &self.write_sample_interval,
         )
+    }
+
+    /// Flush the memtable of this table's column family to SST files on disk.
+    pub fn flush(&self) -> Result<(), TypedStoreError> {
+        self.db.flush_cf(&self.column_family)
+    }
+
+    /// Flush the memtables of every column family of the database to SST files
+    /// on disk.
+    pub fn flush_all(&self) -> Result<(), TypedStoreError> {
+        self.db.flush_all()
     }
 
     pub fn compact_range<J: Serialize>(&self, start: &J, end: &J) -> Result<(), TypedStoreError> {
@@ -550,14 +645,10 @@ impl<K, V> DBMap<K, V> {
     }
 
     /// Returns a vector of raw values corresponding to the keys provided.
-    fn multi_get_pinned<J>(
+    fn multi_get_pinned(
         &self,
-        keys: impl IntoIterator<Item = J>,
-    ) -> Result<Vec<Option<GetResult<'_>>>, TypedStoreError>
-    where
-        J: Borrow<K>,
-        K: Serialize,
-    {
+        keys_bytes: impl IntoIterator<Item = Vec<u8>>,
+    ) -> Result<Vec<Option<GetResult<'_>>>, TypedStoreError> {
         let _timer = self
             .db_metrics
             .op_metrics
@@ -569,7 +660,6 @@ impl<K, V> DBMap<K, V> {
         } else {
             None
         };
-        let keys_bytes = keys.into_iter().map(|k| be_fix_int_ser(k.borrow()));
         let results: Result<Vec<_>, TypedStoreError> = self
             .db
             .multi_get(&self.column_family, keys_bytes, &self.opts.readopts())
@@ -741,21 +831,6 @@ impl<K, V> DBMap<K, V> {
         }
     }
 
-    /// Reverse counterpart of [`Map::safe_range_iter`]: yields exactly the keys
-    /// of `safe_range_iter(range)` in descending order.
-    ///
-    /// Both directions derive their bounds from the same
-    /// `iterator_bounds_with_range`, so they are guaranteed to cover the
-    /// identical set of keys regardless of the bound inclusivity.
-    pub fn safe_range_iter_reversed(&self, range: impl RangeBounds<K>) -> DbIterator<'_, (K, V)>
-    where
-        K: Serialize + DeserializeOwned,
-        V: DeserializeOwned,
-    {
-        let (lower_bound, upper_bound) = iterator_bounds_with_range(range);
-        self.iter_reversed_raw(lower_bound, upper_bound)
-    }
-
     /// Forward iterator over every entry whose key begins with `prefix`.
     ///
     /// `prefix` is serialized with `be_fix_int_ser` and must form a prefix of
@@ -829,7 +904,7 @@ impl<K, V> DBMap<K, V> {
 /// use tempfile::tempdir;
 /// use typed_store::{Map, metrics::DBMetrics, rocks::*};
 ///
-/// #[tokio::main]
+/// #[tokio::main(flavor = "current_thread")]
 /// async fn main() -> Result<(), Error> {
 ///     let rocks = open_cf_opts(
 ///         tempfile::tempdir().unwrap(),
@@ -908,6 +983,13 @@ impl DBBatch {
     /// Consume the batch and write its operations to the database
     #[instrument(level = "trace", skip_all, err)]
     pub fn write(self) -> Result<(), TypedStoreError> {
+        self.write_opt(&rocksdb::WriteOptions::default())
+    }
+
+    /// Consume the batch and write its operations to the database with custom
+    /// write options
+    #[instrument(level = "trace", skip_all, err)]
+    pub fn write_opt(self, write_options: &rocksdb::WriteOptions) -> Result<(), TypedStoreError> {
         let db_name = self.database.db_name();
         let timer = self
             .db_metrics
@@ -915,28 +997,35 @@ impl DBBatch {
             .rocksdb_batch_commit_latency_seconds
             .with_label_values(&[&db_name])
             .start_timer();
-        let batch_size = self.size_in_bytes();
+        let batch_size_bytes = self.size_in_bytes();
 
         let perf_ctx = if self.write_sample_interval.sample() {
             Some(RocksDBPerfContext)
         } else {
             None
         };
-        self.database.write(self.batch)?;
+        self.database.write_opt(self.batch, write_options)?;
         self.db_metrics
             .op_metrics
             .rocksdb_batch_commit_bytes
             .with_label_values(&[&db_name])
-            .observe(batch_size as f64);
+            .observe(batch_size_bytes as f64);
 
         if perf_ctx.is_some() {
             self.db_metrics
                 .write_perf_ctx_metrics
                 .report_metrics(&db_name);
         }
-        let elapsed = timer.stop_and_record();
-        if elapsed > 1.0 {
-            warn!(?elapsed, ?db_name, "very slow batch write");
+        let elapsed_secs = timer.stop_and_record();
+        let threshold_secs = very_slow_batch_write_threshold_secs(batch_size_bytes);
+        if elapsed_secs > threshold_secs {
+            warn!(
+                elapsed_secs,
+                threshold_secs,
+                batch_size_bytes,
+                ?db_name,
+                "very slow batch write"
+            );
             self.db_metrics
                 .op_metrics
                 .rocksdb_very_slow_batch_writes_count
@@ -946,7 +1035,7 @@ impl DBBatch {
                 .op_metrics
                 .rocksdb_very_slow_batch_writes_duration_ms
                 .with_label_values(&[&db_name])
-                .inc_by((elapsed * 1000.0) as u64);
+                .inc_by((elapsed_secs * 1000.0) as u64);
         }
         Ok(())
     }
@@ -963,14 +1052,28 @@ impl DBBatch {
         db: &DBMap<K, V>,
         purged_vals: impl IntoIterator<Item = J>,
     ) -> Result<(), TypedStoreError> {
+        self.delete_batch_raw_keys(
+            db,
+            purged_vals
+                .into_iter()
+                .map(|key| be_fix_int_ser(key.borrow())),
+        )
+    }
+
+    /// [`Self::delete_batch`] for keys already in the column family's
+    /// `be_fix_int_ser` encoding.
+    fn delete_batch_raw_keys<K, V>(
+        &mut self,
+        db: &DBMap<K, V>,
+        purged_vals: impl IntoIterator<Item = Vec<u8>>,
+    ) -> Result<(), TypedStoreError> {
         if !Arc::ptr_eq(&db.db, &self.database) {
             return Err(TypedStoreError::CrossDBBatch);
         }
 
         purged_vals
             .into_iter()
-            .try_for_each::<_, Result<_, TypedStoreError>>(|k| {
-                let k_buf = be_fix_int_ser(k.borrow());
+            .try_for_each::<_, Result<_, TypedStoreError>>(|k_buf| {
                 match (&mut self.batch, &db.column_family) {
                     (StorageWriteBatch::Rocks(b), ColumnFamily::Rocks(name)) => {
                         b.delete_cf(&rocks_cf_from_db(&self.database, name)?, k_buf)
@@ -997,19 +1100,25 @@ impl DBBatch {
         from: &K,
         to: &K,
     ) -> Result<(), TypedStoreError> {
+        self.schedule_delete_range_raw(db, be_fix_int_ser(from), be_fix_int_ser(to))
+    }
+
+    /// [`Self::schedule_delete_range`] for a range whose bounds are not keys,
+    /// such as a whole key prefix. The bounds are raw bytes ordered like the
+    /// map's keys, i.e. in the `be_fix_int_ser` encoding; `from` is inclusive
+    /// and `to` exclusive.
+    fn schedule_delete_range_raw<K, V>(
+        &mut self,
+        db: &DBMap<K, V>,
+        from: Vec<u8>,
+        to: Vec<u8>,
+    ) -> Result<(), TypedStoreError> {
         if !Arc::ptr_eq(&db.db, &self.database) {
             return Err(TypedStoreError::CrossDBBatch);
         }
 
-        let from_buf = be_fix_int_ser(from);
-        let to_buf = be_fix_int_ser(to);
-
         if let StorageWriteBatch::Rocks(b) = &mut self.batch {
-            b.delete_range_cf(
-                &rocks_cf_from_db(&self.database, db.cf_name())?,
-                from_buf,
-                to_buf,
-            );
+            b.delete_range_cf(&rocks_cf_from_db(&self.database, db.cf_name())?, from, to);
         }
         Ok(())
     }
@@ -1020,14 +1129,28 @@ impl DBBatch {
         db: &DBMap<K, V>,
         new_vals: impl IntoIterator<Item = (J, U)>,
     ) -> Result<&mut Self, TypedStoreError> {
+        self.insert_batch_raw_keys(
+            db,
+            new_vals
+                .into_iter()
+                .map(|(key, value)| (be_fix_int_ser(key.borrow()), value)),
+        )
+    }
+
+    /// [`Self::insert_batch`] for keys already in the column family's
+    /// `be_fix_int_ser` encoding.
+    fn insert_batch_raw_keys<K, U: Borrow<V>, V: Serialize>(
+        &mut self,
+        db: &DBMap<K, V>,
+        new_vals: impl IntoIterator<Item = (Vec<u8>, U)>,
+    ) -> Result<&mut Self, TypedStoreError> {
         if !Arc::ptr_eq(&db.db, &self.database) {
             return Err(TypedStoreError::CrossDBBatch);
         }
         let mut total = 0usize;
         new_vals
             .into_iter()
-            .try_for_each::<_, Result<_, TypedStoreError>>(|(k, v)| {
-                let k_buf = be_fix_int_ser(k.borrow());
+            .try_for_each::<_, Result<_, TypedStoreError>>(|(k_buf, v)| {
                 let v_buf = bcs::to_bytes(v.borrow()).map_err(typed_store_err_from_bcs_err)?;
                 total += k_buf.len() + v_buf.len();
                 if db.opts.log_value_hash {
@@ -1060,18 +1183,39 @@ impl DBBatch {
             .observe(total as f64);
         Ok(self)
     }
+
+    /// [`Self::insert_batch`] for a map sharing its column family by tag.
+    pub fn insert_batch_tagged<J: Borrow<K>, K: Serialize, U: Borrow<V>, V: Serialize>(
+        &mut self,
+        map: &TaggedDBMap<K, V>,
+        new_vals: impl IntoIterator<Item = (J, U)>,
+    ) -> Result<&mut Self, TypedStoreError> {
+        self.insert_batch_raw_keys(
+            &map.map,
+            new_vals
+                .into_iter()
+                .map(|(key, value)| (be_fix_int_ser(&(map.tag, key.borrow())), value)),
+        )
+    }
+
+    /// [`Self::delete_batch`] for a map sharing its column family by tag.
+    pub fn delete_batch_tagged<J: Borrow<K>, K: Serialize, V>(
+        &mut self,
+        map: &TaggedDBMap<K, V>,
+        purged_vals: impl IntoIterator<Item = J>,
+    ) -> Result<(), TypedStoreError> {
+        self.delete_batch_raw_keys(
+            &map.map,
+            purged_vals
+                .into_iter()
+                .map(|key| be_fix_int_ser(&(map.tag, key.borrow()))),
+        )
+    }
 }
 
-impl<'a, K, V> Map<'a, K, V> for DBMap<K, V>
-where
-    K: Serialize + DeserializeOwned,
-    V: Serialize + DeserializeOwned,
-{
-    type Error = TypedStoreError;
-
+impl<K, V> DBMap<K, V> {
     #[instrument(level = "trace", skip_all, err)]
-    fn contains_key(&self, key: &K) -> Result<bool, TypedStoreError> {
-        let key_buf = be_fix_int_ser(key);
+    pub(crate) fn contains_raw_key(&self, key_buf: Vec<u8>) -> Result<bool, TypedStoreError> {
         let readopts = self.opts.readopts();
         Ok(self
             .db
@@ -1083,19 +1227,19 @@ where
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    fn multi_contains_keys<J>(
+    pub(crate) fn multi_contains_raw_keys(
         &self,
-        keys: impl IntoIterator<Item = J>,
-    ) -> Result<Vec<bool>, Self::Error>
-    where
-        J: Borrow<K>,
-    {
+        keys: impl IntoIterator<Item = Vec<u8>>,
+    ) -> Result<Vec<bool>, TypedStoreError> {
         let values = self.multi_get_pinned(keys)?;
         Ok(values.into_iter().map(|v| v.is_some()).collect())
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    fn get(&self, key: &K) -> Result<Option<V>, TypedStoreError> {
+    pub(crate) fn get_raw_key(&self, key_buf: Vec<u8>) -> Result<Option<V>, TypedStoreError>
+    where
+        V: DeserializeOwned,
+    {
         let _timer = self
             .db_metrics
             .op_metrics
@@ -1107,7 +1251,6 @@ where
         } else {
             None
         };
-        let key_buf = be_fix_int_ser(key);
         let res = self
             .db
             .get(&self.column_family, &key_buf, &self.opts.readopts())?;
@@ -1142,7 +1285,10 @@ where
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    fn insert(&self, key: &K, value: &V) -> Result<(), TypedStoreError> {
+    pub(crate) fn insert_raw_key(&self, key_buf: Vec<u8>, value: &V) -> Result<(), TypedStoreError>
+    where
+        V: Serialize,
+    {
         let timer = self
             .db_metrics
             .op_metrics
@@ -1154,7 +1300,6 @@ where
         } else {
             None
         };
-        let key_buf = be_fix_int_ser(key);
         let value_buf = bcs::to_bytes(value).map_err(typed_store_err_from_bcs_err)?;
         self.db_metrics
             .op_metrics
@@ -1168,9 +1313,9 @@ where
         }
         self.db.put_cf(&self.column_family, key_buf, value_buf)?;
 
-        let elapsed = timer.stop_and_record();
-        if elapsed > 1.0 {
-            warn!(?elapsed, cf = ?self.cf_name(), "very slow insert");
+        let elapsed_secs = timer.stop_and_record();
+        if elapsed_secs > 1.0 {
+            warn!(elapsed_secs, cf = ?self.cf_name(), "very slow insert");
             self.db_metrics
                 .op_metrics
                 .rocksdb_very_slow_puts_count
@@ -1180,14 +1325,14 @@ where
                 .op_metrics
                 .rocksdb_very_slow_puts_duration_ms
                 .with_label_values(&[self.cf_name()])
-                .inc_by((elapsed * 1000.0) as u64);
+                .inc_by((elapsed_secs * 1000.0) as u64);
         }
 
         Ok(())
     }
 
     #[instrument(level = "trace", skip_all, err)]
-    fn remove(&self, key: &K) -> Result<(), TypedStoreError> {
+    pub(crate) fn remove_raw_key(&self, key_buf: Vec<u8>) -> Result<(), TypedStoreError> {
         let _timer = self
             .db_metrics
             .op_metrics
@@ -1199,7 +1344,6 @@ where
         } else {
             None
         };
-        let key_buf = be_fix_int_ser(key);
         self.db.delete_cf(&self.column_family, key_buf)?;
         self.db_metrics
             .op_metrics
@@ -1214,23 +1358,84 @@ where
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all, err)]
+    pub(crate) fn multi_get_raw_keys(
+        &self,
+        keys: impl IntoIterator<Item = Vec<u8>>,
+    ) -> Result<Vec<Option<V>>, TypedStoreError>
+    where
+        V: DeserializeOwned,
+    {
+        let results = self.multi_get_pinned(keys)?;
+        let values_parsed: Result<Vec<_>, TypedStoreError> = results
+            .into_iter()
+            .map(|value_byte| match value_byte {
+                Some(data) => Ok(Some(
+                    bcs::from_bytes(&data).map_err(typed_store_err_from_bcs_err)?,
+                )),
+                None => Ok(None),
+            })
+            .collect();
+
+        values_parsed
+    }
+}
+
+impl<'a, K, V> Map<'a, K, V> for DBMap<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    type Error = TypedStoreError;
+
+    fn contains_key(&self, key: &K) -> Result<bool, TypedStoreError> {
+        self.contains_raw_key(be_fix_int_ser(key))
+    }
+
+    fn multi_contains_keys<J>(
+        &self,
+        keys: impl IntoIterator<Item = J>,
+    ) -> Result<Vec<bool>, Self::Error>
+    where
+        J: Borrow<K>,
+    {
+        self.multi_contains_raw_keys(keys.into_iter().map(|k| be_fix_int_ser(k.borrow())))
+    }
+
+    fn get(&self, key: &K) -> Result<Option<V>, TypedStoreError> {
+        self.get_raw_key(be_fix_int_ser(key))
+    }
+
+    fn insert(&self, key: &K, value: &V) -> Result<(), TypedStoreError> {
+        self.insert_raw_key(be_fix_int_ser(key), value)
+    }
+
+    fn remove(&self, key: &K) -> Result<(), TypedStoreError> {
+        self.remove_raw_key(be_fix_int_ser(key))
+    }
+
     /// Writes a range delete tombstone to delete all entries in the db map.
     /// The effect of this write is visible immediately, i.e. you won't see
     /// old values when you do a lookup or scan.
     #[instrument(level = "trace", skip_all, err)]
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
-        let first_key = self.safe_iter().next().transpose()?.map(|(k, _v)| k);
-        let last_key = self
+        let Some(last_key) = self
             .safe_range_iter_reversed(..)
             .next()
             .transpose()?
-            .map(|(k, _v)| k);
-        if let Some((first_key, last_key)) = first_key.zip(last_key) {
-            let mut batch = self.batch();
-            batch.schedule_delete_range(self, &first_key, &last_key)?;
-            batch.write()?;
-        }
-        Ok(())
+            .map(|(k, _v)| k)
+        else {
+            return Ok(());
+        };
+        // The tombstone excludes its upper bound, so it has to end past the last key:
+        // appending a zero byte gives the first key sorting above it.
+        let mut to = be_fix_int_ser(&last_key);
+        to.push(0);
+        // The empty key sorts below every key, so the range starts before the first
+        // entry.
+        let mut batch = self.batch();
+        batch.schedule_delete_range_raw(self, Vec::new(), to)?;
+        batch.write()
     }
 
     fn is_empty(&self) -> bool {
@@ -1276,8 +1481,15 @@ where
         self.iter_forward_raw(lower_bound, upper_bound)
     }
 
+    /// Both directions derive their bounds from the same
+    /// `iterator_bounds_with_range`, so they are guaranteed to cover the
+    /// identical set of keys regardless of the bound inclusivity.
+    fn safe_range_iter_reversed(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)> {
+        let (lower_bound, upper_bound) = iterator_bounds_with_range(range);
+        self.iter_reversed_raw(lower_bound, upper_bound)
+    }
+
     /// Returns a vector of values corresponding to the keys provided.
-    #[instrument(level = "trace", skip_all, err)]
     fn multi_get<J>(
         &self,
         keys: impl IntoIterator<Item = J>,
@@ -1285,18 +1497,7 @@ where
     where
         J: Borrow<K>,
     {
-        let results = self.multi_get_pinned(keys)?;
-        let values_parsed: Result<Vec<_>, TypedStoreError> = results
-            .into_iter()
-            .map(|value_byte| match value_byte {
-                Some(data) => Ok(Some(
-                    bcs::from_bytes(&data).map_err(typed_store_err_from_bcs_err)?,
-                )),
-                None => Ok(None),
-            })
-            .collect();
-
-        values_parsed
+        self.multi_get_raw_keys(keys.into_iter().map(|k| be_fix_int_ser(k.borrow())))
     }
 
     /// Convenience method for batch insertion
@@ -1332,8 +1533,285 @@ where
     }
 }
 
+/// A typed map sharing one column family with other typed maps,
+/// distinguished by a tag byte prefixed to every key: the big-endian fixint
+/// serialization of `(tag, key)` keeps each map a contiguous key range of
+/// the column family. Useful for sets of tables that are always created and
+/// dropped together — one column family instead of one per table keeps the
+/// column-family and SST-file counts low.
+///
+/// Every read is scoped to the map's tag: full scans iterate the tag's key
+/// prefix, and ranges are two-sided within it, so rows of other tags never
+/// surface and their (differently typed) values are never deserialized.
+///
+/// Tags of existing maps must never change or be reused, or old rows would
+/// be read under the wrong types.
+///
+/// Metrics are labelled by column family, so all the maps of one column
+/// family report together, with no way to tell the tags apart.
+///
+/// # Examples
+///
+/// ```
+/// use tempfile::tempdir;
+/// use typed_store::{Map, rocks::*};
+///
+/// #[tokio::main(flavor = "current_thread")]
+/// async fn main() {
+///     let db = open_cf_opts(
+///         tempdir().unwrap(),
+///         None,
+///         MetricConf::default(),
+///         &[("shared", rocksdb::Options::default())],
+///     )
+///     .unwrap();
+///
+///     let numbers: TaggedDBMap<u32, String> =
+///         TaggedDBMap::reopen(&db, "shared", 0, &ReadWriteOptions::default(), false).unwrap();
+///     let words: TaggedDBMap<String, u64> =
+///         TaggedDBMap::reopen(&db, "shared", 1, &ReadWriteOptions::default(), false).unwrap();
+///
+///     let mut batch = numbers.batch();
+///     batch
+///         .insert_batch_tagged(&numbers, [(1, "one".to_string())])
+///         .unwrap()
+///         .insert_batch_tagged(&words, [("one".to_string(), 1)])
+///         .unwrap();
+///     batch.write().unwrap();
+///
+///     assert_eq!(numbers.get(&1).unwrap(), Some("one".to_string()));
+///     assert_eq!(words.get(&"one".to_string()).unwrap(), Some(1));
+///     // Each map sees only its own row.
+///     assert_eq!(numbers.safe_iter().count(), 1);
+/// }
+/// ```
+pub struct TaggedDBMap<K, V> {
+    tag: u8,
+    map: DBMap<(u8, K), V>,
+}
+
+impl<K, V> TaggedDBMap<K, V> {
+    /// Drops the tag prefixed to a key of the underlying map, turning its row
+    /// into a row of this map.
+    fn strip_tag(row: Result<((u8, K), V), TypedStoreError>) -> Result<(K, V), TypedStoreError> {
+        row.map(|((_, key), value)| (key, value))
+    }
+
+    /// Reopens an open database as a tagged map operating under `cf_name`.
+    /// See [`DBMap::reopen`] for the remaining parameters.
+    pub fn reopen(
+        db: &Arc<Database>,
+        cf_name: &str,
+        tag: u8,
+        rw_options: &ReadWriteOptions,
+        skip_metrics_reporting: bool,
+    ) -> Result<Self, TypedStoreError> {
+        Ok(Self {
+            tag,
+            map: DBMap::reopen(db, Some(cf_name), rw_options, skip_metrics_reporting)?,
+        })
+    }
+
+    /// Create a batch associated with the map's database.
+    pub fn batch(&self) -> DBBatch {
+        self.map.batch()
+    }
+}
+
+impl<'a, K, V> Map<'a, K, V> for TaggedDBMap<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    type Error = TypedStoreError;
+
+    fn contains_key(&self, key: &K) -> Result<bool, TypedStoreError> {
+        self.map.contains_raw_key(be_fix_int_ser(&(self.tag, key)))
+    }
+
+    fn multi_contains_keys<J>(
+        &self,
+        keys: impl IntoIterator<Item = J>,
+    ) -> Result<Vec<bool>, TypedStoreError>
+    where
+        J: Borrow<K>,
+    {
+        self.map.multi_contains_raw_keys(
+            keys.into_iter()
+                .map(|key| be_fix_int_ser(&(self.tag, key.borrow()))),
+        )
+    }
+
+    fn get(&self, key: &K) -> Result<Option<V>, TypedStoreError> {
+        self.map.get_raw_key(be_fix_int_ser(&(self.tag, key)))
+    }
+
+    fn multi_get<J>(
+        &self,
+        keys: impl IntoIterator<Item = J>,
+    ) -> Result<Vec<Option<V>>, TypedStoreError>
+    where
+        J: Borrow<K>,
+    {
+        self.map.multi_get_raw_keys(
+            keys.into_iter()
+                .map(|key| be_fix_int_ser(&(self.tag, key.borrow()))),
+        )
+    }
+
+    fn insert(&self, key: &K, value: &V) -> Result<(), TypedStoreError> {
+        self.map
+            .insert_raw_key(be_fix_int_ser(&(self.tag, key)), value)
+    }
+
+    fn remove(&self, key: &K) -> Result<(), TypedStoreError> {
+        self.map.remove_raw_key(be_fix_int_ser(&(self.tag, key)))
+    }
+
+    #[instrument(level = "trace", skip_all, err)]
+    fn multi_insert<J, U>(
+        &self,
+        key_val_pairs: impl IntoIterator<Item = (J, U)>,
+    ) -> Result<(), TypedStoreError>
+    where
+        J: Borrow<K>,
+        U: Borrow<V>,
+    {
+        let mut batch = self.batch();
+        batch.insert_batch_tagged(self, key_val_pairs)?;
+        batch.write()
+    }
+
+    #[instrument(level = "trace", skip_all, err)]
+    fn multi_remove<J>(&self, keys: impl IntoIterator<Item = J>) -> Result<(), TypedStoreError>
+    where
+        J: Borrow<K>,
+    {
+        let mut batch = self.batch();
+        batch.delete_batch_tagged(self, keys)?;
+        batch.write()
+    }
+
+    /// Deletes every entry of the map with a single range tombstone over the
+    /// tag's key range, leaving the other tags of the column family untouched.
+    ///
+    /// The entries stay on disk until compaction, and until then iteration
+    /// is slowed because of them.
+    #[instrument(level = "trace", skip_all, err)]
+    fn schedule_delete_all(&self) -> Result<(), TypedStoreError> {
+        let from = be_fix_int_ser(&self.tag);
+        let to = match prefix_iterator_bounds(&self.tag).1 {
+            Some(to) => {
+                if self.is_empty() {
+                    return Ok(());
+                }
+                to
+            }
+            // The maximum tag has no following tag to bound the range
+            // against, so end it just past the last entry. That read is why a
+            // row written in between survives the clear, and why a value that
+            // does not deserialize fails it.
+            None => match self.safe_range_iter_reversed(..).next().transpose()? {
+                Some((last_key, _)) => {
+                    let mut to = be_fix_int_ser(&(self.tag, last_key));
+                    to.push(0);
+                    to
+                }
+                None => return Ok(()),
+            },
+        };
+
+        let mut batch = self.batch();
+        batch.schedule_delete_range_raw(&self.map, from, to)?;
+        batch.write()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.safe_iter().next().is_none()
+    }
+
+    fn safe_iter(&'a self) -> DbIterator<'a, (K, V)> {
+        Box::new(
+            self.map
+                .safe_iter_with_prefix(&self.tag)
+                .map(Self::strip_tag),
+        )
+    }
+
+    fn safe_iter_with_bounds(
+        &'a self,
+        lower_bound: Option<K>,
+        upper_bound: Option<K>,
+    ) -> DbIterator<'a, (K, V)> {
+        let range = (
+            lower_bound.map(Bound::Included).unwrap_or(Bound::Unbounded),
+            upper_bound.map(Bound::Excluded).unwrap_or(Bound::Unbounded),
+        );
+        self.safe_range_iter(range)
+    }
+
+    fn safe_range_iter(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)> {
+        let (lower_bound, upper_bound) = prefix_iterator_bounds_with_range(&self.tag, range);
+        Box::new(
+            self.map
+                .iter_forward_raw(lower_bound, upper_bound)
+                .map(Self::strip_tag),
+        )
+    }
+
+    fn safe_range_iter_reversed(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)> {
+        let (lower_bound, upper_bound) = prefix_iterator_bounds_with_range(&self.tag, range);
+        Box::new(
+            self.map
+                .iter_reversed_raw(lower_bound, upper_bound)
+                .map(Self::strip_tag),
+        )
+    }
+
+    fn try_catch_up_with_primary(&self) -> Result<(), TypedStoreError> {
+        self.map.try_catch_up_with_primary()
+    }
+}
+
 fn default_hash(value: &[u8]) -> Digest<32> {
     let mut hasher = fastcrypto::hash::Blake2b256::default();
     hasher.update(value);
     hasher.finalize()
+}
+
+// The throughput floor is used to compute the threshold for when a batch write
+// is considered "very slow".
+const THROUGHPUT_FLOOR_BYTES_PER_SEC: f64 = 32.0 * 1024.0 * 1024.0; // 32 MiB/s
+
+// A batch write that took less than this is never reported as very slow.
+const MIN_VERY_SLOW_BATCH_WRITE_SECS: f64 = 1.0;
+
+/// Returns the elapsed time above which a batch write of `batch_size_bytes` is
+/// reported as very slow: what it would take at
+/// [`THROUGHPUT_FLOOR_BYTES_PER_SEC`], and never less than
+/// [`MIN_VERY_SLOW_BATCH_WRITE_SECS`].
+fn very_slow_batch_write_threshold_secs(batch_size_bytes: usize) -> f64 {
+    (batch_size_bytes as f64 / THROUGHPUT_FLOOR_BYTES_PER_SEC).max(MIN_VERY_SLOW_BATCH_WRITE_SECS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::very_slow_batch_write_threshold_secs;
+
+    const MIB: usize = 1024 * 1024;
+
+    #[test]
+    fn very_slow_batch_write_threshold_never_below_one_second() {
+        assert_eq!(very_slow_batch_write_threshold_secs(0), 1.0);
+        assert_eq!(very_slow_batch_write_threshold_secs(1), 1.0);
+        assert_eq!(very_slow_batch_write_threshold_secs(MIB), 1.0);
+        assert_eq!(very_slow_batch_write_threshold_secs(32 * MIB), 1.0);
+    }
+
+    #[test]
+    fn very_slow_batch_write_threshold_grows_with_batch_size() {
+        assert_eq!(very_slow_batch_write_threshold_secs(48 * MIB), 1.5);
+        assert_eq!(very_slow_batch_write_threshold_secs(64 * MIB), 2.0);
+        assert_eq!(very_slow_batch_write_threshold_secs(320 * MIB), 10.0);
+    }
 }

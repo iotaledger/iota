@@ -18,7 +18,7 @@ pub fn start_prometheus_server(
     addr: SocketAddr,
 ) -> Result<(RegistryService, Registry), anyhow::Error> {
     info!(address =% addr, "Starting prometheus server");
-    let registry = Registry::new_custom(Some("indexer".to_string()), None)?;
+    let registry = Registry::new_custom(Some("indexer".to_string()), None, None)?;
     let registry_service = RegistryService::new(registry.clone());
 
     let app = Router::new()
@@ -73,7 +73,7 @@ pub struct IndexerMetrics {
     pub total_object_change_committed: IntCounter, // not used
     pub total_transaction_chunk_committed: IntCounter, // not used
     pub total_object_change_chunk_committed: IntCounter, // not used
-    pub total_epoch_committed: IntCounter,
+    pub last_committed_epoch: IntGauge,
     pub latest_fullnode_checkpoint_sequence_number: IntGauge,
     pub latest_tx_checkpoint_sequence_number: IntGauge,
     pub latest_indexer_object_checkpoint_sequence_number: IntGauge, // not used
@@ -235,9 +235,9 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
-            total_epoch_committed: register_int_counter_with_registry!(
-                "total_epoch_committed",
-                "Total number of epoch committed",
+            last_committed_epoch: register_int_gauge_with_registry!(
+                "last_committed_epoch",
+                "Latest epoch committed to the DB",
                 registry,
             )
             .unwrap(),

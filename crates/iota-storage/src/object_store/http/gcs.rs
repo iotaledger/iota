@@ -7,13 +7,14 @@ use std::{fmt, sync::Arc};
 use anyhow::Result;
 use async_trait::async_trait;
 use bytes::Bytes;
+use iota_config::object_storage_config::{CONNECT_TIMEOUT, TRANSFER_STALL_TIMEOUT};
 use object_store::{GetResult, path::Path};
 use percent_encoding::{NON_ALPHANUMERIC, percent_encode, utf8_percent_encode};
 use reqwest::{Client, ClientBuilder};
 
 use crate::object_store::{
-    ObjectStoreGetExt,
-    http::{DEFAULT_USER_AGENT, get},
+    ObjectStoreGetExt, collect_get_result_with_progress,
+    http::{DEFAULT_USER_AGENT, exists, get, size},
 };
 
 #[derive(Debug)]
@@ -25,7 +26,10 @@ struct GoogleCloudStorageClient {
 impl GoogleCloudStorageClient {
     pub fn new(bucket: &str) -> Result<Self> {
         let mut builder = ClientBuilder::new().pool_idle_timeout(None);
-        builder = builder.user_agent(DEFAULT_USER_AGENT);
+        builder = builder
+            .user_agent(DEFAULT_USER_AGENT)
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(TRANSFER_STALL_TIMEOUT);
         let client = builder.https_only(false).build()?;
         let bucket_name_encoded = percent_encode(bucket.as_bytes(), NON_ALPHANUMERIC).to_string();
 
@@ -38,6 +42,16 @@ impl GoogleCloudStorageClient {
     async fn get(&self, path: &Path) -> Result<GetResult> {
         let url = self.object_url(path);
         get(&url, "gcs", path, &self.client).await
+    }
+
+    async fn exists(&self, path: &Path) -> Result<bool> {
+        let url = self.object_url(path);
+        exists(&url, "gcs", path, &self.client).await
+    }
+
+    async fn size(&self, path: &Path) -> Result<u64> {
+        let url = self.object_url(path);
+        size(&url, "gcs", path, &self.client).await
     }
 
     fn object_url(&self, path: &Path) -> String {
@@ -76,5 +90,22 @@ impl ObjectStoreGetExt for GoogleCloudStorage {
         let result = self.client.get(location).await?;
         let bytes = result.bytes().await?;
         Ok(bytes)
+    }
+
+    async fn get_bytes_with_progress(
+        &self,
+        location: &Path,
+        on_bytes: &(dyn Fn(u64) + Send + Sync),
+    ) -> Result<Bytes> {
+        let result = self.client.get(location).await?;
+        collect_get_result_with_progress(result, location, on_bytes).await
+    }
+
+    async fn exists(&self, location: &Path) -> Result<bool> {
+        self.client.exists(location).await
+    }
+
+    async fn object_size(&self, location: &Path) -> Result<u64> {
+        self.client.size(location).await
     }
 }

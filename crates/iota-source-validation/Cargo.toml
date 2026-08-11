@@ -13,7 +13,7 @@ path = "src/lib.rs"
 # external dependencies
 anyhow.workspace = true
 colored.workspace = true
-flate2.workspace = true
+flate2 = "1.0.28"
 futures.workspace = true
 tar = "0.4"
 tempfile.workspace = true
@@ -46,6 +46,7 @@ tracing.workspace = true
 
 # internal dependencies
 iota-common.workspace = true
+iota-sdk-ext = { workspace = true, features = ["txn-builder"] }
 iota-test-transaction-builder.workspace = true
 test-cluster.workspace = true
 

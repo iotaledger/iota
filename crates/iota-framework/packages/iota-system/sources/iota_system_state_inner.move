@@ -13,6 +13,7 @@ use iota::system_admin_cap::IotaSystemAdminCap;
 use iota::table::Table;
 use iota::vec_map::{Self, VecMap};
 use iota::vec_set::{Self, VecSet};
+use iota_system::protocol_config;
 use iota_system::staking_pool::{PoolTokenExchangeRate, StakedIota};
 use iota_system::storage_fund::{Self, StorageFundV1};
 use iota_system::validator::{Self, ValidatorV1};
@@ -28,26 +29,42 @@ const ANY_VALIDATOR: u8 = 3;
 
 const SYSTEM_STATE_VERSION_V1: u64 = 1;
 
+/// Protocol config parameter names, read via `protocol_config::get_attr`.
+const MIN_VALIDATOR_COUNT_PARAM: vector<u8> = b"min_validator_count";
+const MAX_VALIDATOR_COUNT_PARAM: vector<u8> = b"max_validator_count";
+const MIN_VALIDATOR_JOINING_STAKE_PARAM: vector<u8> = b"min_validator_joining_stake";
+const VALIDATOR_LOW_STAKE_THRESHOLD_PARAM: vector<u8> = b"validator_low_stake_threshold";
+const VALIDATOR_VERY_LOW_STAKE_THRESHOLD_PARAM: vector<u8> =
+    b"validator_very_low_stake_threshold";
+const VALIDATOR_LOW_STAKE_GRACE_PERIOD_PARAM: vector<u8> = b"validator_low_stake_grace_period";
+
 /// A list of system config parameters.
 public struct SystemParametersV1 has store {
     /// The duration of an epoch, in milliseconds.
     epoch_duration_ms: u64,
-    /// Minimum number of active validators at any moment.
+    /// Deprecated: superseded by the `min_validator_count` protocol config
+    /// parameter; retained only for struct layout compatibility and no
+    /// longer read.
     min_validator_count: u64,
-    /// Maximum number of active validators at any moment.
-    /// We do not allow the number of validators in any epoch to go above this.
+    /// Deprecated: superseded by the `max_validator_count` protocol config
+    /// parameter; retained only for struct layout compatibility and no
+    /// longer read.
     max_validator_count: u64,
-    /// Lower-bound on the amount of stake required to become a validator.
+    /// Deprecated: superseded by the `min_validator_joining_stake` protocol
+    /// config parameter; retained only for struct layout compatibility and
+    /// no longer read.
     min_validator_joining_stake: u64,
-    /// Validators with stake amount below `validator_low_stake_threshold` are considered to
-    /// have low stake and will be escorted out of the validator set after being below this
-    /// threshold for more than `validator_low_stake_grace_period` number of epochs.
+    /// Deprecated: superseded by the `validator_low_stake_threshold` protocol
+    /// config parameter; retained only for struct layout compatibility and
+    /// no longer read.
     validator_low_stake_threshold: u64,
-    /// Validators with stake below `validator_very_low_stake_threshold` will be removed
-    /// immediately at epoch change, no grace period.
+    /// Deprecated: superseded by the `validator_very_low_stake_threshold`
+    /// protocol config parameter; retained only for struct layout
+    /// compatibility and no longer read.
     validator_very_low_stake_threshold: u64,
-    /// A validator can have stake below `validator_low_stake_threshold`
-    /// for this many epochs before being kicked out.
+    /// Deprecated: superseded by the `validator_low_stake_grace_period`
+    /// protocol config parameter; retained only for struct layout
+    /// compatibility and no longer read.
     validator_low_stake_grace_period: u64,
     /// Any extra fields that's not defined statically.
     extra_fields: Bag,
@@ -242,22 +259,18 @@ public(package) fun create(
 
 public(package) fun create_system_parameters(
     epoch_duration_ms: u64,
-    // ValidatorV1 committee parameters
-    max_validator_count: u64,
-    min_validator_joining_stake: u64,
-    validator_low_stake_threshold: u64,
-    validator_very_low_stake_threshold: u64,
-    validator_low_stake_grace_period: u64,
     ctx: &mut TxContext,
 ): SystemParametersV1 {
     SystemParametersV1 {
         epoch_duration_ms,
-        min_validator_count: 4,
-        max_validator_count,
-        min_validator_joining_stake,
-        validator_low_stake_threshold,
-        validator_very_low_stake_threshold,
-        validator_low_stake_grace_period,
+        // The validator count limits and stake thresholds are enforced from
+        // the protocol config; the deprecated fields are recorded as zero.
+        min_validator_count: 0,
+        max_validator_count: 0,
+        min_validator_joining_stake: 0,
+        validator_low_stake_threshold: 0,
+        validator_very_low_stake_threshold: 0,
+        validator_low_stake_grace_period: 0,
         extra_fields: bag::new(ctx),
     }
 }
@@ -366,12 +379,16 @@ public(package) fun request_remove_validator_candidate(
 /// stake the validator has doesn't meet the min threshold, or if the number of new validators for the next
 /// epoch has already reached the maximum.
 public(package) fun request_add_validator(self: &mut IotaSystemStateV2, ctx: &TxContext) {
+    let max_validator_count: u64 = protocol_config::get_attr(MAX_VALIDATOR_COUNT_PARAM);
     assert!(
-        self.validators.next_epoch_validator_count() < self.parameters.max_validator_count,
+        self.validators.next_epoch_validator_count() < max_validator_count,
         ELimitExceeded,
     );
 
-    self.validators.request_add_validator(self.parameters.min_validator_joining_stake, ctx);
+    let min_validator_joining_stake: u64 = protocol_config::get_attr(
+        MIN_VALIDATOR_JOINING_STAKE_PARAM,
+    );
+    self.validators.request_add_validator(min_validator_joining_stake, ctx);
 }
 
 /// A validator can call this function to request a removal in the next epoch.
@@ -380,12 +397,13 @@ public(package) fun request_add_validator(self: &mut IotaSystemStateV2, ctx: &Tx
 /// At the end of the epoch, the `validator` object will be returned to the iota_address
 /// of the validator.
 public(package) fun request_remove_validator(self: &mut IotaSystemStateV2, ctx: &TxContext) {
+    let min_validator_count: u64 = protocol_config::get_attr(MIN_VALIDATOR_COUNT_PARAM);
     // Only check min validator condition if the current number of validators satisfy the constraint.
     // This is so that if we somehow already are in a state where we have less than min validators, it no longer matters
     // and is ok to stay so. This is useful for a test setup.
-    if (self.validators.active_validators_inner().length() >= self.parameters.min_validator_count) {
+    if (self.validators.active_validators_inner().length() >= min_validator_count) {
         assert!(
-            self.validators.next_epoch_validator_count() > self.parameters.min_validator_count,
+            self.validators.next_epoch_validator_count() > min_validator_count,
             ELimitExceeded,
         );
     };
@@ -402,10 +420,8 @@ public(package) fun request_set_commission_rate(
 ) {
     self
         .validators
-        .request_set_commission_rate(
-            new_commission_rate,
-            ctx,
-        )
+        .active_validator_mut(ctx.sender())
+        .request_set_commission_rate(new_commission_rate)
 }
 
 /// This function is used to set new commission rate for candidate validators
@@ -414,8 +430,10 @@ public(package) fun set_candidate_validator_commission_rate(
     new_commission_rate: u64,
     ctx: &TxContext,
 ) {
-    let candidate = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-    candidate.set_candidate_commission_rate(new_commission_rate)
+    self
+        .validators
+        .candidate_validator_mut(ctx.sender())
+        .set_candidate_commission_rate(new_commission_rate)
 }
 
 /// Add stake to a validator's staking pool.
@@ -494,7 +512,7 @@ fun report_validator_impl(
     reportee_addr: address,
     validator_report_records: &mut VecMap<address, VecSet<address>>,
 ) {
-    let reporter_address = *verified_cap.verified_operation_cap_address();
+    let reporter_address = verified_cap.verified_operation_cap_address();
     assert!(reporter_address != reportee_addr, ECannotReportOneself);
     if (!validator_report_records.contains(&reportee_addr)) {
         validator_report_records.insert(reportee_addr, vec_set::singleton(reporter_address));
@@ -514,7 +532,7 @@ fun undo_report_validator_impl(
     assert!(validator_report_records.contains(&reportee_addr), EReportRecordNotFound);
     let reporters = validator_report_records.get_mut(&reportee_addr);
 
-    let reporter_addr = *verified_cap.verified_operation_cap_address();
+    let reporter_addr = verified_cap.verified_operation_cap_address();
     assert!(reporters.contains(&reporter_addr), EReportRecordNotFound);
 
     reporters.remove(&reporter_addr);
@@ -523,192 +541,236 @@ fun undo_report_validator_impl(
     }
 }
 
-// ==== validator metadata management functions ====
+// === Shared (Candidate & Validator) Metadata Bits ===
 
 /// Create a new `UnverifiedValidatorOperationCap`, transfer it to the
 /// validator and registers it. The original object is thus revoked.
 public(package) fun rotate_operation_cap(self: &mut IotaSystemStateV2, ctx: &mut TxContext) {
-    let validator = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-    validator.new_unverified_validator_operation_cap_and_transfer(ctx);
+    self
+        .validators
+        .any_validator_mut(ctx.sender())
+        .new_unverified_validator_operation_cap_and_transfer(ctx)
 }
 
 /// Update a validator's name.
+///
+/// Unlike `description` and `image_url`, `name` is checked against both active
+/// and pending validators and must be unique in the system.
+///
+/// For candidate validators, the name is not checked for duplicates.
 public(package) fun update_validator_name(
     self: &mut IotaSystemStateV2,
     name: vector<u8>,
     ctx: &TxContext,
 ) {
-    let validator = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-
+    let validator_address = ctx.sender();
+    let validator = self.validators.any_validator_mut(validator_address);
     validator.update_name(name);
+    let validator: &ValidatorV1 = validator; // Avoid parallel mutable borrow.
+
+    // only run the duplicate check for non-candidates
+    if (!self.validators.is_validator_candidate_inner(validator_address)) {
+        self.validators.assert_no_pending_or_active_duplicates(validator);
+    };
 }
 
-/// Update a validator's description
+/// Update a validator's description.
+/// Never checked for duplicates.
 public(package) fun update_validator_description(
     self: &mut IotaSystemStateV2,
     description: vector<u8>,
     ctx: &TxContext,
 ) {
-    let validator = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-    validator.update_description(description);
+    self.validators.any_validator_mut(ctx.sender()).update_description(description)
 }
 
-/// Update a validator's image url
+/// Update a validator's image url.
+/// Never checked for duplicates.
 public(package) fun update_validator_image_url(
     self: &mut IotaSystemStateV2,
     image_url: vector<u8>,
     ctx: &TxContext,
 ) {
-    let validator = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-    validator.update_image_url(image_url);
+    self.validators.any_validator_mut(ctx.sender()).update_image_url(image_url)
 }
 
-/// Update a validator's project url
+/// Update a candidate or an active/pending validator's project url.
+/// Never checked for duplicates.
 public(package) fun update_validator_project_url(
     self: &mut IotaSystemStateV2,
     project_url: vector<u8>,
     ctx: &TxContext,
 ) {
-    let validator = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-    validator.update_project_url(project_url);
+    self.validators.any_validator_mut(ctx.sender()).update_project_url(project_url)
 }
+
+// === Validator Metadata Management ===
 
 /// Update a validator's network address.
 /// The change will only take effects starting from the next epoch.
+///
+/// Aborts if there's a duplicate network address in the system.
 public(package) fun update_validator_next_epoch_network_address(
     self: &mut IotaSystemStateV2,
     network_address: vector<u8>,
     ctx: &TxContext,
 ) {
-    let validator = self.validators.get_validator_mut_with_ctx(ctx);
+    let validator = self.validators.active_validator_mut(ctx.sender());
     validator.update_next_epoch_network_address(network_address);
     let validator: &ValidatorV1 = validator; // Force immutability for the following call
     self.validators.assert_no_pending_or_active_duplicates(validator);
 }
 
 /// Update candidate validator's network address.
+/// Not checked for duplicates. Uniqueness check is performed in `request_add_validator`.
 public(package) fun update_candidate_validator_network_address(
     self: &mut IotaSystemStateV2,
     network_address: vector<u8>,
     ctx: &TxContext,
 ) {
-    let candidate = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-    candidate.update_candidate_network_address(network_address);
+    self
+        .validators
+        .candidate_validator_mut(ctx.sender())
+        .update_candidate_network_address(network_address)
 }
 
 /// Update a validator's p2p address.
 /// The change will only take effects starting from the next epoch.
+///
+/// Aborts if there's a duplicate p2p address in the system.
 public(package) fun update_validator_next_epoch_p2p_address(
     self: &mut IotaSystemStateV2,
     p2p_address: vector<u8>,
     ctx: &TxContext,
 ) {
-    let validator = self.validators.get_validator_mut_with_ctx(ctx);
+    let validator = self.validators.active_validator_mut(ctx.sender());
     validator.update_next_epoch_p2p_address(p2p_address);
     let validator: &ValidatorV1 = validator; // Force immutability for the following call
     self.validators.assert_no_pending_or_active_duplicates(validator);
 }
 
 /// Update candidate validator's p2p address.
+/// Not checked for duplicates. Uniqueness check is performed in `request_add_validator`.
 public(package) fun update_candidate_validator_p2p_address(
     self: &mut IotaSystemStateV2,
     p2p_address: vector<u8>,
     ctx: &TxContext,
 ) {
-    let candidate = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-    candidate.update_candidate_p2p_address(p2p_address);
+    self.validators.candidate_validator_mut(ctx.sender()).update_candidate_p2p_address(p2p_address)
 }
 
 /// Update a validator's primary address.
 /// The change will only take effects starting from the next epoch.
+///
+/// Aborts if there's a duplicate primary address in the system.
 public(package) fun update_validator_next_epoch_primary_address(
     self: &mut IotaSystemStateV2,
     primary_address: vector<u8>,
     ctx: &TxContext,
 ) {
-    let validator = self.validators.get_validator_mut_with_ctx(ctx);
+    let validator = self.validators.active_validator_mut(ctx.sender());
     validator.update_next_epoch_primary_address(primary_address);
+    let validator: &ValidatorV1 = validator; // Avoid parallel mutable borrow.
+    self.validators.assert_no_pending_or_active_duplicates(validator);
 }
 
 /// Update candidate validator's primary address.
+/// Not checked for duplicates. Uniqueness check is performed in `request_add_validator`.
 public(package) fun update_candidate_validator_primary_address(
     self: &mut IotaSystemStateV2,
     primary_address: vector<u8>,
     ctx: &TxContext,
 ) {
-    let candidate = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-    candidate.update_candidate_primary_address(primary_address);
+    self
+        .validators
+        .candidate_validator_mut(ctx.sender())
+        .update_candidate_primary_address(primary_address)
 }
 
 /// Update a validator's public key of authority key and proof of possession.
 /// The change will only take effects starting from the next epoch.
+///
+/// Aborts if there's a duplicate authority public key in the system.
 public(package) fun update_validator_next_epoch_authority_pubkey(
     self: &mut IotaSystemStateV2,
     authority_pubkey: vector<u8>,
     proof_of_possession: vector<u8>,
     ctx: &TxContext,
 ) {
-    let validator = self.validators.get_validator_mut_with_ctx(ctx);
+    let validator = self.validators.active_validator_mut(ctx.sender());
     validator.update_next_epoch_authority_pubkey(authority_pubkey, proof_of_possession);
     let validator: &ValidatorV1 = validator; // Force immutability for the following call
     self.validators.assert_no_pending_or_active_duplicates(validator);
 }
 
 /// Update candidate validator's public key of authority key and proof of possession.
+/// Not checked for duplicates. Uniqueness check is performed in `request_add_validator`.
 public(package) fun update_candidate_validator_authority_pubkey(
     self: &mut IotaSystemStateV2,
     authority_pubkey: vector<u8>,
     proof_of_possession: vector<u8>,
     ctx: &TxContext,
 ) {
-    let candidate = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-    candidate.update_candidate_authority_pubkey(authority_pubkey, proof_of_possession);
+    self
+        .validators
+        .candidate_validator_mut(ctx.sender())
+        .update_candidate_authority_pubkey(authority_pubkey, proof_of_possession)
 }
 
 /// Update a validator's public key of protocol key.
 /// The change will only take effects starting from the next epoch.
+///
+/// Aborts if there's a duplicate protocol public key in the system.
 public(package) fun update_validator_next_epoch_protocol_pubkey(
     self: &mut IotaSystemStateV2,
     protocol_pubkey: vector<u8>,
     ctx: &TxContext,
 ) {
-    let validator = self.validators.get_validator_mut_with_ctx(ctx);
+    let validator = self.validators.active_validator_mut(ctx.sender());
     validator.update_next_epoch_protocol_pubkey(protocol_pubkey);
     let validator: &ValidatorV1 = validator; // Force immutability for the following call
     self.validators.assert_no_pending_or_active_duplicates(validator);
 }
 
 /// Update candidate validator's public key of protocol key.
+/// Not checked for duplicates. Uniqueness check is performed in `request_add_validator`.
 public(package) fun update_candidate_validator_protocol_pubkey(
     self: &mut IotaSystemStateV2,
     protocol_pubkey: vector<u8>,
     ctx: &TxContext,
 ) {
-    let candidate = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-    candidate.update_candidate_protocol_pubkey(protocol_pubkey);
+    self
+        .validators
+        .candidate_validator_mut(ctx.sender())
+        .update_candidate_protocol_pubkey(protocol_pubkey)
 }
 
 /// Update a validator's public key of network key.
 /// The change will only take effects starting from the next epoch.
+///
+/// Aborts if there's a duplicate network public key in the system.
 public(package) fun update_validator_next_epoch_network_pubkey(
     self: &mut IotaSystemStateV2,
     network_pubkey: vector<u8>,
     ctx: &TxContext,
 ) {
-    let validator = self.validators.get_validator_mut_with_ctx(ctx);
+    let validator = self.validators.active_validator_mut(ctx.sender());
     validator.update_next_epoch_network_pubkey(network_pubkey);
     let validator: &ValidatorV1 = validator; // Force immutability for the following call
     self.validators.assert_no_pending_or_active_duplicates(validator);
 }
 
 /// Update candidate validator's public key of network key.
+/// Not checked for duplicates. Uniqueness check is performed in `request_add_validator`.
 public(package) fun update_candidate_validator_network_pubkey(
     self: &mut IotaSystemStateV2,
     network_pubkey: vector<u8>,
     ctx: &TxContext,
 ) {
-    let candidate = self.validators.get_validator_mut_with_ctx_including_candidates(ctx);
-    candidate.update_candidate_network_pubkey(network_pubkey);
+    self
+        .validators
+        .candidate_validator_mut(ctx.sender())
+        .update_candidate_network_pubkey(network_pubkey)
 }
 
 /// This function should be called at the end of an epoch, and advances the system to the next epoch.
@@ -784,15 +846,24 @@ public(package) fun advance_epoch(
 
     let total_validator_rewards_amount_before_distribution = total_validator_rewards.value();
 
+    let validator_low_stake_threshold: u64 = protocol_config::get_attr(
+        VALIDATOR_LOW_STAKE_THRESHOLD_PARAM,
+    );
+    let validator_very_low_stake_threshold: u64 = protocol_config::get_attr(
+        VALIDATOR_VERY_LOW_STAKE_THRESHOLD_PARAM,
+    );
+    let validator_low_stake_grace_period: u64 = protocol_config::get_attr(
+        VALIDATOR_LOW_STAKE_GRACE_PERIOD_PARAM,
+    );
     self
         .validators
         .advance_epoch(
             &mut total_validator_rewards,
             &mut self.validator_report_records,
             reward_slashing_rate,
-            self.parameters.validator_low_stake_threshold,
-            self.parameters.validator_very_low_stake_threshold,
-            self.parameters.validator_low_stake_grace_period,
+            validator_low_stake_threshold,
+            validator_very_low_stake_threshold,
+            validator_low_stake_grace_period,
             max_committee_members_count,
             eligible_active_validators,
             scores,
@@ -975,7 +1046,7 @@ public(package) fun validator_address_by_pool_id(
 
 public(package) fun pool_exchange_rates(
     self: &mut IotaSystemStateV2,
-    pool_id: &ID,
+    pool_id: ID,
 ): &Table<u64, PoolTokenExchangeRate> {
     let validators = &mut self.validators;
     validators.pool_exchange_rates(pool_id)
@@ -1025,12 +1096,17 @@ public(package) fun validators(self: &IotaSystemStateV2): &ValidatorSetV2 {
 }
 
 #[test_only]
+public(package) fun validators_mut(self: &mut IotaSystemStateV2): &mut ValidatorSetV2 {
+    &mut self.validators
+}
+
+#[test_only]
 /// Return the currently active validator by address
 public(package) fun active_validator_by_address(
     self: &IotaSystemStateV2,
     validator_address: address,
 ): &ValidatorV1 {
-    self.validators().get_active_validator_ref_inner(validator_address)
+    self.validators().active_validator(validator_address)
 }
 
 #[test_only]
@@ -1039,16 +1115,16 @@ public(package) fun pending_validator_by_address(
     self: &IotaSystemStateV2,
     validator_address: address,
 ): &ValidatorV1 {
-    self.validators().get_pending_validator_ref_inner(validator_address)
+    self.validators().pending_validator(validator_address)
 }
 
 #[test_only]
 /// Return the currently candidate validator by address
 public(package) fun candidate_validator_by_address(
-    self: &IotaSystemStateV2,
+    self: &mut IotaSystemStateV2,
     validator_address: address,
 ): &ValidatorV1 {
-    validators(self).get_candidate_validator_ref(validator_address)
+    validators_mut(self).candidate_validator(validator_address)
 }
 
 #[test_only]
@@ -1062,8 +1138,9 @@ public(package) fun request_add_validator_for_testing(
     min_joining_stake_for_testing: u64,
     ctx: &TxContext,
 ) {
+    let max_validator_count: u64 = protocol_config::get_attr(MAX_VALIDATOR_COUNT_PARAM);
     assert!(
-        self.validators.next_epoch_validator_count() < self.parameters.max_validator_count,
+        self.validators.next_epoch_validator_count() < max_validator_count,
         ELimitExceeded,
     );
 

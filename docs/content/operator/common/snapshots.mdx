@@ -1,6 +1,4 @@
-import Quiz from '@site/src/components/Quiz';
 import FormalSnapshotPicker from '@site/src/components/FormalSnapshotPicker';
-import questions from '/json/node-operators/snapshots.json';
 
 Snapshots provide a point-in-time view of a database's store. In IOTA, the database snapshot captures a running database's view of the IOTA network from a particular node at the end of an epoch. 
 
@@ -39,11 +37,11 @@ Formal snapshots are database-agnostic, minimalistic snapshots containing only e
 
 The formal snapshots have the following properties:
 
-1. **Minimalism:** Formal snapshots currently contain only the end of epoch live object set (the set of all object versions eligible for use as input objects for future transactions). IOTA syncs all other critical chain information from the chain or derives it. Thus, formal snapshots contain only the necessary data required for a node to startup at epoch boundary and participate in the network.
+1. **Minimalism:** Formal snapshots contain the end of epoch live object set (the set of all object versions eligible for use as input objects for future transactions) plus a small per-epoch metadata file covering every epoch since genesis. IOTA syncs all other critical chain information from the chain or derives it. Thus, formal snapshots contain only the necessary data required for a node to startup at epoch boundary and participate in the network.
 2. **Agnosticism:** Formal snapshots are by nature agnostic to the underlying database choice or implementation of the protocol. As the live object set is protocol defined, so is the formal snapshot.
 3. **Verifiability:** Formal snapshots have first-class support in the core IOTA protocol. As such, they must be trustless/verifiable by the node operator upon download. To support this, the protocol signs a commitment to the live object state at end of epoch, which formal snapshots are checked against at restore time. If this verification fails, the node state is moved back to the state before the snapshot restore attempt.
 
-Because these snapshots do not contain indexes, they are most immediately useful for validators and state sync full nodes (SSFNs). You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your full node. With snapshots stored in the cloud, you can recover from catastrophic failures in your system or hardware more efficiently.
+Because these snapshots do not contain transaction history, they are most immediately useful for validators and state sync full nodes (SSFNs). Restoring from a formal snapshot also builds the gRPC index store by default (pass `--skip-grpc-indexes` to opt out), so a full node started with the gRPC API enabled serves it right away without re-indexing the restored state. You can upload snapshots to remote object stores like S3, Google Cloud Storage, Azure Blob Storage, and similar services. These services typically run the export process in the background so there is no degradation in performance for your full node. With snapshots stored in the cloud, you can recover from catastrophic failures in your system or hardware more efficiently.
 
 ## Enabling snapshots
 
@@ -109,7 +107,7 @@ To restore from a RocksDB snapshot, follow these steps:
 
 1. Empty the snapshot directory specified by the `db-path` in your `fullnode.yaml`.
 2. Set the `AWS_SNAPSHOT_ENDPOINT` environment variable to the target snapshot URL. If not set, the default values are endpoints provided by the IOTA Foundation with public access:
-3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. For example, if you're restoring the latest epoch:
+3. **Download the snapshot** for your target epoch to your local disk. Snapshots are stored per epoch in S3 buckets. The Docker commands mount `$PWD/data/db`, the database directory used by the [Docker setup](../full-node/docker.mdx), so run them from that setup's directory or adjust the mount to your own `db-path`. For example, if you're restoring the latest epoch:
 
    <Tabs groupId="rocksdb-snapshot-command" queryString>
       <TabItem label="Mainnet (Binary)" value="mainnet-binary">
@@ -127,7 +125,7 @@ To restore from a RocksDB snapshot, follow these steps:
       <TabItem label="Mainnet (Docker)" value="mainnet-docker">
       ```shell
       docker run --rm \
-         -v "<PATH-TO-NODE-DB>":/opt/iota/db \
+         -v "$PWD/data/db":/opt/iota/db \
          iotaledger/iota-tools:mainnet \
          /bin/sh -c "/usr/local/bin/iota-tool download-db-snapshot \
             --latest \
@@ -154,7 +152,7 @@ To restore from a RocksDB snapshot, follow these steps:
       <TabItem label="Testnet (Docker)" value="testnet-docker">
       ```shell
       docker run --rm \
-         -v "<PATH-TO-NODE-DB>":/opt/iota/db \
+         -v "$PWD/data/db":/opt/iota/db \
          iotaledger/iota-tools:testnet \
          /bin/sh -c "/usr/local/bin/iota-tool download-db-snapshot \
             --latest \
@@ -188,7 +186,6 @@ For example, if `db-path` is `/opt/iota/db` and epoch_10 directory locates in `/
 
 6. **Start your IOTA node**.
 
-
 ### Restoring from Formal snapshots
 
 To restore from a Formal snapshot, use the `iota-tool` binary. `iota-tool` can be downloaded along with other iota binaries.
@@ -197,14 +194,36 @@ See [Install IOTA](../../developer/getting-started/install-iota.mdx#install-from
 The following steps can be used to restore a node from a Formal snapshot:
 
 1. If it's running, stop the node.
-2. Pick your setup, network, and a snapshot epoch. Copy the resulting command and run it:
+2. Pick your setup, network, and a snapshot epoch. Copy the resulting command and run it. The Docker command mounts `$PWD/data/db` and `$PWD/data/config/genesis.blob`, the layout used by the [Docker setup](../full-node/docker.mdx), so run it from that setup's directory or adjust the mounts to your own paths:
 
    <FormalSnapshotPicker />
 
    - `--epoch` / `--latest`: Pin a specific snapshot epoch, or always grab the most recent one.
    - `--genesis`: The path to the location of the network's `genesis.blob`.
-   - `--network`: Network to download snapshot for. Defaults to "mainnet".
+   - `--network`: Network to download the snapshot for: `mainnet`, `testnet`, or `devnet`. Defaults to `mainnet`.
    - `--path`: Path to snapshot directory on local filesystem.
+   - `--skip-grpc-indexes`: Skips building the gRPC index store during the restore. By default it is built from the same object stream that restores the state, so a full node started with the gRPC API enabled opens it in place instead of re-indexing the whole restored state on first start. Skip it only if the node will never serve the gRPC API.
+   - `--disable-progress-bar`: Reports progress as a status line logged once per second instead of drawing progress bars.
+
+### Backfilling the full checkpoint summary history
+
+A node restored from a formal snapshot holds only the end-of-epoch checkpoint summaries (one per epoch). That is enough to run, but the node cannot serve historical checkpoint queries below its restore point, nor act as a complete summary source for peers syncing the header chain. To fill in every intermediate summary from the checkpoint archive, stop the node and run:
+
+```shell
+iota-tool backfill-checkpoint-summaries \
+   --path "<PATH-TO-NODE-DB>/live" \
+   --ingestion-url "https://checkpoints.<network>.iota.cafe/ingestion/historical" \
+   --num-parallel-downloads 50 \
+   --verbose
+```
+
+   - `--path`: The node's live database directory (the one containing `checkpoints/`, `store/`, and `epochs/`).
+   - `--ingestion-url`: URL of the checkpoint archive to download summaries from — the same archive the node's state-sync fallback reads from (for example `https://checkpoints.<network>.iota.cafe/ingestion/historical`).
+   - `--num-parallel-downloads`: Number of summaries to download in parallel. Defaults to a value based on the number of available cores.
+   - `--verbose`: Enable verbose logging.
+   - `--disable-progress-bar`: Reports progress as a status line logged once per second instead of drawing a progress bar.
+
+Summaries are taken as-is from `--ingestion-url` without chain verification, so point it at the checkpoint archive you trust to serve this node's own chain. This only adds historical summaries below the node's existing watermarks — it never changes how far the node has synced or executed, and it never overwrites the summaries the node already has. It is safe to re-run.
 
 ## IOTA Foundation managed snapshots
 
@@ -232,5 +251,3 @@ The IOTA Foundation provides the public snapshot access:
 </TabItem>
 
 </Tabs>
-
-<Quiz questions={questions} />

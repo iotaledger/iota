@@ -8,18 +8,17 @@ use anyhow::Result;
 use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config,
-    genesis::{GenesisCeremonyParameters, TokenAllocation},
+    genesis::{GenesisCeremonyParameters, PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD, TokenAllocation},
     local_ip_utils,
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
-use iota_genesis_builder::{
-    SnapshotSource,
-    validator_info::{GenesisValidatorInfo, ValidatorInfo},
-};
-use iota_sdk_ext::types::Address;
+use iota_genesis_builder::validator_info::{GenesisValidatorInfo, ValidatorInfo};
+use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_sdk_ext::{crypto::simple::SimpleKeypair, types::Address};
 use iota_types::{
+    committee::ProtocolVersion,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
         NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
     },
     multiaddr::Multiaddr,
@@ -42,8 +41,8 @@ pub struct ValidatorGenesisConfig {
     pub authority_key_pair: AuthorityKeyPair,
     #[serde(default = "default_ed25519_key_pair")]
     pub protocol_key_pair: NetworkKeyPair,
-    #[serde(default = "default_iota_key_pair")]
-    pub account_key_pair: IotaKeyPair,
+    #[serde(default = "default_iota_key_pair", with = "base64_formatted_keypair")]
+    pub account_key_pair: SimpleKeypair,
     #[serde(default = "default_ed25519_key_pair")]
     pub network_key_pair: NetworkKeyPair,
     pub network_address: Multiaddr,
@@ -64,7 +63,7 @@ pub struct ValidatorGenesisConfig {
 impl ValidatorGenesisConfig {
     pub fn to_validator_info(&self, name: String) -> GenesisValidatorInfo {
         let authority_key: AuthorityPublicKeyBytes = self.authority_key_pair.public().into();
-        let account_key: PublicKey = self.account_key_pair.public();
+        let account_key = PublicKey::from(&self.account_key_pair);
         let network_key: NetworkPublicKey = self.network_key_pair.public().clone();
         let protocol_key: NetworkPublicKey = self.protocol_key_pair.public().clone();
         let network_address = self.network_address.clone();
@@ -86,7 +85,7 @@ impl ValidatorGenesisConfig {
         };
         let proof_of_possession = generate_proof_of_possession(
             &self.authority_key_pair,
-            (&self.account_key_pair.public()).into(),
+            (&PublicKey::from(&self.account_key_pair)).into(),
         );
         GenesisValidatorInfo {
             info,
@@ -206,7 +205,12 @@ impl ValidatorGenesisConfigBuilder {
             gas_price,
             commission_rate: DEFAULT_COMMISSION_RATE,
             primary_address,
-            stake: iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
+            // A test-wide protocol config override can replace even the MAX lookup
+            // with a pre-version-32 config where the threshold is absent, so fall
+            // back to the historical value.
+            stake: ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
+                .validator_low_stake_threshold_as_option()
+                .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD),
             name: None,
         }
     }
@@ -218,13 +222,16 @@ pub struct GenesisConfig {
     pub validator_config_info: Option<Vec<ValidatorGenesisConfig>>,
     pub parameters: GenesisCeremonyParameters,
     pub accounts: Vec<AccountConfig>,
-    pub migration_sources: Vec<SnapshotSource>,
-    pub delegator: Option<Address>,
 }
 
 impl Config for GenesisConfig {}
 
 impl GenesisConfig {
+    /// The protocol config for the version this genesis will be built at.
+    pub fn protocol_config(&self) -> ProtocolConfig {
+        ProtocolConfig::get_for_version(self.parameters.protocol_version, Chain::Unknown)
+    }
+
     pub fn generate_accounts<R: rand::RngCore + rand::CryptoRng>(
         &self,
         mut rng: R,
@@ -266,7 +273,12 @@ fn default_socket_address() -> SocketAddr {
 }
 
 fn default_stake() -> u64 {
-    iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
+    // A test-wide protocol config override can replace even the MAX lookup with a
+    // pre-version-32 config where the threshold is absent, so fall back to the
+    // historical value.
+    ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
+        .validator_low_stake_threshold_as_option()
+        .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD)
 }
 
 fn default_bls12381_key_pair() -> AuthorityKeyPair {
@@ -277,8 +289,28 @@ fn default_ed25519_key_pair() -> NetworkKeyPair {
     get_key_pair_from_rng(&mut rand::rngs::OsRng).1
 }
 
-fn default_iota_key_pair() -> IotaKeyPair {
-    IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rand::rngs::OsRng).1)
+fn default_iota_key_pair() -> SimpleKeypair {
+    SimpleKeypair::from(get_key_pair_from_rng::<AccountKeyPair, _>(&mut rand::rngs::OsRng).1)
+}
+
+// Serde adapter storing the keypair as base64 `flag || privkey`, the on-disk
+// format of this config field.
+mod base64_formatted_keypair {
+    use fastcrypto::encoding::{Base64, Encoding};
+    use iota_sdk_ext::crypto::simple::SimpleKeypair;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(kp: &SimpleKeypair, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&Base64::encode(kp.to_bytes()))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<SimpleKeypair, D::Error> {
+        use serde::de::Error;
+
+        let s = String::deserialize(d)?;
+        let bytes = Base64::decode(&s).map_err(Error::custom)?;
+        SimpleKeypair::from_bytes(&bytes).map_err(Error::custom)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -401,7 +433,7 @@ impl GenesisConfig {
         let account_configs = Self::benchmark_gas_keys(num_accounts)
             .iter()
             .map(|gas_key| {
-                let gas_address = Address::from(&gas_key.public());
+                let gas_address = Address::from(&PublicKey::from(gas_key));
 
                 AccountConfig {
                     address: Some(gas_address),
@@ -428,8 +460,6 @@ impl GenesisConfig {
             validator_config_info: Some(validator_config_info),
             parameters,
             accounts: account_configs,
-            migration_sources: Default::default(),
-            delegator: Default::default(),
         }
     }
 
@@ -437,10 +467,10 @@ impl GenesisConfig {
     /// for benchmarks. This function may be called by other parts of the
     /// codebase (e.g. load generators) to get the same keypair used for
     /// genesis (hence the importance of the seedable rng).
-    pub fn benchmark_gas_keys(n: usize) -> Vec<IotaKeyPair> {
+    pub fn benchmark_gas_keys(n: usize) -> Vec<SimpleKeypair> {
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
         (0..n)
-            .map(|_| IotaKeyPair::Ed25519(NetworkKeyPair::generate(&mut rng)))
+            .map(|_| SimpleKeypair::from(AccountKeyPair::generate(&mut rng)))
             .collect()
     }
 
@@ -449,11 +479,6 @@ impl GenesisConfig {
             address: None,
             gas_amounts: vec![DEFAULT_GAS_AMOUNT; DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT],
         });
-        self
-    }
-
-    pub fn add_delegator(mut self, address: Address) -> Self {
-        self.delegator = Some(address);
         self
     }
 }

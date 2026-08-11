@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, ops::Bound::Included, sync::Arc, time::Duration};
+use std::{collections::BTreeMap, ops::Bound::Included, time::Duration};
 
 use bytes::Bytes;
 use iota_macros::fail_point;
@@ -18,11 +18,10 @@ use super::{CommitInfo, Store, WriteBatch};
 use crate::{
     Transaction,
     block_header::{
-        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, SignedBlockHeader,
-        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, TransactionsCommitment,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
-    context::Context,
     error::{ConsensusError, ConsensusResult},
     misbehavior_store::MisbehaviorCounts,
     transaction_ref::{GenericTransactionRef, TransactionRef},
@@ -33,8 +32,6 @@ use crate::{
 pub(crate) struct RocksDBStore {
     /// Stores SignedBlockHeader by refs.
     block_headers: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-    /// Stores Transactions by block refs
-    transactions: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
     /// Stores Transactions by transaction refs
     transactions_by_tx_refs: DBMap<(Round, AuthorityIndex, TransactionsCommitment), Bytes>,
     /// A secondary index that orders refs first by authors.
@@ -62,7 +59,6 @@ pub(crate) struct RocksDBStore {
 }
 
 impl RocksDBStore {
-    const TRANSACTIONS_CF: &'static str = "transactions";
     const TRANSACTIONS_BY_TX_REF_CF: &'static str = "transactions_by_tx_refs";
     const BLOCK_HEADERS_CF: &'static str = "block_headers";
     const DIGESTS_BY_AUTHORITIES_CF: &'static str = "digests";
@@ -84,13 +80,6 @@ impl RocksDBStore {
         metrics_conf.read_sample_interval = SamplingInterval::new(Duration::from_secs(60), 0);
         let cf_options = default_db_options().optimize_for_write_throughput();
         let column_family_options = DBMapTableConfigMap::new(BTreeMap::from([
-            (
-                Self::TRANSACTIONS_CF.to_string(),
-                default_db_options()
-                    .optimize_for_write_throughput_no_deletion()
-                    // Using larger block is ok since there is not much point reads on the cf.
-                    .set_block_options(512, 128 << 10),
-            ),
             (
                 Self::TRANSACTIONS_BY_TX_REF_CF.to_string(),
                 default_db_options()
@@ -138,7 +127,7 @@ impl RocksDBStore {
 }
 
 impl Store for RocksDBStore {
-    fn write(&self, write_batch: WriteBatch, context: Arc<Context>) -> ConsensusResult<()> {
+    fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()> {
         fail_point!("consensus-store-before-write");
         // TODO: does it matter which CF we use here?
         let mut batch = self.block_headers.batch();
@@ -178,51 +167,33 @@ impl Store for RocksDBStore {
         // Store transactions data
         for transaction in write_batch.transactions {
             let transaction_ref = transaction.transaction_ref();
-            if context.protocol_config.consensus_fast_commit_sync() {
-                batch
-                    .insert_batch(
-                        &self.transactions_by_tx_refs,
-                        [(
-                            (
-                                transaction_ref.round,
-                                transaction_ref.author,
-                                transaction_ref.transactions_commitment,
-                            ),
-                            transaction.serialized(),
-                        )],
-                    )
-                    .map_err(ConsensusError::RocksDBFailure)?;
-                // Store the authority digest
-                batch
-                    .insert_batch(
-                        &self.transaction_commitments_by_authorities,
-                        [(
-                            (
-                                transaction_ref.author,
-                                transaction_ref.round,
-                                transaction_ref.transactions_commitment,
-                            ),
-                            (),
-                        )],
-                    )
-                    .map_err(ConsensusError::RocksDBFailure)?;
-            } else {
-                batch
-                    .insert_batch(
-                        &self.transactions,
-                        [(
-                            (
-                                transaction_ref.round,
-                                transaction_ref.author,
-                                transaction.block_digest().expect(
-                                    "block digest should exist for consensus_fast_commit_sync=false",
-                                ),
-                            ),
-                            transaction.serialized(),
-                        )],
-                    )
-                    .map_err(ConsensusError::RocksDBFailure)?;
-            }
+            batch
+                .insert_batch(
+                    &self.transactions_by_tx_refs,
+                    [(
+                        (
+                            transaction_ref.round,
+                            transaction_ref.author,
+                            transaction_ref.transactions_commitment,
+                        ),
+                        transaction.serialized(),
+                    )],
+                )
+                .map_err(ConsensusError::RocksDBFailure)?;
+            // Store the authority digest
+            batch
+                .insert_batch(
+                    &self.transaction_commitments_by_authorities,
+                    [(
+                        (
+                            transaction_ref.author,
+                            transaction_ref.round,
+                            transaction_ref.transactions_commitment,
+                        ),
+                        (),
+                    )],
+                )
+                .map_err(ConsensusError::RocksDBFailure)?;
         }
 
         // Handle commits
@@ -289,31 +260,19 @@ impl Store for RocksDBStore {
         Ok(())
     }
 
-    fn read_blocks(
-        &self,
-        refs: &[BlockRef],
-        context: Arc<Context>,
-    ) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
+    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
         // Get both headers and transactions for the given references
         let headers = self.read_verified_block_headers(refs)?;
-        let tx_refs = if context.protocol_config.consensus_fast_commit_sync() {
-            headers
-                .iter()
-                .map(|vh| {
-                    if vh.is_none() {
-                        GenericTransactionRef::TransactionRef(TransactionRef::default())
-                    } else {
-                        GenericTransactionRef::TransactionRef(
-                            vh.as_ref().unwrap().transaction_ref(),
-                        )
-                    }
-                })
-                .collect::<Vec<GenericTransactionRef>>()
-        } else {
-            refs.iter()
-                .map(|r| GenericTransactionRef::BlockRef(*r))
-                .collect()
-        };
+        let tx_refs = headers
+            .iter()
+            .map(|vh| {
+                if vh.is_none() {
+                    GenericTransactionRef::TransactionRef(TransactionRef::default())
+                } else {
+                    GenericTransactionRef::TransactionRef(vh.as_ref().unwrap().transaction_ref())
+                }
+            })
+            .collect::<Vec<GenericTransactionRef>>();
         let transactions = self.read_verified_transactions(tx_refs.as_slice())?;
 
         // Combine them into blocks if both parts exist
@@ -378,77 +337,23 @@ impl Store for RocksDBStore {
         }
         let serialized_vec_transactions = self.read_serialized_transactions(refs)?;
 
-        let use_transaction_ref = match &refs[0] {
-            GenericTransactionRef::BlockRef { .. } => false,
-            GenericTransactionRef::TransactionRef { .. } => true,
-        };
         let mut result = Vec::with_capacity(refs.len());
-        if use_transaction_ref {
-            for (gen_tx_ref, serialized_transactions) in
-                refs.iter().zip(serialized_vec_transactions)
-            {
-                let GenericTransactionRef::TransactionRef(tx_ref) = gen_tx_ref else {
-                    return Err(ConsensusError::InconsistentTransactionRefVariants);
-                };
-                if let Some(serialized_transactions) = serialized_transactions {
-                    let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
-                        .map_err(ConsensusError::MalformedTransactions)?;
-                    // We don't check the transactions commitment from the header as it's loaded
-                    // from storage. Assemble verified transactions
-                    let verified_transactions = VerifiedTransactions::new(
-                        transactions,
-                        *tx_ref,
-                        None,
-                        serialized_transactions,
-                    );
-                    result.push(Some(verified_transactions));
-                } else {
-                    result.push(None);
-                }
-            }
-        } else {
-            let block_refs = refs
-                .iter()
-                .map(|gen_tx_ref| {
-                    let GenericTransactionRef::BlockRef(block_ref) = gen_tx_ref else {
-                        return Err(ConsensusError::InconsistentTransactionRefVariants);
-                    };
-                    Ok(*block_ref)
-                })
-                .collect::<Result<Vec<_>, ConsensusError>>()?;
-            let serialized_block_headers =
-                self.read_serialized_block_headers(block_refs.as_slice())?;
-
-            // TODO::optimize it later by storing commitment together with transactions
-
-            for ((block_ref, serialized_block_header), serialized_transactions) in block_refs
-                .iter()
-                .zip(serialized_block_headers)
-                .zip(serialized_vec_transactions)
-            {
-                if let (Some(serialized_block_header), Some(serialized_transactions)) =
-                    (serialized_block_header, serialized_transactions)
-                {
-                    let signed_block_header: SignedBlockHeader =
-                        bcs::from_bytes(&serialized_block_header)
-                            .map_err(ConsensusError::MalformedHeader)?;
-                    let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
-                        .map_err(ConsensusError::MalformedTransactions)?;
-                    // We don't check the transactions commitment from the header as it's loaded
-                    // from storage. Assemble verified transactions
-                    let verified_transactions = VerifiedTransactions::new(
-                        transactions,
-                        TransactionRef::new(
-                            *block_ref,
-                            signed_block_header.transactions_commitment(),
-                        ),
-                        Some(block_ref.digest),
-                        serialized_transactions,
-                    );
-                    result.push(Some(verified_transactions));
-                } else {
-                    result.push(None);
-                }
+        for (gen_tx_ref, serialized_transactions) in refs.iter().zip(serialized_vec_transactions) {
+            let GenericTransactionRef::TransactionRef(tx_ref) = gen_tx_ref else {
+                // Legacy variant, never stored under v29.
+                result.push(None);
+                continue;
+            };
+            if let Some(serialized_transactions) = serialized_transactions {
+                let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
+                    .map_err(ConsensusError::MalformedTransactions)?;
+                // We don't check the transactions commitment from the header as it's loaded
+                // from storage. Assemble verified transactions
+                let verified_transactions =
+                    VerifiedTransactions::new(transactions, *tx_ref, None, serialized_transactions);
+                result.push(Some(verified_transactions));
+            } else {
+                result.push(None);
             }
         }
         Ok(result)
@@ -466,34 +371,21 @@ impl Store for RocksDBStore {
         if refs.is_empty() {
             return Ok(vec![]);
         }
-        match &refs[0] {
-            GenericTransactionRef::BlockRef { .. } => {
-                let keys: Result<Vec<_>, ConsensusError> = refs
-                    .iter()
-                    .map(|r| {
-                        if let GenericTransactionRef::BlockRef(block_ref) = r {
-                            Ok((block_ref.round, block_ref.author, block_ref.digest))
-                        } else {
-                            Err(ConsensusError::InconsistentTransactionRefVariants)
-                        }
-                    })
-                    .collect();
-                Ok(self.transactions.multi_get(keys?)?)
-            }
-            GenericTransactionRef::TransactionRef { .. } => {
-                let keys: Result<Vec<_>, ConsensusError> = refs
-                    .iter()
-                    .map(|r| {
-                        if let GenericTransactionRef::TransactionRef(tx_ref) = r {
-                            Ok((tx_ref.round, tx_ref.author, tx_ref.transactions_commitment))
-                        } else {
-                            Err(ConsensusError::InconsistentTransactionRefVariants)
-                        }
-                    })
-                    .collect();
-                Ok(self.transactions_by_tx_refs.multi_get(keys?)?)
-            }
+        // Legacy variant, never stored under v29.
+        if matches!(refs[0], GenericTransactionRef::BlockRef(_)) {
+            return Ok(vec![None; refs.len()]);
         }
+        let keys: Result<Vec<_>, ConsensusError> = refs
+            .iter()
+            .map(|r| {
+                if let GenericTransactionRef::TransactionRef(tx_ref) = r {
+                    Ok((tx_ref.round, tx_ref.author, tx_ref.transactions_commitment))
+                } else {
+                    Err(ConsensusError::InconsistentTransactionRefVariants)
+                }
+            })
+            .collect();
+        Ok(self.transactions_by_tx_refs.multi_get(keys?)?)
     }
 
     fn contains_transactions(&self, refs: &[GenericTransactionRef]) -> ConsensusResult<Vec<bool>> {
@@ -503,34 +395,21 @@ impl Store for RocksDBStore {
         if refs.is_empty() {
             return Ok(vec![]);
         }
-        match &refs[0] {
-            GenericTransactionRef::BlockRef { .. } => {
-                let keys: Result<Vec<_>, ConsensusError> = refs
-                    .iter()
-                    .map(|r| {
-                        if let GenericTransactionRef::BlockRef(block_ref) = r {
-                            Ok((block_ref.round, block_ref.author, block_ref.digest))
-                        } else {
-                            Err(ConsensusError::InconsistentTransactionRefVariants)
-                        }
-                    })
-                    .collect();
-                Ok(self.transactions.multi_contains_keys(keys?)?)
-            }
-            GenericTransactionRef::TransactionRef { .. } => {
-                let keys: Result<Vec<_>, ConsensusError> = refs
-                    .iter()
-                    .map(|r| {
-                        if let GenericTransactionRef::TransactionRef(tx_ref) = r {
-                            Ok((tx_ref.round, tx_ref.author, tx_ref.transactions_commitment))
-                        } else {
-                            Err(ConsensusError::InconsistentTransactionRefVariants)
-                        }
-                    })
-                    .collect();
-                Ok(self.transactions_by_tx_refs.multi_contains_keys(keys?)?)
-            }
+        // Legacy variant, never stored under v29.
+        if matches!(refs[0], GenericTransactionRef::BlockRef(_)) {
+            return Ok(vec![false; refs.len()]);
         }
+        let keys: Result<Vec<_>, ConsensusError> = refs
+            .iter()
+            .map(|r| {
+                if let GenericTransactionRef::TransactionRef(tx_ref) = r {
+                    Ok((tx_ref.round, tx_ref.author, tx_ref.transactions_commitment))
+                } else {
+                    Err(ConsensusError::InconsistentTransactionRefVariants)
+                }
+            })
+            .collect();
+        Ok(self.transactions_by_tx_refs.multi_contains_keys(keys?)?)
     }
 
     fn contains_block_headers(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>> {
@@ -595,7 +474,6 @@ impl Store for RocksDBStore {
         &self,
         author: AuthorityIndex,
         start_round: Round,
-        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let mut refs = vec![];
         for kv in self.digests_by_authorities.safe_range_iter((
@@ -605,7 +483,7 @@ impl Store for RocksDBStore {
             let ((author, round, digest), _) = kv?;
             refs.push(BlockRef::new(round, author, digest));
         }
-        let results = self.read_blocks(refs.as_slice(), context)?;
+        let results = self.read_blocks(refs.as_slice())?;
         let mut blocks = Vec::with_capacity(refs.len());
         for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
@@ -624,7 +502,6 @@ impl Store for RocksDBStore {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
-        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let before_round = before_round.unwrap_or(Round::MAX);
         let mut refs = std::collections::VecDeque::new();
@@ -643,7 +520,7 @@ impl Store for RocksDBStore {
         // when the VecDeque ring buffer wraps; otherwise trailing entries would
         // be silently dropped.
         let refs_slice = refs.make_contiguous();
-        let results = self.read_blocks(refs_slice, context)?;
+        let results = self.read_blocks(refs_slice)?;
         let mut blocks = vec![];
         for (r, block) in refs.into_iter().zip(results) {
             blocks.push(
@@ -795,9 +672,6 @@ impl RocksDBStore {
     pub(crate) fn delete_all_transactions(&self) -> ConsensusResult<()> {
         use typed_store::Map as _;
 
-        self.transactions
-            .schedule_delete_all()
-            .map_err(ConsensusError::RocksDBFailure)?;
         self.transactions_by_tx_refs
             .schedule_delete_all()
             .map_err(ConsensusError::RocksDBFailure)?;

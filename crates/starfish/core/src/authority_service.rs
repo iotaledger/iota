@@ -25,10 +25,10 @@ use crate::{
     CommitIndex, Round, VerifiedBlockHeader,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
-        ShardWithProofAPI, ShardWithProofV1, SignedBlockHeader, TransactionsCommitment,
-        VerifiedBlock, VerifiedOwnShard, VerifiedTransactions,
+        ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
+        VerifiedOwnShard, VerifiedTransactions,
     },
-    block_verifier::BlockVerifier,
+    block_verifier::{BlockVerifier, max_shard_bytes},
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_syncer::CommitSyncType,
     commit_vote_monitor::CommitVoteMonitor,
@@ -42,8 +42,8 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
-        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV1,
-        SerializedTransactionsV2, TransactionFetchMode,
+        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV2,
+        TransactionFetchMode,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -172,13 +172,15 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         let SerializedHeaderAndTransactions {
             serialized_block_header,
             serialized_transactions,
-        } = SerializedHeaderAndTransactions::try_from(SerializedBlock { serialized_block })?;
+        } = SerializedHeaderAndTransactions::try_from(SerializedBlock { serialized_block })
+            .inspect_err(|e| {
+                self.misbehavior_store.record_faulty_block(peer, peer, e);
+            })?;
 
         let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
             .map_err(ConsensusError::MalformedHeader)
             .inspect_err(|e| {
-                self.misbehavior_store
-                    .record_faulty_block_header(peer, peer, e);
+                self.misbehavior_store.record_faulty_block(peer, peer, e);
             })?;
 
         // Reject blocks not produced by the peer.
@@ -190,8 +192,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
-            self.misbehavior_store
-                .record_faulty_block_header(peer, peer, &e);
+            self.misbehavior_store.record_faulty_block(peer, peer, &e);
             info!("Block with wrong authority from {}: {}", peer, e);
             return Err(e);
         }
@@ -203,13 +204,10 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
             // peer == author is guaranteed by the UnexpectedAuthority check above.
-            // Pass both so record_faulty_block_header can attribute correctly:
+            // Pass both so record_faulty_block can attribute correctly:
             // provable errors → author, unprovable (bad signature) → peer.
-            self.misbehavior_store.record_faulty_block_header(
-                peer,
-                signed_block_header.author(),
-                &e,
-            );
+            self.misbehavior_store
+                .record_faulty_block(peer, signed_block_header.author(), &e);
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
         }
@@ -257,7 +255,6 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 proof_for_shard,
                 block_ref,
                 transaction_commitment,
-                self.context.protocol_config.consensus_fast_commit_sync(),
             ))
         } else {
             None
@@ -280,7 +277,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .with_label_values(&[peer_hostname, "transactions", error.name()])
             .inc();
         self.misbehavior_store
-            .record_faulty_block_header(peer, peer, error);
+            .record_faulty_block(peer, peer, error);
     }
 
     fn extract_additional_block_headers_from_bundle(
@@ -313,28 +310,24 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    self.misbehavior_store
-                        .record_faulty_block_header(peer, peer, e);
+                    self.misbehavior_store.record_faulty_block(peer, peer, e);
                 })?;
 
             let header_round = signed_block_header.round();
             if header_round >= block_round {
-                let e = Err(ConsensusError::TooBigHeaderRoundInABundle {
+                let e = ConsensusError::TooBigHeaderRoundInABundle {
                     header_round,
                     block_round,
-                });
+                };
                 self.context
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "header", "invalid round in header"])
                     .inc();
-                info!(
-                    "Invalid additional block header from {}: {}",
-                    peer,
-                    e.as_ref().unwrap_err()
-                );
-                return e;
+                self.misbehavior_store.record_faulty_block(peer, peer, &e);
+                info!("Invalid additional block header from {}: {}", peer, e);
+                return Err(e);
             }
 
             if let Err(e) = self.block_verifier.verify(&signed_block_header) {
@@ -348,11 +341,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 // (the sender) and author separately so provable errors (valid
                 // signature, protocol violation) are charged to the block author
                 // while unprovable errors (bad signature) are charged to the peer.
-                self.misbehavior_store.record_faulty_block_header(
-                    peer,
-                    signed_block_header.author(),
-                    &e,
-                );
+                self.misbehavior_store
+                    .record_faulty_block(peer, signed_block_header.author(), &e);
                 info!("Invalid additional block header from {}: {}", peer, e);
                 return Err(e);
             }
@@ -386,24 +376,28 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             serialized_shards.truncate(self.context.parameters.max_shards_per_bundle);
         }
 
+        let max_shard_bytes = max_shard_bytes(&self.context);
+
         let mut verified_shards: Vec<ShardWithProof> = vec![];
         for serialized_shard in &serialized_shards {
-            let shard: ShardWithProof =
-                if !self.context.protocol_config.consensus_fast_commit_sync() {
-                    // For backward compatibility, we still support ShardWithProofV1 during the
-                    // epoch during which nodes are upgraded to a new software version. Peers
-                    // running an old version will still send ShardWithProofV1 without the enum
-                    // wrapping. We can remove this support after we are sure
-                    // all peers have been updated to send versioned ShardWithProof.
-                    let shard_v1: ShardWithProofV1 = bcs::from_bytes(serialized_shard)
-                        .map_err(ConsensusError::MalformedShard)?;
-                    ShardWithProof::V1(shard_v1)
-                } else {
-                    bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?
-                };
+            let shard: ShardWithProof = bcs::from_bytes(serialized_shard)
+                .map_err(ConsensusError::MalformedShard)
+                .inspect_err(|e| {
+                    self.misbehavior_store.record_faulty_block(peer, peer, e);
+                })?;
 
-            if let Err(e) = check_shard_version_matches_flags(&shard, &self.context.protocol_config)
-            {
+            if let Err(e) = check_shard_version(&shard) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname, "shard", e.name()])
+                    .inc();
+                info!("Invalid shard from {}: {}", peer, e);
+                return Err(e);
+            }
+
+            if let Err(e) = check_shard_transaction_author(&shard, peer, &self.context) {
                 self.context
                     .metrics
                     .node_metrics
@@ -425,6 +419,24 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
+                self.misbehavior_store.record_faulty_block(peer, peer, &e);
+                info!("Invalid shard from {}: {}", peer, e);
+                return Err(e);
+            }
+
+            if shard.shard().len() > max_shard_bytes {
+                let e = ConsensusError::SerializedShardTooLarge {
+                    peer,
+                    size: shard.shard().len(),
+                    limit: max_shard_bytes,
+                };
+                self.context
+                    .metrics
+                    .node_metrics
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname, "shard", e.name()])
+                    .inc();
+                self.misbehavior_store.record_faulty_block(peer, peer, &e);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -447,6 +459,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
+                self.misbehavior_store.record_faulty_block(peer, peer, &e);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -673,29 +686,28 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     }
 }
 
-/// Rejects a deserialized `ShardWithProof` whose variant does not match the
-/// local protocol-flag configuration. The flag is uniform across the network
-/// within an epoch, so any mismatch implies either a malicious peer or a
-/// misconfigured upgrade path. In the flag-OFF (raw V1 wire form) branch the
-/// check is a tautology — the deserializer always produces V1 — but it is
-/// called there for symmetry.
-pub(crate) fn check_shard_version_matches_flags(
+/// Rejects a deserialized `ShardWithProof` that is not the current `V2`
+/// variant. The variant is uniform across the network within an epoch, so a
+/// legacy `V1` shard implies either a malicious peer or a misconfigured upgrade
+/// path.
+pub(crate) fn check_shard_version(shard: &ShardWithProof) -> ConsensusResult<()> {
+    match shard {
+        ShardWithProof::V2(_) => Ok(()),
+        ShardWithProof::V1(_) => Err(ConsensusError::WrongShardVersion { actual: "V1" }),
+    }
+}
+
+pub(crate) fn check_shard_transaction_author(
     shard: &ShardWithProof,
-    protocol_config: &iota_protocol_config::ProtocolConfig,
+    peer: AuthorityIndex,
+    context: &Context,
 ) -> ConsensusResult<()> {
-    let fast_commit_sync = protocol_config.consensus_fast_commit_sync();
-    let variant_matches_flags = matches!(
-        (shard, fast_commit_sync),
-        (ShardWithProof::V1(_), false) | (ShardWithProof::V2(_), true)
-    );
-    if !variant_matches_flags {
-        let actual = match shard {
-            ShardWithProof::V1(_) => "V1",
-            ShardWithProof::V2(_) => "V2",
-        };
-        return Err(ConsensusError::WrongShardVersionForFlags {
-            actual,
-            fast_commit_sync,
+    let index = shard.author();
+    if !context.committee.is_valid_index(index) {
+        return Err(ConsensusError::InvalidAuthorityIndexRequested {
+            index,
+            max: context.committee.size(),
+            peer,
         });
     }
     Ok(())
@@ -720,7 +732,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         let mut serialized_block_bundle_parts =
-            SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
+            SerializedBlockBundleParts::try_from(serialized_block_bundle).inspect_err(|e| {
+                self.misbehavior_store.record_faulty_block(peer, peer, e);
+            })?;
         if let Err(e) =
             serialized_block_bundle_parts.validate_useful_authorities(&self.context.committee)
         {
@@ -730,6 +744,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname.as_str(), "metadata", e.name()])
                 .inc();
+            self.misbehavior_store.record_faulty_block(peer, peer, &e);
             warn!("Invalid bundle metadata from {}: {}", peer, e);
             return Err(e);
         }
@@ -743,11 +758,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         )?;
         let block_ref = verified_block.reference();
         let transaction_ref = verified_block.transaction_ref();
-        let gen_transaction_ref = if self.context.protocol_config.consensus_fast_commit_sync() {
-            GenericTransactionRef::from(transaction_ref)
-        } else {
-            GenericTransactionRef::from(block_ref)
-        };
+        let gen_transaction_ref = GenericTransactionRef::from(transaction_ref);
         // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
         let now = self.context.clock.timestamp_utc_ms();
         let forward_time_drift =
@@ -764,6 +775,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .metrics
             .node_metrics
             .latency_to_process_stream
+            .observe(latency_to_process_stream.as_secs_f64());
+        self.context
+            .metrics
+            .node_metrics
+            .latency_to_process_stream_by_peer
             .with_label_values(&[peer_hostname.as_str()])
             .observe(latency_to_process_stream.as_secs_f64());
 
@@ -814,9 +830,44 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             );
         }
 
+        // 5b. Two signed headers from the author's own stream for one slot are
+        // provable equivocation, so drop the block before its shards and payload
+        // are processed, and charge the author. A same-slot header still only
+        // suspended is caught by the equivalent cap in the block manager.
+        let primary_block_equivocates = !primary_block_far_future
+            && self
+                .dag_state
+                .read()
+                .contains_other_block_header_at_slot(&block_ref);
+        if primary_block_equivocates {
+            let e = ConsensusError::BlockHeaderEquivocation {
+                authority: peer,
+                round: block_ref.round,
+            };
+            self.misbehavior_store.record_faulty_block(peer, peer, &e);
+            self.context
+                .metrics
+                .node_metrics
+                .dropped_slot_cap_headers_total
+                .with_label_values(&[
+                    self.context.authority_hostname(peer),
+                    DataSource::BlockStreaming.as_str(),
+                ])
+                .inc();
+            warn!(
+                "Peer {peer} equivocated: dropping streamed block {block_ref}, its slot already \
+                 holds a header with a different digest"
+            );
+        }
+        // The block is not accepted for either reason, so the steps below skip it.
+        let primary_block_dropped = primary_block_far_future || primary_block_equivocates;
+
         // 6. Collect shards from a bundle and check their proofs. Skipped for a
-        // far-future primary block so its shards never reach the reconstructor.
-        let verified_shards = if primary_block_far_future {
+        // dropped primary block so its shards never reach the reconstructor. The
+        // bundled headers still go through: they are signed by their authors and
+        // already verified, while a shard's proof is checked only against the
+        // commitment carried inside the shard itself.
+        let verified_shards = if primary_block_dropped {
             Vec::new()
         } else {
             let serialized_shards =
@@ -844,8 +895,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .await;
 
         // 9. Prepare transaction messages for shard reconstructor and send them.
-        // Skipped for a far-future primary block (no shards were collected).
-        if !primary_block_far_future {
+        // Skipped for a dropped primary block (no shards were collected).
+        if !primary_block_dropped {
             let transaction_messages = TransactionMessage::create_transaction_messages(
                 &verified_blocks[0],
                 &verified_shards,
@@ -879,8 +930,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .observe(missing_ancestors.len() as f64);
 
         // 11. Add the block to dag, add its missing ancestors to the set. A
-        // far-future block was dropped above and is not forwarded to the core.
-        if !primary_block_far_future {
+        // block dropped above is not forwarded to the core.
+        if !primary_block_dropped {
             let (missing_block_ancestors, missing_block_committed_transactions) = self
                 .core_dispatcher
                 .add_blocks(verified_blocks, DataSource::BlockStreaming)
@@ -906,26 +957,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // 12. Add our shard from the received block and its proof to the dag_state
-        // only if it contains transactions and the block is not far-future.
-        if let Some(shard_for_core) = shard_for_core.filter(|_| !primary_block_far_future) {
-            let serialized_shard_for_core: Bytes = match shard_for_core {
-                // For backward compatibility, we still support ShardWithProofV1 during the
-                // epoch during which nodes are upgraded to a new software version. Because of
-                // peers running an old version will still need to send
-                // ShardWithProofV1 without the enum wrapping. We can remove this
-                // support after we are sure all peers have been updated to send
-                // versioned ShardWithProof.
-                ShardWithProof::V1(shard_v1)
-                    if !self.context.protocol_config.consensus_fast_commit_sync() =>
-                {
-                    bcs::to_bytes(&shard_v1)
-                        .map_err(ConsensusError::SerializationFailure)?
-                        .into()
-                }
-                _ => bcs::to_bytes(&shard_for_core)
-                    .map_err(ConsensusError::SerializationFailure)?
-                    .into(),
-            };
+        // only if it contains transactions and the block was not dropped.
+        if let Some(shard_for_core) = shard_for_core.filter(|_| !primary_block_dropped) {
+            let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
+                .map_err(ConsensusError::SerializationFailure)?
+                .into();
             let shard_for_core = VerifiedOwnShard {
                 serialized_shard: serialized_shard_for_core,
                 gen_transaction_ref,
@@ -1171,7 +1207,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     continue;
                 }
 
-                let missing_headers = dag_state.get_cached_block_headers_in_range(
+                let missing_headers = dag_state.get_cached_block_headers_in_range_one_per_round(
                     authority,
                     highest_accepted_round + 1,
                     lowest_missing_round,
@@ -1216,15 +1252,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 start: commit_range.start(),
                 end: commit_range.end(),
             });
-        }
-
-        // TODO: This gate can be removed once consensus_fast_commit_sync is enabled on
-        // all networks. Fast commit sync type is controlled by the client, so
-        // we need to validate that the protocol supports it before processing.
-        if matches!(commit_sync_type, CommitSyncType::Fast)
-            && !self.context.protocol_config.consensus_fast_commit_sync()
-        {
-            return Err(ConsensusError::FastCommitSyncNotEnabled);
         }
 
         // Bound the range based on sync type.
@@ -1341,14 +1368,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
         fail_point_async!("consensus-rpc-response");
 
-        // TODO: This gate can be removed once consensus_fast_commit_sync is enabled on
-        // all networks. This endpoint is gated by the
-        // consensus_fast_commit_sync feature flag as it is more expensive than
-        // just fetching commits or headers.
-        if !self.context.protocol_config.consensus_fast_commit_sync() {
-            return Err(ConsensusError::FastCommitSyncNotEnabled);
-        }
-
         let (commits, certifier_block_headers) = self
             .handle_fetch_commits(peer, commit_range, CommitSyncType::Fast)
             .await?;
@@ -1437,14 +1456,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Apply truncation based on fetch mode
         match fetch_mode {
             TransactionFetchMode::FastCommitSync => {
-                // TODO: This gate can be removed once consensus_fast_commit_sync is enabled on
-                // all networks. FastCommitSync mode is controlled by the
-                // client, so we need to validate that the protocol supports it
-                // before processing. No truncation for fast commit sync - all
-                // transactions referenced by commits must be fetched.
-                if !self.context.protocol_config.consensus_fast_commit_sync() {
-                    return Err(ConsensusError::FastCommitSyncNotEnabled);
-                }
+                // No truncation for fast commit sync - all transactions
+                // referenced by commits must be fetched.
             }
             TransactionFetchMode::TransactionSync => {
                 let max_transactions = max(
@@ -1506,33 +1519,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let mut result = Vec::new();
         for (opt_serialized_tx, gen_ref) in store_transactions.into_iter().chain(dag_transactions) {
             if let Some(serialized_tx) = opt_serialized_tx {
-                let serialized = if !self.context.protocol_config.consensus_fast_commit_sync() {
-                    if let GenericTransactionRef::BlockRef(block_ref) = gen_ref {
-                        bcs::to_bytes(&SerializedTransactionsV1 {
-                            block_ref,
-                            serialized_transactions: serialized_tx,
-                        })
-                        .map_err(ConsensusError::SerializationFailure)?
-                    } else {
-                        return Err(ConsensusError::TransactionRefVariantMismatch {
-                            protocol_flag_enabled: false,
-                            expected_variant: "BlockRef",
-                            received_variant: gen_ref.variant_name(),
-                        });
-                    }
-                } else if let GenericTransactionRef::TransactionRef(transaction_ref) = gen_ref {
-                    bcs::to_bytes(&SerializedTransactionsV2 {
-                        transaction_ref,
-                        serialized_transactions: serialized_tx,
-                    })
-                    .map_err(ConsensusError::SerializationFailure)?
-                } else {
-                    return Err(ConsensusError::TransactionRefVariantMismatch {
-                        protocol_flag_enabled: true,
-                        expected_variant: "TransactionRef",
-                        received_variant: gen_ref.variant_name(),
-                    });
-                };
+                let transaction_ref = gen_ref.expect_transaction_ref()?;
+                let serialized = bcs::to_bytes(&SerializedTransactionsV2 {
+                    transaction_ref,
+                    serialized_transactions: serialized_tx,
+                })
+                .map_err(ConsensusError::SerializationFailure)?;
                 result.push(Bytes::from(serialized));
             }
         }
@@ -1788,8 +1780,8 @@ mod tests {
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
-            TestBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-            VerifiedOwnShard, VerifiedTransactions,
+            TestBlockHeader, TestBlockHeaderVersion, TransactionsCommitment, VerifiedBlock,
+            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -1810,7 +1802,7 @@ mod tests {
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-            SerializedTransactionsV1, SerializedTransactionsV2, TransactionFetchMode,
+            SerializedTransactionsV2, TransactionFetchMode,
         },
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -1881,16 +1873,9 @@ mod tests {
         }
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_wrong_peer(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let (mut context, _keys) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+    async fn test_handle_subscribed_block_bundle_wrong_peer() {
+        let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1907,6 +1892,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -1981,16 +1967,9 @@ mod tests {
     /// A signed far-future bundle is dropped at ingress: the block is counted,
     /// not forwarded to the core, and not sent to the shard reconstructor, so
     /// it cannot grow shard/transaction state.
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_drops_far_future(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let (mut context, _keys) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+    async fn test_handle_subscribed_block_bundle_drops_far_future() {
+        let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -2006,6 +1985,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
@@ -2073,16 +2053,115 @@ mod tests {
         );
     }
 
-    #[rstest]
+    /// A second streamed block for a slot we already accepted a header for is
+    /// provable equivocation by its author: the block is dropped before shard
+    /// extraction, its payload and own shard never reach the core, and the
+    /// author is charged.
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
-        let (mut context, _keys) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+    async fn test_handle_subscribed_block_bundle_drops_slot_equivocation() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, mut tx_message_receiver) = mpsc::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+            misbehavior_store.clone(),
+            tx_message_sender,
+            cordial_knowledge,
+        ));
+        let mut encoder = create_encoder(&context);
+
+        // Authority 0 already has an accepted header at round 1; the streamed
+        // block below is a different header for the same slot.
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let accepted = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder)
+                .set_ancestors(vec![BlockRef::new(
+                    GENESIS_ROUND,
+                    AuthorityIndex::new_for_test(1),
+                    BlockHeaderDigest::MIN,
+                )])
+                .build(),
+        );
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
+        assert_ne!(accepted.reference(), input_block.reference());
+        dag_state
+            .write()
+            .accept_block_header(accepted, DataSource::BlockBundleStream);
+
+        let bundle = SerializedBlockBundle::try_from(input_block).unwrap();
+        authority_service
+            .handle_subscribed_block_bundle(peer, bundle, &mut encoder)
+            .await
+            .unwrap();
+
+        assert!(
+            tx_message_receiver.try_recv().is_err(),
+            "an equivocating bundle must not feed the shard reconstructor"
+        );
+        assert!(
+            core_dispatcher.get_blocks().is_empty(),
+            "the equivocating block must not be forwarded to the core"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_slot_cap_headers_total
+                .with_label_values(&[
+                    context.authority_hostname(peer),
+                    DataSource::BlockStreaming.as_str(),
+                ])
+                .get(),
+            1,
+        );
+        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[peer.value()];
+        assert_eq!(
+            counts.faulty_blocks_provable, 1,
+            "two signed headers for one slot are provable equivocation"
+        );
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_wrong_transaction_commitment() {
+        let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -2100,6 +2179,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2197,17 +2277,10 @@ mod tests {
         assert_eq!(counts.faulty_blocks_unprovable, 2);
     }
 
-    #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_with_bad_headers(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_handle_subscribed_block_bundle_with_bad_headers() {
         let committee_size = 4;
-        let (mut context, _keys) = Context::new_for_test(committee_size);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        let (context, _keys) = Context::new_for_test(committee_size);
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -2224,6 +2297,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2239,6 +2313,7 @@ mod tests {
             Arc::new(MisbehaviorStore::new(&context)),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
             block_verifier,
@@ -2249,7 +2324,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
-            Arc::new(MisbehaviorStore::new(&context)),
+            misbehavior_store.clone(),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2300,6 +2375,10 @@ mod tests {
         } else {
             panic!("Expected TooBigHeaderRoundInABundle error, got {result:?}",);
         }
+
+        // The relaying peer (authority 0) is charged for the invalid header.
+        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
+        assert_eq!(counts.faulty_blocks_unprovable, 1);
 
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
@@ -2364,6 +2443,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2379,6 +2459,7 @@ mod tests {
             Arc::new(MisbehaviorStore::new(&context)),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
             block_verifier,
@@ -2389,7 +2470,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
-            Arc::new(MisbehaviorStore::new(&context)),
+            misbehavior_store.clone(),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2427,6 +2508,10 @@ mod tests {
         assert!(core_dispatcher.get_blocks().is_empty());
         assert!(core_dispatcher.get_block_headers().is_empty());
         assert_eq!(authority_service.received_block_headers.size(), 0);
+
+        // The relaying peer (authority 0) is charged for the invalid metadata.
+        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
+        assert_eq!(counts.faulty_blocks_unprovable, 1);
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -2449,6 +2534,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2622,7 +2708,7 @@ mod tests {
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_with_additional_headers(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
+        #[values(false, true)] starfish_speed: bool,
     ) {
         // GIVEN
         let rounds = 10;
@@ -2630,8 +2716,7 @@ mod tests {
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -2690,6 +2775,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2792,7 +2878,7 @@ mod tests {
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribe_bundle_without_additional_headers(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
+        #[values(false, true)] starfish_speed: bool,
     ) {
         // GIVEN
         let rounds = 10;
@@ -2800,8 +2886,7 @@ mod tests {
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -2859,6 +2944,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2973,21 +3059,14 @@ mod tests {
         assert_eq!(received, None);
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_handle_subscribe_block_bundles_request(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_handle_subscribe_block_bundles_request() {
         telemetry_subscribers::init_for_testing();
         // GIVEN
         let rounds = 10;
         let validators = 4;
         let to_whom_authority = AuthorityIndex::new_for_test(1);
-        let (mut context, key_pairs) = Context::new_for_test(validators);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -3044,6 +3123,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3377,6 +3457,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3528,6 +3609,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3629,16 +3711,16 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_commits(#[values(false, true)] consensus_fast_commit_sync: bool) {
+    async fn test_handle_fetch_commits(#[values(false, true)] starfish_speed: bool) {
         // GIVEN
         let rounds = 15;
         let validators = 4;
         let (mut context, key_pairs) = Context::new_for_test(validators);
         context
             .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
-        context.parameters.enable_fast_commit_syncer = consensus_fast_commit_sync;
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
+        let version = TestBlockHeaderVersion::from_context(&context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
             Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
@@ -3699,6 +3781,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3763,6 +3846,7 @@ mod tests {
             .collect::<Vec<_>>();
         for validator in 0..validators {
             let test_block_header = TestBlockHeader::new(rounds + 1, validator as u8)
+                .set_version(version)
                 .set_commit_votes(commit_refs.clone())
                 .set_ancestors(refs_to_headers_from_prev_round.clone())
                 .set_timestamp_ms(
@@ -3773,6 +3857,7 @@ mod tests {
             new_block_headers.push(verified_block_header);
         }
         let equivocation = TestBlockHeader::new(rounds + 1, 1)
+            .set_version(version)
             .set_commit_votes(commit_refs.clone())
             .set_ancestors(refs_to_headers_from_prev_round.clone())
             .set_timestamp_ms((rounds as u64 + 2) * 1000)
@@ -3785,6 +3870,7 @@ mod tests {
             .map(|commit_ref| CommitRef::new(commit_ref.index, CommitDigest::MIN))
             .collect::<Vec<_>>();
         let poisoned_equivocation = TestBlockHeader::new(rounds + 1, 2)
+            .set_version(version)
             .set_commit_votes(poisoned_votes)
             .set_ancestors(refs_to_headers_from_prev_round.clone())
             .set_timestamp_ms((rounds as u64 + 2) * 1000 + 1)
@@ -3806,6 +3892,7 @@ mod tests {
                 .collect::<Vec<_>>();
             for validator in 0..validators {
                 let test_block_header = TestBlockHeader::new(round, validator as u8)
+                    .set_version(version)
                     .set_ancestors(refs_to_headers_from_prev_round.clone())
                     .set_timestamp_ms(round as u64 * 1000 + (validator + round as usize + 1) as u64)
                     .build();
@@ -3850,23 +3937,17 @@ mod tests {
         );
     }
 
-    #[rstest]
     #[tokio::test]
-    async fn test_handle_fetch_transactions(
-        #[values(false, true)] consensus_fast_commit_sync: bool,
-    ) {
+    async fn test_handle_fetch_transactions() {
         // GIVEN
         let rounds = 10;
         let validators = 4;
-        let (mut context, key_pairs) = Context::new_for_test(validators);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(consensus_fast_commit_sync);
+        let (context, key_pairs) = Context::new_for_test(validators);
         let context = Context {
             parameters: Parameters {
                 max_transactions_per_transaction_sync_fetch: 20,
                 max_transactions_per_commit_sync_fetch: 10,
-                enable_fast_commit_syncer: consensus_fast_commit_sync,
+                enable_fast_commit_syncer: true,
                 ..context.parameters
             },
             ..context
@@ -3928,6 +4009,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3973,26 +4055,18 @@ mod tests {
 
         let mut block_refs_to_request_first_batch: Vec<GenericTransactionRef> = (1..=rounds)
             .flat_map(|round| {
-                all_block_headers[round as usize].iter().map(|bh| {
-                    if consensus_fast_commit_sync {
-                        GenericTransactionRef::TransactionRef(bh.transaction_ref())
-                    } else {
-                        GenericTransactionRef::from(bh.reference())
-                    }
-                })
+                all_block_headers[round as usize]
+                    .iter()
+                    .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
             })
             .collect();
 
         let mut block_refs_to_request_second_batch: Vec<GenericTransactionRef> = (rounds + 1
             ..=2 * rounds)
             .flat_map(|round| {
-                all_block_headers[round as usize].iter().map(|bh| {
-                    if consensus_fast_commit_sync {
-                        GenericTransactionRef::TransactionRef(bh.transaction_ref())
-                    } else {
-                        GenericTransactionRef::from(bh.reference())
-                    }
-                })
+                all_block_headers[round as usize]
+                    .iter()
+                    .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
             })
             .collect();
 
@@ -4021,55 +4095,28 @@ mod tests {
 
         // Check the correctness of the received transactions
         for (i, serialized_transactions_bytes) in serialized_transactions.iter().enumerate() {
-            if consensus_fast_commit_sync {
-                // Deserialize V2 format with TransactionRef
-                let deserialized: SerializedTransactionsV2 =
-                    bcs::from_bytes(serialized_transactions_bytes)
-                        .expect("deserialization should succeed");
-                let transaction_ref = deserialized.transaction_ref;
+            let deserialized: SerializedTransactionsV2 =
+                bcs::from_bytes(serialized_transactions_bytes)
+                    .expect("deserialization should succeed");
+            let transaction_ref = deserialized.transaction_ref;
 
-                // Verify it matches the expected ref
-                assert_eq!(
-                    GenericTransactionRef::TransactionRef(transaction_ref),
-                    block_refs_to_request_first_batch[i]
-                );
+            // Verify it matches the expected ref
+            assert_eq!(
+                GenericTransactionRef::TransactionRef(transaction_ref),
+                block_refs_to_request_first_batch[i]
+            );
 
-                let serialized_transactions = deserialized.serialized_transactions;
-                // Verify the transaction commitment matches
-                assert_eq!(
-                    transaction_ref.transactions_commitment,
-                    TransactionsCommitment::compute_transactions_commitment(
-                        &serialized_transactions,
-                        &context,
-                        &mut encoder
-                    )
-                    .unwrap()
-                );
-            } else {
-                // Deserialize V1 format with BlockRef
-                let deserialized: SerializedTransactionsV1 =
-                    bcs::from_bytes(serialized_transactions_bytes)
-                        .expect("deserialization should succeed");
-                let block_ref = deserialized.block_ref;
-                assert_eq!(
-                    GenericTransactionRef::from(block_ref),
-                    block_refs_to_request_first_batch[i]
-                );
-                let serialized_transactions = deserialized.serialized_transactions;
-                let block_header = all_block_headers[block_ref.round as usize]
-                    .iter()
-                    .find(|header| header.reference() == block_ref)
-                    .expect("We expect to find the header with such block_ref");
-                assert_eq!(
-                    block_header.transactions_commitment(),
-                    TransactionsCommitment::compute_transactions_commitment(
-                        &serialized_transactions,
-                        &context,
-                        &mut encoder
-                    )
-                    .unwrap()
-                );
-            }
+            let serialized_transactions = deserialized.serialized_transactions;
+            // Verify the transaction commitment matches
+            assert_eq!(
+                transaction_ref.transactions_commitment,
+                TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions,
+                    &context,
+                    &mut encoder
+                )
+                .unwrap()
+            );
         }
 
         block_refs_to_request_second_batch.truncate(
@@ -4162,6 +4209,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -4200,14 +4248,11 @@ mod tests {
         // Also write all block headers to the store so below-GC refs can be found
         let all_headers: Vec<VerifiedBlockHeader> = dag_builder.block_headers(1..=rounds);
         store
-            .write(
-                WriteBatch {
-                    block_headers: all_headers,
-                    fast_commit_sync_flag: Some(false),
-                    ..WriteBatch::default()
-                },
-                context.clone(),
-            )
+            .write(WriteBatch {
+                block_headers: all_headers,
+                fast_commit_sync_flag: Some(false),
+                ..WriteBatch::default()
+            })
             .expect("Failed to write block headers to store");
 
         // Set last_solid_subdag_base so gc_round_for_last_solid_commit() is ~10.
@@ -4305,38 +4350,174 @@ mod tests {
     }
 
     #[test]
-    fn check_shard_version_matches_flags_when_fast_commit_sync_enabled() {
-        use super::check_shard_version_matches_flags;
-        use crate::{block_header::ShardWithProof, error::ConsensusError};
-        let mut config = iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
-        config.set_consensus_fast_commit_sync_for_testing(true);
+    fn check_shard_version_rejects_v1() {
+        use super::check_shard_version;
+        use crate::{
+            block_header::{ShardWithProof, ShardWithProofV1},
+            error::ConsensusError,
+        };
 
-        // V1 reaching a flag-ON receiver — the case the wire-format dispatch
-        // does not catch on its own.
-        let shard_v1 = ShardWithProof::new(
-            vec![],
-            vec![],
-            BlockRef::default(),
-            TransactionsCommitment::default(),
-            false,
-        );
-        let result = check_shard_version_matches_flags(&shard_v1, &config);
+        // A legacy V1 shard reaching the receiver is rejected.
+        let shard_v1 = ShardWithProof::V1(ShardWithProofV1 {
+            shard: vec![],
+            transaction_commitment: TransactionsCommitment::default(),
+            proof: vec![],
+            block_ref: BlockRef::default(),
+        });
+        let result = check_shard_version(&shard_v1);
         assert!(matches!(
             result,
-            Err(ConsensusError::WrongShardVersionForFlags {
-                actual: "V1",
-                fast_commit_sync: true,
-            })
+            Err(ConsensusError::WrongShardVersion { actual: "V1" })
         ));
 
-        // V2 with flag ON — accepted (positive control).
+        // V2 — accepted (positive control).
         let shard_v2 = ShardWithProof::new(
             vec![],
             vec![],
             BlockRef::default(),
             TransactionsCommitment::default(),
-            true,
         );
-        check_shard_version_matches_flags(&shard_v2, &config).unwrap();
+        check_shard_version(&shard_v2).unwrap();
+    }
+
+    #[tokio::test]
+    async fn check_shard_transaction_author_rejects_invalid_author() {
+        use super::check_shard_transaction_author;
+        use crate::{
+            block_header::{ShardWithProof, ShardWithProofV2},
+            error::ConsensusError,
+            transaction_ref::TransactionRef,
+        };
+
+        let (context, _) = Context::new_for_test(4);
+        let peer = context.committee.to_authority_index(1).unwrap();
+        let invalid_author = AuthorityIndex::new_for_test(context.committee.size() as u8);
+        let shard = ShardWithProof::V2(ShardWithProofV2 {
+            shard: vec![],
+            proof: vec![],
+            transaction_ref: TransactionRef {
+                round: 1,
+                author: invalid_author,
+                transactions_commitment: TransactionsCommitment::default(),
+            },
+        });
+
+        let result = check_shard_transaction_author(&shard, peer, &context);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::InvalidAuthorityIndexRequested {
+                index,
+                max: 4,
+                peer: err_peer,
+            }) if index == invalid_author && err_peer == peer
+        ));
+
+        let valid_shard = ShardWithProof::new(
+            vec![],
+            vec![],
+            BlockRef::new(1, peer, BlockHeaderDigest::default()),
+            TransactionsCommitment::default(),
+        );
+        check_shard_transaction_author(&valid_shard, peer, &context).unwrap();
+    }
+
+    /// A shard longer than the maximum honest shard length is refused at
+    /// ingress and charged to the relaying peer; one at exactly that length
+    /// passes the length gate and is only rejected by its Merkle proof.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_extract_shards_rejects_oversized_shard() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        let authority_service = AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher,
+            rx_block_broadcast,
+            dag_state,
+            store,
+            misbehavior_store.clone(),
+            tx_message_sender,
+            cordial_knowledge,
+        );
+
+        let max_shard_bytes = {
+            let limit = crate::block_verifier::serialized_transactions_size_limit(&context);
+            let shard_bytes = (limit + 4).div_ceil(context.committee.info_length());
+            shard_bytes + (shard_bytes % 2)
+        };
+        let peer = context.committee.to_authority_index(1).unwrap();
+        let carrier_ref = BlockRef::new(5, peer, BlockHeaderDigest::default());
+        let shard_ref = BlockRef::new(4, peer, BlockHeaderDigest::default());
+        let shard_of_len = |len: usize| {
+            let shard = crate::block_header::ShardWithProof::new(
+                vec![0u8; len],
+                vec![],
+                shard_ref,
+                TransactionsCommitment::default(),
+            );
+            vec![Bytes::from(bcs::to_bytes(&shard).unwrap())]
+        };
+
+        let result = authority_service.extract_shards_from_bundle(
+            peer,
+            &context.committee.authority(peer).hostname.clone(),
+            shard_of_len(max_shard_bytes + 1),
+            carrier_ref,
+        );
+        assert!(
+            matches!(
+                result,
+                Err(ConsensusError::SerializedShardTooLarge { limit, peer: err_peer, .. })
+                    if limit == max_shard_bytes && err_peer == peer
+            ),
+            "an oversized shard must be refused, got {result:?}"
+        );
+        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[peer.value()];
+        assert_eq!(counts.faulty_blocks_unprovable, 1);
+
+        // At exactly the maximum length the size gate passes, so the shard is
+        // only rejected by the following proof check.
+        let result = authority_service.extract_shards_from_bundle(
+            peer,
+            &context.committee.authority(peer).hostname.clone(),
+            shard_of_len(max_shard_bytes),
+            carrier_ref,
+        );
+        assert!(
+            matches!(result, Err(ConsensusError::IncorrectShardProof { .. })),
+            "a maximum-length shard must pass the size gate, got {result:?}"
+        );
     }
 }

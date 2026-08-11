@@ -5,17 +5,20 @@
 use std::mem;
 
 use fastcrypto::traits::Signer;
-use iota_sdk_ext::types::gas::GasCostSummary;
+use iota_sdk_ext::types::{
+    TransactionEffects,
+    checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
+    gas::GasCostSummary,
+};
 
 use crate::{
     base_types::{AuthorityName, VerifiedExecutionData},
     committee::Committee,
     crypto::{AuthoritySignInfo, AuthoritySignature, IotaAuthoritySignature},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary,
-        CheckpointVersionSpecificData, EndOfEpochData, FullCheckpointContents, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointVersionSpecificData,
+        FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     transaction::VerifiedTransaction,
 };
@@ -168,8 +171,8 @@ impl MockCheckpointBuilder {
                 .checked_add(1)
                 .expect("checkpoint sequence number overflow"),
             network_total_transactions: self.previous_checkpoint.network_total_transactions
-                + contents.size() as u64,
-            content_digest: *contents.digest(),
+                + contents.len() as u64,
+            contents_digest: contents.digest(),
             previous_digest: Some(*self.previous_checkpoint.digest()),
             epoch_rolling_gas_cost_summary,
             end_of_epoch_data,

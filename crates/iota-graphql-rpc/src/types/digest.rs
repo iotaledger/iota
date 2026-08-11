@@ -6,7 +6,7 @@ use std::{fmt, str::FromStr};
 
 use async_graphql::*;
 use fastcrypto::encoding::{Base58, Encoding};
-use iota_types::digests::{ObjectDigest, TransactionDigest};
+use iota_sdk_ext::types::{ObjectDigest, TransactionDigest};
 
 use crate::types::string_input::impl_string_input;
 
@@ -66,6 +66,12 @@ impl TryFrom<&[u8]> for Digest {
 impl From<Digest> for ObjectDigest {
     fn from(digest: Digest) -> Self {
         ObjectDigest::new(digest.0)
+    }
+}
+
+impl From<Digest> for TransactionDigest {
+    fn from(digest: Digest) -> Self {
+        TransactionDigest::new(digest.0)
     }
 }
 

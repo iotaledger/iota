@@ -41,19 +41,16 @@ serde.workspace = true
 serde-name = "0.2.1"
 serde_json.workspace = true
 serde_with.workspace = true
-signature.workspace = true
 static_assertions.workspace = true
 strum.workspace = true
-strum_macros.workspace = true
 tap.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 
 # internal dependencies
 iota-macros.workspace = true
-iota-proc-macros.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-ext = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1", "passkey", "serde", "rand", "hash"] }
+iota-sdk-ext = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1", "passkey", "bech32", "serde", "rand", "hash"] }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true

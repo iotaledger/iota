@@ -140,15 +140,20 @@ pub struct Parameters {
     pub commit_sync_gap_threshold: u32,
 
     /// Enable FastCommitSyncer for faster recovery from large commit gaps.
-    /// This is a local node configuration that works in conjunction with the
-    /// protocol-level consensus_fast_commit_sync feature flag. Both must be
-    /// enabled for FastCommitSyncer to run. The protocol flag controls
-    /// whether gRPC endpoints are available, while this local flag controls
-    /// whether this specific node creates and runs the FastCommitSyncer.
     /// Enabled by default; operators can disable it locally if bugs are
-    /// discovered, without affecting protocol-level endpoint availability.
+    /// discovered.
     #[serde(default = "Parameters::default_enable_fast_commit_syncer")]
     pub enable_fast_commit_syncer: bool,
+
+    /// Ask commit-sync peers that have voted for the end of the requested
+    /// range before those that have not, since a vote means the peer has
+    /// solidified every commit in the range. Peers without an observed vote
+    /// are ordered behind; each fetch round tries a bounded number of peers,
+    /// so on a committee larger than that bound they can stay outside the
+    /// round until their votes are observed. Enabled by default; disabling it
+    /// restores a plain uniform order.
+    #[serde(default = "Parameters::default_enable_commit_sync_peer_selection_by_commit_votes")]
+    pub enable_commit_sync_peer_selection_by_commit_votes: bool,
 
     /// Enable adaptive acknowledgment filtering for StarfishSpeed.
     /// Local heuristic that drops acks for authorities persistently blamed
@@ -157,6 +162,15 @@ pub struct Parameters {
     /// operators can disable it locally without a protocol change.
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
+
+    /// Prefer more responsive peers when the transactions synchronizer selects
+    /// peers to fetch from. Ranking is a preference within the already-eligible
+    /// candidate set, not a change of eligibility, so it cannot affect safety.
+    /// Enabled by default; disabling it restores the previous selection: a
+    /// uniform random order that excludes the most recently failed peers (up
+    /// to less than f+1 by stake).
+    #[serde(default = "Parameters::default_enable_peer_responsiveness_ranking")]
+    pub enable_peer_responsiveness_ranking: bool,
 
     /// Port for the DAG visualizer gRPC server (localhost only).
     /// When set, starts a debugging server for real-time DAG visualization.
@@ -196,7 +210,7 @@ impl Parameters {
     }
 
     pub(crate) fn default_soft_leader_timeout() -> Duration {
-        Duration::from_millis(100)
+        Duration::from_millis(5)
     }
 
     pub(crate) fn default_block_rate_window() -> Duration {
@@ -425,7 +439,16 @@ impl Parameters {
         true
     }
 
+    pub(crate) fn default_enable_commit_sync_peer_selection_by_commit_votes() -> bool {
+        // Enabled by default. Ordering only, so it cannot diverge consensus.
+        true
+    }
+
     pub(crate) fn default_enable_starfish_speed_adaptive_acknowledgments() -> bool {
+        true
+    }
+
+    pub(crate) fn default_enable_peer_responsiveness_ranking() -> bool {
         true
     }
 }
@@ -460,8 +483,12 @@ impl Default for Parameters {
             fast_commit_sync_batch_size: Parameters::default_fast_commit_sync_batch_size(),
             commit_sync_gap_threshold: Parameters::default_commit_sync_gap_threshold(),
             enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
+            enable_commit_sync_peer_selection_by_commit_votes:
+                Parameters::default_enable_commit_sync_peer_selection_by_commit_votes(),
             enable_starfish_speed_adaptive_acknowledgments:
                 Parameters::default_enable_starfish_speed_adaptive_acknowledgments(),
+            enable_peer_responsiveness_ranking:
+                Parameters::default_enable_peer_responsiveness_ranking(),
             dag_visualizer_port: None,
         }
     }
@@ -521,6 +548,15 @@ pub struct TonicParameters {
     /// Per-peer, per-RPC admission caps for the inbound consensus server.
     #[serde(default)]
     pub admission: AdmissionParameters,
+
+    /// Deadline for receiving the request message that opens a block
+    /// subscription stream. A peer that opens the stream and withholds the
+    /// request is disconnected once it expires; the stream itself stays exempt
+    /// from `request_timeout`.
+    ///
+    /// A zero duration (the default) disables the deadline.
+    #[serde(default)]
+    pub subscribe_request_timeout: Duration,
 }
 
 impl TonicParameters {
@@ -540,16 +576,29 @@ impl TonicParameters {
         64 << 20
     }
 
-    /// Overrides only the inbound resource bounds with the protective preset
-    /// (sized for ~100-validator committees), preserving any
-    /// operator-configured transport settings (keepalive, buffers,
-    /// `message_size_limit`). `default()` stays inert, so the bounds never
-    /// change behaviour unless explicitly enabled.
+    /// Fills the inbound resource bounds that are still at their inert
+    /// defaults with the protective preset (sized for ~100-validator
+    /// committees). Bounds an operator configured explicitly are kept, as are
+    /// the transport settings the preset does not cover (keepalive, buffers,
+    /// `message_size_limit`). A bound explicitly configured to its inert value
+    /// still receives the preset; running without a bound requires disabling
+    /// the preset itself (`CONSENSUS_GRPC_PROTECTIVE_LIMITS=0`).
     pub fn apply_protective(&mut self) {
-        self.max_concurrent_streams = 64;
-        self.request_timeout = Duration::from_secs(120);
-        self.max_inbound_message_size = 1 << 20;
-        self.admission = AdmissionParameters::protective();
+        if self.max_concurrent_streams == 0 {
+            self.max_concurrent_streams = 64;
+        }
+        if self.request_timeout.is_zero() {
+            self.request_timeout = Duration::from_secs(120);
+        }
+        if self.max_inbound_message_size == 0 {
+            self.max_inbound_message_size = 1 << 20;
+        }
+        if self.admission.is_inert() {
+            self.admission = AdmissionParameters::protective();
+        }
+        if self.subscribe_request_timeout.is_zero() {
+            self.subscribe_request_timeout = Duration::from_secs(30);
+        }
     }
 
     /// The inert defaults with the protective bounds applied.
@@ -571,6 +620,7 @@ impl Default for TonicParameters {
             request_timeout: Duration::ZERO,
             max_inbound_message_size: 0,
             admission: AdmissionParameters::default(),
+            subscribe_request_timeout: Duration::ZERO,
         }
     }
 }
@@ -583,11 +633,13 @@ impl Default for TonicParameters {
 /// non-protocol parameters — heterogeneous values across authorities are safe,
 /// so they can be rolled out and tuned per node.
 ///
-/// `0` (the default for every cap) disables admission for that group, leaving
-/// the mechanism inert until an operator opts in. Recommended values for the
-/// opt-in protective preset, sized for ~100-validator committees and the local
-/// synchronizer fan-out toward one server: subscriptions 2, header fetches 32,
-/// transaction fetches 16, commit fetches `commit_sync_parallel_fetches` (8).
+/// `0` (the default for every cap) disables admission for that group. At node
+/// start the protective preset fills the caps when all of them are left at
+/// `0`; a caps block with any explicitly configured value is kept as-is, and
+/// `CONSENSUS_GRPC_PROTECTIVE_LIMITS=0` disables the preset entirely. Preset
+/// values, sized for ~100-validator committees and the local synchronizer
+/// fan-out toward one server: subscriptions 2, header fetches 32, transaction
+/// fetches 16, commit fetches `commit_sync_parallel_fetches` (8).
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct AdmissionParameters {
     /// Max concurrent block-subscription streams per peer.
@@ -610,8 +662,8 @@ pub struct AdmissionParameters {
 }
 
 impl AdmissionParameters {
-    /// Opt-in preset sized for ~100-validator committees and the local
-    /// synchronizer fan-out toward one server.
+    /// Preset sized for ~100-validator committees and the local synchronizer
+    /// fan-out toward one server.
     pub fn protective() -> Self {
         Self {
             max_subscriptions_per_peer: 2,
@@ -619,5 +671,13 @@ impl AdmissionParameters {
             max_transaction_fetches_per_peer: 16,
             max_commit_fetches_per_peer: Parameters::default_commit_sync_parallel_fetches() as u32,
         }
+    }
+
+    /// True when every cap is `0`, i.e. admission control is disabled.
+    pub fn is_inert(&self) -> bool {
+        self.max_subscriptions_per_peer == 0
+            && self.max_header_fetches_per_peer == 0
+            && self.max_transaction_fetches_per_peer == 0
+            && self.max_commit_fetches_per_peer == 0
     }
 }

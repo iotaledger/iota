@@ -2,11 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    base_types::EpochId,
-    message_envelope::Message,
-    messages_checkpoint::{CheckpointDigest, CheckpointSummary, CheckpointTimestamp},
-};
+use iota_sdk_ext::types::{CheckpointDigest, checkpoint::CheckpointSummary};
+
+use crate::{base_types::EpochId, messages_checkpoint::CheckpointTimestamp};
 
 /// The static epoch information that is accessible to move smart contracts
 #[derive(Default)]

@@ -5,13 +5,13 @@
 use std::collections::BTreeMap;
 
 use better_any::{Tid, TidAble};
-use iota_sdk_ext::types::{ObjectId, Owner};
+use iota_sdk_ext::types::{ObjectId, Owner, Version};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{language_storage::ModuleId, resolver::ModuleResolver};
 
 use crate::{
-    base_types::{SequenceNumber, VersionNumber},
+    base_types::VersionNumber,
     committee::EpochId,
     error::{IotaError, IotaResult},
     inner_temporary_store::WrittenObjects,
@@ -21,7 +21,7 @@ use crate::{
         get_module_by_id, load_package_object_from_object_store,
     },
     transaction::{
-        InputObjectKind, InputObjects, ObjectReadResult, Transaction, TransactionDataAPI,
+        InputObjectKind, InputObjects, ObjectReadResult, TransactionAPI, TransactionEnvelope,
     },
 };
 
@@ -43,7 +43,7 @@ impl ChildObjectResolver for InMemoryStorage {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         let child_object = match self.persistent.get(child).cloned() {
             None => return Ok(None),
@@ -70,7 +70,7 @@ impl ChildObjectResolver for InMemoryStorage {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         let recv_object = match self.persistent.get(receiving_object_id).cloned() {
@@ -120,13 +120,7 @@ impl ObjectStore for InMemoryStorage {
         Ok(self
             .persistent
             .get(object_id)
-            .and_then(|obj| {
-                if obj.version() == version {
-                    Some(obj)
-                } else {
-                    None
-                }
-            })
+            .filter(|&obj| obj.version() == version)
             .cloned())
     }
 }
@@ -147,13 +141,7 @@ impl ObjectStore for &mut InMemoryStorage {
         Ok(self
             .persistent
             .get(object_id)
-            .and_then(|obj| {
-                if obj.version() == version {
-                    Some(obj)
-                } else {
-                    None
-                }
-            })
+            .filter(|&obj| obj.version() == version)
             .cloned())
     }
 }
@@ -176,9 +164,12 @@ impl InMemoryStorage {
         Self { persistent }
     }
 
-    pub fn read_input_objects_for_transaction(&self, transaction: &Transaction) -> InputObjects {
+    pub fn read_input_objects_for_transaction(
+        &self,
+        transaction: &TransactionEnvelope,
+    ) -> InputObjects {
         let mut input_objects = Vec::new();
-        for kind in transaction.transaction_data().input_objects().unwrap() {
+        for kind in transaction.transaction().input_objects().unwrap() {
             let id = match kind {
                 InputObjectKind::MovePackage(id) | InputObjectKind::SharedMoveObject { id, .. } => {
                     id

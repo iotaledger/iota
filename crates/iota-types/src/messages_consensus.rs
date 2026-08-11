@@ -13,21 +13,24 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
-use iota_sdk_ext::types::crypto::IntentScope;
+use iota_sdk_ext::types::{
+    Digest, MisbehaviorReportDigest, ObjectReference, SenderSignedTransaction, TransactionDigest,
+    crypto::IntentScope,
+};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
 use crate::{
-    base_types::{AuthorityName, ConciseableName, ObjectRef, TransactionDigest},
+    base_types::{AuthorityName, ConciseableName},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
-    digests::{Digest, MisbehaviorReportDigest},
+    deny_rule_governance::DenyRuleSet,
     message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
-    transaction::{CertifiedTransaction, Transaction},
+    transaction::{CertifiedTransaction, TransactionEnvelope},
 };
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -56,6 +59,8 @@ pub enum ConsensusTransactionKey {
     ),
     /// P-COOL user transaction key (by transaction digest).
     UserTransaction(TransactionDigest),
+    OverloadNotificationV1(AuthorityName, u64 /* generation */),
+    TransactionDenyRuleProposal(AuthorityName, u64 /* generation */),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -97,6 +102,20 @@ impl Debug for ConsensusTransactionKey {
                 )
             }
             Self::UserTransaction(digest) => write!(f, "UserTransaction({digest:?})"),
+            Self::OverloadNotificationV1(name, generation) => {
+                write!(
+                    f,
+                    "OverloadNotificationV1({:?}, gen={generation:?})",
+                    name.concise()
+                )
+            }
+            Self::TransactionDenyRuleProposal(name, generation) => {
+                write!(
+                    f,
+                    "TransactionDenyRuleProposal({:?}, gen={generation:?})",
+                    name.concise()
+                )
+            }
         }
     }
 }
@@ -145,7 +164,7 @@ pub struct AuthorityCapabilitiesV1 {
     /// The ObjectRefs of all versions of system packages that the validator
     /// possesses. Used to determine whether to do a framework/movestdlib
     /// upgrade.
-    pub available_system_packages: Vec<ObjectRef>,
+    pub available_system_packages: Vec<ObjectReference>,
 }
 
 impl Message for AuthorityCapabilitiesV1 {
@@ -180,7 +199,7 @@ impl AuthorityCapabilitiesV1 {
         authority: AuthorityName,
         chain: Chain,
         supported_protocol_versions: SupportedProtocolVersions,
-        available_system_packages: Vec<ObjectRef>,
+        available_system_packages: Vec<ObjectReference>,
     ) -> Self {
         let generation = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -214,6 +233,47 @@ impl SignedAuthorityCapabilitiesV1 {
     }
 }
 
+/// A validator's full-state proposal for the network transaction deny rules,
+/// announced through consensus.
+///
+/// Each proposal carries the authority's complete proposed rule set; the latest
+/// generation per authority supersedes earlier ones. The active rule set the
+/// network enforces is the stake-weighted aggregate of all current proposals.
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct TransactionDenyRuleProposal {
+    /// The authority announcing this proposal.
+    pub authority: AuthorityName,
+    /// Per-authority counter used to deduplicate proposals; a higher generation
+    /// supersedes earlier proposals from the same authority.
+    pub generation: u64,
+    /// The complete set of rules this authority proposes.
+    pub proposed_rules: DenyRuleSet,
+}
+
+impl TransactionDenyRuleProposal {
+    /// Creates a proposal with a wall-clock generation, so a resubmission
+    /// supersedes this authority's earlier proposals. Pass the generation of
+    /// this authority's currently recorded proposal (if any) so the new one
+    /// stays newer even after a backward wall-clock step.
+    pub fn new(
+        authority: AuthorityName,
+        proposed_rules: DenyRuleSet,
+        last_generation: Option<u64>,
+    ) -> Self {
+        let now: u64 = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("IOTA did not exist prior to 1970")
+            .as_millis()
+            .try_into()
+            .expect("This build of iota is not supported in the year 500,000,000");
+        Self {
+            authority,
+            generation: now.max(last_generation.map_or(0, |g| g.saturating_add(1))),
+            proposed_rules,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ConsensusTransactionKind {
     CertifiedTransaction(Box<CertifiedTransaction>),
@@ -238,22 +298,106 @@ pub enum ConsensusTransactionKind {
     /// P-COOL user transaction. Raw, uncertified transaction submitted
     /// directly to consensus without pre-consensus object locking.
     /// Conflicts are resolved post-consensus.
-    UserTransactionV1(Box<Transaction>),
+    UserTransactionV1(Box<TransactionEnvelope>),
+    OverloadNotificationV1(
+        AuthorityName,
+        u64, // generation
+        u8,  // percentage
+    ),
+    /// A validator's full-state deny rule proposal. Unsigned: the sender is
+    /// authenticated as the consensus block author and must match
+    /// `TransactionDenyRuleProposal::authority`.
+    TransactionDenyRuleProposal(TransactionDenyRuleProposal),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
 
 impl ConsensusTransactionKind {
-    pub fn is_dkg(&self) -> bool {
-        matches!(
-            self,
-            ConsensusTransactionKind::RandomnessDkgMessage(_, _)
-                | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
-        )
+    // NOTE: Keep every match in this impl exhaustive (no `_` arm) so a new
+    // `ConsensusTransactionKind` variant must be classified here rather
+    // than being silently mishandled.
+
+    /// Helper that applies the matching projection to the underlying certified
+    /// or raw user transaction, or `None` for internal consensus messages.
+    fn map_cert_or_raw_user_tx<'a, R>(
+        &'a self,
+        certified: impl FnOnce(&'a CertifiedTransaction) -> R,
+        raw: impl FnOnce(&'a TransactionEnvelope) -> R,
+    ) -> Option<R> {
+        match self {
+            Self::CertifiedTransaction(c) => Some(certified(c)),
+            Self::UserTransactionV1(t) => Some(raw(t)),
+            Self::CheckpointSignature(_)
+            | Self::EndOfPublish(_)
+            | Self::CapabilityNotificationV1(_)
+            | Self::SignedCapabilityNotificationV1(_)
+            | Self::RandomnessDkgMessage(..)
+            | Self::RandomnessDkgConfirmation(..)
+            | Self::MisbehaviorReport(_)
+            | Self::OverloadNotificationV1(..)
+            | Self::TransactionDenyRuleProposal(_) => None,
+            #[allow(deprecated)]
+            Self::NewJWKFetchedDeprecated => None,
+        }
     }
 
+    /// The signed transaction of the underlying certified or raw user
+    /// transaction, or `None` for internal consensus messages.
+    pub fn as_sender_signed_transaction(&self) -> Option<&SenderSignedTransaction> {
+        self.map_cert_or_raw_user_tx(|c| c.data(), |t| t.data())
+    }
+
+    /// The (cached) transaction digest of the underlying certified or raw
+    /// user transaction, or `None` for internal consensus messages.
+    pub fn transaction_digest(&self) -> Option<TransactionDigest> {
+        self.map_cert_or_raw_user_tx(|c| *c.digest(), |t| *t.digest())
+    }
+
+    /// Returns the raw, uncertified user transaction (`UserTransactionV1`)
+    /// submitted directly to consensus, or `None` for any other kind. Certified
+    /// user transactions are not included here.
+    pub fn as_user_transaction(&self) -> Option<&TransactionEnvelope> {
+        match self {
+            Self::UserTransactionV1(tx) => Some(tx),
+            Self::CertifiedTransaction(_)
+            | Self::CheckpointSignature(_)
+            | Self::EndOfPublish(_)
+            | Self::CapabilityNotificationV1(_)
+            | Self::SignedCapabilityNotificationV1(_)
+            | Self::RandomnessDkgMessage(..)
+            | Self::RandomnessDkgConfirmation(..)
+            | Self::MisbehaviorReport(_)
+            | Self::OverloadNotificationV1(..)
+            | Self::TransactionDenyRuleProposal(_) => None,
+            #[allow(deprecated)]
+            Self::NewJWKFetchedDeprecated => None,
+        }
+    }
+
+    /// Returns `true` only for a raw, uncertified user transaction
+    /// (`UserTransactionV1`) submitted directly to consensus. Certified user
+    /// transactions are not included here.
     pub fn is_user_transaction(&self) -> bool {
-        matches!(self, ConsensusTransactionKind::UserTransactionV1(_))
+        self.as_user_transaction().is_some()
+    }
+
+    /// Returns `true` for the randomness DKG messages
+    /// (`RandomnessDkgMessage` and `RandomnessDkgConfirmation`).
+    pub fn is_dkg(&self) -> bool {
+        match self {
+            Self::RandomnessDkgMessage(_, _) | Self::RandomnessDkgConfirmation(_, _) => true,
+            Self::UserTransactionV1(_)
+            | Self::CertifiedTransaction(_)
+            | Self::CheckpointSignature(_)
+            | Self::EndOfPublish(_)
+            | Self::CapabilityNotificationV1(_)
+            | Self::SignedCapabilityNotificationV1(_)
+            | Self::MisbehaviorReport(_)
+            | Self::OverloadNotificationV1(..)
+            | Self::TransactionDenyRuleProposal(_) => false,
+            #[allow(deprecated)]
+            Self::NewJWKFetchedDeprecated => false,
+        }
     }
 }
 
@@ -541,7 +685,7 @@ impl ConsensusTransaction {
         }
     }
 
-    pub fn new_user_transaction(transaction: Transaction) -> Self {
+    pub fn new_user_transaction(transaction: TransactionEnvelope) -> Self {
         let mut hasher = DefaultHasher::new();
         let tx_digest = transaction.digest();
         tx_digest.hash(&mut hasher);
@@ -549,6 +693,47 @@ impl ConsensusTransaction {
         Self {
             tracking_id,
             kind: ConsensusTransactionKind::UserTransactionV1(Box::new(transaction)),
+        }
+    }
+
+    pub fn new_overload_notification_v1(
+        authority: AuthorityName,
+        load_shedding_percentage: u8,
+    ) -> Self {
+        // Wall-clock millis-since-epoch is used purely as a unique-per-submission
+        // disambiguator in the consensus transaction key, mirroring
+        // `AuthorityCapabilitiesV1::new`, because `consensus_message_processed`
+        // dedups by key for the full epoch.
+        // The receive side uses the percentage value directly; the generation is only
+        // for key uniqueness, not for ordering (consensus already orders deliveries).
+        let generation: u64 = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("IOTA did not exist prior to 1970")
+            .as_millis()
+            .try_into()
+            .expect("This build of iota is not supported in the year 500,000,000");
+        let mut hasher = DefaultHasher::new();
+        authority.hash(&mut hasher);
+        generation.hash(&mut hasher);
+        load_shedding_percentage.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::OverloadNotificationV1(
+                authority,
+                generation,
+                load_shedding_percentage,
+            ),
+        }
+    }
+
+    pub fn new_transaction_deny_rule_proposal(proposal: TransactionDenyRuleProposal) -> Self {
+        let mut hasher = DefaultHasher::new();
+        proposal.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::TransactionDenyRuleProposal(proposal),
         }
     }
 
@@ -601,6 +786,15 @@ impl ConsensusTransaction {
             }
             ConsensusTransactionKind::UserTransactionV1(tx) => {
                 ConsensusTransactionKey::UserTransaction(*tx.digest())
+            }
+            ConsensusTransactionKind::OverloadNotificationV1(authority, generation, _) => {
+                ConsensusTransactionKey::OverloadNotificationV1(*authority, *generation)
+            }
+            ConsensusTransactionKind::TransactionDenyRuleProposal(proposal) => {
+                ConsensusTransactionKey::TransactionDenyRuleProposal(
+                    proposal.authority,
+                    proposal.generation,
+                )
             }
         }
     }
@@ -705,5 +899,115 @@ mod tests {
             legacy_bytes, new_bytes,
             "ConsensusTransactionKind::MisbehaviorReport wire format must not change — testnet is live"
         );
+    }
+
+    /// Pins `ConsensusTransactionKind::TransactionDenyRuleProposal`'s variant
+    /// tag (11) and body layout: `(authority, generation, DenyRuleSet)`
+    /// with the rule set's fields in declaration order. Reordering enum
+    /// variants or `DenyRuleSet` fields breaks nodes on the old build.
+    #[test]
+    fn deny_rule_proposal_consensus_kind_wire_format_unchanged() {
+        use std::collections::BTreeSet;
+
+        use iota_sdk_ext::types::{Address, ObjectId};
+
+        use crate::deny_rule_governance::DenyRuleSet;
+
+        let authority = AuthorityName::default();
+        let address = Address::new([7u8; 32]);
+        let object = ObjectId::new([8u8; 32]);
+        let package = ObjectId::new([9u8; 32]);
+
+        // Six one-hot switch patterns: a single sample can't pin the order of
+        // equal-valued booleans, so pin each switch position separately. The
+        // deny lists get distinct contents for the same reason.
+        for hot in 0..6usize {
+            let switch = |i: usize| i == hot;
+            let proposal = TransactionDenyRuleProposal {
+                authority,
+                generation: 42,
+                proposed_rules: DenyRuleSet {
+                    denied_addresses: [address].into(),
+                    denied_objects: [object].into(),
+                    denied_packages: [package].into(),
+                    package_publish_disabled: switch(0),
+                    package_upgrade_disabled: switch(1),
+                    shared_object_disabled: switch(2),
+                    user_transaction_disabled: switch(3),
+                    receiving_objects_disabled: switch(4),
+                    move_authenticator_disabled: switch(5),
+                },
+            };
+            let new_bytes = bcs::to_bytes(&ConsensusTransactionKind::TransactionDenyRuleProposal(
+                proposal,
+            ))
+            .unwrap();
+
+            let mut legacy_bytes = vec![11u8];
+            legacy_bytes.extend(
+                bcs::to_bytes(&(
+                    authority,
+                    42u64,
+                    (
+                        BTreeSet::from([address]),
+                        BTreeSet::from([object]),
+                        BTreeSet::from([package]),
+                        switch(0), // package_publish_disabled
+                        switch(1), // package_upgrade_disabled
+                        switch(2), // shared_object_disabled
+                        switch(3), // user_transaction_disabled
+                        switch(4), // receiving_objects_disabled
+                        switch(5), // move_authenticator_disabled
+                    ),
+                ))
+                .unwrap(),
+            );
+
+            assert_eq!(
+                legacy_bytes, new_bytes,
+                "ConsensusTransactionKind::TransactionDenyRuleProposal wire format must not \
+                 change (switch {hot})"
+            );
+        }
+    }
+
+    /// The proposal round-trips through BCS unchanged.
+    #[test]
+    fn deny_rule_proposal_bcs_round_trip() {
+        use iota_sdk_ext::types::{Address, ObjectId};
+
+        use crate::deny_rule_governance::DenyRuleSet;
+
+        let proposal = TransactionDenyRuleProposal {
+            authority: AuthorityName::default(),
+            generation: 42,
+            proposed_rules: DenyRuleSet {
+                denied_addresses: [Address::new([1u8; 32])].into(),
+                denied_objects: [ObjectId::new([2u8; 32])].into(),
+                denied_packages: [ObjectId::new([3u8; 32])].into(),
+                package_publish_disabled: true,
+                shared_object_disabled: true,
+                receiving_objects_disabled: true,
+                ..Default::default()
+            },
+        };
+        let bytes = bcs::to_bytes(&proposal).unwrap();
+        assert_eq!(proposal, bcs::from_bytes(&bytes).unwrap());
+    }
+
+    /// The generation is wall-clock time, but never regresses below a
+    /// recorded proposal's generation even if the clock stepped backward.
+    #[test]
+    fn proposal_generation_supersedes_last_generation() {
+        use crate::deny_rule_governance::DenyRuleSet;
+
+        let authority = AuthorityName::default();
+        let fresh = TransactionDenyRuleProposal::new(authority, DenyRuleSet::default(), None);
+        assert!(fresh.generation > 0);
+
+        let far_future = fresh.generation + 1_000_000_000;
+        let successor =
+            TransactionDenyRuleProposal::new(authority, DenyRuleSet::default(), Some(far_future));
+        assert_eq!(successor.generation, far_future + 1);
     }
 }

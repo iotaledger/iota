@@ -39,11 +39,11 @@ use std::{
 };
 
 use iota_common::fatal;
+use iota_sdk_ext::types::{ObjectReference, TransactionDigest};
 use iota_types::{
-    base_types::{ObjectRef, TransactionDigest},
+    deny_rule_governance::DenyRuleConfig,
     error::{IotaError, IotaResult},
-    messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
-    transaction::{InputObjectKind, VerifiedTransaction},
+    transaction::{InputObjectKind, SenderSignedTransactionAPI, VerifiedTransaction},
 };
 use tracing::{debug, warn};
 
@@ -75,33 +75,53 @@ use crate::{
 /// # Arguments
 ///
 /// * `authority_state` — Used for cache reads and deny checks.
-/// * `epoch_store` — Current epoch store (protocol config, lock storage).
+/// * `epoch_store` — Current epoch store (protocol config, lock storage,
+///   governance deny rules).
 /// * `transactions` — All sequenced transactions for this consensus commit;
 ///   modified in-place.
 ///
 /// # Returns
 ///
-/// `Ok((dropped, locks))` where:
+/// `Ok((dropped, locks, all_user_tx_digests))` where:
 /// - `dropped` — `(digest, error)` for every semantically-invalid or
 ///   lock-conflicting transaction. Silent drops (duplicates) are **not**
 ///   included.
 /// - `locks` — Owned-object locks acquired in this commit, to be stored in the
 ///   consensus quarantine so subsequent commits can see them.
+/// - `all_user_tx_digests` — Every `UserTransactionV1` digest that passed dedup
+///   (both kept and dropped). Used by the caller to release pre-consensus soft
+///   locks.
 pub async fn validate_and_resolve_conflicts(
     authority_state: &AuthorityState,
     epoch_store: &Arc<AuthorityPerEpochStore>,
     transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
 ) -> IotaResult<(
     Vec<(TransactionDigest, IotaError)>,
-    HashMap<ObjectRef, LockDetails>,
+    HashMap<ObjectReference, LockDetails>,
+    Vec<TransactionDigest>,
 )> {
     let mut dropped: Vec<(TransactionDigest, IotaError)> = Vec::new();
     let mut seen_keys: HashSet<SequencedConsensusTransactionKey> = HashSet::new();
     // Locks acquired within this commit. Populated for every transaction that
     // passes all checks; used by subsequent transactions' conflict checks.
-    let mut current_commit_locks: HashMap<ObjectRef, LockDetails> = HashMap::new();
+    let mut current_commit_locks: HashMap<ObjectReference, LockDetails> = HashMap::new();
     // Index-parallel keep flags: true = keep, false = remove.
     let mut keep = vec![true; transactions.len()];
+    // All UserTransactionV1 digests seen in this commit (both kept and dropped),
+    // used by the caller to release pre-consensus soft locks.
+    let mut all_user_tx_digests = Vec::with_capacity(transactions.len());
+
+    // One deny-rule snapshot for the whole commit, so every transaction in it
+    // is judged by the same set. With governance enabled this must be the
+    // consensus-derived set — local config can differ between validators and
+    // would fork the post-consensus decisions.
+    let governance_deny_rules;
+    let deny_config: &dyn DenyRuleConfig = if epoch_store.protocol_config().deny_rule_governance() {
+        governance_deny_rules = epoch_store.get_active_transaction_deny_rules();
+        governance_deny_rules.as_ref()
+    } else {
+        &authority_state.config.transaction_deny_config
+    };
 
     for (i, tx) in transactions.iter().enumerate() {
         // Check #0: Dedup by ConsensusTransactionKey.
@@ -113,24 +133,23 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Only validate UserTransactionV1; pass everything else through
-        // unchanged.
-        let transaction = match &tx.0.transaction {
-            SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::UserTransactionV1(t),
-                ..
-            }) => t,
-            _ => continue,
+        // Only validate UserTransactionV1; pass everything else through unchanged.
+        let Some(transaction) = (match &tx.0.transaction {
+            SequencedConsensusTransactionKind::External(ext) => ext.kind.as_user_transaction(),
+            SequencedConsensusTransactionKind::System(_) => None,
+        }) else {
+            continue;
         };
 
         let digest = *transaction.digest();
+        all_user_tx_digests.push(digest);
 
         // Check #1: Already executed (typically by state-sync before this node's
         // consensus handler reached the commit). It is a committee-agreed winner, so
         // keep it in the sequence to flow into checkpoint roots like on every other
         // validator (dropping it forks — issue #11649). Register its owned-object
         // locks so double-spend siblings still lose, then skip re-validation (#2/#5);
-        // `TransactionManager::enqueue` suppresses the re-execution.
+        // the active scheduler's enqueue filter suppresses the re-execution.
         if authority_state
             .get_transaction_cache_reader()
             .try_is_tx_already_executed(&digest)?
@@ -165,9 +184,7 @@ pub async fn validate_and_resolve_conflicts(
         }
 
         // Check #2: Structural validity.
-        if let Err(e) =
-            transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
-        {
+        if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
             warn!(
                 ?digest,
                 error = ?e,
@@ -197,7 +214,7 @@ pub async fn validate_and_resolve_conflicts(
         // Cheap (HashMap + quarantine + DB lookups); performed before the
         // expensive deny checks so conflicting transactions are filtered first.
         //
-        // Locks are keyed by full ObjectRef (id + version + digest), not just
+        // Locks are keyed by full ObjectReference (id + version + digest), not just
         // ObjectID. Two transactions referencing the same object at different
         // versions will NOT conflict here — version freshness is validated
         // later in Check #5 (deny checks load objects from DB and verify
@@ -257,9 +274,17 @@ pub async fn validate_and_resolve_conflicts(
         // (2f+1 Byzantine/buggy validators), not something we can recover from
         // by rejecting the transaction post-consensus. Doing so would also risk
         // diverging from other honest validators.
-        let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
+        let verified_tx = VerifiedTransaction::new_from_verified((*transaction).clone());
         if let Err(e) = authority_state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
+            .handle_transaction_validation_checks(
+                &verified_tx,
+                epoch_store,
+                deny_config,
+                // Epoch-gated coin deny-list read: the verdict here decides whether
+                // the transaction stays in the committed set, so it must not depend
+                // on this validator's execution progress.
+                true,
+            )
             .await
         {
             if e.is_storage_or_epoch_error() {
@@ -307,7 +332,7 @@ pub async fn validate_and_resolve_conflicts(
     let mut iter = keep.into_iter();
     transactions.retain(|_| iter.next().unwrap_or(true));
 
-    Ok((dropped, current_commit_locks))
+    Ok((dropped, current_commit_locks, all_user_tx_digests))
 }
 
 /// Finds an existing owned-object lock on `obj_ref`, walking three tiers in
@@ -321,8 +346,8 @@ pub async fn validate_and_resolve_conflicts(
 /// `ObjectLockConflict` for a contender, or `fatal!` if a winner is
 /// out-locked).
 fn find_existing_lock(
-    obj_ref: &ObjectRef,
-    current_commit_locks: &HashMap<ObjectRef, LockDetails>,
+    obj_ref: &ObjectReference,
+    current_commit_locks: &HashMap<ObjectReference, LockDetails>,
     epoch_store: &Arc<AuthorityPerEpochStore>,
 ) -> IotaResult<Option<LockDetails>> {
     if let Some(&locker) = current_commit_locks.get(obj_ref) {
@@ -341,21 +366,20 @@ fn find_existing_lock(
 /// packages) — these are the objects that need lock conflict detection.
 fn extract_owned_input_objects(
     tx: &VerifiedSequencedConsensusTransaction,
-) -> IotaResult<Vec<ObjectRef>> {
-    let transaction_data = match &tx.0.transaction {
-        SequencedConsensusTransactionKind::External(ConsensusTransaction {
-            kind: ConsensusTransactionKind::UserTransactionV1(transaction),
-            ..
-        }) => transaction.data(),
-        _ => {
-            return Err(IotaError::GenericAuthority {
-                error: "Expected UserTransactionV1 in extract_owned_input_objects".to_string(),
-            });
+) -> IotaResult<Vec<ObjectReference>> {
+    let Some(transaction_data) = (match &tx.0.transaction {
+        SequencedConsensusTransactionKind::External(ext) => {
+            ext.kind.as_user_transaction().map(|t| t.data())
         }
+        SequencedConsensusTransactionKind::System(_) => None,
+    }) else {
+        return Err(IotaError::GenericAuthority {
+            error: "Expected UserTransactionV1 in extract_owned_input_objects".to_string(),
+        });
     };
 
-    // Use SenderSignedData::input_objects() rather than
-    // TransactionData::input_objects() to also include any owned objects
+    // Use SenderSignedTransaction::input_objects() rather than
+    // Transaction::input_objects() to also include any owned objects
     // that may come from MoveAuthenticator signatures in the future.
     let owned_objects = transaction_data
         .input_objects()?

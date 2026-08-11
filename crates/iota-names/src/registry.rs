@@ -3,13 +3,8 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use iota_sdk_ext::types::{Address, ObjectId};
-use iota_types::{
-    collection_types::VecMap,
-    dynamic_field::Field,
-    id::ID,
-    object::{MoveObject, Object},
-};
+use iota_sdk_ext::types::{Address, MoveStruct, ObjectId};
+use iota_types::{collection_types::VecMap, dynamic_field::Field, id::ID, object::Object};
 use serde::{Deserialize, Serialize};
 
 use crate::{constants::IOTA_NAMES_LEAF_EXPIRATION_TIMESTAMP, error::IotaNamesError, name::Name};
@@ -75,10 +70,10 @@ impl TryFrom<Object> for NameRecord {
     }
 }
 
-impl TryFrom<MoveObject> for NameRecord {
+impl TryFrom<MoveStruct> for NameRecord {
     type Error = IotaNamesError;
 
-    fn try_from(object: MoveObject) -> Result<Self, IotaNamesError> {
+    fn try_from(object: MoveStruct) -> Result<Self, IotaNamesError> {
         object
             .to_rust::<Field<Name, Self>>()
             .map(|record| record.value)

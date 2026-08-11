@@ -55,16 +55,73 @@ Input 27: Pure([4, 1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0
 Input 28: Pure([4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 Input 29: Pure([4, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 Input 30: Pure([1, 1, 4, 1, 2, 3, 4])
-Command 0: MakeMoveVector(Some(u8),[Input(0),Input(1),Input(2),Input(3)])
-Command 1: MakeMoveVector(Some(u16),[Input(4),Input(5),Input(6),Input(7)])
-Command 2: MakeMoveVector(Some(u32),[Input(8),Input(9),Input(10),Input(11)])
-Command 3: MakeMoveVector(Some(u64),[Input(12),Input(13),Input(14),Input(15)])
-Command 4: MakeMoveVector(Some(u128),[Input(16),Input(17),Input(18),Input(19)])
-Command 5: MakeMoveVector(Some(u256),[Input(20),Input(21),Input(22),Input(23)])
-Command 6: MakeMoveVector(Some(vector<u8>),[Input(24)])
-Command 7: MakeMoveVector(Some(vector<u16>),[Input(25)])
-Command 8: MakeMoveVector(Some(vector<u32>),[Input(26)])
-Command 9: MakeMoveVector(Some(vector<u64>),[Input(27)])
-Command 10: MakeMoveVector(Some(vector<u128>),[Input(28)])
-Command 11: MakeMoveVector(Some(vector<u256>),[Input(29)])
-Command 12: MakeMoveVector(Some(0x1::option::Option<0x1::option::Option<vector<u8>>>),[Input(30)])
+Command 0: Command: Make Move Vector
+├── Type: u8
+└── Elements
+    ├── 0: Input(0)
+    ├── 1: Input(1)
+    ├── 2: Input(2)
+    └── 3: Input(3)
+Command 1: Command: Make Move Vector
+├── Type: u16
+└── Elements
+    ├── 0: Input(4)
+    ├── 1: Input(5)
+    ├── 2: Input(6)
+    └── 3: Input(7)
+Command 2: Command: Make Move Vector
+├── Type: u32
+└── Elements
+    ├── 0: Input(8)
+    ├── 1: Input(9)
+    ├── 2: Input(10)
+    └── 3: Input(11)
+Command 3: Command: Make Move Vector
+├── Type: u64
+└── Elements
+    ├── 0: Input(12)
+    ├── 1: Input(13)
+    ├── 2: Input(14)
+    └── 3: Input(15)
+Command 4: Command: Make Move Vector
+├── Type: u128
+└── Elements
+    ├── 0: Input(16)
+    ├── 1: Input(17)
+    ├── 2: Input(18)
+    └── 3: Input(19)
+Command 5: Command: Make Move Vector
+├── Type: u256
+└── Elements
+    ├── 0: Input(20)
+    ├── 1: Input(21)
+    ├── 2: Input(22)
+    └── 3: Input(23)
+Command 6: Command: Make Move Vector
+├── Type: vector<u8>
+└── Elements
+    └── 0: Input(24)
+Command 7: Command: Make Move Vector
+├── Type: vector<u16>
+└── Elements
+    └── 0: Input(25)
+Command 8: Command: Make Move Vector
+├── Type: vector<u32>
+└── Elements
+    └── 0: Input(26)
+Command 9: Command: Make Move Vector
+├── Type: vector<u64>
+└── Elements
+    └── 0: Input(27)
+Command 10: Command: Make Move Vector
+├── Type: vector<u128>
+└── Elements
+    └── 0: Input(28)
+Command 11: Command: Make Move Vector
+├── Type: vector<u256>
+└── Elements
+    └── 0: Input(29)
+Command 12: Command: Make Move Vector
+├── Type: 0x1::option::Option<0x1::option::Option<vector<u8>>>
+└── Elements
+    └── 0: Input(30)

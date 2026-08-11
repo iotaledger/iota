@@ -5,28 +5,28 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
+use iota_sdk_ext::types::{
+    ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents,
+};
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 use thiserror::Error;
 
 use crate::{
-    base_types::{AuthorityName, EpochId, ObjectRef, TransactionDigest},
+    base_types::{AuthorityName, EpochId},
     committee::StakeUnit,
     crypto::{AuthorityStrongQuorumSignInfo, ConciseAuthorityPublicKeyBytes},
-    effects::{
-        CertifiedTransactionEffects, TransactionEffects, TransactionEvents,
-        VerifiedCertifiedTransactionEffects,
-    },
+    effects::{CertifiedTransactionEffects, VerifiedCertifiedTransactionEffects},
     error::{ErrorCategory, IotaError},
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    transaction::{Transaction, VerifiedTransaction},
+    transaction::{TransactionEnvelope, VerifiedTransaction},
 };
 
 pub type TransactionDriverResult = Result<TransactionDriverResponse, TransactionSubmissionError>;
 
 pub type TransactionDriverEffectsQueueResult = Result<
-    (Transaction, TransactionDriverResponse),
+    (TransactionEnvelope, TransactionDriverResponse),
     (TransactionDigest, TransactionSubmissionError),
 >;
 
@@ -46,7 +46,8 @@ pub enum TransactionSubmissionError {
         "Failed to sign transaction by a quorum of validators because of locked objects: {conflicting_txes:?}"
     )]
     ObjectsDoubleUsed {
-        conflicting_txes: BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
+        conflicting_txes:
+            BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectReference)>, StakeUnit)>,
     },
     #[error("Transaction timed out before reaching finality")]
     TimeoutBeforeFinality,
@@ -142,6 +143,11 @@ pub enum EffectsFinalityInfo {
 
     /// A quorum of validators have acknowledged effects.
     QuorumExecuted(EpochId),
+
+    /// Effects from a single validator without quorum certification.
+    /// The caller MUST wait for local checkpoint execution before returning
+    /// these to the client, as they have not been certified by a quorum.
+    UncertifiedSingleValidator(EpochId),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -162,8 +168,9 @@ impl FinalizedEffects {
     pub fn epoch(&self) -> EpochId {
         match &self.finality_info {
             EffectsFinalityInfo::Certified(cert) => cert.epoch,
-            EffectsFinalityInfo::Checkpointed(epoch, _) => *epoch,
-            EffectsFinalityInfo::QuorumExecuted(epoch) => *epoch,
+            EffectsFinalityInfo::Checkpointed(epoch, _)
+            | EffectsFinalityInfo::QuorumExecuted(epoch)
+            | EffectsFinalityInfo::UncertifiedSingleValidator(epoch) => *epoch,
         }
     }
 

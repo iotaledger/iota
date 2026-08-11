@@ -14,7 +14,13 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_ext::types::{Address, Identifier, ObjectId, Owner, TransactionKind};
+use iota_sdk_ext::{
+    crypto::{ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, simple::SimpleKeypair},
+    types::{
+        Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, Transaction,
+        TransactionDigest, TransactionKind, Version,
+    },
+};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -23,10 +29,8 @@ use iota_test_transaction_builder::{
     increment_counter, publish_basics_package, publish_basics_package_and_make_counter,
     publish_nfts_package,
 };
-use iota_tool::restore_from_db_checkpoint;
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber, TransactionDigest},
-    crypto::{IotaKeyPair, get_key_pair},
+    crypto::get_key_pair,
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
     object::{Object, ObjectRead, PastObjectRead},
@@ -36,15 +40,14 @@ use iota_types::{
     },
     storage::ObjectStore,
     transaction::{
-        CallArg, GasData, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionData, TransactionDataAPI,
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        TransactionAPI,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
 use jsonrpsee::{core::client::ClientT, rpc_params};
 use move_core_types::annotated_value::MoveStructLayout;
-use rand::rngs::OsRng;
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::{
     sync::RwLock,
     time::{Duration, sleep},
@@ -67,7 +70,7 @@ async fn test_full_node_follows_txes() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
 
     // A small delay is needed for post processing operations following the
@@ -113,7 +116,7 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
         .iota_node
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
 
     Ok(())
@@ -149,10 +152,10 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
         builder.finish()
     };
     let kind = TransactionKind::new_programmable(pt);
-    let tx_data = TransactionData::new_with_gas_data(
+    let tx = Transaction::new_with_gas_data(
         kind,
         sender,
-        GasData {
+        GasPayment {
             objects: vec![gas_obj],
             owner: sponsor,
             price: rgp,
@@ -161,7 +164,7 @@ async fn test_sponsored_transaction() -> Result<(), anyhow::Error> {
     );
 
     let tx = to_sender_signed_transaction_with_multi_signers(
-        tx_data,
+        tx,
         vec![
             test_cluster
                 .wallet
@@ -486,7 +489,57 @@ async fn test_full_node_cold_sync() -> Result<(), anyhow::Error> {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
+        .await;
+
+    let info = fullnode
+        .state()
+        .handle_transaction_info_request(TransactionInfoRequest {
+            transaction_digest: digest,
+        })
+        .await?;
+    // Check that it has been executed.
+    info.status.into_effects_for_testing();
+
+    Ok(())
+}
+
+// Same cold-sync scenario, but every node runs the ExecutionScheduler. The
+// scheduler has otherwise never been exercised through the checkpoint-executor
+// / state-sync path, where transactions are enqueued with a certified expected
+// effects digest and their inputs arrive by applying synced checkpoints rather
+// than from local submission. A regression where a synced transaction never
+// becomes ready under the ExecutionScheduler would stall sync silently.
+#[sim_test]
+async fn test_full_node_cold_sync_execution_scheduler() -> Result<(), anyhow::Error> {
+    // Selected at node construction; set before the cluster and fullnode are
+    // built. The opt-out variable is cleared too since it takes precedence.
+    // Process-per-test isolation keeps this from leaking to other tests.
+    std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+    std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    let mut test_cluster = TestClusterBuilder::new().build().await;
+
+    let context = &mut test_cluster.wallet;
+    let _ = transfer_coin(context).await?;
+    let _ = transfer_coin(context).await?;
+    let _ = transfer_coin(context).await?;
+    let (_transferred_object, _, _, digest, ..) = transfer_coin(context).await?;
+
+    // Make sure the validators are quiescent before bringing up the node.
+    sleep(Duration::from_millis(1000)).await;
+
+    // Start a new fullnode that is not on the write path.
+    let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
+    assert!(
+        fullnode.state().uses_execution_scheduler(),
+        "the synced fullnode must run the ExecutionScheduler for this test to exercise the \
+         state-sync scheduling path"
+    );
+
+    fullnode
+        .state()
+        .get_transaction_cache_reader()
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
 
     let info = fullnode
@@ -596,7 +649,7 @@ async fn do_test_full_node_sync_flood() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .notify_read_executed_effects_for_testing("", &digests)
         .await;
 }
 
@@ -687,6 +740,7 @@ async fn test_full_node_event_query_by_module_ok() {
 
 #[sim_test]
 async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
     let metrics = KeyValueStoreMetrics::new_for_tests();
@@ -782,7 +836,7 @@ async fn test_full_node_transaction_orchestrator_basic() -> Result<(), anyhow::E
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
+        .notify_read_executed_effects_for_testing("", &[digest])
         .await;
     fullnode.state().get_executed_transaction_and_effects(digest, kv_store).await
         .unwrap_or_else(|e| panic!("Fullnode does not know about the txn {digest:?} that was executed with WaitForEffectsCert: {e:?}"));
@@ -811,14 +865,14 @@ async fn test_validator_node_has_no_transaction_orchestrator() {
 async fn test_execute_tx_with_serialized_signature() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
-    context
-        .config_mut()
-        .keystore_mut()
-        .add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
-    context
-        .config_mut()
-        .keystore_mut()
-        .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+    context.config_mut().keystore_mut().add_key(
+        None,
+        SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1),
+    )?;
+    context.config_mut().keystore_mut().add_key(
+        None,
+        SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1),
+    )?;
 
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 
@@ -892,6 +946,33 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
         .unwrap();
 
     // Test request with ExecuteTransactionRequestType::WaitForEffectsCert
+    // Use the same txn which should return local finalized effects
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+    let params = rpc_params![
+        tx_bytes,
+        signatures,
+        IotaTransactionBlockResponseOptions::new().with_effects(),
+        ExecuteTransactionRequestType::WaitForEffectsCert
+    ];
+    let response: IotaTransactionBlockResponse = jsonrpc_client
+        .request("iota_executeTransactionBlock", params)
+        .await
+        .unwrap();
+
+    let IotaTransactionBlockResponse {
+        effects,
+        confirmed_local_execution,
+        ..
+    } = response;
+    assert_eq!(effects.unwrap().transaction_digest(), tx_digest);
+    assert!(confirmed_local_execution.unwrap());
+
+    // Test request with ExecuteTransactionRequestType::WaitForEffectsCert
+    // Use a different txn to avoid the case where the txn effects are already
+    // cached locally
+    let txn = txns.swap_remove(0);
+    let tx_digest = txn.digest();
+
     let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
     let params = rpc_params![
         tx_bytes,
@@ -918,7 +999,7 @@ async fn test_full_node_transaction_orchestrator_rpc_ok() -> Result<(), anyhow::
 async fn get_obj_read_from_node(
     node: &IotaNodeHandle,
     object_id: ObjectId,
-) -> Result<(ObjectRef, Object, Option<MoveStructLayout>), anyhow::Error> {
+) -> Result<(ObjectReference, Object, Option<MoveStructLayout>), anyhow::Error> {
     if let ObjectRead::Exists(obj_ref, object, layout) = node.state().get_object_read(&object_id)? {
         Ok((obj_ref, object, layout))
     } else {
@@ -929,8 +1010,8 @@ async fn get_obj_read_from_node(
 async fn get_past_obj_read_from_node(
     node: &IotaNodeHandle,
     object_id: ObjectId,
-    seq_num: SequenceNumber,
-) -> Result<(ObjectRef, Object, Option<MoveStructLayout>), anyhow::Error> {
+    seq_num: Version,
+) -> Result<(ObjectReference, Object, Option<MoveStructLayout>), anyhow::Error> {
     if let PastObjectRead::VersionFound(obj_ref, object, layout) =
         node.state().get_past_object_read(&object_id, seq_num)?
     {
@@ -1019,7 +1100,7 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     assert_eq!(read_obj_v1, object_v1);
     assert_eq!(read_obj_v1.owner, Owner::Address(sender));
 
-    let too_high_version = SequenceNumber::lamport_increment([object_ref_v3.version]).unwrap();
+    let too_high_version = Version::lamport_increment([object_ref_v3.version]).unwrap();
 
     match node
         .state()
@@ -1042,76 +1123,10 @@ async fn test_get_objects_read() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-// Test for restoring a full node from a db snapshot
-#[sim_test]
-async fn test_full_node_bootstrap_from_snapshot() -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-    let mut test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(10_000)
-        // This will also do aggressive pruning and compaction of the snapshot
-        .with_enable_db_checkpoints_fullnodes()
-        .build()
-        .await;
-
-    let checkpoint_path = test_cluster
-        .fullnode_handle
-        .iota_node
-        .with(|node| node.db_checkpoint_path());
-    let config = test_cluster
-        .fullnode_config_builder()
-        .build(&mut OsRng, test_cluster.swarm.config());
-    let epoch_0_db_path = config.db_path().join("store").join("epoch_0");
-    let _ = transfer_coin(&test_cluster.wallet).await?;
-    let _ = transfer_coin(&test_cluster.wallet).await?;
-    let (_transferred_object, _, _, digest, ..) = transfer_coin(&test_cluster.wallet).await?;
-
-    // Skip the first epoch change from epoch 0 to epoch 1, but wait for the second
-    // epoch change from epoch 1 to epoch 2 at which point during reconfiguration we
-    // will take the db snapshot for epoch 1
-    loop {
-        if checkpoint_path.join("epoch_1").exists() {
-            break;
-        }
-        sleep(Duration::from_millis(500)).await;
-    }
-
-    // Spin up a new full node restored from the snapshot taken at the end of epoch
-    // 1
-    restore_from_db_checkpoint(&config, &checkpoint_path.join("epoch_1")).await?;
-    let node = test_cluster
-        .start_fullnode_from_config(config)
-        .await
-        .iota_node;
-
-    node.state()
-        .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest])
-        .await;
-
-    loop {
-        // Ensure this full node is able to transition to the next epoch
-        if node.with(|node| node.current_epoch_for_testing()) >= 2 {
-            break;
-        }
-        sleep(Duration::from_millis(500)).await;
-    }
-
-    // Ensure this fullnode never processed older epoch (before snapshot) i.e.
-    // epoch_0 store was doesn't exist
-    assert!(!epoch_0_db_path.exists());
-
-    let (_transferred_object, _, _, digest_after_restore, ..) =
-        transfer_coin(&test_cluster.wallet).await?;
-    node.state()
-        .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[digest_after_restore])
-        .await;
-    Ok(())
-}
-
 // Object fast path should be disabled and unused.
 #[sim_test]
 async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
+    let _pcool_guard = override_pcool_flow(false);
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let rgp = test_cluster.get_reference_gas_price().await;
     let fullnode = test_cluster.spawn_new_fullnode().await.iota_node;
@@ -1145,7 +1160,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
             .expect("Fullnode should have transaction orchestrator toggled on.")
     });
 
-    let tx_data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_ref.object_id,
         Identifier::from_static("object_basics"),
@@ -1159,7 +1174,7 @@ async fn test_pass_back_no_object() -> Result<(), anyhow::Error> {
     )
     .unwrap();
     let tx = to_sender_signed_transaction(
-        tx_data,
+        tx,
         context
             .config()
             .keystore()
@@ -1272,7 +1287,16 @@ async fn test_access_old_object_pruned() {
 
 async fn transfer_coin(
     context: &WalletContext,
-) -> Result<(ObjectId, Address, Address, TransactionDigest, ObjectRef), anyhow::Error> {
+) -> Result<
+    (
+        ObjectId,
+        Address,
+        Address,
+        TransactionDigest,
+        ObjectReference,
+    ),
+    anyhow::Error,
+> {
     let gas_price = context.get_reference_gas_price().await?;
     let accounts_and_objs = context.get_all_accounts_and_gas_objects().await.unwrap();
     let sender = accounts_and_objs[0].0;

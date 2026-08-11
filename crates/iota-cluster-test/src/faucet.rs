@@ -11,7 +11,6 @@ use iota_faucet::{
     SimpleFaucet,
 };
 use iota_sdk_ext::types::Address;
-use iota_types::crypto::KeypairTraits;
 use tracing::{Instrument, debug, info, info_span};
 use uuid::Uuid;
 
@@ -30,7 +29,7 @@ impl FaucetClientFactory {
                 let key = cluster
                     .local_faucet_key()
                     .expect("expect local faucet key for local cluster")
-                    .copy();
+                    .clone();
                 let wallet_context = new_wallet_context_from_cluster(cluster, key)
                     .instrument(info_span!("init_wallet_context_for_faucet"));
 

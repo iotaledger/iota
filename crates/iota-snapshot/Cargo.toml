@@ -10,6 +10,7 @@ publish = false
 [dependencies]
 # external dependencies
 anyhow.workspace = true
+backoff.workspace = true
 bcs.workspace = true
 byteorder.workspace = true
 bytes.workspace = true
@@ -19,8 +20,9 @@ indicatif.workspace = true
 integer-encoding.workspace = true
 num_enum.workspace = true
 object_store.workspace = true
+reqwest.workspace = true
 serde.workspace = true
-tokio = { workspace = true, features = ["rt", "macros", "sync", "time"] }
+tokio = { workspace = true, features = ["fs", "macros", "rt", "sync", "time"] }
 tokio-stream.workspace = true
 tracing.workspace = true
 
@@ -34,7 +36,11 @@ iota-types.workspace = true
 prometheus-filtered.workspace = true
 
 [dev-dependencies]
+async-trait.workspace = true
+rand.workspace = true
 tempfile.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+tracing-subscriber.workspace = true
 
 [lints]
 workspace = true

@@ -2,14 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_ext::types::ObjectId;
+use iota_sdk_ext::types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
 use iota_types::{
-    balance::Supply,
-    base_types::{ObjectDigest, ObjectRef, SequenceNumber, TransactionDigest},
-    coin::CoinMetadata,
-    error::IotaError,
-    messages_checkpoint::CheckpointSequenceNumber,
-    object::Object,
+    balance::Supply, coin::CoinMetadata, error::IotaError,
+    messages_checkpoint::CheckpointSequenceNumber, object::Object,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -100,7 +96,7 @@ pub struct Coin {
     pub coin_object_id: ObjectId,
     #[serde_as(as = "SequenceNumberStringSchema")]
     #[schemars(with = "SequenceNumberStringSchema")]
-    pub version: SequenceNumber,
+    pub version: Version,
     #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: ObjectDigest,
@@ -113,8 +109,8 @@ pub struct Coin {
 }
 
 impl Coin {
-    pub fn object_ref(&self) -> ObjectRef {
-        ObjectRef::new(self.coin_object_id, self.version, self.digest)
+    pub fn object_ref(&self) -> ObjectReference {
+        ObjectReference::new(self.coin_object_id, self.version, self.digest)
     }
 }
 

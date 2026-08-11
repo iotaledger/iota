@@ -4,8 +4,6 @@ tags: [ move-sc, rust, transaction]
 teams:
   - iotaledger/vm-language
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/transactions/ptb/simulating-references.json';
 
 # Simulating References in IOTA PTBs
 
@@ -91,7 +89,6 @@ module another_module {
         borrow::borrow(&mut manager.asset)
     }
 
-
     public fun return_asset(
         manager: &mut AssetManager,
         asset: Asset,
@@ -152,5 +149,3 @@ txb.moveCall({
 });
 ...
 ```
-
-<Quiz questions={questions} />

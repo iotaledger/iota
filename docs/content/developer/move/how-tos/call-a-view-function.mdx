@@ -1,0 +1,214 @@
+---
+description: 'How to call a Move #[view] function from off-chain over JSON-RPC, GraphQL, or the Rust and TypeScript SDKs.'
+tags:
+  - how-to
+  - rpc
+  - rust-sdk
+  - ts-sdk
+---
+
+# Call a View Function
+
+This how-to demonstrates how to call a [view function](../explanations/view-functions.mdx) from off-chain and read its return values, without submitting a transaction or paying gas. The examples call the `leaderboard` module from [Define a View Function](./define-a-view-function.mdx):
+
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L56-L60
+```
+
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L80-L86
+```
+
+:::info
+
+A function can only be called as a view if it is recorded in its module's on-chain view functions metadata, which is written when the package is published. This requires the network to have view function support enabled, which is available on devnet or local network.
+
+:::
+
+## Before You Begin
+
+The examples on this page publish the `view_functions` package and call its views end-to-end, so they need a network that records view metadata — **devnet** or a [local network](../../getting-started/local-network.mdx) (testnet and mainnet do not record it yet).
+
+Each example takes a network flag and defaults to devnet:
+
+- `--localnet` mints a throwaway wallet and funds it from the local faucet. Start a local network first, e.g. `iota-localnet start --force-regenesis --with-faucet`.
+- `--devnet` / `--testnet` use the wallet configured in the `iota` CLI (`~/.iota`) and assume it is already funded — the public faucets have no HTTP API, so fund your address at the faucet website first. The examples error if no wallet is configured or the address holds no coins.
+
+The runnable examples live in the [IOTA repository](https://github.com/iotaledger/iota). From a checkout, execute whichever one you want to follow (shown here with `--localnet`):
+
+- **Rust SDK:** `cargo run -p iota-sdk --example move_view_function_call -- --localnet`
+- **TypeScript SDK:** `cd docs/examples/typescript && npm install && npm run call-view-function -- --localnet`
+- **Shell script (JSON-RPC with `curl`):** `docs/examples/shell/call-view-function.sh --localnet`
+
+## Call over JSON-RPC
+
+1. Call the [`iota_view`](/iota-api-ref#iota_view) method with the fully qualified function name `<package_id>::<module_name>::<function_name>`, the type arguments (empty for a non-generic view), and the function arguments. Objects are passed by their ID.
+
+```sh
+curl --location --request POST 'https://api.devnet.iota.cafe' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "iota_view",
+  "params": [
+    "<PACKAGE-ID>::leaderboard::total_entries",
+    [],
+    ["<LEADERBOARD-ID>"]
+  ]
+}'
+```
+
+2. Read the return values from the `functionReturnValues` array. `u64` and `u128` values are returned as strings to avoid overflow.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "functionReturnValues": ["3"]
+  }
+}
+```
+
+3. Struct return values carry their type and fields. Calling `<PACKAGE-ID>::leaderboard::highest_score` on the same leaderboard returns the leading `ScoreEntry`; a view returning `Option<T>` yields the inner value for `some` and `null` for `none`.
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "functionReturnValues": [
+      {
+        "type": "<PACKAGE-ID>::leaderboard::ScoreEntry",
+        "fields": {
+          "player": "<PLAYER-ADDRESS>",
+          "score": "2500"
+        }
+      }
+    ]
+  }
+}
+```
+
+For the exact parameter and result schemas, see the [`iota_view` reference](/iota-api-ref#iota_view). For a runnable version that publishes the package and makes each of these calls with `curl` against `devnet`, see the [shell script](#full-example-code) below.
+
+### Error Cases
+
+A call that fails validation — the target is not a recorded `#[view]` function, or the module or function does not exist — is rejected with a JSON-RPC error:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "error": {
+    "code": -32000,
+    "message": "Invalid Move View Function call: function submit_score in module leaderboard of package <PACKAGE-ID> is not declared as a #[view] function"
+  }
+}
+```
+
+A call that passes validation but fails during execution (for example, a view that aborts) returns an `executionError` instead of `functionReturnValues`:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "executionError": "..."
+  }
+}
+```
+
+## Call over GraphQL
+
+The [GraphQL API](../../references/iota-graphql.mdx) exposes the same call as the `moveViewCall` query, with the same arguments and value encoding.
+
+1. Send the query with the fully qualified function name and the function arguments.
+
+```sh
+curl -i -X POST 'https://graphql.devnet.iota.cafe' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "query": "{ moveViewCall(functionName: \"<PACKAGE-ID>::leaderboard::total_entries\", arguments: [\"<LEADERBOARD-ID>\"]) { error results } }"
+}'
+```
+
+2. Read the return values from `results`; on execution failure `results` is `null` and `error` holds the message.
+
+```json
+{
+  "data": {
+    "moveViewCall": {
+      "error": null,
+      "results": ["3"]
+    }
+  }
+}
+```
+
+## Call a Generic View
+
+The calls above target non-generic views, so their type arguments are empty. A generic view takes one type argument per type parameter, in declaration order. The `vault` module from [Define a View Function](./define-a-view-function.mdx) is generic over the type `T` it stores, and its `item` view returns that value:
+
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L48-L51
+```
+
+To read a `Vault<Coin<IOTA>>`, call `item` with `0x2::coin::Coin<0x2::iota::IOTA>` as its type argument and the vault's object ID as its function argument. Type arguments are fully qualified type names, so a nested generic like `Coin<IOTA>` is written out in full.
+
+Over JSON-RPC, the type arguments are the second parameter:
+
+```sh
+curl --location --request POST 'https://api.devnet.iota.cafe' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "iota_view",
+  "params": [
+    "<PACKAGE-ID>::vault::item",
+    ["0x2::coin::Coin<0x2::iota::IOTA>"],
+    ["<VAULT-ID>"]
+  ]
+}'
+```
+
+Over GraphQL, they go in `typeArgs`:
+
+```sh
+curl -i -X POST 'https://graphql.devnet.iota.cafe' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "query": "{ moveViewCall(functionName: \"<PACKAGE-ID>::vault::item\", typeArgs: [\"0x2::coin::Coin<0x2::iota::IOTA>\"], arguments: [\"<VAULT-ID>\"]) { error results } }"
+}'
+```
+
+## Call from the Rust SDK
+
+The Rust SDK exposes `iota_view` as `view_function_call` on the JSON-RPC client. This example publishes a package with `#[view]` functions and calls the non-generic `counter::value`:
+
+```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L120-L128
+```
+
+The type arguments are the second parameter. This call reads the generic `vault::item` view, filling in the type argument (`Coin<IOTA>`) alongside the object argument:
+
+```rust file=<rootDir>/crates/iota-sdk/examples/read_api/move_view_function_call.rs#L188-L198
+```
+
+## Call from the TypeScript SDK
+
+The [TypeScript SDK](https://github.com/iotaledger/ts-packages) (`@iota/iota-sdk`) exposes `iota_view` as `client.view()`, taking the same `functionName`, `typeArgs`, and `arguments`, and returning the same result shape — a union of `functionReturnValues` and `executionError`. This example publishes the `view_functions` package, creates a leaderboard with one score, and calls its views:
+
+```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts#L119-L138
+```
+
+For a generic view, pass the type arguments in `typeArgs`. This call reads `vault::item` on a `Vault<Coin<IOTA>>`:
+
+```ts file=<rootDir>/docs/examples/typescript/src/view-functions/call-view-function.ts#L175-L186
+```
+
+## Full Example Code
+
+The complete, runnable examples live in the IOTA repository:
+
+- [Rust SDK example](https://github.com/iotaledger/iota/blob/develop/crates/iota-sdk/examples/read_api/move_view_function_call.rs) — publishes the package and calls the views.
+- [TypeScript SDK example](https://github.com/iotaledger/iota/blob/develop/docs/examples/typescript/src/view-functions/call-view-function.ts) — same flow with `@iota/iota-sdk`.
+- [Shell script](https://github.com/iotaledger/iota/blob/develop/docs/examples/shell/call-view-function.sh) — publishes with the `iota` CLI and calls each view over JSON-RPC with `curl`.

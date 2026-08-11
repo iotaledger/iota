@@ -9,7 +9,6 @@ use iota_config::{
     Config, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, PersistedConfig,
     genesis::Genesis,
 };
-use iota_genesis_builder::SnapshotSource;
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
@@ -24,10 +23,7 @@ use iota_swarm_config::{
     genesis_config::GenesisConfig,
     network_config::{NetworkConfig, NetworkConfigLight},
 };
-use iota_types::{
-    base_types::address_from_iota_pub_key,
-    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
-};
+use iota_types::crypto::{AccountKeyPair, get_key_pair};
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -60,6 +56,10 @@ pub trait Cluster {
         Self: Sized;
 
     fn fullnode_url(&self) -> &str;
+
+    /// gRPC endpoint of the fullnode, when one is available (local clusters).
+    fn grpc_url(&self) -> Option<&str>;
+
     fn user_key(&self) -> AccountKeyPair;
     fn indexer_url(&self) -> &Option<String>;
 
@@ -120,6 +120,10 @@ impl Cluster for RemoteRunningCluster {
         &self.fullnode_url
     }
 
+    fn grpc_url(&self) -> Option<&str> {
+        None
+    }
+
     fn indexer_url(&self) -> &Option<String> {
         &None
     }
@@ -145,6 +149,7 @@ impl Cluster for RemoteRunningCluster {
 pub struct LocalNewCluster {
     test_cluster: TestCluster,
     fullnode_url: String,
+    grpc_url: String,
     indexer_url: Option<String>,
     faucet_key: AccountKeyPair,
     config_directory: tempfile::TempDir,
@@ -175,7 +180,9 @@ impl Cluster for LocalNewCluster {
         let mut cluster_builder = TestClusterBuilder::new()
             .enable_fullnode_events()
             .with_data_ingestion_dir(data_ingestion_path.clone())
-            .with_fullnode_enable_grpc_api(true);
+            // disable full node pruning: tests read `balance_changes` /
+            // `object_changes` which needs historical data.
+            .disable_fullnode_pruning();
 
         // Check if we already have a config directory that is passed
         if let Some(config_dir) = options.config_dir.clone() {
@@ -205,19 +212,7 @@ impl Cluster for LocalNewCluster {
             cluster_builder = cluster_builder.with_config_dir(config_dir);
         } else {
             // Let the faucet account hold 1000 gas objects on genesis
-            let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
-            // Add any migration sources
-            let local_snapshots = options
-                .local_migration_snapshots
-                .iter()
-                .cloned()
-                .map(SnapshotSource::Local);
-            let remote_snapshots = options
-                .remote_migration_snapshots
-                .iter()
-                .cloned()
-                .map(SnapshotSource::S3);
-            genesis_config.migration_sources = local_snapshots.chain(remote_snapshots).collect();
+            let genesis_config = GenesisConfig::custom_genesis(1, 100);
             // Custom genesis should be build here where we add the extra accounts
             cluster_builder = cluster_builder.set_genesis_config(genesis_config);
 
@@ -234,11 +229,12 @@ impl Cluster for LocalNewCluster {
 
         // Use the wealthy account for faucet
         let faucet_key = test_cluster.swarm.config_mut().account_keys.swap_remove(0);
-        let faucet_address = address_from_iota_pub_key(faucet_key.public());
+        let faucet_address = faucet_key.public_key().derive_address();
         info!(?faucet_address, "faucet_address");
 
         // This cluster has fullnode handle, safe to unwrap
         let fullnode_url = test_cluster.fullnode_handle.rpc_url.clone();
+        let grpc_url = test_cluster.grpc_url();
 
         if let (Some(pg_address), Some(indexer_address)) =
             (options.pg_address.clone(), indexer_address)
@@ -298,6 +294,7 @@ impl Cluster for LocalNewCluster {
         Ok(Self {
             test_cluster,
             fullnode_url,
+            grpc_url,
             faucet_key,
             config_directory: tempfile::tempdir()?,
             indexer_url: options.indexer_address.clone(),
@@ -306,6 +303,10 @@ impl Cluster for LocalNewCluster {
 
     fn fullnode_url(&self) -> &str {
         &self.fullnode_url
+    }
+
+    fn grpc_url(&self) -> Option<&str> {
+        Some(&self.grpc_url)
     }
 
     fn indexer_url(&self) -> &Option<String> {
@@ -340,6 +341,9 @@ impl Cluster for Box<dyn Cluster + Send + Sync> {
     fn fullnode_url(&self) -> &str {
         (**self).fullnode_url()
     }
+    fn grpc_url(&self) -> Option<&str> {
+        (**self).grpc_url()
+    }
     fn indexer_url(&self) -> &Option<String> {
         (**self).indexer_url()
     }
@@ -371,10 +375,8 @@ pub fn new_wallet_context_from_cluster(
     info!("Use RPC: {fullnode_url}");
     let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    let address = address_from_iota_pub_key(key_pair.public());
-    keystore
-        .add_key(None, IotaKeyPair::Ed25519(key_pair))
-        .unwrap();
+    let address = key_pair.public_key().derive_address();
+    keystore.add_key(None, key_pair).unwrap();
     IotaClientConfig::new(keystore)
         .with_envs([IotaEnv::new("localnet", fullnode_url)])
         .with_active_address(address)

@@ -4,8 +4,7 @@
 
 use std::path::Path;
 
-use iota_sdk_ext::types::{Address, ObjectId};
-use iota_types::transaction::TransactionData;
+use iota_sdk_ext::types::{Address, ObjectId, Transaction};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use typed_store::{DBMapUtils, Map, TypedStoreError, rocks::DBMap};
@@ -28,7 +27,7 @@ pub struct Entry {
     pub uuid: uuid::Bytes,
     // TODO (jian): remove recipient
     pub recipient: Address,
-    pub tx: TransactionData,
+    pub tx: Transaction,
     pub retry_count: u64,
     pub in_flight: bool,
 }
@@ -51,7 +50,7 @@ impl WriteAheadLog {
         uuid: Uuid,
         coin: ObjectId,
         recipient: Address,
-        tx: TransactionData,
+        tx: Transaction,
     ) -> Result<(), TypedStoreError> {
         if self.log.contains_key(&coin)? {
             // Don't permit multiple writes against the same coin
@@ -131,9 +130,10 @@ impl WriteAheadLog {
 
 #[cfg(test)]
 mod tests {
+    use iota_sdk_ext::types::ObjectReference;
     use iota_types::{
-        base_types::{ObjectRef, random_object_ref},
-        transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI},
+        base_types::random_object_ref,
+        transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
     };
 
     use super::*;
@@ -251,13 +251,13 @@ mod tests {
         wal.reserve(uuid, coin.object_id, recv1, tx1).unwrap();
     }
 
-    fn random_request(coin: ObjectRef) -> (Address, TransactionData) {
+    fn random_request(coin: ObjectReference) -> (Address, Transaction) {
         let gas_price = 1;
         let send = Address::random();
         let recv = Address::random();
         (
             recv,
-            TransactionData::new_pay_iota(
+            Transaction::new_pay_iota(
                 send,
                 vec![coin],
                 vec![recv],

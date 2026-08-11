@@ -21,11 +21,10 @@ use aws_sdk_kms::{
 use bip32::DerivationPath;
 use clap::*;
 use fastcrypto::{
-    ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding, Hex},
     hash::HashFunction,
     secp256k1::recoverable::Secp256k1Sig,
-    traits::{KeyPair, Signer, ToFromBytes},
+    traits::KeyPair,
 };
 use iota_keys::{
     key_derive::generate_new_key,
@@ -36,22 +35,26 @@ use iota_keys::{
     keystore::{AccountKeystore, Keystore, StoredKey},
 };
 use iota_ledger::Ledger;
-use iota_sdk_ext::types::{
-    Address, SenderSignedTransaction, Transaction,
-    crypto::{Intent, IntentMessage, PublicKey as SdkPublicKey, UserSignature},
+use iota_sdk_ext::{
+    crypto::{
+        Signer as _, ToFromBase64, ToFromBech32, ToFromBytes as _, ed25519::Ed25519PrivateKey,
+        simple::SimpleKeypair,
+    },
+    types::{
+        Address, SenderSignedTransaction, SignatureScheme, Transaction,
+        crypto::{
+            Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+            PasskeyAuthenticator, PublicKey as SdkPublicKey, SimpleSignature, ThresholdUnit,
+            UserSignature, WeightUnit,
+        },
+    },
 };
 use iota_types::{
-    base_types::address_from_iota_pub_key,
-    crypto::{
-        DefaultHash, EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, SignatureScheme,
-        get_authority_key_pair,
-    },
+    crypto::{DefaultHash, EncodeDecodeBase64, PublicKey, get_authority_key_pair},
     error::IotaResult,
     move_authenticator::MoveAuthenticatorExt,
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
-    passkey_authenticator::PasskeyAuthenticator,
-    signature::{GenericSignature, VerifyParams},
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
+    signature::{AuthenticatorTrait, VerifyParams},
+    transaction::TransactionAPI,
 };
 use json_to_table::{Orientation, json_to_table};
 use serde::Serialize;
@@ -85,13 +88,13 @@ pub enum KeyToolCommand {
         #[arg(long)]
         tx_bytes: String,
         #[arg(long)]
-        sig: Option<GenericSignature>,
+        sig: Option<UserSignature>,
     },
     /// Given a Base64 encoded MultiSig signature, decode its components.
     /// If tx_bytes is passed in, verify the multisig.
     DecodeMultiSig {
         #[arg(long)]
-        multisig: MultiSig,
+        multisig: MultisigAggregatedSignature,
         #[arg(long)]
         tx_bytes: Option<String>,
     },
@@ -191,7 +194,7 @@ pub enum KeyToolCommand {
         threshold: ThresholdUnit,
     },
     /// Read the content at the provided file path. The accepted format can be
-    /// [enum IotaKeyPair] (Base64 encoded of 33-byte `flag || privkey`) or
+    /// [enum SimpleKeypair] (Base64 encoded of 33-byte `flag || privkey`) or
     /// `type AuthorityKeyPair` (Base64 encoded `privkey`). It prints its
     /// Base64 encoded public key and the key scheme flag.
     Show { file: PathBuf },
@@ -297,7 +300,7 @@ pub enum DecodedSigOutput {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DecodeOrVerifyTxOutput {
-    tx: TransactionData,
+    tx: Transaction,
     result: Option<IotaResult>,
 }
 
@@ -343,7 +346,7 @@ pub struct MultiSigAddress {
 #[serde(rename_all = "camelCase")]
 pub struct MultiSigCombinePartialSig {
     multisig_address: Address,
-    multisig_parsed: MultiSig,
+    multisig_parsed: MultisigAggregatedSignature,
     multisig_serialized: String,
 }
 
@@ -463,13 +466,10 @@ impl KeyToolCommand {
                 if let Some(tx_bytes) = tx_bytes {
                     let tx_bytes = Base64::decode(&tx_bytes)
                         .map_err(|e| anyhow!("Invalid base64 tx bytes: {e}"))?;
-                    let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
-                    let s = GenericSignature::MultiSig(multisig);
-                    let res = s.verify_authenticator(
-                        &IntentMessage::new(Intent::iota_transaction(), tx_data),
-                        address,
-                        &VerifyParams::default(),
-                    );
+                    let tx: Transaction = bcs::from_bytes(&tx_bytes)?;
+                    let s = UserSignature::Multisig(multisig);
+                    let res =
+                        s.verify_claims(&tx.intent_message(), address, &VerifyParams::default());
 
                     match res {
                         Ok(()) => output.sig_verify_result = "OK".to_string(),
@@ -480,40 +480,39 @@ impl KeyToolCommand {
                 CommandOutput::DecodeMultiSig(output)
             }
             KeyToolCommand::DecodeSig { sig } => {
-                // Try to decode as GenericSignature first, then fallback to
-                // SenderSignedData (which contains a SenderSignedTransaction)
-                let signature = match GenericSignature::decode_base64(&sig) {
+                // Try to decode as UserSignature first, then fallback to
+                // SenderSignedTransaction (which contains a SenderSignedTransaction)
+                let signature = match UserSignature::from_base64(&sig) {
                     Ok(sig) => sig,
                     Err(_) => {
-                        // Try decoding as SenderSignedData
+                        // Try decoding as SenderSignedTransaction
                         let tx_bytes = Base64::decode(&sig)
                             .map_err(|e| anyhow!("Invalid base64 encoding: {e}"))?;
-                        let tx = bcs::from_bytes::<SenderSignedData>(&tx_bytes).map_err(|e| {
-                            anyhow!("Failed to decode as signature or transaction: {e}")
-                        })?;
-                        tx.into_inner()
-                            .tx_signatures
+                        let tx =
+                            bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes).map_err(|e| {
+                                anyhow!("Failed to decode as signature or transaction: {e}")
+                            })?;
+                        tx.0.signatures
                             .into_iter()
                             .next()
                             .ok_or_else(|| anyhow!("Transaction has no signatures"))?
                     }
                 };
                 let decoded = match signature {
-                    GenericSignature::Signature(s) => {
-                        let pk_bytes = s.public_key_bytes();
-                        let pk = PublicKey::try_from_bytes(s.scheme(), pk_bytes)
+                    UserSignature::Simple(s) => {
+                        let pk = PublicKey::try_from_bytes(s.scheme(), s.to_public_key().as_ref())
                             .map_err(|e| anyhow!("Invalid public key bytes: {e}"))?;
                         let address = Address::from(&pk);
                         let public_key_base64 = pk.encode_base64();
                         let signature_hex = format!("0x{}", Hex::encode(s.signature_bytes()));
                         DecodedSigOutput::Signature {
-                            scheme: s.scheme().to_string(),
+                            scheme: lowercase_key_scheme(s.scheme()),
                             public_key_base64,
                             address: address.to_string(),
                             signature_hex,
                         }
                     }
-                    GenericSignature::MultiSig(multisig) => {
+                    UserSignature::Multisig(multisig) => {
                         let members = multisig.committee().members();
                         let signatures = multisig.signatures();
                         let indices = multisig.indices()?;
@@ -538,14 +537,10 @@ impl KeyToolCommand {
                             participating_signatures,
                         }
                     }
-                    #[allow(deprecated)]
-                    GenericSignature::ZkLoginAuthenticatorDeprecated(_) => {
-                        anyhow::bail!("zkLogin is not supported");
-                    }
-                    GenericSignature::PasskeyAuthenticator(passkey) => {
+                    UserSignature::PasskeyAuthenticator(passkey) => {
                         DecodedSigOutput::Passkey(Box::new(passkey))
                     }
-                    GenericSignature::MoveAuthenticator(move_auth) => {
+                    UserSignature::MoveAuthenticator(move_auth) => {
                         let call_arguments: Vec<String> = move_auth
                             .call_args()
                             .iter()
@@ -565,26 +560,28 @@ impl KeyToolCommand {
                             object_to_authenticate,
                         }
                     }
+                    _ => unimplemented!(
+                        "a new UserSignature variant was added and needs to be handled"
+                    ),
                 };
                 CommandOutput::DecodeSig(decoded)
             }
             KeyToolCommand::DecodeOrVerifyTx { tx_bytes, sig } => {
                 let tx_bytes = Base64::decode(&tx_bytes)
                     .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
-                let tx_data: TransactionData = bcs::from_bytes(&tx_bytes)?;
+                let tx: Transaction = bcs::from_bytes(&tx_bytes)?;
                 match sig {
-                    None => CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput {
-                        tx: tx_data,
-                        result: None,
-                    }),
+                    None => {
+                        CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput { tx, result: None })
+                    }
                     Some(s) => {
-                        let res = s.verify_authenticator(
-                            &IntentMessage::new(Intent::iota_transaction(), tx_data.clone()),
-                            tx_data.sender(),
+                        let res = s.verify_claims(
+                            &tx.intent_message(),
+                            tx.sender(),
                             &VerifyParams::default(),
                         );
                         CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput {
-                            tx: tx_data,
+                            tx,
                             result: Some(res),
                         })
                     }
@@ -601,7 +598,7 @@ impl KeyToolCommand {
 
                         let key = ExportedKey {
                             exported_private_key: keypair
-                                .encode()
+                                .to_bech32()
                                 .map_err(|_| anyhow!("Cannot decode keypair"))?,
                             key,
                         };
@@ -621,12 +618,12 @@ impl KeyToolCommand {
                 derivation_path,
                 word_length,
             } => match key_scheme {
-                SignatureScheme::BLS12381 => {
+                SignatureScheme::Bls12381 => {
                     let (iota_address, kp) = get_authority_key_pair();
                     let file_name = format!("bls-{iota_address}.key");
                     write_authority_keypair_to_file(&kp, file_name)?;
                     let public_base64_key_with_flag = encode_public_key_with_flag_base64(
-                        SignatureScheme::BLS12381.flag(),
+                        SignatureScheme::Bls12381.to_u8(),
                         kp.public().as_ref(),
                     );
                     CommandOutput::Generate(Key {
@@ -635,8 +632,8 @@ impl KeyToolCommand {
                         source: "keypair".to_string(),
                         public_base64_key: Some(kp.public().encode_base64()),
                         public_base64_key_with_flag: Some(public_base64_key_with_flag),
-                        key_scheme: Some(key_scheme.to_string()),
-                        flag: Some(SignatureScheme::BLS12381.flag()),
+                        key_scheme: Some(lowercase_key_scheme(key_scheme)),
+                        flag: Some(SignatureScheme::Bls12381.to_u8()),
                         mnemonic: None,
                         peer_id: None,
                         derivation_path: None,
@@ -657,7 +654,7 @@ impl KeyToolCommand {
                 input_string,
                 key_scheme,
                 derivation_path,
-            } => match IotaKeyPair::decode(&input_string) {
+            } => match SimpleKeypair::from_bech32(&input_string) {
                 Ok(ikp) => {
                     info!("Importing Bech32 encoded private key to keystore");
                     let stored = ikp.into();
@@ -767,7 +764,7 @@ impl KeyToolCommand {
             } => {
                 let multisig_pk = multisig_public_key(pks, weights, threshold)?;
                 let address: Address = (&multisig_pk).into();
-                let multisig = MultiSig::new(sigs, multisig_pk)?;
+                let multisig = MultisigAggregatedSignature::new(sigs, multisig_pk)?;
                 let multisig_serialized = Base64::encode(multisig.to_bytes());
                 CommandOutput::MultiSigCombinePartialSig(MultiSigCombinePartialSig {
                     multisig_address: address,
@@ -786,17 +783,17 @@ impl KeyToolCommand {
                         Ok(keypair) => {
                             let public_base64_key = keypair.public().encode_base64();
                             let public_base64_key_with_flag = encode_public_key_with_flag_base64(
-                                SignatureScheme::BLS12381.flag(),
+                                SignatureScheme::Bls12381.to_u8(),
                                 keypair.public().as_ref(),
                             );
                             CommandOutput::Show(Key {
                                 alias: None, // alias does not get stored in key files
-                                iota_address: address_from_iota_pub_key(keypair.public()),
+                                iota_address: authority_key_address(keypair.public().as_ref()),
                                 source: "keypair".to_string(),
                                 public_base64_key: Some(public_base64_key),
                                 public_base64_key_with_flag: Some(public_base64_key_with_flag),
-                                key_scheme: Some(SignatureScheme::BLS12381.to_string()),
-                                flag: Some(SignatureScheme::BLS12381.flag()),
+                                key_scheme: Some(lowercase_key_scheme(SignatureScheme::Bls12381)),
+                                flag: Some(SignatureScheme::Bls12381.to_u8()),
                                 peer_id: None,
                                 mnemonic: None,
                                 derivation_path: None,
@@ -815,17 +812,17 @@ impl KeyToolCommand {
             } => {
                 let address = get_identity_address_from_keystore(address, keystore)?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
-                let msg: TransactionData =
-                    bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
-                        anyhow!("Cannot deserialize data as TransactionData {:?}", e)
-                    })?)?;
+                let msg: Transaction = bcs::from_bytes(
+                    &Base64::decode(&data)
+                        .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?,
+                )?;
                 let intent_msg = IntentMessage::new(intent, msg);
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
                 let mut hasher = DefaultHash::default();
                 hasher.update(bcs::to_bytes(&intent_msg)?);
                 let digest = hasher.finalize().digest;
 
-                let iota_signature =
+                let signature =
                     sign_secure(keystore, &address, &intent_msg.value, intent_msg.intent)?;
 
                 CommandOutput::Sign(SignData {
@@ -834,7 +831,7 @@ impl KeyToolCommand {
                     intent,
                     raw_intent_msg,
                     digest: Base64::encode(digest),
-                    iota_signature: iota_signature.encode_base64(),
+                    iota_signature: signature.to_base64(),
                 })
             }
             KeyToolCommand::SignRaw { address, data } => {
@@ -845,10 +842,10 @@ impl KeyToolCommand {
                     StoredKey::KeyPair(kp) => kp,
                     _ => bail!("Not a keypair"),
                 };
-                let signature = ikp.sign(&bytes);
-                let iota_signature = signature.encode_base64();
-                let public_key = ikp.public().encode_base64();
-                let public_key_hex = Hex::encode_with_format(ikp.public().as_ref());
+                let signature: SimpleSignature = ikp.sign(&bytes);
+                let iota_signature = signature.to_base64();
+                let public_key = PublicKey::from(ikp).encode_base64();
+                let public_key_hex = Hex::encode_with_format(PublicKey::from(ikp).as_ref());
                 let signature_hex = Hex::encode_with_format(signature.signature_bytes());
 
                 CommandOutput::SignRaw(SignRawData {
@@ -868,16 +865,16 @@ impl KeyToolCommand {
             } => {
                 // Currently only supports secp256k1 keys
                 let pk_owner = PublicKey::decode_base64(&base64pk)
-                    .map_err(|e| anyhow!("Invalid base64 key: {:?}", e))?;
+                    .map_err(|e| anyhow!("Invalid base64 key: {e:?}"))?;
                 let address_owner = Address::from(&pk_owner);
                 info!("Address For Corresponding KMS Key: {}", address_owner);
                 info!("Raw tx_bytes to execute: {}", data);
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
                 info!("Intent: {:?}", intent);
-                let msg: TransactionData =
-                    bcs::from_bytes(&Base64::decode(&data).map_err(|e| {
-                        anyhow!("Cannot deserialize data as TransactionData {:?}", e)
-                    })?)?;
+                let msg: Transaction = bcs::from_bytes(
+                    &Base64::decode(&data)
+                        .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?,
+                )?;
                 let intent_msg = IntentMessage::new(intent, msg);
                 info!(
                     "Raw intent message: {:?}",
@@ -918,7 +915,7 @@ impl KeyToolCommand {
                 external_sig.normalize_s();
                 let sig_compact = external_sig.serialize_compact();
 
-                let mut serialized_sig = vec![SignatureScheme::Secp256k1.flag()];
+                let mut serialized_sig = vec![SignatureScheme::Secp256k1.to_u8()];
                 serialized_sig.extend_from_slice(&sig_compact);
                 serialized_sig.extend_from_slice(pk_owner.as_ref());
                 let serialized_sig = Base64::encode(&serialized_sig);
@@ -960,8 +957,8 @@ impl KeyToolCommand {
     }
 }
 
-impl From<IotaKeyPair> for Key {
-    fn from(ikp: IotaKeyPair) -> Self {
+impl From<SimpleKeypair> for Key {
+    fn from(ikp: SimpleKeypair) -> Self {
         Key::from(&StoredKey::from(ikp))
     }
 }
@@ -990,7 +987,7 @@ impl From<&StoredKey> for Key {
                 source: stored.source().to_string(),
                 public_base64_key: Some(Base64::encode(pk.as_ref())),
                 public_base64_key_with_flag: Some(pk.encode_base64()),
-                key_scheme: Some(pk.scheme().to_string()),
+                key_scheme: Some(lowercase_key_scheme(pk.scheme())),
                 mnemonic: None,
                 flag: Some(pk.flag()),
                 peer_id: anemo_styling(&pk),
@@ -1153,14 +1150,14 @@ impl Debug for CommandOutput {
 
 impl PrintableResult for CommandOutput {}
 
-/// Build and validate a [`MultiSigPublicKey`] from a list of public keys and
+/// Build and validate a [`MultisigCommittee`] from a list of public keys and
 /// their corresponding weights. The number of keys must match the number of
 /// weights.
 fn multisig_public_key(
     pks: Vec<SdkPublicKey>,
     weights: Vec<WeightUnit>,
     threshold: ThresholdUnit,
-) -> Result<MultiSigPublicKey, anyhow::Error> {
+) -> Result<MultisigCommittee, anyhow::Error> {
     if pks.len() != weights.len() {
         bail!(
             "Number of public keys ({}) does not match number of weights ({})",
@@ -1173,7 +1170,7 @@ fn multisig_public_key(
         .zip(weights)
         .map(|(pk, w)| MultisigMember::new(pk, w))
         .collect();
-    Ok(MultiSigPublicKey::new(members, threshold)?)
+    Ok(MultisigCommittee::new(members, threshold)?)
 }
 
 /// Converts legacy formatted private key to 33 bytes bech32 encoded private key
@@ -1184,7 +1181,7 @@ fn multisig_public_key(
 /// 3) Base64 encoded 33 bytes private key with flag.
 /// 4) Bech32 encoded 33 bytes private key with flag.
 fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow::Error> {
-    let ikp = match IotaKeyPair::decode(&value) {
+    let ikp = match SimpleKeypair::from_bech32(&value) {
         Ok(s) => s,
         Err(_) => match Hex::decode(&value) {
             Ok(decoded) => {
@@ -1194,12 +1191,15 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
                         decoded.len()
                     );
                 }
-                IotaKeyPair::Ed25519(Ed25519KeyPair::from_bytes(&decoded)?)
+                SimpleKeypair::from(Ed25519PrivateKey::from_bytes(&decoded)?)
             }
-            Err(_) => match IotaKeyPair::decode_base64(&value) {
-                Ok(ikp) => ikp,
-                Err(_) => match Ed25519KeyPair::decode_base64(&value) {
-                    Ok(kp) => IotaKeyPair::Ed25519(kp),
+            Err(_) => match Base64::decode(&value)
+                .ok()
+                .and_then(|bytes| SimpleKeypair::from_bytes(&bytes).ok())
+            {
+                Some(ikp) => ikp,
+                None => match Ed25519PrivateKey::from_base64(&value) {
+                    Ok(kp) => SimpleKeypair::from(kp),
                     Err(_) => bail!("Invalid private key encoding"),
                 },
             },
@@ -1207,9 +1207,11 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
     };
 
     Ok(ConvertOutput {
-        bech32_with_flag: ikp.encode().map_err(|_| anyhow!("Cannot encode keypair"))?,
-        base64_with_flag: ikp.encode_base64(),
-        scheme: ikp.public().scheme().to_string(),
+        bech32_with_flag: ikp
+            .to_bech32()
+            .map_err(|_| anyhow!("Cannot encode keypair"))?,
+        base64_with_flag: Base64::encode(ikp.to_bytes()),
+        scheme: lowercase_key_scheme(ikp.scheme()),
     })
 }
 
@@ -1219,6 +1221,24 @@ fn anemo_styling(pk: &PublicKey) -> Option<String> {
     } else {
         None
     }
+}
+
+/// The lowercase spelling of a key scheme, as used in CLI output and accepted
+/// as an `iota keytool` argument.
+///
+/// `SignatureScheme`'s `Display` renders the variant name; the CLI has always
+/// emitted the lowercase form, and scripts parse it.
+pub(crate) fn lowercase_key_scheme(scheme: SignatureScheme) -> String {
+    scheme.to_string().to_lowercase()
+}
+
+/// Authority keys have no on-chain account; this address only labels key
+/// files and `keytool` output.
+fn authority_key_address(public_key: &[u8]) -> Address {
+    let mut hasher = DefaultHash::default();
+    hasher.update([SignatureScheme::Bls12381.to_u8()]);
+    hasher.update(public_key);
+    Address::new(hasher.finalize().digest)
 }
 
 fn encode_public_key_with_flag_base64(flag: u8, public_key: &[u8]) -> String {

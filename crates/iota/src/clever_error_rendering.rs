@@ -156,10 +156,7 @@ fn parse_abort_status_string(
     use regex::Regex;
     let re = Regex::new(r#"MoveAbort.*address:\s*(.*?),.* name:.*Identifier\((.*?)\).*instruction:\s+(\d+),.*function_name:.*Some\((.*?)\).*},\s*(\d+).*in command\s*(\d+)"#).unwrap();
     let Some(captures) = re.captures(s) else {
-        anyhow::bail!(
-            "Cannot parse abort status string: {} as a move abort string",
-            s
-        );
+        anyhow::bail!("Cannot parse abort status string: {s} as a move abort string");
     };
 
     // Remove any escape characters from the string if present.

@@ -125,6 +125,27 @@ is set to `info`, so only spans with level `error` and `info` will be sent as me
 
 4. Afterwards, metrics should be available in node’s metrics list, under its span_name.
 
+   Note that `tracing_span_latencies` is a `debug`-level metric in the `runtime` metric group, so the node
+   hides it at the default exposure level. Enable it first, either in
+   the node config:
+
+   ```yaml
+   metrics:
+     groups:
+       runtime: debug
+   ```
+
+   or via the `METRICS_FILTER` environment variable, whose directives override
+   the config's for the metrics they match (`iota-node` accepts group names
+   here too; other metrics keep their configured exposure):
+
+   ```bash
+   METRICS_FILTER=telemetry_subscribers=debug
+   ```
+
+   A bare level replaces the configured filter entirely, so
+   `METRICS_FILTER=trace` exposes every metric.
+
    ```bash
    curl -X GET 'http://127.0.0.1:9184/metrics' | grep tracing_span_latencies_bucket
    ```

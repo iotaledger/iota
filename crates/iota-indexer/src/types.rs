@@ -6,20 +6,19 @@ use iota_json_rpc_types::{
     BalanceChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionKind, ObjectChange,
 };
-use iota_sdk_ext::types::{Address, MovePackage, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_ext::types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, ObjectDigest, ObjectId, Owner,
+    SenderSignedTransaction, StructTag, TransactionDigest, TransactionEffects, TypeTag, Version,
+    checkpoint::{CheckpointCommitment, CheckpointContents, EndOfEpochData},
+    move_package::MovePackage,
+};
 use iota_types::{
-    base_types::{ObjectDigest, SequenceNumber},
     crypto::AggregateAuthoritySignature,
-    digests::TransactionDigest,
     dynamic_field::DynamicFieldType,
-    effects::TransactionEffects,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     iota_serde::{IotaStructTag, IotaTypeTag},
-    messages_checkpoint::{
-        CheckpointCommitment, CheckpointDigest, CheckpointSequenceNumber, EndOfEpochData,
-    },
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,
-    transaction::SenderSignedData,
 };
 #[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
 use rand::Rng;
@@ -47,6 +46,8 @@ pub struct IndexedCheckpoint {
     pub non_refundable_storage_fee: u64,
     pub checkpoint_commitments: Vec<CheckpointCommitment>,
     pub validator_signature: AggregateAuthoritySignature,
+    pub content_digest: CheckpointContentsDigest,
+    pub version_specific_data: Vec<u8>,
     // Note: not used in StoredCheckpoint conversion and in code overall.
     pub successful_tx_num: usize,
     pub end_of_epoch_data: Option<EndOfEpochData>,
@@ -58,7 +59,7 @@ pub struct IndexedCheckpoint {
 impl IndexedCheckpoint {
     pub fn from_iota_checkpoint(
         checkpoint: &iota_types::messages_checkpoint::CertifiedCheckpointSummary,
-        contents: &iota_types::messages_checkpoint::CheckpointContents,
+        contents: &CheckpointContents,
         successful_tx_num: usize,
     ) -> Self {
         let total_gas_cost = checkpoint.epoch_rolling_gas_cost_summary.computation_cost as i64
@@ -92,6 +93,8 @@ impl IndexedCheckpoint {
             timestamp_ms: checkpoint.timestamp_ms,
             validator_signature: auth_sig.clone(),
             checkpoint_commitments: checkpoint.checkpoint_commitments.clone(),
+            content_digest: checkpoint.contents_digest,
+            version_specific_data: checkpoint.version_specific_data.clone(),
             min_tx_sequence_number,
             max_tx_sequence_number,
         }
@@ -390,16 +393,24 @@ impl IndexedDeletedObject {
 
 #[derive(Debug)]
 pub struct IndexedPackage {
-    pub package_id: ObjectId,
     pub move_package: MovePackage,
     pub checkpoint_sequence_number: u64,
+}
+
+impl IndexedPackage {
+    pub(crate) fn new(move_package: MovePackage, checkpoint_sequence_number: u64) -> Self {
+        Self {
+            move_package,
+            checkpoint_sequence_number,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct IndexedTransaction {
     pub tx_sequence_number: u64,
     pub tx_digest: TransactionDigest,
-    pub sender_signed_data: SenderSignedData,
+    pub sender_signed_data: SenderSignedTransaction,
     pub effects: TransactionEffects,
     pub checkpoint_sequence_number: u64,
     pub timestamp_ms: u64,
@@ -487,7 +498,7 @@ impl TxIndex {
 pub enum IndexedObjectChange {
     Published {
         package_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
         modules: Vec<String>,
     },
@@ -497,7 +508,7 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
     },
     /// Object mutated.
@@ -507,8 +518,8 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
-        previous_version: SequenceNumber,
+        version: Version,
+        previous_version: Version,
         digest: ObjectDigest,
     },
     /// Delete object
@@ -517,7 +528,7 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     },
     /// Wrapped object
     Wrapped {
@@ -525,7 +536,7 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     },
     /// Unwrapped object
     Unwrapped {
@@ -534,7 +545,7 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
     },
     /// New object creation
@@ -544,7 +555,7 @@ pub enum IndexedObjectChange {
         #[serde_as(as = "IotaStructTag")]
         object_type: StructTag,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
     },
 }

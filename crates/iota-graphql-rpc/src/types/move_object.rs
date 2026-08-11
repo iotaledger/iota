@@ -4,8 +4,7 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_names::config::IotaNamesConfig;
-use iota_sdk_ext::types::ObjectData;
-use iota_types::object::MoveObject as NativeMoveObject;
+use iota_sdk_ext::types::{MoveStruct as NativeMoveStruct, ObjectData};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -41,7 +40,7 @@ pub(crate) struct MoveObject {
 
     /// Move-object-specific data, extracted from the native representation at
     /// `graphql_object.native_object.data`.
-    pub native: NativeMoveObject,
+    pub native: NativeMoveStruct,
 }
 
 /// Type to implement GraphQL fields that are shared by all MoveObjects.

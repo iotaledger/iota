@@ -12,15 +12,13 @@ use std::{
 use better_any::{Tid, TidAble};
 use indexmap::{map::IndexMap, set::IndexSet};
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-use iota_sdk_ext::types::{Address, ObjectId, Owner, StructTag};
+use iota_sdk_ext::types::{Address, MoveStruct, ObjectId, Owner, StructTag, Version};
 use iota_types::{
-    base_types::SequenceNumber,
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
     execution::DynamicallyLoadedObjectMetadata,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     metrics::LimitsMetrics,
-    object::MoveObject,
     storage::ChildObjectResolver,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -48,7 +46,7 @@ mod fingerprint;
 
 pub enum ObjectEvent {
     /// Transfer to a new address or object. Or make it shared or immutable.
-    Transfer(Owner, MoveObject),
+    Transfer(Owner, MoveStruct),
     /// An object ID is deleted
     DeleteObjectID(ObjectId),
 }
@@ -71,7 +69,7 @@ pub(crate) struct TestInventories {
 }
 
 pub struct LoadedRuntimeObject {
-    pub version: SequenceNumber,
+    pub version: Version,
     pub is_modified: bool,
 }
 
@@ -124,7 +122,7 @@ pub enum TransferResult {
 
 pub struct InputObject {
     pub contained_uids: BTreeSet<ObjectId>,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub owner: Owner,
 }
 
@@ -348,7 +346,7 @@ impl<'a> ObjectRuntime<'a> {
         &mut self,
         parent: ObjectId,
         child: ObjectId,
-        child_version: SequenceNumber,
+        child_version: Version,
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &MoveTypeLayout,

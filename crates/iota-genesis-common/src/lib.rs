@@ -3,20 +3,23 @@
 
 use std::{collections::HashSet, sync::Arc};
 
+mod migration_tx_data_ext;
+
 use iota_execution::executor;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_ext::types::TransactionKind;
+use iota_sdk_ext::types::{TransactionEffects, TransactionEvents, TransactionKind};
 use iota_types::{
     digests::ChainIdentifier,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     epoch_data::EpochData,
     gas::IotaGasStatus,
     in_memory_storage::InMemoryStorage,
     messages_checkpoint::CheckpointTimestamp,
     metrics::LimitsMetrics,
     object::Object,
-    transaction::{CheckedInputObjects, Transaction, TransactionDataAPI},
+    transaction::{CheckedInputObjects, TransactionAPI, TransactionEnvelope},
 };
+pub use migration_tx_data_ext::MigrationTxDataExt;
 use prometheus_filtered::Registry;
 
 /// Gets a `ProtocolConfig` for genesis based on a `ProtocolVersion`.
@@ -37,7 +40,7 @@ pub fn get_genesis_protocol_config(version: ProtocolVersion) -> ProtocolConfig {
 pub fn prepare_and_execute_genesis_transaction(
     chain_start_timestamp_ms: CheckpointTimestamp,
     protocol_version: ProtocolVersion,
-    genesis_transaction: &Transaction,
+    genesis_transaction: &TransactionEnvelope,
 ) -> (TransactionEffects, TransactionEvents, Vec<Object>) {
     let registry = Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
@@ -56,11 +59,11 @@ pub fn execute_genesis_transaction(
     epoch_data: &EpochData,
     protocol_config: &ProtocolConfig,
     metrics: Arc<LimitsMetrics>,
-    genesis_transaction: &Transaction,
+    genesis_transaction: &TransactionEnvelope,
 ) -> (TransactionEffects, TransactionEvents, Vec<Object>) {
     assert!(
         matches!(
-            genesis_transaction.transaction_data().kind(),
+            genesis_transaction.transaction().kind(),
             TransactionKind::Genesis(_)
         ),
         "wrong transaction type to execute"
@@ -74,8 +77,8 @@ pub fn execute_genesis_transaction(
 
     let expensive_checks = false;
     let certificate_deny_set = HashSet::new();
-    let transaction_data = &genesis_transaction.data().intent_message().value;
-    let (kind, signer, mut gas_data) = transaction_data.execution_parts();
+    let transaction = genesis_transaction.data().transaction();
+    let (kind, signer, mut gas_data) = transaction.execution_parts();
     gas_data.objects = vec![];
     let input_objects = CheckedInputObjects::new_for_genesis(vec![]);
     let (inner_temp_store, _, effects, _execution_error) = executor.execute_transaction_to_effects(

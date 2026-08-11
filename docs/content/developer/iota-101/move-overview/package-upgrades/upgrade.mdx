@@ -5,8 +5,6 @@ teams:
 description: Learn how to upgrade your packages on the IOTA network while maintaining their immutable properties.
 ---
 import AutomatedAddressManagement from '../../../../_snippets/automated-address-management.mdx'
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/move-overview/package-upgrades/upgrade.json';
 
 # Managing Package Upgrades
 
@@ -314,7 +312,6 @@ Manage access to specific functions by adding or removing marker types as dynami
 
 Modify other fields, adjust dynamic fields, or handle multiple shared objects during the migration process.
 
-
 #### Large-Scale Migrations
 
 For migrations requiring multiple transactions, consider a three-phase approach:
@@ -400,7 +397,7 @@ Successfully verified dependencies on-chain against source.
 ----- Transaction Digest ----
 2bn3EtHvbVY4bM1887MvFiGWnqq1YZ2RKmbeK7TrRbLL
 ----- Transaction Data ----
-Transaction Signature: [Signature(Ed25519IotaSignature(Ed25519IotaSignature([0, 156, 133, 71, 156, 44, 204, 30, 31, 250, 204, 247, 60, 212, 249, 61, 112, 249, 148, 180, 83, 207, 236, 58, 99, 134, 5, 174, 115, 226, 41, 139, 192, 1, 183, 133, 38, 73, 254, 205, 190, 54, 210, 112, 144, 204, 137, 3, 8, 30, 165, 147, 120, 199, 227, 119, 53, 208, 28, 101, 34, 239, 102, 210, 1, 103, 111, 108, 165, 156, 100, 95, 13, 236, 27, 13, 127, 150, 50, 47, 155, 217, 27, 164, 61, 245, 254, 81, 182, 121, 231, 58, 150, 214, 46, 27, 222])))]
+Transaction Signature: [Signature(Ed25519 { signature: Ed25519Signature("nIVHnCzMHh/6zPc81Pk9cPmUtFPP7DpjhgWuc+Ipi8ABt4UmSf7NvjbScJDMiQMIHqWTeMfjdzXQHGUi72bSAQ=="), public_key: Ed25519PublicKey("Z29spZxkXw3sGw1/ljIvm9kbpD31/lG2eec6ltYuG94=") })]
 Transaction Kind : Programmable
 Inputs: [Pure(IotaPureValue { value_type: Some(Address), value: "<PUBLISHER-ID>" })]
 Commands: [
@@ -536,7 +533,7 @@ Successfully verified dependencies on-chain against source.
 ----- Transaction Digest ----
 HZdnGWE2VoqDWwBhoBwe17tDFn7uYgfBpK5nk75Rmh5z
 ----- Transaction Data ----
-Transaction Signature: [Signature(Ed25519IotaSignature(Ed25519IotaSignature([0, 108, 166, 235, 244, 238, 72, 232, 143, 49, 225, 180, 55, 63, 131, 155, 146, 126, 50, 158, 138, 213, 174, 71, 162, 222, 62, 198, 245, 219, 224, 171, 82, 43, 197, 56, 16, 252, 186, 83, 154, 109, 104, 90, 212, 236, 122, 78, 175, 173, 107, 9, 2, 10, 30, 74, 101, 138, 228, 251, 170, 39, 25, 242, 8, 103, 111, 108, 165, 156, 100, 95, 13, 236, 27, 13, 127, 150, 50, 47, 155, 217, 27, 164, 61, 245, 254, 81, 182, 121, 231, 58, 150, 214, 46, 27, 222])))]
+Transaction Signature: [Signature(Ed25519 { signature: Ed25519Signature("bKbr9O5I6I8x4bQ3P4Obkn4ynorVrkei3j7G9dvgq1IrxTgQ/LpTmm1oWtTsek6vrWsJAgoeSmWK5PuqJxnyCA=="), public_key: Ed25519PublicKey("Z29spZxkXw3sGw1/ljIvm9kbpD31/lG2eec6ltYuG94=") })]
 Transaction Kind : Programmable
 Inputs: [Object(ImmOrOwnedObject { object_id: <UPGRADE-CAP-ID>, version: SequenceNumber(9), digest: o#Bvy7R33o4ogLuyfzM76nmM1RqKnEALQrbd34CLWZhf5Y }), Pure(IotaPureValue { value_type: Some(U8), value: 0 }), Pure(IotaPureValue { value_type: Some(Vector(U8)), value: [202,122,179,32,64,155,14,236,160,5,75,17,159,202,125,114,234,36,182,41,159,84,56,222,99,121,250,82,206,19,212,5] })]
 Commands: [
@@ -608,7 +605,6 @@ Array [
     },
 ]
 
-
 ```
 
 After successfully upgrading your `iota_package`, the result will include a new ID for the upgraded package. Just like before, it's essential to update your manifest with this new ID. This ensures that any other packages depending on your `iota_package` can locate the correct on-chain bytecode for verification.
@@ -618,7 +614,6 @@ After successfully upgrading your `iota_package`, the result will include a new 
 To reflect the new package ID, in the `[addresses]` section, return the `iota_package` value to the original package ID.
 
 Your updated manifest should look like this:
-
 
 ```toml
 [package]
@@ -632,5 +627,3 @@ iota_package = "<ORIGINAL-PACKAGE-ID>"
 
 * The `iota_package` address in the `[addresses]` section should always point back to the original package ID after an upgrade.
 * Before running any subsequent upgrade commands, always set the `iota_package` address to `0x0` in the `[addresses]` section. This ensures the validator assigns a new ID for the upgrade.
-
-<Quiz questions={questions} />

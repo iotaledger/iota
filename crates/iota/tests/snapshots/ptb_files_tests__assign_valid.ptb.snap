@@ -23,5 +23,13 @@ expression: "results.join(\"\\n\")"
 ╰───────────────┴──────────────────╯
  === BUILT PTB === 
 Input 0: Pure([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-Command 0: MakeMoveVector(Some(address),[Input(0),Input(0)])
-Command 1: MakeMoveVector(Some(address),[Input(0),Input(0)])
+Command 0: Command: Make Move Vector
+├── Type: address
+└── Elements
+    ├── 0: Input(0)
+    └── 1: Input(0)
+Command 1: Command: Make Move Vector
+├── Type: address
+└── Elements
+    ├── 0: Input(0)
+    └── 1: Input(0)

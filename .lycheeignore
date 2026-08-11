@@ -3,3 +3,9 @@ http://localhost.*
 http://127.0.0.1.*
 https://gateway.devnet.iota.org.*
 https://www.npmjs.com.*
+# Private repositories: reachable to maintainers, 404 to the anonymous checker.
+https://github.com/iotaledger/network-benchmark.*
+https://github.com/iotaledger/iota-spammer.*
+# Rate-limits the checker (429) but is reachable in a browser.
+https://layerzeroscan.com.*
+https://testnet.layerzeroscan.com.*

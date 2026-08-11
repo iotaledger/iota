@@ -18,10 +18,10 @@ pub mod consensus_handler;
 pub mod consensus_manager;
 pub(crate) mod consensus_types;
 pub mod consensus_validator;
-pub mod db_checkpoint_handler;
 pub mod epoch;
 pub mod execution_cache;
 mod execution_driver;
+mod execution_scheduler;
 mod fallback_fetch;
 pub mod global_state_hasher;
 pub mod grpc_indexes;
@@ -46,10 +46,9 @@ pub mod test_utils;
 pub mod traffic_controller;
 pub mod transaction_driver;
 mod transaction_input_loader;
-mod transaction_manager;
 pub mod transaction_orchestrator;
 mod transaction_outputs;
-pub mod validator_client_monitor;
+pub(crate) mod validator_client_monitor;
 pub mod validator_tx_finalizer;
 pub mod verify_indexes;
 
@@ -78,6 +77,7 @@ mod pay_iota_tests;
 #[path = "unit_tests/shared_object_deletion_tests.rs"]
 mod shared_object_deletion_tests;
 pub mod signature_verifier;
+#[cfg(any(test, feature = "test-utils"))]
 pub mod test_authority_clients;
 #[cfg(test)]
 #[path = "unit_tests/transfer_to_object_tests.rs"]

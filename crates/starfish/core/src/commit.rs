@@ -21,7 +21,7 @@ use tracing::debug;
 use crate::{
     block_header::{
         BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, SERIALIZED_BLOCK_REF_BYTES, Slot,
-        VerifiedBlockHeader, VerifiedTransactions, uleb128_len,
+        VerifiedBlockHeader, VerifiedTransactions, format_block_digests, uleb128_len,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -104,8 +104,8 @@ pub(crate) enum Commit {
 }
 
 impl Commit {
-    /// Create a new commit. The variant (V1, V2, or V3) is determined by the
-    /// consensus_fast_commit_sync and consensus_starfish_speed protocol flags.
+    /// Create a new commit. The variant (V2 or V3) is determined by the
+    /// consensus_starfish_speed protocol flag.
     pub(crate) fn new(
         context: &Arc<Context>,
         index: CommitIndex,
@@ -141,15 +141,15 @@ impl Commit {
                 reputation_scores_desc,
                 is_optimistic,
             })
-        } else if context.protocol_config.consensus_fast_commit_sync() {
-            debug!("Creating CommitV2 as consensus_fast_commit_sync is enabled");
+        } else {
+            debug!("Creating CommitV2");
             // Extract TransactionRefs from GenericTransactionRef
             let transaction_refs: Vec<TransactionRef> = committed_transactions
                 .into_iter()
                 .map(|gen_ref| match gen_ref {
                     GenericTransactionRef::TransactionRef(tr) => tr,
                     GenericTransactionRef::BlockRef(_) => {
-                        panic!("Expected TransactionRef when consensus_fast_commit_sync is enabled")
+                        panic!("Expected TransactionRef")
                     }
                 })
                 .collect();
@@ -162,26 +162,6 @@ impl Commit {
                 block_headers: blocks,
                 committed_transactions: transaction_refs,
                 reputation_scores_desc,
-            })
-        } else {
-            debug!("Creating CommitV1 as consensus_fast_commit_sync is disabled");
-            // Extract BlockRefs from GenericTransactionRef
-            let block_refs: Vec<BlockRef> = committed_transactions
-                .into_iter()
-                .map(|gen_ref| match gen_ref {
-                    GenericTransactionRef::BlockRef(br) => br,
-                    GenericTransactionRef::TransactionRef(_) => {
-                        panic!("Expected BlockRef when consensus_fast_commit_sync is disabled")
-                    }
-                })
-                .collect();
-            Commit::V1(CommitV1 {
-                index,
-                previous_digest,
-                timestamp_ms,
-                leader,
-                blocks,
-                committed_transactions: block_refs,
             })
         }
     }
@@ -940,19 +920,6 @@ fn format_transaction_ref_digests(transaction_refs: &[GenericTransactionRef]) ->
     result
 }
 
-fn format_block_digests(blocks: &[BlockRef]) -> String {
-    let mut result = String::new();
-    for (idx, block) in blocks.iter().enumerate() {
-        if idx > 0 {
-            result.push_str(", ");
-        }
-        result.push_str(&block.digest.to_string());
-        result.push('@');
-        result.push_str(&block.round.to_string());
-    }
-    result
-}
-
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum Decision {
     /// Direct rule produced the final status.
@@ -966,6 +933,23 @@ pub(crate) enum Decision {
 }
 
 /// The status of a leader slot from the direct and indirect commit rules.
+///
+/// A leader slot advances through three nested levels — every finalized leader
+/// is resolved, and every resolved leader is decided:
+///
+/// - **Decided** — commit-vs-skip is answered: `Skip`, or `Commit` with any
+///   metastate (including `Pending`). Convertible to a `DecidedLeader`.
+/// - **Resolved** — the outcome is fully pinned: `Skip`, or `Commit` with a
+///   settled (non-`Pending`) metastate, so sequencing can proceed past it
+///   (`is_resolved`). `Commit(Pending)` is decided but not resolved — the
+///   indirect rule upgrades its metastate on a later commit pass.
+/// - **Finalized** — a resolved leader the committer has processed as part of a
+///   contiguous, rotation-boundary-respecting prefix (its `last_finalized`
+///   boundary has advanced past the leader). Permanent; Decided and Resolved
+///   are provisional and recomputed on every commit pass — before finalization
+///   a slot's outcome can still flip between `Commit` and `Skip`.
+///
+/// `Undecided` is none of these: the slot has no commit-vs-skip decision yet.
 ///
 /// `Commit(_, Some(Optimistic), strong_voters)` carries the r+1 authorities
 /// whose strong votes attest data availability for the leader and its
@@ -999,9 +983,11 @@ impl LeaderStatus {
         }
     }
 
-    /// True when sequencing can proceed past this leader. `Commit(Pending)`
-    /// and `Undecided` are non-final.
-    pub(crate) fn is_final(&self) -> bool {
+    /// True when this leader is resolved: its outcome is fully pinned -- a
+    /// `Skip`, or a `Commit` with a settled (non-`Pending`) metastate -- so
+    /// sequencing can proceed past it. `Commit(Pending)` is decided but not
+    /// yet resolved; `Undecided` is neither.
+    pub(crate) fn is_resolved(&self) -> bool {
         match self {
             Self::Commit(_, Some(CommitMetastate::Pending), _) => false,
             Self::Commit(..) | Self::Skip(_) => true,
@@ -1313,7 +1299,6 @@ mod tests {
                 WriteBatch::default()
                     .block_headers(first_round_headers)
                     .transactions(first_round_transactions),
-                context.clone(),
             )
             .unwrap();
         blocks.append(&mut first_round_references.clone());
@@ -1336,7 +1321,6 @@ mod tests {
                         WriteBatch::default()
                             .block_headers(vec![block.verified_block_header.clone()])
                             .transactions(vec![block.verified_transactions.clone()]),
-                        context.clone(),
                     )
                     .unwrap();
                 new_ancestors.push(block.reference());
@@ -1356,12 +1340,9 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
-        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
-            &context,
-            store.as_ref(),
-            &first_round_references,
-        );
+        // Convert BlockRefs to GenericTransactionRefs.
+        let generic_committed_transactions =
+            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
             &context,
@@ -1416,10 +1397,7 @@ mod tests {
             .map(|block| (block.reference(), block))
             .unzip();
         store
-            .write(
-                WriteBatch::default().block_headers(first_round_headers),
-                context.clone(),
-            )
+            .write(WriteBatch::default().block_headers(first_round_headers))
             .unwrap();
         blocks.append(&mut first_round_references.clone());
 
@@ -1437,10 +1415,7 @@ mod tests {
                         .build(),
                 );
                 store
-                    .write(
-                        WriteBatch::default().block_headers(vec![block.clone()]),
-                        context.clone(),
-                    )
+                    .write(WriteBatch::default().block_headers(vec![block.clone()]))
                     .unwrap();
                 new_ancestors.push(block.reference());
                 blocks.push(block.reference());
@@ -1459,12 +1434,9 @@ mod tests {
         let leader_ref = leader_block.reference();
         let commit_index = 1;
 
-        // Convert BlockRefs to GenericTransactionRefs based on protocol flag
-        let generic_committed_transactions = convert_block_refs_to_generic_transaction_refs(
-            &context,
-            store.as_ref(),
-            &first_round_references,
-        );
+        // Convert BlockRefs to GenericTransactionRefs.
+        let generic_committed_transactions =
+            convert_block_refs_to_generic_transaction_refs(store.as_ref(), &first_round_references);
 
         let commit = TrustedCommit::new_for_test(
             &context,

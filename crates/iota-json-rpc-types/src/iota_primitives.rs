@@ -18,19 +18,18 @@
 //! that logic. Newtype wrappers (e.g. `SequenceNumberString(u64)`) are only
 //! appropriate when the wrapper itself is the serialised value.
 
-use fastcrypto::{
-    encoding::{Base58 as FastCryptoBase58, Base64 as FastCryptoBase64},
-    traits::EncodeDecodeBase64,
-};
+use fastcrypto::encoding::{Base58 as FastCryptoBase58, Base64 as FastCryptoBase64};
 use iota_sdk_ext::types::{
-    Address as NativeAddress, Digest, Identifier as NativeIdentifier, ObjectId as NativeObjectId,
-    StructTag as NativeStructTag, TypeTag as NativeTypeTag,
+    Address as NativeAddress, CertificateDigest, CheckpointContentsDigest, CheckpointDigest,
+    ConsensusCommitDigest, Digest, EffectsAuxDataDigest, Identifier as NativeIdentifier,
+    MisbehaviorReportDigest, MoveAuthenticatorDigest, ObjectDigest, ObjectId as NativeObjectId,
+    SenderSignedDataDigest, StructTag as NativeStructTag, TransactionDigest,
+    TransactionEffectsDigest, TransactionEventsDigest, TypeTag as NativeTypeTag,
+    UserSignature as NativeUserSignature, Version,
 };
 use iota_types::{
-    base_types::SequenceNumber,
     iota_serde::{to_iota_struct_tag_string, to_iota_type_tag_string},
     parse_iota_struct_tag, parse_iota_type_tag,
-    signature::GenericSignature as NativeGenericSignature,
 };
 use schemars::{
     JsonSchema,
@@ -122,7 +121,7 @@ impl<'de> DeserializeAs<'de, NativeObjectId> for ObjectId {
 }
 
 /// A schema type that defines the JSON representation of the
-/// [`SequenceNumber`] type as a string
+/// [`Version`] type as a string
 /// and provides an alternate serialization usable via `#[serde_as]`.
 #[serde_as]
 #[derive(Serialize, Deserialize)]
@@ -146,11 +145,8 @@ impl JsonSchema for SequenceNumberString {
     }
 }
 
-impl SerializeAs<iota_types::base_types::SequenceNumber> for SequenceNumberString {
-    fn serialize_as<S>(
-        source: &iota_types::base_types::SequenceNumber,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+impl SerializeAs<Version> for SequenceNumberString {
+    fn serialize_as<S>(source: &Version, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -158,32 +154,30 @@ impl SerializeAs<iota_types::base_types::SequenceNumber> for SequenceNumberStrin
     }
 }
 
-impl<'de> DeserializeAs<'de, iota_types::base_types::SequenceNumber> for SequenceNumberString {
-    fn deserialize_as<D>(
-        deserializer: D,
-    ) -> Result<iota_types::base_types::SequenceNumber, D::Error>
+impl<'de> DeserializeAs<'de, Version> for SequenceNumberString {
+    fn deserialize_as<D>(deserializer: D) -> Result<Version, D::Error>
     where
         D: Deserializer<'de>,
     {
         let schema = SequenceNumberString::deserialize(deserializer)?;
-        Ok(iota_types::base_types::SequenceNumber::from_u64(schema.0))
+        Ok(Version::from_u64(schema.0))
     }
 }
 
-/// JSON representation of a [`SequenceNumber`] as a u64 integer.
+/// JSON representation of a [`Version`] as a u64 integer.
 ///
 /// This serializes to a number as opposed to the SDK type that serializes
 /// as a string.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SequenceNumberU64(SequenceNumber);
+pub struct SequenceNumberU64(Version);
 
-impl From<SequenceNumber> for SequenceNumberU64 {
-    fn from(value: SequenceNumber) -> Self {
+impl From<Version> for SequenceNumberU64 {
+    fn from(value: Version) -> Self {
         Self(value)
     }
 }
 
-impl From<SequenceNumberU64> for SequenceNumber {
+impl From<SequenceNumberU64> for Version {
     fn from(value: SequenceNumberU64) -> Self {
         value.0
     }
@@ -209,9 +203,7 @@ impl<'de> Deserialize<'de> for SequenceNumberU64 {
     where
         D: Deserializer<'de>,
     {
-        Ok(Self(SequenceNumber::from_u64(u64::deserialize(
-            deserializer,
-        )?)))
+        Ok(Self(Version::from_u64(u64::deserialize(deserializer)?)))
     }
 }
 
@@ -295,23 +287,47 @@ impl JsonSchema for Base58 {
     }
 }
 
-impl SerializeAs<Digest> for Base58 {
-    fn serialize_as<S>(value: &Digest, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        DisplayFromStr::serialize_as(value, serializer)
-    }
+/// Implements the `Base58` serde adapter for a digest type by delegating to its
+/// `Display`/`FromStr` (Base58) representation.
+macro_rules! impl_base58_for_digest {
+    ($($t:ty),* $(,)?) => {
+        $(
+            impl SerializeAs<$t> for Base58 {
+                fn serialize_as<S>(value: &$t, serializer: S) -> Result<S::Ok, S::Error>
+                where
+                    S: Serializer,
+                {
+                    DisplayFromStr::serialize_as(value, serializer)
+                }
+            }
+
+            impl<'de> DeserializeAs<'de, $t> for Base58 {
+                fn deserialize_as<D>(deserializer: D) -> Result<$t, D::Error>
+                where
+                    D: Deserializer<'de>,
+                {
+                    DisplayFromStr::deserialize_as(deserializer)
+                }
+            }
+        )*
+    };
 }
 
-impl<'de> DeserializeAs<'de, Digest> for Base58 {
-    fn deserialize_as<D>(deserializer: D) -> Result<Digest, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        DisplayFromStr::deserialize_as(deserializer)
-    }
-}
+impl_base58_for_digest!(
+    Digest,
+    CheckpointDigest,
+    CheckpointContentsDigest,
+    CertificateDigest,
+    SenderSignedDataDigest,
+    TransactionDigest,
+    TransactionEffectsDigest,
+    TransactionEventsDigest,
+    EffectsAuxDataDigest,
+    ObjectDigest,
+    ConsensusCommitDigest,
+    MoveAuthenticatorDigest,
+    MisbehaviorReportDigest,
+);
 
 impl SerializeAs<Vec<u8>> for Base58 {
     fn serialize_as<S>(value: &Vec<u8>, serializer: S) -> Result<S::Ok, S::Error>
@@ -375,11 +391,11 @@ impl<'de> DeserializeAs<'de, Vec<u8>> for Base64 {
 
 /// A schema type that defines the JSON representation of a Base64 encoded
 /// signature.
-pub struct GenericSignature;
+pub struct UserSignature;
 
-impl JsonSchema for GenericSignature {
+impl JsonSchema for UserSignature {
     fn schema_name() -> String {
-        "GenericSignature".to_owned()
+        "UserSignature".to_owned()
     }
 
     fn json_schema(_: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
@@ -396,22 +412,22 @@ impl JsonSchema for GenericSignature {
     }
 }
 
-impl SerializeAs<NativeGenericSignature> for GenericSignature {
-    fn serialize_as<S>(value: &NativeGenericSignature, serializer: S) -> Result<S::Ok, S::Error>
+impl SerializeAs<NativeUserSignature> for UserSignature {
+    fn serialize_as<S>(value: &NativeUserSignature, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        value.encode_base64().serialize(serializer)
+        value.to_base64().serialize(serializer)
     }
 }
 
-impl<'de> DeserializeAs<'de, NativeGenericSignature> for GenericSignature {
-    fn deserialize_as<D>(deserializer: D) -> Result<NativeGenericSignature, D::Error>
+impl<'de> DeserializeAs<'de, NativeUserSignature> for UserSignature {
+    fn deserialize_as<D>(deserializer: D) -> Result<NativeUserSignature, D::Error>
     where
         D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
-        NativeGenericSignature::decode_base64(&s).map_err(D::Error::custom)
+        NativeUserSignature::from_base64(&s).map_err(D::Error::custom)
     }
 }
 

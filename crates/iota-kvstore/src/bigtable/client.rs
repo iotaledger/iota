@@ -13,18 +13,16 @@ use iota_bigtable::{
         row_range::{EndKey, StartKey},
     },
 };
-use iota_sdk_ext::types::Address;
+use iota_sdk_ext::types::{
+    Address, CheckpointDigest, TransactionDigest, TransactionEffects, TransactionEvents,
+    checkpoint::CheckpointContents,
+};
 use iota_types::{
-    base_types::TransactionDigest,
-    digests::CheckpointDigest,
-    effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -196,7 +194,7 @@ impl KeyValueStoreReader for BigTableClient {
             for Cell { name, value } in row.cells {
                 match std::str::from_utf8(&name)? {
                     TRANSACTION_COLUMN_QUALIFIER => {
-                        transaction = Some(bcs::from_bytes::<Transaction>(&value)?)
+                        transaction = Some(bcs::from_bytes::<TransactionEnvelope>(&value)?)
                     }
                     EFFECTS_COLUMN_QUALIFIER => {
                         effects = Some(bcs::from_bytes::<TransactionEffects>(&value)?)

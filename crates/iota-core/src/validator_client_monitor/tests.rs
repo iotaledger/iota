@@ -1,203 +1,279 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
 use iota_config::validator_client_monitor_config::ValidatorClientMonitorConfig;
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName},
+    base_types::AuthorityName,
     crypto::{AuthorityKeyPair, KeypairTraits, get_key_pair},
 };
+use tokio::time::Instant;
 
-use super::*;
-use crate::validator_client_monitor::stats::{ClientObservedStats, ValidatorClientStats};
+use super::{OperationFeedback, OperationType};
+use crate::validator_client_monitor::stats::ClientObservedStats;
 
-mod client_stats_tests {
+// ---------------------------------------------------------------------------
+// Test helpers
+// ---------------------------------------------------------------------------
 
-    use super::*;
+fn gen_validator() -> AuthorityName {
+    let (_, kp): (_, AuthorityKeyPair) = get_key_pair();
+    kp.public().into()
+}
 
-    /// Helper to create test validator names
-    fn create_test_validator_names(n: usize) -> Vec<AuthorityName> {
-        (0..n)
-            .map(|_| {
-                let (_, key_pair): (_, AuthorityKeyPair) = get_key_pair();
-                key_pair.public().into()
-            })
-            .collect()
-    }
+fn gen_validators(n: usize) -> Vec<AuthorityName> {
+    (0..n).map(|_| gen_validator()).collect()
+}
 
-    #[tokio::test]
-    async fn test_client_stats_record_success() {
-        let config = ValidatorClientMonitorConfig::default();
-        let mut stats = ClientObservedStats::new(config);
+fn make_fb(
+    v: AuthorityName,
+    op: OperationType,
+    result: Result<Duration, ()>,
+    ts: Instant,
+) -> OperationFeedback {
+    OperationFeedback::builder(v, String::new(), op).result_at(result, ts)
+}
 
-        let validators = create_test_validator_names(1);
-        let validator = validators[0];
+fn now() -> Instant {
+    // `Instant::now()` requires a tokio runtime when run in simtests.
+    // The tests in this module only need some value without touching runtime.
+    Instant::from_std(std::time::Instant::now())
+}
 
-        let feedback = OperationFeedback {
-            authority_name: validator,
-            display_name: validator.concise().to_string(),
-            operation: OperationType::Submit,
-            ping: false,
-            result: Ok(Duration::from_millis(100)),
-        };
-
-        stats.record_interaction_result(feedback);
-
-        let validator_stats = stats.validator_stats.get(&validator).unwrap();
-        assert_eq!(validator_stats.reliability.get(), 1.0);
-
-        let submit_latency = validator_stats
-            .average_latencies
-            .get(&OperationType::Submit)
-            .unwrap();
-        assert_eq!(submit_latency.get(), Duration::from_millis(100));
-    }
-
-    #[tokio::test]
-    async fn test_client_stats_refresh_validator_set() {
-        let config = ValidatorClientMonitorConfig::default();
-        let mut stats = ClientObservedStats::new(config);
-
-        let validators = create_test_validator_names(3);
-
-        for validator in &validators {
-            stats.record_interaction_result(OperationFeedback {
-                authority_name: *validator,
-                display_name: validator.concise().to_string(),
-                operation: OperationType::Submit,
-                ping: false,
-                result: Ok(Duration::from_millis(100)),
-            });
+/// Feed all 4 operations interleaved at each timestep.
+///
+/// Operations must be interleaved (not sequential per-op) because
+/// `record_interaction_result` calls `performance_score` internally with
+/// `feedback.timestamp`, querying all op EWMAs. If op B starts at t0 while
+/// op A was last updated at t0+n*dt, the assert `now >= last_update` fails.
+fn feed_all(
+    stats: &mut ClientObservedStats,
+    v: AuthorityName,
+    result: Result<u64, ()>,
+    n: usize,
+    t0: Instant,
+    dt: Duration,
+) {
+    for i in 0..n {
+        let ts = t0 + dt * (i as u32 + 1);
+        for op in [
+            OperationType::Submit,
+            OperationType::Effects,
+            OperationType::HealthCheck,
+            OperationType::Consensus,
+        ] {
+            let fb = make_fb(v, op, result.map(Duration::from_millis), ts);
+            stats.record_interaction_result(&fb);
         }
-
-        assert_eq!(stats.validator_stats.len(), 3);
-
-        let remaining_validators: Vec<_> = validators.iter().take(2).cloned().collect();
-        stats.retain_validators(&remaining_validators);
-
-        assert_eq!(stats.validator_stats.len(), 2);
-        assert!(stats.validator_stats.contains_key(&validators[0]));
-        assert!(stats.validator_stats.contains_key(&validators[1]));
-        assert!(!stats.validator_stats.contains_key(&validators[2]));
-    }
-
-    #[tokio::test]
-    async fn test_validator_stats_update_latency() {
-        let mut stats = ValidatorClientStats::new(1.0, 40, 40);
-
-        stats.update_average_latency(OperationType::Submit, Duration::from_millis(100));
-        assert_eq!(stats.average_latencies.len(), 1);
-        assert_eq!(
-            stats
-                .average_latencies
-                .get(&OperationType::Submit)
-                .unwrap()
-                .get(),
-            Duration::from_millis(100)
-        );
-
-        stats.update_average_latency(OperationType::Submit, Duration::from_millis(200));
-        let latency = stats
-            .average_latencies
-            .get(&OperationType::Submit)
-            .unwrap()
-            .get();
-
-        // With MovingWindow: (100ms + 200ms) / 2 = 150ms
-        assert_eq!(latency, Duration::from_millis(150));
-    }
-
-    #[tokio::test]
-    async fn test_reliability_decay() {
-        let config = ValidatorClientMonitorConfig::default();
-        let mut stats = ClientObservedStats::new(config);
-
-        let validators = create_test_validator_names(1);
-        let validator = validators[0];
-
-        stats.record_interaction_result(OperationFeedback {
-            authority_name: validator,
-            display_name: validator.concise().to_string(),
-            operation: OperationType::Submit,
-            ping: false,
-            result: Ok(Duration::from_millis(100)),
-        });
-
-        let initial_reliability = stats
-            .validator_stats
-            .get(&validator)
-            .unwrap()
-            .reliability
-            .get();
-        assert_eq!(initial_reliability, 1.0);
-
-        stats.record_interaction_result(OperationFeedback {
-            authority_name: validator,
-            display_name: validator.concise().to_string(),
-            operation: OperationType::Submit,
-            ping: false,
-            result: Err(()),
-        });
-
-        let new_reliability = stats
-            .validator_stats
-            .get(&validator)
-            .unwrap()
-            .reliability
-            .get();
-        assert!((new_reliability - (2.0 / 3.0)).abs() < 1e-10);
     }
 }
 
-#[cfg(test)]
-mod client_monitor_tests {
-    use std::collections::HashSet;
+// ---------------------------------------------------------------------------
+// Scoring: record_interaction_result return value
+// ---------------------------------------------------------------------------
 
+mod scoring {
     use super::*;
-    use crate::{
-        authority_aggregator::{AuthorityAggregator, AuthorityAggregatorBuilder},
-        test_authority_clients::MockAuthorityApi,
-    };
 
-    fn get_authority_aggregator(
-        committee_size: usize,
-    ) -> Arc<AuthorityAggregator<MockAuthorityApi>> {
-        Arc::new(
-            AuthorityAggregatorBuilder::from_committee_size(committee_size)
-                .build_mock_authority_aggregator(),
-        )
-    }
+    /// Good observations (low latency, no failures) produce a lower
+    /// exploitation score than failures. Lower exploitation score = better
+    /// performance.
+    #[test]
+    fn good_observations_score_lower_than_failures() {
+        let config = ValidatorClientMonitorConfig::default();
+        let mut stats_ok = ClientObservedStats::new(config.clone());
+        let mut stats_fail = ClientObservedStats::new(config);
+        let v = gen_validator();
+        let t0 = now();
+        let dt = Duration::from_millis(100);
 
-    #[tokio::test]
-    async fn test_validator_selection_top_k_basic() {
-        let auth_agg = get_authority_aggregator(4);
-        let monitor = ValidatorClientMonitor::new_for_test(auth_agg.clone());
-
-        let committee = auth_agg.committee.clone();
-        let validators = committee.names().cloned().collect::<Vec<_>>();
-
-        for (i, validator) in validators.iter().enumerate() {
-            monitor.record_interaction_result(OperationFeedback {
-                authority_name: *validator,
-                display_name: auth_agg.get_display_name(validator),
-                operation: OperationType::Consensus,
-                ping: false,
-                result: Ok(Duration::from_millis((i as u64 + 1) * 50)),
-            });
+        let mut last_ok = (0.0f64, 0.0f64);
+        let mut last_fail = (0.0f64, 0.0f64);
+        for i in 0..10u32 {
+            let ts = t0 + dt * (i + 1);
+            last_ok = stats_ok.record_interaction_result(&make_fb(
+                v,
+                OperationType::Consensus,
+                Ok(Duration::from_millis(100)),
+                ts,
+            ));
+            last_fail = stats_fail.record_interaction_result(&make_fb(
+                v,
+                OperationType::Consensus,
+                Err(()),
+                ts,
+            ));
         }
 
-        monitor.force_update_cached_latencies(&auth_agg);
+        assert!(
+            last_ok.0 < last_fail.0,
+            "good observations should yield lower exploitation score; ok={:.2} fail={:.2}",
+            last_ok.0,
+            last_fail.0
+        );
+    }
 
-        let selected = monitor.select_shuffled_preferred_validators(&committee, 1.0);
-        assert_eq!(selected.len(), 4);
+    /// High latency observations produce a higher exploitation score than low
+    /// latency.
+    #[test]
+    fn high_latency_scores_worse_than_low_latency() {
+        let config = ValidatorClientMonitorConfig::default();
+        let mut stats_fast = ClientObservedStats::new(config.clone());
+        let mut stats_slow = ClientObservedStats::new(config);
+        let v = gen_validator();
+        let t0 = now();
+        let dt = Duration::from_millis(100);
 
-        let top_2_positions: HashSet<_> = selected.iter().take(2).cloned().collect();
-        assert!(top_2_positions.contains(&validators[0]));
-        assert!(top_2_positions.contains(&validators[1]));
+        let mut last_fast = (0.0f64, 0.0f64);
+        let mut last_slow = (0.0f64, 0.0f64);
+        for i in 0..10u32 {
+            let ts = t0 + dt * (i + 1);
+            last_fast = stats_fast.record_interaction_result(&make_fb(
+                v,
+                OperationType::Submit,
+                Ok(Duration::from_millis(50)),
+                ts,
+            ));
+            last_slow = stats_slow.record_interaction_result(&make_fb(
+                v,
+                OperationType::Submit,
+                Ok(Duration::from_millis(5000)),
+                ts,
+            ));
+        }
 
-        assert_eq!(selected[2], validators[2]);
-        assert_eq!(selected[3], validators[3]);
+        assert!(
+            last_fast.0 < last_slow.0,
+            "fast validator should score lower; fast={:.2} slow={:.2}",
+            last_fast.0,
+            last_slow.0
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Selection
+// ---------------------------------------------------------------------------
+
+mod selection {
+    use super::*;
+
+    /// Empty committee returns empty result without panicking.
+    #[test]
+    fn empty_committee_returns_empty() {
+        let stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
+        let result = stats.select_shuffled_preferred_validators(
+            std::iter::empty::<&AuthorityName>(),
+            now(),
+            rand::thread_rng(),
+        );
+        assert!(result.is_empty());
+    }
+
+    /// A single validator is always returned.
+    #[test]
+    fn single_validator_returned() {
+        let mut stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
+        let v = gen_validator();
+        let t0 = now();
+        feed_all(&mut stats, v, Ok(100), 5, t0, Duration::from_millis(100));
+        let now = t0 + Duration::from_millis(600);
+        let result =
+            stats.select_shuffled_preferred_validators([&v].into_iter(), now, rand::thread_rng());
+        assert_eq!(result.len(), 1);
+        assert_eq!(*result[0], v);
+    }
+
+    /// All validators are returned, with the better-scoring one ranked first.
+    /// With default config (exploitation_group_share=10%,
+    /// exploration_group_share=10%), a 2-validator committee produces group
+    /// sizes of 0, so both fall in the "rest" group that is sorted
+    /// deterministically by combined score.
+    #[test]
+    fn better_validator_ranked_first() {
+        let config = ValidatorClientMonitorConfig {
+            exploitation_group_share: 1,
+            exploration_group_share: 0,
+            ..Default::default()
+        };
+        let mut stats = ClientObservedStats::new(config);
+        let v_good = gen_validator();
+        let v_bad = gen_validator();
+        let t0 = now();
+        let dt = Duration::from_millis(100);
+        feed_all(&mut stats, v_good, Ok(50), 20, t0, dt);
+        feed_all(&mut stats, v_bad, Ok(5000), 20, t0, dt);
+        let now = t0 + dt * 21;
+        let validators = [v_good, v_bad];
+        let result =
+            stats.select_shuffled_preferred_validators(validators.iter(), now, rand::thread_rng());
+        assert_eq!(result.len(), 2);
+        assert_eq!(
+            *result[0], v_good,
+            "faster validator should be ranked first"
+        );
+    }
+
+    /// When all validators are unknown (no prior observations), all are still
+    /// returned.
+    #[test]
+    fn all_unknown_validators_returned() {
+        let stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
+        let v = gen_validators(5);
+        let result =
+            stats.select_shuffled_preferred_validators(v.iter(), now(), rand::thread_rng());
+        assert_eq!(
+            result.len(),
+            v.len(),
+            "all unknown validators should be returned"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Data management
+// ---------------------------------------------------------------------------
+
+mod data_management {
+    use super::*;
+
+    /// retain_validators removes validators not in the provided set.
+    #[test]
+    fn retain_validators_removes_stale() {
+        let mut stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
+        let v = gen_validators(4);
+        let t0 = now();
+        for vi in &v {
+            feed_all(&mut stats, *vi, Ok(100), 5, t0, Duration::from_millis(100));
+        }
+        assert_eq!(stats.num_validators(), 4);
+        stats.retain_validators(v[..2].iter());
+        assert_eq!(stats.num_validators(), 2);
+        assert!(stats.has_validator(&v[0]));
+        assert!(stats.has_validator(&v[1]));
+        assert!(!stats.has_validator(&v[2]));
+        assert!(!stats.has_validator(&v[3]));
+    }
+
+    /// Each distinct validator with any recorded interaction appears exactly
+    /// once.
+    #[test]
+    fn unique_validator_count_tracked_correctly() {
+        let mut stats = ClientObservedStats::new(ValidatorClientMonitorConfig::default());
+        let v = gen_validators(5);
+        let t0 = now();
+        let dt = Duration::from_millis(100);
+        // v[i] gets i+1 observations; v[4] is last updated at t0 + 5*dt.
+        for (i, vi) in v.iter().enumerate() {
+            feed_all(&mut stats, *vi, Ok(100), i + 1, t0, dt);
+        }
+        assert_eq!(stats.num_validators(), 5);
+        // More observations for an existing validator must not change the count.
+        // Start after t0 + 5*dt so timestamps remain non-decreasing for v[0].
+        let t1 = t0 + dt * 6;
+        feed_all(&mut stats, v[0], Ok(100), 10, t1, dt);
+        assert_eq!(stats.num_validators(), 5);
     }
 }

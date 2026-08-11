@@ -5,7 +5,7 @@
 extern crate move_ir_types;
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     io::Write,
     path::Path,
     str::FromStr,
@@ -17,12 +17,17 @@ use iota_package_management::{
     PublishedAtError, resolve_published_id,
     system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion, latest_system_packages},
 };
-use iota_sdk_ext::types::{Address, ObjectId, move_package::MovePackage};
+use iota_sdk_ext::types::{Address, ObjectId, Version, move_package::MovePackage};
+// `ProtocolBuildConfig` lives in `iota-types` (both this crate and the verifier
+// depend on it); re-export it here so callers that build a `BuildConfig` can
+// reach it without a separate `iota-types` dependency.
+pub use iota_types::move_package::ProtocolBuildConfig;
 use iota_types::{
     error::{IotaError, IotaResult},
     move_package::{
-        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, RuntimeModuleMetadata,
-        RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
+        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, IotaAttributeV1, IotaAttributeV2,
+        RuntimeModuleMetadata, RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
+        is_view_function_from_fn_info,
     },
 };
 use iota_verifier::verifier as iota_bytecode_verifier;
@@ -65,7 +70,9 @@ mod build_tests;
 pub mod test_utils {
     use std::path::PathBuf;
 
-    use crate::{BuildConfig, CompiledPackage, IotaPackageHooks};
+    use iota_types::supported_protocol_versions::ProtocolConfig;
+
+    use crate::{BuildConfig, CompiledPackage, IotaPackageHooks, ProtocolBuildConfig};
 
     pub fn compile_basics_package() -> CompiledPackage {
         compile_example_package("../../examples/move/basics")
@@ -77,10 +84,13 @@ pub mod test_utils {
 
     pub fn compile_example_package(relative_path: &str) -> CompiledPackage {
         move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push(relative_path);
 
-        BuildConfig::new_for_testing().build(&path).unwrap()
+        let mut build_config = BuildConfig::new_for_testing();
+        build_config.protocol_build_config = ProtocolBuildConfig::from(&protocol_config);
+        build_config.build(&path).unwrap()
     }
 }
 
@@ -112,6 +122,9 @@ pub struct BuildConfig {
     /// The chain ID that compilation is with respect to (e.g., required to
     /// resolve published dependency IDs from the `Move.lock`).
     pub chain_id: Option<String>,
+    /// The build config for the protocol config of the network that the package
+    /// is being built (and verified) for.
+    pub protocol_build_config: ProtocolBuildConfig,
 }
 
 impl BuildConfig {
@@ -134,6 +147,7 @@ impl BuildConfig {
             run_bytecode_verifier: true,
             print_diags_to_stderr: false,
             chain_id: None,
+            protocol_build_config: ProtocolBuildConfig::default(),
         }
     }
 
@@ -152,6 +166,11 @@ impl BuildConfig {
         build_config
     }
 
+    pub fn with_allow_view_function(mut self) -> Self {
+        self.protocol_build_config.allow_view_function = true;
+        self
+    }
+
     fn fn_info(units: &[AnnotatedCompiledModule]) -> FnInfoMap {
         let mut fn_info_map = BTreeMap::new();
         for u in units {
@@ -162,6 +181,7 @@ impl BuildConfig {
                 let fn_name = s.as_str().to_string();
                 let is_test = mod_is_test || info.attributes.is_test_or_test_only();
                 let authenticator_version = info.attributes.get_authenticator();
+                let is_view = info.attributes.is_view();
                 fn_info_map.insert(
                     FnInfoKey {
                         fn_name,
@@ -171,6 +191,7 @@ impl BuildConfig {
                     FnInfo {
                         is_test,
                         authenticator_version,
+                        is_view,
                     },
                 );
             }
@@ -200,7 +221,7 @@ impl BuildConfig {
                     let diags_buf =
                         report_diagnostics_to_buffer(&files, error_diags, /* color */ true);
                     if let Err(err) = std::io::stderr().write_all(&diags_buf) {
-                        anyhow::bail!("Cannot output compiler diagnostics: {}", err);
+                        anyhow::bail!("Cannot output compiler diagnostics: {err}");
                     }
                     anyhow::bail!("Compilation error");
                 }
@@ -216,12 +237,14 @@ impl BuildConfig {
         let print_diags_to_stderr = self.print_diags_to_stderr;
         let run_bytecode_verifier = self.run_bytecode_verifier;
         let chain_id = self.chain_id.clone();
+        let protocol_build_config = self.protocol_build_config;
         let resolution_graph = self.resolution_graph(path, chain_id.clone())?;
         build_from_resolution_graph(
             resolution_graph,
             run_bytecode_verifier,
             print_diags_to_stderr,
             chain_id,
+            &protocol_build_config,
         )
     }
 
@@ -290,6 +313,7 @@ pub fn build_from_resolution_graph(
     run_bytecode_verifier: bool,
     print_diags_to_stderr: bool,
     chain_id: Option<String>,
+    protocol_build_config: &ProtocolBuildConfig,
 ) -> IotaResult<CompiledPackage> {
     let (published_at, dependency_ids) = gather_published_ids(&resolution_graph, chain_id);
 
@@ -311,10 +335,10 @@ pub fn build_from_resolution_graph(
 
     // Based on the information found in `fn_info`, fill in the metadata for each
     // compiled module
-    fill_metadata(&mut package, &fn_info)?;
+    fill_metadata(&mut package, &fn_info, protocol_build_config)?;
 
     if run_bytecode_verifier {
-        verify_bytecode(&package, &fn_info)?;
+        verify_bytecode(&package, &fn_info, protocol_build_config)?;
     }
 
     Ok(CompiledPackage {
@@ -363,24 +387,59 @@ fn collect_bytecode_deps(
 }
 
 /// Fill metadata
-fn fill_metadata(package: &mut MoveCompiledPackage, fn_info_map: &FnInfoMap) -> IotaResult<()> {
+fn fill_metadata(
+    package: &mut MoveCompiledPackage,
+    fn_info_map: &FnInfoMap,
+    protocol_build_config: &ProtocolBuildConfig,
+) -> IotaResult<()> {
     for module in package
         .root_compiled_units
         .iter_mut()
         .map(|unit| &mut unit.unit.module)
     {
-        let mut runtime_metadata = RuntimeModuleMetadata::default();
+        // View functions are only representable in V2 (dynamic) runtime metadata,
+        // which is gated behind the `package_metadata_with_dynamic_module_metadata`
+        // protocol feature.
+        let mut runtime_metadata = if protocol_build_config.allow_view_function {
+            RuntimeModuleMetadata::v2()
+        } else {
+            RuntimeModuleMetadata::v1()
+        };
         for fn_def in &module.function_defs {
             let fn_handle = module.function_handle_at(fn_def.function);
             let fn_name = module.identifier_at(fn_handle.name);
             if let Some(version) =
                 get_authenticator_version_from_fun(fn_name.as_str(), module, fn_info_map)
             {
-                runtime_metadata.add_function_attribute(
-                    fn_name.to_string(),
-                    IotaAttribute::authenticator_attribute(version),
-                );
+                let attribute = if protocol_build_config.allow_view_function {
+                    IotaAttribute::V2(IotaAttributeV2::authenticator_attribute(version))
+                } else {
+                    IotaAttribute::V1(IotaAttributeV1::authenticator_attribute(version))
+                };
+                runtime_metadata.add_function_attribute(fn_name.to_string(), attribute);
             };
+            if is_view_function_from_fn_info(fn_name, module, fn_info_map) {
+                if protocol_build_config.allow_view_function {
+                    runtime_metadata.add_function_attribute(
+                        fn_name.to_string(),
+                        IotaAttribute::V2(IotaAttributeV2::view_attribute()),
+                    );
+                } else {
+                    // The `View` attribute only exists in V2 (dynamic) runtime
+                    // metadata, gated behind the
+                    // `package_metadata_with_dynamic_module_metadata` protocol
+                    // feature. When it is off we drop the attribute rather than emit
+                    // metadata a not-yet-upgraded validator cannot deserialize, but
+                    // warn since the function will not be recorded as a view function.
+                    eprintln!(
+                        "warning: function '{}::{}' is marked `#[view]`, but the target \
+                        network protocol does not support view-function metadata; the `View` \
+                        attribute will not be published",
+                        module.name(),
+                        fn_name,
+                    );
+                }
+            }
         }
         if !runtime_metadata.is_empty() {
             module.metadata.push(move_core_types::metadata::Metadata {
@@ -393,7 +452,11 @@ fn fill_metadata(package: &mut MoveCompiledPackage, fn_info_map: &FnInfoMap) -> 
 }
 
 /// Check that the compiled modules in `package` are valid
-fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> IotaResult<()> {
+fn verify_bytecode(
+    package: &MoveCompiledPackage,
+    fn_info: &FnInfoMap,
+    protocol_build_config: &ProtocolBuildConfig,
+) -> IotaResult<()> {
     let compiled_modules = package.root_modules_map();
     for m in compiled_modules.iter_modules() {
         move_bytecode_verifier::verify_module_unmetered(m).map_err(|err| {
@@ -401,7 +464,10 @@ fn verify_bytecode(package: &MoveCompiledPackage, fn_info: &FnInfoMap) -> IotaRe
                 error: err.to_string(),
             }
         })?;
-        iota_bytecode_verifier::iota_verify_module_unmetered(m, fn_info)?;
+        // The client build only sanity-checks the bytecode; whether the `View`
+        // attribute may actually be published is decided by the target network's
+        // protocol at publish time, so accept it here.
+        iota_bytecode_verifier::iota_verify_module_unmetered(m, fn_info, protocol_build_config)?;
     }
     // Don't change the link components to iota. It is correct as it is.
     // TODO(https://github.com/MystenLabs/sui/issues/69): Run Move linker
@@ -528,6 +594,130 @@ impl CompiledPackage {
             .iter()
             .map(|b| Base64::from_bytes(b))
             .collect()
+    }
+
+    /// Size in bytes this package would occupy on-chain once published.
+    ///
+    /// Mirrors [`MovePackage::size`]: it sums the version tag, the serialized
+    /// module map (module names and bytecode), the type origin table (one entry
+    /// per struct and enum), and the linkage table (`dep_count` fixed-size
+    /// entries). This is the value the protocol checks against
+    /// `max_move_package_size`, and is larger than the sum of the `.mv` files
+    /// alone because of the metadata terms.
+    ///
+    /// `dep_count` is the number of linkage-table entries the published package
+    /// will have. Pass the count of tree-shaken transitive dependencies for an
+    /// exact result, or [`Self::get_published_dependencies_ids`]`().len()` for
+    /// an offline upper-bound estimate.
+    pub fn published_size(&self, with_unpublished_deps: bool, dep_count: usize) -> u64 {
+        // Per-entry cost of the linkage table: original ID, upgraded ID, and
+        // upgraded version, matching `MovePackage::size`.
+        const LINKAGE_ENTRY_SIZE: usize =
+            ObjectId::LENGTH + ObjectId::LENGTH + std::mem::size_of::<Version>();
+
+        let mut size = std::mem::size_of::<Version>();
+
+        for module in self.get_dependency_sorted_modules(with_unpublished_deps) {
+            let module_name_len = module.name().as_str().len();
+
+            let mut bytes = Vec::new();
+            // Safe because the package built successfully.
+            module
+                .serialize_with_version(module.version, &mut bytes)
+                .unwrap();
+            size += module_name_len + bytes.len();
+
+            // Type origin table: one entry per struct and enum defined here.
+            for struct_def in module.struct_defs() {
+                let handle = module.datatype_handle_at(struct_def.struct_handle);
+                size += module_name_len
+                    + module.identifier_at(handle.name).as_str().len()
+                    + ObjectId::LENGTH;
+            }
+            for enum_def in module.enum_defs() {
+                let handle = module.datatype_handle_at(enum_def.enum_handle);
+                size += module_name_len
+                    + module.identifier_at(handle.name).as_str().len()
+                    + ObjectId::LENGTH;
+            }
+        }
+
+        size += dep_count * LINKAGE_ENTRY_SIZE;
+        size as u64
+    }
+
+    /// Number of entries the on-chain linkage table would have: the published
+    /// dependency packages reachable from this package's modules, following
+    /// module dependencies through the locally built modules (no network).
+    ///
+    /// This mirrors the tree shaking the publish flow performs, so the offline
+    /// size estimate ignores published dependencies the code does not actually
+    /// use. It can still differ from the exact on-chain linkage when a
+    /// dependency's on-chain linkage lists packages its bytecode does not
+    /// reference; the exact count comes from the tree-shaken publish flow.
+    pub fn linkage_dependency_count(&self) -> usize {
+        // Package of every locally available module.
+        let mut module_pkg: BTreeMap<ModuleId, PackageName> = BTreeMap::new();
+        for unit in self.package.all_modules() {
+            if let Some(pkg) = unit.unit.package_name {
+                module_pkg.insert(unit.unit.module.self_id(), pkg);
+            }
+        }
+        for (pkg, module) in &self.bytecode_deps {
+            module_pkg.insert(module.self_id(), *pkg);
+        }
+
+        // Package-level dependency edges: a package points at every package any
+        // of its modules reference. On-chain linkage is resolved at package
+        // granularity (a dependency contributes its whole linkage table), so the
+        // graph is walked the same way rather than by individual module.
+        let mut edges: BTreeMap<PackageName, BTreeSet<PackageName>> = BTreeMap::new();
+        let mut add_edges = |owner: PackageName, module: &CompiledModule| {
+            for dep in module.immediate_dependencies() {
+                if let Some(dep_pkg) = module_pkg.get(&dep) {
+                    if *dep_pkg != owner {
+                        edges.entry(owner).or_default().insert(*dep_pkg);
+                    }
+                }
+            }
+        };
+        for unit in self.package.all_modules() {
+            if let Some(owner) = unit.unit.package_name {
+                add_edges(owner, &unit.unit.module);
+            }
+        }
+        for (owner, module) in &self.bytecode_deps {
+            add_edges(*owner, module);
+        }
+
+        // Transitive closure of packages reachable from the package(s) being
+        // published.
+        let roots: BTreeSet<PackageName> = self
+            .package
+            .root_modules()
+            .filter_map(|unit| unit.unit.package_name)
+            .collect();
+        let mut reached: BTreeSet<PackageName> = BTreeSet::new();
+        let mut queue: VecDeque<PackageName> = roots.iter().copied().collect();
+        while let Some(pkg) = queue.pop_front() {
+            if let Some(deps) = edges.get(&pkg) {
+                for dep in deps {
+                    if reached.insert(*dep) {
+                        queue.push_back(*dep);
+                    }
+                }
+            }
+        }
+        for root in &roots {
+            reached.remove(root);
+        }
+
+        // The linkage table holds only published dependency packages.
+        self.dependency_ids
+            .published
+            .keys()
+            .filter(|pkg| reached.contains(pkg))
+            .count()
     }
 
     /// Get bytecode modules from the IOTA System that are used by this package

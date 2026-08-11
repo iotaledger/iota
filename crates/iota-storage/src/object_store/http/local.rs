@@ -46,4 +46,33 @@ impl ObjectStoreGetExt for LocalStorage {
         });
         handle.await?
     }
+
+    async fn exists(&self, location: &Path) -> Result<bool> {
+        let path_to_filesystem = path_to_filesystem(self.root.clone(), location)?;
+        let exists = tokio::task::spawn_blocking(move || {
+            path_to_filesystem.try_exists().map_err(|e| {
+                anyhow!(
+                    "Failed to check if file {} exists with error: {e}",
+                    path_to_filesystem.display()
+                )
+            })
+        })
+        .await??;
+        Ok(exists)
+    }
+
+    async fn object_size(&self, location: &Path) -> Result<u64> {
+        let path_to_filesystem = path_to_filesystem(self.root.clone(), location)?;
+        let handle = tokio::task::spawn_blocking(move || {
+            fs::metadata(&path_to_filesystem)
+                .map(|metadata| metadata.len())
+                .map_err(|e| {
+                    anyhow!(
+                        "Failed to get metadata for file {} with error: {e}",
+                        path_to_filesystem.display()
+                    )
+                })
+        });
+        handle.await?
+    }
 }

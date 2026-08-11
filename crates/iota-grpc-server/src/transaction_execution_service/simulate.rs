@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::grpc_types::{
     field::FieldMaskTree,
     read_masks::SIMULATE_TRANSACTIONS_READ_MASK,
@@ -21,7 +20,7 @@ use iota_sdk_ext::grpc_types::{
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
-    transaction::TransactionDataAPI,
+    transaction::TransactionAPI,
     transaction_executor::{
         SimulateTransactionResult as InternalSimulateResult, TransactionExecutor, VmChecks,
     },
@@ -99,6 +98,13 @@ use crate::{
 ///         of the output object contents
 ///     - `executed_transaction.output_objects.bcs` - the full BCS-encoded
 ///       object
+///   - `executed_transaction.balance_changes` - per-owner, per-coin-type
+///     balance deltas derived from the simulated effects and input/output
+///     objects; a mocked gas coin is excluded. For a failed transaction this
+///     contains only the gas charge.
+///   - `executed_transaction.object_changes` - structured object changes
+///     (created, mutated, deleted, wrapped, unwrapped, published) derived from
+///     the simulated effects and input/output objects.
 ///
 /// ## Gas Fields
 /// - `suggested_gas_price` - the suggested gas price for the transaction,
@@ -189,15 +195,7 @@ async fn simulate_single_transaction(
         VmChecks::Enabled
     };
 
-    // If the transaction has a zero gas budget and VM checks are disabled, we'll
-    // set the gas budget in the result to the actual cost from the simulation.
-    // This allows clients to estimate the gas cost by simulating with a zero
-    // budget.
-    let set_gas_budget = vm_checks.disabled() && transaction_data.gas_data().budget == 0;
-
-    let system_state = if read_mask.contains(SimulatedTransaction::SUGGESTED_GAS_PRICE_FIELD.name)
-        || set_gas_budget
-    {
+    let system_state = if read_mask.contains(SimulatedTransaction::SUGGESTED_GAS_PRICE_FIELD.name) {
         Some(reader.get_system_state_summary().map_err(|e| {
             RpcError::new(
                 tonic::Code::Internal,
@@ -208,26 +206,6 @@ async fn simulate_single_transaction(
         None
     };
 
-    if set_gas_budget {
-        let protocol_config = ProtocolConfig::get_for_version_if_supported(
-            system_state
-                .as_ref()
-                .expect("system state should be available")
-                .protocol_version(),
-            reader.get_chain_identifier()?.chain(),
-        )
-        .ok_or_else(|| {
-            RpcError::new(
-                tonic::Code::Internal,
-                "failed to get protocol config for gas budget validation".to_string(),
-            )
-        })?;
-
-        // A zero budget signals "use maximum" — run the dry run with
-        // max_tx_gas so the actual cost shows up in the gas status.
-        transaction_data.gas_data_mut().budget = protocol_config.max_tx_gas();
-    }
-
     // Simulate the transaction
     let InternalSimulateResult {
         effects,
@@ -235,8 +213,9 @@ async fn simulate_single_transaction(
         input_objects,
         output_objects,
         execution_result,
-        mock_gas_id: _,
+        mock_gas_id,
         suggested_gas_price,
+        gas_data,
     } = executor
         .simulate_transaction(transaction_data.clone(), vm_checks)
         .map_err(|e| {
@@ -252,9 +231,14 @@ async fn simulate_single_transaction(
     // Only include transaction if requested
     if let Some(tx_mask) = read_mask.subtree(SimulatedTransaction::EXECUTED_TRANSACTION_FIELD.name)
     {
-        if set_gas_budget {
-            transaction_data.gas_data_mut().budget = effects.gas_cost_summary().gas_used();
-        }
+        // Report the transaction the simulation ran, gas payment included, so it
+        // hashes to the digest the effects below are keyed by. Same rule as the
+        // JSON-RPC dry run, which shares the helper.
+        iota_types::gas::report_simulation_gas(
+            transaction_data.gas_data_mut(),
+            &gas_data,
+            effects.gas_cost_summary().gas_used(),
+        );
 
         // Create a source for the merge
         let source = TransactionReadSource {
@@ -268,6 +252,7 @@ async fn simulate_single_transaction(
             timestamp_ms: None,
             input_objects: Some(input_objects.into_values().collect()),
             output_objects: Some(output_objects.into_values().collect()),
+            mocked_coin: mock_gas_id,
         };
 
         response.executed_transaction = Some(

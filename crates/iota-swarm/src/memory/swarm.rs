@@ -14,8 +14,9 @@ use anyhow::Result;
 use futures::future::try_join_all;
 use iota_config::{
     ExecutionCacheConfig, IOTA_GENESIS_FILENAME, NodeConfig,
-    node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange},
     p2p::DiscoveryConfig,
+    transaction_deny_config::TransactionDenyConfig,
 };
 use iota_macros::nondeterministic;
 use iota_names::config::IotaNamesConfig;
@@ -58,9 +59,9 @@ pub struct SwarmBuilder<R = OsRng> {
     supported_protocol_versions_config: ProtocolVersionsConfig,
     // Default to supported_protocol_versions_config, but can be overridden.
     fullnode_supported_protocol_versions_config: Option<ProtocolVersionsConfig>,
-    db_checkpoint_config: DBCheckpointConfig,
     num_unpruned_validators: Option<usize>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    transaction_deny_config: Option<TransactionDenyConfig>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
@@ -93,9 +94,9 @@ impl SwarmBuilder {
             fullnode_rpc_addr: None,
             supported_protocol_versions_config: ProtocolVersionsConfig::Default,
             fullnode_supported_protocol_versions_config: None,
-            db_checkpoint_config: DBCheckpointConfig::default(),
             num_unpruned_validators: None,
             authority_overload_config: None,
+            transaction_deny_config: None,
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
@@ -130,9 +131,9 @@ impl<R> SwarmBuilder<R> {
             supported_protocol_versions_config: self.supported_protocol_versions_config,
             fullnode_supported_protocol_versions_config: self
                 .fullnode_supported_protocol_versions_config,
-            db_checkpoint_config: self.db_checkpoint_config,
             num_unpruned_validators: self.num_unpruned_validators,
             authority_overload_config: self.authority_overload_config,
+            transaction_deny_config: self.transaction_deny_config,
             execution_cache_config: self.execution_cache_config,
             data_ingestion_dir: self.data_ingestion_dir,
             fullnode_run_with_range: self.fullnode_run_with_range,
@@ -278,17 +279,21 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    pub fn with_db_checkpoint_config(mut self, db_checkpoint_config: DBCheckpointConfig) -> Self {
-        self.db_checkpoint_config = db_checkpoint_config;
-        self
-    }
-
     pub fn with_authority_overload_config(
         mut self,
         authority_overload_config: AuthorityOverloadConfig,
     ) -> Self {
         assert!(self.network_config.is_none());
         self.authority_overload_config = Some(authority_overload_config);
+        self
+    }
+
+    pub fn with_transaction_deny_config(
+        mut self,
+        transaction_deny_config: TransactionDenyConfig,
+    ) -> Self {
+        assert!(self.network_config.is_none());
+        self.transaction_deny_config = Some(transaction_deny_config);
         self
     }
 
@@ -404,6 +409,11 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                     config_builder.with_authority_overload_config(authority_overload_config);
             }
 
+            if let Some(transaction_deny_config) = self.transaction_deny_config {
+                config_builder =
+                    config_builder.with_transaction_deny_config(transaction_deny_config);
+            }
+
             if let Some(execution_cache_config) = self.execution_cache_config {
                 config_builder = config_builder.with_execution_cache_config(execution_cache_config);
             }
@@ -473,7 +483,6 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
 
         let mut fullnode_config_builder = FullnodeConfigBuilder::new()
             .with_config_directory(dir.as_ref().into())
-            .with_db_checkpoint_config(self.db_checkpoint_config.clone())
             .with_run_with_range(self.fullnode_run_with_range)
             .with_policy_config(self.fullnode_policy_config)
             .with_data_ingestion_dir(ingest_data)

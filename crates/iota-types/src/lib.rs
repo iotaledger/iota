@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![warn(
@@ -9,13 +9,12 @@
     rust_2021_compatibility
 )]
 
-use base_types::SequenceNumber;
 #[cfg(not(target_arch = "wasm32"))]
 pub use iota_network_stack::multiaddr;
+use iota_sdk_ext::types::Version;
 #[cfg(target_arch = "wasm32")]
 #[path = "wasm_multiaddr.rs"]
 pub mod multiaddr;
-pub use iota_sdk_ext::types as sdk_types;
 use iota_sdk_ext::types::{Address, ObjectId, StructTag, TypeTag};
 use move_binary_format::{
     CompiledModule,
@@ -46,6 +45,7 @@ pub mod committee;
 pub mod config;
 pub mod crypto;
 pub mod deny_list_v1;
+pub mod deny_rule_governance;
 pub mod derived_object;
 pub mod digests;
 pub mod display;
@@ -147,8 +147,8 @@ pub const SYSTEM_PACKAGE_ADDRESSES: [Address; 5] = [
     Address::STARDUST,
 ];
 
-pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
-pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
+pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: Version = OBJECT_START_VERSION;
+pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: Version = OBJECT_START_VERSION;
 
 const fn builtin_address(suffix: u16) -> AccountAddress {
     let mut addr = [0u8; AccountAddress::LENGTH];
@@ -248,6 +248,12 @@ impl MoveTypeTagTrait for u8 {
 impl MoveTypeTagTrait for u64 {
     fn get_type_tag() -> TypeTag {
         TypeTag::U64
+    }
+}
+
+impl MoveTypeTagTrait for String {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_string()))
     }
 }
 

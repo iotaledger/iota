@@ -4,6 +4,7 @@
 use std::{thread, time, vec};
 
 use hex::ToHex;
+use iota_sdk_ext::types::SignatureScheme;
 use tracing::debug;
 mod transport;
 use serde::Serialize;
@@ -13,12 +14,9 @@ pub use crate::api::errors::LedgerError;
 mod api;
 use iota_sdk_ext::types::{
     Address,
-    crypto::{Intent, IntentMessage},
+    crypto::{Intent, IntentMessage, SimpleSignature},
 };
-use iota_types::{
-    crypto::{Ed25519IotaSignature, Signature, SignatureScheme, ToFromBytes},
-    object::Object,
-};
+use iota_types::object::Object;
 
 pub use crate::api::{get_public_key::PublicKeyResult, get_version::Version};
 use crate::{
@@ -31,7 +29,7 @@ pub struct Ledger {
 }
 
 pub struct SignedTransaction {
-    pub signature: Signature,
+    pub signature: SimpleSignature,
     pub address: Address,
 }
 
@@ -148,7 +146,7 @@ impl Ledger {
     }
 
     pub fn get_signature_scheme(&self) -> SignatureScheme {
-        SignatureScheme::ED25519
+        SignatureScheme::Ed25519
     }
 
     pub fn sign_intent<T: Serialize>(
@@ -181,14 +179,13 @@ impl Ledger {
         })?;
 
         let mut signature_bytes: Vec<u8> = Vec::new();
-        signature_bytes.extend_from_slice(&[self.get_signature_scheme().flag()]);
+        signature_bytes.extend_from_slice(&[self.get_signature_scheme().to_u8()]);
         signature_bytes.extend_from_slice(&signature.bytes);
         signature_bytes.extend_from_slice(key_response.public_key.as_ref());
 
         Ok(SignedTransaction {
-            signature: Ed25519IotaSignature::from_bytes(&signature_bytes)
-                .map_err(|_| LedgerError::Serialization)?
-                .into(),
+            signature: SimpleSignature::from_bytes(&signature_bytes)
+                .map_err(|_| LedgerError::Serialization)?,
             address: Address::from_bytes(key_response.address)
                 .map_err(|_| LedgerError::Serialization)?,
         })

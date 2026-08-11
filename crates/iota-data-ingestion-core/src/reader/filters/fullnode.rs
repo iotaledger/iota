@@ -61,9 +61,8 @@ use std::ops::Not;
 
 use iota_sdk_ext::{
     grpc_types::v1::{filter as proto, types::ObjectReference},
-    types::{Address, ObjectId},
+    types::{Address, ObjectDigest, ObjectId, Version},
 };
-use iota_types::base_types::{ObjectDigest, SequenceNumber};
 
 /// Available transaction kinds for filtering.
 pub type TransactionKind = proto::TransactionKind;
@@ -212,7 +211,7 @@ impl TransactionFilter {
     }
 
     /// Matches transactions that touch the given object id and version.
-    pub fn affected_object_version(self, object_id: ObjectId, version: SequenceNumber) -> Self {
+    pub fn affected_object_version(self, object_id: ObjectId, version: Version) -> Self {
         let object_ref = ObjectReference::default()
             .with_object_id(object_id)
             .with_version(version.as_u64());

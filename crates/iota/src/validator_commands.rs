@@ -31,16 +31,19 @@ use iota_keys::{
     keystore::{AccountKeystore, StoredKey},
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-use iota_sdk_ext::types::{
-    Address, Identifier, ObjectId, Owner, TypeTag,
-    crypto::{Intent, IntentMessage, IntentScope},
+use iota_sdk_ext::{
+    crypto::simple::SimpleKeypair,
+    types::{
+        Address, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme, Transaction,
+        TypeTag,
+        crypto::{Intent, IntentMessage, IntentScope},
+    },
 };
 use iota_types::{
-    base_types::ObjectRef,
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
-        IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, SignatureScheme,
-        generate_proof_of_possession, get_authority_key_pair,
+        NetworkKeyPair, NetworkPublicKey, Signable, generate_proof_of_possession,
+        get_authority_key_pair,
     },
     dynamic_field::{DynamicFieldName, Field},
     iota_system_state::{
@@ -49,7 +52,7 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
     multiaddr::Multiaddr,
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 use serde::Serialize;
 use tabled::{
@@ -168,7 +171,7 @@ pub enum IotaValidatorCommandResponse {
 fn make_key_files(
     file_name: PathBuf,
     is_authority_key: bool,
-    key: Option<IotaKeyPair>,
+    key: Option<SimpleKeypair>,
 ) -> Result<()> {
     if file_name.exists() {
         println!("Use existing {file_name:?} key file.");
@@ -184,7 +187,7 @@ fn make_key_files(
                 key
             }
             None => {
-                let (_, kp, _, _) = generate_new_key(SignatureScheme::ED25519, None, None)?;
+                let (_, kp, _, _) = generate_new_key(SignatureScheme::Ed25519, None, None)?;
                 println!("Generated new key file: {file_name:?}.");
                 kp
             }
@@ -215,7 +218,7 @@ impl IotaValidatorCommand {
 
                 let account_key = context.config().keystore().get_key(&iota_address)?;
 
-                if account_key.public().scheme() != SignatureScheme::ED25519 {
+                if account_key.public().scheme() != SignatureScheme::Ed25519 {
                     bail!("Only Ed25519 accounts are supported, please use Ed25519 keys for now.");
                 }
 
@@ -449,7 +452,7 @@ impl IotaValidatorCommand {
 async fn get_cap_object_ref(
     context: &mut WalletContext,
     operation_cap_id: Option<ObjectId>,
-) -> Result<(ValidatorStatus, IotaValidatorSummary, ObjectRef)> {
+) -> Result<(ValidatorStatus, IotaValidatorSummary, ObjectReference)> {
     let iota_client = context.get_client().await?;
     if let Some(operation_cap_id) = operation_cap_id {
         let (status, summary) =
@@ -462,8 +465,8 @@ async fn get_cap_object_ref(
             )
             .await?
             .object_ref_if_exists()
-            .ok_or_else(|| anyhow!("OperationCap {} does not exist", operation_cap_id))?;
-        Ok::<(ValidatorStatus, IotaValidatorSummary, ObjectRef), anyhow::Error>((
+            .ok_or_else(|| anyhow!("OperationCap {operation_cap_id} does not exist"))?;
+        Ok::<(ValidatorStatus, IotaValidatorSummary, ObjectReference), anyhow::Error>((
             status,
             summary,
             cap_obj_ref,
@@ -473,7 +476,7 @@ async fn get_cap_object_ref(
         let validator_address = context.active_address()?;
         let (status, summary) = get_validator_summary(&iota_client, validator_address)
             .await?
-            .ok_or_else(|| anyhow::anyhow!("{} is not a validator.", validator_address))?;
+            .ok_or_else(|| anyhow::anyhow!("{validator_address} is not a validator."))?;
         // TODO we should allow validator to perform this operation even though the Cap
         // is not at hand. But for now we need to make sure the cap is owned by
         // the sender.
@@ -540,22 +543,16 @@ async fn get_validator_summary_from_cap_id(
         )
         .await?;
     let bcs = resp.move_object_bcs().ok_or_else(|| {
-        anyhow::anyhow!(
-            "Object {} does not exist or does not return bcs bytes",
-            operation_cap_id
-        )
+        anyhow::anyhow!("Object {operation_cap_id} does not exist or does not return bcs bytes")
     })?;
     let cap = bcs::from_bytes::<UnverifiedValidatorOperationCap>(bcs).map_err(|e| {
         anyhow::anyhow!(
-            "Can't convert bcs bytes of object {} to UnverifiedValidatorOperationCapV1: {}",
-            operation_cap_id,
-            e,
-        )
+            "Can't convert bcs bytes of object {operation_cap_id} to UnverifiedValidatorOperationCapV1: {e}")
     })?;
     let validator_address = cap.authorizer_validator_address;
     let (status, summary) = get_validator_summary(client, validator_address)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("{} is not a validator", validator_address))?;
+        .ok_or_else(|| anyhow::anyhow!("{validator_address} is not a validator"))?;
     if summary.operation_cap_id != operation_cap_id {
         anyhow::bail!(
             "Validator {}'s current operation cap id is {}",
@@ -572,7 +569,7 @@ async fn construct_unsigned_0x5_txn(
     function: &'static str,
     call_args: Vec<CallArg>,
     gas_budget: u64,
-) -> anyhow::Result<TransactionData> {
+) -> anyhow::Result<Transaction> {
     let iota_client = context.get_client().await?;
     let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
@@ -582,7 +579,7 @@ async fn construct_unsigned_0x5_txn(
         .await?;
 
     let gas_obj_ref = get_gas_obj_ref(sender, &iota_client, gas_budget).await?;
-    TransactionData::new_move_call(
+    Transaction::new_move_call(
         sender,
         ObjectId::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
@@ -607,7 +604,7 @@ async fn call_0x5(
     let iota_client = context.get_client().await?;
 
     let signature = sign_transaction(context, &tx_data, &tx_data.sender(), None).await?;
-    let transaction = Transaction::from_generic_sig_data(tx_data, vec![signature]);
+    let transaction = TransactionEnvelope::from_user_sig_data(tx_data, vec![signature]);
 
     iota_client
         .quorum_driver_api()
@@ -1079,8 +1076,7 @@ async fn check_status(
         return Ok(status);
     }
     bail!(
-        "Validator {validator_address} is {:?}, this operation is not supported in this tool or prohibited.",
-        status
+        "Validator {validator_address} is {status:?}, this operation is not supported in this tool or prohibited."
     )
 }
 
@@ -1101,7 +1097,7 @@ async fn get_gas_obj_ref(
     iota_address: Address,
     iota_client: &IotaClient,
     minimal_gas_balance: u64,
-) -> anyhow::Result<ObjectRef> {
+) -> anyhow::Result<ObjectReference> {
     let coins = iota_client
         .coin_read_api()
         .get_coins(iota_address, Some("0x2::iota::IOTA".into()), None, None)

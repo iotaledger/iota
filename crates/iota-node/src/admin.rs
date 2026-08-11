@@ -76,6 +76,30 @@ use crate::IotaNode;
 // Reconfigure traffic control policy
 //
 //  $ curl 'http://127.0.0.1:1337/traffic-control?error_threshold=100&spam_threshold=100&dry_run=true'
+//
+// View the Prometheus metrics filter: the directives currently in effect and
+// the startup directives (config with the METRICS_FILTER env var merged over
+// it) that a reset restores.
+//
+//   $ curl 'http://127.0.0.1:1337/metrics/filters'
+//
+// Set the runtime override for the metrics the /metrics endpoint exposes.
+// Patterns may be group names from the `metrics.groups` config section
+// (`default` and `hardware` included) or raw METRICS_FILTER-style patterns.
+// The override is merged over the startup directives: an override directive
+// replaces the startup directive with the same pattern, and otherwise the
+// most specific matching pattern decides each metric, whichever source it
+// came from. A bare level (e.g. `trace`) replaces the startup directives
+// entirely, exposing everything up to that level; `default=LEVEL` changes
+// only the level for the metrics no other directive matches. Each POST
+// starts from the startup directives again rather than stacking on the
+// previous override.
+//
+//   $ curl -X POST 'http://127.0.0.1:1337/metrics/filters?filter=consensus=off,typed_store=warn'
+//
+// Drop the runtime override, restoring the startup configuration.
+//
+//   $ curl -X POST 'http://127.0.0.1:1337/metrics/filters/reset'
 
 const LOGGING_ROUTE: &str = "/logging";
 const TRACING_ROUTE: &str = "/enable-tracing";
@@ -90,6 +114,8 @@ const RANDOMNESS_INJECT_PARTIAL_SIGS_ROUTE: &str = "/randomness-inject-partial-s
 const RANDOMNESS_INJECT_FULL_SIG_ROUTE: &str = "/randomness-inject-full-sig";
 const FLAMEGRAPH_ROUTE: &str = "/flamegraph";
 const TRAFFIC_CONTROL: &str = "/traffic-control";
+const METRICS_FILTER_ROUTE: &str = "/metrics/filters";
+const METRICS_FILTER_RESET_ROUTE: &str = "/metrics/filters/reset";
 
 struct AppState {
     node: Arc<IotaNode>,
@@ -135,6 +161,9 @@ pub async fn run_admin_server(
         )
         .route(FLAMEGRAPH_ROUTE, get(flamegraph))
         .route(TRAFFIC_CONTROL, post(traffic_control))
+        .route(METRICS_FILTER_ROUTE, get(get_metrics_filter))
+        .route(METRICS_FILTER_ROUTE, post(set_metrics_filter))
+        .route(METRICS_FILTER_RESET_ROUTE, post(reset_metrics_filter))
         .with_state(Arc::new(app_state));
 
     info!(
@@ -581,4 +610,49 @@ async fn traffic_control(
         ),
         Err(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
     }
+}
+
+async fn get_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
+    let filter = state.node.registry_service().filter();
+    (
+        StatusCode::OK,
+        format!(
+            "metrics exposure filter:\n\
+             current: {}\n\n\n\
+             (startup: {})\n",
+            filter.filter_string(),
+            filter.startup_filter_string(),
+        ),
+    )
+}
+
+#[derive(Deserialize)]
+struct MetricsFilterUpdate {
+    filter: String,
+}
+
+async fn set_metrics_filter(
+    State(state): State<Arc<AppState>>,
+    Query(MetricsFilterUpdate { filter }): Query<MetricsFilterUpdate>,
+) -> (StatusCode, String) {
+    let new_filter = filter.trim();
+    match state.node.registry_service().set_runtime_filter(new_filter) {
+        Ok(()) => {
+            info!(filter =% new_filter, "Metrics filter updated");
+            (
+                StatusCode::OK,
+                format!("metrics filter set to {new_filter:?}\n"),
+            )
+        }
+        Err(err) => (StatusCode::BAD_REQUEST, format!("{err}\n")),
+    }
+}
+
+async fn reset_metrics_filter(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
+    state.node.registry_service().reset_runtime_filter();
+    info!("Metrics filter reset to startup configuration");
+    (
+        StatusCode::OK,
+        "metrics filter reset to startup configuration\n".into(),
+    )
 }

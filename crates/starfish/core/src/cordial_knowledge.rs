@@ -600,28 +600,22 @@ impl CordialKnowledge {
             msgs.push(ConnectionKnowledgeMessage::NewHeader { block_ref });
         }
 
-        // 3) The block_author now acknowledges previously known transactions
-        // Use the provided transaction commitments to create the proper
-        // GenericTransactionRef variant
-        let consensus_fast_commit_sync = self.context.protocol_config.consensus_fast_commit_sync();
+        // 3) The block_author now acknowledges previously known transactions,
+        // using the provided transaction commitments.
         for (acknowledgment, &transactions_commitment) in header
             .acknowledgments()
             .iter()
             .zip(ack_transactions_commitments.iter())
         {
-            let gen_tx_ref = if consensus_fast_commit_sync {
-                if let Some(transactions_commitment) = transactions_commitment {
-                    GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
-                        round: acknowledgment.round,
-                        author: acknowledgment.author,
-                        transactions_commitment,
-                    })
-                } else {
-                    continue;
-                }
-            } else {
-                GenericTransactionRef::BlockRef(*acknowledgment)
+            let Some(transactions_commitment) = transactions_commitment else {
+                continue;
             };
+            let gen_tx_ref =
+                GenericTransactionRef::TransactionRef(crate::transaction_ref::TransactionRef {
+                    round: acknowledgment.round,
+                    author: acknowledgment.author,
+                    transactions_commitment,
+                });
 
             vec_knowledge_msgs[block_author]
                 .push(ConnectionKnowledgeMessage::RemoveShard { gen_tx_ref });
@@ -960,11 +954,13 @@ impl ConnectionKnowledge {
     /// to send to the peer.
     pub fn create_bundle(&mut self, block: VerifiedBlock) -> BlockBundle {
         let block_round = block.round();
-        // Try to update ancestors as they may still be pending updates.
-        // These headers will also be updated via cordial knowledge messages and may be
-        // sent again in the future. We consider this overhead negligible.
+        // The global knowledge updates for these ancestors may still be in flight,
+        // so record them here to have them available for this bundle: each becomes
+        // the header disseminated as an additional header for its slot. For an
+        // equivocating author this overrides a header recorded for that slot
+        // earlier, which is fine, as that one is still obtainable by reference.
         for ancestor_block_ref in block.ancestors() {
-            self.handle_new_header(*ancestor_block_ref);
+            self.set_referenced_header(*ancestor_block_ref);
         }
         // 1. Own headers and shards for round up to round_upper_bound_exclusive should
         //    be marked as known
@@ -1093,16 +1089,29 @@ impl ConnectionKnowledge {
         }
     }
 
-    /// Handles adding a new header to the set of potentially unknown headers
+    /// Handles adding a new header to the set of potentially unknown headers.
+    /// Keeps at most one header per slot, since a bundle carries only one: the
+    /// receiver drops additional headers of a slot as spam protection. An
+    /// equivocating header a peer needs is obtained by reference instead.
     fn handle_new_header(&mut self, block_ref: BlockRef) {
         let round = block_ref.round;
         let authority = block_ref.author.value();
 
-        // Insert the block into the set for that (authority, round)
-        self.headers_not_known[authority]
-            .entry(round)
-            .or_default()
-            .insert(block_ref);
+        let refs_at_slot = self.headers_not_known[authority].entry(round).or_default();
+        if refs_at_slot.is_empty() {
+            refs_at_slot.insert(block_ref);
+        }
+    }
+
+    /// Records `block_ref` as the header to offer for its slot, replacing any
+    /// header tracked there. Used for the ancestors of a block we are about to
+    /// send: the peer needs them to accept it.
+    fn set_referenced_header(&mut self, block_ref: BlockRef) {
+        let refs_at_slot = self.headers_not_known[block_ref.author.value()]
+            .entry(block_ref.round)
+            .or_default();
+        refs_at_slot.clear();
+        refs_at_slot.insert(block_ref);
     }
 
     /// Handles adding a new shard to the set of potentially unknown shards.
@@ -1232,7 +1241,7 @@ mod tests {
                 Round 7 : { * },
              }";
         let final_round = 6;
-        let result = parse_dag(dag_str);
+        let result = parse_dag(dag_str, false);
         assert!(result.is_ok());
 
         let dag_builder = result.unwrap();
@@ -1285,18 +1294,9 @@ mod tests {
                     dag_state
                         .write()
                         .accept_block_header(verified_block_header, DataSource::Test);
-                    let gen_transaction_ref =
-                        if context.protocol_config.consensus_fast_commit_sync() {
-                            GenericTransactionRef::TransactionRef(
-                                verified_transactions.transaction_ref(),
-                            )
-                        } else {
-                            GenericTransactionRef::BlockRef(
-                                verified_transactions.block_ref().expect(
-                                    "block_ref must be present in non-transaction-ref path",
-                                ),
-                            )
-                        };
+                    let gen_transaction_ref = GenericTransactionRef::TransactionRef(
+                        verified_transactions.transaction_ref(),
+                    );
                     let shard_for_core = VerifiedOwnShard {
                         serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
                                                                             * shard data */
@@ -1318,15 +1318,8 @@ mod tests {
                 dag_state
                     .write()
                     .accept_block_header(verified_block_header, DataSource::Test);
-                let gen_transaction_ref = if context.protocol_config.consensus_fast_commit_sync() {
-                    GenericTransactionRef::TransactionRef(verified_transactions.transaction_ref())
-                } else {
-                    GenericTransactionRef::BlockRef(
-                        verified_transactions
-                            .block_ref()
-                            .expect("block_ref must be present in non-transaction-ref path"),
-                    )
-                };
+                let gen_transaction_ref =
+                    GenericTransactionRef::TransactionRef(verified_transactions.transaction_ref());
                 let shard_for_core = VerifiedOwnShard {
                     serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data
                     gen_transaction_ref,
@@ -1381,6 +1374,82 @@ mod tests {
                 assert_eq!(shards.len(), final_round as usize);
             }
         }
+    }
+
+    /// When an author equivocates, the header offered for that slot is the one
+    /// the block we are sending references, not whichever reached us first.
+    #[tokio::test]
+    async fn test_referenced_ancestor_wins_the_slot() {
+        telemetry_subscribers::init_for_testing();
+
+        let validators = 4;
+        let our_index = AuthorityIndex::new_for_test(0);
+        let to_whom_index = AuthorityIndex::new_for_test(1);
+        let equivocating_index = AuthorityIndex::new_for_test(2);
+        let (context, _key_pairs) = Context::new_for_test(validators);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let cordial_knowledge = CordialKnowledge::start(context, dag_state.clone());
+        let connection_knowledge = cordial_knowledge.connection_knowledges[to_whom_index].clone();
+
+        // Only the equivocating author's headers are useful to this peer, so the
+        // bundle content is unambiguous.
+        connection_knowledge.write().process_one_message(
+            ConnectionKnowledgeMessage::UsefulAuthors {
+                useful_headers_to_peer: BTreeMap::from([(equivocating_index, GENESIS_ROUND)]),
+                useful_shards_to_peer: BTreeMap::new(),
+                useful_headers_from_peer: BTreeMap::new(),
+                useful_shards_from_peer: vec![None; validators],
+            },
+        );
+
+        // Two headers for slot (equivocating author, round 1), distinguished by
+        // timestamp so their digests differ. Both are accepted, as they would be
+        // when one arrives by stream and the other by a requested fetch.
+        let first_arrival = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(1, equivocating_index.value() as u8)
+                .set_timestamp_ms(1000)
+                .build(),
+        );
+        let referenced = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(1, equivocating_index.value() as u8)
+                .set_timestamp_ms(2000)
+                .build(),
+        );
+        assert_ne!(first_arrival.reference(), referenced.reference());
+        for header in [&first_arrival, &referenced] {
+            dag_state
+                .write()
+                .accept_block_header(header.clone(), DataSource::Test);
+        }
+
+        // The slot is filled by arrival order first.
+        connection_knowledge
+            .write()
+            .process_one_message(ConnectionKnowledgeMessage::NewHeader {
+                block_ref: first_arrival.reference(),
+            });
+
+        // Our own block references the other header of that slot, so the peer
+        // needs that one to accept the block.
+        let own_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(2, our_index.value() as u8)
+                .set_ancestors(vec![referenced.reference()])
+                .build(),
+        );
+        let BlockBundle {
+            verified_headers, ..
+        } = connection_knowledge.write().create_bundle(own_block);
+
+        assert_eq!(
+            verified_headers
+                .iter()
+                .map(|header| header.reference())
+                .collect::<Vec<_>>(),
+            vec![referenced.reference()],
+            "the bundle must offer the referenced header, not the first-arrived one"
+        );
     }
 
     /// Test that connection knowledge correctly takes additional parts for

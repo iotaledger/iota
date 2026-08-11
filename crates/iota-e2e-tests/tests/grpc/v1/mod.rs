@@ -15,7 +15,7 @@ use iota_sdk_ext::grpc_types::v1::{
         argument::{Input, Result},
     },
     dynamic_field::DynamicField,
-    epoch::{Epoch, ProtocolConfig},
+    epoch::{Epoch, EpochCloseProof, ProtocolConfig},
     event::Event,
     ledger_service::GetServiceInfoResponse,
     move_package_service::PackageVersion,
@@ -79,6 +79,8 @@ impl_field_presence_checker!(ExecutedTransaction {
     timestamp,
     input_objects,
     output_objects,
+    balance_changes,
+    object_changes,
 });
 impl_field_presence_checker!(Input { index });
 impl_field_presence_checker!(Result {
@@ -132,6 +134,13 @@ impl_field_presence_checker!(Epoch {
     end,
     reference_gas_price,
     protocol_config: ProtocolConfig,
+    epoch_close_proof: EpochCloseProof,
+});
+impl_field_presence_checker!(EpochCloseProof {
+    checkpoint: Checkpoint,
+    end_of_epoch_transaction_effects: TransactionEffects,
+    end_of_epoch_transaction_events: TransactionEvents,
+    bcs_next_epoch_system_state_objects: [],
 });
 
 impl_field_presence_checker!(DynamicField {

@@ -12,7 +12,13 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::crypto::{Intent, IntentMessage, IntentScope};
+use iota_sdk_ext::{
+    crypto::ToFromBytes as _,
+    types::{
+        Digest, Owner, TransactionDigest,
+        crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
+    },
+};
 use move_binary_format::file_format;
 
 use super::*;
@@ -20,11 +26,10 @@ use crate::{
     base_types::TypeTag,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature, Signature, SignatureScheme,
+        IotaSignature,
         bcs_signable_test::{Bar, Foo},
-        get_key_pair, get_key_pair_from_bytes,
+        get_key_pair,
     },
-    digests::{Digest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
     object::Object,
@@ -52,19 +57,10 @@ fn test_signatures() {
     let foox = IntentMessage::new(Intent::iota_transaction(), Foo("hellox".into()));
     let bar = IntentMessage::new(Intent::iota_transaction(), Bar("hello".into()));
 
-    let s = Signature::new_secure(&foo, &sec1);
-    assert!(
-        s.verify_secure(&foo, addr1, SignatureScheme::ED25519)
-            .is_ok()
-    );
-    assert!(
-        s.verify_secure(&foo, addr2, SignatureScheme::ED25519)
-            .is_err()
-    );
-    assert!(
-        s.verify_secure(&foox, addr1, SignatureScheme::ED25519)
-            .is_err()
-    );
+    let s = SimpleSignature::new_secure(&foo, &sec1);
+    assert!(s.verify_secure(&foo, addr1).is_ok());
+    assert!(s.verify_secure(&foo, addr2).is_err());
+    assert!(s.verify_secure(&foox, addr1).is_err());
     assert!(
         s.verify_secure(
             &IntentMessage::new(
@@ -72,33 +68,30 @@ fn test_signatures() {
                 Foo("hello".into())
             ),
             addr1,
-            SignatureScheme::ED25519
         )
         .is_err()
     );
 
     // The struct type is different, but the serialization is the same.
-    assert!(
-        s.verify_secure(&bar, addr1, SignatureScheme::ED25519)
-            .is_ok()
-    );
+    assert!(s.verify_secure(&bar, addr1).is_ok());
 }
 
 #[test]
 fn test_signatures_serde() {
     let (_, sec1): (_, AccountKeyPair) = get_key_pair();
     let foo = Foo("hello".into());
-    let s = Signature::new_secure(&IntentMessage::new(Intent::iota_transaction(), foo), &sec1);
+    let s =
+        SimpleSignature::new_secure(&IntentMessage::new(Intent::iota_transaction(), foo), &sec1);
 
     let serialized = bcs::to_bytes(&s).unwrap();
     println!("{serialized:?}");
-    let deserialized: Signature = bcs::from_bytes(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), s.as_ref());
+    let deserialized: SimpleSignature = bcs::from_bytes(&serialized).unwrap();
+    assert_eq!(deserialized.to_bytes(), s.to_bytes());
 }
 
 #[test]
 fn test_max_sequence_number() {
-    let max = SequenceNumber::MAX_VALID_EXCL;
+    let max = Version::MAX_VALID_EXCL;
     assert_eq!(max * 2 + 1, u64::MAX);
 }
 
@@ -116,13 +109,13 @@ fn test_gas_coin_ser_deser_roundtrip() {
 #[test]
 fn test_lamport_increment_version() {
     let versions = [
-        SequenceNumber::from(1),
-        SequenceNumber::from(3),
-        SequenceNumber::from(257),
-        SequenceNumber::from(42),
+        Version::from(1),
+        Version::from(3),
+        Version::from(257),
+        Version::from(42),
     ];
 
-    let incremented = SequenceNumber::lamport_increment(versions).unwrap();
+    let incremented = Version::lamport_increment(versions).unwrap();
 
     for version in versions {
         assert!(version < incremented, "Expected: {version} < {incremented}");
@@ -353,7 +346,7 @@ fn test_move_object_size_for_gas_metering() {
     let object = Object::with_id_owner_for_testing(ObjectId::random(), Address::random());
     let size = object.object_size_for_gas_metering();
     let serialized = bcs::to_bytes(&object).unwrap();
-    // If the following assertion breaks, it's likely you have changed MoveObject's
+    // If the following assertion breaks, it's likely you have changed MoveStruct's
     // fields. Make sure to adjust `object_size_for_gas_metering()` to include
     // those changes.
     assert_eq!(size - 4, serialized.len());
@@ -386,16 +379,15 @@ const SAMPLE_ADDRESS_VEC: [u8; 32] = [
     139, 168, 58, 57, 59, 186, 167, 215, 238, 210, 8, 42,
 ];
 
-// Derive a sample address and public key tuple from KeyPair bytes.
+// Derive a sample address and public key tuple from private key bytes.
 fn derive_sample_address() -> (Address, AccountKeyPair) {
-    let (address, pub_key) = get_key_pair_from_bytes(&[
+    let key_pair = AccountKeyPair::from_bytes([
         10, 112, 5, 142, 174, 127, 187, 146, 251, 68, 22, 191, 128, 68, 84, 13, 102, 71, 77, 57,
-        92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214, 189, 215, 127, 86, 129, 189, 1, 4,
-        90, 106, 17, 10, 123, 200, 40, 18, 34, 173, 240, 91, 213, 72, 183, 249, 213, 210, 39, 181,
-        105, 254, 59, 163,
+        92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214,
     ])
     .unwrap();
-    (address, pub_key)
+    let address = key_pair.public_key().derive_address();
+    (address, key_pair)
 }
 
 // Required to capture address derivation algorithm updates that break some

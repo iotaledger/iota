@@ -9,11 +9,12 @@ use iota_core::{
 };
 use iota_macros::sim_test;
 use prometheus_filtered::Registry;
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tracing::info;
 
 #[sim_test]
 async fn test_onsite_reconfig_observer_basic() {
+    let _pcool_guard = override_pcool_flow(false);
     telemetry_subscribers::init_for_testing();
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(10000)
@@ -26,6 +27,7 @@ async fn test_onsite_reconfig_observer_basic() {
         node.transaction_orchestrator()
             .unwrap()
             .clone_quorum_driver()
+            .expect("quorum driver should be present when P-COOL is disabled")
     });
     assert_eq!(qd.current_epoch(), 0);
     let rx = fullnode.with(|node| node.subscribe_to_epoch_change());
@@ -50,6 +52,7 @@ async fn test_onsite_reconfig_observer_basic() {
         node.transaction_orchestrator()
             .unwrap()
             .clone_quorum_driver()
+            .expect("quorum driver should be present when P-COOL is disabled")
     });
     assert_eq!(qd.current_epoch(), 1);
     assert_eq!(

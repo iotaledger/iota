@@ -7,12 +7,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Result, bail};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_ext::types::{ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_ext::types::{
+    ObjectId, Owner, SenderSignedTransaction, StructTag, TransactionEffects, TypeTag,
+};
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{Object, bounded_visitor::BoundedVisitor},
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout, MoveValue};
 
@@ -82,18 +84,14 @@ struct InputObjectTracker {
 }
 
 impl InputObjectTracker {
-    fn new(txn: &SenderSignedData) -> Self {
+    fn new(txn: &SenderSignedTransaction) -> Self {
         let shared: BTreeSet<ObjectId> = txn
             .shared_input_objects()
             .into_iter()
             .map(|shared_io| shared_io.object_id)
             .collect();
-        let tx_data = txn.transaction_data();
-        let coins: BTreeSet<ObjectId> = tx_data
-            .gas()
-            .iter()
-            .map(|obj_ref| obj_ref.object_id)
-            .collect();
+        let tx = txn.transaction();
+        let coins: BTreeSet<ObjectId> = tx.gas().iter().map(|obj_ref| obj_ref.object_id).collect();
         // All input objects (transaction + authenticators) are collected here, just
         // like the shared objects previously.
         let input: BTreeSet<ObjectId> = txn

@@ -25,9 +25,10 @@ use tracing::warn;
 use typed_store_error::TypedStoreError;
 
 pub use crate::{
-    database::{DBBatch, DBMap, MetricConf},
+    database::{DBBatch, DBMap, MetricConf, TaggedDBMap},
     rocks::options::{
-        DBMapTableConfigMap, DBOptions, ReadWriteOptions, default_db_options, list_tables,
+        BulkIngestionOptions, DBMapTableConfigMap, DBOptions, ReadWriteOptions,
+        bulk_ingestion_options, bulk_ingestion_write_options, default_db_options, list_tables,
         read_size_from_env,
     },
 };
@@ -54,6 +55,16 @@ pub(crate) struct RocksDB {
     pub(crate) underlying: rocksdb::DBWithThreadMode<MultiThreaded>,
 }
 
+impl RocksDB {
+    /// Returns the names of the column families the database has on disk.
+    pub(crate) fn cf_names(&self) -> Result<Vec<String>, rocksdb::Error> {
+        rocksdb::DBWithThreadMode::<MultiThreaded>::list_cf(
+            &rocksdb::Options::default(),
+            self.underlying.path(),
+        )
+    }
+}
+
 impl Drop for RocksDB {
     fn drop(&mut self) {
         self.underlying.cancel_all_background_work(/* wait */ true);
@@ -67,13 +78,18 @@ pub(crate) fn rocks_cf<'a>(
     rocks_db
         .underlying
         .cf_handle(cf_name)
-        .expect("Map-keying column family should have been checked at DB creation")
+        .expect("the column family was deleted unexpectedly")
 }
 
 // Check if the database is corrupted, and if so, panic.
 // If the corrupted key is not set, we set it to [1].
 pub fn check_and_mark_db_corruption(path: &Path) -> Result<(), String> {
-    let db = rocksdb::DB::open_default(path).map_err(|e| e.to_string())?;
+    // rocksdb spawns its background threads when the DB is opened; under the
+    // simulator that open must run off the test thread, or the threads are
+    // scheduled against the simulated clock and then run against the real one,
+    // aborting periodic-task registration. Only the open needs the guard — the
+    // get/put below spawn no threads. See `open_cf_opts`. No-op outside msim.
+    let db = nondeterministic!(rocksdb::DB::open_default(path)).map_err(|e| e.to_string())?;
 
     db.get(DB_CORRUPTED_KEY)
         .map_err(|e| format!("Failed to open database: {e}"))
@@ -92,7 +108,8 @@ pub fn check_and_mark_db_corruption(path: &Path) -> Result<(), String> {
 }
 
 pub fn unmark_db_corruption(path: &Path) -> Result<(), Error> {
-    rocksdb::DB::open_default(path)?.put(DB_CORRUPTED_KEY, [0])
+    // See `check_and_mark_db_corruption` for why the open runs off the test thread.
+    nondeterministic!(rocksdb::DB::open_default(path))?.put(DB_CORRUPTED_KEY, [0])
 }
 
 /// Opens a database with options, and a number of column families with
@@ -204,6 +221,31 @@ pub fn open_cf_opts_secondary<P: AsRef<Path>>(
 }
 
 // Drops a database if there is no other handle to it, with retries and timeout.
+#[cfg(msim)]
+pub async fn safe_drop_db(path: PathBuf, timeout: Duration) -> Result<(), rocksdb::Error> {
+    // The destroy fails until rocksdb's background threads release the file
+    // lock, which happens on the real clock. Retrying on the simulated clock
+    // would consume a machine-load-dependent amount of simulated time (and rng,
+    // through the backoff jitter), breaking simtest determinism, so retry on a
+    // real thread with real sleeps instead.
+    nondeterministic!({
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            match rocksdb::DB::destroy(&rocksdb::Options::default(), path.clone()) {
+                Ok(()) => return Ok(()),
+                Err(err) => {
+                    if std::time::Instant::now() >= deadline {
+                        return Err(err);
+                    }
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+            }
+        }
+    })
+}
+
+// Drops a database if there is no other handle to it, with retries and timeout.
+#[cfg(not(msim))]
 pub async fn safe_drop_db(path: PathBuf, timeout: Duration) -> Result<(), rocksdb::Error> {
     let mut backoff = backoff::ExponentialBackoff {
         max_elapsed_time: Some(timeout),
@@ -220,6 +262,9 @@ pub async fn safe_drop_db(path: PathBuf, timeout: Duration) -> Result<(), rocksd
     }
 }
 
+/// Lists what is on disk and adds anything the caller did not declare, because
+/// rocksdb refuses to open a database unless every column family it has is
+/// named.
 fn populate_missing_cfs(
     input_cfs: &[(&str, rocksdb::Options)],
     path: &Path,
@@ -231,10 +276,22 @@ fn populate_missing_cfs(
             .ok()
             .unwrap_or_default();
 
+    let default_db_options = default_db_options();
+    let mut names_default = false;
     for cf_name in existing_cfs {
+        names_default |= cf_name == rocksdb::DEFAULT_COLUMN_FAMILY_NAME;
         if !input_cf_index.contains(&cf_name[..]) {
-            cfs.push((cf_name, rocksdb::Options::default()));
+            cfs.push((cf_name, default_db_options.options.clone()));
         }
+    }
+    // A database that does not exist yet has nothing to list, so the column
+    // family rocksdb always opens has to be named here: its wrapper otherwise
+    // adds it with the rocksdb defaults of its own.
+    if !names_default && !input_cf_index.contains(rocksdb::DEFAULT_COLUMN_FAMILY_NAME) {
+        cfs.push((
+            rocksdb::DEFAULT_COLUMN_FAMILY_NAME.to_owned(),
+            default_db_options.options,
+        ));
     }
     cfs.extend(
         input_cfs

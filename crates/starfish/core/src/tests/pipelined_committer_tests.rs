@@ -5,10 +5,13 @@
 use std::sync::Arc;
 
 use parking_lot::RwLock;
+use rstest::rstest;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block_header::{BlockHeaderAPI, Slot, TestBlockHeader, VerifiedBlockHeader},
+    block_header::{
+        BlockHeaderAPI, Slot, TestBlockHeader, TestBlockHeaderVersion, VerifiedBlockHeader,
+    },
     commit::{DecidedLeader, WAVE_LENGTH},
     context::Context,
     dag_state::{DagState, DataSource},
@@ -19,16 +22,17 @@ use crate::{
 };
 
 /// Commit one leader.
+#[rstest]
 #[tokio::test]
-async fn direct_commit() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn direct_commit(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // note: pipelines, waves & rounds are zero-indexed.
     let decision_round_wave_0_pipeline_1 = committer.committers[1].certifying_round(0);
     build_dag(context, dag_state, None, decision_round_wave_0_pipeline_1);
 
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 1);
 
@@ -45,9 +49,10 @@ async fn direct_commit() {
 }
 
 /// Ensure idempotent replies.
+#[rstest]
 #[tokio::test]
-async fn idempotence() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn idempotence(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach decision round of pipeline 1 wave 0 which is round
     // 4. note: pipelines, waves & rounds are zero-indexed.
@@ -56,8 +61,8 @@ async fn idempotence() {
     build_dag(context, dag_state, None, certifying_round_pipeline_1_wave_0);
 
     // Commit one leader.
-    let last_decided = Slot::new(0, 0);
-    let first_sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let first_sequence = committer.try_decide(last_finalized);
     assert_eq!(first_sequence.len(), 1);
     tracing::info!("Commit sequence: {first_sequence:#?}");
 
@@ -73,7 +78,7 @@ async fn idempotence() {
 
     // Ensure that if try_commit is called again with the same last decided leader
     // input the commit decision will be the same.
-    let first_sequence = committer.try_decide(last_decided);
+    let first_sequence = committer.try_decide(last_finalized);
 
     assert_eq!(first_sequence.len(), 1);
     if let DecidedLeader::Commit(ref block, _, _) = first_sequence[0] {
@@ -88,18 +93,19 @@ async fn idempotence() {
 
     // Ensure we don't commit the same leader again once last decided has been
     // updated.
-    let last_decided = Slot::new(first_sequence[0].round(), first_sequence[0].authority());
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(first_sequence[0].round(), first_sequence[0].authority());
+    let sequence = committer.try_decide(last_finalized);
     assert!(sequence.is_empty());
 }
 
 /// Commit one by one each leader as the dag progresses in ideal conditions.
+#[rstest]
 #[tokio::test]
-async fn multiple_direct_commit() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn multiple_direct_commit(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
-    let mut last_decided = Slot::new(0, 0);
+    let mut last_finalized = Slot::new(0, 0);
     let mut ancestors = None;
     for n in 1..=10 {
         // Build the dag up to the decision round for each pipeline's wave starting
@@ -118,7 +124,7 @@ async fn multiple_direct_commit() {
         ));
 
         // Because of pipelining we are committing a leader every round.
-        let sequence = committer.try_decide(last_decided);
+        let sequence = committer.try_decide(last_finalized);
         tracing::info!("Commit sequence: {sequence:#?}");
 
         assert_eq!(sequence.len(), 1);
@@ -135,14 +141,15 @@ async fn multiple_direct_commit() {
         // Update the last decided leader so only one new leader is committed as
         // each new wave is completed.
         let last = sequence.into_iter().next_back().unwrap();
-        last_decided = Slot::new(last.round(), last.authority());
+        last_finalized = Slot::new(last.round(), last.authority());
     }
 }
 
 /// Commit 10 leaders in a row (calling the committer after adding them).
+#[rstest]
 #[tokio::test]
-async fn direct_commit_late_call() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn direct_commit_late_call(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
     // note: pipelines, waves & rounds are zero-indexed.
@@ -153,8 +160,8 @@ async fn direct_commit_late_call() {
 
     build_dag(context, dag_state, None, certifying_round);
 
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
 
     assert_eq!(sequence.len(), n);
@@ -171,9 +178,10 @@ async fn direct_commit_late_call() {
 }
 
 /// Do not commit anything if we are still in the first wave.
+#[rstest]
 #[tokio::test]
-async fn no_genesis_commit() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn no_genesis_commit(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // Pipeline 0 wave 0 will not have a commit because its leader round is the
     // genesis round.
@@ -184,16 +192,17 @@ async fn no_genesis_commit() {
     for r in 0..certifying_round_pipeline_0_wave_0 {
         ancestors = Some(build_dag(context.clone(), dag_state.clone(), ancestors, r));
 
-        let last_decided = Slot::new(0, 0);
-        let sequence = committer.try_decide(last_decided);
+        let last_finalized = Slot::new(0, 0);
+        let sequence = committer.try_decide(last_finalized);
         assert!(sequence.is_empty());
     }
 }
 
 /// We do not commit anything if we miss the first leader.
+#[rstest]
 #[tokio::test]
-async fn direct_skip_no_leader() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn direct_skip_no_leader(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach the decision round of the leader of wave 0 for
     // pipeline 1 but without the leader block.
@@ -216,7 +225,7 @@ async fn direct_skip_no_leader() {
         .filter(|&authority| authority.0 != leader_pipeline_1_wave_0)
         .map(|authority| (authority.0, genesis.clone()))
         .collect::<Vec<_>>();
-    let references = build_dag_layer(connections, dag_state.clone());
+    let references = build_dag_layer(&context, connections, dag_state.clone());
 
     let decision_round_pipeline_1_wave_0 = committer.committers[1].certifying_round(0);
     build_dag(
@@ -228,8 +237,8 @@ async fn direct_skip_no_leader() {
 
     // Ensure no blocks are committed because there are 2f+1 blame (non-votes) for
     // the missing leader.
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
 
     assert_eq!(sequence.len(), 1);
@@ -242,9 +251,10 @@ async fn direct_skip_no_leader() {
 }
 
 /// We directly skip the leader if it has enough blame.
+#[rstest]
 #[tokio::test]
-async fn direct_skip_enough_blame() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn direct_skip_enough_blame(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach the wave 0 leader for pipeline 1.
     // note: pipelines, waves & rounds are zero-indexed.
@@ -272,7 +282,7 @@ async fn direct_skip_enough_blame() {
         .map(|authority| (authority.0, references_without_leader_1.clone()))
         .collect();
     let references_without_votes_for_leader_1 =
-        build_dag_layer(connections_without_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_without_leader_1, dag_state.clone());
 
     // one vote for that leader
     let connections_with_leader_1 = context
@@ -282,7 +292,7 @@ async fn direct_skip_enough_blame() {
         .map(|authority| (authority.0, references_round_1.clone()))
         .collect();
     let references_with_votes_for_leader_1 =
-        build_dag_layer(connections_with_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_with_leader_1, dag_state.clone());
 
     let references: Vec<_> = references_without_votes_for_leader_1
         .into_iter()
@@ -302,8 +312,8 @@ async fn direct_skip_enough_blame() {
 
     // Ensure the leader is skipped because there are 2f+1 blame (non-votes) for
     // the wave 0 leader of pipeline 1.
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
 
     assert_eq!(sequence.len(), 1);
@@ -316,9 +326,10 @@ async fn direct_skip_enough_blame() {
 }
 
 /// Indirect-commit the first leader.
+#[rstest]
 #[tokio::test]
-async fn indirect_commit() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn indirect_commit(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
     // Add enough blocks to reach the wave 0 leader of pipeline 1.
@@ -352,7 +363,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_round_1.clone()))
         .collect();
     let references_with_votes_for_leader_1 =
-        build_dag_layer(connections_with_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_with_leader_1, dag_state.clone());
 
     let connections_without_leader_1 = context
         .committee
@@ -361,7 +372,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_without_leader_1.clone()))
         .collect();
     let references_without_votes_for_leader_1 =
-        build_dag_layer(connections_without_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_without_leader_1, dag_state.clone());
 
     // Only f+1 validators certify that leader.
     let mut references_round_3 = Vec::new();
@@ -373,6 +384,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_with_votes_for_leader_1.clone()))
         .collect::<Vec<_>>();
     references_round_3.extend(build_dag_layer(
+        &context,
         connections_with_votes_for_leader_1,
         dag_state.clone(),
     ));
@@ -389,6 +401,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references.clone()))
         .collect::<Vec<_>>();
     references_round_3.extend(build_dag_layer(
+        &context,
         connections_without_votes_for_leader_1,
         dag_state.clone(),
     ));
@@ -408,8 +421,8 @@ async fn indirect_commit() {
     );
 
     // Ensure we commit the first leaders.
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 5);
 
@@ -433,9 +446,10 @@ async fn indirect_commit() {
 }
 
 /// Commit the first 3 leaders, skip the 4th, and commit the next 3 leaders.
+#[rstest]
 #[tokio::test]
-async fn indirect_skip() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn indirect_skip(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
     // Add enough blocks to reach the 4th leader.
@@ -460,6 +474,7 @@ async fn indirect_skip() {
         .map(|authority| (authority.0, references_round_4.clone()))
         .collect::<Vec<_>>();
     references_round_5.extend(build_dag_layer(
+        &context,
         connections_with_leader_4,
         dag_state.clone(),
     ));
@@ -471,6 +486,7 @@ async fn indirect_skip() {
         .map(|authority| (authority.0, references_without_leader_4.clone()))
         .collect();
     references_round_5.extend(build_dag_layer(
+        &context,
         connections_without_leader_4,
         dag_state.clone(),
     ));
@@ -489,8 +505,8 @@ async fn indirect_skip() {
 
     // Ensure we commit the first 3 leaders, skip the 4th, and commit the last 2
     // leaders.
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 7);
 
@@ -527,9 +543,10 @@ async fn indirect_skip() {
 }
 
 /// If there is no leader with enough support nor blame, we commit nothing.
+#[rstest]
 #[tokio::test]
-async fn undecided() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn undecided(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach the first leader.
     // note: pipelines, waves & rounds are zero-indexed.
@@ -555,7 +572,7 @@ async fn undecided() {
         .into_iter()
         .chain(non_leader_connections)
         .collect::<Vec<_>>();
-    let references_voting_round_1 = build_dag_layer(connections, dag_state.clone());
+    let references_voting_round_1 = build_dag_layer(&context, connections, dag_state.clone());
 
     // Add enough blocks to reach the first decision round
     let decision_round_1 = committer.committers[1].certifying_round(0);
@@ -567,8 +584,8 @@ async fn undecided() {
     );
 
     // Ensure no blocks are committed.
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     assert!(sequence.is_empty());
 }
 
@@ -578,9 +595,11 @@ async fn undecided() {
 // blocks. However when extra dag layers are added and the byzantine node is
 // meant to be a leader, its block is skipped as there is not enough votes to
 // directly decide it and not any certified links to indirectly commit it.
+#[rstest]
 #[tokio::test]
-async fn test_byzantine_validator() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn test_byzantine_validator(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let version = TestBlockHeaderVersion::from_context(&context);
 
     // Add enough blocks to reach leader A12
     // note: pipelines, waves & rounds are zero-indexed.
@@ -618,6 +637,7 @@ async fn test_byzantine_validator() {
     // dag state
     let byzantine_block_b13_1 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 1)
+            .set_version(version)
             .set_ancestors(references_without_leader_round_wave_4.clone())
             .build(),
     );
@@ -630,6 +650,7 @@ async fn test_byzantine_validator() {
 
     let byzantine_block_b13_2 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 1)
+            .set_version(version)
             .set_ancestors(references_without_leader_round_wave_4.clone())
             .set_timestamp_ms(timestamp + 1)
             .build(),
@@ -640,6 +661,7 @@ async fn test_byzantine_validator() {
 
     let byzantine_block_b13_3 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 1)
+            .set_version(version)
             .set_ancestors(references_without_leader_round_wave_4)
             .set_timestamp_ms(timestamp + 2)
             .build(),
@@ -655,6 +677,7 @@ async fn test_byzantine_validator() {
     let mut references_round_14 = vec![];
     let decision_block_a14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 0)
+            .set_version(version)
             .set_ancestors(good_references_voting_round_wave_4.clone())
             .build(),
     );
@@ -670,6 +693,7 @@ async fn test_byzantine_validator() {
 
     let decision_block_b14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 1)
+            .set_version(version)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()
@@ -686,6 +710,7 @@ async fn test_byzantine_validator() {
 
     let decision_block_c14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 2)
+            .set_version(version)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()
@@ -702,6 +727,7 @@ async fn test_byzantine_validator() {
 
     let decision_block_d14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 3)
+            .set_version(version)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()
@@ -725,8 +751,8 @@ async fn test_byzantine_validator() {
 
     // Expect a successful direct commit of A12 and leaders at rounds 1 ~ 11 as
     // pipelining is enabled.
-    let last_decided = Slot::new(0, 0);
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(0, 0);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
 
     assert_eq!(sequence.len(), 12);
@@ -748,15 +774,15 @@ async fn test_byzantine_validator() {
 
     // Ensure B13 is marked as undecided as there is <2f+1 blame and <2f+1 certs
     let last_sequenced = sequence.last().unwrap();
-    let last_decided = Slot::new(last_sequenced.round(), last_sequenced.authority());
-    let sequence = committer.try_decide(last_decided);
+    let last_finalized = Slot::new(last_sequenced.round(), last_sequenced.authority());
+    let sequence = committer.try_decide(last_finalized);
     assert!(sequence.is_empty());
 
     // Now build an additional 3 dag layers on top of the existing dag so a commit
     // decision can be made about leader A16 and then an indirect decision can be
     // made about B13
     build_dag(context, dag_state, Some(references_round_15), 18);
-    let sequence = committer.try_decide(last_decided);
+    let sequence = committer.try_decide(last_finalized);
     tracing::info!("Commit sequence: {sequence:#?}");
     assert_eq!(sequence.len(), 4);
 
@@ -772,14 +798,20 @@ async fn test_byzantine_validator() {
     };
 }
 
-fn basic_test_setup() -> (
+fn basic_test_setup(
+    starfish_speed: bool,
+) -> (
     Arc<Context>,
     Arc<RwLock<DagState>>,
     super::UniversalCommitter,
 ) {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
-    let context = Arc::new(Context::new_for_test(4).0);
+    let mut context = Context::new_for_test(4).0;
+    context
+        .protocol_config
+        .set_consensus_starfish_speed_for_testing(starfish_speed);
+    let context = Arc::new(context);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),
         Arc::new(MemStore::new()),
