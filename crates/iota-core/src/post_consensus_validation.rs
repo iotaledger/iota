@@ -35,11 +35,10 @@
 //!   tx's own prior-round lock), which is exempt. Cheap; performed before
 //!   expensive checks.
 //! - Check #6: `handle_transaction_validation_checks()` for
-//!   `UserTransactionV1`, or for attested `UserTransactionV2` a payload-only
-//!   gas-bounds check (`check_gas_bounds()`) followed by the
-//!   `TransactionDenyConfig` re-check
-//!   (`check_transaction_deny_list_for_attested_tx()`). Drop with error. Only
-//!   reached when all locks are free.
+//!   `UserTransactionV1`; for attested `UserTransactionV2` a payload-only
+//!   gas-bounds check, the `TransactionDenyConfig` re-check, and an
+//!   input-existence check. Drop with error. Only reached when all locks are
+//!   free.
 //! - All passed — acquire locks in the local tracking map, keep transaction.
 
 use std::{
@@ -328,19 +327,19 @@ pub async fn validate_and_resolve_conflicts(
         //
         // `UserTransactionV1` runs the full
         // `handle_transaction_validation_checks`. For `UserTransactionV2`
-        // (attested transactions) a payload-only gas-bounds check and the
-        // `TransactionDenyConfig` deny-list check are run individually (see
-        // below). The rest of `handle_transaction_validation_checks`
-        // is skipped for V2 because it is either re-applied during execution or
-        // is not safety-critical to run post-consensus:
+        // (attested transactions) only a payload-only gas-bounds check, the
+        // `TransactionDenyConfig` deny-list check, and an input-existence check
+        // run (see below). The rest of `handle_transaction_validation_checks`
+        // deliberately stays at execution, where a failure is a chargeable
+        // effect instead of a free drop:
         //   - Receiving-object validity: the Move runtime fails the `receive()` call
         //     when the ref doesn't match current state.
         //   - Move bytecode verifier on publish: the Move VM re-verifies every newly
         //     published package; the signing-time variant only adds a stricter meter as
         //     a DoS gate.
-        //   - Gas, ownership, `MoveAuthenticator` execution: re-applied in the
-        //     execution pipeline (`check_certificate_input` and
-        //     `authenticate_then_execute_transaction_to_effects`).
+        //   - Gas balance, coin deny list, `MoveAuthenticator` execution: re-applied in
+        //     the execution pipeline.
+        //
         //
         // The user signature is verified pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`) for both `UserTransactionV1`
@@ -376,8 +375,6 @@ pub async fn validate_and_resolve_conflicts(
                 continue;
             }
         } else {
-            // Payload-only gas bounds/price. Deterministic drop before version assignment;
-            // balance is still checked at execution.
             let txn = transaction.data().transaction();
             if let Err(e) = check_gas_bounds(
                 epoch_store.protocol_config(),
@@ -408,6 +405,24 @@ pub async fn validate_and_resolve_conflicts(
                     ?digest,
                     error = ?e,
                     "UserTransactionV2 failed post-consensus deny-list check, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
+            }
+            // Input existence at the referenced versions (owned and gas
+            // objects, shared objects or their deletion markers, authenticator
+            // accounts).
+            if let Err(e) =
+                authority_state.check_transaction_inputs_exist(&verified_tx, epoch_store.epoch())
+            {
+                if e.is_storage_or_epoch_error() {
+                    return Err(e);
+                }
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV2 failed post-consensus input-existence check, dropping"
                 );
                 dropped.push((digest, e));
                 keep[i] = false;

@@ -6174,6 +6174,20 @@ impl AuthorityState {
         Ok(())
     }
 
+    pub(crate) fn check_transaction_inputs_exist(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch: EpochId,
+    ) -> IotaResult<()> {
+        self.input_loader.read_objects_for_signing(
+            Some(transaction.digest()),
+            &transaction.collect_all_input_object_kind_for_reading()?,
+            &[],
+            epoch,
+        )?;
+        Ok(())
+    }
+
     #[allow(clippy::type_complexity)]
     fn read_objects_for_validation(
         &self,
