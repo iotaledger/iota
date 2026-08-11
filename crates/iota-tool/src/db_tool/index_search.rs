@@ -81,6 +81,18 @@ pub fn search_index(
                 termination
             )
         }
+        // Names from the pre-unification JSON-RPC-only index store, kept
+        // around only to point callers at the table's new name rather than
+        // falling through to `search_history_table`'s generic "unsupported
+        // table" error.
+        "owner_index" => bail!("no such table \"owner_index\"; it was renamed to \"owner\""),
+        "dynamic_field_index" => {
+            bail!("no such table \"dynamic_field_index\"; it was renamed to \"dynamic_field\"")
+        }
+        "txs_seq" => bail!(
+            "no such table \"txs_seq\"; transaction digest to sequence number lookups are now \
+             served by the \"digests\" table"
+        ),
         _ => search_history_table(db_path, &table_name, start, termination),
     }
 }
