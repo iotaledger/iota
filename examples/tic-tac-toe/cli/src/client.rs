@@ -18,9 +18,9 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_ext::types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, Transaction, TransactionKind,
-    crypto::{Intent, MultisigAggregatedSignature, MultisigCommittee, UserSignature},
+    Address, Identifier, MultisigAggregatedSignature, MultisigCommittee, ObjectId, ObjectReference,
+    Owner, ProgrammableTransaction, SharedObjectReference, StructTag, Transaction, TransactionKind,
+    crypto::{Intent, UserSignature},
 };
 use iota_types::{
     crypto::PublicKey,
