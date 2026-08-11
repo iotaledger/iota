@@ -436,6 +436,16 @@ pub enum MisbehaviorObservations {
     V2(MisbehaviorObservationsV2),
 }
 
+impl MisbehaviorObservations {
+    /// Verifies the payload shape against the committee size.
+    pub fn verify(&self, committee_size: usize) -> bool {
+        match self {
+            Self::V1(payload) => payload.verify(committee_size),
+            Self::V2(payload) => payload.verify(committee_size),
+        }
+    }
+}
+
 impl VersionedMisbehaviorReport {
     pub fn new_v1(
         authority: AuthorityName,

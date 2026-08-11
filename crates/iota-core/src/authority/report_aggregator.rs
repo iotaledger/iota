@@ -72,11 +72,7 @@ impl ReportAggregator {
             return Err(ReportValidationError::WrongReportVersion);
         }
         let committee_size = self.received_reports_state.len();
-        let payload_ok = match &report.payload {
-            MisbehaviorObservations::V1(payload) => payload.verify(committee_size),
-            MisbehaviorObservations::V2(payload) => payload.verify(committee_size),
-        };
-        if payload_ok {
+        if report.payload.verify(committee_size) {
             Ok(())
         } else {
             Err(ReportValidationError::PayloadShape)
