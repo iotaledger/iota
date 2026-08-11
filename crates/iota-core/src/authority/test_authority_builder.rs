@@ -349,16 +349,18 @@ impl<'a> TestAuthorityBuilder<'a> {
         let grpc_indexes_store = if self.disable_indexer {
             None
         } else {
-            Some(Arc::new(
+            Some(
                 GrpcIndexesStore::new(
                     storage_dir.join(GRPC_INDEXES_DIR),
+                    &registry,
+                    None,
                     Arc::clone(&authority_store),
                     &checkpoint_store,
-                    &Default::default(),
+                    Arc::default(),
                 )
                 .await
                 .expect("failed to open the gRPC index store"),
-            ))
+            )
         };
 
         let transaction_deny_config = self.transaction_deny_config.unwrap_or_default();

@@ -20,15 +20,16 @@ use iota_sdk_types::{
 use iota_types::{
     committee::EpochId,
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber, VerifiedCheckpoint},
     move_package::MovePackageExt,
     object::Object,
     storage::{
         AccountOwnedObjectInfo, DynamicFieldKey, OwnedObjectCursor, OwnedObjectIteratorItem,
         PackageVersionInfo, PackageVersionIteratorItem, PackageVersionKey, TransactionInfo,
-        error::Error as StorageError,
+        error::{Error as StorageError, Kind as StorageErrorKind},
     },
 };
+use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 use typed_store::{
@@ -47,7 +48,10 @@ use crate::{
     authority::AuthorityStore,
     checkpoints::CheckpointStore,
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
-    par_index_live_object_set::{LiveObjectIndexer, ParMakeLiveObjectIndexer},
+    par_index_live_object_set::{
+        LiveObjectIndexer, PROGRESS_REPORT_INTERVAL, ParMakeLiveObjectIndexer, eta_display,
+        progress_rate,
+    },
     rpc_index_history::{self, EpochBuckets},
 };
 
@@ -364,6 +368,12 @@ struct IndexStoreTables {
     #[default_options_override_fn = "default_table_options"]
     watermark: DBMap<Watermark, CheckpointSequenceNumber>,
 
+    /// Lowest checkpoint whose transaction digests are indexed; the
+    /// background replay works downwards from it. Absent when the history
+    /// is complete.
+    #[default_options_override_fn = "default_table_options"]
+    history_watermark: DBMap<(), CheckpointSequenceNumber>,
+
     /// Earliest epoch retained by the last pruning pass; buckets below it
     /// are never recreated and the backfill stops at it.
     #[default_options_override_fn = "default_table_options"]
@@ -453,22 +463,6 @@ impl IndexStoreTables {
         Ok(watermark < highest_executed_checkpoint)
     }
 
-    /// Range of checkpoints that transaction-digest indexing can cover.
-    /// Returns `None` when there is nothing to do (no executed checkpoints,
-    /// or the lower bound has overtaken the upper).
-    fn transaction_index_range(
-        &self,
-        checkpoint_store: &CheckpointStore,
-        highest_executed_checkpoint: Option<CheckpointSequenceNumber>,
-    ) -> Result<Option<std::ops::RangeInclusive<CheckpointSequenceNumber>>, StorageError> {
-        let lowest = checkpoint_store
-            .get_highest_pruned_checkpoint_seq_number()?
-            .map(|c| c.saturating_add(1))
-            .unwrap_or(0);
-        Ok(highest_executed_checkpoint
-            .and_then(|highest| (lowest <= highest).then_some(lowest..=highest)))
-    }
-
     /// See [`GrpcIndexesStore::live_object_restorer`].
     fn live_object_restorer(&self, batch_size_limit: usize) -> GrpcLiveObjectRestorer<'_> {
         GrpcLiveObjectRestorer {
@@ -515,104 +509,40 @@ impl IndexStoreTables {
         let highest_executed_checkpoint =
             checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
 
-        // Phase 1 — history-derived indexes. Transactions need only
-        // `CheckpointContents`, so they span `transaction_index_range`
-        // (checkpoint-store pruning).
-        let tx_range =
-            self.transaction_index_range(checkpoint_store, highest_executed_checkpoint)?;
-
-        // `tx_range` is `None` only when no checkpoints have ever been executed
-        // on this node, so skipping phase-1 indexing entirely is correct.
-        if let Some(range) = tx_range {
-            self.index_historical_checkpoints(checkpoint_store, range, cancelled)?;
-        }
-
-        // Phase 2 — live-state indexes from the current live object set.
+        // Live-state indexes from the current live object set. The digest
+        // history is not built here: `backfill_history` fills it in the
+        // background once the node is up, resuming from `history_watermark`.
         self.index_live_object_set(authority_store, batch_size_limit, cancelled)?;
 
-        self.finalize(highest_executed_checkpoint.unwrap_or(0))?;
+        self.finalize(highest_executed_checkpoint)?;
 
         info!("Finished initializing gRPC indexes");
 
         Ok(())
     }
 
-    /// Flushes the bulk-ingested data, then stamps the watermark and `meta`
+    /// Flushes the bulk-ingested data, then stamps the watermarks and `meta`
     /// last, so a crash in between leaves a store the next open re-inits.
+    /// `indexed_checkpoint` is the highest checkpoint the build covers; the
+    /// background replay later fills the digest history at and below it,
+    /// working downwards from the marker seeded here.
     fn finalize(
         &self,
-        indexed_checkpoint: CheckpointSequenceNumber,
+        indexed_checkpoint: Option<CheckpointSequenceNumber>,
     ) -> Result<(), TypedStoreError> {
-        // The watermark and `meta` are WAL-durable and the bulk writes are not, so
-        // flush first; flushing one table flushes every column family.
+        // The watermarks and `meta` are WAL-durable and the bulk writes are not,
+        // so flush first; flushing one table flushes every column family.
         self.meta.flush_all()?;
+        self.history_watermark
+            .insert(&(), &indexed_checkpoint.map_or(0, |c| c.saturating_add(1)))?;
         self.watermark
-            .insert(&Watermark::Indexed, &indexed_checkpoint)?;
+            .insert(&Watermark::Indexed, &indexed_checkpoint.unwrap_or(0))?;
         self.meta.insert(
             &(),
             &MetadataInfo {
                 version: CURRENT_DB_VERSION,
             },
         )
-    }
-
-    /// Index transaction digests by replaying the `CheckpointContents` of
-    /// every checkpoint in `checkpoint_range` in order. Setting `cancelled`
-    /// fails the replay early, as it does the live object set scan.
-    #[tracing::instrument(skip(self, checkpoint_store, cancelled))]
-    fn index_historical_checkpoints(
-        &self,
-        checkpoint_store: &CheckpointStore,
-        checkpoint_range: std::ops::RangeInclusive<u64>,
-        cancelled: &AtomicBool,
-    ) -> Result<(), StorageError> {
-        info!(
-            "Indexing {} checkpoints in range {checkpoint_range:?}",
-            checkpoint_range.size_hint().0
-        );
-        let start_time = Instant::now();
-        // One options template for every bucket of the replay, so their
-        // block caches share one instance.
-        let history_cf_options = rpc_index_history::history_cf_options(
-            &default_table_options(),
-            read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
-                .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),
-        );
-
-        for checkpoint_sequence_number in checkpoint_range {
-            if cancelled.load(Ordering::Relaxed) {
-                return Err(RebuildCancelled::error(
-                    "the historical checkpoint replay was cancelled",
-                ));
-            }
-            let summary = checkpoint_store
-                .get_checkpoint_by_sequence_number(checkpoint_sequence_number)?
-                .ok_or_else(|| {
-                    StorageError::missing(format!(
-                        "missing checkpoint {checkpoint_sequence_number}"
-                    ))
-                })?;
-            let contents = checkpoint_store
-                .get_checkpoint_contents(&summary.contents_digest)?
-                .ok_or_else(|| {
-                    StorageError::missing(format!(
-                        "missing checkpoint {checkpoint_sequence_number}"
-                    ))
-                })?;
-
-            let bucket = self.history_bucket_for_rebuild(summary.epoch, &history_cf_options)?;
-            let mut batch = self.meta.batch();
-            Self::index_transactions(&bucket, checkpoint_sequence_number, &contents, &mut batch)?;
-            batch
-                .write_opt(&bulk_ingestion_write_options())
-                .map_err(StorageError::from)?;
-        }
-
-        info!(
-            "Indexing checkpoints took {} seconds",
-            start_time.elapsed().as_secs()
-        );
-        Ok(())
     }
 
     /// Index a Checkpoint. `bucket` is the digest history bucket of the
@@ -668,23 +598,6 @@ impl IndexStoreTables {
         )?;
 
         Ok(())
-    }
-
-    /// The digest history bucket of `epoch`, creating its column family if
-    /// absent — for the rebuild's checkpoint replay, which runs before the
-    /// store (and its bucket map) exists. `cf_options` is the template every
-    /// bucket of the replay shares.
-    fn history_bucket_for_rebuild(
-        &self,
-        epoch: EpochId,
-        cf_options: &rocksdb::Options,
-    ) -> Result<TransactionCheckpointsBucket, TypedStoreError> {
-        let db = &self.meta.db;
-        let cf_name = rpc_index_history::bucket_cf_name(HISTORY_CF_PREFIX, epoch);
-        if db.cf_handle(&cf_name).is_none() {
-            db.create_cf(&cf_name, cf_options)?;
-        }
-        reopen_transaction_checkpoints_bucket(db, &cf_name)
     }
 
     fn index_objects(
@@ -881,6 +794,41 @@ fn reopen_transaction_checkpoints_bucket(
     DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)
 }
 
+struct GrpcIndexesMetrics {
+    /// Lowest checkpoint the digest history backfill has replayed so far.
+    /// The value reflects only the backfill's own progress: it keeps its
+    /// final value after the backfill stops and is not raised when pruning
+    /// later drops replayed epochs.
+    history_backfill_lowest_replayed_checkpoint: IntGauge,
+    /// 1 while the background digest history backfill is running, 0
+    /// otherwise.
+    history_backfill_running: IntGauge,
+}
+
+impl GrpcIndexesMetrics {
+    fn new(registry: &Registry) -> Self {
+        Self {
+            // How far the backfill got is visible nowhere else, so keep it
+            // above the default metric filter.
+            history_backfill_lowest_replayed_checkpoint: register_int_gauge_with_registry!(
+                "grpc_index_history_backfill_lowest_replayed_checkpoint",
+                "Lowest checkpoint the gRPC digest history backfill has replayed, keeping its \
+                 final value after the backfill stops; unaffected by later pruning",
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+            history_backfill_running: register_int_gauge_with_registry!(
+                "grpc_index_history_backfill_running",
+                "1 while the gRPC digest history backfill is running, 0 otherwise",
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+        }
+    }
+}
+
 /// The pieces produced by opening the index database.
 struct OpenedIndexDb {
     tables: IndexStoreTables,
@@ -896,6 +844,15 @@ pub struct GrpcIndexesStore {
     /// The per-epoch transaction-digest history buckets.
     history: EpochBuckets<TransactionCheckpointsBucket>,
     pending_updates: Mutex<BTreeMap<u64, typed_store::rocks::DBBatch>>,
+    metrics: GrpcIndexesMetrics,
+    /// Stops the startup rebuild and the background history backfill.
+    cancelled: Arc<AtomicBool>,
+    /// How many epochs of checkpoints the pruner is configured to retain
+    /// (`num_epochs_to_retain_for_checkpoints`); bounds the history backfill
+    /// so it does not replay epochs the next prune pass would drop again.
+    /// `None` when checkpoint pruning is off.
+    epochs_to_retain: Option<u64>,
+    history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 impl GrpcIndexesStore {
@@ -962,6 +919,7 @@ impl GrpcIndexesStore {
         let tables = IndexStoreTables {
             meta: map(&db, "meta", &db_options.rw_options)?,
             watermark: map(&db, "watermark", &db_options.rw_options)?,
+            history_watermark: map(&db, "history_watermark", &db_options.rw_options)?,
             earliest_retained_epoch: map(&db, "earliest_retained_epoch", &db_options.rw_options)?,
             owner: map(&db, "owner", &db_options.rw_options)?,
             dynamic_field: map(&db, "dynamic_field", &db_options.rw_options)?,
@@ -988,7 +946,12 @@ impl GrpcIndexesStore {
 
     /// Assembles the store from an opened database, applying the retention
     /// floor to the discovered buckets.
-    fn from_opened(opened: OpenedIndexDb) -> Result<Self, TypedStoreError> {
+    fn from_opened(
+        opened: OpenedIndexDb,
+        registry: &Registry,
+        epochs_to_retain: Option<u64>,
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<Self, TypedStoreError> {
         let OpenedIndexDb {
             tables,
             db,
@@ -1007,18 +970,32 @@ impl GrpcIndexesStore {
             tables: Arc::new(tables),
             history,
             pending_updates: Default::default(),
+            metrics: GrpcIndexesMetrics::new(registry),
+            cancelled,
+            epochs_to_retain,
+            history_backfill_task: Default::default(),
         })
     }
 
-    /// Setting `cancelled` abandons a rebuild running here and fails the
-    /// open: the store is left unfinalized for the next open to rebuild, and
-    /// must not serve reads in the meantime.
+    /// Opens the store, wiping it and rebuilding the live-state tables
+    /// first when the indexes are missing or stale. The digest history is
+    /// filled by a background replay after this returns; until it finishes,
+    /// lookups cover a growing range of recent checkpoints. When checkpoint
+    /// pruning is configured, `num_epochs_to_retain` bounds the replay to
+    /// the epochs the pruner would retain.
+    ///
+    /// Setting `cancelled` abandons a rebuild running here and the
+    /// background replay, and fails the open: the store is left unfinalized
+    /// for the next open to rebuild, and must not serve reads in the
+    /// meantime.
     pub async fn new(
         path: PathBuf,
+        registry: &Registry,
+        num_epochs_to_retain: Option<u64>,
         authority_store: Arc<AuthorityStore>,
         checkpoint_store: &Arc<CheckpointStore>,
-        cancelled: &Arc<AtomicBool>,
-    ) -> Result<Self, StorageError> {
+        cancelled: Arc<AtomicBool>,
+    ) -> Result<Arc<Self>, StorageError> {
         let opened = {
             // An unopenable database would crash-loop the node with no way
             // to self-heal; wipe and rebuild it like a stale one — but only
@@ -1148,15 +1125,266 @@ impl GrpcIndexesStore {
             }
         };
 
-        Ok(Self::from_opened(opened)?)
+        let store = Arc::new(Self::from_opened(
+            opened,
+            registry,
+            num_epochs_to_retain,
+            cancelled,
+        )?);
+        store.spawn_history_backfill(checkpoint_store.clone());
+        Ok(store)
     }
 
     /// Open the store without the wipe/init logic of [`Self::new`] — for the
     /// restore tool, which populates and finalizes the store itself.
     pub fn new_without_init(path: PathBuf) -> Self {
         Self::open_index_db(&path)
-            .and_then(Self::from_opened)
+            .and_then(|opened| {
+                Self::from_opened(opened, &Registry::default(), None, Arc::default())
+            })
             .expect("unable to open the gRPC index database")
+    }
+
+    /// Starts the background replay that fills the digest history below the
+    /// watermark, if any is pending.
+    fn spawn_history_backfill(self: &Arc<Self>, checkpoint_store: Arc<CheckpointStore>) {
+        let store = self.clone();
+        let task = tokio::task::spawn_blocking(move || {
+            store.metrics.history_backfill_running.set(1);
+            if let Err(e) = store.backfill_history(&checkpoint_store) {
+                warn!("the gRPC digest history backfill stopped: {e}");
+            }
+            store.metrics.history_backfill_running.set(0);
+        });
+        *self.history_backfill_task.lock().unwrap() = Some(task);
+    }
+
+    /// Waits for the background history replay to finish — for tests.
+    pub async fn wait_for_history_backfill_for_testing(&self) {
+        self.join_backfill_task()
+            .await
+            .expect("history backfill task failed");
+    }
+
+    /// Stops the background history replay at its next checkpoint boundary
+    /// and waits for it to finish, so shutdown does not block on a full
+    /// replay.
+    pub async fn shutdown(&self) {
+        self.cancelled.store(true, Ordering::Relaxed);
+        if let Err(e) = self.join_backfill_task().await {
+            warn!("the gRPC digest history backfill task failed: {e}");
+        }
+    }
+
+    /// Awaits the backfill task, if one is still running.
+    async fn join_backfill_task(&self) -> Result<(), tokio::task::JoinError> {
+        let task = self.history_backfill_task.lock().unwrap().take();
+        match task {
+            Some(task) => task.await,
+            None => Ok(()),
+        }
+    }
+
+    /// Fills the digest history for the checkpoints below
+    /// `history_watermark`, newest first, until it reaches the
+    /// checkpoint-contents pruner, an epoch [`Self::prune`] removed from the
+    /// index, or the checkpoint retention. The marker commits atomically
+    /// with each checkpoint's digests, so an interrupted run resumes where
+    /// it stopped. No-op when the marker is absent (the history was indexed
+    /// continuously and is complete). Reports its progress through the
+    /// `grpc_index_history_backfill_lowest_replayed_checkpoint` gauge; where
+    /// it stopped and why is in the log.
+    #[tracing::instrument(skip_all)]
+    fn backfill_history(&self, checkpoint_store: &CheckpointStore) -> Result<(), StorageError> {
+        let Some(watermark) = self.tables.history_watermark.get(&())? else {
+            return Ok(());
+        };
+        let Some(mut next) = watermark.checked_sub(1) else {
+            return Ok(());
+        };
+
+        info!("Backfilling the gRPC digest history from checkpoint {next} downwards");
+        self.metrics
+            .history_backfill_lowest_replayed_checkpoint
+            .set(watermark as i64);
+        let start_time = Instant::now();
+        let mut last_report = Instant::now();
+        let mut replayed: u64 = 0;
+        loop {
+            if self.cancelled.load(Ordering::Relaxed) {
+                info!("Stopping the gRPC digest history backfill at checkpoint {next}: shutdown");
+                break;
+            }
+            // The pruner advances while the backfill runs; re-check the
+            // bound so the replay stops before data that is about to
+            // disappear.
+            let lowest = checkpoint_store
+                .get_highest_pruned_checkpoint_seq_number()?
+                .map(|c| c.saturating_add(1))
+                .unwrap_or(0);
+            if next < lowest {
+                break;
+            }
+            let summary = match checkpoint_store.get_checkpoint_by_sequence_number(next)? {
+                Some(summary) => summary,
+                None => {
+                    // The checkpoint pruner can pass the bound check above
+                    // mid-iteration; reaching pruned data is a terminal
+                    // condition, not a failure.
+                    if self.backfill_reached_pruned_data(checkpoint_store, next, None)? {
+                        break;
+                    }
+                    return Err(StorageError::missing(format!("missing checkpoint {next}")));
+                }
+            };
+            let earliest_retained = self.history.earliest_retained();
+            if summary.epoch < earliest_retained {
+                info!(
+                    "Stopping the gRPC digest history backfill at checkpoint {next}: epoch {} \
+                     was pruned from the index, only epochs from {earliest_retained} on are \
+                     retained",
+                    summary.epoch
+                );
+                break;
+            }
+            if let Some(horizon) = self.backfill_retention_horizon(summary.epoch) {
+                if summary.epoch < horizon {
+                    info!(
+                        "Stopping the gRPC digest history backfill at checkpoint {next}: epoch \
+                         {} is past the checkpoint retention, the next pruning pass would drop \
+                         it again",
+                        summary.epoch
+                    );
+                    break;
+                }
+            }
+            if let Err(e) = self.replay_checkpoint_history(checkpoint_store, &summary) {
+                // See above: the pruners advance while the backfill runs.
+                if self.backfill_reached_pruned_data(checkpoint_store, next, Some(summary.epoch))? {
+                    break;
+                }
+                // A pruner deletes a checkpoint's data before it advances
+                // the watermark checked above, so the replay can find the
+                // data already gone. That is the end of the locally
+                // available history, not a failure.
+                if e.kind() == StorageErrorKind::Missing {
+                    info!(
+                        "Stopping the gRPC digest history backfill at checkpoint {next}: its \
+                         data is already gone ({e})"
+                    );
+                    break;
+                }
+                return Err(e);
+            }
+            replayed += 1;
+            self.metrics
+                .history_backfill_lowest_replayed_checkpoint
+                .set(next as i64);
+            if last_report.elapsed() >= PROGRESS_REPORT_INTERVAL {
+                last_report = Instant::now();
+                let remaining = next - lowest;
+                let fraction = replayed as f64 / (replayed + remaining) as f64;
+                let elapsed = start_time.elapsed();
+                let rate = progress_rate(replayed, elapsed);
+                let eta = eta_display(elapsed, fraction);
+                info!(
+                    "Backfilling the gRPC digest history: {:.1}% done (checkpoint {next} down \
+                     to {lowest}), {rate:.0} checkpoints/s, ETA ~{eta}",
+                    fraction * 100.0,
+                );
+            }
+            let Some(n) = next.checked_sub(1) else {
+                break;
+            };
+            next = n;
+        }
+
+        info!(
+            "Backfilling {replayed} checkpoints of gRPC digest history took {} seconds",
+            start_time.elapsed().as_secs()
+        );
+        Ok(())
+    }
+
+    /// Whether a pruner removed checkpoint `next`, or the history bucket of
+    /// its epoch, while the backfill was working on it — the same bounds the
+    /// loop checks before each checkpoint, re-read once the work on it has
+    /// failed. `epoch` is the checkpoint's epoch, where it is known. Logs
+    /// the reason the backfill stops.
+    fn backfill_reached_pruned_data(
+        &self,
+        checkpoint_store: &CheckpointStore,
+        next: CheckpointSequenceNumber,
+        epoch: Option<EpochId>,
+    ) -> Result<bool, StorageError> {
+        if checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()?
+            .is_some_and(|pruned| next <= pruned)
+        {
+            info!(
+                "Stopping the gRPC digest history backfill at checkpoint {next}: it was pruned \
+                 mid-replay"
+            );
+            return Ok(true);
+        }
+        let earliest_retained = self.history.earliest_retained();
+        if let Some(epoch) = epoch.filter(|&epoch| epoch < earliest_retained) {
+            info!(
+                "Stopping the gRPC digest history backfill at checkpoint {next}: epoch {epoch} \
+                 was pruned from the index mid-replay, only epochs from {earliest_retained} on \
+                 are retained"
+            );
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    /// The lowest epoch the backfill may replay when checkpoint pruning is
+    /// configured: the horizon [`Self::prune`] enforces, computed against
+    /// the newest bucket. The `earliest_retained_epoch` floor alone is not
+    /// enough — it is written by the first pruning pass, and until then a
+    /// rebuilt store's backfill would replay epochs that pass drops again.
+    /// `None` when checkpoint pruning is off.
+    ///
+    /// `current_epoch` stands in for the newest epoch while no bucket
+    /// exists yet, on a rebuilt store whose backfill has not committed its
+    /// first checkpoint.
+    fn backfill_retention_horizon(&self, current_epoch: EpochId) -> Option<EpochId> {
+        let epochs_to_retain = self.epochs_to_retain?;
+        let newest = self.history.newest_epoch().unwrap_or(current_epoch);
+        Some(newest.saturating_sub(epochs_to_retain.saturating_sub(1)))
+    }
+
+    /// Replays one checkpoint's digests into its epoch's history bucket and
+    /// lowers `history_watermark` to it, in one atomic batch.
+    fn replay_checkpoint_history(
+        &self,
+        checkpoint_store: &CheckpointStore,
+        summary: &VerifiedCheckpoint,
+    ) -> Result<(), StorageError> {
+        let checkpoint_seq = summary.sequence_number;
+        let contents = checkpoint_store
+            .get_checkpoint_contents(&summary.contents_digest)?
+            .ok_or_else(|| {
+                StorageError::missing(format!("missing checkpoint contents {checkpoint_seq}"))
+            })?;
+        let bucket = self
+            .history
+            .ensure(summary.epoch)
+            .map_err(|e| StorageError::custom(e.to_string()))?;
+
+        let mut batch = self.tables.history_watermark.batch();
+        IndexStoreTables::index_transactions(&bucket, checkpoint_seq, &contents, &mut batch)?;
+        batch.insert_batch(&self.tables.history_watermark, [((), checkpoint_seq)])?;
+        // A plain WAL-enabled write: the database is serving lookups, and
+        // the marker must land atomically with the digests.
+        // `drop_tolerant_write_options` discards the bucket's rows if
+        // `prune` dropped its column family mid-replay; the next loop
+        // iteration then stops at the pruned epoch.
+        batch
+            .write_opt(&drop_tolerant_write_options())
+            .map_err(StorageError::from)?;
+        Ok(())
     }
 
     /// Drops the digest history of expired epochs, see
@@ -1301,7 +1529,7 @@ impl GrpcIndexesStore {
         &self,
         restore_checkpoint: CheckpointSequenceNumber,
     ) -> Result<(), TypedStoreError> {
-        self.tables.finalize(restore_checkpoint)
+        self.tables.finalize(Some(restore_checkpoint))
     }
 
     /// Finalizes the restore as [`Self::finalize_restore`] does, then closes
@@ -1767,9 +1995,11 @@ mod tests {
 
         let grpc = GrpcIndexesStore::new(
             tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            None,
             authority_state.database_for_testing(),
             checkpoint_store,
-            &Default::default(),
+            Arc::default(),
         )
         .await
         .unwrap();
@@ -1806,9 +2036,11 @@ mod tests {
         let tmp_dir = iota_common::tempdir();
         let opened = GrpcIndexesStore::new(
             tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            None,
             authority_state.database_for_testing(),
             checkpoint_store,
-            &Arc::new(AtomicBool::new(true)),
+            Arc::new(AtomicBool::new(true)),
         )
         .await;
         let Err(error) = opened else {
@@ -1825,9 +2057,11 @@ mod tests {
 
         let grpc = GrpcIndexesStore::new(
             tmp_dir.path().to_path_buf(),
+            &Registry::default(),
+            None,
             authority_state.database_for_testing(),
             checkpoint_store,
-            &Default::default(),
+            Arc::default(),
         )
         .await
         .expect("the next open must rebuild the store the cancelled one left behind");
@@ -1874,6 +2108,12 @@ mod tests {
                 .needs_to_do_initialization(&checkpoint_store)
                 .unwrap(),
             "a finalized restore must open in place"
+        );
+        assert_eq!(
+            grpc.tables.history_watermark.get(&()).unwrap(),
+            Some(6),
+            "the restore leaves no local history below the restore checkpoint, so the replay \
+             marker sits one past it"
         );
 
         // A finalize behind the executed watermark still triggers re-init.
@@ -2025,6 +2265,54 @@ mod tests {
         assert!(
             grpc.history.ensure(0).is_err(),
             "the retention floor must survive a reopen"
+        );
+    }
+    /// The digest backfill records its progress atomically with each
+    /// checkpoint's rows, so an interrupted replay resumes instead of
+    /// starting over.
+    #[tokio::test]
+    async fn digest_backfill_resumes_from_its_marker() {
+        let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+            .insert_genesis_checkpoint()
+            .build()
+            .await;
+        let checkpoint_store = &authority_state.checkpoint_store;
+        let genesis_checkpoint = checkpoint_store
+            .get_checkpoint_by_sequence_number(0)
+            .unwrap()
+            .unwrap();
+        checkpoint_store
+            .update_highest_executed_checkpoint(&genesis_checkpoint)
+            .unwrap();
+        let genesis_tx_digest = checkpoint_store
+            .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
+            .unwrap()
+            .unwrap()
+            .iter()
+            .next()
+            .unwrap()
+            .transaction;
+
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+        grpc.tables.history_watermark.insert(&(), &1).unwrap();
+
+        grpc.backfill_history(checkpoint_store).unwrap();
+
+        assert_eq!(grpc.tables.history_watermark.get(&()).unwrap(), Some(0));
+        assert_eq!(
+            grpc.get_transaction_info(&genesis_tx_digest)
+                .unwrap()
+                .unwrap()
+                .checkpoint,
+            0
+        );
+        assert_eq!(
+            grpc.metrics
+                .history_backfill_lowest_replayed_checkpoint
+                .get(),
+            0,
+            "the gauge must report how far down the replay got"
         );
     }
 }
