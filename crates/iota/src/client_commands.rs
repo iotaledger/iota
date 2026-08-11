@@ -663,7 +663,7 @@ pub struct TxProcessingArgs {
     /// node. Only valid together with --dry-run. Requires a `grpc` URL to be
     /// configured for the active env, from which objects and chain parameters
     /// are resolved.
-    #[arg(long, requires = "dry_run")]
+    #[arg(long, requires = "dry_run", conflicts_with = "dev_inspect")]
     pub local: bool,
     /// Instead of executing the transaction, serialize the bcs bytes of the
     /// unsigned transaction data (Transaction) using base64 encoding,
@@ -3175,6 +3175,21 @@ fn format_balance(
 }
 
 /// Helper function to reduce code duplication for executing dry run
+/// Cap the gas budget of a simulation without an explicit `--gas-budget` at
+/// the total balance of the gas coins it was given, warning when the cap binds:
+/// a budget equal to the whole balance leaves nothing to split off.
+pub(crate) fn cap_gas_budget_to_balance(balance: u64, max_gas_budget: u64) -> u64 {
+    let gas_budget = min(balance, max_gas_budget);
+    if gas_budget == balance {
+        let warn_msg = format!(
+            "Gas budget is equal to the total gas balance of the provided gas coins: {balance}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
+        );
+        warn!(warn_msg);
+        eprintln!("{}", warn_msg.yellow().bold());
+    }
+    gas_budget
+}
+
 pub async fn execute_dry_run(
     context: &mut WalletContext,
     signer: Address,
@@ -3211,15 +3226,7 @@ pub async fn execute_dry_run(
                             .expect("couldn't convert gas coin into object"),
                     )?
                 }
-                let final_gas_budget = min(gas_budget, max_gas_budget);
-                if final_gas_budget == gas_budget {
-                    let warn_msg = format!(
-                        "Gas budget is equal to the total gas balance of the provided gas coins: {gas_budget}. Manually provide a lower --gas-budget if you need to split a coin from the gas coin."
-                    );
-                    warn!(warn_msg);
-                    eprintln!("{}", warn_msg.yellow().bold());
-                }
-                final_gas_budget
+                cap_gas_budget_to_balance(gas_budget, max_gas_budget)
             }
         }
     };
@@ -3377,8 +3384,8 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
         "Cannot specify both flags: --serialize-unsigned-transaction and --serialize-signed-transaction."
     );
     ensure!(
-        !local || dry_run,
-        "--local is only valid together with --dry-run."
+        !local || (dry_run && !dev_inspect),
+        "--local is only valid together with --dry-run"
     );
     let gas_price = if let Some(gas_price) = gas_price {
         gas_price
