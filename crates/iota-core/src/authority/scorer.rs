@@ -228,7 +228,7 @@ impl ScorerV1 {
             "median_report requires at least one reporter"
         );
         let committee_size = voting_power.len();
-        let median_for = |select: &dyn Fn(&MisbehaviorObservationsV1) -> &[u64]| {
+        let weighted_median_for = |select: &dyn Fn(&MisbehaviorObservationsV1) -> &[u64]| {
             let rows: Vec<(&[u64], VotingPower)> = reporters
                 .iter()
                 .map(|(counts, vp)| (select(counts), *vp))
@@ -237,10 +237,10 @@ impl ScorerV1 {
         };
 
         MisbehaviorObservationsV1 {
-            faulty_blocks_provable: median_for(&|c| &c.faulty_blocks_provable),
-            faulty_blocks_unprovable: median_for(&|c| &c.faulty_blocks_unprovable),
-            missing_proposals: median_for(&|c| &c.missing_proposals),
-            equivocations: median_for(&|c| &c.equivocations),
+            faulty_blocks_provable: weighted_median_for(&|c| &c.faulty_blocks_provable),
+            faulty_blocks_unprovable: weighted_median_for(&|c| &c.faulty_blocks_unprovable),
+            missing_proposals: weighted_median_for(&|c| &c.missing_proposals),
+            equivocations: weighted_median_for(&|c| &c.equivocations),
         }
     }
 
@@ -370,7 +370,7 @@ impl ScorerV2 {
             "median_report requires at least one reporter"
         );
         let committee_size = voting_power.len();
-        let median_for = |select: &dyn Fn(&MisbehaviorObservationsV2) -> &[u64]| {
+        let weighted_median_for = |select: &dyn Fn(&MisbehaviorObservationsV2) -> &[u64]| {
             let rows: Vec<(&[u64], VotingPower)> = reporters
                 .iter()
                 .map(|(counts, vp)| (select(counts), *vp))
@@ -379,11 +379,11 @@ impl ScorerV2 {
         };
 
         MisbehaviorObservationsV2 {
-            faulty_blocks_provable: median_for(&|c| &c.faulty_blocks_provable),
-            faulty_blocks_unprovable: median_for(&|c| &c.faulty_blocks_unprovable),
-            missing_proposals: median_for(&|c| &c.missing_proposals),
-            equivocations: median_for(&|c| &c.equivocations),
-            invalid_bundle_parts: median_for(&|c| &c.invalid_bundle_parts),
+            faulty_blocks_provable: weighted_median_for(&|c| &c.faulty_blocks_provable),
+            faulty_blocks_unprovable: weighted_median_for(&|c| &c.faulty_blocks_unprovable),
+            missing_proposals: weighted_median_for(&|c| &c.missing_proposals),
+            equivocations: weighted_median_for(&|c| &c.equivocations),
+            invalid_bundle_parts: weighted_median_for(&|c| &c.invalid_bundle_parts),
         }
     }
 
