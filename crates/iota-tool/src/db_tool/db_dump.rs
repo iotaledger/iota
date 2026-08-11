@@ -239,10 +239,12 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
 ///
 /// This does not also prune the RPC index history: that history now follows
 /// `num_epochs_to_retain_for_indexes`, a knob independent of the checkpoint
-/// retention this function exercises, and pruning it requires the full
-/// `RpcIndexesStore` (authority store, checkpoint store, and a running node's
-/// worth of setup) rather than the perpetual tables and checkpoint store
-/// alone. Use a running node's own pruner to exercise index pruning.
+/// retention this function exercises. `RpcIndexesStore::new_without_init`
+/// hardcodes `epochs_to_retain` to `None`, so `RpcIndexesStore::prune` would
+/// always no-op through it; reproducing the old per-store `prune(1)` call
+/// would need that constructor extended with an `epochs_to_retain` override,
+/// which conflates a debug tool's needs with the store's real constructor.
+/// Use a running node's own pruner to exercise index pruning.
 pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
     let checkpoint_store = CheckpointStore::new(&db_path.join("checkpoints"));
