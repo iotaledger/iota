@@ -4,15 +4,8 @@
 use std::str::FromStr;
 
 use clap::{Arg, Command};
-use fastcrypto::encoding::{Base64, Encoding};
 use iota_sdk::IotaClientBuilder;
 use iota_sdk_types::Transaction;
-
-fn transaction_from_base64(b64: &str) -> Result<Transaction, anyhow::Error> {
-    let bytes = Base64::decode(b64)
-        .map_err(|e| anyhow::format_err!("Invalid base64 in transaction: {e}"))?;
-    bcs::from_bytes(&bytes).map_err(|e| anyhow::format_err!("Invalid transaction format: {e}"))
-}
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -67,7 +60,8 @@ async fn main() -> Result<(), anyhow::Error> {
         println!("No IOTA network specified, only blind-signing supported.");
     }
 
-    let transaction = transaction_from_base64(matches.get_one::<String>("transaction").unwrap())?;
+    let transaction = Transaction::from_base64(matches.get_one::<String>("transaction").unwrap())
+        .map_err(|e| anyhow::format_err!("Invalid transaction: {e}"))?;
 
     let signer = iota_ledger_signer::LedgerSigner::new_with_default(derivation_path, client)?;
 

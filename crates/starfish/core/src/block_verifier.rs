@@ -13,6 +13,7 @@ use crate::{
         genesis_block_headers,
     },
     context::Context,
+    encoder::shard_bytes,
     error::{ConsensusError, ConsensusResult},
     transaction::TransactionVerifier,
 };
@@ -342,6 +343,17 @@ pub(crate) fn serialized_transactions_size_limit(context: &Context) -> usize {
         .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
 }
 
+/// Upper bound on the length of a shard encoding a transaction payload that
+/// passes `check_transactions`. `usize::MAX` when the protocol payload limits
+/// are disabled, as no finite shard length is implied then.
+pub(crate) fn max_shard_bytes(context: &Context) -> usize {
+    let payload_limit = serialized_transactions_size_limit(context);
+    if payload_limit == usize::MAX {
+        return usize::MAX;
+    }
+    shard_bytes(payload_limit, context.committee.info_length())
+}
+
 #[cfg(test)]
 pub(crate) struct NoopBlockVerifier;
 
@@ -411,6 +423,30 @@ pub(crate) mod test {
         let expected = uleb128_len(max_count) + max_count * (uleb128_len(tx_size) + tx_size);
         assert_eq!(serialized.len(), expected);
         assert!(serialized.len() <= serialized_transactions_size_limit(&context));
+    }
+
+    /// Pins `max_shard_bytes` to what the encoder actually produces for a
+    /// maximal payload, so a change to the encoder's chunking is caught here
+    /// rather than by shards being refused at ingress.
+    #[tokio::test]
+    async fn max_shard_bytes_bounds_maximal_shard() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let payload_limit = serialized_transactions_size_limit(&context);
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.parity_length();
+
+        let mut encoder = crate::encoder::create_encoder(&context);
+        let shards = encoder
+            .encode_serialized_data(
+                &bytes::Bytes::from(vec![0u8; payload_limit]),
+                info_length,
+                parity_length,
+            )
+            .unwrap();
+
+        let longest = shards.iter().map(|shard| shard.len()).max().unwrap();
+        assert_eq!(longest, max_shard_bytes(&context));
     }
 
     #[tokio::test]

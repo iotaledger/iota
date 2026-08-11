@@ -10,7 +10,12 @@ task 1, lines 9-45:
 //# publish
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7151600, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 7151600
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 2, lines 46-53:
 //# programmable --sender A
@@ -21,7 +26,12 @@ task 2, lines 46-53:
 //> test::m1::pubs(Result(3));
 // annotated objects
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 980400
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 3, lines 54-61:
 //# programmable --sender A
@@ -32,7 +42,12 @@ task 3, lines 54-61:
 //> test::m1::pubs(Result(3));
 // empty objects
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 980400
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 4, lines 62-66:
 //# programmable --sender A
@@ -40,7 +55,12 @@ task 4, lines 62-66:
 //> test::m1::pubs(Result(0));
 // mixed new and old. Send an object to A and mix it in a vector with the newly created ones.
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 980400
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 5, lines 67-69:
 //# programmable --sender A --inputs @A
@@ -48,7 +68,12 @@ task 5, lines 67-69:
 //> TransferObjects([Result(0)], Input(0));
 created: object(5,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 2264800, storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2264800
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 6, line 71:
 //# view-object 5,0
@@ -73,4 +98,9 @@ task 7, lines 73-79:
 //> test::m1::pubs(Result(3));
 mutated: object(0,0)
 deleted: object(5,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 980400, storage_rebate: 2264800, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 980400
+├── Storage Rebate: 2264800
+└── Non-Refundable Storage Fee: 0

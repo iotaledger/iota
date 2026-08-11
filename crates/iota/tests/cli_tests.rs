@@ -17,7 +17,6 @@ use std::{
 };
 
 use expect_test::expect;
-use fastcrypto::encoding::{Base64, Encoding};
 use iota::{
     PrintableResult,
     client_commands::{
@@ -4992,7 +4991,7 @@ async fn test_transfer_serialized_data() -> Result<(), anyhow::Error> {
         panic!("Expected SerializedUnsignedTransaction result");
     };
 
-    let tx_bytes = Base64::encode(bcs::to_bytes(&tx_data)?);
+    let tx_bytes = tx_data.to_base64();
     let transfer_serialized = IotaClientCommands::SerializedTx {
         tx_bytes,
         processing: TxProcessingArgs::default(),
@@ -5050,7 +5049,7 @@ async fn test_transfer_serialized_kind() -> Result<(), anyhow::Error> {
         panic!("Expected SerializedUnsignedTransaction result");
     };
 
-    let tx_bytes = Base64::encode(bcs::to_bytes(tx_data.kind())?);
+    let tx_bytes = tx_data.kind().to_base64();
     let transfer_serialized = IotaClientCommands::SerializedTxKind {
         tx_bytes,
         payment: PaymentArgs { gas: vec![o[1]] },
@@ -6828,7 +6827,7 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
 
     let sign_result = IotaClientCommands::Sign {
         address: KeyIdentity::Address(account_address.into()),
-        data: Base64::encode(bcs::to_bytes(&tx_data).unwrap()),
+        data: tx_data.to_base64(),
         intent: None,
         auth_call_args: Some(vec!["hello".to_string()]),
         auth_type_args: None,

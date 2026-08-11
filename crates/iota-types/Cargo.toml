@@ -70,7 +70,6 @@ tonic.workspace = true
 # internal dependencies
 iota-network-stack.workspace = true
 prometheus-filtered.workspace = true
-starfish-config.workspace = true
 
 [dev-dependencies]
 # external dependencies

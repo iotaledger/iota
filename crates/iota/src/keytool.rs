@@ -462,9 +462,8 @@ impl KeyToolCommand {
                 }
 
                 if let Some(tx_bytes) = tx_bytes {
-                    let tx_bytes = Base64::decode(&tx_bytes)
-                        .map_err(|e| anyhow!("Invalid base64 tx bytes: {e}"))?;
-                    let tx: Transaction = bcs::from_bytes(&tx_bytes)?;
+                    let tx = Transaction::from_base64(&tx_bytes)
+                        .map_err(|e| anyhow!("Invalid tx bytes: {e}"))?;
                     let s = UserSignature::Multisig(multisig);
                     let res =
                         s.verify_claims(&tx.intent_message(), address, &VerifyParams::default());
@@ -484,12 +483,9 @@ impl KeyToolCommand {
                     Ok(sig) => sig,
                     Err(_) => {
                         // Try decoding as SenderSignedTransaction
-                        let tx_bytes = Base64::decode(&sig)
-                            .map_err(|e| anyhow!("Invalid base64 encoding: {e}"))?;
-                        let tx =
-                            bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes).map_err(|e| {
-                                anyhow!("Failed to decode as signature or transaction: {e}")
-                            })?;
+                        let tx = SenderSignedTransaction::from_base64(&sig).map_err(|e| {
+                            anyhow!("Failed to decode as signature or transaction: {e}")
+                        })?;
                         tx.0.signatures
                             .into_iter()
                             .next()
@@ -504,7 +500,7 @@ impl KeyToolCommand {
                         let public_key_base64 = pk.encode_base64();
                         let signature_hex = format!("0x{}", Hex::encode(s.signature_bytes()));
                         DecodedSigOutput::Signature {
-                            scheme: s.scheme().to_string(),
+                            scheme: lowercase_key_scheme(s.scheme()),
                             public_key_base64,
                             address: address.to_string(),
                             signature_hex,
@@ -565,9 +561,8 @@ impl KeyToolCommand {
                 CommandOutput::DecodeSig(decoded)
             }
             KeyToolCommand::DecodeOrVerifyTx { tx_bytes, sig } => {
-                let tx_bytes = Base64::decode(&tx_bytes)
-                    .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
-                let tx: Transaction = bcs::from_bytes(&tx_bytes)?;
+                let tx = Transaction::from_base64(&tx_bytes)
+                    .map_err(|e| anyhow!("Invalid tx bytes: {e:?}"))?;
                 match sig {
                     None => {
                         CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput { tx, result: None })
@@ -630,7 +625,7 @@ impl KeyToolCommand {
                         source: "keypair".to_string(),
                         public_base64_key: Some(kp.public().encode_base64()),
                         public_base64_key_with_flag: Some(public_base64_key_with_flag),
-                        key_scheme: Some(key_scheme.to_string()),
+                        key_scheme: Some(lowercase_key_scheme(key_scheme)),
                         flag: Some(SignatureScheme::Bls12381.to_u8()),
                         mnemonic: None,
                         peer_id: None,
@@ -790,7 +785,7 @@ impl KeyToolCommand {
                                 source: "keypair".to_string(),
                                 public_base64_key: Some(public_base64_key),
                                 public_base64_key_with_flag: Some(public_base64_key_with_flag),
-                                key_scheme: Some(SignatureScheme::Bls12381.to_string()),
+                                key_scheme: Some(lowercase_key_scheme(SignatureScheme::Bls12381)),
                                 flag: Some(SignatureScheme::Bls12381.to_u8()),
                                 peer_id: None,
                                 mnemonic: None,
@@ -810,10 +805,8 @@ impl KeyToolCommand {
             } => {
                 let address = get_identity_address_from_keystore(address, keystore)?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
-                let msg: Transaction = bcs::from_bytes(
-                    &Base64::decode(&data)
-                        .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?,
-                )?;
+                let msg = Transaction::from_base64(&data)
+                    .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?;
                 let intent_msg = IntentMessage::new(intent, msg);
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
                 let mut hasher = DefaultHash::default();
@@ -869,10 +862,8 @@ impl KeyToolCommand {
                 info!("Raw tx_bytes to execute: {}", data);
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
                 info!("Intent: {:?}", intent);
-                let msg: Transaction = bcs::from_bytes(
-                    &Base64::decode(&data)
-                        .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?,
-                )?;
+                let msg = Transaction::from_base64(&data)
+                    .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?;
                 let intent_msg = IntentMessage::new(intent, msg);
                 info!(
                     "Raw intent message: {:?}",
@@ -922,14 +913,12 @@ impl KeyToolCommand {
                 })
             }
             KeyToolCommand::TxDigest { tx_bytes } => {
-                let tx_bytes = Base64::decode(&tx_bytes)
-                    .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
-                let tx = match bcs::from_bytes::<Transaction>(&tx_bytes) {
+                let tx = match Transaction::from_base64(&tx_bytes) {
                     Ok(tx) => tx,
                     Err(_) => {
-                        let deserialized_tx =
-                            bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes)?;
-                        deserialized_tx.0.transaction
+                        SenderSignedTransaction::from_base64(&tx_bytes)?
+                            .0
+                            .transaction
                     }
                 };
                 CommandOutput::TxDigest(TxDigestOutput {
@@ -985,7 +974,7 @@ impl From<&StoredKey> for Key {
                 source: stored.source().to_string(),
                 public_base64_key: Some(Base64::encode(pk.as_ref())),
                 public_base64_key_with_flag: Some(pk.encode_base64()),
-                key_scheme: Some(pk.scheme().to_string()),
+                key_scheme: Some(lowercase_key_scheme(pk.scheme())),
                 mnemonic: None,
                 flag: Some(pk.flag()),
                 peer_id: anemo_styling(&pk),
@@ -1209,7 +1198,7 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
             .to_bech32()
             .map_err(|_| anyhow!("Cannot encode keypair"))?,
         base64_with_flag: Base64::encode(ikp.to_bytes()),
-        scheme: ikp.scheme().to_string(),
+        scheme: lowercase_key_scheme(ikp.scheme()),
     })
 }
 
@@ -1219,6 +1208,15 @@ fn anemo_styling(pk: &PublicKey) -> Option<String> {
     } else {
         None
     }
+}
+
+/// The lowercase spelling of a key scheme, as used in CLI output and accepted
+/// as an `iota keytool` argument.
+///
+/// `SignatureScheme`'s `Display` renders the variant name; the CLI has always
+/// emitted the lowercase form, and scripts parse it.
+pub(crate) fn lowercase_key_scheme(scheme: SignatureScheme) -> String {
+    scheme.to_string().to_lowercase()
 }
 
 /// Authority keys have no on-chain account; this address only labels key

@@ -22,12 +22,11 @@ use iota_sdk::{
     },
 };
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
-    SignatureScheme, TypeTag, UserSignature,
+    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    SharedObjectReference, SignatureScheme, TypeTag, UserSignature,
 };
 use iota_types::{
     crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, transaction::CallArg,
-    utils::MoveAuthenticatorV1,
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs

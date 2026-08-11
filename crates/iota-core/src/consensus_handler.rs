@@ -19,7 +19,6 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::AuthorityName,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
     transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
 };
@@ -43,6 +42,7 @@ use crate::{
         AuthorityIndex,
         consensus_output_api::{ConsensusOutputAPI, ConsensusOutputTransactions},
     },
+    epoch_start_consensus_committee::get_consensus_committee,
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     scoring_decision::update_low_scoring_authorities,
@@ -89,7 +89,7 @@ impl ConsensusHandlerInitializer {
 
     pub fn new_consensus_handler(&self) -> ConsensusHandler<CheckpointService> {
         let new_epoch_start_state = self.epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
 
         ConsensusHandler::new(
             self.epoch_store.clone(),
@@ -972,7 +972,7 @@ mod tests {
 
         let epoch_store = state.epoch_store_for_testing().clone();
         let new_epoch_start_state = epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
 
@@ -1123,7 +1123,7 @@ mod tests {
 
         let epoch_store = state.epoch_store_for_testing().clone();
         let new_epoch_start_state = epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
         let rgp = epoch_store.reference_gas_price();
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));

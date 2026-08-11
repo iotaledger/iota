@@ -16,12 +16,11 @@
 
 use std::{fs, path::PathBuf};
 
-use fastcrypto::encoding::{Base64, Encoding};
 use iota_sdk_types::{
     MoveStruct, SenderSignedTransaction, Transaction, TransactionDigest, UserSignature,
 };
 use iota_types::{
-    object::{MoveStructExt, Object},
+    object::{MoveStructExt, Object, ObjectInner},
     transaction::TransactionAPI,
 };
 use iota_vm_sdk::{
@@ -54,13 +53,13 @@ const FUNDED_GAS_COIN_VALUE: u64 = 1_000_000_000_000;
 
 impl Fixture {
     fn transaction(&self) -> Transaction {
-        bcs::from_bytes(&b64(&self.tx_b64)).expect("decode tx")
+        Transaction::from_base64(&self.tx_b64).expect("decode tx")
     }
 
     fn decoded_signatures(&self) -> Vec<UserSignature> {
         self.signatures
             .iter()
-            .map(|s| UserSignature::from_bytes(b64(s)).expect("decode signature"))
+            .map(|s| UserSignature::from_base64(s).expect("decode signature"))
             .collect()
     }
 
@@ -71,7 +70,7 @@ impl Fixture {
     fn objects(&self) -> Vec<Object> {
         self.objects
             .iter()
-            .map(|obj| bcs::from_bytes(&b64(&obj.bcs_b64)).expect("decode object"))
+            .map(|obj| Object::from(ObjectInner::from_base64(&obj.bcs_b64).expect("decode object")))
             .collect()
     }
 
@@ -86,10 +85,6 @@ impl Fixture {
     fn vm(&self) -> LocalVm {
         LocalVm::new(chain_context(self), self.store()).expect("build LocalVm")
     }
-}
-
-fn b64(s: &str) -> Vec<u8> {
-    Base64::decode(s).expect("base64 decode")
 }
 
 /// The [`ChainContext`] described by a fixture.
