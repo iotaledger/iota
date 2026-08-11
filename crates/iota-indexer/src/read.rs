@@ -521,6 +521,28 @@ impl IndexerReader {
         }
     }
 
+    /// Fetches objects by their ID and version from the historical fallback
+    /// storage. Returns one entry per requested pair in the same order, `None`
+    /// when the fallback does not have the object.
+    ///
+    /// - If `before_version` is `false`, it looks for the exact version.
+    /// - If `true`, it finds the latest version before the given one.
+    ///
+    /// Returns [`IndexerError::NotSupported`] when the historical fallback is
+    /// not configured; check [`Self::is_fallback_enabled`] before calling.
+    pub async fn multi_get_fallback_objects(
+        &self,
+        object_refs: &[(ObjectId, Version)],
+        before_version: bool,
+    ) -> IndexerResult<Vec<Option<StoredObject>>> {
+        let Some(kv_reader) = self.fallback_reader() else {
+            return Err(IndexerError::NotSupported(
+                "historical fallback is not configured".to_string(),
+            ));
+        };
+        kv_reader.objects(object_refs, before_version).await
+    }
+
     pub async fn get_package(&self, package_id: ObjectId) -> Result<Package, IndexerError> {
         let store = self.package_resolver.package_store();
         let pkg = store
