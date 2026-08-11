@@ -23,10 +23,26 @@ use tracing::{info, warn};
 use typed_store::{
     TypedStoreError,
     database::Database,
-    rocks::{DBMap, synced_write_options},
+    rocks::{DBMap, DBOptions, synced_write_options},
     rocksdb,
     traits::Map,
 };
+
+/// Options for the per-epoch history column families. Each bucket is
+/// write-once (appended during its epoch or the backfill, then only read)
+/// and queried by bounded range scans plus exact-key digest probes, which
+/// the block-based bloom filters answer from RAM. `set_block_options`
+/// creates the single block cache that every clone of these options shares.
+pub(crate) fn history_cf_options(
+    db_options: &DBOptions,
+    block_cache_size_mb: usize,
+) -> rocksdb::Options {
+    db_options
+        .clone()
+        .optimize_for_write_throughput_no_deletion()
+        .set_block_options(block_cache_size_mb, 16 << 10)
+        .options
+}
 
 /// The column-family name of `epoch`'s bucket: `"{cf_prefix}{epoch}"`.
 pub(crate) fn bucket_cf_name(cf_prefix: &str, epoch: EpochId) -> String {

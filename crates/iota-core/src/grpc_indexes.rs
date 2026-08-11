@@ -24,20 +24,22 @@ use iota_types::{
     move_package::MovePackageExt,
     object::Object,
     storage::{
-        AccountOwnedObjectInfo, DynamicFieldKey, EpochInfo, OwnedObjectCursor,
-        OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem, PackageVersionKey,
-        TransactionInfo, error::Error as StorageError,
+        AccountOwnedObjectInfo, DynamicFieldKey, OwnedObjectCursor, OwnedObjectIteratorItem,
+        PackageVersionInfo, PackageVersionIteratorItem, PackageVersionKey, TransactionInfo,
+        error::Error as StorageError,
     },
 };
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 use typed_store::{
     DBMapUtils, TypedStoreError,
-    database::wait_for_database_close,
+    database::{Database, drop_tolerant_write_options, wait_for_database_close},
     rocks::{
-        DBMap, DBMapTableConfigMap, MetricConf, bulk_ingestion_options,
-        bulk_ingestion_write_options, open_cf_opts, safe_drop_db,
+        DBMap, DBMapTableConfigMap, MetricConf, ReadWriteOptions, bulk_ingestion_options,
+        bulk_ingestion_write_options, default_db_options, list_tables, open_cf_opts,
+        read_size_from_env, safe_drop_db,
     },
+    rocksdb,
     traits::Map,
 };
 
@@ -46,15 +48,24 @@ use crate::{
     checkpoints::CheckpointStore,
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::{LiveObjectIndexer, ParMakeLiveObjectIndexer},
+    rpc_index_history::{self, EpochBuckets},
 };
 
 /// Bump this when changing the serialization format of an existing table.
 /// A version mismatch triggers a full re-index via
 /// `needs_to_do_initialization`.
-const CURRENT_DB_VERSION: u64 = 1;
+const CURRENT_DB_VERSION: u64 = 2;
 
 /// On-disk directory name for the gRPC indexes store.
 pub const GRPC_INDEXES_DIR: &str = "grpc_indexes";
+
+const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "GRPC_HISTORY_BLOCK_CACHE_MB";
+const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
+
+/// Prefix of the per-epoch history column families; a bucket's family is
+/// `"{prefix}{epoch}"`. On-disk names are the ground truth for which buckets
+/// exist.
+const HISTORY_CF_PREFIX: &str = "hist_e";
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 struct MetadataInfo {
@@ -355,12 +366,10 @@ struct IndexStoreTables {
     #[default_options_override_fn = "default_table_options"]
     watermark: DBMap<Watermark, CheckpointSequenceNumber>,
 
-    /// Deprecated: per-epoch metadata moved to the CheckpointStore's
-    /// `epoch_info` table. Active on released gRPC nodes, so it is dropped on
-    /// open here; not migrated.
-    #[allow(dead_code)]
-    #[deprecated_db_map]
-    epochs: Option<DBMap<EpochId, EpochInfo>>,
+    /// Earliest epoch retained by the last pruning pass; buckets below it
+    /// are never recreated and the backfill stops at it.
+    #[default_options_override_fn = "default_table_options"]
+    earliest_retained_epoch: DBMap<(), EpochId>,
 
     /// Maps transaction digests to the checkpoint that contains them.
     ///
@@ -408,15 +417,6 @@ struct IndexStoreTables {
 }
 
 impl IndexStoreTables {
-    fn open<P: Into<PathBuf>>(path: P) -> Self {
-        IndexStoreTables::open_tables_read_write(
-            path.into(),
-            MetricConf::new("grpc-index"),
-            None,
-            None,
-        )
-    }
-
     fn open_with_options<P: Into<PathBuf>>(
         path: P,
         options: typed_store::rocksdb::Options,
@@ -580,6 +580,13 @@ impl IndexStoreTables {
             checkpoint_range.size_hint().0
         );
         let start_time = Instant::now();
+        // One options template for every bucket of the replay, so their
+        // block caches share one instance.
+        let history_cf_options = rpc_index_history::history_cf_options(
+            &default_table_options(),
+            read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
+                .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),
+        );
 
         for checkpoint_sequence_number in checkpoint_range {
             if cancelled.load(Ordering::Relaxed) {
@@ -602,8 +609,9 @@ impl IndexStoreTables {
                     ))
                 })?;
 
-            let mut batch = self.transaction_checkpoints.batch();
-            self.index_transactions(checkpoint_sequence_number, &contents, &mut batch)?;
+            let bucket = self.history_bucket_for_rebuild(summary.epoch, &history_cf_options)?;
+            let mut batch = self.meta.batch();
+            Self::index_transactions(&bucket, checkpoint_sequence_number, &contents, &mut batch)?;
             batch
                 .write_opt(&bulk_ingestion_write_options())
                 .map_err(StorageError::from)?;
@@ -637,9 +645,12 @@ impl IndexStoreTables {
         batch.write()
     }
 
-    /// Index a Checkpoint
+    /// Index a Checkpoint. `bucket` is the digest history bucket of the
+    /// checkpoint's epoch; the batch spans it and the static tables, which
+    /// share one database.
     fn index_checkpoint(
         &self,
+        bucket: &TransactionCheckpointsBucket,
         checkpoint: &CheckpointData,
     ) -> Result<typed_store::rocks::DBBatch, StorageError> {
         debug!(
@@ -647,9 +658,10 @@ impl IndexStoreTables {
             "indexing checkpoint"
         );
 
-        let mut batch = self.transaction_checkpoints.batch();
+        let mut batch = self.meta.batch();
 
-        self.index_transactions(
+        Self::index_transactions(
+            bucket,
             checkpoint.checkpoint_summary.sequence_number,
             &checkpoint.checkpoint_contents,
             &mut batch,
@@ -673,19 +685,36 @@ impl IndexStoreTables {
     }
 
     fn index_transactions(
-        &self,
+        bucket: &TransactionCheckpointsBucket,
         checkpoint_seq_number: CheckpointSequenceNumber,
         contents: &CheckpointContents,
         batch: &mut typed_store::rocks::DBBatch,
     ) -> Result<(), StorageError> {
         batch.insert_batch(
-            &self.transaction_checkpoints,
+            bucket,
             contents
                 .iter()
                 .map(|d| (d.transaction, checkpoint_seq_number)),
         )?;
 
         Ok(())
+    }
+
+    /// The digest history bucket of `epoch`, creating its column family if
+    /// absent — for the rebuild's checkpoint replay, which runs before the
+    /// store (and its bucket map) exists. `cf_options` is the template every
+    /// bucket of the replay shares.
+    fn history_bucket_for_rebuild(
+        &self,
+        epoch: EpochId,
+        cf_options: &rocksdb::Options,
+    ) -> Result<TransactionCheckpointsBucket, TypedStoreError> {
+        let db = &self.meta.db;
+        let cf_name = rpc_index_history::bucket_cf_name(HISTORY_CF_PREFIX, epoch);
+        if db.cf_handle(&cf_name).is_none() {
+            db.create_cf(&cf_name, cf_options)?;
+        }
+        reopen_transaction_checkpoints_bucket(db, &cf_name)
     }
 
     fn index_objects(
@@ -804,19 +833,6 @@ impl IndexStoreTables {
         Ok(())
     }
 
-    fn get_transaction_info(
-        &self,
-        digest: &TransactionDigest,
-    ) -> Result<Option<TransactionInfo>, TypedStoreError> {
-        Ok(self
-            .transaction_checkpoints
-            .get(digest)?
-            .map(|checkpoint| TransactionInfo {
-                checkpoint,
-                object_types: Default::default(),
-            }))
-    }
-
     fn owner_iter(
         &self,
         owner: Address,
@@ -881,25 +897,148 @@ impl IndexStoreTables {
     }
 }
 
+/// One epoch's transaction-digest history: the digests of the checkpoints
+/// executed in that epoch, mapped to their checkpoint.
+type TransactionCheckpointsBucket = DBMap<TransactionDigest, CheckpointSequenceNumber>;
+
+/// Builds one bucket's view from its column-family name. Per-epoch column
+/// families skip the periodic metrics reporter task: with up to ~100
+/// retained epochs, one task per column family adds up.
+fn reopen_transaction_checkpoints_bucket(
+    db: &Arc<Database>,
+    cf_name: &str,
+) -> Result<TransactionCheckpointsBucket, TypedStoreError> {
+    DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)
+}
+
+/// The pieces produced by opening the index database.
+struct OpenedIndexDb {
+    tables: IndexStoreTables,
+    db: Arc<Database>,
+    history_cf_options: rocksdb::Options,
+    /// Every history bucket found on disk, before the retention floor is
+    /// applied by [`EpochBuckets::open`].
+    history: BTreeMap<EpochId, Arc<TransactionCheckpointsBucket>>,
+}
+
 pub struct GrpcIndexesStore {
     tables: Arc<IndexStoreTables>,
+    /// The per-epoch transaction-digest history buckets.
+    history: EpochBuckets<TransactionCheckpointsBucket>,
     pending_updates: Mutex<BTreeMap<u64, typed_store::rocks::DBBatch>>,
 }
 
 impl GrpcIndexesStore {
-    /// Opens the database and closes it again, reporting whether it can be
-    /// opened at all: [`IndexStoreTables::open`] panics when it cannot,
-    /// which leaves the node no way to recover.
-    async fn probe_open(path: &Path) -> Result<(), TypedStoreError> {
-        let db = open_cf_opts(path, None, MetricConf::new("grpc-index-probe"), &[])?;
-        let weak_db = Arc::downgrade(&db);
-        drop(db);
-        if !wait_for_database_close(weak_db).await {
-            return Err(TypedStoreError::RocksDB(
-                "the probed gRPC index database did not close".to_owned(),
-            ));
+    /// Opens the index database, passing every existing per-epoch history
+    /// column family at open with its tuned options: a column family left
+    /// for auto-discovery would silently get default options (and its own
+    /// block cache).
+    fn open_index_db(path: &Path) -> Result<OpenedIndexDb, TypedStoreError> {
+        let db_options = default_table_options();
+        let history_cf_options = rpc_index_history::history_cf_options(
+            &db_options,
+            read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
+                .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),
+        );
+
+        let static_tables = IndexStoreTables::describe_tables();
+        // A listing failure on an existing database must not pass for "no
+        // history": the history buckets would silently be lost to queries
+        // and to retention until the next reopen. `CURRENT` marks a
+        // directory holding a database rather than a fresh path.
+        let existing_cfs = if path.join("CURRENT").exists() {
+            list_tables(path.to_path_buf()).map_err(|e| TypedStoreError::RocksDB(e.to_string()))?
+        } else {
+            Vec::new()
+        };
+        let mut epochs = std::collections::BTreeSet::new();
+        let mut opt_cfs: Vec<(String, rocksdb::Options)> = Vec::new();
+        for name in static_tables.keys() {
+            let options = if name == "meta" {
+                default_db_options().options
+            } else {
+                db_options.options.clone()
+            };
+            opt_cfs.push((name.clone(), options));
         }
-        Ok(())
+        // Tables of another schema version need no entry here: `open_cf_opts`
+        // appends any remaining on-disk column family with default options so
+        // RocksDB can open the database at all, and the version mismatch
+        // wipes the whole database afterwards.
+        for cf_name in &existing_cfs {
+            if let Some(epoch) = rpc_index_history::bucket_cf_epoch(HISTORY_CF_PREFIX, cf_name) {
+                epochs.insert(epoch);
+                opt_cfs.push((cf_name.clone(), history_cf_options.clone()));
+            }
+        }
+        let opt_cfs: Vec<(&str, rocksdb::Options)> = opt_cfs
+            .iter()
+            .map(|(name, options)| (name.as_str(), options.clone()))
+            .collect();
+        let db = open_cf_opts(
+            path,
+            Some(db_options.options.clone()),
+            MetricConf::new("grpc-index"),
+            &opt_cfs,
+        )?;
+
+        fn map<K, V>(
+            db: &Arc<Database>,
+            cf_name: &str,
+            rw: &ReadWriteOptions,
+        ) -> Result<DBMap<K, V>, TypedStoreError> {
+            DBMap::reopen(db, Some(cf_name), rw, false)
+        }
+        let tables = IndexStoreTables {
+            meta: map(&db, "meta", &db_options.rw_options)?,
+            watermark: map(&db, "watermark", &db_options.rw_options)?,
+            earliest_retained_epoch: map(&db, "earliest_retained_epoch", &db_options.rw_options)?,
+            transaction_checkpoints: map(&db, "transaction_checkpoints", &db_options.rw_options)?,
+            owner: map(&db, "owner", &db_options.rw_options)?,
+            dynamic_field: map(&db, "dynamic_field", &db_options.rw_options)?,
+            coin: map(&db, "coin", &db_options.rw_options)?,
+            package_version: map(&db, "package_version", &db_options.rw_options)?,
+        };
+
+        let mut history = BTreeMap::new();
+        for epoch in epochs {
+            let bucket = reopen_transaction_checkpoints_bucket(
+                &db,
+                &rpc_index_history::bucket_cf_name(HISTORY_CF_PREFIX, epoch),
+            )?;
+            history.insert(epoch, Arc::new(bucket));
+        }
+
+        Ok(OpenedIndexDb {
+            tables,
+            db,
+            history_cf_options,
+            history,
+        })
+    }
+
+    /// Assembles the store from an opened database, applying the retention
+    /// floor to the discovered buckets.
+    fn from_opened(opened: OpenedIndexDb) -> Result<Self, TypedStoreError> {
+        let OpenedIndexDb {
+            tables,
+            db,
+            history_cf_options,
+            history,
+        } = opened;
+        let history = EpochBuckets::open(
+            db,
+            HISTORY_CF_PREFIX,
+            history_cf_options,
+            tables.earliest_retained_epoch.clone(),
+            history,
+            reopen_transaction_checkpoints_bucket,
+        )?;
+        Ok(Self {
+            tables: Arc::new(tables),
+            history,
+            pending_updates: Default::default(),
+        })
     }
 
     /// Setting `cancelled` abandons a rebuild running here and fails the
@@ -911,17 +1050,17 @@ impl GrpcIndexesStore {
         checkpoint_store: &Arc<CheckpointStore>,
         cancelled: &Arc<AtomicBool>,
     ) -> Result<Self, StorageError> {
-        let tables = {
+        let opened = {
             // An unopenable database would crash-loop the node with no way
             // to self-heal; wipe and rebuild it like a stale one — but only
             // after one retry, so a transient error does not destroy a
             // healthy store.
-            let mut opened = match Self::probe_open(&path).await {
-                Ok(()) => Some(IndexStoreTables::open(&path)),
+            let mut opened = match Self::open_index_db(&path) {
+                Ok(opened) => Some(opened),
                 Err(first) => {
                     warn!("unable to open the gRPC index database, retrying once: {first}");
-                    match Self::probe_open(&path).await {
-                        Ok(()) => Some(IndexStoreTables::open(&path)),
+                    match Self::open_index_db(&path) {
+                        Ok(opened) => Some(opened),
                         Err(e) => {
                             warn!(
                                 "unable to open the gRPC index database, wiping and rebuilding: {e}"
@@ -934,8 +1073,9 @@ impl GrpcIndexesStore {
 
             // If the index tables are uninitialized or on an older version then we need to
             // populate them
-            if opened.as_ref().is_none_or(|tables| {
-                tables
+            if opened.as_ref().is_none_or(|opened| {
+                opened
+                    .tables
                     .needs_to_do_initialization(checkpoint_store)
                     .expect("failed to determine whether the gRPC index needs a rebuild")
             }) {
@@ -1016,11 +1156,13 @@ impl GrpcIndexesStore {
                 }
 
                 // Reopen the DB with default options (eg without `unordered_write`s enabled)
-                let reopened_tables = IndexStoreTables::open(&path);
+                let reopened = Self::open_index_db(&path)
+                    .expect("unable to reopen the gRPC index database after the rebuild");
 
                 // Sanity check: verify the database version was persisted correctly, i.e.
                 // the WAL-disabled bulk writes were flushed before the reopen.
-                let stored_version = reopened_tables
+                let stored_version = reopened
+                    .tables
                     .meta
                     .get(&())
                     .expect("reopened gRPC index DB should expose readable metadata")
@@ -1031,29 +1173,21 @@ impl GrpcIndexesStore {
                     CURRENT_DB_VERSION, stored_version.version
                 );
 
-                reopened_tables
+                reopened
             } else {
                 opened.expect("the index database is open unless it needs a rebuild")
             }
         };
 
-        let tables = Arc::new(tables);
-
-        Ok(Self {
-            tables,
-            pending_updates: Default::default(),
-        })
+        Ok(Self::from_opened(opened)?)
     }
 
     /// Open the store without the wipe/init logic of [`Self::new`] — for the
     /// restore tool, which populates and finalizes the store itself.
     pub fn new_without_init(path: PathBuf) -> Self {
-        let tables = Arc::new(IndexStoreTables::open(path));
-
-        Self {
-            tables,
-            pending_updates: Default::default(),
-        }
+        Self::open_index_db(&path)
+            .and_then(Self::from_opened)
+            .expect("unable to open the gRPC index database")
     }
 
     pub fn prune(
@@ -1075,7 +1209,14 @@ impl GrpcIndexesStore {
     )]
     pub fn index_checkpoint(&self, checkpoint: &CheckpointData) {
         let sequence_number = checkpoint.checkpoint_summary.sequence_number;
-        let batch = self.tables.index_checkpoint(checkpoint).expect("db error");
+        let bucket = self
+            .history
+            .ensure(checkpoint.checkpoint_summary.epoch)
+            .expect("db error");
+        let batch = self
+            .tables
+            .index_checkpoint(&bucket, checkpoint)
+            .expect("db error");
 
         self.pending_updates
             .lock()
@@ -1101,14 +1242,33 @@ impl GrpcIndexesStore {
             "commit_update_for_checkpoint must be called in order"
         );
 
-        Ok(batch.write()?)
+        // The update may stage rows of a history bucket `prune` drops before
+        // this write; those rows are discarded instead of failing the write.
+        // Only expired epochs can be lost that way: `index_checkpoint`
+        // created the bucket of the epoch being executed, so it is the
+        // newest one.
+        Ok(batch.write_opt(&drop_tolerant_write_options())?)
     }
 
+    /// The checkpoint containing `digest`, from the digest history buckets.
+    ///
+    /// An exact-key probe over the buckets, newest first; a miss in a sealed
+    /// bucket is answered by its in-memory bloom filters. Digests of
+    /// checkpoints pruned mid-epoch stay answerable until the whole epoch's
+    /// bucket drops.
     pub fn get_transaction_info(
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<TransactionInfo>, TypedStoreError> {
-        self.tables.get_transaction_info(digest)
+        for bucket in self.history.iter(true) {
+            if let Some(checkpoint) = bucket.get(digest)? {
+                return Ok(Some(TransactionInfo {
+                    checkpoint,
+                    object_types: Default::default(),
+                }));
+            }
+        }
+        Ok(None)
     }
 
     pub fn owner_iter(
@@ -1192,13 +1352,13 @@ impl GrpcIndexesStore {
             ));
         }
 
-        Self::probe_open(path).await.map_err(|e| {
+        let reopened = Self::open_index_db(path).map_err(|e| {
             StorageError::custom(format!(
                 "unable to reopen the restored gRPC index database: {e}"
             ))
         })?;
-        let reopened = IndexStoreTables::open(path);
         let stored_version = reopened
+            .tables
             .meta
             .get(&())?
             .ok_or_else(|| {
@@ -1211,7 +1371,7 @@ impl GrpcIndexesStore {
                  found {stored_version}"
             )));
         }
-        let watermark = reopened.watermark.get(&Watermark::Indexed)?;
+        let watermark = reopened.tables.watermark.get(&Watermark::Indexed)?;
         if watermark != Some(restore_checkpoint) {
             return Err(StorageError::custom(format!(
                 "the restored gRPC index is watermarked at {watermark:?}, expected \
@@ -1222,7 +1382,13 @@ impl GrpcIndexesStore {
         // only the live state proves the object stream landed. `is_empty`
         // has no error channel and reads an unreadable index as non-empty,
         // so the scan is run here and its failure fails the restore.
-        let owner_is_empty = reopened.owner.safe_iter().next().transpose()?.is_none();
+        let owner_is_empty = reopened
+            .tables
+            .owner
+            .safe_iter()
+            .next()
+            .transpose()?
+            .is_none();
         if live_object_count > 0 && owner_is_empty {
             return Err(StorageError::custom(format!(
                 "the restored gRPC index has an empty owner index after {live_object_count} live \
@@ -1230,7 +1396,7 @@ impl GrpcIndexesStore {
             )));
         }
 
-        let weak_db = Arc::downgrade(&reopened.meta.db);
+        let weak_db = Arc::downgrade(&reopened.tables.meta.db);
         drop(reopened);
         if !wait_for_database_close(weak_db).await {
             return Err(StorageError::custom(
@@ -1250,8 +1416,7 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
         &self,
         digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionInfo>> {
-        self.tables
-            .get_transaction_info(digest)
+        GrpcIndexesStore::get_transaction_info(self, digest)
             .map_err(|e| StorageError::custom(e.to_string()))
     }
 
@@ -1541,9 +1706,6 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iota_types::iota_system_state::IotaSystemState;
-    use typed_store::rocks::{MetricConf, ReadWriteOptions, open_cf_opts};
-
     use super::*;
     use crate::test_utils::executed_checkpoint;
 
@@ -1772,9 +1934,9 @@ mod tests {
 
         grpc.finalize_and_verify_restore(&path, 5, 1).await.unwrap();
 
-        let reopened = IndexStoreTables::open(&path);
+        let reopened = GrpcIndexesStore::new_without_init(path);
         assert_eq!(
-            reopened.watermark.get(&Watermark::Indexed).unwrap(),
+            reopened.tables.watermark.get(&Watermark::Indexed).unwrap(),
             Some(5)
         );
     }
@@ -1798,51 +1960,63 @@ mod tests {
         );
     }
 
-    /// On open, the released `epochs` column family is dropped without
-    /// migration and stays absent on reopen. (`epochs_v2` never shipped —
-    /// no such CF to drop.)
+    /// Buckets are rediscovered from the on-disk column-family names on
+    /// reopen.
     #[tokio::test]
-    async fn deprecated_epochs_cf_is_dropped_without_migration() {
+    async fn digest_buckets_survive_a_reopen() {
         let tmp_dir = iota_common::tempdir();
-        let db_dir = tmp_dir.path().to_path_buf();
-
-        // Open RocksDB with the released `epochs` CF on disk and write one row.
-        {
-            let opt_cfs: Vec<(&str, typed_store::rocksdb::Options)> =
-                vec![("epochs", typed_store::rocks::default_db_options().options)];
-            let db = open_cf_opts(&db_dir, None, MetricConf::default(), &opt_cfs)
-                .expect("open DB with the old CF");
-            let epochs = DBMap::<EpochId, EpochInfo>::reopen(
-                &db,
-                Some("epochs"),
-                &ReadWriteOptions::default(),
-                false,
-            )
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+        let (digest, checkpoint) = (TransactionDigest::random(), 7);
+        grpc.history
+            .ensure(3)
+            .unwrap()
+            .insert(&digest, &checkpoint)
             .unwrap();
-            let old_info = EpochInfo {
-                epoch: 7,
-                protocol_version: 1,
-                start_timestamp_ms: 1_000_000,
-                end_timestamp_ms: Some(2_000_000),
-                start_checkpoint: 42,
-                end_checkpoint: Some(99),
-                reference_gas_price: 1_000,
-                system_state: IotaSystemState::for_testing(7, 1),
-            };
-            epochs.insert(&old_info.epoch, &old_info).unwrap();
-        }
 
-        // Open via the current schema: the deprecated CF must be dropped.
-        let tables = IndexStoreTables::open(db_dir.clone());
-        drop(tables);
+        let weak_db = Arc::downgrade(&grpc.tables.meta.db);
+        drop(grpc);
+        assert!(wait_for_database_close(weak_db).await);
 
-        let listed = typed_store::rocks::list_tables(db_dir.clone()).unwrap();
-        assert!(
-            !listed.contains(&"epochs".to_string()),
-            "the deprecated epochs CF should have been dropped; saw: {listed:?}"
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+        assert_eq!(grpc.history.newest_epoch(), Some(3));
+        let bucket = grpc.history.ensure(3).unwrap();
+        assert_eq!(bucket.get(&digest).unwrap(), Some(checkpoint));
+    }
+    /// Digest lookups probe every retained epoch's bucket, newest first.
+    #[tokio::test]
+    async fn digest_lookup_probes_across_epoch_buckets() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+        let (old_digest, new_digest) = (TransactionDigest::random(), TransactionDigest::random());
+        grpc.history
+            .ensure(0)
+            .unwrap()
+            .insert(&old_digest, &5)
+            .unwrap();
+        grpc.history
+            .ensure(1)
+            .unwrap()
+            .insert(&new_digest, &9)
+            .unwrap();
+
+        assert_eq!(
+            grpc.get_transaction_info(&old_digest)
+                .unwrap()
+                .unwrap()
+                .checkpoint,
+            5
         );
-
-        // Reopening must not panic.
-        let _tables = IndexStoreTables::open(db_dir);
+        assert_eq!(
+            grpc.get_transaction_info(&new_digest)
+                .unwrap()
+                .unwrap()
+                .checkpoint,
+            9
+        );
+        assert!(
+            grpc.get_transaction_info(&TransactionDigest::random())
+                .unwrap()
+                .is_none()
+        );
     }
 }
