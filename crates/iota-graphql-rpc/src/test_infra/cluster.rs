@@ -200,11 +200,17 @@ pub async fn wait_for_graphql_checkpoint_pruned(
 
     tokio::time::timeout(timeout, async {
         loop {
-            let resp = client
+            let resp = match client
                 .execute_to_graphql(query.to_string(), false, vec![], vec![])
                 .await
-                .unwrap()
-                .response_body_json();
+            {
+                Ok(resp) => resp.response_body_json(),
+                Err(e) => {
+                    info!("GraphQL request failed, retrying: {e}");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            };
 
             let current_checkpoint = &resp["data"]["checkpoint"];
             if current_checkpoint.is_null() {
@@ -301,11 +307,17 @@ async fn wait_for_graphql_checkpoint_catchup(
 
     tokio::time::timeout(timeout, async {
         loop {
-            let resp = client
+            let resp = match client
                 .execute_to_graphql(query.to_string(), false, vec![], vec![])
                 .await
-                .unwrap()
-                .response_body_json();
+            {
+                Ok(resp) => resp.response_body_json(),
+                Err(e) => {
+                    info!("GraphQL request failed, retrying: {e}");
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+            };
 
             let current_checkpoint = resp["data"]["availableRange"]["last"].get("sequenceNumber");
             info!("Current checkpoint: {:?}", current_checkpoint);
