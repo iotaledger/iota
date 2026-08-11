@@ -2850,7 +2850,6 @@ impl AuthorityState {
         AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
-            self.grpc_indexes_store.as_deref(),
             None,
             config.authority_store_pruning_config,
             metrics,
