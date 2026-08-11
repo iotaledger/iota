@@ -22,7 +22,7 @@ use move_core_types::language_storage::ModuleId;
 use move_trace_format::format::MoveTraceBuilder;
 
 use crate::{
-    debug::{DebugArtifacts, DebugConfig},
+    debug::{DebugArtifacts, DebugConfig, ExecutionTrace},
     error::{ExecutionError, ValidationError, VmSdkError},
     executor::{
         env::{ExecutionEnv, build_executor, new_bytecode_verifier_metrics, new_limits_metrics},
@@ -218,7 +218,7 @@ impl LocalVm {
                 opts.check_coin_deny_list,
             )?
         };
-        let (sim, signature_status, trace_builder) = {
+        let (sim, signature_status, trace) = {
             let backend = StoreBackend::new(self.store.as_ref());
             if move_authenticators.is_empty() {
                 // Standard schemes were verified cryptographically above; the
@@ -233,6 +233,7 @@ impl LocalVm {
                 // Only the authenticator path threads a `MoveTraceBuilder`
                 // through the engine, so a trace is built only here.
                 let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
+
                 let (sim, authenticator_outcome) = execute_with_move_authenticators(
                     &env,
                     &backend,
@@ -245,11 +246,11 @@ impl LocalVm {
                 (
                     sim,
                     SignatureStatus::from_authentication(authenticator_outcome),
-                    trace_builder,
+                    trace_builder.map(ExecutionTrace::from_builder),
                 )
             }
         };
-        let artifacts = env.collect_artifacts(trace_builder)?;
+        let artifacts = env.collect_artifacts(trace)?;
 
         self.finish(sim, opts.mode, signature_status, artifacts)
     }

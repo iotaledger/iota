@@ -5521,6 +5521,7 @@ dependencies = [
  "move-vm-types",
  "parking_lot 0.12.3",
  "serde",
+ "serde_json",
  "tracing",
 ]
 
@@ -8061,6 +8062,7 @@ dependencies = [
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
+ "move-trace-format",
  "move-vm-profiler",
  "move-vm-test-utils",
  "nonempty",
@@ -8144,6 +8146,7 @@ dependencies = [
  "iota-config",
  "iota-execution",
  "iota-framework",
+ "iota-move-build",
  "iota-protocol-config",
  "iota-sdk-graphql-client",
  "iota-sdk-grpc-client",
