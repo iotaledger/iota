@@ -48,9 +48,8 @@ use typed_store::{
     TypedStoreError,
     database::{Database, drop_tolerant_write_options, wait_for_database_close},
     rocks::{
-        DBBatch, DBMap, MetricConf, ReadWriteOptions, bulk_ingestion_options,
-        bulk_ingestion_options_split_between, default_db_options, list_tables, open_cf_opts,
-        read_size_from_env, safe_drop_db,
+        DBBatch, DBMap, MetricConf, ReadWriteOptions, bulk_ingestion_options, default_db_options,
+        list_tables, open_cf_opts, read_size_from_env, safe_drop_db,
     },
     rocksdb,
     traits::Map,
@@ -192,7 +191,7 @@ impl IndexStoreTables {
     ///
     /// Anything left under `path` is deleted first, so the caller does not
     /// have to clear the directory.
-    fn open_for_bulk_ingestion(path: PathBuf, concurrent_stores: usize) -> Self {
+    fn open_for_bulk_ingestion(path: PathBuf) -> Self {
         // A column family of an existing database not named here would
         // silently be opened with default options, and `safe_drop_db` can
         // leave files RocksDB does not recognize, so clear the directory
@@ -202,7 +201,7 @@ impl IndexStoreTables {
             std::fs::remove_dir_all(&path)
                 .expect("unable to clear the index database directory for the rebuild");
         }
-        let bulk_options = bulk_ingestion_options_split_between(concurrent_stores);
+        let bulk_options = bulk_ingestion_options();
         let table_config = bulk_options.table_config(Self::describe_tables().into_keys());
         Self::open_tables_read_write(
             path,
@@ -594,7 +593,7 @@ impl RpcIndexesStore {
                 // Open the empty DB with tuned bulk ingestion options to
                 // speed up the initial indexing. The DB is reopened with
                 // default options afterwards.
-                IndexStoreTables::open_for_bulk_ingestion(path.clone(), 1)
+                IndexStoreTables::open_for_bulk_ingestion(path.clone())
             };
             let batch_size_limit = bulk_ingestion_options().batch_size_limit;
 
