@@ -104,7 +104,7 @@ impl VersionedScorer {
                     .iter()
                     .map(|(observations, vp)| match observations.as_ref() {
                         MisbehaviorObservations::V1(o) => (o, *vp),
-                        other => panic!(
+                        other @ MisbehaviorObservations::V2(_) => panic!(
                             "V1 scorer received {other:?} — the aggregator only \
                              accepts the epoch's report version"
                         ),
@@ -118,7 +118,7 @@ impl VersionedScorer {
                     .iter()
                     .map(|(observations, vp)| match observations.as_ref() {
                         MisbehaviorObservations::V2(o) => (o, *vp),
-                        other => panic!(
+                        other @ MisbehaviorObservations::V1(_) => panic!(
                             "V2 scorer received {other:?} — the aggregator only \
                              accepts the epoch's report version"
                         ),
@@ -590,7 +590,9 @@ mod tests {
         arcs.iter()
             .map(|(arc, vp)| match arc.as_ref() {
                 MisbehaviorObservations::V1(o) => (o, *vp),
-                other => panic!("expected V1 observations, got {other:?}"),
+                other @ MisbehaviorObservations::V2(_) => {
+                    panic!("expected V1 observations, got {other:?}")
+                }
             })
             .collect()
     }
