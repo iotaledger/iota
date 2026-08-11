@@ -143,7 +143,7 @@ use crate::{
 ///       description
 ///     - `execution_result.execution_error.command_index` - the index of the
 ///       command that failed
-#[tracing::instrument(skip(reader, executor))]
+#[tracing::instrument(skip_all, fields(batch_size = request.transactions.len()))]
 pub async fn simulate_transactions(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,

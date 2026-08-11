@@ -664,7 +664,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, past_objects), fields(num_past_objects = past_objects.len()))]
     async fn try_multi_get_past_objects(
         &self,
         past_objects: Vec<IotaGetPastObjectRequest>,
