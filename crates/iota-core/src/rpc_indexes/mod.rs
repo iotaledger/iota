@@ -9,10 +9,12 @@
 //! when the JSON-RPC group is off, since gRPC needs only the checkpoint a
 //! transaction landed in, not its network sequence number.
 //!
-//! This module is schema, open, rebuild, backfill and prune only: the
-//! read surfaces and the live/restore ingest paths are added by later
-//! changes.
+//! This module is schema, open, rebuild, backfill and prune; [`jsonrpc_api`]
+//! and [`grpc_api`] add the two read surfaces. The live/restore ingest paths
+//! are added by a later change, so a rebuild's live-state tables are empty
+//! until then.
 
+pub mod grpc_api;
 pub mod jsonrpc_api;
 pub mod schema;
 

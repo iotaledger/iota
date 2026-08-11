@@ -14,14 +14,18 @@ use iota_types::{
     gas_coin::GAS,
     messages_checkpoint::CheckpointContentsExt,
     object::{MoveStructExt, Object},
-    storage::{DynamicFieldKey, error::Error as StorageError},
+    storage::{
+        DynamicFieldKey, PackageVersionInfo, PackageVersionKey, error::Error as StorageError,
+    },
     test_checkpoint_data_builder::TestCheckpointDataBuilder,
 };
 use prometheus_filtered::Registry;
 use typed_store::Map;
 
 use super::{
-    IndexGroup, RpcIndexesStore, jsonrpc_api::CachingLayoutResolver, schema::OwnerIndexKey,
+    IndexGroup, RpcIndexesStore,
+    jsonrpc_api::CachingLayoutResolver,
+    schema::{CoinIndexInfo, CoinIndexKey, OwnerIndexKey},
 };
 use crate::{
     checkpoints::CheckpointStore,
@@ -1278,4 +1282,367 @@ async fn test_balance_reads_narrow_and_group_by_coin_type() {
     assert_eq!(all_balances.get(&GAS::type_tag()).unwrap().num_coins, 2);
     assert_eq!(all_balances.get(&TypeTag::U64).unwrap().balance, 550);
     assert_eq!(all_balances.get(&TypeTag::U64).unwrap().num_coins, 2);
+}
+
+// ---------------------------------------------------------------------------
+// gRPC read surface
+// ---------------------------------------------------------------------------
+
+/// `get_transaction_info` probes every retained epoch's bucket, newest
+/// first, reading the digest table both API surfaces share.
+#[tokio::test]
+async fn test_get_transaction_info_probes_across_epoch_buckets() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let (old_digest, new_digest) = (TransactionDigest::random(), TransactionDigest::random());
+
+    let old_bucket = index_store.ensure_history_bucket(0).unwrap();
+    let mut batch = index_store.tables.meta.batch();
+    batch
+        .insert_batch_tagged(&old_bucket.digests, [(old_digest, (0, 5))])
+        .unwrap();
+    batch.write().unwrap();
+
+    let new_bucket = index_store.ensure_history_bucket(1).unwrap();
+    let mut batch = index_store.tables.meta.batch();
+    batch
+        .insert_batch_tagged(&new_bucket.digests, [(new_digest, (1, 9))])
+        .unwrap();
+    batch.write().unwrap();
+
+    assert_eq!(
+        index_store
+            .get_transaction_info(&old_digest)
+            .unwrap()
+            .unwrap()
+            .checkpoint,
+        5
+    );
+    assert_eq!(
+        index_store
+            .get_transaction_info(&new_digest)
+            .unwrap()
+            .unwrap()
+            .checkpoint,
+        9
+    );
+    assert!(
+        index_store
+            .get_transaction_info(&TransactionDigest::random())
+            .unwrap()
+            .is_none()
+    );
+}
+
+/// Buckets are rediscovered from the on-disk column-family names on
+/// reopen, and their digest rows survive with them.
+#[tokio::test]
+async fn test_digest_buckets_survive_a_reopen() {
+    let tmp_dir = iota_common::tempdir();
+    let index_store = open_index_store(tmp_dir.path().to_path_buf());
+    let (digest, checkpoint) = (TransactionDigest::random(), 7);
+    let bucket = index_store.ensure_history_bucket(3).unwrap();
+    let mut batch = index_store.tables.meta.batch();
+    batch
+        .insert_batch_tagged(&bucket.digests, [(digest, (2, checkpoint))])
+        .unwrap();
+    batch.write().unwrap();
+    drop(bucket); // release the database handle before closing it below
+
+    let index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
+    assert_eq!(index_store.history.newest_epoch(), Some(3));
+    assert_eq!(
+        index_store
+            .get_transaction_info(&digest)
+            .unwrap()
+            .unwrap()
+            .checkpoint,
+        checkpoint
+    );
+}
+
+/// Pruning the one indexes retention drops whole epoch buckets, digests
+/// included, and the floor survives a reopen.
+#[tokio::test]
+async fn test_digest_pruning_drops_expired_epoch_buckets() {
+    let tmp_dir = iota_common::tempdir();
+    let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
+    index_store.epochs_to_retain = Some(1);
+    let old_digest = TransactionDigest::random();
+    let old_bucket = index_store.ensure_history_bucket(0).unwrap();
+    let mut batch = index_store.tables.meta.batch();
+    batch
+        .insert_batch_tagged(&old_bucket.digests, [(old_digest, (0, 5))])
+        .unwrap();
+    batch.write().unwrap();
+    let new_bucket = index_store.ensure_history_bucket(1).unwrap();
+    let mut batch = index_store.tables.meta.batch();
+    batch
+        .insert_batch_tagged(&new_bucket.digests, [(TransactionDigest::random(), (1, 9))])
+        .unwrap();
+    batch.write().unwrap();
+    drop(old_bucket); // release the database handles before closing it below
+    drop(new_bucket);
+
+    assert_eq!(index_store.prune().unwrap(), Some(1));
+    assert_eq!(index_store.get_transaction_info(&old_digest).unwrap(), None);
+    assert!(
+        index_store.ensure_history_bucket(0).is_err(),
+        "a pruned epoch must not be recreated"
+    );
+
+    let index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
+    assert!(
+        index_store.ensure_history_bucket(0).is_err(),
+        "the retention floor must survive a reopen"
+    );
+}
+
+/// Every gRPC read must fail explicitly instead of silently answering from
+/// an unmaintained table when this store does not serve the gRPC group.
+#[tokio::test]
+async fn test_grpc_reads_fail_when_the_group_is_disabled() {
+    use iota_node_storage::GrpcIndexes;
+
+    let index_store = RpcIndexesStore::new_without_init(
+        iota_common::tempdir().path().to_path_buf(),
+        BTreeSet::from([IndexGroup::JsonRpc]),
+    );
+
+    let error = index_store
+        .get_transaction_info(&TransactionDigest::random())
+        .unwrap_err();
+    assert!(
+        error.to_string().contains("not enabled"),
+        "unexpected error: {error}"
+    );
+    assert!(
+        index_store
+            .dynamic_field_iter(ObjectId::random(), None)
+            .is_err()
+    );
+    assert!(index_store.get_coin_info(&StructTag::new_gas()).is_err());
+    assert!(
+        index_store
+            .package_versions_iter(ObjectId::random(), None)
+            .is_err()
+    );
+    assert!(
+        index_store
+            .account_owned_objects_info_iter(Address::random(), None, None)
+            .is_err()
+    );
+}
+
+/// Regulated coin metadata round-trips through `get_coin_info`, on both the
+/// inherent method and the `GrpcIndexes` trait's conversion to the public
+/// `CoinInfo` type.
+#[tokio::test]
+async fn test_get_coin_info_reads_regulated_metadata() {
+    use iota_node_storage::GrpcIndexes;
+
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let coin_type = StructTag::new_gas();
+    let info = CoinIndexInfo {
+        coin_metadata_object_id: Some(ObjectId::random()),
+        treasury_object_id: Some(ObjectId::random()),
+        regulated_coin_metadata_object_id: Some(ObjectId::random()),
+    };
+    index_store
+        .tables
+        .coin
+        .insert(
+            &CoinIndexKey {
+                coin_type: coin_type.clone(),
+            },
+            &info,
+        )
+        .unwrap();
+
+    assert_eq!(
+        index_store.get_coin_info(&coin_type).unwrap(),
+        Some(info.clone())
+    );
+    assert_eq!(
+        GrpcIndexes::get_coin_info(&index_store, &coin_type).unwrap(),
+        Some(info.into())
+    );
+    assert_eq!(
+        index_store
+            .get_coin_info(&StructTag::new_coin(GAS::type_tag()))
+            .unwrap(),
+        None,
+        "a coin type with no regulated metadata must miss"
+    );
+}
+
+/// Package versions round-trip through `package_versions_iter`, and the
+/// cursor bound is inclusive.
+#[tokio::test]
+async fn test_package_versions_iter_pages_from_the_cursor() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let original_package_id = ObjectId::random();
+    let storage_ids: Vec<_> = (0..3).map(|_| ObjectId::random()).collect();
+    let table = &index_store.tables.package_version;
+    let mut batch = table.batch();
+    batch
+        .insert_batch(
+            table,
+            storage_ids.iter().enumerate().map(|(version, storage_id)| {
+                (
+                    PackageVersionKey {
+                        original_package_id,
+                        version: version as u64,
+                    },
+                    PackageVersionInfo {
+                        storage_id: *storage_id,
+                    },
+                )
+            }),
+        )
+        .unwrap();
+    batch.write().unwrap();
+
+    let all: Vec<_> = index_store
+        .package_versions_iter(original_package_id, None)
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(all.len(), 3, "all three seeded versions must resolve");
+
+    let from_cursor: Vec<_> = index_store
+        .package_versions_iter(original_package_id, Some(1))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(from_cursor.len(), 2, "the cursor bound is inclusive");
+}
+
+/// `dynamic_field_iter` returns the full key, unlike the JSON-RPC surface's
+/// `get_dynamic_field_ids_iterator`, which returns only the field id.
+#[tokio::test]
+async fn test_dynamic_field_iter_returns_the_full_key() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let parent = ObjectId::random();
+    let field_ids = seed_dynamic_fields(&index_store, parent);
+
+    let keys: Vec<_> = index_store
+        .dynamic_field_iter(parent, None)
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(
+        keys,
+        field_ids
+            .iter()
+            .map(|id| DynamicFieldKey::new(parent, *id))
+            .collect::<Vec<_>>()
+    );
+
+    let from_cursor: Vec<_> = index_store
+        .dynamic_field_iter(parent, Some(field_ids[1]))
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(
+        from_cursor,
+        field_ids[1..]
+            .iter()
+            .map(|id| DynamicFieldKey::new(parent, *id))
+            .collect::<Vec<_>>(),
+        "the cursor bound is inclusive"
+    );
+}
+
+/// The gRPC surface's owned-objects iterator narrows by type and pages with
+/// an `OwnedObjectCursor`, which carries no owner of its own: the trait
+/// method must rebuild the full `OwnerIndexKey` from `owner` and the
+/// cursor's other fields.
+#[tokio::test]
+async fn test_account_owned_objects_info_iter_narrows_and_pages() {
+    use iota_node_storage::GrpcIndexes;
+
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let owner = Address::random();
+    let coins = [
+        (GAS::type_tag(), 300u64),
+        (GAS::type_tag(), 100u64),
+        (TypeTag::U64, 500u64),
+    ];
+    let mut gas_ids = BTreeSet::new();
+    for (coin_type, balance) in coins {
+        let object = Object::new_move(
+            MoveStruct::new_coin(
+                coin_type.clone(),
+                Version::MIN_VALID_INCL,
+                ObjectId::random(),
+                balance,
+            ),
+            Owner::Address(owner),
+            TransactionDigest::GENESIS_MARKER,
+        );
+        let (key, info) = OwnerIndexKey::for_object(owner, &object).unwrap();
+        index_store.tables.owner.insert(&key, &info).unwrap();
+        if coin_type == GAS::type_tag() {
+            gas_ids.insert(object.id());
+        }
+    }
+
+    let gas_coin_type = StructTag::new_coin(GAS::type_tag());
+    let narrowed: BTreeSet<_> = index_store
+        .account_owned_objects_info_iter(owner, None, Some(gas_coin_type))
+        .unwrap()
+        .map(|item| item.unwrap().0.object_id)
+        .collect();
+    assert_eq!(
+        narrowed, gas_ids,
+        "narrowing to one coin type must exclude the other"
+    );
+
+    let full: Vec<_> = index_store
+        .account_owned_objects_info_iter(owner, None, None)
+        .unwrap()
+        .map(Result::unwrap)
+        .collect();
+    assert_eq!(full.len(), 3, "all three seeded objects must resolve");
+
+    let cursor = full[1].1.clone();
+    let from_cursor: Vec<_> = index_store
+        .account_owned_objects_info_iter(owner, Some(&cursor), None)
+        .unwrap()
+        .map(|item| item.unwrap().0.object_id)
+        .collect();
+    assert_eq!(
+        from_cursor,
+        full[1..]
+            .iter()
+            .map(|(info, _)| info.object_id)
+            .collect::<Vec<_>>(),
+        "the cursor bound is inclusive"
+    );
+}
+
+/// Both APIs answer from the same digest row.
+#[tokio::test]
+async fn test_one_digest_row_serves_both_apis() {
+    let store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let digest = TransactionDigest::random();
+    let bucket = store.history.ensure(0).unwrap();
+    let mut batch = store.tables.meta.batch();
+    batch
+        .insert_batch_tagged(&bucket.digests, [(digest, (42, 7))])
+        .unwrap();
+    batch.write().unwrap();
+    assert_eq!(
+        store.lookup_digest(&digest).unwrap().map(|(seq, _)| seq),
+        Some(42),
+        "the JSON-RPC surface reads the sequence number from the same row"
+    );
+    assert_eq!(
+        store
+            .get_transaction_info(&digest)
+            .unwrap()
+            .unwrap()
+            .checkpoint,
+        7
+    );
 }
