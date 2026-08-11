@@ -61,8 +61,7 @@ impl MisbehaviorStore {
             // future MisbehaviorCounts variant trips the compiler here.
             let storage_metrics = recovered.get(&authority_index).cloned().unwrap_or_default();
             match storage_metrics {
-                // Rows persisted before the bundle-part counter existed
-                // restore with it at zero.
+                // V1 rows carry no bundle-part count; restore it as zero.
                 MisbehaviorCounts::V1(inner) => {
                     self.persisted.set_block_faults(
                         idx,
