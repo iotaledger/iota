@@ -808,8 +808,7 @@ pub async fn download_formal_snapshot(
     snapshot_store_config: ObjectStoreConfig,
     num_parallel_downloads: usize,
     verify: SnapshotVerifyMode,
-    skip_grpc_indexes: bool,
-    skip_jsonrpc_indexes: bool,
+    skip_rpc_indexes: bool,
     disable_progress_bar: bool,
 ) -> Result<(), anyhow::Error> {
     let m = make_multi_progress(disable_progress_bar);
@@ -911,25 +910,24 @@ pub async fn download_formal_snapshot(
         epoch,
     )?;
 
-    // Unless the matching `--skip-...-indexes` flag is passed, the index
-    // group is built from the same object stream that restores the perpetual
-    // tables, so a fullnode started with gRPC or `enable-index-processing`
-    // opens the store in place instead of re-indexing the whole restored
-    // state.
+    // Unless `--skip-rpc-indexes` is passed, both index groups are built from
+    // the same object stream that restores the perpetual tables, so a
+    // fullnode started with gRPC, `enable-index-processing`, or both, opens
+    // the store in place instead of re-indexing the whole restored state. A
+    // restore cannot know which of the two the node will enable later, so it
+    // always builds both.
     //
     // Like every other store of this restore, it lives under `staging/`,
     // which replaces `live/` wholesale at the end — so a pre-existing index
     // store (whatever its watermarks claim) can never survive into the
     // restored node and compete with the one built here.
-    let mut index_groups = BTreeSet::new();
-    if !skip_jsonrpc_indexes {
-        index_groups.insert(IndexGroup::JsonRpc);
-    }
-    if !skip_grpc_indexes {
-        index_groups.insert(IndexGroup::Grpc);
-    }
-    let rpc_indexes = (!index_groups.is_empty())
-        .then(|| RpcIndexesRestorer::open(path.join(RPC_INDEXES_DIR), index_groups))
+    let rpc_indexes = (!skip_rpc_indexes)
+        .then(|| {
+            RpcIndexesRestorer::open(
+                path.join(RPC_INDEXES_DIR),
+                BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+            )
+        })
         .transpose()?
         .map(Arc::new);
 

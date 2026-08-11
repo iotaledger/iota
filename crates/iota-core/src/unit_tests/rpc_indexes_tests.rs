@@ -221,8 +221,7 @@ async fn test_rebuild_is_not_adopted_before_the_flush() {
     let authority_store = open_authority_store(&dir.path().join("store"));
     let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
 
-    let mut tables =
-        super::IndexStoreTables::open_for_bulk_ingestion(dir.path().join("indexes"), 1);
+    let mut tables = super::IndexStoreTables::open_for_bulk_ingestion(dir.path().join("indexes"));
     tables
         .init(
             &authority_store,
@@ -3063,7 +3062,7 @@ async fn test_bulk_ingestion_open_clears_leftover_files() {
     std::fs::create_dir_all(&index_dir).unwrap();
     std::fs::write(index_dir.join("stray"), b"leftover").unwrap();
 
-    let tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone(), 1);
+    let tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone());
     assert_eq!(tables.meta.get(&()).unwrap(), None);
     assert!(!index_dir.join("stray").exists());
 }
