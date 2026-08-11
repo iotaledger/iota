@@ -697,6 +697,7 @@ impl MisbehaviorCounts {
 mod tests {
     use std::sync::Arc;
 
+    use fastcrypto::error::FastCryptoError;
     use starfish_config::Parameters;
 
     use super::*;
@@ -1071,6 +1072,14 @@ mod tests {
                 AuthorityIndex::new_for_test(0),
                 AuthorityIndex::new_for_test(1),
             ),
+            ConsensusError::MalformedHeader(bcs::Error::Custom("bad".to_string())),
+            ConsensusError::MalformedSignature(FastCryptoError::InvalidSignature),
+            ConsensusError::SignatureVerificationFailure(FastCryptoError::InvalidSignature),
+            ConsensusError::TransactionCommitmentFailure {
+                round: 3,
+                author: AuthorityIndex::new_for_test(0),
+                peer: AuthorityIndex::new_for_test(0),
+            },
         ];
         for e in cases {
             let (prov, unprov, bundle) = classify_via_record(e);
