@@ -24,7 +24,10 @@ use iota_types::{
 };
 
 use super::AttestedObjectVersions;
-use crate::authority::test_authority_builder::TestAuthorityBuilder;
+use crate::{
+    authority::test_authority_builder::TestAuthorityBuilder,
+    transaction_manager::VerifiedExecutableAttestedTransaction,
+};
 
 /// A transaction whose Move authenticator points at an object that is not an
 /// abstract account — here an immutable object with no
@@ -95,7 +98,11 @@ async fn structural_move_auth_failure_resolves_to_invalid_attestation() {
         VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch_store.epoch(), 1);
 
     let (effects, _execution_error) = authority
-        .try_execute_immediately(&executable.into(), None, &epoch_store)
+        .try_execute_immediately(
+            &VerifiedExecutableAttestedTransaction::new(executable, None),
+            None,
+            &epoch_store,
+        )
         .unwrap();
 
     let ExecutionStatus::Failure { error, .. } = effects.status() else {
@@ -151,7 +158,11 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
     let verified_tx = epoch_store.verify_transaction(tx).unwrap();
     let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
     let (effects, _execution_error) = authority
-        .try_execute_immediately(&executable.into(), None, &epoch_store)
+        .try_execute_immediately(
+            &VerifiedExecutableAttestedTransaction::new(executable, None),
+            None,
+            &epoch_store,
+        )
         .unwrap();
     assert!(
         effects.status().is_success(),
@@ -240,7 +251,11 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
     let verified_tx = epoch_store.verify_transaction(tx).unwrap();
     let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
     let (effects, _execution_error) = authority
-        .try_execute_immediately(&executable.into(), None, &epoch_store)
+        .try_execute_immediately(
+            &VerifiedExecutableAttestedTransaction::new(executable, None),
+            None,
+            &epoch_store,
+        )
         .unwrap();
     assert!(effects.status().is_success());
 
@@ -320,7 +335,11 @@ async fn attested_object_version_state_judges_a_deleted_object() {
     let verified_tx = epoch_store.verify_transaction(tx).unwrap();
     let executable = VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch, 1);
     let (effects, _execution_error) = authority
-        .try_execute_immediately(&executable.into(), None, &epoch_store)
+        .try_execute_immediately(
+            &VerifiedExecutableAttestedTransaction::new(executable, None),
+            None,
+            &epoch_store,
+        )
         .unwrap();
     assert!(
         effects.status().is_success(),

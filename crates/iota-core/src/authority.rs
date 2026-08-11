@@ -1697,8 +1697,10 @@ impl AuthorityState {
         certificate: &VerifiedCertificate,
     ) -> IotaResult<(VerifiedSignedTransactionEffects, Option<ExecutionError>)> {
         let epoch_store = self.epoch_store_for_testing();
-        let executable: VerifiedExecutableAttestedTransaction =
-            VerifiedExecutableTransaction::new_from_certificate(certificate.clone()).into();
+        let executable = VerifiedExecutableAttestedTransaction::new(
+            VerifiedExecutableTransaction::new_from_certificate(certificate.clone()),
+            None,
+        );
         let (effects, execution_error_opt) =
             self.try_execute_immediately(&executable, None, &epoch_store)?;
         let signed_effects = self.sign_effects(effects, &epoch_store)?;
@@ -2324,7 +2326,7 @@ impl AuthorityState {
     )> {
         let lock = RwLock::new(epoch_store.epoch());
         let execution_guard = lock.try_read().unwrap();
-        let attested: VerifiedExecutableAttestedTransaction = transaction.clone().into();
+        let attested = VerifiedExecutableAttestedTransaction::new(transaction.clone(), None);
 
         self.execute_transaction(
             &execution_guard,
@@ -5770,7 +5772,7 @@ impl AuthorityState {
         let (input_objects, _) =
             self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
 
-        let attested_tx: VerifiedExecutableAttestedTransaction = executable_tx.clone().into();
+        let attested_tx = VerifiedExecutableAttestedTransaction::new(executable_tx.clone(), None);
         let (temporary_store, effects, _execution_error_opt) = self.execute_transaction(
             &execution_guard,
             &attested_tx,
