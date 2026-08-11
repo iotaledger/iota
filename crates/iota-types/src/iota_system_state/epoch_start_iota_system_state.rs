@@ -410,7 +410,7 @@ pub fn convert_validator_to_epoch_start_info(validator: &ValidatorV1) -> EpochSt
 mod test {
     use bcs;
     use fastcrypto::traits::{KeyPair, ToFromBytes};
-    use iota_network_stack::Multiaddr;
+    use iota_multiaddr::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
     use iota_sdk_types::Address;
     use rand::thread_rng;

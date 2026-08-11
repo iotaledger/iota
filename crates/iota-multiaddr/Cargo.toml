@@ -1,0 +1,18 @@
+[package]
+name = "iota-multiaddr"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anemo.workspace = true
+eyre.workspace = true
+idna = "1.1.0"
+multiaddr.workspace = true
+serde.workspace = true
+tracing.workspace = true

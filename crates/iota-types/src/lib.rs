@@ -10,7 +10,7 @@
 )]
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use iota_network_stack::multiaddr;
+pub use iota_multiaddr as multiaddr;
 use iota_sdk_types::Version;
 #[cfg(target_arch = "wasm32")]
 #[path = "wasm_multiaddr.rs"]

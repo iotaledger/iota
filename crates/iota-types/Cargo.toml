@@ -68,7 +68,7 @@ fastcrypto-tbls.workspace = true
 tonic.workspace = true
 
 # internal dependencies
-iota-network-stack.workspace = true
+iota-multiaddr.workspace = true
 prometheus-filtered.workspace = true
 
 [dev-dependencies]
