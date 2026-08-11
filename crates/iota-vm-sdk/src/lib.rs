@@ -47,7 +47,11 @@ pub mod graphql;
 #[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
 mod wasm;
 
-pub use debug::{DebugArtifacts, DebugConfig, ProfileOutput, ProfileSink};
+#[cfg(not(target_arch = "wasm32"))]
+pub use debug::TraceEvents;
+pub use debug::{DebugArtifacts, DebugConfig, ExecutionTrace, ProfileOutput, ProfileSink};
+#[cfg(not(target_arch = "wasm32"))]
+pub use error::TraceError;
 pub use error::{ExecutionError, SignatureError, StoreError, ValidationError, VmError, VmSdkError};
 pub use executor::{
     ChainContext, CommandResult, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult,
@@ -63,4 +67,5 @@ pub use iota_sdk_types::{
     TransactionEffects, TransactionEvents, TypeTag, UserSignature, Version,
 };
 pub use iota_types::object::Object;
+pub use move_trace_format::format::{TraceEvent, TraceVersion};
 pub use store::{InMemoryStore, Store};
