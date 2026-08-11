@@ -6,11 +6,10 @@ use std::collections::BTreeMap;
 
 use anyhow::{Result, anyhow};
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::{SignatureScheme, crypto::PublicKey as SdkPublicKey};
-use iota_types::{
-    crypto::{EncodeDecodeBase64, PublicKey},
-    multisig::{MultiSigPublicKey, MultisigMember},
+use iota_sdk_types::{
+    MultisigCommittee, MultisigMember, SignatureScheme, crypto::PublicKey as SdkPublicKey,
 };
+use iota_types::crypto::{EncodeDecodeBase64, PublicKey};
 
 /// Read a string as a Base64 encoded ED25519 public key.
 pub(crate) fn public_key_from_base64(base64: &str) -> Result<PublicKey> {
@@ -23,7 +22,7 @@ pub(crate) fn public_key_from_base64(base64: &str) -> Result<PublicKey> {
 /// Combine public keys into a MultiSig. Keys are deduplicated before generation
 /// as multisigs cannot contain the same public key twice.
 /// TODO remove conversion https://github.com/iotaledger/iota/issues/11590
-pub(crate) fn combine_keys(keys: impl IntoIterator<Item = PublicKey>) -> Result<MultiSigPublicKey> {
+pub(crate) fn combine_keys(keys: impl IntoIterator<Item = PublicKey>) -> Result<MultisigCommittee> {
     let members: Vec<_> = keys
         .into_iter()
         .map(|key| {
@@ -36,5 +35,5 @@ pub(crate) fn combine_keys(keys: impl IntoIterator<Item = PublicKey>) -> Result<
         .into_values()
         .collect();
 
-    Ok(MultiSigPublicKey::new(members, 1)?)
+    Ok(MultisigCommittee::new(members, 1)?)
 }
