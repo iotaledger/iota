@@ -434,7 +434,7 @@ impl IndexStoreTables {
                             batch.insert_batch(&self.owner, [(owner_key, owner_info)])?;
                         }
                         if index_jsonrpc {
-                            coin_changes.record_written(owner, object, old_object);
+                            coin_changes.record_written(owner, object);
                         }
                     }
                     Owner::Object(parent) => {

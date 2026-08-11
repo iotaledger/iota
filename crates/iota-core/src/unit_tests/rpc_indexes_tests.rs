@@ -2213,7 +2213,7 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
     let (owner_key, owner_info) = OwnerIndexKey::for_object(owner, coin_object).unwrap();
     assert_eq!(
         index_store.tables.owner.get(&owner_key).unwrap(),
-        Some(owner_info),
+        Some(owner_info.clone()),
         "the owner index is shared by both groups"
     );
     // The gRPC group's own tables are filled.
@@ -2236,6 +2236,49 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
         Err(IotaError::IndexStoreNotAvailable)
     ));
 
+    // The same checkpoint the other way round: a JSON-RPC-only store fills
+    // the history tables and the balances, and leaves the gRPC group's own
+    // tables empty.
+    let jsonrpc_store = RpcIndexesStore::new_without_init(
+        dir.path().join("jsonrpc_only"),
+        BTreeSet::from([IndexGroup::JsonRpc]),
+    );
+    index_checkpoint_for_testing(&jsonrpc_store, &checkpoint);
+
+    assert_eq!(jsonrpc_store.lookup_digest(&digest).unwrap(), Some((0, 0)));
+    assert_eq!(
+        jsonrpc_store.tables.owner.get(&owner_key).unwrap(),
+        Some(owner_info),
+        "the owner index is shared by both groups"
+    );
+    assert_eq!(
+        jsonrpc_store
+            .get_transactions(None, None, None, false)
+            .unwrap(),
+        vec![digest],
+        "the JSON-RPC history tables must be filled"
+    );
+    assert_eq!(
+        jsonrpc_store
+            .get_balance(owner, GAS::type_tag())
+            .unwrap()
+            .balance,
+        100
+    );
+    assert!(
+        jsonrpc_store.tables.coin.safe_iter().next().is_none(),
+        "the gRPC group's coin table must stay empty"
+    );
+    assert!(
+        jsonrpc_store
+            .tables
+            .package_version
+            .safe_iter()
+            .next()
+            .is_none(),
+        "the gRPC group's package table must stay empty"
+    );
+
     // Enabling the JSON-RPC group makes the store stale: its tables were
     // never filled, so the whole store must be rebuilt.
     let both = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
@@ -2253,5 +2296,123 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
             .needs_to_do_initialization(&checkpoint_store, &both)
             .unwrap(),
         "a newly enabled group must trigger a rebuild"
+    );
+}
+
+/// A coin type's metadata, treasury cap and regulated metadata are separate
+/// objects of one row, created together by one transaction: indexing that
+/// checkpoint must leave a row carrying all three, and a later checkpoint
+/// contributing another of them must merge onto the row instead of replacing
+/// it.
+#[tokio::test]
+async fn test_coin_metadata_objects_merge_into_one_row() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let together: StructTag = "0x42::together::TOGETHER".parse().unwrap();
+    let apart: StructTag = "0x42::apart::APART".parse().unwrap();
+    let coin_metadata_type = |coin_type: &StructTag| {
+        format!("0x2::coin::CoinMetadata<{coin_type}>")
+            .parse()
+            .unwrap()
+    };
+    let treasury_type = |coin_type: &StructTag| {
+        format!("0x2::coin::TreasuryCap<{coin_type}>")
+            .parse()
+            .unwrap()
+    };
+    let regulated_type = |coin_type: &StructTag| {
+        format!("0x2::coin::RegulatedCoinMetadata<{coin_type}>")
+            .parse()
+            .unwrap()
+    };
+
+    // One transaction creates all three objects of `together`, and the two
+    // that a currency's creation always pairs for `apart`.
+    let mut builder = TestCheckpointDataBuilder::new(0).start_transaction(0);
+    for object_idx in 0..5 {
+        builder = builder.create_coin_object(object_idx, 1, 1, GAS::type_tag());
+    }
+    let mut builder = builder.finish_transaction();
+    let mut checkpoint = builder.build_checkpoint();
+    let together_metadata =
+        replace_created_object_type(&mut checkpoint, 0, coin_metadata_type(&together));
+    let together_treasury =
+        replace_created_object_type(&mut checkpoint, 1, treasury_type(&together));
+    let together_regulated =
+        replace_created_object_type(&mut checkpoint, 2, regulated_type(&together));
+    let apart_metadata =
+        replace_created_object_type(&mut checkpoint, 3, coin_metadata_type(&apart));
+    let apart_treasury = replace_created_object_type(&mut checkpoint, 4, treasury_type(&apart));
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+
+    assert_eq!(
+        index_store.get_coin_info(&together).unwrap(),
+        Some(CoinIndexInfo {
+            coin_metadata_object_id: Some(together_metadata),
+            treasury_object_id: Some(together_treasury),
+            regulated_coin_metadata_object_id: Some(together_regulated),
+        }),
+        "objects of one checkpoint must not overwrite each other's fields"
+    );
+
+    // A later checkpoint contributes the regulated metadata of `apart`.
+    let mut builder = builder
+        .start_transaction(0)
+        .create_coin_object(5, 1, 1, GAS::type_tag())
+        .finish_transaction();
+    let mut checkpoint = builder.build_checkpoint();
+    let apart_regulated = replace_created_object_type(&mut checkpoint, 5, regulated_type(&apart));
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+
+    assert_eq!(
+        index_store.get_coin_info(&apart).unwrap(),
+        Some(CoinIndexInfo {
+            coin_metadata_object_id: Some(apart_metadata),
+            treasury_object_id: Some(apart_treasury),
+            regulated_coin_metadata_object_id: Some(apart_regulated),
+        }),
+        "a later checkpoint must merge onto the row instead of replacing it"
+    );
+}
+
+/// The live scan writes only the tables of the enabled groups: a
+/// JSON-RPC-only store leaves the gRPC group's coin and package tables empty,
+/// whatever the object stream carries, while the shared tables fill as usual.
+#[tokio::test]
+async fn test_live_scan_gates_the_grpc_tables() {
+    let dir = iota_common::tempdir();
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let owner = iota_types::base_types::dbg_addr(1);
+    let gas_object = Object::new_gas_with_balance_and_owner_for_testing(100, owner);
+    let coin_metadata = typed_object_for_testing(
+        "0x2::coin::CoinMetadata<0x2::iota::IOTA>".parse().unwrap(),
+        Owner::Immutable,
+    );
+    let package_object = package_object_for_testing();
+
+    let restorer =
+        RpcIndexesRestorer::open(index_dir.clone(), BTreeSet::from([IndexGroup::JsonRpc])).unwrap();
+    let mut partition = restorer.partition_indexer();
+    for object in [&gas_object, &coin_metadata, &package_object] {
+        partition.index_object(object).unwrap();
+    }
+    partition.finish().unwrap();
+    restorer.finalize(0).await.unwrap();
+
+    // Opened serving both groups, so the reads answer from the tables the
+    // restore filled rather than refusing.
+    let store = open_index_store(index_dir);
+    let (owner_key, owner_info) = OwnerIndexKey::for_object(owner, &gas_object).unwrap();
+    assert_eq!(
+        store.tables.owner.get(&owner_key).unwrap(),
+        Some(owner_info),
+        "the owner index is shared by both groups"
+    );
+    assert!(
+        store.tables.coin.safe_iter().next().is_none(),
+        "the gRPC group's coin table must stay empty"
+    );
+    assert!(
+        store.tables.package_version.safe_iter().next().is_none(),
+        "the gRPC group's package table must stay empty"
     );
 }

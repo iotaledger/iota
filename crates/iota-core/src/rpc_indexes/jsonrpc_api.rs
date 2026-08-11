@@ -25,7 +25,7 @@ use std::{
 use either::Either;
 use iota_json_rpc_types::{IotaMoveValue, IotaObjectDataFilter, TransactionFilter};
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TransactionEventsDigest,
+    Address, ObjectDigest, ObjectId, StructTag, TransactionDigest, TransactionEventsDigest,
     TypeTag, Version,
 };
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
@@ -109,31 +109,23 @@ impl CoinBalanceChanges {
         }
     }
 
-    /// Records the `object` that `owner` holds after the change. `previous`
-    /// is the object's state before it, if it was an input of the same
-    /// transaction.
-    pub(super) fn record_written(
-        &mut self,
-        owner: Address,
-        object: &Object,
-        previous: Option<&Object>,
-    ) {
+    /// Records the `object` that `owner` holds after the change.
+    pub(super) fn record_written(&mut self, owner: Address, object: &Object) {
         let Some((coin_type, balance)) = coin_type_and_balance(object) else {
             return;
         };
         match self.0.entry((owner, object.id())) {
             Entry::Occupied(mut occupied) => occupied.get_mut().current = Some(balance),
             Entry::Vacant(vacant) => {
-                // The owner already held the coin only if the transaction's
-                // input was owned by the same address; a coin that arrives
-                // from elsewhere is new to this owner, whatever its history.
-                let prior = previous
-                    .filter(|previous| previous.owner == Owner::Address(owner))
-                    .and_then(coin_type_and_balance)
-                    .map(|(_, balance)| balance);
+                // Nothing has claimed the pair yet, so the owner did not hold
+                // this coin before the checkpoint: had it held it, the row
+                // would have been deleted first — the deletion path
+                // recomputes the row from the object's state before the
+                // change, through `record_removed`, for every address-owned
+                // input.
                 vacant.insert(CoinBalanceChange {
                     coin_type,
-                    prior,
+                    prior: None,
                     current: Some(balance),
                 });
             }
