@@ -55,13 +55,13 @@ pub use error::{
 };
 pub use executor::{
     ChainContext, CommandResult, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult,
-    LocalVm, SignatureStatus,
+    LocalVm, RunModuleResolver, SignatureStatus,
 };
 // Upstream types re-exported in the public API.
 pub use iota_config::transaction_deny_config::{
     TransactionDenyConfig, TransactionDenyConfigBuilder,
 };
-pub use iota_protocol_config::{Chain, ProtocolVersion};
+pub use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 pub use iota_sdk_types::{
     Address, MoveAuthenticator, ObjectId, SenderSignedTransaction, StructTag, Transaction,
     TransactionEffects, TransactionEvents, TypeTag, UserSignature, Version,

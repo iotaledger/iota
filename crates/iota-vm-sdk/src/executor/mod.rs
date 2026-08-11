@@ -30,5 +30,5 @@ mod types;
 pub use local_vm::LocalVm;
 pub use types::{
     ChainContext, CommandResult, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult,
-    SignatureStatus,
+    RunModuleResolver, SignatureStatus,
 };

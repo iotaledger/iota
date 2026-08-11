@@ -15,7 +15,7 @@ use iota_types::{
     error::{IotaError, UserInputError},
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
 };
 use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,
@@ -533,4 +533,221 @@ fn deny_config_rejects_denied_sender() {
         )
         .expect_err("a denied sender must be rejected");
     assert!(matches!(err, VmSdkError::Validation(_)), "got {err:?}");
+}
+
+/// A committed run must report the pre-transaction versions of the objects it
+/// loaded at runtime, such as a dynamic-field child, even though committing
+/// replaces those versions in the store.
+#[test]
+fn execute_reports_runtime_loaded_inputs_at_their_pre_transaction_versions() {
+    use iota_sdk_types::{
+        Argument, ObjectChange, TypeTag,
+        transaction::{Command, SplitCoins},
+    };
+    use iota_types::IOTA_FRAMEWORK_PACKAGE_ID;
+
+    let sender = Address::ZERO;
+    let gas = gas_coin(sender);
+    let coin_type =
+        MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), 0).type_tag();
+    let key_type = TypeTag::U64;
+    let object_bag = Identifier::from_static("object_bag");
+
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas.clone());
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    // Store a coin in an object bag owned by the sender.
+    let mut b = ProgrammableTransactionBuilder::new();
+    let bag = b.programmable_move_call(
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        object_bag.clone(),
+        Identifier::from_static("new"),
+        vec![],
+        vec![],
+    );
+    let amount = b.pure(TRANSFER_AMOUNT).expect("pure amount");
+    let coin = b.command(Command::SplitCoins(SplitCoins {
+        coin: Argument::Gas,
+        amounts: vec![amount],
+    }));
+    let key = b.pure(7u64).expect("pure key");
+    b.programmable_move_call(
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        object_bag.clone(),
+        Identifier::from_static("add"),
+        vec![key_type.clone(), coin_type.clone()],
+        vec![bag, key, coin],
+    );
+    b.transfer_arg(sender, bag);
+    let result = vm
+        .execute(
+            Transaction::new_programmable(
+                sender,
+                vec![gas.object_ref()],
+                b.finish(),
+                TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+                GAS_PRICE,
+            ),
+            ExecuteOptions::execute(),
+        )
+        .expect("execute must succeed");
+    assert!(result.status.is_success(), "got {:?}", result.status);
+
+    let created = result.effects.created();
+    let bag_ref = created
+        .iter()
+        .find(|created| created.owner == Owner::Address(sender))
+        .expect("the bag is created and owned by the sender");
+    // A dynamic object field child is owned by its `Field` wrapper, which the
+    // bag owns.
+    let field = created
+        .iter()
+        .find(|created| created.owner == Owner::Object(bag_ref.reference.object_id))
+        .expect("the field wrapper is created as a child of the bag");
+    let stored_coin = created
+        .iter()
+        .find(|created| created.owner == Owner::Object(field.reference.object_id))
+        .expect("the coin is created as a child of the field wrapper")
+        .reference;
+
+    // Take the coin back out: the bag is an input, the coin is loaded at
+    // runtime.
+    let gas = vm
+        .store()
+        .get_object(&gas.id(), None)
+        .expect("store lookup")
+        .expect("gas coin remains");
+    let bag = vm
+        .store()
+        .get_object(&bag_ref.reference.object_id, None)
+        .expect("store lookup")
+        .expect("bag is committed");
+    let mut b = ProgrammableTransactionBuilder::new();
+    let bag = b
+        .obj(CallArg::ImmutableOrOwned(bag.object_ref()))
+        .expect("bag input");
+    let key = b.pure(7u64).expect("pure key");
+    let coin = b.programmable_move_call(
+        IOTA_FRAMEWORK_PACKAGE_ID,
+        object_bag,
+        Identifier::from_static("remove"),
+        vec![key_type, coin_type],
+        vec![bag, key],
+    );
+    b.transfer_arg(sender, coin);
+    let result = vm
+        .execute(
+            Transaction::new_programmable(
+                sender,
+                vec![gas.object_ref()],
+                b.finish(),
+                TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+                GAS_PRICE,
+            ),
+            ExecuteOptions::execute(),
+        )
+        .expect("execute must succeed");
+    assert!(result.status.is_success(), "got {:?}", result.status);
+    assert!(result.committed);
+
+    assert!(
+        result
+            .input_objects
+            .iter()
+            .any(|object| object.object_ref() == stored_coin),
+        "the coin must be reported at the version it was loaded at, got {:?}",
+        result
+            .input_objects
+            .iter()
+            .map(|object| object.object_ref())
+            .collect::<Vec<_>>()
+    );
+    let changes = result.object_changes().expect("derive object changes");
+    assert!(
+        changes.iter().any(|change| matches!(
+            change,
+            ObjectChange::Mutated { object_id, previous_version, .. }
+                if *object_id == stored_coin.object_id && *previous_version == stored_coin.version
+        )),
+        "the coin must be reported as mutated from its stored version, got {changes:#?}"
+    );
+}
+
+/// A dry run never commits, so a package it publishes is not in the store. The
+/// run's module resolver still resolves its modules, and falls back to the
+/// store for everything else.
+#[test]
+fn module_resolver_resolves_modules_a_dry_run_published() {
+    use move_binary_format::file_format::empty_module;
+    use move_bytecode_utils::module_cache::GetModule;
+    use move_core_types::{
+        account_address::AccountAddress, identifier::Identifier as MoveIdentifier,
+        language_storage::ModuleId,
+    };
+
+    let sender = Address::ZERO;
+    let gas = gas_coin(sender);
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas.clone());
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let mut module = empty_module();
+    module.identifiers[0] = MoveIdentifier::new("published").unwrap();
+    let mut bytes = Vec::new();
+    module
+        .serialize_with_version(module.version, &mut bytes)
+        .expect("serialize module");
+
+    let mut b = ProgrammableTransactionBuilder::new();
+    b.publish_immutable(vec![bytes], vec![]);
+    let result = vm
+        .execute(
+            Transaction::new_programmable(
+                sender,
+                vec![gas.object_ref()],
+                b.finish(),
+                TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+                GAS_PRICE,
+            ),
+            ExecuteOptions::dry_run(),
+        )
+        .expect("dry run must succeed");
+    assert!(result.status.is_success(), "got {:?}", result.status);
+    assert!(!result.committed);
+
+    let package_id = result
+        .effects
+        .created()
+        .iter()
+        .find(|created| created.owner == Owner::Immutable)
+        .expect("the package is created immutable")
+        .reference
+        .object_id;
+    let published = ModuleId::new(
+        AccountAddress::new(package_id.into_bytes()),
+        MoveIdentifier::new("published").unwrap(),
+    );
+    let framework = ModuleId::new(AccountAddress::TWO, MoveIdentifier::new("coin").unwrap());
+
+    assert!(
+        vm.get_module_by_id(&published)
+            .expect("store lookup")
+            .is_none(),
+        "an uncommitted package must not be in the store"
+    );
+
+    let resolver = result.module_resolver(&vm);
+    let module = resolver
+        .get_module_by_id(&published)
+        .expect("resolve")
+        .expect("the published module must resolve through the run's resolver");
+    assert_eq!(module.self_id(), published);
+    assert!(
+        resolver
+            .get_module_by_id(&framework)
+            .expect("resolve")
+            .is_some(),
+        "framework modules must still resolve from the store"
+    );
 }

@@ -3,13 +3,27 @@
 
 //! Public input / output types for the [`LocalVm`](super::LocalVm) surface.
 
+use std::collections::BTreeMap;
+
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{Event, ObjectId, TransactionEffects, TransactionEvents, gas::GasCostSummary};
-use iota_types::object::Object;
-use move_core_types::annotated_value::MoveValue;
+use iota_sdk_types::{
+    BalanceChange, DeriveChangesError, Event, ObjectChange, ObjectId, Transaction,
+    TransactionEffects, TransactionEvents, gas::GasCostSummary,
+};
+use iota_types::{
+    error::{ExecutionError, IotaError},
+    object::Object,
+    transaction::TransactionAPI as _,
+};
+use move_binary_format::CompiledModule;
+use move_bytecode_utils::module_cache::GetModule;
+use move_core_types::{annotated_value::MoveValue, language_storage::ModuleId};
 
-use crate::debug::{DebugArtifacts, DebugConfig};
+use crate::{
+    debug::{DebugArtifacts, DebugConfig},
+    executor::LocalVm,
+};
 
 /// The chain parameters a [`LocalVm`](super::LocalVm) needs.
 ///
@@ -197,6 +211,11 @@ pub type CommandResult = iota_types::execution::ExecutionResult;
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct ExecutionResult {
+    /// The transaction as it ran, with whatever it left unset filled in — in
+    /// particular the gas payment, which is the mock coin of
+    /// [`mock_gas_id`](Self::mock_gas_id) for a gas-less run. Callers reporting
+    /// the transaction back should use this rather than the one they passed in.
+    pub transaction: Transaction,
     /// The transaction effects (object changes, gas, status digest).
     pub effects: TransactionEffects,
     /// Emitted events, if the run produced any.
@@ -207,12 +226,25 @@ pub struct ExecutionResult {
     /// entry point does not return per-command results) and for failed runs
     /// (the engine reports them only for a successful execution).
     pub command_results: Vec<CommandResult>,
-    /// Objects read as inputs to the run.
+    /// Why the run failed, with more detail than
+    /// [`status`](Self::status) carries — in particular its
+    /// [`source`](iota_types::error::ExecutionError::source), which is what a
+    /// node reports as a dry run's execution error source. `None` for a run
+    /// that succeeded.
+    pub execution_error: Option<ExecutionError>,
+    /// Objects read as inputs to the run: the transaction's own inputs, plus
+    /// the pre-transaction versions of objects the run loaded at runtime
+    /// (dynamic fields, received objects) where the store still holds them.
     pub input_objects: Vec<Object>,
     /// Objects written by the run (created or mutated).
     pub output_objects: Vec<Object>,
     /// Gas ledger for the run (computation / storage / rebate).
     pub gas_summary: GasCostSummary,
+    /// The gas price a node would suggest: the epoch's reference gas price for
+    /// a transaction with no mutable shared inputs, where no congestion can
+    /// apply. `None` when it has one — their congestion is tracked only by a
+    /// node, so no suggestion can be derived here.
+    pub suggested_gas_price: Option<u64>,
     /// Id of the mock gas coin minted for a gas-less transaction, if any.
     pub mock_gas_id: Option<ObjectId>,
     /// The Move-level execution status (success or abort).
@@ -224,6 +256,83 @@ pub struct ExecutionResult {
     pub committed: bool,
     /// Captured debug artifacts (profile / trace), if requested.
     pub debug: Option<DebugArtifacts>,
+}
+
+impl ExecutionResult {
+    /// The run's balance changes per owner and coin type, in the shape a node
+    /// reports them: only the gas charge for a failed run, and the mock gas
+    /// coin of a gas-less run excluded.
+    pub fn balance_changes(&self) -> Result<Vec<BalanceChange>, DeriveChangesError> {
+        self.effects.as_v1().balance_changes(
+            self.input_objects.iter().map(|o| &**o),
+            self.output_objects.iter().map(|o| &**o),
+            self.mock_gas_id,
+        )
+    }
+
+    /// The run's object changes, in the shape a node reports them.
+    pub fn object_changes(&self) -> Result<Vec<ObjectChange>, DeriveChangesError> {
+        self.effects.as_v1().object_changes(
+            self.transaction.sender(),
+            self.input_objects.iter().map(|o| &**o),
+            self.output_objects.iter().map(|o| &**o),
+        )
+    }
+
+    /// Resolves Move modules as this run saw them: packages the run published
+    /// first, then `vm`'s store. A run that is not committed leaves what it
+    /// published out of the store, so resolving through `vm` alone cannot
+    /// decode events or inputs typed by a package the run created.
+    ///
+    /// Published packages are matched by storage id. A package the run
+    /// upgraded keeps its original runtime address, so its modules resolve
+    /// from the store's earlier version instead.
+    pub fn module_resolver<'a>(&'a self, vm: &'a LocalVm) -> RunModuleResolver<'a> {
+        RunModuleResolver {
+            published: self
+                .output_objects
+                .iter()
+                .filter(|object| object.data.as_opt_package().is_some())
+                .map(|object| (object.id(), object))
+                .collect(),
+            vm,
+        }
+    }
+}
+
+/// Module resolver for one run, built with
+/// [`ExecutionResult::module_resolver`].
+pub struct RunModuleResolver<'a> {
+    published: BTreeMap<ObjectId, &'a Object>,
+    vm: &'a LocalVm,
+}
+
+impl GetModule for RunModuleResolver<'_> {
+    type Error = IotaError;
+    type Item = CompiledModule;
+
+    fn get_module_by_id(&self, id: &ModuleId) -> Result<Option<Self::Item>, Self::Error> {
+        let package_id = ObjectId::new(id.address().into_bytes());
+        let published = self
+            .published
+            .get(&package_id)
+            .and_then(|object| object.data.as_opt_package());
+        let Some(package) = published else {
+            return self.vm.get_module_by_id(id);
+        };
+        let name = iota_types::iota_sdk_types_conversions::identifier_core_to_sdk(id.name());
+        package
+            .serialized_module_map()
+            .get(&name)
+            .map(|bytes| {
+                CompiledModule::deserialize_with_defaults(bytes).map_err(|e| {
+                    IotaError::ModuleDeserializationFailure {
+                        error: e.to_string(),
+                    }
+                })
+            })
+            .transpose()
+    }
 }
 
 /// A Move event paired with its decoded payload.
