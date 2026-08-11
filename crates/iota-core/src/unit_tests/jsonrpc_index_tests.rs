@@ -163,7 +163,10 @@ async fn test_a_failed_drop_still_removes_the_bucket() {
     seed_history_buckets(&index_store, 2);
 
     // Makes the pruner's own drop fail: the column family is already gone.
-    index_store.db.drop_cf(&history_cf_name(0)).unwrap();
+    index_store
+        .database_for_testing()
+        .drop_cf(&history_cf_name(0))
+        .unwrap();
 
     assert_eq!(index_store.prune(1).unwrap(), Some(1));
     assert_eq!(index_store.history_buckets(false).len(), 1);
@@ -190,8 +193,11 @@ async fn test_a_bucket_below_the_floor_is_dropped_at_open() {
     // Stands in for a drop that failed: the column family is on disk
     // below the persisted floor.
     index_store
-        .db
-        .create_cf(&history_cf_name(0), &index_store.history_cf_options)
+        .database_for_testing()
+        .create_cf(
+            &history_cf_name(0),
+            &typed_store::rocksdb::Options::default(),
+        )
         .unwrap();
 
     let index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
@@ -434,12 +440,7 @@ async fn test_backfill_stops_at_the_retention_horizon() {
     // Buckets for epochs 0..=7: genesis' epoch 0 lies below the
     // retention horizon (epoch 1), while no pruning has run yet.
     seed_history_buckets(&index_store, 8);
-    assert_eq!(
-        index_store
-            .earliest_retained_epoch
-            .load(std::sync::atomic::Ordering::Relaxed),
-        0
-    );
+    assert_eq!(index_store.history.earliest_retained(), 0);
     index_store
         .tables
         .history_watermark
@@ -1691,7 +1692,7 @@ async fn test_rebuild_predicate_propagates_read_errors() {
     let dir = iota_common::tempdir();
     let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
     let index_store = open_index_store(dir.path().join("indexes"));
-    index_store.db.drop_cf("meta").unwrap();
+    index_store.database_for_testing().drop_cf("meta").unwrap();
     assert!(
         index_store
             .tables
@@ -1703,7 +1704,10 @@ async fn test_rebuild_predicate_propagates_read_errors() {
     // was cut short from a fresh store.
     let index_store = open_index_store(dir.path().join("owner-index-error"));
     index_store.tables.seed_meta().unwrap();
-    index_store.db.drop_cf("owner_index").unwrap();
+    index_store
+        .database_for_testing()
+        .drop_cf("owner_index")
+        .unwrap();
     assert!(
         index_store
             .tables
