@@ -2002,6 +2002,12 @@ impl ProtocolConfig {
                 (max_accumulated_txn_cost_per_object_in_mysticeti_commit) to be enabled"
         );
         assert!(
+            res.is_none() || self.congestion_control_gas_price_feedback_mechanism(),
+            "max_concurrent_execution_workers requires the gas price feedback mechanism \
+                (congestion_control_gas_price_feedback_mechanism), which carries the suggested \
+                gas price of an execution-worker congestion cancellation"
+        );
+        assert!(
             res.is_none() || !self.separate_gas_price_feedback_mechanism_for_randomness(),
             "max_concurrent_execution_workers implies a single congestion tracker and suggested \
                 gas price calculator for all transactions, which is incompatible with \

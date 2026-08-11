@@ -2893,6 +2893,19 @@ impl ObjectReadResult {
     }
 }
 
+/// The input objects that carry a cancelled transaction's cancellation
+/// version, and therefore the objects reported to the client as the cause.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum CancelledObjects {
+    /// The transaction's shared inputs, reported as the congested objects.
+    SharedObjects(Vec<ObjectId>),
+    /// The gas object of a transaction without shared inputs. Consensus only
+    /// assigns a cancellation version there when the execution workers are
+    /// congested, so no individual object is responsible and none is
+    /// reported.
+    GasObject,
+}
+
 #[derive(Clone)]
 pub struct InputObjects {
     objects: Vec<ObjectReadResult>,
@@ -3000,14 +3013,11 @@ impl InputObjects {
             .any(|obj| obj.is_deleted_shared_object())
     }
 
-    // Returns IDs of objects responsible for a transaction being cancelled, and the
+    // Returns the objects responsible for a transaction being cancelled, and the
     // corresponding reason for cancellation.
-    pub fn get_cancelled_objects(&self) -> Option<(Vec<ObjectId>, Version)> {
-        // A transaction without shared inputs is cancelled via its gas
-        // object's assigned version. No object is individually responsible
-        // (the execution-worker pool is congested), so the list is empty.
+    pub fn get_cancelled_objects(&self) -> Option<(CancelledObjects, Version)> {
         if let Some((_, version)) = &self.gas_object_cancellation {
-            return Some((Vec::new(), *version));
+            return Some((CancelledObjects::GasObject, *version));
         }
 
         let mut contains_cancelled = false;
@@ -3027,7 +3037,7 @@ impl InputObjects {
 
         if !cancelled_objects.is_empty() {
             Some((
-                cancelled_objects,
+                CancelledObjects::SharedObjects(cancelled_objects),
                 cancel_reason
                     .expect("there should be a cancel reason if there are cancelled objects"),
             ))

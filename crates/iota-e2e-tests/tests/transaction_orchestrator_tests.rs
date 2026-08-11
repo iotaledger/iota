@@ -1317,17 +1317,16 @@ async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-/// Extracts the suggested gas price from congestion-cancellation effects, if
-/// that is what `effects` carry.
+/// Extracts the suggested gas price from execution-worker congestion
+/// cancellation effects, if that is what `effects` carry.
 fn cancelled_congestion_suggested_gas_price(
     effects: &iota_sdk_types::TransactionEffects,
 ) -> Option<u64> {
     match effects.status() {
         iota_sdk_types::ExecutionStatus::Failure {
             error:
-                iota_sdk_types::ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                iota_sdk_types::ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
                     suggested_gas_price,
-                    ..
                 },
             ..
         } => Some(*suggested_gas_price),
@@ -1354,6 +1353,7 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
         );
         config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
         config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
         config.set_max_concurrent_execution_workers_for_testing(1);
         config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
         config
@@ -1494,6 +1494,7 @@ async fn test_execution_worker_congestion_cancellation_validator_restart()
         );
         config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(1);
         config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
+        config.set_separate_gas_price_feedback_mechanism_for_randomness_for_testing(false);
         config.set_max_concurrent_execution_workers_for_testing(1);
         config.set_max_deferral_rounds_for_congestion_control_for_testing(0);
         config

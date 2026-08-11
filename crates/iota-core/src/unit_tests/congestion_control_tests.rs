@@ -1302,16 +1302,14 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
             ExecutionStatus::Success => false,
             ExecutionStatus::Failure {
                 error:
-                    ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
-                        congested_objects,
+                    ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
                         suggested_gas_price,
                     },
                 command: None,
             } => {
-                // The execution-worker pool is congested, not any particular
+                // The execution workers are congested, not any particular
                 // object, so no congested objects are reported. The suggested
                 // gas price must beat the competing transaction's price.
-                assert!(congested_objects.is_empty());
                 assert!(*suggested_gas_price > rgp);
                 true
             }
@@ -1624,13 +1622,11 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
             ExecutionStatus::Success => false,
             ExecutionStatus::Failure {
                 error:
-                    ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
-                        congested_objects,
+                    ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
                         suggested_gas_price,
                     },
                 command: None,
             } => {
-                assert!(congested_objects.is_empty());
                 assert!(*suggested_gas_price > rgp);
                 true
             }

@@ -228,15 +228,12 @@ impl SharedObjVerManager {
                     ),
                     None => unreachable!("cancelled transaction should have cancellation info"),
                 };
-                let assigned_version = if enable_gas_price_feedback {
+                let assigned_version =
                     Version::new_congested_with_suggested_gas_price(suggested_gas_price.expect(
-                        "Suggested gas price for transactions cancelled due to congestion \
-                            must not be None if the gas price feedback is enabled.",
+                        "execution-worker congestion control requires the gas price feedback \
+                            mechanism, so a suggested gas price must be present",
                     ))
-                    .unwrap()
-                } else {
-                    Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
-                };
+                    .unwrap();
                 let gas_object_id = transaction
                     .transaction()
                     .gas()
@@ -309,8 +306,9 @@ impl SharedObjVerManager {
 
 /// Returns the cancellation version to assign to the gas object of a
 /// cancelled transaction without shared inputs, reconstructed from the
-/// effects' execution status. Returns `None` when the effects are not a
-/// congestion cancellation.
+/// effects' execution status. Returns `None` when the effects are not an
+/// execution-worker congestion cancellation, which is the only cancellation a
+/// transaction without shared inputs can carry on its gas object.
 pub(crate) fn gas_object_cancellation_version_from_effects(
     effects: &TransactionEffects,
 ) -> Option<Version> {
@@ -318,16 +316,12 @@ pub(crate) fn gas_object_cancellation_version_from_effects(
         return None;
     };
     match error {
-        ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
+        ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
             suggested_gas_price,
-            ..
         } => Some(
             Version::new_congested_with_suggested_gas_price(*suggested_gas_price)
                 .expect("suggested gas price came from an assigned congestion version"),
         ),
-        ExecutionError::ExecutionCanceledDueToSharedObjectCongestion { .. } => {
-            Some(Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK)
-        }
         _ => None,
     }
 }
@@ -841,8 +835,7 @@ mod tests {
         // replay).
         let effects = TestEffectsBuilder::new(transaction.data())
             .with_status(ExecutionStatus::Failure {
-                error: ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
-                    congested_objects: vec![],
+                error: ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
                     suggested_gas_price,
                 },
                 command: None,
