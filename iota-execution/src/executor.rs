@@ -17,7 +17,7 @@ use iota_types::{
     base_types::TxContext,
     committee::EpochId,
     error::ExecutionError,
-    execution::{ExecutionResult, TypeLayoutStore},
+    execution::{ExecutionResult, ExecutionTiming, TypeLayoutStore},
     gas::IotaGasStatus,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -54,6 +54,7 @@ pub trait Executor {
         InnerTemporaryStore,
         IotaGasStatus,
         TransactionEffects,
+        Vec<ExecutionTiming>,
         Result<(), ExecutionError>,
     );
 
@@ -118,6 +119,7 @@ pub trait Executor {
         InnerTemporaryStore,
         IotaGasStatus,
         TransactionEffects,
+        Vec<ExecutionTiming>,
         Result<(), ExecutionError>,
     );
 

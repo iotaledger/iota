@@ -81,22 +81,23 @@ pub fn execute_genesis_transaction(
     let (kind, signer, mut gas_data) = transaction.execution_parts();
     gas_data.objects = vec![];
     let input_objects = CheckedInputObjects::new_for_genesis(vec![]);
-    let (inner_temp_store, _, effects, _execution_error) = executor.execute_transaction_to_effects(
-        &InMemoryStorage::new(Vec::new()),
-        protocol_config,
-        metrics,
-        expensive_checks,
-        &certificate_deny_set,
-        &epoch_data.epoch_id(),
-        epoch_data.epoch_start_timestamp(),
-        input_objects,
-        gas_data,
-        IotaGasStatus::new_unmetered(),
-        kind,
-        signer,
-        genesis_digest,
-        &mut None,
-    );
+    let (inner_temp_store, _, effects, _timings, _execution_error) = executor
+        .execute_transaction_to_effects(
+            &InMemoryStorage::new(Vec::new()),
+            protocol_config,
+            metrics,
+            expensive_checks,
+            &certificate_deny_set,
+            &epoch_data.epoch_id(),
+            epoch_data.epoch_start_timestamp(),
+            input_objects,
+            gas_data,
+            IotaGasStatus::new_unmetered(),
+            kind,
+            signer,
+            genesis_digest,
+            &mut None,
+        );
     assert!(inner_temp_store.input_objects.is_empty());
     assert!(inner_temp_store.mutable_inputs.is_empty());
     assert!(effects.mutated().is_empty());
