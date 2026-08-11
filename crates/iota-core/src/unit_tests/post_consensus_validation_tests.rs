@@ -11084,7 +11084,6 @@ async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[T
     AuthorityStorePruner::prune_objects_for_eligible_epochs(
         &s.authority.database_for_testing().perpetual_tables,
         checkpoint_store,
-        None,
         config,
         AuthorityStorePruningMetrics::new_for_test(),
         0,
