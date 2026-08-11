@@ -5,11 +5,15 @@
 //! gRPC read surfaces share, and the history tables that live in per-epoch
 //! column families (see [`super`]).
 
-use std::{collections::BTreeSet, hash::Hasher, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap, hash_map::Entry},
+    hash::Hasher,
+    sync::Arc,
+};
 
 use iota_sdk_types::{
     Address, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest, TransactionEffects,
-    TransactionEvents, TransactionEventsDigest, Version,
+    TransactionEvents, TransactionEventsDigest, TypeTag, Version,
 };
 use iota_types::{
     base_types::TxSequenceNumber,
@@ -17,6 +21,7 @@ use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaResult,
     messages_checkpoint::CheckpointSequenceNumber,
+    move_package::MovePackageExt,
     object::Object,
     storage::{DynamicFieldKey, PackageVersionInfo, PackageVersionKey},
     transaction::{TransactionAPI, TransactionEnvelope},
@@ -296,6 +301,106 @@ pub struct CoinIndexInfo {
     pub coin_metadata_object_id: Option<ObjectId>,
     pub treasury_object_id: Option<ObjectId>,
     pub regulated_coin_metadata_object_id: Option<ObjectId>,
+}
+
+impl CoinIndexInfo {
+    /// Fills in the object ids `self` does not have yet from `other`. A coin
+    /// type's metadata, treasury and regulated metadata are separate objects,
+    /// so each contributes one field of the same row.
+    pub(super) fn merge(&mut self, other: Self) {
+        self.coin_metadata_object_id = self
+            .coin_metadata_object_id
+            .or(other.coin_metadata_object_id);
+        self.treasury_object_id = self.treasury_object_id.or(other.treasury_object_id);
+        self.regulated_coin_metadata_object_id = self
+            .regulated_coin_metadata_object_id
+            .or(other.regulated_coin_metadata_object_id);
+    }
+}
+
+/// Adds `info` to the coin metadata gathered so far, merging it into an
+/// entry that is already there.
+pub(super) fn merge_coin_into(
+    index: &mut HashMap<CoinIndexKey, CoinIndexInfo>,
+    key: CoinIndexKey,
+    info: CoinIndexInfo,
+) {
+    match index.entry(key) {
+        Entry::Occupied(mut occupied) => occupied.get_mut().merge(info),
+        Entry::Vacant(vacant) => {
+            vacant.insert(info);
+        }
+    }
+}
+
+/// Whether the object is a `Field` object of a dynamic field — the only
+/// objects the dynamic-field index stores.
+pub(super) fn is_dynamic_field(object: &Object) -> bool {
+    object
+        .data
+        .as_opt_struct()
+        .is_some_and(|move_object| move_object.struct_tag().is_dynamic_field())
+}
+
+/// The coin metadata row `object` contributes, when it is a `CoinMetadata<T>`
+/// or a `TreasuryCap<T>`.
+pub(super) fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {
+    use iota_types::coin::{CoinMetadata, TreasuryCap};
+
+    let object_type = object.type_()?;
+
+    if let Some(coin_type) = CoinMetadata::is_coin_metadata_with_coin_type(object_type).cloned() {
+        return Some((
+            CoinIndexKey { coin_type },
+            CoinIndexInfo {
+                coin_metadata_object_id: Some(object.id()),
+                ..Default::default()
+            },
+        ));
+    }
+
+    if let Some(coin_type) = TreasuryCap::is_treasury_with_coin_type(object_type).cloned() {
+        return Some((
+            CoinIndexKey { coin_type },
+            CoinIndexInfo {
+                treasury_object_id: Some(object.id()),
+                ..Default::default()
+            },
+        ));
+    }
+
+    None
+}
+
+/// The coin type and object id of a `RegulatedCoinMetadata<T>`, for the
+/// coin table's third field.
+pub(super) fn try_create_regulated_coin_info(object: &Object) -> Option<(CoinIndexKey, ObjectId)> {
+    let move_object_type = object.type_()?;
+    if !move_object_type.is_regulated_coin_metadata() {
+        return None;
+    }
+    // RegulatedCoinMetadata<T> has one type parameter: the coin type
+    let coin_type = match move_object_type.type_params().first()? {
+        TypeTag::Struct(s) => *s.clone(),
+        _ => return None,
+    };
+    Some((CoinIndexKey { coin_type }, object.id()))
+}
+
+/// The package-version row `object` occupies, when it is a Move package.
+pub(super) fn try_create_package_version_info(
+    object: &Object,
+) -> Option<(PackageVersionKey, PackageVersionInfo)> {
+    let package = object.data.as_opt_package()?;
+    Some((
+        PackageVersionKey {
+            original_package_id: package.original_package_id(),
+            version: object.version().as_u64(),
+        },
+        PackageVersionInfo {
+            storage_id: object.id(),
+        },
+    ))
 }
 
 pub(super) type EventId = (TxSequenceNumber, usize);

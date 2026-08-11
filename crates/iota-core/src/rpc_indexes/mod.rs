@@ -9,17 +9,18 @@
 //! when the JSON-RPC group is off, since gRPC needs only the checkpoint a
 //! transaction landed in, not its network sequence number.
 //!
-//! This module is schema, open, rebuild, backfill and prune; [`jsonrpc_api`]
-//! and [`grpc_api`] add the two read surfaces. The live/restore ingest paths
-//! are added by a later change, so a rebuild's live-state tables are empty
-//! until then.
+//! This module is schema, open, rebuild, backfill, prune, and the
+//! per-checkpoint ingest; [`jsonrpc_api`] and [`grpc_api`] add the two read
+//! surfaces, and [`live_scan`] fills the live-state tables from a rebuild's
+//! object scan or a formal-snapshot restore.
 
 pub mod grpc_api;
 pub mod jsonrpc_api;
+pub mod live_scan;
 pub mod schema;
 
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -28,15 +29,18 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_types::{Owner, TransactionDigest};
 use iota_types::{
     base_types::TxSequenceNumber,
     committee::EpochId,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber, VerifiedCheckpoint},
-    object::Object,
-    storage::error::{Error as StorageError, Kind as StorageErrorKind},
+    storage::{
+        DynamicFieldKey, PackageVersionInfo, PackageVersionKey,
+        error::{Error as StorageError, Kind as StorageErrorKind},
+    },
 };
 use parking_lot::Mutex;
 use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
@@ -45,8 +49,9 @@ use typed_store::{
     TypedStoreError,
     database::{Database, drop_tolerant_write_options, wait_for_database_close},
     rocks::{
-        DBMap, MetricConf, ReadWriteOptions, bulk_ingestion_options_split_between,
-        default_db_options, list_tables, open_cf_opts, read_size_from_env, safe_drop_db,
+        DBBatch, DBMap, MetricConf, ReadWriteOptions, bulk_ingestion_options,
+        bulk_ingestion_options_split_between, default_db_options, list_tables, open_cf_opts,
+        read_size_from_env, safe_drop_db,
     },
     rocksdb,
     traits::Map,
@@ -54,10 +59,16 @@ use typed_store::{
 
 pub use self::schema::{IndexGroup, TotalBalance};
 use self::{
-    jsonrpc_api::{BalanceCaches, JsonRpcMetrics},
+    jsonrpc_api::{
+        BalanceCaches, CoinBalanceChanges, JsonRpcMetrics,
+        invalidate_balance_caches_instead_of_updating,
+    },
+    live_scan::LiveObjectSetIndexer,
     schema::{
-        CURRENT_DB_VERSION, HISTORY_CF_PREFIX, HistoryBucket, IndexStoreTables, MetadataInfo,
-        transaction_index_data,
+        CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, HISTORY_CF_PREFIX, HistoryBucket,
+        IndexStoreTables, MetadataInfo, OwnerIndexKey, is_dynamic_field, merge_coin_into,
+        transaction_index_data, try_create_coin_index_info, try_create_package_version_info,
+        try_create_regulated_coin_info,
     },
 };
 use crate::{
@@ -65,8 +76,7 @@ use crate::{
     checkpoints::CheckpointStore,
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::{
-        LiveObjectIndexer, PROGRESS_REPORT_INTERVAL, ParMakeLiveObjectIndexer, eta_display,
-        progress_rate,
+        PROGRESS_REPORT_INTERVAL, eta_display, par_index_live_object_set, progress_rate,
     },
     rpc_index_history::{self, EpochBuckets},
 };
@@ -84,30 +94,12 @@ fn history_cf_epoch(cf_name: &str) -> Option<EpochId> {
     rpc_index_history::bucket_cf_epoch(HISTORY_CF_PREFIX, cf_name)
 }
 
-/// Fills nothing: the real live-object indexer that populates `owner`,
-/// `dynamic_field`, `coin`, and `package_version` from a parallel scan of
-/// the live object set is wired in a later task. Until then, a rebuild's
-/// live-state tables start empty and stay empty.
-struct NoOpIndexer;
-
-impl ParMakeLiveObjectIndexer for NoOpIndexer {
-    type ObjectIndexer<'a> = NoOpObjectIndexer;
-
-    fn make_live_object_indexer(&self) -> Self::ObjectIndexer<'_> {
-        NoOpObjectIndexer
-    }
-}
-
-struct NoOpObjectIndexer;
-
-impl LiveObjectIndexer for NoOpObjectIndexer {
-    fn index_object(&mut self, _object: &Object) -> Result<(), StorageError> {
-        Ok(())
-    }
-
-    fn finish(self) -> Result<(), StorageError> {
-        Ok(())
-    }
+/// A staged index update for one checkpoint, waiting for its in-order commit.
+struct PendingCheckpointUpdate {
+    batch: DBBatch,
+    /// The checkpoint's coin balance changes, used at commit time to derive
+    /// the JSON-RPC balance cache updates. Empty when that group is off.
+    coin_changes: CoinBalanceChanges,
 }
 
 struct RpcIndexesMetrics {
@@ -170,6 +162,9 @@ pub struct RpcIndexesStore {
     caches: BalanceCaches,
     jsonrpc_metrics: JsonRpcMetrics,
     max_type_length: u64,
+    /// The staged updates of the checkpoints indexed but not yet committed,
+    /// in checkpoint order.
+    pending_updates: Mutex<BTreeMap<CheckpointSequenceNumber, PendingCheckpointUpdate>>,
     history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Stops the startup rebuild and the background history backfill.
     cancelled: Arc<AtomicBool>,
@@ -284,25 +279,22 @@ impl IndexStoreTables {
         Ok(watermark < executed)
     }
 
-    /// Rebuilds the live-state tables, for the cases
+    /// Rebuilds the live-state tables of whichever `groups` are enabled from
+    /// a parallel scan of the live object set, for the cases
     /// `needs_to_do_initialization` covers. The on-disk DB needs to be
     /// wiped before this is called, so `init` always starts from an empty
     /// store.
-    ///
-    /// `indexer` fills the live-state tables of whichever groups are
-    /// enabled from a parallel scan of the live object set; wiring the real
-    /// one is a later task.
     ///
     /// Writes only `meta`: the caller adopts the rebuild by writing the
     /// watermarks once the WAL-less bulk writes are flushed. Returns the
     /// highest executed checkpoint to anchor them to.
     #[tracing::instrument(skip_all)]
-    fn init<T: ParMakeLiveObjectIndexer>(
+    fn init(
         &mut self,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
-        indexer: &T,
         groups: &BTreeSet<IndexGroup>,
+        batch_size_limit: usize,
         cancelled: &AtomicBool,
     ) -> Result<Option<CheckpointSequenceNumber>, StorageError> {
         info!("Initializing RPC indexes");
@@ -324,11 +316,9 @@ impl IndexStoreTables {
         // Live-state tables from the current live object set. The history
         // tables are not built here: `backfill_history` fills them in the
         // background once the node is up, resuming from `history_watermark`.
-        crate::par_index_live_object_set::par_index_live_object_set(
-            authority_store,
-            indexer,
-            cancelled,
-        )?;
+        let indexer = LiveObjectSetIndexer::new(self, groups, batch_size_limit);
+        par_index_live_object_set(authority_store, &indexer, cancelled)?;
+        indexer.finish()?;
 
         info!("Finished initializing RPC indexes");
 
@@ -358,6 +348,150 @@ impl IndexStoreTables {
         if let Some(highest_executed) = highest_executed {
             self.watermark.insert(&(), &highest_executed)?;
         }
+        Ok(())
+    }
+
+    /// Appends the live-state deltas of a checkpoint's `transactions` to its
+    /// batch: the owner and dynamic-field rows both API groups share, and the
+    /// gRPC group's coin metadata and package versions. `coin_changes`
+    /// collects what the JSON-RPC balance caches are updated from and stays
+    /// empty when that group is off.
+    ///
+    /// The rows a change replaces are recomputed from the object as it was
+    /// before it: an owner key carries the object's type and, for a coin, its
+    /// balance, so the row to delete cannot be derived from the new state.
+    fn index_objects(
+        &self,
+        transactions: &[&CheckpointTransaction],
+        groups: &BTreeSet<IndexGroup>,
+        batch: &mut DBBatch,
+        coin_changes: &mut CoinBalanceChanges,
+    ) -> IotaResult {
+        let index_jsonrpc = groups.contains(&IndexGroup::JsonRpc);
+        let index_grpc = groups.contains(&IndexGroup::Grpc);
+        let mut coin_metadata: HashMap<CoinIndexKey, CoinIndexInfo> = HashMap::new();
+        let mut package_versions: Vec<(PackageVersionKey, PackageVersionInfo)> = Vec::new();
+
+        for tx in transactions {
+            for removed_object in tx.removed_objects_pre_version() {
+                match removed_object.owner {
+                    Owner::Address(address) => {
+                        if let Some((owner_key, _)) =
+                            OwnerIndexKey::for_object(address, removed_object)
+                        {
+                            batch.delete_batch(&self.owner, [owner_key])?;
+                        }
+                        if index_jsonrpc {
+                            coin_changes.record_removed(address, removed_object);
+                        }
+                    }
+                    Owner::Object(object_id) => {
+                        batch.delete_batch(
+                            &self.dynamic_field,
+                            [DynamicFieldKey::new(object_id, removed_object.id())],
+                        )?;
+                    }
+                    Owner::Shared(_) | Owner::Immutable => {}
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
+                }
+            }
+
+            for (object, old_object) in tx.changed_objects() {
+                if let Some(old_object) = old_object {
+                    match old_object.owner {
+                        Owner::Address(address) => {
+                            if let Some((owner_key, _)) =
+                                OwnerIndexKey::for_object(address, old_object)
+                            {
+                                batch.delete_batch(&self.owner, [owner_key])?;
+                            }
+                            if index_jsonrpc {
+                                coin_changes.record_removed(address, old_object);
+                            }
+                        }
+                        Owner::Object(object_id) => {
+                            if old_object.owner != object.owner {
+                                batch.delete_batch(
+                                    &self.dynamic_field,
+                                    [DynamicFieldKey::new(object_id, old_object.id())],
+                                )?;
+                            }
+                        }
+                        Owner::Shared(_) | Owner::Immutable => {}
+                        _ => unimplemented!(
+                            "a new Owner enum variant was added and needs to be handled"
+                        ),
+                    }
+                }
+
+                match object.owner {
+                    Owner::Address(owner) => {
+                        if let Some((owner_key, owner_info)) =
+                            OwnerIndexKey::for_object(owner, object)
+                        {
+                            batch.insert_batch(&self.owner, [(owner_key, owner_info)])?;
+                        }
+                        if index_jsonrpc {
+                            coin_changes.record_written(owner, object, old_object);
+                        }
+                    }
+                    Owner::Object(parent) => {
+                        if is_dynamic_field(object) {
+                            batch.insert_batch(
+                                &self.dynamic_field,
+                                [(DynamicFieldKey::new(parent, object.id()), ())],
+                            )?;
+                        }
+                    }
+                    Owner::Shared(_) | Owner::Immutable => {}
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
+                }
+            }
+
+            if index_grpc {
+                // Packages, coin metadata, treasury caps and regulated coin
+                // metadata are always created, never mutated in place, so the
+                // changed objects would only add noise from unrelated
+                // mutations.
+                for object in tx.created_objects() {
+                    if let Some((key, info)) = try_create_coin_index_info(object) {
+                        merge_coin_into(&mut coin_metadata, key, info);
+                    }
+                    if let Some((key, object_id)) = try_create_regulated_coin_info(object) {
+                        merge_coin_into(
+                            &mut coin_metadata,
+                            key,
+                            CoinIndexInfo {
+                                regulated_coin_metadata_object_id: Some(object_id),
+                                ..Default::default()
+                            },
+                        );
+                    }
+                    if let Some((key, info)) = try_create_package_version_info(object) {
+                        package_versions.push((key, info));
+                    }
+                }
+            }
+        }
+
+        batch.insert_batch(&self.package_version, package_versions)?;
+        // A coin type's metadata, treasury cap and regulated metadata are
+        // separate objects, so each row is merged onto what the table already
+        // holds rather than replacing it. The read sees committed rows only,
+        // which is enough: those objects are created together, in one
+        // transaction, so no earlier checkpoint can still have a row of the
+        // same coin type staged. Coin types are created rarely, so these
+        // reads are rare too.
+        for (key, info) in coin_metadata {
+            let mut entry = self.coin.get(&key)?.unwrap_or_default();
+            entry.merge(info);
+            batch.insert_batch(&self.coin, [(key, entry)])?;
+        }
+
         Ok(())
     }
 }
@@ -449,6 +583,7 @@ impl RpcIndexesStore {
                 // default options afterwards.
                 IndexStoreTables::open_for_bulk_ingestion(path.clone(), 1)
             };
+            let batch_size_limit = bulk_ingestion_options().batch_size_limit;
 
             // The rebuild scans and writes RocksDB for a long time; keep it
             // off the async runtime's worker threads.
@@ -462,8 +597,8 @@ impl RpcIndexesStore {
                     let initialized = init_tables.init(
                         &authority_store,
                         &checkpoint_store,
-                        &NoOpIndexer,
                         &groups,
+                        batch_size_limit,
                         &cancelled,
                     );
                     (init_tables, initialized)
@@ -592,6 +727,9 @@ impl RpcIndexesStore {
     /// One past the last indexed transaction's sequence number. Sequence
     /// numbers equal network position and genesis is indexed through
     /// checkpoint 0, so this is the total number of transactions.
+    ///
+    /// The count covers checkpoints staged but not yet committed; a crash
+    /// re-derives it from the watermark's checkpoint on the next open.
     pub fn next_sequence_number(&self) -> TxSequenceNumber {
         self.next_sequence_number.load(Ordering::SeqCst)
     }
@@ -636,6 +774,7 @@ impl RpcIndexesStore {
             caches: BalanceCaches::new(),
             jsonrpc_metrics,
             max_type_length: max_type_length.unwrap_or(128),
+            pending_updates: Mutex::new(BTreeMap::new()),
             history_backfill_task: Mutex::new(None),
             cancelled,
             epochs_to_retain,
@@ -766,6 +905,136 @@ impl RpcIndexesStore {
         self.history
             .prune(epochs_to_retain)
             .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// Builds and stages the index update of one executed checkpoint, for
+    /// every group this store maintains. Nothing is written to the database
+    /// until [`Self::commit_update_for_checkpoint`] is called.
+    ///
+    /// Transactions already present in the index — from a checkpoint replayed
+    /// during crash recovery, or one the history backfill got to first — are
+    /// skipped, so nothing is counted twice.
+    ///
+    /// Must be called for each checkpoint in sequence order, so that
+    /// transaction sequence numbers follow checkpoint order.
+    #[tracing::instrument(
+        skip_all,
+        fields(checkpoint = checkpoint.checkpoint_summary.sequence_number)
+    )]
+    pub fn index_checkpoint(&self, checkpoint: &CheckpointData) -> IotaResult {
+        let summary = &checkpoint.checkpoint_summary;
+        let checkpoint_seq = summary.sequence_number;
+        let bucket = self.ensure_history_bucket(summary.epoch)?;
+
+        let digests: Vec<_> = checkpoint
+            .transactions
+            .iter()
+            .map(|tx| *tx.effects.transaction_digest())
+            .collect();
+        // A transaction's digest row is written whatever the enabled groups
+        // are, and always into the bucket of its own epoch, so this one
+        // lookup decides for every table whether the transaction is new.
+        let already_indexed = bucket.digests.multi_get(&digests)?;
+        // The zip below pairs each transaction with its own lookup.
+        debug_assert_eq!(digests.len(), already_indexed.len());
+        let transactions: Vec<&CheckpointTransaction> = checkpoint
+            .transactions
+            .iter()
+            .zip(already_indexed)
+            .filter_map(|(tx, indexed)| indexed.is_none().then_some(tx))
+            .collect();
+
+        let index_jsonrpc = self.serves(IndexGroup::JsonRpc);
+        let mut batch = self.tables.watermark.batch();
+        for tx in &transactions {
+            let sequence = self.next_sequence_number.fetch_add(1, Ordering::SeqCst);
+            if index_jsonrpc {
+                let data =
+                    transaction_index_data(&tx.transaction, &tx.effects, tx.events.as_ref())?;
+                bucket.index_tx(
+                    &mut batch,
+                    sequence,
+                    checkpoint_seq,
+                    summary.timestamp_ms,
+                    data,
+                )?;
+            } else {
+                // A gRPC-only store needs nothing beyond the digest row that
+                // `index_tx` would write alongside the JSON-RPC history.
+                batch.insert_batch_tagged(
+                    &bucket.digests,
+                    [(*tx.effects.transaction_digest(), (sequence, checkpoint_seq))],
+                )?;
+            }
+        }
+
+        let mut coin_changes = CoinBalanceChanges::default();
+        self.tables
+            .index_objects(&transactions, &self.groups, &mut batch, &mut coin_changes)?;
+        batch.insert_batch(&self.tables.watermark, [((), checkpoint_seq)])?;
+
+        let mut pending_updates = self.pending_updates.lock();
+        assert!(
+            pending_updates
+                .last_key_value()
+                .is_none_or(|(seq, _)| *seq < checkpoint_seq),
+            "index_checkpoint must be called in order"
+        );
+        pending_updates.insert(
+            checkpoint_seq,
+            PendingCheckpointUpdate {
+                batch,
+                coin_changes,
+            },
+        );
+        Ok(())
+    }
+
+    /// Commits the staged update of `checkpoint_seq` and applies the
+    /// resulting balance cache maintenance.
+    ///
+    /// Invariants:
+    /// - [`Self::index_checkpoint`] must have been called for the checkpoint.
+    /// - Callers must commit each checkpoint in sequence order. This panics if
+    ///   `checkpoint_seq` is not the next checkpoint to commit.
+    #[tracing::instrument(skip(self))]
+    pub fn commit_update_for_checkpoint(
+        &self,
+        checkpoint_seq: CheckpointSequenceNumber,
+    ) -> IotaResult {
+        let next_update = self.pending_updates.lock().pop_first();
+        let (staged_seq, update) =
+            next_update.expect("commit_update_for_checkpoint called without a staged update");
+        assert_eq!(
+            checkpoint_seq, staged_seq,
+            "commit_update_for_checkpoint must be called in order"
+        );
+
+        // Holds the affected owners' locks until it is dropped, so a
+        // cache-miss read cannot observe the write below without the update
+        // that goes with it.
+        let cache_updates = self.balance_cache_updates(update.coin_changes);
+        let invalidate_caches = invalidate_balance_caches_instead_of_updating();
+        if invalidate_caches {
+            // Invalidate before the write, so the caches never serve a value
+            // older than the database.
+            self.invalidate_balance_caches(&cache_updates);
+        }
+
+        // The update may stage rows of a history bucket `prune` drops before
+        // this write; those rows are discarded instead of failing the write.
+        // Only expired epochs can be lost that way: `index_checkpoint`
+        // created the bucket of the epoch being executed, so it is the
+        // newest one, and `prune` retains at least the newest seven.
+        update.batch.write_opt(&drop_tolerant_write_options())?;
+
+        if !invalidate_caches {
+            // Merging before the write would apply the delta twice if the
+            // write then failed, so the caches trail the database by the
+            // duration of the write.
+            self.merge_balance_cache_updates(cache_updates);
+        }
+        Ok(())
     }
 
     /// Starts the background replay that fills the history tables below the

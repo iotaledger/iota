@@ -17,7 +17,7 @@
 
 use std::{
     cmp::{max, min},
-    collections::HashMap,
+    collections::{HashMap, HashSet, hash_map::Entry},
     ops::{Bound, RangeBounds},
     sync::Arc,
 };
@@ -25,7 +25,7 @@ use std::{
 use either::Either;
 use iota_json_rpc_types::{IotaMoveValue, IotaObjectDataFilter, TransactionFilter};
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectId, StructTag, TransactionDigest, TransactionEventsDigest,
+    Address, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TransactionEventsDigest,
     TypeTag, Version,
 };
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
@@ -40,6 +40,7 @@ use iota_types::{
 };
 use itertools::Itertools;
 use move_core_types::{annotated_value as A, language_storage::ModuleId};
+use parking_lot::ArcMutexGuard;
 use prometheus_filtered::{IntCounter, Registry, register_int_counter_with_registry};
 use serde::{Serialize, de::DeserializeOwned};
 use tracing::{error, warn};
@@ -58,8 +59,108 @@ use super::{
 };
 
 const ENV_VAR_DISABLE_INDEX_CACHE: &str = "DISABLE_INDEX_CACHE";
+const ENV_VAR_INVALIDATE_INSTEAD_OF_UPDATE: &str = "INVALIDATE_INSTEAD_OF_UPDATE";
 
 type AllBalance = HashMap<TypeTag, TotalBalance>;
+type OwnedMutexGuard<T> = ArcMutexGuard<parking_lot::RawMutex, T>;
+
+/// Whether a commit invalidates the balance caches instead of updating them
+/// with the checkpoint's deltas.
+pub(super) fn invalidate_balance_caches_instead_of_updating() -> bool {
+    read_size_from_env(ENV_VAR_INVALIDATE_INSTEAD_OF_UPDATE).unwrap_or(0) > 0
+}
+
+/// What one checkpoint does to the coin holdings the balance caches track,
+/// per owner and coin object. There is no coin table to compare against, so
+/// the balances an owner held before the checkpoint are collected here while
+/// the checkpoint's object changes are staged.
+#[derive(Default)]
+pub(super) struct CoinBalanceChanges(HashMap<(Address, ObjectId), CoinBalanceChange>);
+
+/// The before and after balance of one coin object under one owner.
+struct CoinBalanceChange {
+    coin_type: TypeTag,
+    /// The balance the owner held in this coin before the checkpoint, `None`
+    /// when the owner did not hold it. Taken from the first change touching
+    /// the pair: only that change sees the state the checkpoint started from,
+    /// which is the state the committed owner rows are still in.
+    prior: Option<u64>,
+    /// The balance the owner holds after the checkpoint, `None` when the coin
+    /// is gone or has moved on to another owner.
+    current: Option<u64>,
+}
+
+impl CoinBalanceChanges {
+    /// Records that `owner` no longer holds `object`, whose state is the one
+    /// before the change.
+    pub(super) fn record_removed(&mut self, owner: Address, object: &Object) {
+        let Some((coin_type, balance)) = coin_type_and_balance(object) else {
+            return;
+        };
+        match self.0.entry((owner, object.id())) {
+            Entry::Occupied(mut occupied) => occupied.get_mut().current = None,
+            Entry::Vacant(vacant) => {
+                vacant.insert(CoinBalanceChange {
+                    coin_type,
+                    prior: Some(balance),
+                    current: None,
+                });
+            }
+        }
+    }
+
+    /// Records the `object` that `owner` holds after the change. `previous`
+    /// is the object's state before it, if it was an input of the same
+    /// transaction.
+    pub(super) fn record_written(
+        &mut self,
+        owner: Address,
+        object: &Object,
+        previous: Option<&Object>,
+    ) {
+        let Some((coin_type, balance)) = coin_type_and_balance(object) else {
+            return;
+        };
+        match self.0.entry((owner, object.id())) {
+            Entry::Occupied(mut occupied) => occupied.get_mut().current = Some(balance),
+            Entry::Vacant(vacant) => {
+                // The owner already held the coin only if the transaction's
+                // input was owned by the same address; a coin that arrives
+                // from elsewhere is new to this owner, whatever its history.
+                let prior = previous
+                    .filter(|previous| previous.owner == Owner::Address(owner))
+                    .and_then(coin_type_and_balance)
+                    .map(|(_, balance)| balance);
+                vacant.insert(CoinBalanceChange {
+                    coin_type,
+                    prior,
+                    current: Some(balance),
+                });
+            }
+        }
+    }
+}
+
+/// The coin type and balance of a coin object, `None` for anything else.
+/// Uses the balance the way [`OwnerIndexKey::for_object`] does, so a coin's
+/// delta and its owner row always carry the same number.
+fn coin_type_and_balance(object: &Object) -> Option<(TypeTag, u64)> {
+    let coin_type = object.coin_type_opt()?.clone();
+    let balance = object
+        .as_coin_maybe()
+        .map(|coin| coin.balance.value())
+        .unwrap_or(0);
+    Some((coin_type, balance))
+}
+
+/// The balance cache maintenance of one committed checkpoint, holding the
+/// affected owners' locks until it is applied and dropped.
+#[derive(Default)]
+pub(super) struct IndexStoreCacheUpdates {
+    _locks: Vec<OwnedMutexGuard<()>>,
+    per_coin_type_balance_changes: Vec<((Address, TypeTag), IotaResult<TotalBalance>)>,
+    all_balance_changes: Vec<(Address, IotaResult<Arc<AllBalance>>)>,
+}
 
 /// Balance caches, keyed the same way regardless of table layout: a coin's
 /// balance lives in the owner index either way, so these survived the merge
@@ -897,7 +998,101 @@ impl RpcIndexesStore {
         Ok(Arc::new(balances))
     }
 
-    pub fn update_per_coin_type_cache(
+    /// Turns a committed checkpoint's coin changes into the balance cache
+    /// deltas, holding the affected owners' locks for as long as the returned
+    /// value lives. Runs entirely off the checkpoint: the balances each owner
+    /// held before it were collected while its object changes were staged, so
+    /// no table has to be read here.
+    pub(super) fn balance_cache_updates(
+        &self,
+        coin_changes: CoinBalanceChanges,
+    ) -> IndexStoreCacheUpdates {
+        if coin_changes.0.is_empty() {
+            return IndexStoreCacheUpdates::default();
+        }
+
+        let addresses: HashSet<Address> = coin_changes.0.keys().map(|(owner, _)| *owner).collect();
+        let _locks = self.caches.locks.acquire_locks(addresses.into_iter());
+
+        let mut balance_changes: HashMap<Address, AllBalance> = HashMap::new();
+        for ((owner, _), change) in coin_changes.0 {
+            let entry = balance_changes
+                .entry(owner)
+                .or_default()
+                .entry(change.coin_type)
+                .or_insert(TotalBalance {
+                    num_coins: 0,
+                    balance: 0,
+                });
+            match (change.prior, change.current) {
+                (Some(prior), Some(current)) => {
+                    entry.balance += current as i128 - prior as i128;
+                }
+                (None, Some(current)) => {
+                    entry.num_coins += 1;
+                    entry.balance += current as i128;
+                }
+                (Some(prior), None) => {
+                    entry.num_coins -= 1;
+                    entry.balance -= prior as i128;
+                }
+                // The owner neither held the coin before the checkpoint nor
+                // holds it after: a coin created and spent within it.
+                (None, None) => {}
+            }
+        }
+
+        let per_coin_type_balance_changes: Vec<_> = balance_changes
+            .iter()
+            .flat_map(|(address, balance_map)| {
+                balance_map.iter().map(|(type_tag, balance)| {
+                    (
+                        (*address, type_tag.clone()),
+                        Ok::<TotalBalance, IotaError>(*balance),
+                    )
+                })
+            })
+            .collect();
+        let all_balance_changes: Vec<_> = balance_changes
+            .into_iter()
+            .map(|(address, balance_map)| {
+                (
+                    address,
+                    Ok::<Arc<AllBalance>, IotaError>(Arc::new(balance_map)),
+                )
+            })
+            .collect();
+        IndexStoreCacheUpdates {
+            _locks,
+            per_coin_type_balance_changes,
+            all_balance_changes,
+        }
+    }
+
+    /// Drops the affected entries, so the next read repopulates them from the
+    /// database.
+    pub(super) fn invalidate_balance_caches(&self, updates: &IndexStoreCacheUpdates) {
+        self.caches.per_coin_type_balance.batch_invalidate(
+            updates
+                .per_coin_type_balance_changes
+                .iter()
+                .map(|(key, _)| key.clone()),
+        );
+        self.caches.all_balances.batch_invalidate(
+            updates
+                .all_balance_changes
+                .iter()
+                .map(|(address, _)| *address),
+        );
+    }
+
+    /// Applies the deltas to the entries the caches already hold.
+    pub(super) fn merge_balance_cache_updates(&self, updates: IndexStoreCacheUpdates) {
+        self.update_per_coin_type_cache(updates.per_coin_type_balance_changes);
+        self.update_all_balance_cache(updates.all_balance_changes);
+    }
+
+    fn update_per_coin_type_cache(
         &self,
         keys: impl IntoIterator<Item = ((Address, TypeTag), IotaResult<TotalBalance>)>,
     ) {
@@ -924,7 +1119,7 @@ impl RpcIndexesStore {
         }
     }
 
-    pub fn update_all_balance_cache(
+    fn update_all_balance_cache(
         &self,
         keys: impl IntoIterator<Item = (Address, IotaResult<Arc<AllBalance>>)>,
     ) {

@@ -14,9 +14,7 @@ use iota_types::{
     gas_coin::GAS,
     messages_checkpoint::CheckpointContentsExt,
     object::{MoveStructExt, Object},
-    storage::{
-        DynamicFieldKey, PackageVersionInfo, PackageVersionKey, error::Error as StorageError,
-    },
+    storage::{DynamicFieldKey, PackageVersionInfo, PackageVersionKey},
     test_checkpoint_data_builder::TestCheckpointDataBuilder,
 };
 use prometheus_filtered::Registry;
@@ -25,13 +23,10 @@ use typed_store::Map;
 use super::{
     IndexGroup, RpcIndexesStore,
     jsonrpc_api::CachingLayoutResolver,
+    live_scan::RpcIndexesRestorer,
     schema::{CoinIndexInfo, CoinIndexKey, OwnerIndexKey},
 };
-use crate::{
-    checkpoints::CheckpointStore,
-    par_index_live_object_set::{LiveObjectIndexer, ParMakeLiveObjectIndexer},
-    test_utils::executed_checkpoint,
-};
+use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 
 /// Opens an `RpcIndexesStore` at `path` without running the rebuild path,
 /// serving every group.
@@ -44,8 +39,8 @@ fn open_index_store(path: std::path::PathBuf) -> RpcIndexesStore {
 
 /// Closes the store's database, waiting until every handle is released
 /// so the same path can be reopened.
-async fn close_index_store(index_store: RpcIndexesStore) {
-    let weak_db = std::sync::Arc::downgrade(&index_store.tables.meta.db);
+async fn close_index_store(index_store: impl std::borrow::Borrow<RpcIndexesStore>) {
+    let weak_db = std::sync::Arc::downgrade(&index_store.borrow().tables.meta.db);
     drop(index_store);
     assert!(super::wait_for_database_close(weak_db).await);
 }
@@ -120,28 +115,98 @@ fn seed_history_buckets(index_store: &RpcIndexesStore, epochs: u64) {
     }
 }
 
-/// A live-object indexer that fills nothing, standing in for the real one
-/// (wired in a later task) so `init` can be exercised directly.
-struct NoOpIndexer;
-
-impl ParMakeLiveObjectIndexer for NoOpIndexer {
-    type ObjectIndexer<'a> = NoOpObjectIndexer;
-
-    fn make_live_object_indexer(&self) -> Self::ObjectIndexer<'_> {
-        NoOpObjectIndexer
-    }
+/// A `Field` object of a dynamic field of `parent`, the only kind of object
+/// the dynamic-field index stores.
+fn dynamic_field_object(parent: ObjectId, field_id: ObjectId) -> Object {
+    let mut contents = field_id.into_bytes().to_vec();
+    contents.extend_from_slice(&7u64.to_le_bytes()); // name
+    contents.extend_from_slice(&8u64.to_le_bytes()); // value
+    Object::new_move(
+        MoveStruct::new_from_execution_with_limit(
+            "0x2::dynamic_field::Field<u64,u64>"
+                .parse::<StructTag>()
+                .unwrap(),
+            Version::MIN_VALID_INCL,
+            contents,
+            256,
+        )
+        .unwrap(),
+        Owner::Object(parent),
+        TransactionDigest::ZERO,
+    )
 }
 
-struct NoOpObjectIndexer;
+/// An object of `object_type` with a random id. The ingest reads only the
+/// type of the objects whose rows depend on it, so the contents are just the
+/// object's own id.
+fn typed_object_for_testing(object_type: StructTag, owner: Owner) -> Object {
+    let object_id = ObjectId::random();
+    Object::new_move(
+        MoveStruct::new_from_execution_with_limit(
+            object_type,
+            Version::MIN_VALID_INCL,
+            object_id.into_bytes().to_vec(),
+            256,
+        )
+        .unwrap(),
+        owner,
+        TransactionDigest::ZERO,
+    )
+}
 
-impl LiveObjectIndexer for NoOpObjectIndexer {
-    fn index_object(&mut self, _object: &iota_types::object::Object) -> Result<(), StorageError> {
-        Ok(())
-    }
+/// A Move package object, the only kind of object the package-version index
+/// stores.
+fn package_object_for_testing() -> Object {
+    // The first version of a package is its own original package, so the
+    // index needs no module bytes to derive the key from.
+    let package = MovePackage::new(
+        ObjectId::random(),
+        Version::OBJECT_START,
+        BTreeMap::new(),
+        u64::MAX,
+        Vec::new(),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    Object::new_package_from_data(
+        ObjectData::Package(package),
+        TransactionDigest::GENESIS_MARKER,
+    )
+}
 
-    fn finish(self) -> Result<(), StorageError> {
-        Ok(())
+/// Gives the object the checkpoint created under `object_idx` the type
+/// `object_type`, keeping its id and version so the transaction's effects
+/// still resolve it, and returns its id. The checkpoint builder creates only
+/// coins, while the gRPC group's tables are filled from the type of a
+/// created object.
+fn replace_created_object_type(
+    checkpoint: &mut CheckpointData,
+    object_idx: u64,
+    object_type: StructTag,
+) -> ObjectId {
+    let object_id = TestCheckpointDataBuilder::derive_object_id(object_idx);
+    let mut replaced = false;
+    for tx in &mut checkpoint.transactions {
+        for object in &mut tx.output_objects {
+            if object.id() != object_id {
+                continue;
+            }
+            *object = Object::new_move(
+                MoveStruct::new_from_execution_with_limit(
+                    object_type.clone(),
+                    object.version(),
+                    object_id.into_bytes().to_vec(),
+                    256,
+                )
+                .unwrap(),
+                object.owner,
+                object.previous_transaction,
+            );
+            replaced = true;
+        }
     }
+    assert!(replaced, "the checkpoint created no object {object_idx}");
+    object_id
 }
 
 /// `init` alone must not adopt the rebuild: the watermarks are written
@@ -162,8 +227,8 @@ async fn test_rebuild_is_not_adopted_before_the_flush() {
         .init(
             &authority_store,
             &checkpoint_store,
-            &NoOpIndexer,
             &groups,
+            1024,
             &Default::default(),
         )
         .unwrap();
@@ -524,32 +589,13 @@ async fn test_grpc_only_backfill_fills_digests_from_contents() {
     );
 }
 
-/// Indexes one checkpoint's transactions into its epoch's history bucket,
-/// standing in for the staging/commit pipeline a later task adds: this task
-/// owns the read surface the history tables feed, not the write path that
-/// fills them from checkpoints.
+/// Stages and commits one checkpoint's index update, the way the node's
+/// execution path does.
 fn index_checkpoint_for_testing(store: &RpcIndexesStore, checkpoint: &CheckpointData) {
-    let summary = &checkpoint.checkpoint_summary;
-    let bucket = store.ensure_history_bucket(summary.epoch).unwrap();
-    let mut batch = store.tables.meta.batch();
-    for tx in &checkpoint.transactions {
-        let sequence = store
-            .next_sequence_number
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let data =
-            super::schema::transaction_index_data(&tx.transaction, &tx.effects, tx.events.as_ref())
-                .unwrap();
-        bucket
-            .index_tx(
-                &mut batch,
-                sequence,
-                summary.sequence_number,
-                summary.timestamp_ms,
-                data,
-            )
-            .unwrap();
-    }
-    batch.write().unwrap();
+    store.index_checkpoint(checkpoint).unwrap();
+    store
+        .commit_update_for_checkpoint(checkpoint.checkpoint_summary.sequence_number)
+        .unwrap();
 }
 
 #[tokio::test]
@@ -853,42 +899,60 @@ async fn test_index_cache() {
     assert_eq!(balance.num_coins, 7);
 }
 
-/// A cache-miss repopulation racing a commit must not read a half-committed
-/// state: the committer holds the owner's lock across its write, and
-/// cache-miss reads take the same lock, so a repopulation started before the
-/// write can only finish reading the table after it.
+/// A cache-miss repopulation racing a commit must not double-apply the
+/// checkpoint's delta: the committer holds the owner's lock from the delta
+/// computation through the cache merge, and cache-miss reads take the same
+/// lock, so a value read between the batch write and the merge can never be
+/// merged onto.
 #[tokio::test]
 async fn test_balance_cache_repopulation_cannot_race_a_commit() {
     let index_store = std::sync::Arc::new(open_index_store(
         iota_common::tempdir().path().to_path_buf(),
     ));
-    let address = Address::random();
-    insert_gas_coin(&index_store, address, 100);
+    let address = TestCheckpointDataBuilder::derive_address(1);
 
-    // Stand in for a commit in progress: the owner's lock held across the
-    // second coin's write, the way a real commit holds it across the
-    // checkpoint's batch write and the cache merge that follows.
-    let lock = index_store.caches.locks.acquire_lock(address);
-    let reader = std::thread::spawn({
-        let index_store = index_store.clone();
-        move || index_store.get_balance(address, GAS::type_tag()).unwrap()
-    });
-    // Give the reader time to reach the owner's lock. The sleep only makes
-    // the race likely: a slow reader arrives after the write and the test
-    // passes without exercising it.
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    let mut builder = TestCheckpointDataBuilder::new(0)
+        .start_transaction(0)
+        .create_coin_object(0, 1, 100, GAS::type_tag())
+        .finish_transaction();
+    let checkpoint = builder.build_checkpoint();
+    index_checkpoint_for_testing(&index_store, &checkpoint);
 
-    // The second coin lands on disk while the lock is still held; the
-    // reader must not be able to observe this half-committed state.
-    insert_gas_coin(&index_store, address, 100);
-    drop(lock);
+    // A second coin for the same owner in checkpoint 1.
+    let mut builder = builder
+        .start_transaction(0)
+        .create_coin_object(1, 1, 100, GAS::type_tag())
+        .finish_transaction();
+    let checkpoint = builder.build_checkpoint();
+    index_store.index_checkpoint(&checkpoint).unwrap();
 
-    let balance = reader.join().unwrap();
-    assert_eq!(
-        balance.balance, 200,
-        "the repopulation must see both coins, never just one"
-    );
-    assert_eq!(balance.num_coins, 2);
+    // Replay the commit by hand, pausing between the batch write and the
+    // cache merge — the window where an unlocked reader used to cache the
+    // post-write value the merge was then applied on top of.
+    let reader = {
+        let (staged_seq, update) = index_store.pending_updates.lock().pop_first().unwrap();
+        assert_eq!(staged_seq, 1);
+        let cache_updates = index_store.balance_cache_updates(update.coin_changes);
+        update.batch.write().unwrap();
+
+        let reader = std::thread::spawn({
+            let index_store = index_store.clone();
+            move || index_store.get_balance(address, GAS::type_tag()).unwrap()
+        });
+        // Give the reader time to reach the owner's lock. The sleep only
+        // makes the race likely: a slow reader arrives after the merge and
+        // the test passes without exercising it.
+        std::thread::sleep(std::time::Duration::from_millis(50));
+
+        index_store.merge_balance_cache_updates(cache_updates);
+        reader
+        // The owner locks in `cache_updates` release here.
+    };
+
+    assert_eq!(reader.join().unwrap().balance, 200);
+    let cached = index_store.get_balance(address, GAS::type_tag()).unwrap();
+    assert_eq!(cached.balance, 200);
+    assert_eq!(cached.num_coins, 2);
 }
 
 #[tokio::test]
@@ -1644,5 +1708,550 @@ async fn test_one_digest_row_serves_both_apis() {
             .unwrap()
             .checkpoint,
         7
+    );
+}
+
+/// A checkpoint replayed after a crash (or one the history backfill already
+/// covered) must skip its indexed transactions: no new sequence numbers, no
+/// duplicate rows, no double-counted balances.
+#[tokio::test]
+async fn test_index_checkpoint_skips_already_indexed() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let address = TestCheckpointDataBuilder::derive_address(1);
+
+    let mut builder = TestCheckpointDataBuilder::new(0)
+        .start_transaction(0)
+        .create_coin_object(0, 1, 100, GAS::type_tag())
+        .finish_transaction();
+    let checkpoint = builder.build_checkpoint();
+    let digest = *checkpoint.transactions[0].effects.transaction_digest();
+
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+    assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some((0, 0)));
+    assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(0));
+
+    // Replay the same checkpoint.
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+
+    assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some((0, 0)));
+    assert_eq!(
+        index_store
+            .get_transactions(None, None, None, false)
+            .unwrap(),
+        vec![digest]
+    );
+    let balance = index_store.get_balance(address, GAS::type_tag()).unwrap();
+    assert_eq!(balance.balance, 100);
+    assert_eq!(balance.num_coins, 1);
+}
+
+/// The balance caches follow the coin changes of every committed checkpoint
+/// without ever reading a coin table: creations, spends, transfers between
+/// owners, and a coin that changes hands twice inside one checkpoint must
+/// all leave the cached balances equal to the owner index's own sums.
+#[tokio::test]
+async fn test_balance_caches_follow_the_checkpoint_coin_changes() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let alice = TestCheckpointDataBuilder::derive_address(1);
+    let bob = TestCheckpointDataBuilder::derive_address(2);
+    let carol = TestCheckpointDataBuilder::derive_address(3);
+    let cached_and_stored = |owner| {
+        let cached = index_store.get_balance(owner, GAS::type_tag()).unwrap();
+        let stored = index_store
+            .get_balance_from_db(owner, &GAS::type_tag())
+            .unwrap();
+        assert_eq!(cached, stored, "the cache must match the owner index");
+        cached
+    };
+
+    // Ten coins of 100 for alice.
+    let mut builder = TestCheckpointDataBuilder::new(0).start_transaction(0);
+    for object_idx in 0..10 {
+        builder = builder.create_coin_object(object_idx, 1, 100, GAS::type_tag());
+    }
+    let mut builder = builder.finish_transaction();
+    let checkpoint = builder.build_checkpoint();
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+    assert_eq!(cached_and_stored(alice).balance, 1000);
+    assert_eq!(cached_and_stored(alice).num_coins, 10);
+
+    // Three of them are spent. Every transaction is sent by address 0, whose
+    // gas coin the builder mutates into the checkpoint: a sender under test
+    // would see its balance move with the gas.
+    let mut builder = builder.start_transaction(0);
+    for object_idx in 0..3 {
+        builder = builder.delete_object(object_idx);
+    }
+    let mut builder = builder.finish_transaction();
+    let checkpoint = builder.build_checkpoint();
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+    assert_eq!(cached_and_stored(alice).balance, 700);
+    assert_eq!(cached_and_stored(alice).num_coins, 7);
+
+    // One coin moves to bob, and half of another's balance is split off into
+    // a new coin for bob: alice loses a whole coin and gains a smaller one.
+    let mut builder = builder
+        .start_transaction(0)
+        .transfer_object(3, 2)
+        .transfer_coin_balance(4, 10, 2, 40)
+        .finish_transaction();
+    let checkpoint = builder.build_checkpoint();
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+    assert_eq!(cached_and_stored(alice).balance, 560);
+    assert_eq!(cached_and_stored(alice).num_coins, 6);
+    assert_eq!(cached_and_stored(bob).balance, 140);
+    assert_eq!(cached_and_stored(bob).num_coins, 2);
+
+    // Within one checkpoint a coin passes from bob to carol and on to alice:
+    // only the first change of each key sees the state the checkpoint
+    // started from, so bob must end up with no coin counted twice.
+    let mut builder = builder
+        .start_transaction(0)
+        .transfer_object(3, 3)
+        .finish_transaction()
+        .start_transaction(0)
+        .transfer_object(3, 1)
+        .finish_transaction();
+    let checkpoint = builder.build_checkpoint();
+    assert_eq!(
+        checkpoint.transactions.len(),
+        2,
+        "both hops must land in the same checkpoint"
+    );
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+    assert_eq!(cached_and_stored(alice).balance, 660);
+    assert_eq!(cached_and_stored(alice).num_coins, 7);
+    assert_eq!(cached_and_stored(bob).balance, 40);
+    assert_eq!(cached_and_stored(bob).num_coins, 1);
+    assert_eq!(cached_and_stored(carol).balance, 0);
+    assert_eq!(cached_and_stored(carol).num_coins, 0);
+}
+
+/// A store built by a formal-snapshot restore is opened in place: the
+/// markers a node checks are stamped, its live-state tables carry the teed
+/// objects, and the history backfill has nothing to replay.
+#[tokio::test]
+async fn test_restore_built_store_is_adopted_on_open() {
+    let dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+    // The restore marks the restore checkpoint both executed and pruned.
+    let restore_checkpoint = executed_checkpoint(0, 5);
+    checkpoint_store
+        .insert_verified_checkpoint(&restore_checkpoint)
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&restore_checkpoint)
+        .unwrap();
+    checkpoint_store
+        .update_highest_pruned_checkpoint(&restore_checkpoint)
+        .unwrap();
+
+    let owner = iota_types::base_types::dbg_addr(1);
+    let gas_object = Object::new_gas_with_balance_and_owner_for_testing(100, owner);
+    let parent = ObjectId::random();
+    let field_id = ObjectId::random();
+    let field_object = dynamic_field_object(parent, field_id);
+
+    // Tee the objects into the restorer, as the snapshot's partition
+    // downloads do.
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+    let restorer = RpcIndexesRestorer::open(index_dir.clone(), groups.clone()).unwrap();
+    let mut partition = restorer.partition_indexer();
+    partition.index_object(&gas_object).unwrap();
+    partition.index_object(&field_object).unwrap();
+    partition.finish().unwrap();
+    restorer.finalize(5).await.unwrap();
+    RpcIndexesRestorer::verify_restored(&index_dir, 5, 2)
+        .await
+        .unwrap();
+
+    // Plant a sentinel row: if it survives the open below, the store was
+    // adopted rather than wiped and rebuilt into equal-looking data.
+    let sentinel = DynamicFieldKey::new(ObjectId::random(), ObjectId::random());
+    {
+        let built = open_index_store(index_dir.clone());
+        assert!(
+            !built
+                .tables
+                .needs_to_do_initialization(&checkpoint_store, &groups)
+                .unwrap(),
+            "a restore-built store must need no rebuild"
+        );
+        built.tables.dynamic_field.insert(&sentinel, &()).unwrap();
+        close_index_store(built).await;
+    }
+
+    let authority_store = open_authority_store(&dir.path().join("store"));
+    let index_store = RpcIndexesStore::new(
+        index_dir,
+        &Registry::default(),
+        groups,
+        Some(128),
+        None,
+        &authority_store,
+        &checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    index_store.wait_for_history_backfill_for_testing().await;
+
+    assert!(
+        index_store
+            .dynamic_field_exists(sentinel.parent, sentinel.field_id)
+            .unwrap(),
+        "the restored database must be opened in place, not rebuilt"
+    );
+
+    // The owner index was built from the teed objects, balances included.
+    let object_store = BTreeMap::from([(gas_object.id(), gas_object.clone())]);
+    let owned = index_store
+        .get_owner_objects(owner, None, 10, None, &object_store)
+        .unwrap();
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].object_id, gas_object.id());
+    let balance = index_store.get_balance(owner, GAS::type_tag()).unwrap();
+    assert_eq!(balance.num_coins, 1);
+    assert_eq!(balance.balance, 100);
+
+    // The dynamic field was indexed by key, without layout resolution.
+    let field_ids: Vec<_> = index_store
+        .get_dynamic_field_ids_iterator(parent, None)
+        .unwrap()
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(field_ids, vec![field_id]);
+
+    // Watermark at the restore checkpoint, history one past it — nothing
+    // for the backfill to replay.
+    assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(5));
+    assert_eq!(
+        index_store.tables.history_watermark.get(&()).unwrap(),
+        Some(6)
+    );
+}
+
+/// The finalize writes the version and the watermark whether or not any
+/// object landed, so a store the node would wipe — or one that carries no
+/// restored objects — must fail the verification instead.
+#[tokio::test]
+async fn test_verify_restored_rejects_an_unusable_store() {
+    let dir = iota_common::tempdir();
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let groups = BTreeSet::from([IndexGroup::Grpc]);
+
+    let restorer = RpcIndexesRestorer::open(index_dir.clone(), groups.clone()).unwrap();
+    restorer.finalize(5).await.unwrap();
+    let error = RpcIndexesRestorer::verify_restored(&index_dir, 5, 1)
+        .await
+        .expect_err("an empty restore must not pass verification");
+    assert!(
+        error.to_string().contains("empty owner index"),
+        "unexpected error: {error}"
+    );
+
+    let error = RpcIndexesRestorer::verify_restored(&index_dir, 6, 0)
+        .await
+        .expect_err("a watermark below the restore checkpoint must not pass verification");
+    assert!(
+        error.to_string().contains("watermarked at"),
+        "unexpected error: {error}"
+    );
+}
+
+/// A stale database (here: written by another schema version) is wiped and
+/// rebuilt through the full open path — bulk-ingestion open, live object
+/// scan, flush, reopen with default options — and none of its rows survive.
+#[tokio::test]
+async fn test_stale_database_is_wiped_and_rebuilt_on_open() {
+    let (authority_state, genesis_tx_digest) = genesis_authority_state().await;
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+    let index_dir = iota_common::tempdir();
+    let authority_store = authority_state.database_for_testing();
+
+    let index_store = RpcIndexesStore::new(
+        index_dir.path().to_path_buf(),
+        &Registry::default(),
+        groups.clone(),
+        Some(128),
+        None,
+        &authority_store,
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    index_store.wait_for_history_backfill_for_testing().await;
+    // The genesis objects were indexed by the rebuild's live object scan.
+    let indexed_objects = index_store.tables.owner.safe_iter().count();
+    assert!(indexed_objects > 0, "the scan must fill the owner index");
+
+    // Poison the store and mark it as written by another schema version.
+    let poison_field = DynamicFieldKey::new(ObjectId::random(), ObjectId::random());
+    index_store
+        .tables
+        .dynamic_field
+        .insert(&poison_field, &())
+        .unwrap();
+    index_store
+        .tables
+        .meta
+        .insert(
+            &(),
+            &super::schema::MetadataInfo {
+                version: super::CURRENT_DB_VERSION + 1,
+                groups: groups.clone(),
+            },
+        )
+        .unwrap();
+    close_index_store(index_store).await;
+
+    // A fresh registry: the rebuilt store registers the same metrics again.
+    let index_store = RpcIndexesStore::new(
+        index_dir.path().to_path_buf(),
+        &Registry::default(),
+        groups.clone(),
+        Some(128),
+        None,
+        &authority_store,
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    index_store.wait_for_history_backfill_for_testing().await;
+
+    assert!(
+        !index_store
+            .dynamic_field_exists(poison_field.parent, poison_field.field_id)
+            .unwrap(),
+        "stale rows must not survive the rebuild"
+    );
+    assert_eq!(
+        index_store.tables.owner.safe_iter().count(),
+        indexed_objects,
+        "the rebuild must fill the owner index again"
+    );
+    assert_eq!(
+        index_store.lookup_digest(&genesis_tx_digest).unwrap(),
+        Some((0, 0))
+    );
+    assert_eq!(
+        index_store
+            .tables
+            .meta
+            .get(&())
+            .unwrap()
+            .map(|meta| meta.version),
+        Some(super::CURRENT_DB_VERSION)
+    );
+    assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(0));
+    assert_eq!(
+        index_store.tables.history_watermark.get(&()).unwrap(),
+        Some(0)
+    );
+}
+
+/// The restore must derive from an external object stream what the rebuild
+/// derives from a scan of the local store: the shared owner and
+/// dynamic-field rows, and the gRPC group's coin metadata and package
+/// versions. The coin metadata of one coin type is spread over separate
+/// objects that may land in different partitions, so it is gathered across
+/// them and written once, on the finalize.
+#[tokio::test]
+async fn test_restore_builds_the_same_live_state_as_the_rebuild() {
+    let dir = iota_common::tempdir();
+    let owner = iota_types::base_types::dbg_addr(1);
+    let gas_object = Object::new_gas_with_balance_and_owner_for_testing(100, owner);
+    let parent = ObjectId::random();
+    let field_id = ObjectId::random();
+    let field_object = dynamic_field_object(parent, field_id);
+    // A coin type of its own, so the genesis objects the rebuild scans
+    // cannot contribute to the same row.
+    let coin_type: StructTag = "0x42::test_coin::TEST_COIN".parse().unwrap();
+    let coin_metadata = typed_object_for_testing(
+        format!("0x2::coin::CoinMetadata<{coin_type}>")
+            .parse()
+            .unwrap(),
+        Owner::Immutable,
+    );
+    let treasury_cap = typed_object_for_testing(
+        format!("0x2::coin::TreasuryCap<{coin_type}>")
+            .parse()
+            .unwrap(),
+        Owner::Address(owner),
+    );
+    let package_object = package_object_for_testing();
+    let objects = [
+        gas_object.clone(),
+        field_object.clone(),
+        coin_metadata.clone(),
+        treasury_cap.clone(),
+        package_object.clone(),
+    ];
+    let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+
+    // The restore tees the objects in, one partition each for the two coin
+    // metadata objects of the same coin type.
+    let restored_dir = dir.path().join("restored");
+    let restorer = RpcIndexesRestorer::open(restored_dir.clone(), groups.clone()).unwrap();
+    for object in &objects {
+        let mut partition = restorer.partition_indexer();
+        partition.index_object(object).unwrap();
+        partition.finish().unwrap();
+    }
+    restorer.finalize(0).await.unwrap();
+    let restored = open_index_store(restored_dir);
+
+    // The rebuild scans the same objects out of a live authority store.
+    let authority_state = crate::authority::test_authority_builder::TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+    authority_state.insert_genesis_objects(&objects);
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&genesis_checkpoint)
+        .unwrap();
+    let rebuilt = RpcIndexesStore::new(
+        dir.path().join("rebuilt"),
+        &Registry::default(),
+        groups,
+        Some(128),
+        None,
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    rebuilt.wait_for_history_backfill_for_testing().await;
+
+    for store in [&restored, &*rebuilt] {
+        let (owner_key, owner_info) = OwnerIndexKey::for_object(owner, &gas_object).unwrap();
+        assert_eq!(
+            store.tables.owner.get(&owner_key).unwrap(),
+            Some(owner_info),
+            "the address-owned coin must be owner-indexed with its balance"
+        );
+        assert!(
+            store
+                .dynamic_field_exists(parent, field_id)
+                .expect("the dynamic field must be indexed by key")
+        );
+        assert_eq!(
+            store.get_coin_info(&coin_type).unwrap(),
+            Some(CoinIndexInfo {
+                coin_metadata_object_id: Some(coin_metadata.id()),
+                treasury_object_id: Some(treasury_cap.id()),
+                regulated_coin_metadata_object_id: None,
+            }),
+            "the coin metadata of the partitions must be merged into one row"
+        );
+        let versions: Vec<_> = store
+            .package_versions_iter(package_object.id(), None)
+            .unwrap()
+            .map(Result::unwrap)
+            .collect();
+        assert_eq!(
+            versions,
+            vec![(
+                PackageVersionKey {
+                    original_package_id: package_object.id(),
+                    version: package_object.version().as_u64(),
+                },
+                PackageVersionInfo {
+                    storage_id: package_object.id(),
+                },
+            )],
+            "the package version must be indexed"
+        );
+    }
+}
+
+/// A store maintaining only one group indexes only that group's tables,
+/// and enabling the other group later triggers a rebuild.
+#[tokio::test]
+async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
+    let dir = iota_common::tempdir();
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+    let owner = TestCheckpointDataBuilder::derive_address(1);
+    let grpc_only = BTreeSet::from([IndexGroup::Grpc]);
+    let index_store = RpcIndexesStore::new_without_init(index_dir, grpc_only.clone());
+    index_store.tables.seed_meta(&grpc_only).unwrap();
+
+    // One coin for the owner, plus a created coin object turned into the
+    // coin metadata of its type.
+    let mut builder = TestCheckpointDataBuilder::new(0)
+        .start_transaction(0)
+        .create_coin_object(0, 1, 100, GAS::type_tag())
+        .create_coin_object(1, 1, 1, GAS::type_tag())
+        .finish_transaction();
+    let mut checkpoint = builder.build_checkpoint();
+    let metadata_id = replace_created_object_type(
+        &mut checkpoint,
+        1,
+        "0x2::coin::CoinMetadata<0x2::iota::IOTA>".parse().unwrap(),
+    );
+    let digest = *checkpoint.transactions[0].effects.transaction_digest();
+    index_checkpoint_for_testing(&index_store, &checkpoint);
+
+    // The digest row and the shared live state are always written.
+    assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some((0, 0)));
+    let coin_object = checkpoint.transactions[0]
+        .output_objects
+        .iter()
+        .find(|object| object.id() == TestCheckpointDataBuilder::derive_object_id(0))
+        .unwrap();
+    let (owner_key, owner_info) = OwnerIndexKey::for_object(owner, coin_object).unwrap();
+    assert_eq!(
+        index_store.tables.owner.get(&owner_key).unwrap(),
+        Some(owner_info),
+        "the owner index is shared by both groups"
+    );
+    // The gRPC group's own tables are filled.
+    assert_eq!(
+        index_store.get_coin_info(&StructTag::new_gas()).unwrap(),
+        Some(CoinIndexInfo {
+            coin_metadata_object_id: Some(metadata_id),
+            ..Default::default()
+        })
+    );
+    // The JSON-RPC group's own tables stay empty, and its reads refuse to
+    // answer from them.
+    let bucket = index_store.history.ensure(0).unwrap();
+    assert!(
+        bucket.tx_order.safe_iter().next().is_none(),
+        "the JSON-RPC history tables must stay empty"
+    );
+    assert!(matches!(
+        index_store.get_balance(owner, GAS::type_tag()),
+        Err(IotaError::IndexStoreNotAvailable)
+    ));
+
+    // Enabling the JSON-RPC group makes the store stale: its tables were
+    // never filled, so the whole store must be rebuilt.
+    let both = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+    mark_checkpoint_executed(&checkpoint_store, 0);
+    assert!(
+        !index_store
+            .tables
+            .needs_to_do_initialization(&checkpoint_store, &grpc_only)
+            .unwrap(),
+        "the store the checkpoint was indexed into is healthy for its own groups"
+    );
+    assert!(
+        index_store
+            .tables
+            .needs_to_do_initialization(&checkpoint_store, &both)
+            .unwrap(),
+        "a newly enabled group must trigger a rebuild"
     );
 }
