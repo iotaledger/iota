@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeSet;
+use std::collections::BTreeMap;
 
 use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionDigest, Version};
 use serde::{Deserialize, Serialize};
@@ -96,57 +96,41 @@ impl Attestation {
     }
 }
 
-/// State of an object version recorded in an attestation, relative to the epoch
-/// executing the attested transaction.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AttestedObjectVersionState {
-    /// Still the object's current version, so the transaction executed against
-    /// exactly this state.
-    Current,
-    /// Superseded by a transaction that executed in the current epoch. Retained
-    /// by every validator, so it can be re-run at.
-    SupersededInCurrentEpoch,
-    /// Superseded in an earlier epoch, or its supersession is unresolvable.
-    Stale,
-}
-
-/// Resolves the state of the object versions recorded in an attestation.
+/// Resolves whether an object version was superseded (overwritten, deleted or
+/// wrapped) by a transaction of the current epoch — such versions are retained
+/// and can be re-run at.
 pub trait AttestedObjectVersionReader: Send + Sync {
-    fn attested_object_version_state(
-        &self,
-        object_id: &ObjectId,
-        version: Version,
-    ) -> AttestedObjectVersionState;
+    fn superseded_in_current_epoch(&self, object_id: &ObjectId, version: Version) -> bool;
 }
 
 /// What the execution layer needs to judge an attestation when the attested
 /// transaction fails Move authentication at execution.
 pub struct AttestationVerdictContext<'a> {
     pub object_versions: Vec<ObjectReference>,
-    pub version_age_reader: Option<&'a dyn AttestedObjectVersionReader>,
+    pub version_reader: Option<&'a dyn AttestedObjectVersionReader>,
 }
 
 impl AttestationVerdictContext<'_> {
     /// Whether authentication should be re-run at the recorded versions.
-    ///
-    /// False when nothing drifted or when a drifted version is too old to
-    /// judge. Both cases are `InvalidAttestation`.
-    pub fn should_reauthenticate(&self, reauthenticated_object_ids: &BTreeSet<ObjectId>) -> bool {
-        let Some(version_age_reader) = self.version_age_reader else {
+    pub fn should_reauthenticate(&self, executed_versions: &BTreeMap<ObjectId, Version>) -> bool {
+        let Some(version_reader) = self.version_reader else {
             return true;
         };
         let mut drifted = false;
         for object_ref in &self.object_versions {
-            if !reauthenticated_object_ids.contains(object_ref.object_id()) {
+            let Some(&executed) = executed_versions.get(object_ref.object_id()) else {
+                continue;
+            };
+            let attested = object_ref.version();
+            if attested == executed {
                 continue;
             }
-            match version_age_reader
-                .attested_object_version_state(object_ref.object_id(), object_ref.version())
+            if attested > executed
+                || !version_reader.superseded_in_current_epoch(object_ref.object_id(), attested)
             {
-                AttestedObjectVersionState::Current => {}
-                AttestedObjectVersionState::SupersededInCurrentEpoch => drifted = true,
-                AttestedObjectVersionState::Stale => return false,
+                return false;
             }
+            drifted = true;
         }
         drifted
     }
@@ -173,31 +157,29 @@ mod tests {
         utils::create_fake_transaction,
     };
 
-    /// Reports whatever state a test assigned to an object, treating anything
-    /// unmentioned as `Stale`.
-    struct FakeVersionStates(std::collections::BTreeMap<ObjectId, AttestedObjectVersionState>);
+    /// Reports the versions a test marked as superseded during the current
+    /// epoch; anything else is unresolvable.
+    struct FakeSupersededVersions(std::collections::BTreeSet<(ObjectId, Version)>);
 
-    impl AttestedObjectVersionReader for FakeVersionStates {
-        fn attested_object_version_state(
-            &self,
-            object_id: &ObjectId,
-            _version: Version,
-        ) -> AttestedObjectVersionState {
-            self.0
-                .get(object_id)
-                .copied()
-                .unwrap_or(AttestedObjectVersionState::Stale)
+    impl AttestedObjectVersionReader for FakeSupersededVersions {
+        fn superseded_in_current_epoch(&self, object_id: &ObjectId, version: Version) -> bool {
+            self.0.contains(&(*object_id, version))
         }
     }
 
     fn verdict_context<'a>(
         object_versions: &[ObjectReference],
-        reader: &'a FakeVersionStates,
+        reader: &'a FakeSupersededVersions,
     ) -> AttestationVerdictContext<'a> {
         AttestationVerdictContext {
             object_versions: object_versions.to_vec(),
-            version_age_reader: Some(reader),
+            version_reader: Some(reader),
         }
+    }
+
+    fn ref_at(version: u64) -> ObjectReference {
+        let base = random_object_ref();
+        ObjectReference::new(base.object_id, Version::from(version), base.digest)
     }
 
     /// Authentication failed against exactly the recorded state, so re-running
@@ -205,41 +187,43 @@ mod tests {
     /// fails at the versions it saw.
     #[test]
     fn no_drift_skips_reauthentication() {
-        let account = random_object_ref();
-        let reader =
-            FakeVersionStates([(account.object_id, AttestedObjectVersionState::Current)].into());
-        let ids = BTreeSet::from([account.object_id]);
+        let account = ref_at(3);
+        let reader = FakeSupersededVersions(Default::default());
+        let executed = BTreeMap::from([(account.object_id, account.version())]);
 
-        assert!(!verdict_context(&[account], &reader).should_reauthenticate(&ids));
+        assert!(!verdict_context(&[account], &reader).should_reauthenticate(&executed));
     }
 
     /// The account moved on after an honest attestation, so the recorded state
     /// still has to be checked before anyone is charged.
     #[test]
     fn drift_within_the_epoch_reauthenticates() {
-        let account = random_object_ref();
-        let reader = FakeVersionStates(
-            [(
-                account.object_id,
-                AttestedObjectVersionState::SupersededInCurrentEpoch,
-            )]
-            .into(),
-        );
-        let ids = BTreeSet::from([account.object_id]);
+        let account = ref_at(3);
+        let reader = FakeSupersededVersions([(account.object_id, account.version())].into());
+        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
 
-        assert!(verdict_context(&[account], &reader).should_reauthenticate(&ids));
+        assert!(verdict_context(&[account], &reader).should_reauthenticate(&executed));
     }
 
-    /// A version superseded before the retained window cannot be re-run at, and
-    /// an attestation is never taken on trust without it.
+    /// A drifted version whose supersession is not from the current epoch is
+    /// not state an honest attestor can have read this epoch, and an
+    /// attestation is never taken on trust without checking it.
     #[test]
     fn stale_version_skips_reauthentication() {
-        let account = random_object_ref();
-        let reader =
-            FakeVersionStates([(account.object_id, AttestedObjectVersionState::Stale)].into());
-        let ids = BTreeSet::from([account.object_id]);
+        let account = ref_at(3);
+        let reader = FakeSupersededVersions(Default::default());
+        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
 
-        assert!(!verdict_context(&[account], &reader).should_reauthenticate(&ids));
+        assert!(!verdict_context(&[account], &reader).should_reauthenticate(&executed));
+    }
+
+    #[test]
+    fn version_ahead_of_execution_skips_reauthentication() {
+        let account = ref_at(7);
+        let reader = FakeSupersededVersions([(account.object_id, account.version())].into());
+        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
+
+        assert!(!verdict_context(&[account], &reader).should_reauthenticate(&executed));
     }
 
     /// An attestation also records the versions the transaction body read.
@@ -247,24 +231,30 @@ mod tests {
     /// stale one must not decide the verdict.
     #[test]
     fn versions_the_reauthentication_does_not_read_are_ignored() {
-        let account = random_object_ref();
-        let body_object = random_object_ref();
-        let reader = FakeVersionStates(
-            [
-                (
-                    account.object_id,
-                    AttestedObjectVersionState::SupersededInCurrentEpoch,
-                ),
-                (body_object.object_id, AttestedObjectVersionState::Stale),
-            ]
-            .into(),
-        );
-        let ids = BTreeSet::from([account.object_id]);
+        let account = ref_at(3);
+        let body_object = ref_at(9);
+        let reader = FakeSupersededVersions([(account.object_id, account.version())].into());
+        let executed = BTreeMap::from([(account.object_id, Version::from(5u64))]);
 
         assert!(
-            verdict_context(&[account, body_object], &reader).should_reauthenticate(&ids),
+            verdict_context(&[account, body_object], &reader).should_reauthenticate(&executed),
             "a stale body-side version must not suppress the re-run"
         );
+    }
+
+    /// One refuted version decides the verdict even when another version
+    /// drifted honestly.
+    #[test]
+    fn any_refuted_version_skips_reauthentication() {
+        let account = ref_at(3);
+        let input = ref_at(4);
+        let reader = FakeSupersededVersions([(account.object_id, account.version())].into());
+        let executed = BTreeMap::from([
+            (account.object_id, Version::from(5u64)),
+            (input.object_id, Version::from(2u64)),
+        ]);
+
+        assert!(!verdict_context(&[account, input], &reader).should_reauthenticate(&executed));
     }
 
     fn make_attestation_data() -> AttestationData {

@@ -25,7 +25,7 @@ use iota_sdk_types::{
 use iota_types::{
     IOTA_DENY_LIST_OBJECT_ID,
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRefForExecution,
+        AuthenticatorFunctionRefForExecution, MoveAuthenticatorForExecution,
         authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
@@ -855,11 +855,14 @@ impl LocalExec {
                             },
                         )?;
 
-                        Ok((
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref,
-                            CheckedInputObjects::new_for_replay(authenticator_inputs),
-                        ))
+                        Ok(MoveAuthenticatorForExecution {
+                            authenticator: move_authenticator.to_owned(),
+                            function_ref: Some(authenticator_function_ref),
+                            account_object_version: account_version,
+                            input_objects: CheckedInputObjects::new_for_replay(
+                                authenticator_inputs,
+                            ),
+                        })
                     },
                 )
                 .collect::<Result<Vec<_>, ReplayEngineError>>()?;
@@ -873,8 +876,9 @@ impl LocalExec {
                 extract_auth_fun_refs(tx_info.sender, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
+                        .find(|a| a.authenticator.address() == address)
+                        .and_then(|a| a.function_ref.as_ref())
+                        .map(|f| f.authenticator_function_ref.clone())
                 });
 
             let auth_context_data = AuthContextData {
@@ -1140,7 +1144,10 @@ impl LocalExec {
                         )
                         .unwrap();
 
-                        Ok((authenticator_inputs, authenticator_function_ref))
+                        Ok((
+                            authenticator_inputs,
+                            (account_version, authenticator_function_ref),
+                        ))
                     },
                 )
                 .collect::<Result<Vec<_>, ReplayEngineError>>()?;
@@ -1174,14 +1181,15 @@ impl LocalExec {
                 .zip(per_authenticator_checked_input_objects)
                 .map(
                     |(
-                        (move_authenticator, (_, authenticator_function_ref_for_execution)),
-                        authenticator_checked_input_objects,
+                        (move_authenticator, (_, (account_object_version, function_ref))),
+                        input_objects,
                     )| {
-                        (
-                            move_authenticator.to_owned(),
-                            authenticator_function_ref_for_execution,
-                            authenticator_checked_input_objects,
-                        )
+                        MoveAuthenticatorForExecution {
+                            authenticator: move_authenticator.to_owned(),
+                            function_ref: Some(function_ref),
+                            account_object_version,
+                            input_objects,
+                        }
                     },
                 )
                 .collect::<Vec<_>>();
@@ -1195,8 +1203,9 @@ impl LocalExec {
                 extract_auth_fun_refs(signer, gas_data.owner, |address| {
                     move_authenticators
                         .iter()
-                        .find(|t| t.0.address() == address)
-                        .map(|t| t.1.authenticator_function_ref.clone())
+                        .find(|a| a.authenticator.address() == address)
+                        .and_then(|a| a.function_ref.as_ref())
+                        .map(|f| f.authenticator_function_ref.clone())
                 });
 
             let auth_context_data = AuthContextData {

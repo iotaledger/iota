@@ -12,10 +12,10 @@
 use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
-use iota_sdk_types::{Address, Digest, Event, ObjectId, ObjectReference};
+use iota_sdk_types::{Address, Digest, Event, ObjectId, ObjectReference, Version};
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRefForExecution,
+        AuthenticatorFunctionRefForExecution, MoveAuthenticatorForExecution,
         authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
@@ -333,7 +333,7 @@ pub(super) fn execute_with_move_authenticators(
     // one set.
     let prepared_auths = prepare_authenticators(store, authenticators)?;
     let mut union_checked = checked_input_objects;
-    for (_, _, inputs) in &prepared_auths {
+    for (_, _, _, inputs) in &prepared_auths {
         let auth_checked = CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone());
         union_checked =
             iota_transaction_checks::checked_input_objects_union(union_checked, &auth_checked)
@@ -346,7 +346,7 @@ pub(super) fn execute_with_move_authenticators(
         // `prepare_transaction`.
         let auth_checked = prepared_auths
             .iter()
-            .map(|(_, _, inputs)| {
+            .map(|(_, _, _, inputs)| {
                 CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone())
             })
             .collect::<Vec<_>>();
@@ -368,13 +368,16 @@ pub(super) fn execute_with_move_authenticators(
     // `AuthenticatorFunctionRefForExecution`.
     let exec_authenticators = prepared_auths
         .iter()
-        .map(|(a, fn_ref, inputs)| {
-            (
-                a.clone(),
-                fn_ref.clone(),
-                CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone()),
-            )
-        })
+        .map(
+            |(a, fn_ref, account_object_version, inputs)| MoveAuthenticatorForExecution {
+                authenticator: a.clone(),
+                function_ref: Some(fn_ref.clone()),
+                account_object_version: *account_object_version,
+                input_objects: CheckedInputObjects::new_with_checked_transaction_inputs(
+                    inputs.clone(),
+                ),
+            },
+        )
         .collect::<Vec<_>>();
 
     let (inner_temp_store, _, effects, execution_result, _) = env
@@ -453,6 +456,7 @@ pub(super) fn execute_with_move_authenticators(
 type PreparedAuthenticator = (
     MoveAuthenticator,
     AuthenticatorFunctionRefForExecution,
+    Version,
     InputObjects,
 );
 
@@ -472,8 +476,14 @@ pub(super) fn prepare_authenticators(
             auth_input_objects,
         )
         .map_err(|e| ValidationError::new("authenticator input check", e))?;
-        let fn_ref = resolve_authenticator_function_ref(store, &authenticator)?;
-        prepared.push((authenticator, fn_ref, auth_checked.into_inner()));
+        let (fn_ref, account_object_version) =
+            resolve_authenticator_function_ref(store, &authenticator)?;
+        prepared.push((
+            authenticator,
+            fn_ref,
+            account_object_version,
+            auth_checked.into_inner(),
+        ));
     }
     Ok(prepared)
 }
@@ -497,8 +507,8 @@ pub(super) fn build_auth_context_data(
             |address| {
                 prepared_auths
                     .iter()
-                    .find(|(a, _, _)| a.address() == address)
-                    .map(|(_, fn_ref, _)| fn_ref.authenticator_function_ref.clone())
+                    .find(|(a, _, _, _)| a.address() == address)
+                    .map(|(_, fn_ref, _, _)| fn_ref.authenticator_function_ref.clone())
             },
         );
     Ok(AuthContextData {
@@ -526,7 +536,7 @@ pub(super) fn authenticate_only(
     // `CheckedInputObjects` is not `Clone`, so rebuild it for the call.
     let authenticators = auths_to_run
         .iter()
-        .map(|(a, fn_ref, inputs)| {
+        .map(|(a, fn_ref, _, inputs)| {
             (
                 a.clone(),
                 fn_ref.authenticator_function_ref.clone(),
@@ -586,14 +596,24 @@ fn run_coin_deny_list_check(
 }
 
 /// Load the [`AuthenticatorFunctionRefForExecution`] from the account object's
-/// dynamic field in the store.
+/// dynamic field in the store, along with the account object's version.
 fn resolve_authenticator_function_ref(
     store: &dyn BackingStore,
     authenticator: &MoveAuthenticator,
-) -> Result<AuthenticatorFunctionRefForExecution, VmSdkError> {
+) -> Result<(AuthenticatorFunctionRefForExecution, Version), VmSdkError> {
     let (account_object_id, _version, _digest) = authenticator
         .object_to_authenticate_components()
         .map_err(|e| VmError::new(format!("invalid object_to_authenticate: {e}")))?;
+
+    let account_object_version = store
+        .as_object_store()
+        .try_get_object(&account_object_id)
+        .map_err(|e| StoreError::new("load account object", e))?
+        .ok_or(VmSdkError::MissingObject {
+            id: account_object_id,
+            version: None,
+        })?
+        .version();
 
     let field_id = derive_authenticator_function_ref_v1_dynamic_field_id(account_object_id)
         .map_err(|e| ValidationError::new("derive authenticator field id", e))?;
@@ -608,6 +628,7 @@ fn resolve_authenticator_function_ref(
         })?;
 
     authenticator_function_ref_v1_from_dynamic_field_object(account_object_id, &field_obj)
+        .map(|fn_ref| (fn_ref, account_object_version))
         .map_err(|e| ValidationError::new("decode authenticator field", e).into())
 }
 

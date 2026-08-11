@@ -9,7 +9,7 @@
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{Address, Command, ExecutionError, ExecutionStatus, ObjectId};
 use iota_types::{
-    attestation::{AttestedObjectVersionReader, AttestedObjectVersionState},
+    attestation::AttestedObjectVersionReader,
     crypto::get_account_key_pair,
     effects::TransactionEffectsAPI,
     executable_transaction::VerifiedExecutableTransaction,
@@ -188,27 +188,23 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
         current_epoch,
     };
 
-    assert_eq!(
-        versions_as_of(epoch).attested_object_version_state(&attested_id, current_version),
-        AttestedObjectVersionState::Current,
-        "the version the object is still at is current"
+    assert!(
+        !versions_as_of(epoch).superseded_in_current_epoch(&attested_id, current_version),
+        "the version the object is still at has not been superseded"
     );
-    assert_eq!(
-        versions_as_of(epoch).attested_object_version_state(&attested_id, attested_ref.version()),
-        AttestedObjectVersionState::SupersededInCurrentEpoch,
+    assert!(
+        versions_as_of(epoch).superseded_in_current_epoch(&attested_id, attested_ref.version()),
         "a version this epoch superseded can still be re-run at"
     );
-    assert_eq!(
-        versions_as_of(epoch + 1)
-            .attested_object_version_state(&attested_id, attested_ref.version()),
-        AttestedObjectVersionState::Stale,
+    assert!(
+        !versions_as_of(epoch + 1)
+            .superseded_in_current_epoch(&attested_id, attested_ref.version()),
         "the same version is out of reach once the superseding epoch has passed"
     );
-    assert_eq!(
-        versions_as_of(epoch)
-            .attested_object_version_state(&ObjectId::random(), attested_ref.version()),
-        AttestedObjectVersionState::Stale,
-        "an object that cannot be read leaves the attestation unproven"
+    assert!(
+        !versions_as_of(epoch)
+            .superseded_in_current_epoch(&ObjectId::random(), attested_ref.version()),
+        "an unknown object has no supersession record"
     );
 }
 
@@ -265,11 +261,9 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
     };
 
     // Nothing has been written back yet, so this is answered from the cache.
-    let before_commit =
-        versions.attested_object_version_state(&attested_id, attested_ref.version());
-    assert_eq!(
+    let before_commit = versions.superseded_in_current_epoch(&attested_id, attested_ref.version());
+    assert!(
         before_commit,
-        AttestedObjectVersionState::SupersededInCurrentEpoch,
         "a supersession still in the cache must already count"
     );
 
@@ -278,7 +272,7 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
     let batch = cache_commit.build_db_batch(epoch, 0, &digests);
     cache_commit.commit_transaction_outputs(epoch, batch, &digests);
 
-    let after_commit = versions.attested_object_version_state(&attested_id, attested_ref.version());
+    let after_commit = versions.superseded_in_current_epoch(&attested_id, attested_ref.version());
     assert_eq!(
         before_commit, after_commit,
         "the verdict must not change when the supersession reaches the database"
@@ -362,15 +356,13 @@ async fn attested_object_version_state_judges_a_deleted_object() {
         object_cache: authority.get_object_cache_reader().as_ref(),
         current_epoch,
     };
-    assert_eq!(
-        versions_as_of(epoch).attested_object_version_state(&attested_id, attested_ref.version()),
-        AttestedObjectVersionState::SupersededInCurrentEpoch,
+    assert!(
+        versions_as_of(epoch).superseded_in_current_epoch(&attested_id, attested_ref.version()),
         "a version a deletion superseded this epoch can still be re-run at"
     );
-    assert_eq!(
-        versions_as_of(epoch + 1)
-            .attested_object_version_state(&attested_id, attested_ref.version()),
-        AttestedObjectVersionState::Stale,
+    assert!(
+        !versions_as_of(epoch + 1)
+            .superseded_in_current_epoch(&attested_id, attested_ref.version()),
         "the same version is out of reach once the superseding epoch has passed"
     );
 }

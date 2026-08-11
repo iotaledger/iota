@@ -315,7 +315,7 @@ impl LocalVm {
             build_auth_context_data(&transaction, &prepared_auths, auth_digests)?;
         let to_run: Vec<_> = prepared_auths
             .into_iter()
-            .filter(|(a, _, _)| pre_consensus_addresses.contains(&a.address()))
+            .filter(|(a, _, _, _)| pre_consensus_addresses.contains(&a.address()))
             .collect();
 
         let gas_status = IotaGasStatus::new(

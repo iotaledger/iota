@@ -20,7 +20,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
+        AuthenticatorFunctionRef, MoveAuthenticatorForExecution,
     },
     attestation::AttestationVerdictContext,
     auth_context::AuthContextData,
@@ -192,11 +192,7 @@ impl executor::Executor for Executor {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<(
-            MoveAuthenticator,
-            AuthenticatorFunctionRefForExecution,
-            CheckedInputObjects,
-        )>,
+        authenticators: Vec<MoveAuthenticatorForExecution>,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
