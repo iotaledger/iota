@@ -159,9 +159,7 @@ impl Scenario {
         let mut rng = StdRng::from_seed([0; 32]);
         let keypair = AccountKeyPair::generate(&mut rng);
         let sender = keypair.public_key().derive_address();
-        let receiver = AccountKeyPair::generate(&mut rng)
-            .public_key()
-            .derive_address();
+        let receiver = Address::random();
 
         // Tx is opaque to the cache, so we just build a dummy tx. The only requirement
         // is that it has a unique digest every time.
