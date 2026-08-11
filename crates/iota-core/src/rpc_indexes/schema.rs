@@ -18,7 +18,7 @@ use iota_types::{
     error::IotaResult,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    storage::{DynamicFieldKey, OwnedObjectCursor, PackageVersionInfo, PackageVersionKey},
+    storage::{DynamicFieldKey, PackageVersionInfo, PackageVersionKey},
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use move_core_types::{
@@ -190,10 +190,12 @@ fn hash_type_params(tag: &StructTag) -> u64 {
 /// `safe_iter_with_bounds` range scan, narrowed by `type_filter`.
 ///
 /// When `cursor` is `Some`, the lower bound is set to the cursor's exact
-/// position (inclusive) so that RocksDB can seek directly.
+/// position (inclusive) so that RocksDB can seek directly. `cursor`'s own
+/// `owner` is ignored in favor of the explicit `owner` argument: callers
+/// resume a scan for `owner` from a key they already know belongs to it.
 pub fn owner_bounds(
     owner: Address,
-    cursor: Option<&OwnedObjectCursor>,
+    cursor: Option<&OwnerIndexKey>,
     filter: &OwnerTypeFilter,
 ) -> (OwnerIndexKey, OwnerIndexKey) {
     let lower_bound = if let Some(c) = cursor {
@@ -245,35 +247,40 @@ pub fn owner_bounds(
     (lower_bound, upper_bound)
 }
 
-/// Build an `OwnerIndexKey` for an address-owned object.
-pub fn make_owner_key(owner: Address, object: &Object) -> Option<(OwnerIndexKey, OwnerIndexInfo)> {
-    let struct_tag: StructTag = object.type_()?.clone().into();
-    let id_hash = hash_type_identifier(&struct_tag);
-    let params_hash = hash_type_params(&struct_tag);
+impl OwnerIndexKey {
+    /// Builds the key and value an address-owned `object` occupies in the
+    /// owner index — shared by the live indexer, the cursor rebuild, and the
+    /// deletion path, so all three agree on where an object sorts. `None`
+    /// when `object` has no Move type (e.g. a package).
+    pub fn for_object(owner: Address, object: &Object) -> Option<(OwnerIndexKey, OwnerIndexInfo)> {
+        let struct_tag: StructTag = object.type_()?.clone().into();
+        let id_hash = hash_type_identifier(&struct_tag);
+        let params_hash = hash_type_params(&struct_tag);
 
-    // For coins, extract the balance for inverted sorting (richest first).
-    let inverted_balance = if object.is_coin() {
-        let balance = object
-            .as_coin_maybe()
-            .map(|c| c.balance.value())
-            .unwrap_or(0);
-        Some(!balance)
-    } else {
-        None
-    };
+        // For coins, extract the balance for inverted sorting (richest first).
+        let inverted_balance = if object.is_coin() {
+            let balance = object
+                .as_coin_maybe()
+                .map(|c| c.balance.value())
+                .unwrap_or(0);
+            Some(!balance)
+        } else {
+            None
+        };
 
-    let key = OwnerIndexKey {
-        owner,
-        object_type_identifier: id_hash,
-        object_type_params: params_hash,
-        inverted_balance,
-        object_id: object.id(),
-    };
-    let info = OwnerIndexInfo {
-        object_type: struct_tag,
-        version: object.version(),
-    };
-    Some((key, info))
+        let key = OwnerIndexKey {
+            owner,
+            object_type_identifier: id_hash,
+            object_type_params: params_hash,
+            inverted_balance,
+            object_id: object.id(),
+        };
+        let info = OwnerIndexInfo {
+            object_type: struct_tag,
+            version: object.version(),
+        };
+        Some((key, info))
+    }
 }
 
 /// Key of the `coin` table: regulated coin metadata, one entry per coin
@@ -291,8 +298,8 @@ pub struct CoinIndexInfo {
     pub regulated_coin_metadata_object_id: Option<ObjectId>,
 }
 
-type EventId = (TxSequenceNumber, usize);
-type EventIndex = (TransactionEventsDigest, TransactionDigest, u64);
+pub(super) type EventId = (TxSequenceNumber, usize);
+pub(super) type EventIndex = (TransactionEventsDigest, TransactionDigest, u64);
 
 /// Per-transaction inputs for the history tables of the index batch. Unlike
 /// the live-state tables (owner, coin, dynamic field), these need only the

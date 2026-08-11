@@ -13,6 +13,7 @@
 //! read surfaces and the live/restore ingest paths are added by later
 //! changes.
 
+pub mod jsonrpc_api;
 pub mod schema;
 
 use std::{
@@ -49,10 +50,13 @@ use typed_store::{
     traits::Map,
 };
 
-pub use self::schema::IndexGroup;
-use self::schema::{
-    CURRENT_DB_VERSION, HISTORY_CF_PREFIX, HistoryBucket, IndexStoreTables, MetadataInfo,
-    transaction_index_data,
+pub use self::schema::{IndexGroup, TotalBalance};
+use self::{
+    jsonrpc_api::{BalanceCaches, JsonRpcMetrics},
+    schema::{
+        CURRENT_DB_VERSION, HISTORY_CF_PREFIX, HistoryBucket, IndexStoreTables, MetadataInfo,
+        transaction_index_data,
+    },
 };
 use crate::{
     authority::{AuthorityStore, authority_store_pruner::MIN_EPOCHS_TO_RETAIN_FOR_INDEXES},
@@ -159,6 +163,10 @@ pub struct RpcIndexesStore {
     history: EpochBuckets<HistoryBucket>,
     next_sequence_number: AtomicU64,
     metrics: RpcIndexesMetrics,
+    /// Balance caches backing the JSON-RPC coin reads; unused, but harmless,
+    /// on a store that does not serve [`IndexGroup::JsonRpc`].
+    caches: BalanceCaches,
+    jsonrpc_metrics: JsonRpcMetrics,
     max_type_length: u64,
     history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Stops the startup rebuild and the background history backfill.
@@ -615,6 +623,7 @@ impl RpcIndexesStore {
             HistoryBucket::reopen,
         )?;
         let metrics = RpcIndexesMetrics::new(registry);
+        let jsonrpc_metrics = JsonRpcMetrics::new(registry);
 
         Ok(Self {
             tables,
@@ -622,6 +631,8 @@ impl RpcIndexesStore {
             history,
             next_sequence_number: next_sequence_number_floor.into(),
             metrics,
+            caches: BalanceCaches::new(),
+            jsonrpc_metrics,
             max_type_length: max_type_length.unwrap_or(128),
             history_backfill_task: Mutex::new(None),
             cancelled,
