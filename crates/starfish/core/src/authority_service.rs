@@ -33,7 +33,7 @@ use crate::{
     commit_syncer::CommitSyncType,
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
-    cordial_knowledge::CordialKnowledgeHandle,
+    cordial_knowledge::{CordialKnowledgeHandle, MAX_ROUND_GAP_FOR_USEFUL_PARTS},
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
     encoder::ShardEncoder,
@@ -893,6 +893,30 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         //    inserted
         self.add_digests_to_filter(peer_hostname, &mut additional_block_headers, block_ref)
             .await;
+
+        // The headers that survived the filter are first deliveries; sample
+        // the streaming responsiveness table with them in one batch. Catch-up
+        // headers carry old timestamps, so only headers close to the bundle's
+        // round are measured.
+        self.context
+            .peer_responsiveness
+            .record_streaming_header_deliveries(
+                peer,
+                additional_block_headers
+                    .iter()
+                    .filter(|header| {
+                        header
+                            .round()
+                            .saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
+                            >= block_ref.round
+                    })
+                    .map(|header| {
+                        (
+                            header.author(),
+                            Duration::from_millis(now.saturating_sub(header.timestamp_ms())),
+                        )
+                    }),
+            );
 
         // 9. Prepare transaction messages for shard reconstructor and send them.
         // Skipped for a dropped primary block (no shards were collected).
@@ -1799,7 +1823,9 @@ mod tests {
         commit_syncer::CommitSyncType,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
-        cordial_knowledge::{ConnectionKnowledgeMessage, CordialKnowledge},
+        cordial_knowledge::{
+            ConnectionKnowledgeMessage, CordialKnowledge, MAX_ROUND_GAP_FOR_USEFUL_PARTS,
+        },
         core::{Core, CoreSignals, ReasonToCreateBlock},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::{DagState, DataSource},
@@ -2882,6 +2908,195 @@ mod tests {
                 min(validators * round as usize - 1, MAX_FILTER_SIZE as usize)
             )
         }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_streaming_responsiveness_samples_first_fresh_deliveries() {
+        // GIVEN a DAG deep enough that a round-1 header is stale relative to a
+        // bundle's block round (more than MAX_ROUND_GAP_FOR_USEFUL_PARTS
+        // behind).
+        let rounds: u32 = MAX_ROUND_GAP_FOR_USEFUL_PARTS + 4;
+        let validators = 4;
+        // Test headers are V1, which flag-on verification rejects; run with
+        // StarfishSpeed off.
+        let (mut context, key_pairs) = Context::new_for_test(validators);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(SignedBlockVerifier::new(
+            context.clone(),
+            Arc::new(crate::block_verifier::test::TxnSizeVerifier {}),
+        ));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let (signals, _signal_receivers) = CoreSignals::new(context.clone());
+        let (sender, _receiver) = unbounded_channel("consensus_output");
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        )
+        .await;
+        let mut core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs[context.own_index.value()].1.clone(),
+            dag_state.clone(),
+            true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
+        );
+        core.set_last_known_proposed_round(rounds + 5);
+
+        let core_dispatcher = Arc::new(FakeCoreThreadDispatcher {
+            core: Mutex::new(core),
+        });
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
+        let network_client = Arc::new(FakeNetworkClient::default());
+
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+            Arc::new(MisbehaviorStore::new(&context)),
+            tx_message_sender,
+            cordial_knowledge,
+        ));
+        let mut encoder = create_encoder(&context);
+
+        let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
+        let mut dag_builder =
+            DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
+        dag_builder.layers(1..=rounds).build();
+        let mut all_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
+        let mut all_transactions: Vec<Vec<VerifiedTransactions>> = vec![];
+        for round in 0..=rounds {
+            all_headers.push(dag_builder.block_headers(round..=round));
+            all_transactions.push(dag_builder.transactions(round..=round));
+        }
+        // Accept every header below the top round outside the bundle path, so
+        // the bundle digest filter has never seen any of them.
+        for round in 1..rounds {
+            core_dispatcher
+                .add_block_headers(all_headers[round as usize].clone(), DataSource::Test)
+                .await
+                .expect("headers are expected to be added successfully");
+        }
+
+        let peer_1 = context.committee.to_authority_index(1).unwrap();
+        let peer_2 = context.committee.to_authority_index(2).unwrap();
+        let author_3 = context.committee.to_authority_index(3).unwrap();
+        let all_authorities: Vec<AuthorityIndex> = (0u8..(context.committee.size() as u8))
+            .map(Into::into)
+            .collect();
+        let send_bundle = |block_peer: usize, headers: Vec<VerifiedBlockHeader>| {
+            let block_bundle = BlockBundle {
+                verified_block: VerifiedBlock {
+                    verified_block_header: all_headers[rounds as usize][block_peer].clone(),
+                    verified_transactions: all_transactions[rounds as usize][block_peer].clone(),
+                },
+                verified_headers: headers,
+                serialized_shards: vec![],
+                useful_headers_authors: all_authorities.iter().copied().collect(),
+                useful_shards_authors: all_authorities.iter().copied().collect(),
+            };
+            SerializedBlockBundle::try_from(
+                SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
+            )
+            .unwrap()
+        };
+
+        // WHEN peer 1's bundle delivers a stale first copy (author 2, round 1)
+        // and a fresh first copy (author 3, top round - 1).
+        authority_service
+            .handle_subscribed_block_bundle(
+                peer_1,
+                send_bundle(
+                    1,
+                    vec![
+                        all_headers[1][2].clone(),
+                        all_headers[rounds as usize - 1][3].clone(),
+                    ],
+                ),
+                &mut encoder,
+            )
+            .await
+            .expect("bundle is expected to be processed successfully");
+
+        // THEN only the fresh first delivery is sampled.
+        let responsiveness = &context.peer_responsiveness;
+        assert!(
+            responsiveness
+                .streaming_header_latency_ms(peer_1, author_3)
+                .is_some()
+        );
+        assert!(
+            responsiveness
+                .streaming_header_latency_ms(peer_1, peer_2)
+                .is_none()
+        );
+
+        // AND WHEN peer 2 re-delivers the header peer 1 already delivered.
+        authority_service
+            .handle_subscribed_block_bundle(
+                peer_2,
+                send_bundle(2, vec![all_headers[rounds as usize - 1][3].clone()]),
+                &mut encoder,
+            )
+            .await
+            .expect("bundle is expected to be processed successfully");
+
+        // THEN the duplicate is not sampled.
+        assert!(
+            responsiveness
+                .streaming_header_latency_ms(peer_2, author_3)
+                .is_none()
+        );
     }
 
     #[rstest]
