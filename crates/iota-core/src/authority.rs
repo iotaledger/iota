@@ -924,9 +924,6 @@ pub struct AuthorityState {
     pub traffic_controller: Option<Arc<TrafficController>>,
 }
 
-/// The authority state encapsulates all state, drives execution, and ensures
-/// safety.
-///
 /// Outputs of the shared transaction validation pipeline used by both
 /// `handle_transaction_validation_checks` and `attest_transaction`.
 struct ValidationOutputs<'a> {
@@ -937,6 +934,9 @@ struct ValidationOutputs<'a> {
     per_authenticator_checked_inputs: Vec<(CheckedInputObjects, AuthenticatorFunctionRef)>,
 }
 
+/// The authority state encapsulates all state, drives execution, and ensures
+/// safety.
+///
 /// Note the authority operations can be accessed through a read ref (&) and do
 /// not require &mut. Internally a database is synchronized through a mutex
 /// lock.

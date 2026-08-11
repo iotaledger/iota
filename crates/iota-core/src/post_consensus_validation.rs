@@ -212,10 +212,7 @@ pub async fn validate_and_resolve_conflicts(
                 .min(protocol_config.gas_rounding_step());
             let attested_units = attestation.computation_units();
             let txn = transaction.data().transaction();
-            let max_attested_units = txn
-                .gas_budget()
-                .checked_div(txn.gas_price())
-                .unwrap_or(u64::MAX);
+            let max_attested_units = txn.gas_budget().checked_div(txn.gas_price()).unwrap_or(0);
             let error = match attestation {
                 Attestation::Validator { attestor_index, .. } => {
                     if *attestor_index != block_author {
