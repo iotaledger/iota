@@ -57,7 +57,7 @@ mod sim_only_tests {
                 // objects are gong from object store.
                 state
                     .database_for_testing()
-                    .prune_objects_and_compact_for_testing(checkpoint_store, None)
+                    .prune_objects_and_compact_for_testing(checkpoint_store)
                     .await;
 
                 // Check that no object with `child_id` exists in object store.
@@ -113,7 +113,7 @@ mod sim_only_tests {
                 // objects are gong from object store.
                 state
                     .database_for_testing()
-                    .prune_objects_and_compact_for_testing(checkpoint_store, None)
+                    .prune_objects_and_compact_for_testing(checkpoint_store)
                     .await;
 
                 // Check that both root and child objects are gone from object store.
