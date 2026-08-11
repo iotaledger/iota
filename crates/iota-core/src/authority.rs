@@ -1909,7 +1909,7 @@ impl AuthorityState {
         let move_authenticators = transaction.move_authenticators();
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
-        let (inner_temp_store, _, mut effects, execution_error_opt) = if move_authenticators
+        let (inner_temp_store, _, mut effects, _, execution_error_opt) = if move_authenticators
             .is_empty()
         {
             // No Move authentication required, proceed to execute the transaction directly.
