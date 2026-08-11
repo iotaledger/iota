@@ -1402,6 +1402,36 @@ const OBJECT_STATUS_PRUNED: i16 = -1;
 
 const OBJECT_STATUS_WRAPPED_OR_DELETED: i16 = NativeObjectStatus::WrappedOrDeleted as i16;
 
+const OBJECT_STATUS_ACTIVE: i16 = NativeObjectStatus::Active as i16;
+
+/// Supplies the parameters needed to build an [`Object`] from a row fetched
+/// from the historical fallback: the checkpoint it is viewed at, and the root
+/// version to record on it.
+trait FallbackObjectKey: Eq + std::hash::Hash {
+    /// The checkpoint the object is viewed at.
+    fn checkpoint_viewed_at(&self) -> u64;
+    /// The root version to record on the resulting object, if any.
+    fn root_version(&self) -> Option<u64>;
+}
+
+impl FallbackObjectKey for HistoricalKey {
+    fn checkpoint_viewed_at(&self) -> u64 {
+        self.checkpoint_viewed_at
+    }
+    fn root_version(&self) -> Option<u64> {
+        None
+    }
+}
+
+impl FallbackObjectKey for ParentVersionKey {
+    fn checkpoint_viewed_at(&self) -> u64 {
+        self.checkpoint_viewed_at
+    }
+    fn root_version(&self) -> Option<u64> {
+        Some(self.parent_version)
+    }
+}
+
 /// Checks if `objects_version` table covers the whole chain history.
 ///
 /// This function currently returns false for indexer restored from snapshot.
@@ -1411,20 +1441,17 @@ fn objects_version_complete(db: &Db) -> bool {
         .is_ok()
 }
 
-/// Fetches specified object versions from the historical fallback and stores
-/// them per key in `results`.
+/// Fills the missing `results` entries with objects fetched from the
+/// historical fallback.
 ///
 /// It stores nothing when the object does not exist at the requested version
 /// (e.g. when the object is wrapped or deleted). It stores
 /// [`Error::DataPruned`] per key when the historical fallback is not
 /// configured.
-///
-/// `to_object` builds the [`Object`] that is then stored in `results`.
-async fn fetch_missing_objects_from_fallback<K: Eq + std::hash::Hash>(
+async fn fill_missing_objects_from_fallback<K: FallbackObjectKey>(
     db: &Db,
     keys_with_refs: Vec<(K, (ObjectId, Version))>,
     results: &mut HashMap<K, Result<Object, Error>>,
-    to_object: impl Fn(&K, StoredObject) -> Result<Object, Error>,
 ) -> Result<(), Error> {
     if keys_with_refs.is_empty() {
         return Ok(());
@@ -1455,7 +1482,11 @@ async fn fetch_missing_objects_from_fallback<K: Eq + std::hash::Hash>(
     for ((key, _), fetched) in keys_with_refs.into_iter().zip(fetched) {
         match fetched {
             Ok(Some(stored)) => {
-                let object = to_object(&key, stored)?;
+                let object = Object::try_from_stored_object(
+                    stored,
+                    key.checkpoint_viewed_at(),
+                    key.root_version(),
+                )?;
                 results.insert(key, Ok(object));
             }
             // The object does not exist at the requested version.
@@ -1574,11 +1605,9 @@ impl Loader<HistoricalKey> for Db {
                     fallback_keys.push(*key);
                     continue;
                 }
-                // The version exists but the object was wrapped or deleted at
-                // it: resolve as non-existent.
-                OBJECT_STATUS_WRAPPED_OR_DELETED => continue,
-                // A live version; the conversion rejects any other status.
-                _ => ActiveObject::try_from(stored.clone())?,
+                OBJECT_STATUS_ACTIVE => ActiveObject::try_from(stored.clone())?,
+                // Wrapped, deleted, or not yet created: resolve as non-existent.
+                _ => continue,
             };
             // This conversion will use the object's own version as the
             // `Object::root_version`.
@@ -1597,10 +1626,7 @@ impl Loader<HistoricalKey> for Db {
             .into_iter()
             .map(|key| (key, (key.id.into(), Version::from(key.version))))
             .collect();
-        fetch_missing_objects_from_fallback(self, keys_with_refs, &mut result, |key, stored| {
-            Object::try_from_stored_object(stored, key.checkpoint_viewed_at, None)
-        })
-        .await?;
+        fill_missing_objects_from_fallback(self, keys_with_refs, &mut result).await?;
 
         Ok(result)
     }
@@ -1830,11 +1856,9 @@ impl Loader<ParentVersionKey> for Db {
                     fallback_keys.push((*key, object_ref));
                     continue;
                 }
-                // The version exists but the object was wrapped or deleted at
-                // it: resolve as non-existent.
-                OBJECT_STATUS_WRAPPED_OR_DELETED => continue,
-                // A live version; the conversion rejects any other status.
-                _ => ActiveObject::try_from(stored.clone())?,
+                OBJECT_STATUS_ACTIVE => ActiveObject::try_from(stored.clone())?,
+                // Wrapped, deleted, or not yet created: resolve as non-existent.
+                _ => continue,
             };
             // If `LatestAtKey::parent_version` is set, it must have been correctly
             // propagated from the `Object::root_version` of some object.
@@ -1864,14 +1888,7 @@ impl Loader<ParentVersionKey> for Db {
             }
         }
 
-        fetch_missing_objects_from_fallback(self, fallback_keys, &mut results, |key, stored| {
-            Object::try_from_stored_object(
-                stored,
-                key.checkpoint_viewed_at,
-                Some(key.parent_version),
-            )
-        })
-        .await?;
+        fill_missing_objects_from_fallback(self, fallback_keys, &mut results).await?;
 
         Ok(results)
     }
