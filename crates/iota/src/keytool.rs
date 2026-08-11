@@ -504,7 +504,7 @@ impl KeyToolCommand {
                         let public_key_base64 = pk.encode_base64();
                         let signature_hex = format!("0x{}", Hex::encode(s.signature_bytes()));
                         DecodedSigOutput::Signature {
-                            scheme: s.scheme().to_string(),
+                            scheme: lowercase_key_scheme(s.scheme()),
                             public_key_base64,
                             address: address.to_string(),
                             signature_hex,
@@ -630,7 +630,7 @@ impl KeyToolCommand {
                         source: "keypair".to_string(),
                         public_base64_key: Some(kp.public().encode_base64()),
                         public_base64_key_with_flag: Some(public_base64_key_with_flag),
-                        key_scheme: Some(key_scheme.to_string()),
+                        key_scheme: Some(lowercase_key_scheme(key_scheme)),
                         flag: Some(SignatureScheme::Bls12381.to_u8()),
                         mnemonic: None,
                         peer_id: None,
@@ -790,7 +790,7 @@ impl KeyToolCommand {
                                 source: "keypair".to_string(),
                                 public_base64_key: Some(public_base64_key),
                                 public_base64_key_with_flag: Some(public_base64_key_with_flag),
-                                key_scheme: Some(SignatureScheme::Bls12381.to_string()),
+                                key_scheme: Some(lowercase_key_scheme(SignatureScheme::Bls12381)),
                                 flag: Some(SignatureScheme::Bls12381.to_u8()),
                                 peer_id: None,
                                 mnemonic: None,
@@ -985,7 +985,7 @@ impl From<&StoredKey> for Key {
                 source: stored.source().to_string(),
                 public_base64_key: Some(Base64::encode(pk.as_ref())),
                 public_base64_key_with_flag: Some(pk.encode_base64()),
-                key_scheme: Some(pk.scheme().to_string()),
+                key_scheme: Some(lowercase_key_scheme(pk.scheme())),
                 mnemonic: None,
                 flag: Some(pk.flag()),
                 peer_id: anemo_styling(&pk),
@@ -1209,7 +1209,7 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
             .to_bech32()
             .map_err(|_| anyhow!("Cannot encode keypair"))?,
         base64_with_flag: Base64::encode(ikp.to_bytes()),
-        scheme: ikp.scheme().to_string(),
+        scheme: lowercase_key_scheme(ikp.scheme()),
     })
 }
 
@@ -1219,6 +1219,15 @@ fn anemo_styling(pk: &PublicKey) -> Option<String> {
     } else {
         None
     }
+}
+
+/// The lowercase spelling of a key scheme, as used in CLI output and accepted
+/// as an `iota keytool` argument.
+///
+/// `SignatureScheme`'s `Display` renders the variant name; the CLI has always
+/// emitted the lowercase form, and scripts parse it.
+pub(crate) fn lowercase_key_scheme(scheme: SignatureScheme) -> String {
+    scheme.to_string().to_lowercase()
 }
 
 /// Authority keys have no on-chain account; this address only labels key
