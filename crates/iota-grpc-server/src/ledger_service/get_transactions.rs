@@ -125,7 +125,13 @@ pub(crate) fn validate_get_transaction_requests(
 ///   transaction this contains only the gas charge.
 /// - `object_changes` - structured object changes (created, mutated, deleted,
 ///   wrapped, unwrapped, published)
-#[tracing::instrument(skip(reader))]
+#[tracing::instrument(
+    skip_all,
+    fields(
+        batch_size = requests.as_ref().map_or(0, |r| r.requests.len()),
+        ?max_message_size_bytes,
+    )
+)]
 pub(crate) fn get_transactions(
     reader: Arc<GrpcReader>,
     config: iota_config::node::GrpcApiConfig,
@@ -165,7 +171,7 @@ pub(crate) fn get_transactions(
     ))
 }
 
-#[tracing::instrument(skip(reader))]
+#[tracing::instrument(skip(reader, config))]
 fn get_transaction_impl(
     reader: &Arc<GrpcReader>,
     config: &iota_config::node::GrpcApiConfig,
