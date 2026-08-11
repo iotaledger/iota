@@ -2130,7 +2130,9 @@ impl IotaTestAdapter {
             .unwrap();
         }
         out.push('\n');
-        write!(out, "gas summary: {gas_summary}").unwrap();
+        let gas = gas_summary.to_string();
+        let gas_body = gas.strip_prefix("Gas Cost Summary\n").unwrap_or(&gas);
+        write!(out, "gas summary:\n{gas_body}").unwrap();
 
         if out.is_empty() { None } else { Some(out) }
     }
