@@ -639,15 +639,19 @@ impl IotaNode {
         };
 
         let grpc_indexes_store = if is_full_node && config.enable_grpc_api {
-            Some(Arc::new(
+            Some(
                 GrpcIndexesStore::new(
                     config.db_path().join(GRPC_INDEXES_DIR),
+                    &prometheus_registry,
+                    config
+                        .authority_store_pruning_config
+                        .num_epochs_to_retain_for_checkpoints(),
                     Arc::clone(&store),
                     &checkpoint_store,
-                    &index_rebuild_cancelled,
+                    index_rebuild_cancelled.clone(),
                 )
                 .await?,
-            ))
+            )
         } else {
             None
         };
@@ -2204,6 +2208,11 @@ impl IotaNode {
         // a full history replay.
         if let Some(indexes) = &self.state.jsonrpc_indexes_store {
             indexes.shutdown().await;
+        }
+
+        // Stop the gRPC digest history backfill the same way.
+        if let Some(grpc_indexes_store) = &self.state.grpc_indexes_store {
+            grpc_indexes_store.shutdown().await;
         }
 
         // Shutdown the gRPC server if it's running
