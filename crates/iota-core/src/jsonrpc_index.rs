@@ -406,21 +406,20 @@ impl HistoryBucket {
         {
             TaggedDBMap::reopen(db, cf_name, tag, &ReadWriteOptions::default(), true)
         }
-        let cf = cf_name;
         Ok(Self {
-            tx_order: map(db, &cf, DB_PREFIX_HISTORIC_TX_ORDER)?,
-            txs_seq: map(db, &cf, DB_PREFIX_HISTORIC_TXS_SEQ)?,
-            txs_from_addr: map(db, &cf, DB_PREFIX_HISTORIC_TXS_FROM_ADDR)?,
-            txs_to_addr: map(db, &cf, DB_PREFIX_HISTORIC_TXS_TO_ADDR)?,
-            txs_by_input_object_id: map(db, &cf, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID)?,
-            txs_by_mutated_object_id: map(db, &cf, DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID)?,
-            txs_by_move_function: map(db, &cf, DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION)?,
-            event_order: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_ORDER)?,
-            event_by_move_module: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE)?,
-            event_by_move_event: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT)?,
-            event_by_event_module: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE)?,
-            event_by_sender: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_SENDER)?,
-            event_by_time: map(db, &cf, DB_PREFIX_HISTORIC_EVENT_BY_TIME)?,
+            tx_order: map(db, cf_name, DB_PREFIX_HISTORIC_TX_ORDER)?,
+            txs_seq: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_SEQ)?,
+            txs_from_addr: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_FROM_ADDR)?,
+            txs_to_addr: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_TO_ADDR)?,
+            txs_by_input_object_id: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID)?,
+            txs_by_mutated_object_id: map(db, cf_name, DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID)?,
+            txs_by_move_function: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION)?,
+            event_order: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_ORDER)?,
+            event_by_move_module: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE)?,
+            event_by_move_event: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT)?,
+            event_by_event_module: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE)?,
+            event_by_sender: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_SENDER)?,
+            event_by_time: map(db, cf_name, DB_PREFIX_HISTORIC_EVENT_BY_TIME)?,
         })
     }
 
@@ -901,23 +900,6 @@ fn coin_index_table_default_config() -> DBOptions {
             read_size_from_env(ENV_VAR_COIN_INDEX_BLOCK_CACHE_SIZE_MB).unwrap_or(5 * 1024),
         )
         .disable_write_throttling()
-}
-
-/// Options for the per-epoch history column families. Each bucket is
-/// write-once (appended during its epoch or the backfill, then only read)
-/// and queried by bounded range scans plus exact-key digest probes, which
-/// the block-based bloom filters answer from RAM. `set_block_options`
-/// creates the single block cache that every clone of these options shares.
-fn history_cf_options(db_options: &DBOptions) -> rocksdb::Options {
-    db_options
-        .clone()
-        .optimize_for_write_throughput_no_deletion()
-        .set_block_options(
-            read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
-                .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),
-            16 << 10,
-        )
-        .options
 }
 
 /// Extracts one transaction's history-table index inputs.
@@ -1986,7 +1968,11 @@ impl IndexStore {
     fn open_index_db(path: &Path) -> IotaResult<OpenedIndexDb> {
         let db_options = default_db_options().disable_write_throttling();
         let coin_options = coin_index_table_default_config();
-        let history_cf_options = history_cf_options(&db_options);
+        let history_cf_options = rpc_index_history::history_cf_options(
+            &db_options,
+            read_size_from_env(ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB)
+                .unwrap_or(DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB),
+        );
 
         let static_tables = IndexStoreTables::describe_tables();
         // A listing failure on an existing database must not pass for "no
