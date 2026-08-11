@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeSet, HashSet},
-    sync::Arc,
-    time::Duration,
-};
+use std::{collections::HashSet, sync::Arc, time::Duration};
 
 use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
@@ -1439,18 +1435,23 @@ async fn execute_add_validator_transactions(
 
     let address = new_validator.account_key_pair.public_key().derive_address();
     let min_validator_joining_stake = test_cluster.protocol_config().min_validator_joining_stake();
-    let stake_coin = test_cluster
-        .wallet
-        .gas_for_owner_budget(address, min_validator_joining_stake, Default::default())
-        .await
-        .unwrap()
+    // Pick both coins by balance rather than by the order `getOwnedObjects` pages
+    // them in: stake the smallest coin that covers the joining stake and pay with
+    // the largest one, so the coins a later join still needs to stake are neither
+    // staked early nor spent on gas.
+    let coins = test_cluster.wallet.gas_objects(address).await.unwrap();
+    let stake_coin = coins
+        .iter()
+        .filter(|(balance, _)| *balance >= min_validator_joining_stake)
+        .min_by_key(|(balance, _)| *balance)
+        .expect("the validator address must own a coin covering the joining stake")
         .1
         .object_ref();
-    let gas = test_cluster
-        .wallet
-        .gas_for_owner_budget(address, 0, BTreeSet::from([stake_coin.object_id]))
-        .await
-        .unwrap()
+    let gas = coins
+        .iter()
+        .filter(|(_, coin)| coin.object_id != stake_coin.object_id)
+        .max_by_key(|(balance, _)| *balance)
+        .expect("the validator address must own a coin to pay for gas")
         .1
         .object_ref();
 
