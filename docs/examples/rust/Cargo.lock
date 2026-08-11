@@ -1112,7 +1112,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2616,7 +2616,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "system-configuration",
  "tokio",
  "tower-service",
@@ -3294,7 +3294,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0d9653f1b240d78d662b00674b9c9499d5b14ccb#0d9653f1b240d78d662b00674b9c9499d5b14ccb"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
 dependencies = [
  "base64ct",
  "bech32 0.11.1",
@@ -3310,7 +3310,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0d9653f1b240d78d662b00674b9c9499d5b14ccb#0d9653f1b240d78d662b00674b9c9499d5b14ccb"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -3329,7 +3329,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0d9653f1b240d78d662b00674b9c9499d5b14ccb#0d9653f1b240d78d662b00674b9c9499d5b14ccb"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -3345,7 +3345,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0d9653f1b240d78d662b00674b9c9499d5b14ccb#0d9653f1b240d78d662b00674b9c9499d5b14ccb"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
 dependencies = [
  "base64ct",
  "bcs",
@@ -3364,7 +3364,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0d9653f1b240d78d662b00674b9c9499d5b14ccb#0d9653f1b240d78d662b00674b9c9499d5b14ccb"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
 dependencies = [
  "base64ct",
  "bcs",
@@ -3471,7 +3471,6 @@ dependencies = [
  "serde-name",
  "serde_json",
  "serde_with",
- "starfish-config",
  "static_assertions",
  "strum 0.27.2",
  "tap",
@@ -5421,7 +5420,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -5511,7 +5510,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -5549,7 +5548,7 @@ dependencies = [
  "cfg_aliases",
  "libc",
  "once_cell",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.59.0",
 ]
@@ -7862,7 +7861,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

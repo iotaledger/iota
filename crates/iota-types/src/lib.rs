@@ -46,7 +46,6 @@ pub mod config;
 pub mod crypto;
 pub mod deny_list_v1;
 pub mod deny_rule_governance;
-pub mod derived_object;
 pub mod digests;
 pub mod display;
 pub mod dynamic_field;
