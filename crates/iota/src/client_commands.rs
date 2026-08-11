@@ -110,7 +110,7 @@ use crate::{
     client_ptb::ptb::{PTB, PTBCommandResult},
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
-    keytool::Key,
+    keytool::{Key, lowercase_key_scheme},
     signing::{SignData, get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
@@ -282,7 +282,7 @@ pub enum IotaClientCommands {
     /// derivation path which defaults to m/44'/4218'/0'/0'/0' for ed25519,
     /// m/54'/4218'/0'/0/0 for secp256k1 or m/74'/4218'/0'/0/0 for secp256r1.
     NewAddress {
-        #[arg(long, default_value_t = SignatureScheme::Ed25519)]
+        #[arg(long, default_value = "ed25519")]
         key_scheme: SignatureScheme,
         /// The alias must start with a letter and can contain only letters,
         /// digits, hyphens (-), or underscores (_).
@@ -2432,10 +2432,8 @@ impl Display for IotaClientCommandResult {
                     "publicBase64KeyWithFlag",
                     new_address.public_base64_key_with_flag.as_str(),
                 ]);
-                builder.push_record(vec![
-                    "keyScheme",
-                    new_address.key_scheme.to_string().as_str(),
-                ]);
+                let key_scheme = lowercase_key_scheme(new_address.key_scheme);
+                builder.push_record(vec!["keyScheme", key_scheme.as_str()]);
                 builder.push_record(vec![
                     "recoveryPhrase",
                     new_address.recovery_phrase.to_string().as_str(),
@@ -2814,16 +2812,16 @@ pub struct NewAddressOutput {
     pub address: Address,
     pub public_base64_key: String,
     pub public_base64_key_with_flag: String,
-    #[serde(serialize_with = "serialize_as_display")]
+    #[serde(serialize_with = "serialize_key_scheme")]
     pub key_scheme: SignatureScheme,
     pub recovery_phrase: String,
 }
 
-fn serialize_as_display<S: serde::Serializer>(
-    value: &impl Display,
+fn serialize_key_scheme<S: serde::Serializer>(
+    value: &SignatureScheme,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
-    serializer.collect_str(value)
+    serializer.serialize_str(&lowercase_key_scheme(*value))
 }
 
 #[derive(Serialize)]

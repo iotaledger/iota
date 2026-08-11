@@ -37,7 +37,7 @@ use crate::name_commands;
 use crate::{
     PrintableResult,
     client_commands::{IotaClientCommands, implicit_deps_for_protocol_version, pkg_tree_shake},
-    keytool::KeyToolCommand,
+    keytool::{KeyToolCommand, lowercase_key_scheme},
     validator_commands::IotaValidatorCommand,
 };
 
@@ -460,7 +460,7 @@ fn prompt_if_no_config(
             let alias = config.keystore().get_alias_by_address(&new_address)?;
             println!(
                 "Generated new keypair and alias for address with scheme {:?}:\n[{alias}: {new_address}]",
-                scheme.to_string()
+                lowercase_key_scheme(scheme)
             );
             println!("Secret Recovery Phrase:\n[{phrase}]");
             config = config.with_active_address(new_address);

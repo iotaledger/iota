@@ -14,13 +14,12 @@ use docs_examples::utils::{
 use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::ObjectChange};
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
-    SignatureScheme, Transaction, TransactionKind, TypeTag, UserSignature,
+    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    SharedObjectReference, SignatureScheme, Transaction, TransactionKind, TypeTag, UserSignature,
 };
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{CallArg, TransactionEnvelope},
-    utils::MoveAuthenticatorV1,
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs

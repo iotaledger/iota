@@ -18,13 +18,12 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, Transaction, TransactionKind,
+    Address, Identifier, MultisigAggregatedSignature, MultisigCommittee, ObjectId, ObjectReference,
+    Owner, ProgrammableTransaction, SharedObjectReference, StructTag, Transaction, TransactionKind,
     crypto::{Intent, UserSignature},
 };
 use iota_types::{
     crypto::PublicKey,
-    multisig::{MultiSig, MultiSigPublicKey},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
         CallArg, InputObjectKind, TransactionAPI, TransactionEnvelope, TransactionKindExt,
@@ -391,7 +390,7 @@ impl Client {
             vec![g],
         );
 
-        let admin_key: MultiSigPublicKey =
+        let admin_key: MultisigCommittee =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
         let admin = Address::from(&admin_key);
 
@@ -531,7 +530,7 @@ impl Client {
             vec![g, m],
         );
 
-        let admin_key: MultiSigPublicKey =
+        let admin_key: MultisigCommittee =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
         let admin = Address::from(&admin_key);
 
@@ -708,7 +707,7 @@ impl Client {
     async fn multi_sig_transaction(
         &self,
         sender: Address,
-        admin_key: MultiSigPublicKey,
+        admin_key: MultisigCommittee,
         tx: Transaction,
     ) -> Result<TransactionEnvelope> {
         let sponsor_sig: UserSignature = self
@@ -719,9 +718,10 @@ impl Client {
             .context("Signing transaction")?
             .into();
 
-        let multi_sig: UserSignature = MultiSig::new(vec![sponsor_sig.clone()], admin_key)
-            .context("Signing as admin")?
-            .into();
+        let multi_sig: UserSignature =
+            MultisigAggregatedSignature::new(vec![sponsor_sig.clone()], admin_key)
+                .context("Signing as admin")?
+                .into();
 
         Ok(TransactionEnvelope::from_user_sig_data(
             tx,
