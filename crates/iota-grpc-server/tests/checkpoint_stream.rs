@@ -683,7 +683,7 @@ async fn test_filter_checkpoints_validation() {
     assert!(result.is_err(), "expected error when no filters are set");
 
     // tx filter without transactions in read_mask should fail
-    let sender = AccountKeyPair::random().public_key().derive_address();
+    let sender = Address::random();
     let sender_bytes = sender.into_bytes();
     let tx_filter = filter::TransactionFilter::default().with_sender(
         filter::AddressFilter::default().with_address(

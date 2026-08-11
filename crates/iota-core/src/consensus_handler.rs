@@ -1143,7 +1143,7 @@ mod tests {
         );
 
         // AND build one block per UserTransactionV1 transaction
-        let recipient = AccountKeyPair::random().public_key().derive_address();
+        let recipient = Address::random();
         let mut headers = Vec::new();
         let mut subdag_transactions = Vec::new();
 

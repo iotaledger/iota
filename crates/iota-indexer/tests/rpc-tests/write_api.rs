@@ -119,7 +119,7 @@ fn dry_run_transaction_block() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
         let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
-        let receiver = AccountKeyPair::random().public_key().derive_address();
+        let receiver = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -221,8 +221,8 @@ fn dev_inspect_transaction_block() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let sender = AccountKeyPair::random().public_key().derive_address();
-        let receiver = AccountKeyPair::random().public_key().derive_address();
+        let sender = Address::random();
+        let receiver = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -318,7 +318,7 @@ fn execute_transaction_block() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
         let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
-        let receiver = AccountKeyPair::random().public_key().derive_address();
+        let receiver = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -407,7 +407,7 @@ fn optimistic_objects_are_finalized() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
-        let receiver = AccountKeyPair::random().public_key().derive_address();
+        let receiver = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1759,7 +1759,7 @@ fn dry_run_request_add_stake() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let sender = AccountKeyPair::random().public_key().derive_address();
+        let sender = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(

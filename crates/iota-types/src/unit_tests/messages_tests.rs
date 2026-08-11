@@ -496,7 +496,7 @@ fn test_digest_caching() {
     let (_a1, sec1): (_, AuthorityKeyPair) = get_key_pair();
     let (_a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
 
-    let sa1 = AccountKeyPair::random().public_key().derive_address();
+    let sa1 = Address::random();
     let (sa2, ssec2): (_, AccountKeyPair) = get_key_pair();
 
     authorities.insert(sec1.public().into(), 1);
@@ -1257,7 +1257,7 @@ fn test_unique_input_objects() {
 fn test_certificate_digest() {
     let (committee, key_pairs) = Committee::new_simple_test_committee();
 
-    let receiver = AccountKeyPair::random().public_key().derive_address();
+    let receiver = Address::random();
     let (sender1, sender1_sec): (_, AccountKeyPair) = get_key_pair();
     let (sender2, sender2_sec): (_, AccountKeyPair) = get_key_pair();
 
@@ -1375,7 +1375,7 @@ fn check_approx_effects_components_size() {
 
 #[test]
 fn auth_digest_for_move_authenticator_equals_authenticator_digest() {
-    let sender = AccountKeyPair::random().public_key().derive_address();
+    let sender = Address::random();
     let (sig, authenticator) = make_move_authenticator_sig(sender);
     assert_eq!(sig.auth_digest(), authenticator.digest());
 }

@@ -76,7 +76,7 @@ fn standard_signature_is_verified_on_success() {
 /// front with [`VmSdkError::SignatureVerification`], never run as if valid.
 #[test]
 fn invalid_standard_signature_is_rejected() {
-    let sender = AccountKeyPair::random().public_key().derive_address();
+    let sender = Address::random();
     let wrong_key = AccountKeyPair::random();
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());

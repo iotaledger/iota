@@ -10,10 +10,10 @@ use iota_network::api::{
 use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig};
 // Additional imports for P-COOL tests
 use iota_sdk_types::{
-    Address, Argument, Command, Identifier, ObjectId, SplitCoins, Transaction,
+    Address, Argument, Command, Identifier, ObjectId, ProgrammableTransaction, SplitCoins,
+    Transaction, TransactionDigest,
     crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities},
 };
-use iota_sdk_types::{ProgrammableTransaction, TransactionDigest};
 // Additional imports for P-COOL tests
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id, random_object_ref},
@@ -514,7 +514,7 @@ async fn test_v2_submit_tx_invalid_signature() {
         config
     });
 
-    let sender = AccountKeyPair::random().public_key().derive_address();
+    let sender = Address::random();
     let wrong_key = AccountKeyPair::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();

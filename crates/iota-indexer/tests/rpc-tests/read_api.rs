@@ -23,7 +23,7 @@ use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
-    Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
+    Address, Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
 };
 use iota_test_transaction_builder::{
     TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
@@ -1516,7 +1516,7 @@ fn try_get_past_object_version_found() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let sender = AccountKeyPair::random().public_key().derive_address();
+        let sender = Address::random();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1558,7 +1558,7 @@ fn try_get_past_object_version_not_found() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let sender = AccountKeyPair::random().public_key().derive_address();
+        let sender = Address::random();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1597,7 +1597,7 @@ fn try_get_past_object_version_too_high() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let sender = AccountKeyPair::random().public_key().derive_address();
+        let sender = Address::random();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1763,7 +1763,7 @@ fn try_multi_get_past_objects() {
         );
 
         // Create valid objects
-        let sender = AccountKeyPair::random().public_key().derive_address();
+        let sender = Address::random();
         let (gas_ref_1, tx_digest_1) = cluster
             .fund_address_and_return_gas_and_tx(
                 cluster.get_reference_gas_price().await,
@@ -1861,7 +1861,7 @@ fn try_get_object_before_version() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
-        let receiver = AccountKeyPair::random().public_key().derive_address();
+        let receiver = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
