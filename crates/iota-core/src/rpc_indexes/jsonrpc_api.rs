@@ -647,7 +647,12 @@ impl RpcIndexesStore {
         let cursor_key = cursor
             .map(|id| self.owner_key_for_cursor(owner, id, object_store))
             .transpose()?;
+        // The cursor above is still validated for a zero limit; only the
+        // scan itself is skipped.
         let mut results = Vec::new();
+        if limit == 0 {
+            return Ok(results);
+        }
         for item in self.owner_iter(owner, cursor_key.as_ref(), OwnerTypeFilter::None)? {
             let (key, _info) = item?;
             if Some(key.object_id) == cursor {
@@ -677,17 +682,19 @@ impl RpcIndexesStore {
         cursor: ObjectId,
         object_store: &dyn ObjectStore,
     ) -> IotaResult<OwnerIndexKey> {
+        let cursor_not_found = || IotaError::UserInput {
+            error: UserInputError::ObjectNotFound {
+                object_id: cursor,
+                version: None,
+            },
+        };
         let object = object_store
             .try_get_object(&cursor)?
-            .ok_or(IotaError::UserInput {
-                error: UserInputError::ObjectNotFound {
-                    object_id: cursor,
-                    version: None,
-                },
-            })?;
-        Ok(OwnerIndexKey::for_object(owner, &object)
-            .expect("a live object with an owner-index key already has a Move type")
-            .0)
+            .ok_or_else(cursor_not_found)?;
+        // A package or other non-Move object is never in the owner index —
+        // its cursor is exactly as invalid as one whose object is gone.
+        let (key, _) = OwnerIndexKey::for_object(owner, &object).ok_or_else(cursor_not_found)?;
+        Ok(key)
     }
 
     /// Owned entries of the owner index for `owner`, narrowed by
@@ -745,7 +752,12 @@ impl RpcIndexesStore {
         let cursor_key = cursor
             .map(|id| self.owner_key_for_cursor(owner, id, object_store))
             .transpose()?;
+        // The cursor above is still validated for a zero limit; only the
+        // scan itself is skipped.
         let mut results = Vec::new();
+        if limit == 0 {
+            return Ok(results);
+        }
         for item in self.owner_iter(owner, cursor_key.as_ref(), filter)? {
             let (key, info) = item?;
             if Some(key.object_id) == cursor {

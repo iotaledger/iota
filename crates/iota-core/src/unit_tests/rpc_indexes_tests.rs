@@ -4,8 +4,8 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_sdk_types::{
-    Address, Event, Identifier, MoveStruct, ObjectId, Owner, StructTag, TransactionDigest, TypeTag,
-    Version,
+    Address, Event, Identifier, MoveStruct, ObjectData, ObjectId, Owner, StructTag,
+    TransactionDigest, TypeTag, Version, move_package::MovePackage,
 };
 use iota_types::{
     effects::TransactionEffectsAPI,
@@ -1114,6 +1114,14 @@ async fn test_owner_pages_follow_the_unified_key_order() {
         full.iter().map(|o| o.object_id).collect::<Vec<_>>(),
         "two pages of 2 must partition the full scan in the same order"
     );
+
+    assert_eq!(
+        index_store
+            .get_owner_objects(owner, None, 0, None, &object_store)
+            .unwrap(),
+        vec![],
+        "a zero limit must return no rows, not the first matching one"
+    );
 }
 
 /// A cursor whose object was deleted between pages is refused instead of
@@ -1141,4 +1149,133 @@ async fn test_owner_cursor_of_a_deleted_object_is_refused() {
         ),
         "unexpected result: {result:?}"
     );
+}
+
+/// A cursor whose object exists but carries no Move type (a package) is
+/// refused instead of panicking: `OwnerIndexKey::for_object` returns `None`
+/// for it exactly as it would for a deleted object, and the cursor rebuild
+/// must treat the two cases alike.
+#[tokio::test]
+async fn test_owner_cursor_of_a_package_is_refused() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let owner = Address::random();
+    let mut object_store = BTreeMap::new();
+    seed_owner_objects_of_two_types(&index_store, &mut object_store, owner);
+
+    let package = MovePackage::new(
+        ObjectId::random(),
+        Version::MIN_VALID_INCL,
+        BTreeMap::new(),
+        u64::MAX,
+        Vec::new(),
+        BTreeMap::new(),
+    )
+    .unwrap();
+    let package_id = package.id;
+    let package_object = Object::new_package_from_data(
+        ObjectData::Package(package),
+        TransactionDigest::GENESIS_MARKER,
+    );
+    object_store.insert(package_id, package_object);
+
+    let result = index_store.get_owner_objects(owner, Some(package_id), 2, None, &object_store);
+    assert!(
+        matches!(
+            result,
+            Err(IotaError::UserInput {
+                error: UserInputError::ObjectNotFound { .. }
+            })
+        ),
+        "unexpected result: {result:?}"
+    );
+}
+
+/// Coin pages follow the unified key's balance-descending order, both
+/// narrowed to one coin type and across every coin type, and the cursor
+/// continues exactly where the previous page stopped.
+#[tokio::test]
+async fn test_owned_coins_pages_follow_the_unified_key_order() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let owner = Address::random();
+    let mut object_store = BTreeMap::new();
+    seed_owner_objects_of_two_types(&index_store, &mut object_store, owner);
+
+    // Narrowed to one coin type: only the two `Coin<IOTA>` rows, richest
+    // first, the `Coin<u64>` rows excluded entirely.
+    let gas_coin_type = StructTag::new_coin(GAS::type_tag());
+    let one_type = index_store
+        .get_owned_coins_iterator_with_cursor(owner, None, Some(gas_coin_type), 10, &object_store)
+        .unwrap();
+    assert_eq!(
+        one_type
+            .iter()
+            .map(|(_, _, coin)| coin.balance)
+            .collect::<Vec<_>>(),
+        vec![300, 100],
+        "narrowing to one coin type must exclude the other and stay balance-descending"
+    );
+
+    // Every coin type, paginated in two pages of two, must partition the
+    // full scan in the same order.
+    let full = index_store
+        .get_owned_coins_iterator_with_cursor(owner, None, None, 4, &object_store)
+        .unwrap();
+    assert_eq!(full.len(), 4, "all four seeded coins must resolve");
+
+    let page_1 = index_store
+        .get_owned_coins_iterator_with_cursor(owner, None, None, 2, &object_store)
+        .unwrap();
+    let cursor = page_1.last().unwrap().1;
+    let page_2 = index_store
+        .get_owned_coins_iterator_with_cursor(owner, Some(cursor), None, 2, &object_store)
+        .unwrap();
+
+    assert_eq!(page_1.len(), 2);
+    assert_eq!(page_2.len(), 2);
+    assert_eq!(
+        [page_1, page_2]
+            .concat()
+            .iter()
+            .map(|(_, id, _)| *id)
+            .collect::<Vec<_>>(),
+        full.iter().map(|(_, id, _)| *id).collect::<Vec<_>>(),
+        "two pages of 2 must partition the full scan in the same order"
+    );
+
+    assert_eq!(
+        index_store
+            .get_owned_coins_iterator_with_cursor(owner, None, None, 0, &object_store)
+            .unwrap(),
+        vec![],
+        "a zero limit must return no rows, not the first matching one"
+    );
+}
+
+/// `get_balance` excludes other coin types and `get_all_balance` groups by
+/// the exact `Coin<T>` — the two pieces of logic that replaced the deleted
+/// `coin_index` table's per-type keying.
+#[tokio::test]
+async fn test_balance_reads_narrow_and_group_by_coin_type() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let owner = Address::random();
+    let mut object_store = BTreeMap::new();
+    seed_owner_objects_of_two_types(&index_store, &mut object_store, owner);
+
+    let gas_balance = index_store.get_balance(owner, GAS::type_tag()).unwrap();
+    assert_eq!(
+        gas_balance.balance, 400,
+        "must sum only the Coin<IOTA> rows, not the Coin<u64> ones"
+    );
+    assert_eq!(gas_balance.num_coins, 2);
+
+    let u64_balance = index_store.get_balance(owner, TypeTag::U64).unwrap();
+    assert_eq!(u64_balance.balance, 550);
+    assert_eq!(u64_balance.num_coins, 2);
+
+    let all_balances = index_store.get_all_balance(owner).unwrap();
+    assert_eq!(all_balances.len(), 2, "one entry per coin type");
+    assert_eq!(all_balances.get(&GAS::type_tag()).unwrap().balance, 400);
+    assert_eq!(all_balances.get(&GAS::type_tag()).unwrap().num_coins, 2);
+    assert_eq!(all_balances.get(&TypeTag::U64).unwrap().balance, 550);
+    assert_eq!(all_balances.get(&TypeTag::U64).unwrap().num_coins, 2);
 }
