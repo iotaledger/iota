@@ -83,8 +83,6 @@ struct MetadataInfo {
 pub enum Watermark {
     /// Highest checkpoint sequence number indexed.
     Indexed,
-    /// Highest checkpoint sequence number pruned.
-    Pruned,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
@@ -372,13 +370,6 @@ struct IndexStoreTables {
     #[default_options_override_fn = "default_table_options"]
     earliest_retained_epoch: DBMap<(), EpochId>,
 
-    /// Maps transaction digests to the checkpoint that contains them.
-    ///
-    /// Only contains entries for transactions which have yet to be pruned from
-    /// the main database.
-    #[default_options_override_fn = "default_table_options"]
-    transaction_checkpoints: DBMap<TransactionDigest, CheckpointSequenceNumber>,
-
     /// An index of object ownership.
     ///
     /// Uses fixed-size u64 hash keys for correct RocksDB byte-order iteration.
@@ -623,27 +614,6 @@ impl IndexStoreTables {
             start_time.elapsed().as_secs()
         );
         Ok(())
-    }
-
-    /// Prune data from this Index
-    fn prune(
-        &self,
-        pruned_checkpoint_watermark: u64,
-        checkpoint_contents_to_prune: &[CheckpointContents],
-    ) -> Result<(), TypedStoreError> {
-        let mut batch = self.transaction_checkpoints.batch();
-
-        let transactions_to_prune = checkpoint_contents_to_prune
-            .iter()
-            .flat_map(|contents| contents.iter().map(|digests| digests.transaction));
-
-        batch.delete_batch(&self.transaction_checkpoints, transactions_to_prune)?;
-        batch.insert_batch(
-            &self.watermark,
-            [(Watermark::Pruned, pruned_checkpoint_watermark)],
-        )?;
-
-        batch.write()
     }
 
     /// Index a Checkpoint. `bucket` is the digest history bucket of the
@@ -995,7 +965,6 @@ impl GrpcIndexesStore {
             meta: map(&db, "meta", &db_options.rw_options)?,
             watermark: map(&db, "watermark", &db_options.rw_options)?,
             earliest_retained_epoch: map(&db, "earliest_retained_epoch", &db_options.rw_options)?,
-            transaction_checkpoints: map(&db, "transaction_checkpoints", &db_options.rw_options)?,
             owner: map(&db, "owner", &db_options.rw_options)?,
             dynamic_field: map(&db, "dynamic_field", &db_options.rw_options)?,
             coin: map(&db, "coin", &db_options.rw_options)?,
@@ -1192,13 +1161,18 @@ impl GrpcIndexesStore {
             .expect("unable to open the gRPC index database")
     }
 
-    pub fn prune(
-        &self,
-        pruned_checkpoint_watermark: u64,
-        checkpoint_contents_to_prune: &[CheckpointContents],
-    ) -> Result<(), TypedStoreError> {
-        self.tables
-            .prune(pruned_checkpoint_watermark, checkpoint_contents_to_prune)
+    /// Drops the digest history of expired epochs, see
+    /// [`EpochBuckets::prune`]: with `epochs_to_retain` = N, the buckets of
+    /// the newest N epochs are kept and every older bucket is dropped
+    /// wholesale. Returns the earliest epoch to retain, `None` when there
+    /// is no history at all.
+    ///
+    /// A lookup racing a drop may report an error for the dropped epoch's
+    /// digests; a retry no longer sees the bucket. Lookups block for the
+    /// duration of the drops, so callers on an async runtime must use
+    /// `spawn_blocking`.
+    pub fn prune(&self, epochs_to_retain: u64) -> Result<Option<EpochId>, TypedStoreError> {
+        self.history.prune(epochs_to_retain)
     }
 
     /// Index a checkpoint and stage the index updated in `pending_updates`.
@@ -2019,6 +1993,40 @@ mod tests {
             grpc.get_transaction_info(&TransactionDigest::random())
                 .unwrap()
                 .is_none()
+        );
+    }
+    /// Pruning drops whole epoch buckets and the floor survives a reopen,
+    /// so dropped epochs are never recreated.
+    #[tokio::test]
+    async fn digest_pruning_drops_expired_epoch_buckets() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+        let old_digest = TransactionDigest::random();
+        grpc.history
+            .ensure(0)
+            .unwrap()
+            .insert(&old_digest, &5)
+            .unwrap();
+        grpc.history
+            .ensure(1)
+            .unwrap()
+            .insert(&TransactionDigest::random(), &9)
+            .unwrap();
+
+        assert_eq!(grpc.prune(1).unwrap(), Some(1));
+        assert_eq!(grpc.get_transaction_info(&old_digest).unwrap(), None);
+        assert!(
+            grpc.history.ensure(0).is_err(),
+            "a pruned epoch must not be recreated"
+        );
+
+        let weak_db = Arc::downgrade(&grpc.tables.meta.db);
+        drop(grpc);
+        assert!(wait_for_database_close(weak_db).await);
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+        assert!(
+            grpc.history.ensure(0).is_err(),
+            "the retention floor must survive a reopen"
         );
     }
 }
