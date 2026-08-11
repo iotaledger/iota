@@ -37,10 +37,7 @@ fn gen_certs(
     let receiver = Address::random();
 
     let senders: Vec<_> = (0..count)
-        .map(|_| {
-            let key = AccountKeyPair::random();
-            (key.public_key().derive_address(), key)
-        })
+        .map(|_| get_key_pair::<AccountKeyPair>())
         .collect();
 
     let txns: Vec<_> = senders

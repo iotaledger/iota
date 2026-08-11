@@ -320,12 +320,8 @@ async fn execution_with_dependencies(use_execution_scheduler: bool) {
     // ---- Initialize a network with three accounts, each with 10 gas objects.
 
     const NUM_ACCOUNTS: usize = 3;
-    let accounts: Vec<(_, AccountKeyPair)> = (0..NUM_ACCOUNTS)
-        .map(|_| {
-            let key = AccountKeyPair::random();
-            (key.public_key().derive_address(), key)
-        })
-        .collect_vec();
+    let accounts: Vec<(_, AccountKeyPair)> =
+        (0..NUM_ACCOUNTS).map(|_| get_key_pair()).collect_vec();
 
     const NUM_GAS_OBJECTS_PER_ACCOUNT: usize = 10;
     let gas_objects = (0..NUM_ACCOUNTS)
