@@ -1270,9 +1270,8 @@ async fn test_owned_coins_pages_follow_the_unified_key_order() {
 
     // Narrowed to one coin type: only the two `Coin<IOTA>` rows, richest
     // first, the `Coin<u64>` rows excluded entirely.
-    let gas_coin_type = StructTag::new_coin(GAS::type_tag());
     let one_type = index_store
-        .get_owned_coins_iterator_with_cursor(owner, None, Some(gas_coin_type), 10, &object_store)
+        .get_owned_coins(owner, None, Some(GAS::type_tag()), 10, &object_store)
         .unwrap();
     assert_eq!(
         one_type
@@ -1282,20 +1281,48 @@ async fn test_owned_coins_pages_follow_the_unified_key_order() {
         vec![300, 100],
         "narrowing to one coin type must exclude the other and stay balance-descending"
     );
+    // The reported type is the coin's own `T`, not the `Coin<T>` the object
+    // is: it is what the JSON-RPC `coinType` field carries and what
+    // `get_all_balance` keys on.
+    assert!(
+        one_type
+            .iter()
+            .all(|(coin_type, _, _)| *coin_type == GAS::type_tag()),
+        "the coin type must be the inner T, found {:?}",
+        one_type.iter().map(|(t, _, _)| t).collect::<Vec<_>>()
+    );
+    // Across every coin type, the reported types agree with the ones
+    // `get_all_balance` groups by.
+    let all_balance_types: BTreeSet<TypeTag> = index_store
+        .get_all_balance(owner)
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect();
+    let page_types: BTreeSet<TypeTag> = index_store
+        .get_owned_coins(owner, None, None, 4, &object_store)
+        .unwrap()
+        .into_iter()
+        .map(|(coin_type, _, _)| coin_type)
+        .collect();
+    assert_eq!(
+        page_types, all_balance_types,
+        "the coin page and the balance map must report the same coin types"
+    );
 
     // Every coin type, paginated in two pages of two, must partition the
     // full scan in the same order.
     let full = index_store
-        .get_owned_coins_iterator_with_cursor(owner, None, None, 4, &object_store)
+        .get_owned_coins(owner, None, None, 4, &object_store)
         .unwrap();
     assert_eq!(full.len(), 4, "all four seeded coins must resolve");
 
     let page_1 = index_store
-        .get_owned_coins_iterator_with_cursor(owner, None, None, 2, &object_store)
+        .get_owned_coins(owner, None, None, 2, &object_store)
         .unwrap();
     let cursor = page_1.last().unwrap().1;
     let page_2 = index_store
-        .get_owned_coins_iterator_with_cursor(owner, Some(cursor), None, 2, &object_store)
+        .get_owned_coins(owner, Some(cursor), None, 2, &object_store)
         .unwrap();
 
     assert_eq!(page_1.len(), 2);
@@ -1312,7 +1339,7 @@ async fn test_owned_coins_pages_follow_the_unified_key_order() {
 
     assert_eq!(
         index_store
-            .get_owned_coins_iterator_with_cursor(owner, None, None, 0, &object_store)
+            .get_owned_coins(owner, None, None, 0, &object_store)
             .unwrap(),
         vec![],
         "a zero limit must return no rows, not the first matching one"
@@ -2414,5 +2441,669 @@ async fn test_live_scan_gates_the_grpc_tables() {
     assert!(
         store.tables.package_version.safe_iter().next().is_none(),
         "the gRPC group's package table must stay empty"
+    );
+}
+
+/// A query that snapshotted the history buckets before a `prune` must
+/// report an error for the dropped epoch's rows, as [`RpcIndexesStore::prune`]
+/// documents, rather than panicking.
+#[tokio::test]
+async fn test_prune_racing_a_reader_reports_an_error() {
+    let tmp_dir = iota_common::tempdir();
+    let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
+    index_store.epochs_to_retain = Some(1);
+    seed_history_buckets(&index_store, 2);
+
+    // Every digest probe and range scan reads through such a snapshot.
+    let snapshot = index_store.history.iter(false);
+    assert_eq!(snapshot.len(), 2);
+
+    assert_eq!(index_store.prune().unwrap(), Some(1));
+
+    assert!(
+        snapshot[0]
+            .tx_order
+            .safe_range_iter(..)
+            .next()
+            .expect("the scan must yield an error item")
+            .is_err()
+    );
+    assert!(
+        snapshot[0]
+            .tx_order
+            .safe_range_iter_reversed(..)
+            .next()
+            .expect("the reverse scan must yield an error item")
+            .is_err()
+    );
+    assert!(snapshot[0].digests.get(&Default::default()).is_err());
+
+    // The retained bucket keeps serving, and a retry no longer sees the
+    // dropped one.
+    assert!(
+        snapshot[1]
+            .tx_order
+            .safe_range_iter(..)
+            .next()
+            .expect("the retained bucket must still yield a row")
+            .is_ok()
+    );
+    assert_eq!(index_store.history.iter(false).len(), 1);
+    assert_eq!(
+        index_store
+            .get_transactions(None, None, None, false)
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+/// RocksDB unregisters a column family before it attempts the drop, so a
+/// bucket whose drop failed can neither be read nor dropped again:
+/// `prune` must let it go instead of leaving it for a retry that would
+/// fail every query walking it.
+#[tokio::test]
+async fn test_a_failed_drop_still_removes_the_bucket() {
+    let tmp_dir = iota_common::tempdir();
+    let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
+    index_store.epochs_to_retain = Some(1);
+    seed_history_buckets(&index_store, 2);
+
+    // Makes the pruner's own drop fail: the column family is already gone.
+    index_store
+        .tables
+        .meta
+        .db
+        .drop_cf(&super::history_cf_name(0))
+        .unwrap();
+
+    assert_eq!(index_store.prune().unwrap(), Some(1));
+    assert_eq!(index_store.history.iter(false).len(), 1);
+    assert_eq!(
+        index_store
+            .get_transactions(None, None, None, false)
+            .unwrap()
+            .len(),
+        1
+    );
+    assert!(index_store.ensure_history_bucket(0).is_err());
+}
+
+/// A failed drop leaves the column family on disk while its bucket is
+/// already unreadable, so the next open must drop it instead of serving
+/// the pruned epoch again.
+#[tokio::test]
+async fn test_a_bucket_below_the_floor_is_dropped_at_open() {
+    let tmp_dir = iota_common::tempdir();
+    let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
+    index_store.epochs_to_retain = Some(1);
+    seed_history_buckets(&index_store, 2);
+    assert_eq!(index_store.prune().unwrap(), Some(1));
+
+    // Stands in for a drop that failed: the column family is on disk
+    // below the persisted floor.
+    index_store
+        .tables
+        .meta
+        .db
+        .create_cf(
+            &super::history_cf_name(0),
+            &typed_store::rocksdb::Options::default(),
+        )
+        .unwrap();
+
+    let index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
+    assert_eq!(index_store.history.iter(false).len(), 1);
+    assert!(index_store.ensure_history_bucket(0).is_err());
+    assert_eq!(
+        index_store
+            .get_transactions(None, None, None, false)
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // The drop must reach the disk, not just the bucket map.
+    close_index_store(index_store).await;
+    assert!(
+        !typed_store::rocks::list_tables(tmp_dir.path().to_path_buf())
+            .unwrap()
+            .contains(&super::history_cf_name(0))
+    );
+}
+
+/// A retention floor that cannot be read fails the open, which a restart
+/// retries: the database itself is intact, so it must not reach the
+/// wipe-and-rebuild path `RpcIndexesStore::new` takes for an unopenable one.
+#[tokio::test]
+async fn test_a_failed_floor_read_fails_the_open() {
+    let tmp_dir = iota_common::tempdir();
+    let opened =
+        RpcIndexesStore::open_index_db(&tmp_dir.path().join(super::schema::RPC_INDEXES_DIR))
+            .unwrap();
+
+    // Makes the floor read fail: RocksDB unregisters the column family.
+    opened.db.drop_cf("earliest_retained_epoch").unwrap();
+
+    assert!(
+        RpcIndexesStore::finish_open(
+            opened,
+            &Registry::default(),
+            BTreeSet::from([IndexGroup::JsonRpc]),
+            Some(128),
+            0,
+            Default::default(),
+            None,
+        )
+        .is_err()
+    );
+}
+
+/// Queries running concurrently with repeated pruning must never panic:
+/// readers hold bucket handles across the pruner's column-family drops.
+#[tokio::test]
+async fn test_concurrent_prune_and_queries_never_panic() {
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
+
+    const EPOCHS: u64 = 64;
+
+    let tmp_dir = iota_common::tempdir();
+    let index_store = Arc::new(open_index_store(tmp_dir.path().to_path_buf()));
+    seed_history_buckets(&index_store, EPOCHS);
+
+    let stop = Arc::new(AtomicBool::new(false));
+    let mut workers: Vec<_> = (0..3)
+        .map(|_| {
+            let index_store = index_store.clone();
+            let stop = stop.clone();
+            // Blocking threads, so the reads race the drops instead of
+            // interleaving at await points.
+            std::thread::spawn(move || {
+                while !stop.load(Ordering::Relaxed) {
+                    let _ = index_store.get_transactions(None, None, Some(1000), false);
+                    let _ = index_store.lookup_digest(&Default::default());
+                }
+            })
+        })
+        .collect();
+    workers.push({
+        let index_store = index_store.clone();
+        let stop = stop.clone();
+        // Recreates low epochs like a backfill would, racing the drops.
+        // Opening a bucket spawns metrics sampling tasks, so the thread
+        // needs the runtime context the real backfill gets from
+        // `spawn_blocking`.
+        let runtime = tokio::runtime::Handle::current();
+        std::thread::spawn(move || {
+            let _guard = runtime.enter();
+            let mut round = 0;
+            while !stop.load(Ordering::Relaxed) {
+                let _ = index_store.ensure_history_bucket(round % 8);
+                round += 1;
+            }
+        })
+    });
+
+    for retained in (1..EPOCHS).rev() {
+        index_store.history.prune(retained).unwrap();
+    }
+    stop.store(true, Ordering::Relaxed);
+    for worker in workers {
+        worker.join().expect("a worker thread panicked");
+    }
+
+    // No bucket left in the map may point at a dropped column family.
+    for bucket in index_store.history.iter(false) {
+        bucket
+            .digests
+            .get(&Default::default())
+            .expect("every bucket in the map must be readable");
+    }
+
+    assert_eq!(
+        index_store
+            .get_transactions(None, None, None, false)
+            .unwrap()
+            .len(),
+        1
+    );
+}
+
+/// The store pruner deletes a checkpoint's transactions before it
+/// advances the watermark the backfill checks, so a replay can find them
+/// already gone. That must end the backfill instead of failing the task
+/// for the rest of the process.
+#[tokio::test]
+async fn test_backfill_stops_at_deleted_checkpoint_data() {
+    let (authority_state, genesis_tx_digest) = genesis_authority_state().await;
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let authority_store = authority_state.database_for_testing();
+    authority_store
+        .perpetual_tables
+        .transactions
+        .remove(&genesis_tx_digest)
+        .unwrap();
+
+    let index_dir = iota_common::tempdir();
+    let index_store = open_index_store(index_dir.path().to_path_buf());
+    index_store
+        .tables
+        .history_watermark
+        .insert(&(), &1)
+        .unwrap();
+
+    index_store
+        .backfill_history(&authority_store, checkpoint_store)
+        .expect("deleted checkpoint data must stop the backfill, not fail it");
+    assert_eq!(
+        index_store.tables.history_watermark.get(&()).unwrap(),
+        Some(1),
+        "the checkpoint whose data is gone must not be marked as replayed"
+    );
+    assert_eq!(
+        index_store
+            .metrics
+            .history_backfill_lowest_replayed_checkpoint
+            .get(),
+        1,
+        "the gauge must report where a backfill that stopped early left off"
+    );
+}
+
+/// The backfill must stop at epochs `prune` removed from the index
+/// instead of replaying them. The pruned epoch's genesis checkpoint is
+/// fully replayable, so only the stop keeps the marker in place.
+#[tokio::test]
+async fn test_backfill_stops_at_pruned_epochs() {
+    let (authority_state, _) = genesis_authority_state().await;
+    let checkpoint_store = &authority_state.checkpoint_store;
+
+    let index_dir = iota_common::tempdir();
+    let mut index_store = open_index_store(index_dir.path().to_path_buf());
+    index_store.epochs_to_retain = Some(1);
+    seed_history_buckets(&index_store, 2);
+    assert_eq!(index_store.prune().unwrap(), Some(1));
+    index_store
+        .tables
+        .history_watermark
+        .insert(&(), &1)
+        .unwrap();
+
+    index_store
+        .backfill_history(&authority_state.database_for_testing(), checkpoint_store)
+        .expect("the backfill must stop at the pruned epoch, not replay it");
+    assert_eq!(
+        index_store.tables.history_watermark.get(&()).unwrap(),
+        Some(1),
+        "the pruned genesis epoch must not be replayed"
+    );
+}
+
+/// A rebuild on a node with nothing executed writes the backfill marker
+/// but no watermark: an absent watermark already means "nothing indexed",
+/// while writing 0 would claim checkpoint 0 was indexed.
+#[tokio::test]
+async fn test_rebuild_with_nothing_executed_writes_no_watermark() {
+    let dir = iota_common::tempdir();
+    let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+
+    // A database holding data but no `meta` row triggers the wipe and
+    // rebuild even though nothing is executed yet.
+    {
+        let index_store = open_index_store(index_dir.clone());
+        let owner = iota_types::base_types::dbg_addr(1);
+        let object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+        let (key, info) = OwnerIndexKey::for_object(owner, &object).unwrap();
+        index_store.tables.owner.insert(&key, &info).unwrap();
+        close_index_store(index_store).await;
+    }
+
+    let authority_store = open_authority_store(&dir.path().join("store"));
+    let index_store = RpcIndexesStore::new(
+        index_dir,
+        &Registry::default(),
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+        Some(128),
+        None,
+        &authority_store,
+        &checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(
+        index_store.tables.history_watermark.get(&()).unwrap(),
+        Some(0),
+        "the rebuild must have run and seeded the backfill marker"
+    );
+    assert_eq!(index_store.tables.watermark.get(&()).unwrap(), None);
+    assert_eq!(
+        index_store.next_sequence_number(),
+        0,
+        "the genesis transaction must later be numbered 0"
+    );
+}
+
+/// `CoinInfo::from_object` must reject non-coin objects even when their
+/// BCS contents happen to match `Coin`'s `{UID, u64}` layout.
+#[test]
+fn test_coin_info_from_object_requires_coin_type() {
+    let owner = Owner::Address(Address::ZERO);
+    let id = ObjectId::random();
+    let contents = iota_types::coin::Coin::new(id, 42).to_bcs_bytes();
+
+    let coin = Object::new_move(
+        MoveStruct::new_coin(GAS::type_tag(), Version::MIN_VALID_INCL, id, 42),
+        owner,
+        TransactionDigest::ZERO,
+    );
+    assert_eq!(
+        super::jsonrpc_api::CoinInfo::from_object(&coin)
+            .unwrap()
+            .balance,
+        42
+    );
+
+    let fake = Object::new_move(
+        MoveStruct::new_from_execution_with_limit(
+            "0x2::not_coin::NotCoin".parse::<StructTag>().unwrap(),
+            Version::MIN_VALID_INCL,
+            contents,
+            256,
+        )
+        .unwrap(),
+        owner,
+        TransactionDigest::ZERO,
+    );
+    assert_eq!(super::jsonrpc_api::CoinInfo::from_object(&fake), None);
+}
+
+/// The index databases of earlier releases are removed; none of their
+/// content can be adopted by the unified store.
+#[test]
+fn test_remove_legacy_index_dirs() {
+    let db_path = iota_common::tempdir();
+    let legacy_dirs: Vec<_> = ["indexes", "jsonrpc_indexes", "grpc_indexes"]
+        .iter()
+        .map(|dir| db_path.path().join(dir))
+        .collect();
+    for legacy_dir in &legacy_dirs {
+        std::fs::create_dir(legacy_dir).unwrap();
+        std::fs::write(legacy_dir.join("CURRENT"), b"stale").unwrap();
+    }
+
+    super::remove_legacy_index_dirs(db_path.path()).unwrap();
+    for legacy_dir in &legacy_dirs {
+        assert!(!legacy_dir.exists());
+    }
+
+    // A second call is a no-op.
+    super::remove_legacy_index_dirs(db_path.path()).unwrap();
+}
+
+/// After a rebuild, the history tables are filled by a background replay
+/// that works downwards from the watermark and records its progress
+/// atomically with each checkpoint's rows, so an interrupted replay
+/// resumes where it stopped instead of starting over.
+#[tokio::test]
+async fn test_history_backfill_after_rebuild() {
+    let (authority_state, genesis_tx_digest) = genesis_authority_state().await;
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let genesis_checkpoint = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+
+    let index_dir = iota_common::tempdir();
+    let index_store = RpcIndexesStore::new(
+        index_dir.path().to_path_buf(),
+        &Registry::default(),
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+        Some(128),
+        None,
+        &authority_state.database_for_testing(),
+        checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .unwrap();
+    index_store.wait_for_history_backfill_for_testing().await;
+
+    assert_eq!(
+        index_store
+            .lookup_digest(&genesis_tx_digest)
+            .unwrap()
+            .map(|(sequence, _)| sequence),
+        Some(0)
+    );
+    assert_eq!(
+        index_store.tables.history_watermark.get(&()).unwrap(),
+        Some(0),
+        "the backfill must have reached the lowest replayable checkpoint"
+    );
+    // The two numbering schemes meet: the backfill numbered the replayed
+    // transactions by network position, and the live counter continues
+    // exactly one past them — which is also the reported total.
+    assert_eq!(
+        index_store.next_sequence_number(),
+        genesis_checkpoint.network_total_transactions
+    );
+
+    // Simulate a replay interrupted before reaching checkpoint 0:
+    // resuming replays it and lowers the marker again.
+    index_store
+        .tables
+        .history_watermark
+        .insert(&(), &1)
+        .unwrap();
+    index_store
+        .backfill_history(&authority_state.database_for_testing(), checkpoint_store)
+        .unwrap();
+    assert_eq!(
+        index_store.tables.history_watermark.get(&()).unwrap(),
+        Some(0)
+    );
+    assert_eq!(
+        index_store
+            .lookup_digest(&genesis_tx_digest)
+            .unwrap()
+            .map(|(sequence, _)| sequence),
+        Some(0)
+    );
+    assert_eq!(
+        index_store
+            .metrics
+            .history_backfill_lowest_replayed_checkpoint
+            .get(),
+        0,
+        "the gauge must report how far down the replay got"
+    );
+}
+
+/// After an unclean stop the watermark can be ahead of the executed
+/// checkpoint by up to the execution concurrency; replaying those
+/// checkpoints writes nothing but the watermark, so no rebuild is needed.
+#[tokio::test]
+async fn test_a_watermark_far_ahead_of_the_executed_checkpoint_is_not_fatal() {
+    let tmp_dir = iota_common::tempdir();
+    let cp_dir = iota_common::tempdir();
+    let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+    let checkpoint_store = CheckpointStore::new(&cp_dir.path().join("checkpoints"));
+    let index_store = open_index_store(tmp_dir.path().to_path_buf());
+    index_store.tables.seed_meta(&groups).unwrap();
+    mark_checkpoint_executed(&checkpoint_store, 5);
+    checkpoint_store
+        .insert_verified_checkpoint(&executed_checkpoint(0, 7))
+        .unwrap();
+    index_store.tables.watermark.insert(&(), &7).unwrap();
+
+    assert!(
+        !index_store
+            .tables
+            .needs_to_do_initialization(&checkpoint_store, &groups)
+            .unwrap()
+    );
+}
+
+/// Numbering anchors to the watermark's checkpoint, so a watermark whose
+/// checkpoint the store no longer holds is rebuilt from scratch.
+#[tokio::test]
+async fn test_a_watermark_without_its_checkpoint_rebuilds_the_index() {
+    let dir = iota_common::tempdir();
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+    let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+    let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+    {
+        let index_store = open_index_store(index_dir.clone());
+        index_store.tables.seed_meta(&groups).unwrap();
+        index_store.tables.watermark.insert(&(), &5).unwrap();
+        close_index_store(index_store).await;
+    }
+
+    let authority_store = open_authority_store(&dir.path().join("store"));
+    let index_store = RpcIndexesStore::new(
+        index_dir,
+        &Registry::default(),
+        groups,
+        Some(128),
+        None,
+        &authority_store,
+        &checkpoint_store,
+        Default::default(),
+    )
+    .await
+    .expect("a missing anchor must rebuild instead of failing the open");
+
+    assert_eq!(
+        index_store.tables.watermark.get(&()).unwrap(),
+        None,
+        "the rebuild must drop the watermark it could not anchor"
+    );
+    assert_eq!(index_store.next_sequence_number(), 0);
+}
+
+/// The history tables share one column family, so a scan of one must stop
+/// at its own tag instead of running into the neighbouring table's rows.
+#[tokio::test]
+async fn test_history_tables_do_not_bleed_across_tags() {
+    let tmp_dir = iota_common::tempdir();
+    let index_store = open_index_store(tmp_dir.path().to_path_buf());
+    let bucket = index_store.ensure_history_bucket(0).unwrap();
+
+    let digest = TransactionDigest::random();
+    let mut batch = index_store.tables.meta.batch();
+    batch
+        .insert_batch_tagged(&bucket.tx_order, [(7u64, digest)])
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.digests, [(digest, (7u64, 0u64))])
+        .unwrap();
+    batch.write().unwrap();
+
+    let rows: Vec<_> = bucket
+        .tx_order
+        .safe_range_iter(u64::MIN..=u64::MAX)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(7, digest)]);
+    let rows: Vec<_> = bucket
+        .tx_order
+        .safe_range_iter_reversed(u64::MIN..=u64::MAX)
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(7, digest)]);
+    let rows: Vec<_> = bucket
+        .digests
+        .safe_range_iter_reversed(TransactionDigest::ZERO..=[0xff; 32].into())
+        .collect::<Result<_, _>>()
+        .unwrap();
+    assert_eq!(rows, vec![(digest, (7, 0))]);
+}
+
+/// A read error in the rebuild predicate propagates instead of silently
+/// deciding to wipe or to adopt.
+#[tokio::test]
+async fn test_rebuild_predicate_propagates_read_errors() {
+    let dir = iota_common::tempdir();
+    let groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+    let checkpoint_store = CheckpointStore::new(&dir.path().join("checkpoints"));
+    let index_store = open_index_store(dir.path().join("meta-error"));
+    index_store.tables.meta.db.drop_cf("meta").unwrap();
+    assert!(
+        index_store
+            .tables
+            .needs_to_do_initialization(&checkpoint_store, &groups)
+            .is_err()
+    );
+
+    // The watermark-less arm reads the owner index to tell a build that
+    // was cut short from a fresh store.
+    let index_store = open_index_store(dir.path().join("owner-index-error"));
+    index_store.tables.seed_meta(&groups).unwrap();
+    index_store.tables.meta.db.drop_cf("owner").unwrap();
+    assert!(
+        index_store
+            .tables
+            .needs_to_do_initialization(&checkpoint_store, &groups)
+            .is_err()
+    );
+}
+
+/// Leftover files under the index directory are cleared before a
+/// bulk-ingestion open instead of failing the recovery.
+#[tokio::test]
+async fn test_bulk_ingestion_open_clears_leftover_files() {
+    let dir = iota_common::tempdir();
+    let index_dir = dir.path().join(super::schema::RPC_INDEXES_DIR);
+    std::fs::create_dir_all(&index_dir).unwrap();
+    std::fs::write(index_dir.join("stray"), b"leftover").unwrap();
+
+    let tables = super::IndexStoreTables::open_for_bulk_ingestion(index_dir.clone(), 1);
+    assert_eq!(tables.meta.get(&()).unwrap(), None);
+    assert!(!index_dir.join("stray").exists());
+}
+
+/// An owner page starts after the cursor's object, even when the cursor's
+/// own row is gone: its position is rebuilt from the live object, which a
+/// transfer leaves behind.
+#[tokio::test]
+async fn test_owner_objects_page_excludes_only_the_cursor() {
+    let tmp_dir = iota_common::tempdir();
+    let index_store = open_index_store(tmp_dir.path().to_path_buf());
+    let owner = Address::random();
+    let mut object_store = BTreeMap::new();
+    seed_owner_objects_of_two_types(&index_store, &mut object_store, owner);
+
+    let page = |cursor: Option<ObjectId>| -> Vec<ObjectId> {
+        index_store
+            .get_owner_objects(owner, cursor, 10, None, &object_store)
+            .unwrap()
+            .into_iter()
+            .map(|info| info.object_id)
+            .collect()
+    };
+
+    let all = page(None);
+    assert_eq!(all.len(), 4);
+    assert_eq!(page(Some(all[0])), all[1..]);
+
+    // The cursor's object can be transferred away between two pages: its
+    // owner row is gone while the object itself still resolves.
+    let cursor_object = object_store.get(&all[0]).unwrap();
+    let (cursor_key, _) = OwnerIndexKey::for_object(owner, cursor_object).unwrap();
+    let table = &index_store.tables.owner;
+    let mut batch = table.batch();
+    batch.delete_batch(table, [cursor_key]).unwrap();
+    batch.write().unwrap();
+
+    assert_eq!(
+        page(Some(all[0])),
+        all[1..],
+        "the objects after the cursor must not be lost with the cursor's row"
     );
 }

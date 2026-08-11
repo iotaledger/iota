@@ -3729,7 +3729,7 @@ async fn test_get_dynamic_fields_returns_one_entry_per_index_row() {
     use typed_store::Map;
 
     let authority_state = TestAuthorityBuilder::new().build().await;
-    let indexes = authority_state.jsonrpc_indexes_store.clone().unwrap();
+    let indexes = authority_state.rpc_indexes_store.clone().unwrap();
 
     let parent = ObjectId::random();
     // Index rows whose objects do not exist: unresolvable fields.
@@ -3738,8 +3738,11 @@ async fn test_get_dynamic_fields_returns_one_entry_per_index_row() {
     for field_id in &ids {
         indexes
             .tables()
-            .dynamic_field_index()
-            .insert(&(parent, *field_id), &())
+            .dynamic_field
+            .insert(
+                &iota_types::storage::DynamicFieldKey::new(parent, *field_id),
+                &(),
+            )
             .unwrap();
     }
 
@@ -3759,12 +3762,12 @@ async fn test_get_dynamic_fields_returns_one_entry_per_index_row() {
 }
 
 /// A node that starts with executed checkpoints but no index database — the
-/// state after a formal-snapshot restore — must rebuild the JSON-RPC indexes
+/// state after a formal-snapshot restore — must rebuild the RPC indexes
 /// on open: the live-object scan covers objects outside any local checkpoint
 /// before the open returns, and the background history replay covers the
 /// genesis transaction.
 #[tokio::test]
-async fn test_jsonrpc_index_rebuild_on_open() {
+async fn test_rpc_index_rebuild_on_open() {
     let authority_state = TestAuthorityBuilder::new()
         .insert_genesis_checkpoint()
         .build()
@@ -3786,9 +3789,10 @@ async fn test_jsonrpc_index_rebuild_on_open() {
     // An empty index database on a node with executed checkpoints triggers
     // the rebuild.
     let index_dir = iota_common::tempdir();
-    let index_store = crate::jsonrpc_index::IndexStore::new(
+    let index_store = crate::rpc_indexes::RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
         &prometheus_filtered::Registry::default(),
+        std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
         Some(128),
         None,
         &authority_state.database_for_testing(),
@@ -3801,7 +3805,13 @@ async fn test_jsonrpc_index_rebuild_on_open() {
     // The live-object scan finished before the open returned: the object
     // that is in no local checkpoint is already indexed.
     let owned: Vec<_> = index_store
-        .get_owner_objects(owner, None, 10, None)
+        .get_owner_objects(
+            owner,
+            None,
+            10,
+            None,
+            authority_state.get_object_store().as_ref(),
+        )
         .unwrap();
     assert_eq!(owned.len(), 1);
     assert_eq!(owned[0].object_id, gas_object.id());
@@ -3818,7 +3828,10 @@ async fn test_jsonrpc_index_rebuild_on_open() {
         .unwrap();
     let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
     assert_eq!(
-        index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
+        index_store
+            .lookup_digest(&genesis_tx_digest)
+            .unwrap()
+            .map(|(seq, _)| seq),
         Some(0)
     );
 }
@@ -3827,7 +3840,7 @@ async fn test_jsonrpc_index_rebuild_on_open() {
 /// output objects: it must cover checkpoints the object pruner has advanced
 /// past, even when the objects themselves are gone from the store.
 #[tokio::test]
-async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
+async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
     use typed_store::Map;
 
     let authority_state = TestAuthorityBuilder::new()
@@ -3880,9 +3893,10 @@ async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
         .unwrap();
 
     let index_dir = iota_common::tempdir();
-    let index_store = crate::jsonrpc_index::IndexStore::new(
+    let index_store = crate::rpc_indexes::RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
         &prometheus_filtered::Registry::default(),
+        std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
         Some(128),
         None,
         &authority_state.database_for_testing(),
@@ -3896,13 +3910,22 @@ async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
     index_store.wait_for_history_backfill_for_testing().await;
     let genesis_tx_digest = genesis_digests.transaction;
     assert_eq!(
-        index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
+        index_store
+            .lookup_digest(&genesis_tx_digest)
+            .unwrap()
+            .map(|(seq, _)| seq),
         Some(0)
     );
 
     // The live-object scan populates the live-state tables.
     let owned: Vec<_> = index_store
-        .get_owner_objects(owner, None, 10, None)
+        .get_owner_objects(
+            owner,
+            None,
+            10,
+            None,
+            authority_state.get_object_store().as_ref(),
+        )
         .unwrap();
     assert_eq!(owned.len(), 1);
     assert_eq!(owned[0].object_id, gas_object.id());
@@ -3912,7 +3935,7 @@ async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
 /// watermark the transactions and effects are gone, so those checkpoints are
 /// skipped while the live-object scan still covers the live state.
 #[tokio::test]
-async fn test_jsonrpc_index_rebuild_skips_contents_pruned_checkpoints() {
+async fn test_rpc_index_rebuild_skips_contents_pruned_checkpoints() {
     let authority_state = TestAuthorityBuilder::new()
         .insert_genesis_checkpoint()
         .build()
@@ -3935,9 +3958,10 @@ async fn test_jsonrpc_index_rebuild_skips_contents_pruned_checkpoints() {
         .unwrap();
 
     let index_dir = iota_common::tempdir();
-    let index_store = crate::jsonrpc_index::IndexStore::new(
+    let index_store = crate::rpc_indexes::RpcIndexesStore::new(
         index_dir.path().to_path_buf(),
         &prometheus_filtered::Registry::default(),
+        std::collections::BTreeSet::from([crate::rpc_indexes::IndexGroup::JsonRpc]),
         Some(128),
         None,
         &authority_state.database_for_testing(),
@@ -3954,22 +3978,25 @@ async fn test_jsonrpc_index_rebuild_skips_contents_pruned_checkpoints() {
         .unwrap()
         .unwrap();
     let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
-    assert_eq!(
-        index_store.get_transaction_seq(&genesis_tx_digest).unwrap(),
-        None
-    );
+    assert_eq!(index_store.lookup_digest(&genesis_tx_digest).unwrap(), None);
 
     // The live-object scan still populates the live-state tables.
     let owned: Vec<_> = index_store
-        .get_owner_objects(owner, None, 10, None)
+        .get_owner_objects(
+            owner,
+            None,
+            10,
+            None,
+            authority_state.get_object_store().as_ref(),
+        )
         .unwrap();
     assert_eq!(owned.len(), 1);
     assert_eq!(owned[0].object_id, gas_object.id());
 }
 
-/// Runs an executed transaction through the per-checkpoint JSON-RPC indexing
+/// Runs an executed transaction through the per-checkpoint RPC indexing
 /// path, as the checkpoint executor does after executing a checkpoint.
-fn jsonrpc_index_transaction(
+fn rpc_index_transaction(
     authority_state: &AuthorityState,
     checkpoint_seq: CheckpointSequenceNumber,
     transaction: TransactionEnvelope,
@@ -4006,11 +4033,11 @@ fn jsonrpc_index_transaction(
         }],
     };
 
-    let jsonrpc_indexes_store = authority_state.jsonrpc_indexes_store.as_ref().unwrap();
-    jsonrpc_indexes_store
+    let rpc_indexes_store = authority_state.rpc_indexes_store.as_ref().unwrap();
+    rpc_indexes_store
         .index_checkpoint(&checkpoint_data)
         .unwrap();
-    jsonrpc_indexes_store
+    rpc_indexes_store
         .commit_update_for_checkpoint(checkpoint_seq)
         .unwrap();
 }
@@ -4097,7 +4124,7 @@ async fn create_and_retrieve_df(
     );
     assert_eq!(add_effects.created().len(), 1);
 
-    jsonrpc_index_transaction(&authority_state, 0, add_txn, add_effects);
+    rpc_index_transaction(&authority_state, 0, add_txn, add_effects);
 
     let fields = authority_state
         .get_dynamic_fields(outer_v0.object_id, None, usize::MAX)
@@ -4326,7 +4353,7 @@ async fn test_dynamic_object_field_child_is_read_at_its_latest_version() {
     let resolve =
         |object_store: &dyn iota_types::storage::ObjectStore,
          layout_resolver: &mut dyn iota_types::layout_resolver::LayoutResolver| {
-            crate::jsonrpc_index::try_create_dynamic_field_info(
+            crate::rpc_indexes::jsonrpc_api::try_create_dynamic_field_info(
                 &wrapper,
                 object_store,
                 layout_resolver,

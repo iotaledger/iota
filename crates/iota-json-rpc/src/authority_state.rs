@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use iota_core::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::ObjectCacheRead,
-    jsonrpc_index::TotalBalance,
+    rpc_indexes::TotalBalance,
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
@@ -84,13 +84,6 @@ pub trait StateRead: Send + Sync {
 
     fn get_backing_package_store(&self) -> &Arc<dyn BackingPackageStore + Send + Sync>;
 
-    fn get_owner_objects(
-        &self,
-        owner: Address,
-        cursor: Option<ObjectId>,
-        filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Vec<ObjectInfo>>;
-
     async fn query_events(
         &self,
         kv_store: &Arc<TransactionKeyValueStore>,
@@ -151,9 +144,9 @@ pub trait StateRead: Send + Sync {
     fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: (String, ObjectId),
+        cursor: Option<ObjectId>,
+        coin_type: Option<TypeTag>,
         limit: usize,
-        one_coin_type_only: bool,
     ) -> StateReadResult<Vec<IotaCoin>>;
     async fn get_executed_transaction_and_effects(
         &self,
@@ -271,17 +264,6 @@ impl StateRead for AuthorityState {
         self.get_backing_package_store()
     }
 
-    fn get_owner_objects(
-        &self,
-        owner: Address,
-        cursor: Option<ObjectId>,
-        filter: Option<IotaObjectDataFilter>,
-    ) -> StateReadResult<Vec<ObjectInfo>> {
-        Ok(self
-            .get_owner_objects_iterator(owner, cursor, filter)?
-            .collect())
-    }
-
     async fn query_events(
         &self,
         kv_store: &Arc<TransactionKeyValueStore>,
@@ -371,14 +353,15 @@ impl StateRead for AuthorityState {
     fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: (String, ObjectId),
+        cursor: Option<ObjectId>,
+        coin_type: Option<TypeTag>,
         limit: usize,
-        one_coin_type_only: bool,
     ) -> StateReadResult<Vec<IotaCoin>> {
         Ok(self
-            .get_owned_coins_iterator_with_cursor(owner, cursor, limit, one_coin_type_only)?
+            .get_owned_coins_page(owner, cursor, coin_type, limit)?
+            .into_iter()
             .map(|(coin_type, coin_object_id, coin)| IotaCoin {
-                coin_type,
+                coin_type: coin_type.to_string(),
                 coin_object_id,
                 version: coin.version,
                 digest: coin.digest,
@@ -403,7 +386,7 @@ impl StateRead for AuthorityState {
         owner: Address,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
-        let indexes = self.jsonrpc_indexes_store.clone();
+        let indexes = self.rpc_indexes_store.clone();
         Ok(tokio::task::spawn_blocking(move || {
             indexes
                 .as_ref()
@@ -418,7 +401,7 @@ impl StateRead for AuthorityState {
         &self,
         owner: Address,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
-        let indexes = self.jsonrpc_indexes_store.clone();
+        let indexes = self.rpc_indexes_store.clone();
         Ok(tokio::task::spawn_blocking(move || {
             indexes
                 .as_ref()

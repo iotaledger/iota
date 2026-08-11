@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     fs,
     io::Write,
     num::NonZeroUsize,
@@ -22,8 +22,11 @@ use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables,
     checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
-    jsonrpc_index::{IndexStore, JSONRPC_INDEXES_DIR, JsonRpcIndexRestorer},
+    rpc_indexes::{
+        RpcIndexesStore,
+        live_scan::RpcIndexesRestorer,
+        schema::{IndexGroup, RPC_INDEXES_DIR},
+    },
 };
 use iota_sdk_types::{
     Address, CheckpointCommitment, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
@@ -544,11 +547,11 @@ async fn snapshot_epoch_info_round_trip() -> Result<(), anyhow::Error> {
     epoch_info_round_trip(dir.path(), 2).await
 }
 
-/// Restoring through [`RestoreWithIndexes`] must build the gRPC and JSON-RPC
-/// live-state indexes from the same object stream that fills the perpetual
+/// Restoring through [`RestoreWithIndexes`] must build the RPC index store's
+/// live-state tables from the same object stream that fills the perpetual
 /// tables: the restored live object set matches the source, address-owned
-/// objects come back owner-indexed in both stores, and the finalize steps
-/// leave the stores initialized.
+/// objects come back owner-indexed, and the finalize step leaves the store
+/// initialized.
 #[tokio::test]
 async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     let dir = iota_common::tempdir();
@@ -611,60 +614,35 @@ async fn snapshot_restore_builds_index_stores() -> Result<(), anyhow::Error> {
     .await?;
 
     let restored_perpetual_db = AuthorityPerpetualTables::open(&tmp_dir.join("restored_db"), None);
-    let restored_grpc = GrpcIndexesStore::new_without_init(tmp_dir.join(GRPC_INDEXES_DIR));
-    let grpc_restorer = restored_grpc.live_object_restorer(100);
-    let restored_jsonrpc = JsonRpcIndexRestorer::open(tmp_dir.join(JSONRPC_INDEXES_DIR))?;
+    let index_groups = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+    let restorer = RpcIndexesRestorer::open(tmp_dir.join(RPC_INDEXES_DIR), index_groups.clone())?;
     let (_abort_handle, abort_registration) = AbortHandle::new_pair();
     snapshot_reader
         .read_to_db(
-            &RestoreWithIndexes::new(
-                &restored_perpetual_db,
-                Some(&grpc_restorer),
-                Some(&restored_jsonrpc),
-            ),
+            &RestoreWithIndexes::new(&restored_perpetual_db, Some(&restorer)),
             abort_registration,
             None,
         )
         .await?;
-    grpc_restorer.finish()?;
 
     // The tee must not disturb the perpetual-tables restore.
     compare_live_objects(&perpetual_db, &restored_perpetual_db)?;
 
-    // Every address-owned object is owner-indexed in the restored gRPC store.
-    let grpc_owned_ids: HashSet<ObjectId> = restored_grpc
-        .owner_iter(owner, None, OwnerTypeFilter::None)?
-        .map(|entry| entry.map(|(key, _)| key.object_id))
-        .collect::<Result<_, _>>()?;
-    assert_eq!(grpc_owned_ids, owned_ids);
-
-    // Finalize the restored stores. The gRPC chain-verify + epoch-row seed
-    // step needs a real boundary's proof bundle and is exercised in
-    // `iota-e2e-tests`.
-    restored_grpc.finalize_restore(0)?;
-    restored_jsonrpc.finalize(0).await?;
+    restorer.finalize(0).await?;
 
     // The restore tool's smoke test must accept a healthy restore.
-    JsonRpcIndexRestorer::verify_restored(
-        &tmp_dir.join(JSONRPC_INDEXES_DIR),
-        0,
-        owned_ids.len() as u64,
-    )
-    .await?;
+    RpcIndexesRestorer::verify_restored(&tmp_dir.join(RPC_INDEXES_DIR), 0, owned_ids.len() as u64)
+        .await?;
 
-    // Every address-owned object is owner-indexed in the restored JSON-RPC
-    // store as well.
-    let reopened_jsonrpc = IndexStore::new_without_init(
-        tmp_dir.join(JSONRPC_INDEXES_DIR),
-        &prometheus_filtered::Registry::default(),
-        Some(128),
-    );
-    let jsonrpc_owned_ids: HashSet<ObjectId> = reopened_jsonrpc
-        .get_owner_objects(owner, None, 10, None)?
+    // Every address-owned object comes back owner-indexed, through the read
+    // the JSON-RPC API serves.
+    let reopened = RpcIndexesStore::new_without_init(tmp_dir.join(RPC_INDEXES_DIR), index_groups);
+    let restored_owned_ids: HashSet<ObjectId> = reopened
+        .get_owner_objects(owner, None, 10, None, &restored_perpetual_db)?
         .into_iter()
         .map(|info| info.object_id)
         .collect();
-    assert_eq!(jsonrpc_owned_ids, owned_ids);
+    assert_eq!(restored_owned_ids, owned_ids);
     Ok(())
 }
 

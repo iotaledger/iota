@@ -5,16 +5,20 @@
 use std::{fmt::Debug, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail};
-use iota_core::jsonrpc_index::{
-    DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE,
+use iota_core::rpc_indexes::schema::{
+    DB_PREFIX_HISTORIC_DIGESTS, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE,
     DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE, DB_PREFIX_HISTORIC_EVENT_BY_SENDER,
     DB_PREFIX_HISTORIC_EVENT_ORDER, DB_PREFIX_HISTORIC_TX_ORDER,
     DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID, DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION,
-    DB_PREFIX_HISTORIC_TXS_FROM_ADDR, DB_PREFIX_HISTORIC_TXS_SEQ, DB_PREFIX_HISTORIC_TXS_TO_ADDR,
-    IndexStoreTables, history_cf_epoch, history_cf_name,
+    DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID, DB_PREFIX_HISTORIC_TXS_FROM_ADDR,
+    DB_PREFIX_HISTORIC_TXS_TO_ADDR, IndexStoreTables, OwnerIndexKey, history_cf_epoch,
+    history_cf_name,
 };
 use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEventsDigest};
-use iota_types::{base_types::TxSequenceNumber, committee::EpochId};
+use iota_types::{
+    base_types::TxSequenceNumber, committee::EpochId,
+    messages_checkpoint::CheckpointSequenceNumber, storage::DynamicFieldKey,
+};
 use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 use serde::{Serialize, de::DeserializeOwned};
 use typed_store::{
@@ -57,22 +61,22 @@ pub fn search_index(
     let start = start.as_str();
     println!("Opening db at {db_path:?} ...");
     match table_name.as_str() {
-        "owner_index" => {
+        "owner" => {
             let db_read_only_handle =
                 IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
             get_db_entries!(
-                db_read_only_handle.owner_index,
-                from_addr_oid,
+                db_read_only_handle.owner,
+                from_addr_owner_key,
                 start,
                 termination
             )
         }
-        "dynamic_field_index" => {
+        "dynamic_field" => {
             let db_read_only_handle =
                 IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default());
             get_db_entries!(
-                db_read_only_handle.dynamic_field_index,
-                from_oid_oid,
+                db_read_only_handle.dynamic_field,
+                from_parent_field_key,
                 start,
                 termination
             )
@@ -124,14 +128,16 @@ fn search_history_table(
             start,
             termination,
         ),
-        "txs_seq" => get_history_entries::<TransactionDigest, TxSequenceNumber>(
-            &db,
-            &epochs,
-            DB_PREFIX_HISTORIC_TXS_SEQ,
-            |s| Ok(TransactionDigest::from_str(s)?),
-            start,
-            termination,
-        ),
+        "digests" => {
+            get_history_entries::<TransactionDigest, (TxSequenceNumber, CheckpointSequenceNumber)>(
+                &db,
+                &epochs,
+                DB_PREFIX_HISTORIC_DIGESTS,
+                |s| Ok(TransactionDigest::from_str(s)?),
+                start,
+                termination,
+            )
+        }
         "txs_from_addr" => get_history_entries::<_, TransactionDigest>(
             &db,
             &epochs,
@@ -159,7 +165,7 @@ fn search_history_table(
         "txs_by_mutated_object_id" => get_history_entries::<_, TransactionDigest>(
             &db,
             &epochs,
-            DB_PREFIX_HIST_TXS_BY_MUTATED_OBJECT_ID,
+            DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID,
             from_id_seq,
             start,
             termination,
@@ -384,30 +390,31 @@ fn from_id_module_function_txseq(
     Ok((pid, module.to_string(), func.to_string(), seq))
 }
 
-fn from_addr_oid(s: &str) -> Result<(Address, ObjectId), anyhow::Error> {
-    // Remove whitespaces
-    let s = s.trim();
-    let tokens = s.split(',').collect::<Vec<&str>>();
-    if tokens.len() != 2 {
-        bail!("Invalid address, object id pair");
-    }
-    let addr = Address::from_str(tokens[0].trim())?;
-    let oid = ObjectId::from_str(tokens[1].trim())?;
-
-    Ok((addr, oid))
+/// The owner index's lowest key for an address, so a scan can be bounded by
+/// the address alone. The rest of the key (type hashes, inverted balance,
+/// object id) is derived from the object, which the caller does not have.
+fn from_addr_owner_key(s: &str) -> Result<OwnerIndexKey, anyhow::Error> {
+    let owner = Address::from_str(s.trim())?;
+    Ok(OwnerIndexKey {
+        owner,
+        object_type_identifier: 0,
+        object_type_params: 0,
+        inverted_balance: None,
+        object_id: ObjectId::ZERO,
+    })
 }
 
-fn from_oid_oid(s: &str) -> Result<(ObjectId, ObjectId), anyhow::Error> {
+fn from_parent_field_key(s: &str) -> Result<DynamicFieldKey, anyhow::Error> {
     // Remove whitespaces
     let s = s.trim();
     let tokens = s.split(',').collect::<Vec<&str>>();
     if tokens.len() != 2 {
-        bail!("Invalid object id, object id triplet");
+        bail!("Invalid parent object id, field object id pair");
     }
-    let oid1 = ObjectId::from_str(tokens[0].trim())?;
-    let oid2: ObjectId = ObjectId::from_str(tokens[1].trim())?;
+    let parent = ObjectId::from_str(tokens[0].trim())?;
+    let field_id = ObjectId::from_str(tokens[1].trim())?;
 
-    Ok((oid1, oid2))
+    Ok(DynamicFieldKey::new(parent, field_id))
 }
 
 fn from_module_id_and_event_id(

@@ -8,7 +8,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use cached::{SizedCache, proc_macro::cached};
 use chrono::DateTime;
-use iota_core::{authority::AuthorityState, jsonrpc_index::TotalBalance};
+use iota_core::{authority::AuthorityState, rpc_indexes::TotalBalance};
 use iota_json_rpc_api::{CoinReadApiOpenRpc, CoinReadApiServer, JsonRpcMetrics, cap_page_limit};
 use iota_json_rpc_types::{Balance, CoinPage, IotaCirculatingSupply, IotaCoinMetadata, IotaSupply};
 use iota_mainnet_unlocks::MainnetUnlocksStore;
@@ -100,17 +100,8 @@ impl CoinReadApiServer for CoinReadApi {
         async move {
             let coin_type_tag = parse_to_type_tag(coin_type)?;
 
-            let cursor = match cursor {
-                Some(c) => (coin_type_tag.to_string(), c),
-                // If cursor is not specified, we need to start from the beginning of the coin
-                // type, which is the minimal possible ObjectId.
-                None => (coin_type_tag.to_string(), ObjectId::ZERO),
-            };
-
             self.internal
-                .get_coins_iterator(
-                    owner, cursor, limit, true, // only care about one type of coin
-                )
+                .get_coins_iterator(owner, cursor, Some(coin_type_tag), limit)
                 .await
         }
         .trace()
@@ -126,35 +117,30 @@ impl CoinReadApiServer for CoinReadApi {
         limit: Option<usize>,
     ) -> RpcResult<CoinPage> {
         async move {
-            let cursor = match cursor {
-                Some(object_id) => {
-                    let obj = self.internal.get_object(&object_id).await?;
-                    match obj {
-                        Some(obj) => {
-                            if let Some(coin_type) = obj.coin_type_opt() {
-                                Ok((coin_type.to_string(), object_id))
-                            } else {
-                                Err(IotaRpcInputError::GenericInvalid(
-                                    "cursor is not a coin".to_string(),
-                                ))
-                            }
-                        }
-                        None => Err(IotaRpcInputError::GenericInvalid(
+            // The store rebuilds the cursor's index position from the live
+            // object, so an object that is not a coin is refused here, where
+            // the request-level error message belongs.
+            if let Some(object_id) = cursor {
+                match self.internal.get_object(&object_id).await? {
+                    Some(obj) if obj.coin_type_opt().is_some() => {}
+                    Some(_) => {
+                        return Err(IotaRpcInputError::GenericInvalid(
+                            "cursor is not a coin".to_string(),
+                        )
+                        .into());
+                    }
+                    None => {
+                        return Err(IotaRpcInputError::GenericInvalid(
                             "cursor not found".to_string(),
-                        )),
+                        )
+                        .into());
                     }
                 }
-                None => {
-                    // If cursor is None, start from the beginning
-                    Ok((String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO))
-                }
-            }?;
+            }
 
             let coins = self
                 .internal
-                .get_coins_iterator(
-                    owner, cursor, limit, false, // return all types of coins
-                )
+                .get_coins_iterator(owner, cursor, None, limit)
                 .await?;
 
             Ok(coins)
@@ -462,9 +448,9 @@ pub trait CoinReadInternal {
     async fn get_coins_iterator(
         &self,
         owner: Address,
-        cursor: (String, ObjectId),
+        cursor: Option<ObjectId>,
+        coin_type: Option<TypeTag>,
         limit: Option<usize>,
-        one_coin_type_only: bool,
     ) -> RpcInterimResult<CoinPage>;
 }
 
@@ -529,15 +515,15 @@ impl CoinReadInternal for CoinReadInternalImpl {
     async fn get_coins_iterator(
         &self,
         owner: Address,
-        cursor: (String, ObjectId),
+        cursor: Option<ObjectId>,
+        coin_type: Option<TypeTag>,
         limit: Option<usize>,
-        one_coin_type_only: bool,
     ) -> RpcInterimResult<CoinPage> {
         let limit = cap_page_limit(limit);
         self.metrics.get_coins_limit.observe(limit as f64);
         let state = self.get_state();
         let mut data = spawn_monitored_task!(async move {
-            state.get_owned_coins(owner, cursor, limit + 1, one_coin_type_only)
+            state.get_owned_coins(owner, cursor, coin_type, limit + 1)
         })
         .await??;
 
@@ -739,9 +725,9 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((StructTag::new_gas().to_string(), ObjectId::ZERO)),
+                    predicate::eq(None),
+                    predicate::eq(Some(TypeTag::Struct(Box::new(StructTag::new_gas())))),
                     predicate::eq(51),
-                    predicate::eq(true),
                 )
                 .return_once(move |_, _, _, _| Ok(vec![gas_coin_clone]));
 
@@ -774,9 +760,9 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((StructTag::new_gas().to_string(), coins[0].coin_object_id)),
+                    predicate::eq(Some(coins[0].coin_object_id)),
+                    predicate::eq(Some(TypeTag::Struct(Box::new(StructTag::new_gas())))),
                     predicate::eq(limit + 1),
-                    predicate::eq(true),
                 )
                 .return_once(move |_, _, _, _| Ok(coins_clone));
 
@@ -811,9 +797,9 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((coin_type_tag.to_string(), ObjectId::ZERO)),
+                    predicate::eq(None),
+                    predicate::eq(Some(coin_type_tag.clone())),
                     predicate::eq(51),
-                    predicate::eq(true),
                 )
                 .return_once(move |_, _, _, _| Ok(vec![coin_clone]));
 
@@ -856,9 +842,9 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((coin_type_tag.to_string(), coins[0].coin_object_id)),
+                    predicate::eq(Some(cursor)),
+                    predicate::eq(Some(coin_type_tag.clone())),
                     predicate::eq(limit + 1),
-                    predicate::eq(true),
                 )
                 .return_once(move |_, _, _, _| Ok(coins_clone));
 
@@ -989,9 +975,9 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((String::from_utf8([0u8].to_vec()).unwrap(), ObjectId::ZERO)),
+                    predicate::eq(None),
+                    predicate::eq(None),
                     predicate::eq(51),
-                    predicate::eq(false),
                 )
                 .return_once(move |_, _, _, _| Ok(vec![gas_coin_clone]));
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);
@@ -1031,9 +1017,9 @@ mod tests {
                 .expect_get_owned_coins()
                 .with(
                     predicate::eq(owner),
-                    predicate::eq((coins[0].coin_type.clone(), coins[0].coin_object_id)),
+                    predicate::eq(Some(coins[0].coin_object_id)),
+                    predicate::eq(None),
                     predicate::eq(limit + 1),
-                    predicate::eq(false),
                 )
                 .return_once(move |_, _, _, _| Ok(coins_clone));
             let coin_read_api = CoinReadApi::new_for_tests(Arc::new(mock_state), None);

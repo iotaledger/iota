@@ -1,12 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The unified RPC index store: the on-disk indexes both the JSON-RPC and
-//! gRPC APIs read from, replacing the separate `jsonrpc_index` and
-//! `grpc_indexes` stores. A store is configured with the [`IndexGroup`]s its
-//! node needs; tables of a disabled group stay empty, and the digest history
-//! (see [`schema::HistoryBucket`]) is filled from checkpoint contents alone
-//! when the JSON-RPC group is off, since gRPC needs only the checkpoint a
+//! The RPC index store: the on-disk indexes both the JSON-RPC and gRPC APIs
+//! read from. A store is configured with the [`IndexGroup`]s its node needs;
+//! tables of a disabled group stay empty, and the digest history (see
+//! [`schema::HistoryBucket`]) is filled from checkpoint contents alone when
+//! the JSON-RPC group is off, since gRPC needs only the checkpoint a
 //! transaction landed in, not its network sequence number.
 //!
 //! This module is schema, open, rebuild, backfill, prune, and the
@@ -66,9 +65,9 @@ use self::{
     live_scan::LiveObjectSetIndexer,
     schema::{
         CURRENT_DB_VERSION, CoinIndexInfo, CoinIndexKey, HISTORY_CF_PREFIX, HistoryBucket,
-        IndexStoreTables, MetadataInfo, OwnerIndexKey, is_dynamic_field, merge_coin_into,
-        transaction_index_data, try_create_coin_index_info, try_create_package_version_info,
-        try_create_regulated_coin_info,
+        IndexStoreTables, MetadataInfo, OwnerIndexKey, history_cf_epoch, history_cf_name,
+        is_dynamic_field, merge_coin_into, transaction_index_data, try_create_coin_index_info,
+        try_create_package_version_info, try_create_regulated_coin_info,
     },
 };
 use crate::{
@@ -84,14 +83,22 @@ use crate::{
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
 const DEFAULT_HISTORY_BLOCK_CACHE_SIZE_MB: usize = 512;
 
-/// The column-family name of `epoch`'s history bucket.
-fn history_cf_name(epoch: EpochId) -> String {
-    rpc_index_history::bucket_cf_name(HISTORY_CF_PREFIX, epoch)
-}
+/// The index database directories of earlier releases, superseded by
+/// [`schema::RPC_INDEXES_DIR`].
+const LEGACY_INDEX_DIRS: [&str; 3] = ["indexes", "jsonrpc_indexes", "grpc_indexes"];
 
-/// The epoch of a history column family, `None` for other names.
-fn history_cf_epoch(cf_name: &str) -> Option<EpochId> {
-    rpc_index_history::bucket_cf_epoch(HISTORY_CF_PREFIX, cf_name)
+/// Removes the index databases of earlier releases from the node's database
+/// path. None of them can be adopted by the unified store, and left in place
+/// they hold on to potentially hundreds of gigabytes.
+pub fn remove_legacy_index_dirs(db_path: &Path) -> std::io::Result<()> {
+    for dir in LEGACY_INDEX_DIRS {
+        let legacy_dir = db_path.join(dir);
+        if legacy_dir.exists() {
+            info!("removing the legacy index database at {legacy_dir:?}");
+            std::fs::remove_dir_all(&legacy_dir)?;
+        }
+    }
+    Ok(())
 }
 
 /// A staged index update for one checkpoint, waiting for its in-order commit.
@@ -146,7 +153,7 @@ struct OpenedIndexDb {
     history: BTreeMap<EpochId, Arc<HistoryBucket>>,
 }
 
-/// The unified store backing both the JSON-RPC and gRPC APIs. See the
+/// The store backing both the JSON-RPC and gRPC APIs. See the
 /// [module docs][self].
 pub struct RpcIndexesStore {
     tables: IndexStoreTables,
@@ -688,8 +695,15 @@ impl RpcIndexesStore {
 
         // The pruner never retains fewer epochs than its floor, so the
         // backfill must not stop above it either.
-        let epochs_to_retain =
-            epochs_to_retain.map(|epochs| epochs.max(MIN_EPOCHS_TO_RETAIN_FOR_INDEXES));
+        let epochs_to_retain = epochs_to_retain.map(|epochs| {
+            if epochs < MIN_EPOCHS_TO_RETAIN_FOR_INDEXES {
+                warn!(
+                    "num_epochs_to_retain_for_indexes is below the {MIN_EPOCHS_TO_RETAIN_FOR_INDEXES} \
+                     epoch floor, retaining {MIN_EPOCHS_TO_RETAIN_FOR_INDEXES} epochs instead"
+                );
+            }
+            epochs.max(MIN_EPOCHS_TO_RETAIN_FOR_INDEXES)
+        });
 
         let store = Arc::new(Self::finish_open(
             opened,
@@ -737,6 +751,13 @@ impl RpcIndexesStore {
     /// The `max_type_length` this store was opened with, defaulting to 128.
     pub fn max_type_length(&self) -> u64 {
         self.max_type_length
+    }
+
+    /// The live-state and marker tables, for the crate-internal callers that
+    /// read or seed them directly: the expensive secondary-index
+    /// verification and the tests.
+    pub(crate) fn tables(&self) -> &IndexStoreTables {
+        &self.tables
     }
 
     fn finish_open(

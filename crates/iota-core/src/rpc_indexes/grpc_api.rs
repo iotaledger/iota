@@ -1,11 +1,10 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The gRPC read surface of the unified RPC index store: the reads
-//! `GrpcIndexesStore` (`grpc_indexes.rs`) used to serve, ported onto the
-//! unified schema. Every public read here fails with
-//! `StorageError::custom("the gRPC index group is not enabled")` when this
-//! store does not maintain the [`IndexGroup::Grpc`] group's tables.
+//! The gRPC read surface of the unified RPC index store. Every public read
+//! here fails with `StorageError::custom("the gRPC index group is not
+//! enabled")` when the store does not maintain the [`IndexGroup::Grpc`]
+//! group's tables.
 
 use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest};
 use iota_types::storage::{
@@ -32,8 +31,7 @@ impl From<CoinIndexInfo> for iota_types::storage::CoinInfo {
 
 impl RpcIndexesStore {
     /// Fails fast when this store does not maintain the gRPC group's
-    /// tables — the check that replaces the `Option`-ness callers relied on
-    /// before the two index stores were unified into one.
+    /// tables.
     fn require_grpc(&self) -> Result<(), StorageError> {
         if self.serves(IndexGroup::Grpc) {
             Ok(())
@@ -80,7 +78,7 @@ impl RpcIndexesStore {
     }
 
     /// Regulated coin metadata for `coin_type`, `None` if the type has none.
-    pub fn get_coin_info(
+    pub(crate) fn get_coin_info(
         &self,
         coin_type: &StructTag,
     ) -> Result<Option<CoinIndexInfo>, StorageError> {

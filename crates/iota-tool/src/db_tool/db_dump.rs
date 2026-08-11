@@ -24,8 +24,7 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStoreTables,
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStoreTables,
+    rpc_indexes::schema::IndexStoreTables,
 };
 use iota_sdk_types::ObjectId;
 use iota_types::base_types::EpochId;
@@ -118,7 +117,7 @@ pub fn print_table_metadata(
         }
         StoreName::Index => {
             IndexStoreTables::get_read_only_handle(db_path, None, None, MetricConf::default())
-                .owner_index
+                .owner
                 .db
         }
         StoreName::Epoch => {
@@ -238,7 +237,6 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
 pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
     let checkpoint_store = CheckpointStore::new(&db_path.join("checkpoints"));
-    let grpc_indexes_store = GrpcIndexesStore::new_without_init(db_path.join(GRPC_INDEXES_DIR));
     let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
     info!("Pruning setup for db at path: {:?}", db_path.display());
     let pruning_config = AuthorityStorePruningConfig {
@@ -256,8 +254,6 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
         None,
     )
     .await?;
-    // Digest retention follows checkpoint retention, as on the node.
-    grpc_indexes_store.prune(1)?;
     Ok(())
 }
 

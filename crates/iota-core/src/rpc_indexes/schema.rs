@@ -73,27 +73,39 @@ pub(super) const CURRENT_DB_VERSION: u64 = 1;
 /// exist.
 pub(super) const HISTORY_CF_PREFIX: &str = "hist_e";
 
+// The tag a history table's keys carry inside its bucket's column family.
 // Do not reuse these tags. Mark a tag retired in a comment, the way tag 1
-// is below, if its table is ever removed.
-const DB_PREFIX_HISTORIC_TX_ORDER: u8 = 0;
+// is below, if its table is ever removed. Public so that the database
+// inspection tooling can scan a bucket without reopening the store.
+pub const DB_PREFIX_HISTORIC_TX_ORDER: u8 = 0;
 // Tag 1 was `txs_seq` in the JSON-RPC-only store (transaction digest to
 // sequence number). Retired in favor of `DB_PREFIX_HISTORIC_DIGESTS` below,
 // which both API surfaces share. Never reuse it.
-const DB_PREFIX_HISTORIC_TXS_FROM_ADDR: u8 = 2;
-const DB_PREFIX_HISTORIC_TXS_TO_ADDR: u8 = 3;
-const DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID: u8 = 4;
-const DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID: u8 = 5;
-const DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION: u8 = 6;
-const DB_PREFIX_HISTORIC_EVENT_ORDER: u8 = 7;
-const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE: u8 = 8;
-const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT: u8 = 9;
-const DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE: u8 = 10;
-const DB_PREFIX_HISTORIC_EVENT_BY_SENDER: u8 = 11;
-const DB_PREFIX_HISTORIC_EVENT_BY_TIME: u8 = 12;
+pub const DB_PREFIX_HISTORIC_TXS_FROM_ADDR: u8 = 2;
+pub const DB_PREFIX_HISTORIC_TXS_TO_ADDR: u8 = 3;
+pub const DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID: u8 = 4;
+pub const DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID: u8 = 5;
+pub const DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION: u8 = 6;
+pub const DB_PREFIX_HISTORIC_EVENT_ORDER: u8 = 7;
+pub const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE: u8 = 8;
+pub const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT: u8 = 9;
+pub const DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE: u8 = 10;
+pub const DB_PREFIX_HISTORIC_EVENT_BY_SENDER: u8 = 11;
+pub const DB_PREFIX_HISTORIC_EVENT_BY_TIME: u8 = 12;
 /// The digest table shared by both APIs: a transaction's position in the
 /// network order (JSON-RPC sequence lookups) and its checkpoint (gRPC
 /// transaction info).
-const DB_PREFIX_HISTORIC_DIGESTS: u8 = 13;
+pub const DB_PREFIX_HISTORIC_DIGESTS: u8 = 13;
+
+/// The column-family name of `epoch`'s history bucket.
+pub fn history_cf_name(epoch: EpochId) -> String {
+    crate::rpc_index_history::bucket_cf_name(HISTORY_CF_PREFIX, epoch)
+}
+
+/// The epoch of a history column family, `None` for other names.
+pub fn history_cf_epoch(cf_name: &str) -> Option<EpochId> {
+    crate::rpc_index_history::bucket_cf_epoch(HISTORY_CF_PREFIX, cf_name)
+}
 
 #[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
 pub struct TotalBalance {
@@ -137,7 +149,7 @@ pub struct OwnerIndexInfo {
 /// - `ExactType` — only objects of the exact `StructTag` (e.g. `Coin<IOTA>`).
 ///   Post-filters hash collisions via `tag`.
 #[derive(Clone)]
-pub enum OwnerTypeFilter {
+pub(crate) enum OwnerTypeFilter {
     None,
     BaseType {
         id_hash: u64,
@@ -156,7 +168,7 @@ impl OwnerTypeFilter {
     /// If `None`, returns `OwnerTypeFilter::None`. If `Some(tag)` with no
     /// type params, returns `OwnerTypeFilter::BaseType`. If `Some(tag)`
     /// with type params, returns `OwnerTypeFilter::ExactType`.
-    pub fn from_struct_tag(tag: Option<&StructTag>) -> Self {
+    pub(crate) fn from_struct_tag(tag: Option<&StructTag>) -> Self {
         if let Some(tag) = tag {
             if tag.type_params().is_empty() {
                 Self::BaseType {
@@ -198,7 +210,7 @@ fn hash_type_params(tag: &StructTag) -> u64 {
 /// position (inclusive) so that RocksDB can seek directly. `cursor`'s own
 /// `owner` is ignored in favor of the explicit `owner` argument: callers
 /// resume a scan for `owner` from a key they already know belongs to it.
-pub fn owner_bounds(
+pub(super) fn owner_bounds(
     owner: Address,
     cursor: Option<&OwnerIndexKey>,
     filter: &OwnerTypeFilter,
@@ -257,7 +269,10 @@ impl OwnerIndexKey {
     /// owner index — shared by the live indexer, the cursor rebuild, and the
     /// deletion path, so all three agree on where an object sorts. `None`
     /// when `object` has no Move type (e.g. a package).
-    pub fn for_object(owner: Address, object: &Object) -> Option<(OwnerIndexKey, OwnerIndexInfo)> {
+    pub(crate) fn for_object(
+        owner: Address,
+        object: &Object,
+    ) -> Option<(OwnerIndexKey, OwnerIndexInfo)> {
         let struct_tag: StructTag = object.type_()?.clone().into();
         let id_hash = hash_type_identifier(&struct_tag);
         let params_hash = hash_type_params(&struct_tag);
@@ -291,16 +306,16 @@ impl OwnerIndexKey {
 /// Key of the `coin` table: regulated coin metadata, one entry per coin
 /// type.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
-pub struct CoinIndexKey {
-    pub coin_type: StructTag,
+pub(crate) struct CoinIndexKey {
+    pub(super) coin_type: StructTag,
 }
 
 /// Coin index value with regulated coin metadata.
 #[derive(Clone, Default, Serialize, Deserialize, PartialEq, Eq, Debug)]
-pub struct CoinIndexInfo {
-    pub coin_metadata_object_id: Option<ObjectId>,
-    pub treasury_object_id: Option<ObjectId>,
-    pub regulated_coin_metadata_object_id: Option<ObjectId>,
+pub(crate) struct CoinIndexInfo {
+    pub(super) coin_metadata_object_id: Option<ObjectId>,
+    pub(super) treasury_object_id: Option<ObjectId>,
+    pub(super) regulated_coin_metadata_object_id: Option<ObjectId>,
 }
 
 impl CoinIndexInfo {
@@ -717,7 +732,7 @@ pub struct IndexStoreTables {
     /// This is an index of object references to currently existing objects,
     /// indexed by the composite key of the address of their owner and the
     /// object ID of the object. Shared by both API groups.
-    pub(super) owner: DBMap<OwnerIndexKey, OwnerIndexInfo>,
+    pub owner: DBMap<OwnerIndexKey, OwnerIndexInfo>,
 
     /// An index of the currently existing dynamic fields, keyed by the
     /// object ID of their parent and the object ID of the `Field` object.
@@ -726,7 +741,7 @@ pub struct IndexStoreTables {
     pub dynamic_field: DBMap<DynamicFieldKey, ()>,
 
     /// Regulated coin metadata, one entry per coin type. gRPC-only.
-    pub coin: DBMap<CoinIndexKey, CoinIndexInfo>,
+    pub(super) coin: DBMap<CoinIndexKey, CoinIndexInfo>,
 
     /// Maps original package ID and version to the storage ID of that
     /// version, allowing efficient listing of all versions of a package.

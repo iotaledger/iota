@@ -1,19 +1,16 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! The JSON-RPC read surface of the unified RPC index store: the reads
-//! `IndexStore` (`jsonrpc_index.rs`) used to serve, ported onto the unified
-//! schema. Every public read here fails with
-//! [`IotaError::IndexStoreNotAvailable`] when this store does not maintain
-//! the [`IndexGroup::JsonRpc`] group's tables — the check that replaces the
-//! `Option<Arc<IndexStore>>` callers used to match on.
+//! The JSON-RPC read surface of the unified RPC index store. Every public
+//! read here fails with [`IotaError::IndexStoreNotAvailable`] when the store
+//! does not maintain the [`IndexGroup::JsonRpc`] group's tables.
 //!
-//! Coin balances and pages no longer come from a dedicated coin table: a
-//! coin's balance is embedded in its owner-index key
-//! (`inverted_balance = Some(!balance)`), so both are prefix scans of the
-//! shared `owner` table, narrowed to `0x2::coin::Coin` (every coin type) or
-//! `Coin<T>` (one coin type) the same way [`Self::owner_iter`] narrows any
-//! other type filter.
+//! Coin balances and pages come from the shared `owner` table rather than a
+//! coin table of their own: a coin's balance is embedded in its owner-index
+//! key (`inverted_balance = Some(!balance)`), so both are prefix scans of
+//! `owner`, narrowed to `0x2::coin::Coin` (every coin type) or `Coin<T>`
+//! (one coin type) the same way [`Self::owner_iter`] narrows any other type
+//! filter.
 
 use std::{
     cmp::{max, min},
@@ -154,9 +151,7 @@ pub(super) struct IndexStoreCacheUpdates {
     all_balance_changes: Vec<(Address, IotaResult<Arc<AllBalance>>)>,
 }
 
-/// Balance caches, keyed the same way regardless of table layout: a coin's
-/// balance lives in the owner index either way, so these survived the merge
-/// unchanged.
+/// Balance caches for the coin reads, keyed by owner and coin type.
 pub(super) struct BalanceCaches {
     pub(super) per_coin_type_balance: ShardedLruCache<(Address, TypeTag), IotaResult<TotalBalance>>,
     pub(super) all_balances: ShardedLruCache<Address, IotaResult<Arc<AllBalance>>>,
@@ -224,7 +219,7 @@ pub struct CoinInfo {
 
 impl CoinInfo {
     /// Returns coin metadata when `object` is a `Coin<T>`, `None` otherwise.
-    fn from_object(object: &Object) -> Option<CoinInfo> {
+    pub(super) fn from_object(object: &Object) -> Option<CoinInfo> {
         // Check the type before parsing: any struct whose BCS layout matches
         // `Coin`'s `{UID, u64}` would otherwise deserialize successfully.
         if !object.is_coin() {
@@ -241,7 +236,7 @@ impl CoinInfo {
 
 /// The base `0x2::coin::Coin` struct tag, with no type parameter: matches
 /// every `Coin<T>` under [`OwnerTypeFilter::BaseType`], the way `get_balance`
-/// and `get_owned_coins_iterator_with_cursor` scan "every coin type".
+/// and `get_owned_coins` scan "every coin type".
 fn coin_base_type() -> StructTag {
     let mut coin = StructTag::new_gas_coin();
     coin.type_params_mut().clear();
@@ -268,8 +263,7 @@ fn sequence_bounds_after_cursor(
 
 impl RpcIndexesStore {
     /// Fails fast when this store does not maintain the JSON-RPC group's
-    /// tables — the check that replaces the `Option`-ness callers relied on
-    /// before the two index stores were unified into one.
+    /// tables.
     fn require_jsonrpc(&self) -> IotaResult<()> {
         if self.serves(IndexGroup::JsonRpc) {
             Ok(())
@@ -827,20 +821,24 @@ impl RpcIndexesStore {
     }
 
     /// Owned coins of `owner`, in the unified key's order (balance-descending
-    /// within a type). `coin_type` narrows the scan to `Coin<coin_type>`;
+    /// within a type). `coin_type` narrows the scan to that coin's `Coin<T>`;
     /// `None` scans every coin type, the way [`Self::get_all_balances_from_db`]
     /// does. `cursor` is the last coin of the previous page, rebuilt from the
     /// live object the same way [`Self::get_owner_objects`]'s cursor is.
-    pub fn get_owned_coins_iterator_with_cursor(
+    ///
+    /// Each row carries the coin's own `T`, the same tag
+    /// [`Self::get_all_balance`] keys on and the one the JSON-RPC `coinType`
+    /// field reports — not the `Coin<T>` the object itself is.
+    pub fn get_owned_coins(
         &self,
         owner: Address,
         cursor: Option<ObjectId>,
-        coin_type: Option<StructTag>,
+        coin_type: Option<TypeTag>,
         limit: usize,
         object_store: &dyn ObjectStore,
-    ) -> IotaResult<Vec<(StructTag, ObjectId, CoinInfo)>> {
+    ) -> IotaResult<Vec<(TypeTag, ObjectId, CoinInfo)>> {
         self.require_jsonrpc()?;
-        let tag = coin_type.unwrap_or_else(coin_base_type);
+        let tag = coin_type.map_or_else(coin_base_type, StructTag::new_coin);
         let filter = OwnerTypeFilter::from_struct_tag(Some(&tag));
         let cursor_key = cursor
             .map(|id| self.owner_key_for_cursor(owner, id, object_store))
@@ -862,7 +860,12 @@ impl RpcIndexesStore {
             let Some(coin) = CoinInfo::from_object(&object) else {
                 continue;
             };
-            results.push((info.object_type, key.object_id, coin));
+            // A row the coin filters yield is a `Coin<T>`, so the inner type
+            // is always there.
+            let Some(coin_type) = info.object_type.coin_type_opt().cloned() else {
+                continue;
+            };
+            results.push((coin_type, key.object_id, coin));
             if results.len() >= limit {
                 break;
             }
@@ -1166,13 +1169,13 @@ fn coin_balance(key: &OwnerIndexKey) -> u64 {
 /// A [`LayoutResolver`] memoizing layouts by struct tag, for callers that
 /// resolve many values of few types, e.g. scanning a dynamic-field table
 /// whose entries share one type.
-pub struct CachingLayoutResolver<'a> {
+pub(crate) struct CachingLayoutResolver<'a> {
     resolver: &'a mut dyn LayoutResolver,
     layouts: HashMap<StructTag, A::MoveDatatypeLayout>,
 }
 
 impl<'a> CachingLayoutResolver<'a> {
-    pub fn new(resolver: &'a mut dyn LayoutResolver) -> Self {
+    pub(crate) fn new(resolver: &'a mut dyn LayoutResolver) -> Self {
         Self {
             resolver,
             layouts: HashMap::new(),
@@ -1198,7 +1201,7 @@ impl LayoutResolver for CachingLayoutResolver<'_> {
 /// JSON-RPC API. Runs at query time — the index stores only the field keys.
 /// Returns `None` when `o` is not a `Field` object, its layout cannot be
 /// resolved, or a dynamic object field's value object no longer exists.
-pub fn try_create_dynamic_field_info(
+pub(crate) fn try_create_dynamic_field_info(
     o: &Object,
     object_store: &dyn ObjectStore,
     resolver: &mut dyn LayoutResolver,
