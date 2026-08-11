@@ -125,7 +125,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 11 },
+      "gridPos": { "h": 9, "w": 8, "x": 0, "y": 11 },
       "id": 4,
       "options": {
         "legend": {
@@ -177,7 +177,7 @@
         },
         "overrides": []
       },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 11 },
+      "gridPos": { "h": 9, "w": 8, "x": 8, "y": 11 },
       "id": 5,
       "options": {
         "legend": {
@@ -199,6 +199,58 @@
         }
       ],
       "title": "Unprovably faulty blocks (by sending peer)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "${Environment}" },
+      "description": "Invalid relayed bundle parts per peer (bundle framing, metadata, or shard faults). Not tied to a verified author, so attributed to the sending peer. `in_memory` stacked on `persisted`; sum is the running total.",
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "drawStyle": "line",
+            "fillOpacity": 40,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": { "type": "linear" },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": { "group": "A", "mode": "normal" },
+            "thresholdsStyle": { "mode": "off" }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "green", "value": null }]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 11 },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": ["last"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${Environment}" },
+          "editorMode": "code",
+          "expr": "invalid_bundle_parts_by_peer{network=\"$network\", host=~\"$validator\", peer=~\"$authority\"}",
+          "legendFormat": "{{host}} / {{peer}} ({{source}})",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "Invalid bundle parts (by sending peer)",
       "type": "timeseries"
     },
     {
