@@ -12,12 +12,11 @@ use std::sync::Arc;
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::metrics::{BytecodeVerifierMetrics, LimitsMetrics};
-use move_trace_format::format::MoveTraceBuilder;
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::debug::{ProfileOutput, ProfileSink};
 use crate::{
-    debug::{DebugArtifacts, DebugConfig},
+    debug::{DebugArtifacts, DebugConfig, ExecutionTrace},
     error::{VmError, VmSdkError},
     executor::local_vm::LocalVm,
 };
@@ -93,7 +92,7 @@ impl ExecutionEnv {
     /// [`ProfileSink::Path`] cannot be written.
     pub(super) fn collect_artifacts(
         &self,
-        trace_builder: Option<MoveTraceBuilder>,
+        trace: Option<ExecutionTrace>,
     ) -> Result<Option<DebugArtifacts>, VmSdkError> {
         if !self.debug.any_enabled() {
             return Ok(None);
@@ -104,10 +103,7 @@ impl ExecutionEnv {
         #[cfg(target_arch = "wasm32")]
         let profile = None;
 
-        Ok(Some(DebugArtifacts {
-            profile,
-            trace: trace_builder.map(|b| b.into_trace().into_compressed_json_bytes()),
-        }))
+        Ok(Some(DebugArtifacts { profile, trace }))
     }
 }
 
