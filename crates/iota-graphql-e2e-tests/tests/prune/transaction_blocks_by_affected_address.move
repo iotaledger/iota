@@ -106,3 +106,12 @@ module Test::M {
     nodes { digest }
   }
 }
+
+//# run-graphql --cursors {"c":1,"t":1,"i":false}
+# G: the cursor is viewed at a checkpoint that has been pruned from the
+# `checkpoints` table, so the request errors with DATA_PRUNED.
+{
+  transactionBlocks(filter: { affectedAddress: "@{B}" }, after: "@{cursor_0}") {
+    nodes { digest }
+  }
+}

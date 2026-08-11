@@ -10,7 +10,7 @@ use std::{
 use async_graphql::{connection::CursorType, dataloader::Loader, *};
 use connection::Edge;
 use cursor::TxLookup;
-use diesel::{ExpressionMethods, QueryDsl};
+use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{
     apis::ReadApi,
@@ -595,12 +595,15 @@ impl TransactionBlock {
                         .select(dsl::network_total_transactions)
                         .filter(dsl::sequence_number.eq(checkpoint_viewed_at as i64))
                 })
+                .optional()
             })
-            .await?;
+            .await?
+            .ok_or_else(|| {
+                Error::DataPruned(format!("checkpoint {checkpoint_viewed_at} has been pruned"))
+            })?;
 
         // Page cursors are inclusive, we need to convert them to exclusive
         let cursor = if page.is_from_front() {
-            // Cannot do -1 when cursor=0
             page.after()
                 .and_then(|c| c.tx_sequence_number.checked_sub(1))
         } else {
