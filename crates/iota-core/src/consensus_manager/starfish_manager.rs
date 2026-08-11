@@ -9,10 +9,7 @@ use async_trait::async_trait;
 use fastcrypto::ed25519;
 use iota_config::NodeConfig;
 use iota_metrics::{RegistryID, RegistryService, monitored_mpsc::unbounded_channel};
-use iota_types::{
-    committee::EpochId,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-};
+use iota_types::committee::EpochId;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
     Clock, CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority,
@@ -27,6 +24,7 @@ use crate::{
         ConsensusManagerMetrics, ConsensusManagerTrait, ReplayWaiter, Running, RunningLockGuard,
     },
     consensus_validator::IotaTxValidator,
+    epoch_start_consensus_committee::get_consensus_committee,
     starfish_adapter::LazyStarfishClient,
 };
 
@@ -99,7 +97,7 @@ impl ConsensusManagerTrait for StarfishManager {
         tx_validator: IotaTxValidator,
     ) {
         let system_state = epoch_store.epoch_start_state();
-        let committee: Committee = system_state.get_consensus_committee();
+        let committee: Committee = get_consensus_committee(system_state);
         let epoch = epoch_store.epoch();
         let protocol_config = epoch_store.protocol_config();
 
