@@ -6,7 +6,6 @@ use std::{collections::BTreeMap, env, num::NonZeroUsize, path::PathBuf, sync::Ar
 
 use anyhow::Result;
 use clap::*;
-use fastcrypto::encoding::Encoding;
 use futures::{StreamExt, future::join_all};
 use iota_config::{
     genesis::Genesis,
@@ -772,10 +771,8 @@ impl ToolCommand {
                 sender_signed_data,
             } => {
                 let genesis = Genesis::load(genesis)?;
-                let sender_signed_tx = bcs::from_bytes::<SenderSignedTransaction>(
-                    &fastcrypto::encoding::Base64::decode(sender_signed_data.as_str()).unwrap(),
-                )
-                .unwrap();
+                let sender_signed_tx =
+                    SenderSignedTransaction::from_base64(sender_signed_data.as_str()).unwrap();
                 let transaction = TransactionEnvelope::new(sender_signed_tx);
                 let (agg, _) =
                     AuthorityAggregatorBuilder::from_genesis(&genesis).build_network_clients();

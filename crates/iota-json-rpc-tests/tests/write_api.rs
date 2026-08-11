@@ -65,7 +65,7 @@ async fn test_dev_inspect_transaction_block() -> Result<(), anyhow::Error> {
     let devinspect_response = http_client
         .dev_inspect_transaction_block(
             address,
-            Base64::from_bytes(&bcs::to_bytes(&kind).unwrap()),
+            Base64::from_bytes(&kind.to_bcs()),
             None,
             None,
             None,
@@ -137,7 +137,7 @@ async fn test_dev_inspect_transaction_block_zero_gas_price_and_budget() -> Resul
         builder.transfer_object(other_address, obj).unwrap();
         builder.finish()
     };
-    let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&TransactionKind::new_programmable(pt))?);
+    let tx_bytes = Base64::from_bytes(&TransactionKind::new_programmable(pt).to_bcs());
     let reference_gas_price = cluster.get_reference_gas_price().await;
 
     // A zero budget on its own, with a gas price the epoch would accept as-is.
@@ -232,7 +232,7 @@ async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow
     });
 
     let response = http_client
-        .dry_run_transaction_block(Base64::from_bytes(&bcs::to_bytes(&transaction)?))
+        .dry_run_transaction_block(Base64::from_bytes(&transaction.to_bcs()))
         .await?;
     assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
 
@@ -259,7 +259,7 @@ async fn test_zero_gas_budget_is_reported_as_the_gas_used() -> Result<(), anyhow
     let raw_txn_data = http_client
         .dev_inspect_transaction_block(
             address,
-            Base64::from_bytes(&bcs::to_bytes(&TransactionKind::new_programmable(pt))?),
+            Base64::from_bytes(&TransactionKind::new_programmable(pt).to_bcs()),
             None,
             None,
             Some(DevInspectArgs {

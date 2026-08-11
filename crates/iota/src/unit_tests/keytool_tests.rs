@@ -569,7 +569,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // scope as PersonalMessage.
     KeyToolCommand::Sign {
         address: KeyIdentity::Address(*sender),
-        data: Base64::encode(bcs::to_bytes(&tx)?),
+        data: tx.to_base64(),
         intent: Some(Intent::iota_app(IntentScope::PersonalMessage)),
     }
     .execute(&mut keystore)
@@ -579,7 +579,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // default is used.
     KeyToolCommand::Sign {
         address: KeyIdentity::Address(*sender),
-        data: Base64::encode(bcs::to_bytes(&tx)?),
+        data: tx.to_base64(),
         intent: None,
     }
     .execute(&mut keystore)
@@ -589,7 +589,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // default is used. Use alias for signing instead of the address
     KeyToolCommand::Sign {
         address: KeyIdentity::Alias(alias),
-        data: Base64::encode(bcs::to_bytes(&tx)?),
+        data: tx.to_base64(),
         intent: None,
     }
     .execute(&mut keystore)

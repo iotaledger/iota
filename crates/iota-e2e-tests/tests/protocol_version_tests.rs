@@ -564,7 +564,7 @@ mod sim_only_tests {
         let response = client
             .dev_inspect_transaction_block(
                 sender,
-                Base64::from_bytes(&bcs::to_bytes(&txn).unwrap()),
+                Base64::from_bytes(&txn.to_bcs()),
                 // gas_price
                 None,
                 // epoch_id

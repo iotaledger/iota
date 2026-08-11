@@ -2370,7 +2370,7 @@ impl TransactionEnvelope {
     /// and a list of Base64 encoded [`UserSignature`].
     pub fn to_tx_bytes_and_signatures(&self) -> (Base64, Vec<Base64>) {
         (
-            Base64::from_bytes(&bcs::to_bytes(self.data().transaction()).unwrap()),
+            Base64::from_bytes(&self.data().transaction().to_bcs()),
             self.data()
                 .signatures()
                 .iter()
