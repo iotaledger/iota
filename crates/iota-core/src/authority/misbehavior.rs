@@ -104,11 +104,14 @@ pub(crate) fn merge_max(
                 invalid_bundle_parts: elem_max(&x.invalid_bundle_parts, &y.invalid_bundle_parts),
             })
         }
-        (a @ MisbehaviorObservations::V1(_), b @ MisbehaviorObservations::V2(_))
-        | (a @ MisbehaviorObservations::V2(_), b @ MisbehaviorObservations::V1(_)) => panic!(
-            "cross-version misbehavior observation merge: {a:?} vs {b:?} — \
-             all observations within an epoch share one report version"
-        ),
+        // Exhaustive on the first component: a new version must add its
+        // diagonal merge arm above rather than fall through to the panic.
+        (a @ MisbehaviorObservations::V1(_), b) | (a @ MisbehaviorObservations::V2(_), b) => {
+            panic!(
+                "cross-version misbehavior observation merge: {a:?} vs {b:?} — \
+                 all observations within an epoch share one report version"
+            )
+        }
     }
 }
 
