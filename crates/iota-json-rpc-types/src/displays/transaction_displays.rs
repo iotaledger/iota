@@ -4,7 +4,7 @@
 
 use std::fmt::{Display, Formatter};
 
-use iota_types::sdk_types::utils::write_sep;
+use iota_sdk_types::utils::write_sep;
 use tabled::{
     builder::Builder as TableBuilder,
     settings::{Panel as TablePanel, Style as TableStyle, style::HorizontalLine},

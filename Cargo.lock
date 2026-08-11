@@ -6307,6 +6307,7 @@ version = "1.30.0-alpha"
 dependencies = [
  "axum 0.8.8",
  "bytes",
+ "fastcrypto",
  "http 1.4.0",
  "http-body 1.0.1",
  "http-body-util",
@@ -13022,6 +13023,7 @@ dependencies = [
  "iota-grpc-server",
  "iota-node-storage",
  "iota-protocol-config",
+ "iota-sdk-types",
  "iota-swarm-config",
  "iota-types",
  "rand 0.8.6",

@@ -11,7 +11,8 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Address, ObjectId, SenderSignedTransaction, SimpleSignature, Transaction, TransactionKind,
-    UserSignature, crypto::Intent,
+    UserSignature,
+    crypto::{Intent, MultisigAggregatedSignature, MultisigCommittee, MultisigMember},
 };
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -22,7 +23,6 @@ use crate::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair,
         get_key_pair_from_rng,
     },
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
@@ -175,7 +175,7 @@ pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
     let pk2 = kp2.public_key();
     let pk3 = kp3.public_key();
 
-    let multisig_pk = MultiSigPublicKey::new(
+    let multisig_pk = MultisigCommittee::new(
         vec![
             MultisigMember::new(pk1, 1),
             MultisigMember::new(pk2, 1),
@@ -192,7 +192,8 @@ pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
     let sig2: SimpleSignature = kp2.sign(&msg);
 
     // Any 2 of 3 signatures verifies ok.
-    let multi_sig1 = MultiSig::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
+    let multi_sig1 =
+        MultisigAggregatedSignature::new(vec![sig1.into(), sig2.into()], multisig_pk).unwrap();
     TransactionEnvelope::new(SenderSignedTransaction::new(
         tx.transaction().clone(),
         vec![UserSignature::Multisig(multi_sig1)],
@@ -222,9 +223,9 @@ pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
     use iota_sdk_types::{
-        Address, Digest, SenderSignedTransaction, SharedObjectReference, UserSignature,
+        Address, Digest, MoveAuthenticator, MoveAuthenticatorV1, SenderSignedTransaction,
+        SharedObjectReference, UserSignature,
     };
-    pub use iota_sdk_types::{MoveAuthenticator, MoveAuthenticatorV1};
 
     use crate::{
         crypto::DefaultHash,

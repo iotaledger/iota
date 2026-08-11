@@ -42,15 +42,15 @@ use iota_sdk_crypto::{
 use iota_sdk_types::{
     Address, SenderSignedTransaction, SignatureScheme, Transaction,
     crypto::{
-        Intent, IntentMessage, PasskeyAuthenticator, PublicKey as SdkPublicKey, SimpleSignature,
-        UserSignature,
+        Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+        PasskeyAuthenticator, PublicKey as SdkPublicKey, SimpleSignature, ThresholdUnit,
+        UserSignature, WeightUnit,
     },
 };
 use iota_types::{
     crypto::{DefaultHash, EncodeDecodeBase64, PublicKey, get_authority_key_pair},
     error::IotaResult,
     move_authenticator::MoveAuthenticatorExt,
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember, ThresholdUnit, WeightUnit},
     signature::{AuthenticatorTrait, VerifyParams},
     transaction::TransactionAPI,
 };
@@ -92,7 +92,7 @@ pub enum KeyToolCommand {
     /// If tx_bytes is passed in, verify the multisig.
     DecodeMultiSig {
         #[arg(long)]
-        multisig: MultiSig,
+        multisig: MultisigAggregatedSignature,
         #[arg(long)]
         tx_bytes: Option<String>,
     },
@@ -344,7 +344,7 @@ pub struct MultiSigAddress {
 #[serde(rename_all = "camelCase")]
 pub struct MultiSigCombinePartialSig {
     multisig_address: Address,
-    multisig_parsed: MultiSig,
+    multisig_parsed: MultisigAggregatedSignature,
     multisig_serialized: String,
 }
 
@@ -757,7 +757,7 @@ impl KeyToolCommand {
             } => {
                 let multisig_pk = multisig_public_key(pks, weights, threshold)?;
                 let address: Address = (&multisig_pk).into();
-                let multisig = MultiSig::new(sigs, multisig_pk)?;
+                let multisig = MultisigAggregatedSignature::new(sigs, multisig_pk)?;
                 let multisig_serialized = Base64::encode(multisig.to_bytes());
                 CommandOutput::MultiSigCombinePartialSig(MultiSigCombinePartialSig {
                     multisig_address: address,
@@ -1137,14 +1137,14 @@ impl Debug for CommandOutput {
 
 impl PrintableResult for CommandOutput {}
 
-/// Build and validate a [`MultiSigPublicKey`] from a list of public keys and
+/// Build and validate a [`MultisigCommittee`] from a list of public keys and
 /// their corresponding weights. The number of keys must match the number of
 /// weights.
 fn multisig_public_key(
     pks: Vec<SdkPublicKey>,
     weights: Vec<WeightUnit>,
     threshold: ThresholdUnit,
-) -> Result<MultiSigPublicKey, anyhow::Error> {
+) -> Result<MultisigCommittee, anyhow::Error> {
     if pks.len() != weights.len() {
         bail!(
             "Number of public keys ({}) does not match number of weights ({})",
@@ -1157,7 +1157,7 @@ fn multisig_public_key(
         .zip(weights)
         .map(|(pk, w)| MultisigMember::new(pk, w))
         .collect();
-    Ok(MultiSigPublicKey::new(members, threshold)?)
+    Ok(MultisigCommittee::new(members, threshold)?)
 }
 
 /// Converts legacy formatted private key to 33 bytes bech32 encoded private key

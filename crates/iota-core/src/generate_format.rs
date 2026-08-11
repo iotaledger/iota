@@ -22,7 +22,10 @@ use iota_sdk_types::{
     TransactionExpiration, TransactionKind, TypeArgumentError, TypeTag, UnchangedSharedKind,
     UserSignature,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
-    crypto::{Intent, IntentMessage, PersonalMessage},
+    crypto::{
+        Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+        PersonalMessage,
+    },
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
     validator::ValidatorCommitteeMember,
 };
@@ -39,7 +42,6 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContentsExt, FullCheckpointContents,
     },
     messages_grpc::ObjectInfoRequestKind,
-    multisig::{MultiSig, MultiSigPublicKey, MultisigMember},
     object::{MoveStructExt, ObjectInner},
     storage::DeleteKind,
     transaction::{CallArg, TransactionAPI, TransactionEnvelope},
@@ -181,7 +183,7 @@ fn get_registry() -> Result<Registry> {
     let sig: SimpleSignature = kp1.sign(b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
-    let multisig_pk = MultiSigPublicKey::new(
+    let multisig_pk = MultisigCommittee::new(
         vec![
             MultisigMember::new(kp1.public_key(), 1),
             MultisigMember::new(kp2.public_key(), 1),
@@ -201,7 +203,7 @@ fn get_registry() -> Result<Registry> {
     let sig2: SimpleSignature = kp2.sign(&*digest);
     let sig3: SimpleSignature = kp3.sign(&*digest);
 
-    let multi_sig = MultiSig::new(
+    let multi_sig = MultisigAggregatedSignature::new(
         vec![
             sig1.clone().into(),
             sig2.clone().into(),

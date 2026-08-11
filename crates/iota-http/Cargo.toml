@@ -28,6 +28,7 @@ iota-tls.workspace = true
 
 [dev-dependencies]
 axum.workspace = true
+fastcrypto.workspace = true
 reqwest.workspace = true
 
 [lints]

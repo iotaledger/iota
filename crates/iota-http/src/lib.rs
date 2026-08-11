@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use connection_handler::OnConnectionClose;
+use connection_handler::{OnConnectionClose, sleep_or_pending};
 pub use http;
 use http::{Request, Response};
 use hyper_util::service::TowerToHyperService;
@@ -112,6 +112,8 @@ impl Builder {
             + 'static,
         ResponseBody: http_body::Body<Data = bytes::Bytes, Error: Into<BoxError>> + Send + 'static,
     {
+        self.config.validate()?;
+
         let local_addr = listener.local_addr()?;
         let graceful_shutdown_token = tokio_util::sync::CancellationToken::new();
         let connections = ActiveConnections::default();
@@ -247,7 +249,9 @@ where
                     trace!("signal received, shutting down");
                     break;
                 },
-                (io, remote_addr) = self.listener.accept() => {
+                // While the handshake limit is reached, leave new connections in the kernel
+                // backlog rather than accepting them into an unbounded set of pending tasks.
+                (io, remote_addr) = self.listener.accept(), if self.accepts_more_connections() => {
                     self.handle_incoming(io, remote_addr);
                 },
                 Some(maybe_connection) = self.pending_connections.join_next() => {
@@ -278,36 +282,29 @@ where
         Ok(())
     }
 
+    /// Whether another connection may be accepted, or the limit on concurrent
+    /// TLS handshakes is currently reached.
+    fn accepts_more_connections(&self) -> bool {
+        self.config
+            .max_pending_connections
+            .is_none_or(|max| self.pending_connections.len() < max)
+    }
+
     fn handle_incoming(&mut self, io: L::Io, remote_addr: L::Addr) {
         if let Some(tls) = self.tls_config.clone() {
             let tls_acceptor = TlsAcceptor::from(tls);
             let allow_insecure = self.config.allow_insecure;
+            let handshake_timeout = self.config.handshake_timeout;
             self.pending_connections.spawn(async move {
-                if allow_insecure {
-                    // XXX: If we want to allow for supporting insecure traffic from other types of
-                    // io, we'll need to implement a generic peekable IO type
-                    if let Some(tcp) =
-                        <dyn std::any::Any>::downcast_ref::<tokio::net::TcpStream>(&io)
-                    {
-                        // Determine whether new connection is TLS.
-                        let mut buf = [0; 1];
-                        // `peek` blocks until at least some data is available, so if there is no error then
-                        // it must return the one byte we are requesting.
-                        tcp.peek(&mut buf).await?;
-                        // First byte of a TLS handshake is 0x16, so if it isn't 0x16 then its
-                        // insecure
-                        if buf != [0x16] {
-                            tracing::trace!("accepting insecure connection");
-                            return Ok((ServerIo::new_io(io), remote_addr));
-                        }
-                    } else {
-                        tracing::warn!("'allow_insecure' is configured but io type is not 'tokio::net::TcpStream'");
-                    }
+                tokio::select! {
+                    result = handshake(io, remote_addr, tls_acceptor, allow_insecure) => result,
+                    // Dropping the handshake closes the connection, releasing its file descriptor.
+                    _ = sleep_or_pending(handshake_timeout) => Err(std::io::Error::new(
+                        std::io::ErrorKind::TimedOut,
+                        "TLS handshake timed out",
+                    )
+                    .into()),
                 }
-
-                tracing::trace!("accepting TLS connection");
-                let io = tls_acceptor.accept(io).await?;
-                Ok((ServerIo::new_tls_io(io), remote_addr))
             });
         } else {
             self.handle_connection(ServerIo::new_io(io), remote_addr);
@@ -390,6 +387,44 @@ where
     }
 }
 
+/// Runs the pre-authentication part of accepting a connection: sniffing
+/// insecure traffic when it is allowed, then the TLS handshake.
+async fn handshake<Io, Addr>(
+    io: Io,
+    remote_addr: Addr,
+    tls_acceptor: TlsAcceptor,
+    allow_insecure: bool,
+) -> ConnectingOutput<Io, Addr>
+where
+    Io: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,
+{
+    if allow_insecure {
+        // XXX: If we want to allow for supporting insecure traffic from other types of
+        // io, we'll need to implement a generic peekable IO type
+        if let Some(tcp) = <dyn std::any::Any>::downcast_ref::<tokio::net::TcpStream>(&io) {
+            // Determine whether new connection is TLS.
+            let mut buf = [0; 1];
+            // `peek` blocks until at least some data is available, so if there is no error
+            // then it must return the one byte we are requesting.
+            tcp.peek(&mut buf).await?;
+            // First byte of a TLS handshake is 0x16, so if it isn't 0x16 then its
+            // insecure
+            if buf != [0x16] {
+                tracing::trace!("accepting insecure connection");
+                return Ok((ServerIo::new_io(io), remote_addr));
+            }
+        } else {
+            tracing::warn!(
+                "'allow_insecure' is configured but io type is not 'tokio::net::TcpStream'"
+            );
+        }
+    }
+
+    tracing::trace!("accepting TLS connection");
+    let io = tls_acceptor.accept(io).await?;
+    Ok((ServerIo::new_tls_io(io), remote_addr))
+}
+
 #[cfg(test)]
 mod tests {
     use axum::Router;
@@ -436,5 +471,137 @@ mod tests {
 
         // Now that the network has been shutdown there should be zero connections
         assert_eq!(handle.connections().len(), 0);
+    }
+
+    const SERVER_NAME: &str = "iota-http-test";
+
+    /// A server config and a client config that trusts it, without client
+    /// authentication.
+    fn test_tls_configs() -> (rustls::ServerConfig, rustls::ClientConfig) {
+        use fastcrypto::{
+            ed25519::{Ed25519KeyPair, Ed25519PrivateKey},
+            traits::{KeyPair, ToFromBytes},
+        };
+
+        let keypair = Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[42; 32]).unwrap());
+        let public_key = keypair.public().to_owned();
+        (
+            iota_tls::create_rustls_server_config(keypair.private(), SERVER_NAME.to_string()),
+            iota_tls::create_rustls_client_config(public_key, SERVER_NAME.to_string(), None),
+        )
+    }
+
+    /// The peer is unauthenticated until its handshake completes, so a peer
+    /// that never starts one must not hold the connection open indefinitely.
+    #[tokio::test]
+    async fn silent_peer_is_dropped_after_the_handshake_timeout() {
+        use tokio::io::AsyncReadExt as _;
+
+        const HANDSHAKE_TIMEOUT: Duration = Duration::from_millis(200);
+
+        let (server_tls_config, _) = test_tls_configs();
+        let handle = Builder::new()
+            .config(Config::default().handshake_timeout(Some(HANDSHAKE_TIMEOUT)))
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+
+        // Connect, then never send a ClientHello.
+        let mut connection = tokio::net::TcpStream::connect(handle.local_addr())
+            .await
+            .unwrap();
+
+        let mut buf = [0u8; 1];
+        let read = tokio::time::timeout(HANDSHAKE_TIMEOUT * 25, connection.read(&mut buf))
+            .await
+            .expect("the server must not wait for the handshake past the deadline");
+
+        assert!(
+            matches!(read, Ok(0) | Err(_)),
+            "the server must close the connection, got {read:?}"
+        );
+    }
+
+    /// While the pending limit is reached the server stops accepting, and
+    /// resumes once a slot frees.
+    #[tokio::test]
+    async fn pending_connections_are_capped() {
+        let (server_tls_config, client_tls_config) = test_tls_configs();
+        let handle = Builder::new()
+            .config(
+                Config::default()
+                    // Long enough that the stalled peer below is released by the test
+                    // rather than by the deadline.
+                    .handshake_timeout(Some(Duration::from_secs(60)))
+                    .max_pending_connections(Some(1)),
+            )
+            .tls_config(server_tls_config)
+            .serve(("localhost", 0), Router::new())
+            .unwrap();
+        let addr = *handle.local_addr();
+
+        // Occupy the only handshake slot with a peer that never speaks.
+        let stalled = tokio::net::TcpStream::connect(addr).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let connector = tokio_rustls::TlsConnector::from(Arc::new(client_tls_config));
+        let server_name = rustls::pki_types::ServerName::try_from(SERVER_NAME).unwrap();
+        let handshake = async {
+            let io = tokio::net::TcpStream::connect(addr).await.unwrap();
+            connector.connect(server_name, io).await
+        };
+        tokio::pin!(handshake);
+
+        // The connection reaches the kernel backlog but is not accepted. Without the
+        // limit the handshake completes in milliseconds, so a wide window here only
+        // guards against a slow machine, it does not weaken the assertion.
+        assert!(
+            tokio::time::timeout(Duration::from_secs(2), &mut handshake)
+                .await
+                .is_err(),
+            "the server must not handshake while the pending limit is reached"
+        );
+
+        drop(stalled);
+
+        tokio::time::timeout(Duration::from_secs(10), &mut handshake)
+            .await
+            .expect("the server must resume accepting once a slot frees")
+            .expect("the handshake must succeed");
+    }
+
+    /// A limit the accept loop can never fall below, and a limit whose slots
+    /// nothing releases, both leave the server unable to accept.
+    #[tokio::test]
+    async fn unrecoverable_limits_are_rejected() {
+        let served = |config| {
+            Builder::new()
+                .config(config)
+                .tls_config(test_tls_configs().0)
+                .serve(("localhost", 0), Router::new())
+        };
+
+        assert!(
+            served(Config::default().max_pending_connections(Some(0))).is_err(),
+            "a zero limit must be rejected"
+        );
+        assert!(
+            served(
+                Config::default()
+                    .handshake_timeout(None)
+                    .max_pending_connections(Some(8))
+            )
+            .is_err(),
+            "a limit without a handshake deadline must be rejected"
+        );
+        assert!(
+            served(
+                Config::default()
+                    .handshake_timeout(None)
+                    .max_pending_connections(None)
+            )
+            .is_ok(),
+            "removing both bounds stays allowed"
+        );
     }
 }
