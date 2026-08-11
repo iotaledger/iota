@@ -29,7 +29,7 @@ use parking_lot::Mutex;
 use typed_store::{
     TypedStoreError,
     database::wait_for_database_close,
-    rocks::{DBBatch, bulk_ingestion_options_split_between, bulk_ingestion_write_options},
+    rocks::{DBBatch, bulk_ingestion_options, bulk_ingestion_write_options},
     traits::Map,
 };
 
@@ -41,11 +41,6 @@ use super::{
         try_create_package_version_info, try_create_regulated_coin_info,
     },
 };
-
-/// Divisor for the index store's share of the bulk-ingestion memtable budget
-/// during a formal-snapshot restore, which writes the perpetual tables
-/// alongside it on default options.
-const RESTORE_CONCURRENT_STORES: usize = 2;
 
 /// The coin metadata of the objects seen so far. A coin type's metadata,
 /// treasury and regulated metadata are separate objects that may land in
@@ -222,7 +217,7 @@ impl RpcIndexesRestorer {
     /// only in [`Self::finalize`], so a node opening a store from a restore
     /// that crashed in between wipes and rebuilds it.
     pub fn open(path: PathBuf, groups: BTreeSet<IndexGroup>) -> Result<Self, TypedStoreError> {
-        let tables = IndexStoreTables::open_for_bulk_ingestion(path, RESTORE_CONCURRENT_STORES);
+        let tables = IndexStoreTables::open_for_bulk_ingestion(path);
         tables.meta.insert(
             &(),
             &MetadataInfo {
@@ -234,8 +229,7 @@ impl RpcIndexesRestorer {
             tables,
             groups,
             coin_metadata: Mutex::new(HashMap::new()),
-            batch_size_limit: bulk_ingestion_options_split_between(RESTORE_CONCURRENT_STORES)
-                .batch_size_limit,
+            batch_size_limit: bulk_ingestion_options().batch_size_limit,
         })
     }
 
