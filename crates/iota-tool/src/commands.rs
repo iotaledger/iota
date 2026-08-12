@@ -265,7 +265,7 @@ pub enum ToolCommand {
 
         /// Skip building the RPC index store during the restore. By default
         /// it is built from the same object stream that restores the state,
-        /// so a fullnode started with gRPC, `enable-index-processing`, or
+        /// so a fullnode started with gRPC, `enable-jsonrpc-api`, or
         /// both, opens it in place instead of re-indexing the whole restored
         /// state on first start. Both the JSON-RPC and gRPC index groups are
         /// always built together, unconditionally: a restore cannot know
