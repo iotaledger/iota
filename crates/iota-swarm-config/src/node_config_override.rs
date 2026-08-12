@@ -1094,7 +1094,7 @@ mod tests {
         let mut config = test_config();
         let overrides: Vec<NodeConfigOverride> = [
             "authority-store-pruning-config.num-epochs-to-retain=5",
-            "enable-index-processing=false",
+            "enable-jsonrpc-api=false",
             "authority-store-pruning-config.num-epochs-to-retain=7",
         ]
         .iter()
@@ -1105,7 +1105,7 @@ mod tests {
             config.authority_store_pruning_config.num_epochs_to_retain,
             7
         );
-        assert!(!config.enable_index_processing);
+        assert!(!config.enable_jsonrpc_api);
 
         // A batch is atomic: one bad override rejects the whole batch,
         // and the error names the override at fault.
