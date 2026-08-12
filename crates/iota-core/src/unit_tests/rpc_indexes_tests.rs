@@ -37,6 +37,19 @@ fn open_index_store(path: std::path::PathBuf) -> RpcIndexesStore {
     )
 }
 
+/// Opens an `RpcIndexesStore` at `path` without running the rebuild path,
+/// serving every group, with an explicit epoch retention.
+fn open_index_store_with_retention(
+    path: &std::path::Path,
+    epochs_to_retain: Option<u64>,
+) -> RpcIndexesStore {
+    RpcIndexesStore::new_without_init_with_retention(
+        path.to_path_buf(),
+        BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
+        epochs_to_retain,
+    )
+}
+
 /// Closes the store's database, waiting until every handle is released
 /// so the same path can be reopened.
 async fn close_index_store(index_store: impl std::borrow::Borrow<RpcIndexesStore>) {
@@ -3329,4 +3342,57 @@ async fn test_owner_objects_page_excludes_only_the_cursor() {
         all[1..],
         "the objects after the cursor must not be lost with the cursor's row"
     );
+}
+
+/// A retention of one epoch keeps the current epoch's history and drops
+/// every older epoch, with no floor raising it.
+#[tokio::test]
+async fn test_retention_of_one_epoch_keeps_only_the_current_epoch() {
+    let path = iota_common::tempdir();
+    let store = open_index_store_with_retention(path.path(), Some(1));
+
+    for epoch in 0..4 {
+        store.ensure_history_bucket(epoch).unwrap();
+    }
+    assert_eq!(store.prune().unwrap(), Some(3));
+    assert_eq!(store.history.earliest_retained(), 3);
+}
+
+/// A retention of two epochs keeps the current epoch and the one before it.
+#[tokio::test]
+async fn test_retention_of_two_epochs_keeps_the_previous_epoch() {
+    let path = iota_common::tempdir();
+    let store = open_index_store_with_retention(path.path(), Some(2));
+
+    for epoch in 0..4 {
+        store.ensure_history_bucket(epoch).unwrap();
+    }
+    assert_eq!(store.prune().unwrap(), Some(2));
+    assert_eq!(store.history.earliest_retained(), 2);
+}
+
+/// Pruning never drops the newest epoch's bucket, whatever a caller asks
+/// for: checkpoint ingest reads its digests to tell an already-indexed
+/// transaction from a new one.
+#[tokio::test]
+async fn test_pruning_keeps_the_newest_bucket_whatever_the_retention() {
+    let path = iota_common::tempdir();
+    let store = open_index_store_with_retention(path.path(), Some(0));
+
+    for epoch in 0..3 {
+        store.ensure_history_bucket(epoch).unwrap();
+    }
+    assert_eq!(store.prune().unwrap(), Some(2));
+    assert_eq!(store.history.newest_epoch(), Some(2));
+
+    // The bucket ingest depends on is still usable after the prune.
+    let mut builder = TestCheckpointDataBuilder::new(0)
+        .with_epoch(2)
+        .start_transaction(0)
+        .create_coin_object(0, 1, 100, TypeTag::from(StructTag::new_gas()))
+        .finish_transaction();
+    let checkpoint = builder.build_checkpoint();
+    let digest = *checkpoint.transactions[0].effects.transaction_digest();
+    index_checkpoint_for_testing(&store, &checkpoint);
+    assert!(store.lookup_digest(&digest).unwrap().is_some());
 }

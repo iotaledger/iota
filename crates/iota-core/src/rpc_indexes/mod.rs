@@ -70,7 +70,7 @@ use self::{
     },
 };
 use crate::{
-    authority::{AuthorityStore, authority_store_pruner::MIN_EPOCHS_TO_RETAIN_FOR_INDEXES},
+    authority::AuthorityStore,
     checkpoints::CheckpointStore,
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::{
@@ -725,18 +725,6 @@ impl RpcIndexesStore {
             })
             .unwrap_or(0);
 
-        // The pruner never retains fewer epochs than its floor, so the
-        // backfill must not stop above it either.
-        let epochs_to_retain = epochs_to_retain.map(|epochs| {
-            if epochs < MIN_EPOCHS_TO_RETAIN_FOR_INDEXES {
-                warn!(
-                    "num_epochs_to_retain_for_indexes is below the {MIN_EPOCHS_TO_RETAIN_FOR_INDEXES} \
-                     epoch floor, retaining {MIN_EPOCHS_TO_RETAIN_FOR_INDEXES} epochs instead"
-                );
-            }
-            epochs.max(MIN_EPOCHS_TO_RETAIN_FOR_INDEXES)
-        });
-
         let store = Arc::new(Self::finish_open(
             opened,
             registry,
@@ -752,6 +740,16 @@ impl RpcIndexesStore {
 
     /// Opens the store without the init logic of [`Self::new`] — for tests.
     pub fn new_without_init(path: PathBuf, groups: BTreeSet<IndexGroup>) -> Self {
+        Self::new_without_init_with_retention(path, groups, None)
+    }
+
+    /// [`Self::new_without_init`] with an explicit retention, for tests that
+    /// exercise pruning without a full node's setup.
+    pub fn new_without_init_with_retention(
+        path: PathBuf,
+        groups: BTreeSet<IndexGroup>,
+        epochs_to_retain: Option<u64>,
+    ) -> Self {
         let opened = Self::open_index_db(&path).expect("unable to open the RPC index database");
         Self::finish_open(
             opened,
@@ -760,7 +758,7 @@ impl RpcIndexesStore {
             None,
             0,
             Arc::default(),
-            None,
+            epochs_to_retain,
         )
         .expect("unable to open the RPC index database")
     }
@@ -942,11 +940,14 @@ impl RpcIndexesStore {
         Ok(None)
     }
 
-    /// Drops the history of expired epochs, clamped to
-    /// [`MIN_EPOCHS_TO_RETAIN_FOR_INDEXES`] — the one pruning entry point,
+    /// Drops the history of expired epochs — the one pruning entry point,
     /// covering every history table, digests included, since they all live
     /// in the one bucket family. Returns the earliest epoch to retain,
     /// `None` when index pruning is off or there is no history at all.
+    ///
+    /// The newest epoch's bucket is always kept, whatever the configured
+    /// retention: [`Self::index_checkpoint`] reads its digests to skip an
+    /// already-indexed transaction.
     ///
     /// A query racing a drop may report an error for the dropped epoch's
     /// rows; a retry no longer sees the bucket. Queries block for the
@@ -957,7 +958,7 @@ impl RpcIndexesStore {
             return Ok(None);
         };
         self.history
-            .prune(epochs_to_retain)
+            .prune(epochs_to_retain.max(1))
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
