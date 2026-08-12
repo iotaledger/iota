@@ -65,6 +65,11 @@ ignore = [
   # seed derives from the stack pointer and cannot be controlled by msim,
   # breaking simtest determinism (e.g. test_passive_reconfig_determinism).
   "RUSTSEC-2026-0002",
+  # `LruCache::pop()` is not panic-safe: a panic in a key's `Drop` skips
+  # `detach()` and leaves dangling pointers in the list. None of the key types
+  # we store have a `Drop` that can panic. Fixed in 0.18.2, which is blocked by
+  # the msim determinism problem described above.
+  "RUSTSEC-2026-0253",
   # proc-macro-error2 is unmaintained
   # Can be removed once `getset` updates: https://github.com/jbaublitz/getset/issues/132
   "RUSTSEC-2026-0173",
@@ -76,9 +81,8 @@ ignore = [
   # Same as above
   "RUSTSEC-2026-0195",
   # `im` is unmaintained and its `OrdSet` insertion is unsound, together with
-  # its `sized-chunks` and `bitmaps` dependencies. Only reachable through
-  # `fastcrypto-zkp`; remove once that switches to `imbl`.
-  "RUSTSEC-2023-0126",
+  # its `bitmaps` dependency. Only reachable through `fastcrypto-zkp`; remove
+  # once that switches to `imbl`.
   "RUSTSEC-2026-0248",
   "RUSTSEC-2026-0251",
   # `bitmaps` is also pulled in by `imbl-sized-chunks`
