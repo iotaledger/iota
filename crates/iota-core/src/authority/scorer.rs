@@ -139,9 +139,10 @@ struct ScorerV1 {
     faulty_blocks_unprovable: MetricParams,
     missing_proposals: MetricParams,
     equivocations: MetricParams,
-    /// `SCALE_FACTOR - sum(minor weights)`. Pre-multiplied by `MAX_SCORE` to
-    /// produce the per-authority initial value before the weighted-minor
-    /// accumulation loop.
+    /// The unallocated remainder of the weight budget
+    /// (`SCALE_FACTOR - sum(minor weights)`), i.e. the fraction of `MAX_SCORE`
+    /// an authority keeps even with every minor metric maxed out. Only a
+    /// major metric can take the score below it.
     baseline_score: u64,
 }
 
@@ -270,9 +271,10 @@ struct ScorerV2 {
     missing_proposals: MetricParams,
     equivocations: MetricParams,
     invalid_bundle_parts: MetricParams,
-    /// `SCALE_FACTOR - sum(minor weights)`. Pre-multiplied by `MAX_SCORE` to
-    /// produce the per-authority initial value before the weighted-minor
-    /// accumulation loop.
+    /// The unallocated remainder of the weight budget
+    /// (`SCALE_FACTOR - sum(minor weights)`), i.e. the fraction of `MAX_SCORE`
+    /// an authority keeps even with every minor metric maxed out. Only a
+    /// major metric can take the score below it.
     baseline_score: u64,
 }
 
