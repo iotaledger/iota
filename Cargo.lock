@@ -350,6 +350,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "archery"
+version = "1.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "33ca55ee147b1926dbea904f50fe4902494e97bc742205abbbf10c709e43815f"
+
+[[package]]
 name = "ark-bn254"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1807,8 +1813,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90dbd31c98227229239363921e60fcf5e558e43ec69094d46fc4996f08d1d5bc"
 dependencies = [
  "bitcoin_hashes",
- "rand 0.7.3",
- "rand_core 0.5.1",
+ "rand 0.8.6",
+ "rand_core 0.6.4",
  "serde",
  "unicode-normalization",
 ]
@@ -1866,6 +1872,12 @@ checksum = "031043d04099746d8db04daf1fa424b2bc8bd69d92b25962dcde24da39ab64a2"
 dependencies = [
  "typenum",
 ]
+
+[[package]]
+name = "bitmaps"
+version = "3.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a1d084b0137aaa901caf9f1e8b21daa6aa24d41cd806e111335541eff9683bd6"
 
 [[package]]
 name = "bitvec"
@@ -5194,12 +5206,35 @@ version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0acd33ff0285af998aaf9b57342af478078f53492322fafc47450e09397e0e9"
 dependencies = [
- "bitmaps",
+ "bitmaps 2.1.0",
  "rand_core 0.6.4",
- "rand_xoshiro",
+ "rand_xoshiro 0.6.0",
  "sized-chunks",
  "typenum",
  "version_check",
+]
+
+[[package]]
+name = "imbl"
+version = "5.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e4308a675e4cfc1920f36a8f4d8fb62d5533b7da106844bd1ec51c6f1fa94a0c"
+dependencies = [
+ "archery",
+ "bitmaps 3.2.1",
+ "imbl-sized-chunks",
+ "rand_core 0.9.3",
+ "rand_xoshiro 0.7.0",
+ "version_check",
+]
+
+[[package]]
+name = "imbl-sized-chunks"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f4241005618a62f8d57b2febd02510fb96e0137304728543dfc5fd6f052c22d"
+dependencies = [
+ "bitmaps 3.2.1",
 ]
 
 [[package]]
@@ -7435,7 +7470,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
 dependencies = [
  "base64ct",
  "bech32 0.11.1",
@@ -7461,7 +7496,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7490,7 +7525,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7498,7 +7533,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -7517,7 +7552,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -7533,7 +7568,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7552,7 +7587,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=ea43ccf07f27d19d10354184204fc09fddec2a38#ea43ccf07f27d19d10354184204fc09fddec2a38"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
 dependencies = [
  "base64ct",
  "bcs",
@@ -9188,7 +9223,7 @@ dependencies = [
  "codespan-reporting",
  "crossbeam",
  "dunce",
- "im",
+ "imbl",
  "itertools 0.10.5",
  "lsp-server",
  "lsp-types",
@@ -11796,6 +11831,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rand_xoshiro"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f703f4665700daf5512dcca5f43afa6af89f09db47fb56be587f80636bda2d41"
+dependencies = [
+ "rand_core 0.9.3",
+]
+
+[[package]]
 name = "ratatui"
 version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13055,7 +13099,7 @@ version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "16d69225bde7a69b235da73377861095455d298f2b970996eec25ddbb42b3d1e"
 dependencies = [
- "bitmaps",
+ "bitmaps 2.1.0",
  "typenum",
 ]
 
@@ -14679,7 +14723,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.7.3",
+ "rand 0.8.6",
  "static_assertions",
 ]
 

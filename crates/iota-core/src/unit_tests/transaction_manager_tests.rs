@@ -811,7 +811,7 @@ async fn transaction_manager_with_cancelled_transactions() {
         .set_shared_object_versions_for_testing(
             cancelled_transaction.digest(),
             &[
-                VersionAssignment::new(shared_object_1.id(), Version::CANCELLED_READ),
+                VersionAssignment::new(shared_object_1.id(), Version::CANCELED_READ),
                 VersionAssignment::new(
                     shared_object_2.id(),
                     Version::new_congested_with_suggested_gas_price(101).unwrap(),

@@ -75,6 +75,14 @@ ignore = [
   "RUSTSEC-2026-0194",
   # Same as above
   "RUSTSEC-2026-0195",
+  # `im` is unmaintained and its `OrdSet` insertion is unsound, together with
+  # its `sized-chunks` and `bitmaps` dependencies. Only reachable through
+  # `fastcrypto-zkp`; remove once that switches to `imbl`.
+  "RUSTSEC-2023-0126",
+  "RUSTSEC-2026-0248",
+  "RUSTSEC-2026-0251",
+  # `bitmaps` is also pulled in by `imbl-sized-chunks`
+  "RUSTSEC-2026-0247",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories

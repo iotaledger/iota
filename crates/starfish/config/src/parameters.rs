@@ -163,12 +163,13 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
 
-    /// Prefer more responsive peers when the transactions synchronizer selects
-    /// peers to fetch from. Ranking is a preference within the already-eligible
-    /// candidate set, not a change of eligibility, so it cannot affect safety.
-    /// Enabled by default; disabling it restores the previous selection: a
-    /// uniform random order that excludes the most recently failed peers (up
-    /// to less than f+1 by stake).
+    /// Prefer more responsive peers when the transactions synchronizer and the
+    /// commit syncer select peers to fetch from. Responses are verified the
+    /// same way regardless, so it cannot affect safety. Enabled by default;
+    /// disabling it restores the previous selection: for the transactions
+    /// synchronizer a uniform random order that excludes the most recently
+    /// failed peers (up to less than f+1 by stake), and for the commit syncer a
+    /// uniform random order.
     #[serde(default = "Parameters::default_enable_peer_responsiveness_ranking")]
     pub enable_peer_responsiveness_ranking: bool,
 

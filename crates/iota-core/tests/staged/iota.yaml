@@ -43,7 +43,7 @@ CallArg:
       Object:
         NEWTYPE:
           TYPENAME: ObjectArg
-CancelledTransaction:
+CanceledTransaction:
   STRUCT:
     - digest:
         TYPENAME: TransactionDigest
@@ -267,11 +267,11 @@ ConsensusCommitPrologueV1:
 ConsensusDeterminedVersionAssignments:
   ENUM:
     0:
-      CancelledTransactions:
+      CanceledTransactions:
         STRUCT:
-          - cancelled_transactions:
+          - canceled_transactions:
               SEQ:
-                TYPENAME: CancelledTransaction
+                TYPENAME: CanceledTransaction
 DeleteKind:
   ENUM:
     0:
@@ -447,7 +447,7 @@ ExecutionError:
     32:
       InputObjectDeleted: UNIT
     33:
-      ExecutionCancelledDueToSharedObjectCongestion:
+      ExecutionCanceledDueToSharedObjectCongestion:
         STRUCT:
           - congested_objects:
               SEQ:
@@ -463,9 +463,9 @@ ExecutionError:
         STRUCT:
           - coin_type: STR
     36:
-      ExecutionCancelledDueToRandomnessUnavailable: UNIT
+      ExecutionCanceledDueToRandomnessUnavailable: UNIT
     37:
-      ExecutionCancelledDueToSharedObjectCongestionV2:
+      ExecutionCanceledDueToSharedObjectCongestionV2:
         STRUCT:
           - congested_objects:
               SEQ:
@@ -1017,7 +1017,7 @@ UnchangedSharedKind:
         STRUCT:
           - version: U64
     3:
-      Cancelled:
+      Canceled:
         STRUCT:
           - version: U64
     4:

@@ -557,6 +557,7 @@ pub(crate) mod tests {
         let temp_dir = TempDir::new().unwrap();
         let parameters = Parameters {
             db_path: temp_dir.keep(),
+            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let txn_verifier = NoopTransactionVerifier {};
@@ -605,6 +606,7 @@ pub(crate) mod tests {
         let parameters = Parameters {
             db_path: temp_dir.keep(),
             enable_fast_commit_syncer: false,
+            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let txn_verifier = NoopTransactionVerifier {};
@@ -665,6 +667,7 @@ pub(crate) mod tests {
         let parameters = Parameters {
             db_path,
             enable_fast_commit_syncer: false,
+            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let txn_verifier = NoopTransactionVerifier {};
@@ -1196,6 +1199,7 @@ pub(crate) mod tests {
             commit_sync_batch_size: 10,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
+            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let txn_verifier = NoopTransactionVerifier {};
@@ -1321,6 +1325,7 @@ pub(crate) mod tests {
                 fast_commit_sync_batch_size: 20,
                 enable_fast_commit_syncer: true,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+                enable_peer_responsiveness_ranking: false,
                 ..Default::default()
             };
             let (authority, receiver, monitor) = make_authority_with_params(
@@ -1391,6 +1396,7 @@ pub(crate) mod tests {
             fast_commit_sync_batch_size: 20,
             enable_fast_commit_syncer: true,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
@@ -1520,6 +1526,7 @@ pub(crate) mod tests {
             fast_commit_sync_batch_size: 20,
             enable_fast_commit_syncer: true,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
@@ -1769,6 +1776,7 @@ pub(crate) mod tests {
                 fast_commit_sync_batch_size: 20,
                 enable_fast_commit_syncer: true,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+                enable_peer_responsiveness_ranking: false,
                 ..Default::default()
             };
             let (authority, receiver, monitor) = make_authority_with_params(
@@ -1839,6 +1847,7 @@ pub(crate) mod tests {
             fast_commit_sync_batch_size: 20,
             enable_fast_commit_syncer: true,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
@@ -1941,6 +1950,7 @@ pub(crate) mod tests {
             fast_commit_sync_batch_size: 20,
             enable_fast_commit_syncer: true,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
