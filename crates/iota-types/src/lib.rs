@@ -9,13 +9,8 @@
     rust_2021_compatibility
 )]
 
-#[cfg(not(target_arch = "wasm32"))]
 pub use iota_multiaddr as multiaddr;
-use iota_sdk_types::Version;
-#[cfg(target_arch = "wasm32")]
-#[path = "wasm_multiaddr.rs"]
-pub mod multiaddr;
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},

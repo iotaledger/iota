@@ -10,9 +10,13 @@ publish = false
 workspace = true
 
 [dependencies]
+serde.workspace = true
+
+# The native implementation needs the address-parsing and anemo helpers, none of
+# which build for wasm32. The wasm stand-in needs only serde.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 anemo.workspace = true
 eyre.workspace = true
 idna = "1.1.0"
 multiaddr.workspace = true
-serde.workspace = true
 tracing.workspace = true
