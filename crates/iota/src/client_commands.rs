@@ -49,7 +49,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_transaction_builder::{TransactionBuilder, unresolved};
+use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderClient, unresolved};
 use iota_sdk_types::{
     Address, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
     SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
@@ -66,6 +66,7 @@ use iota_types::{
             AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
         },
     },
+    coin::{PAY_SPLIT_N_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     crypto::EmptySignInfo,
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, Field},
@@ -1674,38 +1675,45 @@ impl IotaClientCommands {
                     .await?
                     .into_inner();
 
-                // If we only have a single coin, we have to split from the gas coin
-                let split_from_gas =
-                    iota_coins.items.len() == 1 && iota_coins.next_page_token.is_none();
-
-                let payments = if let Some(amounts) = amounts {
-                    std::iter::repeat(signer).zip(amounts).collect::<Vec<_>>()
-                } else if let Some(count) = count {
-                    ensure!(
-                        count > 1,
-                        "Coin split count must be greater than 1, got {count}."
-                    );
-                    let balance = if split_from_gas {
-                        iota_coins.items[0].balance()
-                    } else {
-                        grpc_coin_balance(&client, coin_id).await?
-                    };
-                    ensure!(
-                        count <= balance,
-                        "Coin balance {balance} is too low to split into {count} coins."
-                    );
-                    // One less coin is split off, as the remainder is left in the
-                    // coin being split
-                    vec![(signer, balance / count); count.saturating_sub(1) as usize]
-                } else {
-                    unreachable!("amounts or count must be provided")
-                };
+                // The coin being split cannot also pay for gas, so if it is the
+                // signer's only IOTA coin the split has to come out of the gas coin
+                let split_from_gas = iota_coins.items.len() == 1
+                    && iota_coins.next_page_token.is_none()
+                    && iota_coins.items[0].id() == &coin_id;
 
                 let mut builder = TransactionBuilder::new(signer).with_client(&client);
-                if split_from_gas {
-                    builder.pay_iota(payments);
+                let (coin, coin_type) = if split_from_gas {
+                    (
+                        builder.apply_argument(unresolved::Argument::Gas),
+                        TypeTag::Struct(Box::new(StructTag::new_gas())),
+                    )
                 } else {
-                    builder.pay([coin_id], payments);
+                    // Resolved here rather than by the builder, so that the
+                    // transaction pins the version the coin type was read from
+                    let (coin_ref, coin_type) = grpc_coin(&client, coin_id).await?;
+                    (builder.apply_argument(coin_ref), coin_type)
+                };
+
+                if let Some(amounts) = amounts {
+                    builder
+                        .move_call(
+                            ObjectId::FRAMEWORK,
+                            Identifier::PAY_MODULE.as_str(),
+                            PAY_SPLIT_VEC_FUNC_NAME.as_str(),
+                        )
+                        .type_tags([coin_type])
+                        .arguments((coin, amounts));
+                } else if let Some(count) = count {
+                    builder
+                        .move_call(
+                            ObjectId::FRAMEWORK,
+                            Identifier::PAY_MODULE.as_str(),
+                            PAY_SPLIT_N_FUNC_NAME.as_str(),
+                        )
+                        .type_tags([coin_type])
+                        .arguments((coin, count));
+                } else {
+                    unreachable!("amounts or count must be provided")
                 }
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
@@ -3352,23 +3360,22 @@ async fn grpc_input_refs(
         .collect()
 }
 
-/// Fetch the balance of the coin with the given ID over gRPC.
-async fn grpc_coin_balance(
+/// Fetch the coin with the given ID over gRPC, as a reference pinning the
+/// version its type was read at, and the `T` of its `Coin<T>`.
+async fn grpc_coin(
     client: &iota_grpc_client::Client,
     coin_id: ObjectId,
-) -> Result<u64, anyhow::Error> {
+) -> Result<(ObjectReference, TypeTag), anyhow::Error> {
     let object = client
-        .get_objects([coin_id], ObjectField::BCS)
+        .object(coin_id, None)
         .await?
-        .into_inner()
-        .pop()
-        .ok_or_else(|| anyhow!("No object returned for {coin_id}"))?
-        .map_err(|e| anyhow!(e))?
-        .object()?;
+        .ok_or_else(|| anyhow!("Coin {coin_id} does not exist"))?;
+    let coin_type = object
+        .coin_type_opt()
+        .ok_or_else(|| anyhow!("Object {coin_id} is not a coin"))?
+        .clone();
 
-    Ok(iota_sdk_types::framework::Coin::try_from_object(&object)
-        .map_err(|e| anyhow!("Object {coin_id} is not a coin: {e}"))?
-        .balance())
+    Ok((object.object_ref(), coin_type))
 }
 
 /// Dry run, execute, or serialize a transaction.
