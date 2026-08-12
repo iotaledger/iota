@@ -22,13 +22,13 @@ use iota_config::{
     transaction_deny_config::TransactionDenyConfig,
     verifier_signing_config::VerifierSigningConfig,
 };
+use iota_multiaddr::Multiaddr;
 use iota_names::config::IotaNamesConfig;
 use iota_protocol_config::Chain;
 use iota_types::{
     crypto::{
         AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair, network_to_simple_keypair,
     },
-    multiaddr::Multiaddr,
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };

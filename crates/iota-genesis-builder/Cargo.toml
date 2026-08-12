@@ -26,6 +26,7 @@ iota-execution.workspace = true
 iota-framework.workspace = true
 iota-framework-snapshot.workspace = true
 iota-genesis-common.workspace = true
+iota-multiaddr.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-types.workspace = true
 iota-types.workspace = true

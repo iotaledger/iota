@@ -9,6 +9,7 @@ use anemo::{
     types::{PeerAffinity, PeerInfo},
 };
 use enum_dispatch::enum_dispatch;
+use iota_multiaddr::Multiaddr;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::Address;
 use serde::{Deserialize, Serialize};
@@ -19,7 +20,6 @@ use crate::{
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit},
     crypto::{AuthorityPublicKey, NetworkPublicKey},
     iota_system_state::iota_system_state_inner_v1::ValidatorV1,
-    multiaddr::Multiaddr,
 };
 
 #[enum_dispatch]

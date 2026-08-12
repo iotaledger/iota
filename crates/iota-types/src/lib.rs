@@ -9,7 +9,6 @@
     rust_2021_compatibility
 )]
 
-pub use iota_multiaddr as multiaddr;
 use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
 use move_binary_format::{
     CompiledModule,
