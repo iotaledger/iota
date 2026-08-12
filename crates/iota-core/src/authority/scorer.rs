@@ -131,9 +131,11 @@ impl VersionedScorer {
     }
 }
 
-/// V1 scoring parameters and implementation. Field order mirrors
-/// `MisbehaviorObservationsV1` so the score loop can iterate
-/// `(row, params)` pairs without an indirection through `Misbehavior`.
+/// V1 scoring parameters and implementation. Every category is a
+/// `MetricKind::Minor` except `equivocations`, the sole
+/// `MetricKind::Major`. Field order mirrors `MisbehaviorObservationsV1` so
+/// the score loop can iterate `(row, params)` pairs without an indirection
+/// through `Misbehavior`.
 struct ScorerV1 {
     faulty_blocks_provable: MetricParams,
     faulty_blocks_unprovable: MetricParams,
@@ -262,9 +264,11 @@ impl ScorerV1 {
 /// V2 scoring parameters and implementation for
 /// `MisbehaviorObservationsV2`. Same math as `ScorerV1` with a fifth
 /// category: invalid bundle parts, carved out of the V1 unprovable weight so
-/// the total penalty budget stays the same. Field order mirrors
-/// `MisbehaviorObservationsV2` so the score loop can iterate `(row, params)`
-/// pairs without an indirection through `Misbehavior`.
+/// the total penalty budget stays the same. Every category is a
+/// `MetricKind::Minor` except `equivocations`, the sole `MetricKind::Major`.
+/// Field order mirrors `MisbehaviorObservationsV2` so the score loop can
+/// iterate `(row, params)` pairs without an indirection through
+/// `Misbehavior`.
 struct ScorerV2 {
     faulty_blocks_provable: MetricParams,
     faulty_blocks_unprovable: MetricParams,
@@ -515,6 +519,10 @@ fn score_from_metric_pairs(
     final_scores
 }
 
+/// How a misbehavior category affects the score: graded categories (minor)
+/// each erode their own share of a bounded weight budget, so they can never
+/// take the score to zero on their own; disqualifying offenses (major) zero
+/// the score outright on any occurrence.
 #[derive(Copy, Clone)]
 enum MetricKind {
     /// Linear penalty between `allowance` and `maximum`, weighted into the
