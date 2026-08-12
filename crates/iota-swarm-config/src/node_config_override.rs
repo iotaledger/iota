@@ -882,13 +882,13 @@ mod tests {
     #[test]
     fn apply_rejects_nesting_under_a_scalar() {
         let mut config = test_config();
-        let config_override: NodeConfigOverride = "enable-index-processing.foo=1".parse().unwrap();
+        let config_override: NodeConfigOverride = "enable-jsonrpc-api.foo=1".parse().unwrap();
         let err = config_override
             .apply_to(&mut config)
             .unwrap_err()
             .to_string();
         assert!(
-            err.starts_with("`enable-index-processing` in "),
+            err.starts_with("`enable-jsonrpc-api` in "),
             "error blames the wrong segment: {err}"
         );
     }
@@ -1098,7 +1098,7 @@ mod tests {
         let mut config = test_config();
         let overrides: Vec<NodeConfigOverride> = [
             "authority-store-pruning-config.num-epochs-to-retain=5",
-            "enable-index-processing=false",
+            "enable-jsonrpc-api=false",
             "authority-store-pruning-config.num-epochs-to-retain=7",
         ]
         .iter()
@@ -1109,7 +1109,7 @@ mod tests {
             config.authority_store_pruning_config.num_epochs_to_retain,
             7
         );
-        assert!(!config.enable_index_processing);
+        assert!(!config.enable_jsonrpc_api);
 
         // A batch is atomic: one bad override rejects the whole batch,
         // and the error names the override at fault.
