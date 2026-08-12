@@ -329,7 +329,9 @@ impl ValidatorService {
             )
             .await
         {
-            Ok(objs) => objs,
+            // Soft locks cover only the transaction's own owned inputs, not
+            // the authenticator-owned ones; post-consensus locking covers both.
+            Ok(objs) => objs.transaction,
             Err(e) => {
                 let weight = normalize(&e);
                 return (TxStatusUpdate::Rejected { error: e }, weight);

@@ -578,6 +578,13 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
 
+    // If true, immutable transaction inputs do not acquire owned-object locks
+    // in post-consensus conflict resolution — such a lock is never released
+    // and blocks every later reader until the epoch ends. Has no effect
+    // unless `enable_pcool_flow` is set.
+    #[serde(skip_serializing_if = "is_false")]
+    pcool_skip_immutable_object_locks: bool,
+
     // If true perform consistent verification of metadata
     #[serde(skip_serializing_if = "is_false")]
     validator_metadata_verify_v2: bool,
@@ -1936,6 +1943,10 @@ impl ProtocolConfig {
 
     pub fn enable_pcool_flow(&self) -> bool {
         self.feature_flags.enable_pcool_flow
+    }
+
+    pub fn pcool_skip_immutable_object_locks(&self) -> bool {
+        self.feature_flags.pcool_skip_immutable_object_locks
     }
 
     pub fn validator_metadata_verify_v2(&self) -> bool {
@@ -3337,6 +3348,10 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .consensus_enable_absolute_score_leader_schedule = true;
                     }
+                    // Stop locking immutable objects in post-consensus conflict
+                    // resolution. Set on all chains; inert where the P-COOL flow
+                    // is off.
+                    cfg.feature_flags.pcool_skip_immutable_object_locks = true;
                 }
                 34 => {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
@@ -3595,6 +3610,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
+    }
+
+    pub fn set_pcool_skip_immutable_object_locks_for_testing(&mut self, val: bool) {
+        self.feature_flags.pcool_skip_immutable_object_locks = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {

@@ -589,6 +589,7 @@ impl RegulatedCoinEnv {
                 epoch_gated_coin_deny_list,
             )
             .await
+            .map(|owned| owned.transaction)
     }
 
     /// Runs post-consensus validation over the transaction sequenced as a
