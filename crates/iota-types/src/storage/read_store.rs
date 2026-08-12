@@ -448,7 +448,8 @@ pub trait ReadStore: ObjectStore {
                 events: tx_with_events_and_effects.events,
                 unchanged_loaded_runtime_objects: self
                     .get_unchanged_loaded_runtime_objects(tx.digest())
-                    // TODO Do we throw an error or just stub in an empty vector?
+                    // We don't write empty sets to the DB to save space, so if this load went
+                    // through the writeback cache to the DB itself it wouldn't find an entry.
                     .unwrap_or_default(),
             };
             transactions.push(transaction);
