@@ -436,7 +436,7 @@ async fn test_dev_inspect_unowned_object() {
     let alice_gas_id = ObjectId::random();
     let (validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(alice, alice_gas_id)]).await;
-    let (bob, _bob_key): (_, AccountKeyPair) = get_key_pair();
+    let bob = Address::random();
 
     // make an object, send it to bob
     let effects = call_move_(
@@ -538,7 +538,7 @@ async fn test_dev_inspect_dynamic_field() {
         (mk_obj!(), mk_obj!())
     };
 
-    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
     let gas_object_id = ObjectId::random();
     let (_validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -1018,7 +1018,7 @@ fn check_coin_value(actual_value: &[u8], actual_type: &TypeTag, expected_value: 
 
 #[tokio::test]
 async fn test_dev_inspect_uses_unbound_object() {
-    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
     let gas_object_id = ObjectId::random();
     let (_validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -1055,7 +1055,7 @@ async fn test_dev_inspect_uses_unbound_object() {
 
 #[tokio::test]
 async fn test_dev_inspect_on_validator() {
-    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
     let gas_object_id = ObjectId::random();
     let (validator, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -1281,7 +1281,7 @@ async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
 // tests using a gas coin with version MAX - 1
 #[tokio::test]
 async fn test_dry_run_dev_inspect_max_gas_version() {
-    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
     let gas_object_id = ObjectId::random();
     let (validator, fullnode) = init_state_validator_with_fullnode().await;
     let (validator, object_basics) = publish_object_basics(validator).await;
@@ -1362,7 +1362,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
     .await
     .unwrap();
 
-    let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
+    let unknown_key = AccountKeyPair::random();
     let mut bad_signature_transfer_transaction = transfer_transaction.clone().into_inner();
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
@@ -3230,7 +3230,7 @@ async fn test_invalid_object_ownership() {
     // User transaction that attempts to mutate an object it does not own will fail
     // to sign.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (invalid_owner, _): (_, AccountKeyPair) = get_key_pair();
+    let invalid_owner = Address::random();
 
     let recipient = dbg_addr(2);
     let gas_object_id = ObjectId::random();
@@ -3437,7 +3437,7 @@ async fn test_transfer_iota_with_amount() {
 async fn test_store_revert_transfer_iota() {
     // This test checks the correctness of revert_state_update in IotaDataStore.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (recipient, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = Address::random();
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
     let gas_object_ref = gas_object.object_ref();
@@ -4086,7 +4086,7 @@ async fn test_store_revert_remove_ofield() {
 #[tokio::test]
 async fn test_iter_live_object_set() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+    let receiver = Address::random();
     let gas = ObjectId::random();
     let obj_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas), (sender, obj_id)]).await;
@@ -5949,7 +5949,7 @@ async fn test_gas_smashing() {
 async fn test_for_inc_201_dev_inspect() {
     use iota_move_build::BuildConfig;
 
-    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
     let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -7953,7 +7953,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
         soft_limit_pct,
     ));
 
-    let (recipient, _): (_, AccountKeyPair) = get_key_pair();
+    let recipient = Address::random();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let tx = make_transfer_object_transaction(
         gas_object1.object_ref(),

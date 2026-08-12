@@ -47,7 +47,6 @@ use iota_sdk_types::{
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
     gas_coin::GasCoin,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
@@ -359,7 +358,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         context.config_mut().keystore_mut().add_key(
             None,
-            SimpleKeypair::from(get_key_pair::<iota_sdk_crypto::ed25519::Ed25519PrivateKey>().1),
+            SimpleKeypair::from(iota_sdk_crypto::ed25519::Ed25519PrivateKey::random()),
         )?;
     }
 
@@ -5352,7 +5351,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
     let mut context = WalletContext::new(&wallet_config)?;
 
-    let (address, _): (_, AccountKeyPair) = get_key_pair();
+    let address = Address::random();
 
     let faucet_result = IotaClientCommands::Faucet {
         address: Some(KeyIdentity::Address(address)),
@@ -5413,9 +5412,9 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
     let mut context = WalletContext::new(&wallet_config)?;
 
-    let (address_1, _): (_, AccountKeyPair) = get_key_pair();
-    let (address_2, _): (_, AccountKeyPair) = get_key_pair();
-    let (address_3, _): (_, AccountKeyPair) = get_key_pair();
+    let address_1 = Address::random();
+    let address_2 = Address::random();
+    let address_3 = Address::random();
 
     assert_ne!(address_1, address_2);
     assert_ne!(address_1, address_3);
@@ -5458,9 +5457,9 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
     }
 
     // try with a new batch
-    let (address_4, _): (_, AccountKeyPair) = get_key_pair();
-    let (address_5, _): (_, AccountKeyPair) = get_key_pair();
-    let (address_6, _): (_, AccountKeyPair) = get_key_pair();
+    let address_4 = Address::random();
+    let address_5 = Address::random();
+    let address_6 = Address::random();
 
     assert_ne!(address_4, address_5);
     assert_ne!(address_4, address_6);
@@ -5542,9 +5541,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     let context = WalletContext::new(&wallet_config)?; // Use immutable context
 
     // Generate multiple addresses
-    let addresses: Vec<_> = (0..6)
-        .map(|_| get_key_pair::<AccountKeyPair>().0)
-        .collect::<Vec<Address>>();
+    let addresses: Vec<_> = (0..6).map(|_| Address::random()).collect::<Vec<Address>>();
 
     // Ensure all addresses have zero gas objects initially
     for address in &addresses {

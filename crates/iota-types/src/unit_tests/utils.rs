@@ -305,7 +305,7 @@ mod passkey {
     /// padding, satisfying the length requirement without needing a real
     /// WebAuthn round-trip.
     pub fn make_passkey_authenticator_sig() -> UserSignature {
-        let r1_kp = Secp256r1PrivateKey::generate(rand::thread_rng());
+        let r1_kp = Secp256r1PrivateKey::random();
         let user_sig: SimpleSignature = r1_kp.sign(&[0u8; 32]);
         let client_data_json = r#"{"type":"webauthn.get","challenge":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","origin":"https://test.iota.org"}"#;
         let passkey =
