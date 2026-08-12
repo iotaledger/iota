@@ -106,18 +106,15 @@ pub trait AttestedObjectVersionReader: Send + Sync {
 /// What the execution layer needs to judge an attestation when the attested
 /// transaction fails Move authentication at execution.
 pub struct AttestationVerdictContext<'a> {
-    pub object_versions: Vec<ObjectReference>,
-    pub version_reader: Option<&'a dyn AttestedObjectVersionReader>,
+    pub object_versions: &'a [ObjectReference],
+    pub version_reader: &'a dyn AttestedObjectVersionReader,
 }
 
 impl AttestationVerdictContext<'_> {
     /// Whether authentication should be re-run at the recorded versions.
     pub fn should_reauthenticate(&self, executed_versions: &BTreeMap<ObjectId, Version>) -> bool {
-        let Some(version_reader) = self.version_reader else {
-            return true;
-        };
         let mut drifted = false;
-        for object_ref in &self.object_versions {
+        for object_ref in self.object_versions {
             let Some(&executed) = executed_versions.get(object_ref.object_id()) else {
                 continue;
             };
@@ -126,7 +123,9 @@ impl AttestationVerdictContext<'_> {
                 continue;
             }
             if attested > executed
-                || !version_reader.superseded_in_current_epoch(object_ref.object_id(), attested)
+                || !self
+                    .version_reader
+                    .superseded_in_current_epoch(object_ref.object_id(), attested)
             {
                 return false;
             }
@@ -168,12 +167,12 @@ mod tests {
     }
 
     fn verdict_context<'a>(
-        object_versions: &[ObjectReference],
+        object_versions: &'a [ObjectReference],
         reader: &'a FakeSupersededVersions,
     ) -> AttestationVerdictContext<'a> {
         AttestationVerdictContext {
-            object_versions: object_versions.to_vec(),
-            version_reader: Some(reader),
+            object_versions,
+            version_reader: reader,
         }
     }
 

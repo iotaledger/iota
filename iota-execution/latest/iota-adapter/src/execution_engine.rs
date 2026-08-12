@@ -523,7 +523,7 @@ mod checked {
                         rgp,
                         gas_budget,
                         reauth_authenticators,
-                        &verdict_context.object_versions,
+                        verdict_context.object_versions,
                         &transaction_kind,
                         transaction_digest,
                         &auth_context_data,

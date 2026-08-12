@@ -2284,8 +2284,8 @@ impl AuthorityState {
                 .attestation()
                 .zip(attested_object_versions.as_ref())
                 .map(|(attestation, version_reader)| AttestationVerdictContext {
-                    object_versions: attestation.object_versions().to_vec(),
-                    version_reader: Some(version_reader),
+                    object_versions: attestation.object_versions(),
+                    version_reader,
                 });
 
             let (
