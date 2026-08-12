@@ -90,12 +90,12 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub consensus_config: Option<ConsensusConfig>,
 
-    /// Flag to enable index processing for a full node.
-    ///
-    /// If set to true, node creates `IndexStore` for transaction
-    /// data including ownership and balance information.
-    #[serde(default = "default_enable_index_processing")]
-    pub enable_index_processing: bool,
+    /// Flag to enable the JSON-RPC API. A node with this set serves every
+    /// JSON-RPC method, including the index-backed ones; with it unset
+    /// nothing is mounted on `json_rpc_address`, the `/health` endpoint
+    /// included. Metrics and the admin interface are unaffected.
+    #[serde(default = "default_enable_jsonrpc_api")]
+    pub enable_jsonrpc_api: bool,
 
     // only allow websocket connections for jsonrpc traffic
     #[serde(default)]
@@ -677,7 +677,7 @@ fn default_authority_store_pruning_config() -> AuthorityStorePruningConfig {
     AuthorityStorePruningConfig::default()
 }
 
-pub fn default_enable_index_processing() -> bool {
+pub fn default_enable_jsonrpc_api() -> bool {
     true
 }
 

@@ -15,7 +15,7 @@ use iota_config::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis,
         GrpcApiConfig, KeyPairWithPath, RunWithRange, StateSnapshotConfig,
-        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
+        default_enable_jsonrpc_api, default_end_of_epoch_broadcast_channel_capacity,
         default_full_checkpoint_contents_cache_size_mb,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
@@ -209,7 +209,7 @@ impl ValidatorConfigBuilder {
                 .to_socket_addr()
                 .unwrap(),
             consensus_config: Some(consensus_config),
-            enable_index_processing: default_enable_index_processing(),
+            enable_jsonrpc_api: default_enable_jsonrpc_api(),
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -298,6 +298,7 @@ pub struct FullnodeConfigBuilder {
     disable_pruning: bool,
     num_epochs_to_retain_for_indexes: Option<u64>,
     iota_names_config: Option<IotaNamesConfig>,
+    enable_jsonrpc_api: bool,
     enable_grpc_api: bool,
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
@@ -306,7 +307,10 @@ pub struct FullnodeConfigBuilder {
 
 impl FullnodeConfigBuilder {
     pub fn new() -> Self {
-        Self::default()
+        Self {
+            enable_jsonrpc_api: true,
+            ..Default::default()
+        }
     }
 
     pub fn with_chain_override(mut self, chain: Chain) -> Self {
@@ -431,6 +435,11 @@ impl FullnodeConfigBuilder {
 
     pub fn with_iota_names_config(mut self, config: Option<IotaNamesConfig>) -> Self {
         self.iota_names_config = config;
+        self
+    }
+
+    pub fn with_enable_jsonrpc_api(mut self, enable_jsonrpc_api: bool) -> Self {
+        self.enable_jsonrpc_api = enable_jsonrpc_api;
         self
     }
 
@@ -566,7 +575,7 @@ impl FullnodeConfigBuilder {
                 .unwrap_or(local_ip_utils::new_local_tcp_socket_for_testing()),
             json_rpc_address: self.json_rpc_address.unwrap_or(json_rpc_address),
             consensus_config: None,
-            enable_index_processing: default_enable_index_processing(),
+            enable_jsonrpc_api: self.enable_jsonrpc_api,
             genesis,
             migration_tx_data_path,
             grpc_load_shed: None,

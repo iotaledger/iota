@@ -3695,8 +3695,10 @@ impl AuthorityState {
         }
     }
 
-    /// The index store when this node maintains the JSON-RPC group's tables,
-    /// `None` when it maintains no index at all or only the gRPC group's.
+    /// The index store when this node maintains the JSON-RPC group's tables.
+    /// `None` on a validator, and on a fullnode that serves no JSON-RPC —
+    /// the same flag mounts the JSON-RPC router, so a node that answers a
+    /// JSON-RPC call always has this.
     fn jsonrpc_indexes(&self) -> Option<&Arc<RpcIndexesStore>> {
         self.rpc_indexes_store
             .as_ref()
