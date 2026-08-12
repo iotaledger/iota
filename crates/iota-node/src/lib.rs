@@ -618,7 +618,7 @@ impl IotaNode {
         );
 
         let mut index_groups = BTreeSet::new();
-        if is_full_node && config.enable_index_processing {
+        if is_full_node && config.enable_jsonrpc_api {
             index_groups.insert(IndexGroup::JsonRpc);
         }
         if is_full_node && config.enable_grpc_api {
@@ -2612,8 +2612,9 @@ pub async fn build_http_server(
     config: &NodeConfig,
     prometheus_registry: &Registry,
 ) -> Result<Option<iota_http::ServerHandle>> {
-    // Validators do not expose these APIs
-    if config.is_validator() {
+    // Validators do not expose these APIs, and neither does a node with the
+    // JSON-RPC API turned off.
+    if config.is_validator() || !config.enable_jsonrpc_api {
         return Ok(None);
     }
 
