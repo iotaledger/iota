@@ -15,12 +15,6 @@ Be sure to reference any related issues by adding `fixes #(issue)`.
 
 ### Release Notes
 
-<!--
-If this PR merges a feature branch, delete this section and leave the notes on
-the PRs that were merged into the branch: those are collected automatically when
-the release notes are generated.
--->
-
 - [ ] Protocol:
 - [ ] Nodes (Validators and Full nodes):
 - [ ] Indexer:
