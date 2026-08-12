@@ -71,7 +71,7 @@ impl InputKey {
 
     pub fn is_cancelled(&self) -> bool {
         match self {
-            InputKey::VersionedObject { version, .. } => version.is_cancelled(),
+            InputKey::VersionedObject { version, .. } => version.is_canceled(),
             InputKey::Package { .. } => false,
         }
     }

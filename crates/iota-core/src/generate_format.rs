@@ -420,8 +420,8 @@ fn get_registry() -> Result<Registry> {
                 commit_timestamp_ms: 0,
                 consensus_commit_digest: ConsensusCommitDigest::default(),
                 consensus_determined_version_assignments:
-                    ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                        cancelled_transactions: vec![],
+                    ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                        canceled_transactions: vec![],
                     },
             }),
         )
