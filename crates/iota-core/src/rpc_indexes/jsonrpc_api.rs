@@ -243,6 +243,29 @@ fn coin_base_type() -> StructTag {
     coin
 }
 
+/// The owner-index scan an object filter can be narrowed to, so a filtered
+/// page reads only the objects that can match instead of every object the
+/// owner holds. Returns [`OwnerTypeFilter::None`] for a filter that does not
+/// pin the object type; the caller applies the filter itself either way.
+///
+/// A [`IotaObjectDataFilter::StructType`] without type parameters matches
+/// every instantiation of the type, which is what
+/// [`OwnerTypeFilter::BaseType`] scans; one with type parameters matches only
+/// that exact tag, which is [`OwnerTypeFilter::ExactType`]. Every element of
+/// a `MatchAll` has to match, so narrowing to any one of them keeps the same
+/// rows.
+fn owner_scan_filter(filter: Option<&IotaObjectDataFilter>) -> OwnerTypeFilter {
+    match filter {
+        Some(IotaObjectDataFilter::StructType(tag)) => OwnerTypeFilter::from_struct_tag(Some(tag)),
+        Some(IotaObjectDataFilter::MatchAll(filters)) => filters
+            .iter()
+            .map(|filter| owner_scan_filter(Some(filter)))
+            .find(|filter| !matches!(filter, OwnerTypeFilter::None))
+            .unwrap_or(OwnerTypeFilter::None),
+        _ => OwnerTypeFilter::None,
+    }
+}
+
 /// Scan bounds excluding `cursor`: the inclusive lower bound for forward
 /// scans and the inclusive upper bound for reverse scans. `None` when the
 /// cursor leaves nothing to scan.
@@ -728,6 +751,10 @@ impl RpcIndexesStore {
     /// the index does not store from the object store. `cursor` is the last
     /// object of the previous page; its key is rebuilt from the live object,
     /// so a cursor whose object was deleted in between is refused.
+    ///
+    /// A `filter` that pins the object type narrows the scan to that type's
+    /// rows, so the page resolves only objects that can match; every other
+    /// filter still walks everything `owner` holds.
     pub fn get_owner_objects(
         &self,
         owner: Address,
@@ -746,7 +773,8 @@ impl RpcIndexesStore {
         if limit == 0 {
             return Ok(results);
         }
-        for item in self.owner_iter(owner, cursor_key.as_ref(), OwnerTypeFilter::None)? {
+        let type_filter = owner_scan_filter(filter.as_ref());
+        for item in self.owner_iter(owner, cursor_key.as_ref(), type_filter)? {
             let (key, _info) = item?;
             if Some(key.object_id) == cursor {
                 continue; // the seek is inclusive; drop the cursor row itself
@@ -835,6 +863,12 @@ impl RpcIndexesStore {
     /// Each row carries the coin's own `T`, the same tag
     /// [`Self::get_all_balance`] keys on and the one the JSON-RPC `coinType`
     /// field reports — not the `Coin<T>` the object itself is.
+    ///
+    /// Because the order is by balance and the cursor's position is rebuilt
+    /// from its live balance, paging is only stable while the owner's coins
+    /// keep their balances: a cursor coin spent or topped up between two
+    /// pages moves in the order, and the next page resumes from its new
+    /// position, so rows can be repeated or skipped.
     pub fn get_owned_coins(
         &self,
         owner: Address,
