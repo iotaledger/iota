@@ -34,7 +34,7 @@ authority-store-pruning-config:
   periodic-compaction-threshold-days: 1
 
 # Resource Optimization
-enable-index-processing: false
+enable-jsonrpc-api: false
 checkpoint-executor-config:
   local-execution-timeout-sec: 10
 
