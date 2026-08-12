@@ -979,7 +979,7 @@ mod test {
                     .parse()
                     .unwrap(),
                 "validator:enable-soft-locking=false".parse().unwrap(),
-                "validator-0:enable-index-processing=false".parse().unwrap(),
+                "validator-0:enable-jsonrpc-api=false".parse().unwrap(),
             ])
             .build();
 
@@ -1006,7 +1006,7 @@ mod test {
         swarm.apply_node_config_overrides_for_spawn(&mut config);
         assert!(!config.enable_soft_locking);
         // The `validator-0` and fullnode scopes leave this validator alone.
-        assert!(config.enable_index_processing);
+        assert!(config.enable_jsonrpc_api);
         assert_eq!(
             config.authority_store_pruning_config.num_epochs_to_retain,
             num_epochs_to_retain
@@ -1165,7 +1165,7 @@ mod test {
                 "validator:firewall-config.destination-port=65001"
                     .parse()
                     .unwrap(),
-                "fullnode:enable-index-processing=false".parse().unwrap(),
+                "fullnode:enable-jsonrpc-api=false".parse().unwrap(),
             ])
             .try_build()
             .unwrap();
@@ -1178,7 +1178,7 @@ mod test {
             65001
         );
         let fullnode = swarm.fullnodes().next().unwrap();
-        assert!(!fullnode.config().enable_index_processing);
+        assert!(!fullnode.config().enable_jsonrpc_api);
     }
 
     #[test]
