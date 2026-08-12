@@ -3,6 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use iota_json_rpc_types::IotaObjectDataFilter;
 use iota_sdk_types::{
     Address, Event, Identifier, MoveStruct, ObjectData, ObjectId, Owner, StructTag,
     TransactionDigest, TypeTag, Version, move_package::MovePackage,
@@ -1189,6 +1190,86 @@ async fn test_owner_pages_follow_the_unified_key_order() {
         vec![],
         "a zero limit must return no rows, not the first matching one"
     );
+}
+
+/// A filter that pins the object type narrows the index scan, so the page
+/// must still hold exactly what the unfiltered scan filtered in memory holds,
+/// both in one page and paged one row at a time. Filters that pin no type
+/// keep walking everything the owner holds.
+#[tokio::test]
+async fn test_filtered_owner_pages_match_the_unfiltered_scan() {
+    let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
+    let owner = Address::random();
+    let mut object_store = BTreeMap::new();
+    seed_owner_objects_of_two_types(&index_store, &mut object_store, owner);
+    // Objects of a type no coin filter matches, so narrowing has rows to
+    // leave out.
+    for _ in 0..3 {
+        let object =
+            typed_object_for_testing("0x42::thing::Thing".parse().unwrap(), Owner::Address(owner));
+        let (key, info) = OwnerIndexKey::for_object(owner, &object).unwrap();
+        index_store.tables.owner.insert(&key, &info).unwrap();
+        object_store.insert(object.id(), object);
+    }
+
+    let unfiltered = index_store
+        .get_owner_objects(owner, None, 100, None, &object_store)
+        .unwrap();
+    assert_eq!(unfiltered.len(), 7, "all seeded objects must resolve");
+
+    let coin_of_iota: StructTag = "0x2::coin::Coin<0x2::iota::IOTA>".parse().unwrap();
+    let filters = [
+        IotaObjectDataFilter::StructType(coin_of_iota.clone()),
+        // No type parameters: every coin type.
+        IotaObjectDataFilter::StructType("0x2::coin::Coin".parse().unwrap()),
+        IotaObjectDataFilter::StructType("0x42::thing::Thing".parse().unwrap()),
+        // Narrowed through the `MatchAll`, and still checked per row.
+        IotaObjectDataFilter::MatchAll(vec![
+            IotaObjectDataFilter::StructType(coin_of_iota.clone()),
+            IotaObjectDataFilter::AddressOwner(owner),
+        ]),
+        // Pins no type: the full scan, filtered per row.
+        IotaObjectDataFilter::AddressOwner(owner),
+        IotaObjectDataFilter::MoveModule {
+            package: ObjectId::from(coin_of_iota.address()),
+            module: coin_of_iota.module().to_owned(),
+        },
+    ];
+    for filter in filters {
+        let expected = unfiltered
+            .iter()
+            .filter(|object_info| filter.matches(object_info))
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(
+            !expected.is_empty(),
+            "the filter {filter:?} must match some of the seeded objects"
+        );
+        assert_eq!(
+            index_store
+                .get_owner_objects(owner, None, 100, Some(filter.clone()), &object_store)
+                .unwrap(),
+            expected,
+            "the filter {filter:?} must page like the in-memory filter"
+        );
+
+        // The same rows, one page at a time: the cursor of a narrowed scan
+        // has to resume inside the narrowed bounds.
+        let mut paged = Vec::new();
+        let mut cursor = None;
+        loop {
+            let page = index_store
+                .get_owner_objects(owner, cursor, 1, Some(filter.clone()), &object_store)
+                .unwrap();
+            let Some(last) = page.last() else { break };
+            cursor = Some(last.object_id);
+            paged.extend(page);
+        }
+        assert_eq!(
+            paged, expected,
+            "paging the filter {filter:?} one row at a time must yield the same rows"
+        );
+    }
 }
 
 /// A cursor whose object was deleted between pages is refused instead of
