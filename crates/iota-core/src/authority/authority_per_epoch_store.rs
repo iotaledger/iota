@@ -3129,6 +3129,12 @@ impl AuthorityPerEpochStore {
         self.mirrored_transaction_deny_rules.load_full()
     }
 
+    /// Test access to the epoch metrics.
+    #[cfg(any(test, msim))]
+    pub fn metrics_for_testing(&self) -> &Arc<EpochMetrics> {
+        &self.metrics
+    }
+
     /// The mirrored deny-rule state to start from when the epoch store
     /// opens: a persisted row (mid-epoch restart) wins over the epoch-start
     /// seed. A fresh epoch persists the seed immediately when the object
