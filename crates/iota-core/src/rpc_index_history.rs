@@ -186,7 +186,9 @@ impl<B> EpochBuckets<B> {
 
     /// Drops the buckets of expired epochs: with `epochs_to_retain` = N, the
     /// buckets of the newest N epochs are kept and every older bucket is
-    /// dropped wholesale.
+    /// dropped wholesale. `0` keeps the newest bucket, exactly as `1` does,
+    /// so a caller that clamps its own retention to at least 1 changes
+    /// nothing here.
     ///
     /// Returns the earliest epoch to retain, `None` when there is no history
     /// at all. It is persisted before the drops and never moves backwards,
