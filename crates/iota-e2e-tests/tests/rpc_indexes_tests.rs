@@ -9,13 +9,15 @@
 //! harness fix first; reopen semantics are pinned by the `rpc_indexes`
 //! unit tests instead.
 
-use std::time::Duration;
+use std::{num::NonZeroUsize, time::Duration};
 
 use iota_core::authority::authority_store_pruner::MIN_EPOCHS_TO_RETAIN_FOR_INDEXES;
-use iota_json_rpc_types::TransactionFilter;
+use iota_json_rpc_api::{CoinReadApiClient, IndexerApiClient};
+use iota_json_rpc_types::{EventFilter, IotaTransactionBlockResponseQuery, TransactionFilter};
 use iota_macros::sim_test;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{Address, TransactionDigest};
+use iota_swarm::memory::Swarm;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -120,5 +122,65 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
     assert!(
         txes.contains(&recent_digest) && !txes.contains(&old_digest),
         "queries must serve the retained epochs only"
+    );
+}
+
+/// A node serving the JSON-RPC API answers every index-backed endpoint,
+/// so a client needs no capability probe before using it.
+#[sim_test]
+async fn jsonrpc_node_serves_every_index_backed_endpoint() {
+    // The JSON-RPC API is on by default; `TestClusterBuilder` has no knob to
+    // turn it off, so this exercises that default rather than setting it.
+    let cluster = TestClusterBuilder::new().build().await;
+    let address = cluster.get_address_0();
+    let client = cluster.rpc_client();
+
+    client
+        .get_owned_objects(address, None, None, None)
+        .await
+        .expect("getOwnedObjects must be served");
+    client
+        .get_coins(address, None, None, None)
+        .await
+        .expect("getCoins must be served");
+    client
+        .get_balance(address, None)
+        .await
+        .expect("getBalance must be served");
+    client
+        .get_all_balances(address)
+        .await
+        .expect("getAllBalances must be served");
+    client
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery::default(),
+            None,
+            Some(1),
+            Some(false),
+        )
+        .await
+        .expect("queryTransactionBlocks must be served");
+    client
+        .query_events(EventFilter::All(vec![]), None, Some(1), Some(false))
+        .await
+        .expect("queryEvents must be served");
+}
+
+/// A node with the JSON-RPC API off mounts no HTTP server on its JSON-RPC
+/// address, the way a node with the gRPC API off serves no gRPC.
+#[sim_test]
+async fn node_without_jsonrpc_api_mounts_no_http_server() {
+    let mut swarm = Swarm::builder()
+        .committee_size(NonZeroUsize::new(1).unwrap())
+        .with_fullnode_count(1)
+        .with_fullnode_enable_jsonrpc_api(false)
+        .build();
+    swarm.launch().await.unwrap();
+
+    let fullnode = swarm.fullnodes().next().unwrap();
+    let address = fullnode.config().json_rpc_address;
+    assert!(
+        tokio::net::TcpStream::connect(address).await.is_err(),
+        "nothing must listen on the JSON-RPC address when the API is off"
     );
 }
