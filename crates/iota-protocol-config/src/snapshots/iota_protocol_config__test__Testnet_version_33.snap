@@ -51,6 +51,7 @@ feature_flags:
   package_metadata_with_dynamic_module_metadata: true
   report_move_authentication_error: true
   max_ptb_value_size_v2: true
+  allow_unbounded_system_objects: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

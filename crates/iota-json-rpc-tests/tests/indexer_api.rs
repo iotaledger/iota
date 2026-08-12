@@ -68,6 +68,8 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
             OBJECT_START_VERSION,
             bcs::to_bytes(&nft).unwrap(),
             &ProtocolConfig::get_for_min_version(),
+            // system_mutation
+            false,
         )
         .unwrap()
     };

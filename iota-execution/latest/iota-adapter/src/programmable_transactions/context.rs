@@ -898,7 +898,7 @@ mod checked {
                 } = additional_write;
 
                 let move_object = {
-                    create_written_object(
+                    create_written_object::<Mode>(
                         vm,
                         &linkage_view,
                         protocol_config,
@@ -924,7 +924,7 @@ mod checked {
                     invariant_violation!("Failed to deserialize already serialized Move value");
                 };
                 let move_object = {
-                    create_written_object(
+                    create_written_object::<Mode>(
                         vm,
                         &linkage_view,
                         protocol_config,
@@ -1707,7 +1707,7 @@ mod checked {
     }
 
     /// Generate a MoveStruct given an updated/written object
-    fn create_written_object(
+    fn create_written_object<Mode: ExecutionMode>(
         vm: &MoveVM,
         linkage_view: &LinkageView,
         protocol_config: &ProtocolConfig,
@@ -1740,6 +1740,7 @@ mod checked {
             old_obj_ver.unwrap_or_default(),
             contents,
             protocol_config,
+            Mode::packages_are_predefined(),
         )
     }
 
