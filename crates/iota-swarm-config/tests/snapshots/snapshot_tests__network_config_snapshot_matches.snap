@@ -23,7 +23,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
@@ -118,7 +118,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
@@ -213,7 +213,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
@@ -308,7 +308,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
@@ -403,7 +403,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
@@ -498,7 +498,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
@@ -593,7 +593,7 @@ validator_configs:
       max-pending-transactions: ~
       max-submit-position: ~
       submit-delay-step-override-millis: ~
-    enable-index-processing: true
+    enable-jsonrpc-api: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
     grpc-concurrency-limit-per-core: 500000000
