@@ -620,6 +620,18 @@ impl IotaNode {
             if config
                 .authority_store_pruning_config
                 .num_epochs_to_retain_for_indexes
+                == Some(0)
+            {
+                return Err(anyhow!(
+                    "num_epochs_to_retain_for_indexes is 0, which the RPC indexes cannot do: the \
+                     running epoch's history is written whatever the retention, because checkpoint \
+                     ingest reads its transaction digests. Set it to 1 to keep the current epoch \
+                     only, or turn the API off with enable_jsonrpc_api / enable_grpc_api"
+                ));
+            }
+            if config
+                .authority_store_pruning_config
+                .num_epochs_to_retain_for_indexes
                 .is_none()
             {
                 warn!(
