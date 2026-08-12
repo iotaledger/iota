@@ -11,7 +11,6 @@
 
 use std::{num::NonZeroUsize, time::Duration};
 
-use iota_core::authority::authority_store_pruner::MIN_EPOCHS_TO_RETAIN_FOR_INDEXES;
 use iota_json_rpc_api::{CoinReadApiClient, IndexerApiClient};
 use iota_json_rpc_types::{EventFilter, IotaTransactionBlockResponseQuery, TransactionFilter};
 use iota_macros::sim_test;
@@ -76,20 +75,24 @@ async fn indexes_chain_across_epoch_buckets_on_a_live_node() {
     assert_eq!(reverse, vec![digest_epoch_1, digest_epoch_0]);
 }
 
+/// Retention this test configures, in epochs. Small enough that the test can
+/// advance past it, large enough that recent history survives.
+const EPOCHS_TO_RETAIN: u64 = 2;
+
 /// With `num_epochs_to_retain_for_indexes` configured, the pruner drops
 /// expired epochs' history on a running node while recent history and the
 /// live-state tables keep serving.
 #[sim_test]
 async fn index_pruning_drops_expired_epochs_on_a_live_node() {
     let cluster = TestClusterBuilder::new()
-        .with_fullnode_num_epochs_to_retain_for_indexes(Some(MIN_EPOCHS_TO_RETAIN_FOR_INDEXES))
+        .with_fullnode_num_epochs_to_retain_for_indexes(Some(EPOCHS_TO_RETAIN))
         .build()
         .await;
 
     let (sender, old_digest) = transfer_coin(&cluster.wallet).await;
 
     // One epoch past the retention, so epoch 0 falls out of it.
-    for _ in 0..=MIN_EPOCHS_TO_RETAIN_FOR_INDEXES {
+    for _ in 0..=EPOCHS_TO_RETAIN {
         cluster.force_new_epoch().await;
     }
     let (_, recent_digest) = transfer_coin(&cluster.wallet).await;
