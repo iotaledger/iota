@@ -584,7 +584,7 @@ impl MetricParams {
 
 #[cfg(test)]
 mod tests {
-    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_protocol_config::ProtocolConfig;
     use iota_types::messages_consensus::{
         MisbehaviorObservations, MisbehaviorObservationsV1, MisbehaviorObservationsV2,
         VersionedMisbehaviorReport,
@@ -596,14 +596,18 @@ mod tests {
         scorer::{MAX_SCORE, Scoreboard, ScorerV1, ScorerV2, VotingPower},
     };
 
-    fn mock_protocol_config() -> ProtocolConfig {
-        ProtocolConfig::get_for_max_version_UNSAFE()
+    fn mock_protocol_config_with_scorer(version: u16) -> ProtocolConfig {
+        let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+        config.set_scorer_version_for_testing(version);
+        config
     }
 
-    /// Protocol config pinned to the last protocol version with scorer
-    /// version 1, to keep the V1 scoring path covered.
+    fn mock_protocol_config() -> ProtocolConfig {
+        mock_protocol_config_with_scorer(2)
+    }
+
     fn mock_protocol_config_scorer_v1() -> ProtocolConfig {
-        ProtocolConfig::get_for_version(ProtocolVersion::new(32), Chain::Testnet)
+        mock_protocol_config_with_scorer(1)
     }
 
     fn mock_report_version() -> MisbehaviorReportVersion {
@@ -678,8 +682,7 @@ mod tests {
 
     #[test]
     fn test_update_scores() {
-        // Committee of 3, voting powers [2, 5, 20]. Runs the max-version
-        // (V2) scorer.
+        // Committee of 3, voting powers [2, 5, 20]. Runs the V2 scorer.
         //
         // Weighted medians (total_vp = 27, threshold = 14):
         //   provable[0]:      reporters [(5,2),(0,5),(0,20)] → sorted

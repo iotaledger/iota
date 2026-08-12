@@ -248,7 +248,9 @@ mod tests {
     };
 
     fn mock_protocol_config() -> ProtocolConfig {
-        ProtocolConfig::get_for_max_version_UNSAFE()
+        let mut config = ProtocolConfig::get_for_max_version_UNSAFE();
+        config.set_scorer_version_for_testing(2);
+        config
     }
 
     fn mock_report_version() -> MisbehaviorReportVersion {
