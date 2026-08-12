@@ -668,6 +668,33 @@ impl RpcIndexesStore {
         }
         let opened = opened.expect("the index database is open on both paths above");
 
+        // Record the groups this open actually maintains. A group left out
+        // stops being maintained at the next indexed checkpoint, so its
+        // tables are correct only up to here; recording the narrowed set is
+        // what makes a later re-enable rebuild instead of adopting an index
+        // frozen at this point. The write happens before the store exists,
+        // so nothing can be indexed in between: a crash here leaves the
+        // tables complete at the watermark and the next open repeats the
+        // check.
+        let recorded = opened
+            .tables
+            .meta
+            .get(&())
+            .expect("failed to read the RPC index metadata");
+        if recorded.is_none_or(|metadata| metadata.groups != groups) {
+            opened
+                .tables
+                .meta
+                .insert(
+                    &(),
+                    &MetadataInfo {
+                        version: CURRENT_DB_VERSION,
+                        groups: groups.clone(),
+                    },
+                )
+                .expect("failed to record the RPC index groups");
+        }
+
         // A store rebuilt without local history has no rows to derive the
         // next sequence number from; anchor it to the network transaction
         // total at the indexed watermark so numbering stays canonical.

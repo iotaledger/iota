@@ -2325,6 +2325,86 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
     );
 }
 
+/// Reopening with fewer groups records the narrowed set, so enabling the
+/// dropped group again rebuilds instead of adopting tables that stopped being
+/// maintained at the reopen.
+#[tokio::test]
+async fn test_reopening_with_fewer_groups_makes_re_enabling_them_rebuild() {
+    let (authority_state, _) = genesis_authority_state().await;
+    let checkpoint_store = &authority_state.checkpoint_store;
+    let authority_store = authority_state.database_for_testing();
+    let index_dir = iota_common::tempdir();
+    let both = BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]);
+    let jsonrpc_only = BTreeSet::from([IndexGroup::JsonRpc]);
+    let open = async |groups: BTreeSet<IndexGroup>| {
+        // A fresh registry: every open registers the same metrics again.
+        let store = RpcIndexesStore::new(
+            index_dir.path().to_path_buf(),
+            &Registry::default(),
+            groups,
+            Some(128),
+            None,
+            &authority_store,
+            checkpoint_store,
+            Default::default(),
+        )
+        .await
+        .unwrap();
+        store.wait_for_history_backfill_for_testing().await;
+        store
+    };
+
+    let index_store = open(both.clone()).await;
+    assert_eq!(
+        index_store.tables.meta.get(&()).unwrap().unwrap().groups,
+        both
+    );
+    close_index_store(index_store).await;
+
+    // Dropping a group must not rebuild — its tables are still complete as
+    // of this open — but the store must record that it stops maintaining it.
+    let index_store = open(jsonrpc_only.clone()).await;
+    assert_eq!(
+        index_store.tables.meta.get(&()).unwrap().unwrap().groups,
+        jsonrpc_only,
+        "the narrowed group set must be recorded"
+    );
+    assert!(
+        !index_store
+            .tables
+            .needs_to_do_initialization(checkpoint_store, &jsonrpc_only)
+            .unwrap(),
+        "dropping a group must not rebuild the store"
+    );
+    assert!(
+        index_store
+            .tables
+            .needs_to_do_initialization(checkpoint_store, &both)
+            .unwrap(),
+        "re-enabling the dropped group must rebuild the store"
+    );
+    // A row no rebuild would write, to tell the rebuilt store from this one.
+    let poison_field = DynamicFieldKey::new(ObjectId::random(), ObjectId::random());
+    index_store
+        .tables
+        .dynamic_field
+        .insert(&poison_field, &())
+        .unwrap();
+    close_index_store(index_store).await;
+
+    let index_store = open(both.clone()).await;
+    assert!(
+        !index_store
+            .dynamic_field_exists(poison_field.parent, poison_field.field_id)
+            .unwrap(),
+        "re-enabling the dropped group must have rebuilt the store"
+    );
+    assert_eq!(
+        index_store.tables.meta.get(&()).unwrap().unwrap().groups,
+        both
+    );
+}
+
 /// A coin type's metadata, treasury cap and regulated metadata are separate
 /// objects of one row, created together by one transaction: indexing that
 /// checkpoint must leave a row carrying all three, and a later checkpoint
