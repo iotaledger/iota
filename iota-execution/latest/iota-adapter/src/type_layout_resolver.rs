@@ -12,7 +12,10 @@ use iota_types::{
 use move_core_types::annotated_value as A;
 use move_vm_runtime::move_vm::MoveVM;
 
-use crate::programmable_transactions::{context::load_type_from_struct, linkage_view::LinkageView};
+use crate::{
+    data_store::{cached_data_store::CachedPackageStore, linkage_view::LinkageView},
+    programmable_transactions::context::load_type_from_struct,
+};
 
 /// Retrieve a `MoveStructLayout` from a `Type`.
 /// Invocation into the `Session` to leverage the `LinkageView` implementation
@@ -28,7 +31,9 @@ struct NullIotaResolver<'state>(Box<dyn TypeLayoutStore + 'state>);
 
 impl<'state, 'vm> TypeLayoutResolver<'state, 'vm> {
     pub fn new(vm: &'vm MoveVM, state_view: Box<dyn TypeLayoutStore + 'state>) -> Self {
-        let linkage_view = LinkageView::new(Box::new(NullIotaResolver(state_view)));
+        let linkage_view = LinkageView::new(Box::new(CachedPackageStore::new(Box::new(
+            NullIotaResolver(state_view),
+        ))));
         Self { vm, linkage_view }
     }
 }
