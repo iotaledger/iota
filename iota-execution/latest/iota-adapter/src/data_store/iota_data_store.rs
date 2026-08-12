@@ -2,8 +2,10 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::rc::Rc;
+
 use iota_sdk_types::{ObjectId, move_package::MovePackage};
-use iota_types::iota_sdk_types_conversions::identifier_core_to_sdk;
+use iota_types::{error::IotaResult, iota_sdk_types_conversions::identifier_core_to_sdk};
 use move_binary_format::errors::{Location, PartialVMError, PartialVMResult, VMResult};
 use move_core_types::{
     account_address::AccountAddress, identifier::IdentStr, language_storage::ModuleId,
@@ -11,7 +13,7 @@ use move_core_types::{
 };
 use move_vm_types::data_store::DataStore;
 
-use crate::programmable_transactions::linkage_view::LinkageView;
+use crate::data_store::{PackageStore, linkage_view::LinkageView};
 
 // Implementation of the `DataStore` trait for the Move VM.
 // When used during execution it may have a list of new packages that have
@@ -105,5 +107,16 @@ impl DataStore for IotaDataStore<'_, '_> {
         // we cannot panic here because during execution and publishing this is
         // currently called from the publish flow in the Move runtime
         Ok(())
+    }
+}
+
+impl PackageStore for IotaDataStore<'_, '_> {
+    fn get_package(&self, id: &ObjectId) -> IotaResult<Option<Rc<MovePackage>>> {
+        for package in self.new_packages {
+            if package.id() == *id {
+                return Ok(Some(Rc::new(package.clone())));
+            }
+        }
+        self.linkage_view.get_package(id)
     }
 }
