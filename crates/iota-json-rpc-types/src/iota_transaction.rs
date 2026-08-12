@@ -11,7 +11,7 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
+    Address, Argument, CanceledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
     ChangeEpochV4, Command, ConsensusCommitDigest, ConsensusDeterminedVersionAssignments,
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
     GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
@@ -1888,10 +1888,10 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
         consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
     ) -> Self {
         match consensus_determined_version_assignments {
-            ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                cancelled_transactions,
+            ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                canceled_transactions,
             } => IotaConsensusDeterminedVersionAssignments::CancelledTransactions(
-                cancelled_transactions
+                canceled_transactions
                     .into_iter()
                     .map(|cancelled| {
                         (
@@ -1918,10 +1918,10 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
     ) -> Self {
         match iota_consensus_determined_version_assignments {
             IotaConsensusDeterminedVersionAssignments::CancelledTransactions(assignments) => {
-                ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                    cancelled_transactions: assignments
+                ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                    canceled_transactions: assignments
                         .into_iter()
-                        .map(|(digest, version_assignments)| CancelledTransaction {
+                        .map(|(digest, version_assignments)| CanceledTransaction {
                             digest,
                             version_assignments: version_assignments
                                 .into_iter()

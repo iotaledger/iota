@@ -42,7 +42,7 @@ async fn test_writeback_immediate_return_canceled_shared() {
     let cache = create_writeback_cache().await;
     let canceled_key = InputKey::VersionedObject {
         id: ObjectId::random(),
-        version: Version::CANCELLED_READ,
+        version: Version::CANCELED_READ,
     };
     let receiving_keys = HashSet::new();
     let epoch = 0;
@@ -459,7 +459,7 @@ async fn cache_only_availability_ignores_store_but_full_path_falls_back() {
     // A cancelled sentinel version short-circuits to available.
     let cancelled_key = InputKey::VersionedObject {
         id: ObjectId::random(),
-        version: Version::CANCELLED_READ,
+        version: Version::CANCELED_READ,
     };
     assert_eq!(
         cache.multi_input_objects_available_cache_only(&[cancelled_key]),

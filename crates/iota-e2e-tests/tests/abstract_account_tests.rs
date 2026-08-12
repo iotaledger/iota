@@ -690,7 +690,7 @@ async fn test_abstract_account_shared_object_congestion_cancellation() -> Result
         command.is_none(),
         "Expected the congestion cancellation to carry no command index",
     );
-    let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+    let ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
         congested_objects, ..
     } = &error
     else {

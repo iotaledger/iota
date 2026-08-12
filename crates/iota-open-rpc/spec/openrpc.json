@@ -1287,15 +1287,15 @@
           "params": [
             {
               "name": "version",
-              "value": 32
+              "value": 33
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "32",
-              "protocolVersion": "32",
+              "maxSupportedProtocolVersion": "33",
+              "protocolVersion": "33",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
