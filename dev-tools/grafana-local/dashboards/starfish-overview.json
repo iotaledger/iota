@@ -21986,7 +21986,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "consensus_peer_responsiveness_expected_latency_ms{kind=\"Header synchronizer\"}",
+              "expr": "consensus_peer_responsiveness_expected_latency_ms{kind=\"Header synchronizer requested\"}",
               "instant": false,
               "legendFormat": "{{selection}} @ {{host}}",
               "range": true,
