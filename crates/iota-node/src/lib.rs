@@ -360,6 +360,7 @@ impl IotaNode {
         serving_rt_handle: tokio::runtime::Handle,
         index_rebuild_cancelled: Arc<AtomicBool>,
     ) -> Result<Arc<IotaNode>> {
+        config.check_renamed_keys()?;
         config.validate()?;
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         if config.supported_protocol_versions.is_none() {
@@ -627,26 +628,26 @@ impl IotaNode {
         let rpc_indexes_store = if index_groups.is_empty() {
             None
         } else {
-            info!("creating index store");
             if config
                 .authority_store_pruning_config
                 .num_epochs_to_retain_for_indexes
                 == Some(0)
             {
                 return Err(anyhow!(
-                    "num_epochs_to_retain_for_indexes is 0, which the RPC indexes cannot do: the \
+                    "num-epochs-to-retain-for-indexes is 0, which the RPC indexes cannot do: the \
                      running epoch's history is written whatever the retention, because checkpoint \
                      ingest reads its transaction digests. Set it to 1 to keep the current epoch \
-                     only, or turn the API off with enable_jsonrpc_api / enable_grpc_api"
+                     only, or turn the API off with enable-jsonrpc-api / enable-grpc-api"
                 ));
             }
+            info!("creating index store");
             if config
                 .authority_store_pruning_config
                 .num_epochs_to_retain_for_indexes
                 .is_none()
             {
                 warn!(
-                    "index pruning is off (num_epochs_to_retain_for_indexes is unset): the history index, including the transaction-digest lookups the gRPC API serves, adds a column family per epoch and grows without bound"
+                    "index pruning is off (num-epochs-to-retain-for-indexes is unset): the history index, including the transaction-digest lookups the gRPC API serves, adds a column family per epoch and grows without bound"
                 );
             }
             Some(
