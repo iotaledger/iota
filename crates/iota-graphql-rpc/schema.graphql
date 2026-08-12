@@ -44,10 +44,11 @@ type Address implements IOwner {
 	defaults to `SENT`.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
-	gathering a page of results. It is required for queries that apply
-	more than two complex filters (on function, kind, sender, recipient,
-	input object, changed object, or ids), and can be at most
-	`serviceConfig.maxScanLimit`.
+	gathering a page of results. It is required for queries that apply two
+	or more complex filters (on function, recipient, input object,
+	changed object, or wrapped or deleted object), and can be at most
+	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+	any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -413,10 +414,11 @@ type Checkpoint {
 	Transactions in this checkpoint.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
-	gathering a page of results. It is required for queries that apply
-	more than two complex filters (on function, kind, sender, recipient,
-	input object, changed object, or ids), and can be at most
-	`serviceConfig.maxScanLimit`.
+	gathering a page of results. It is required for queries that apply two
+	or more complex filters (on function, recipient, input object,
+	changed object, or wrapped or deleted object), and can be at most
+	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+	any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -547,10 +549,11 @@ type Coin implements IMoveObject & IObject & IOwner {
 	The transaction blocks that sent objects to this object.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
-	gathering a page of results. It is required for queries that apply
-	more than two complex filters (on function, kind, sender, recipient,
-	input object, changed object, or ids), and can be at most
-	`serviceConfig.maxScanLimit`.
+	gathering a page of results. It is required for queries that apply two
+	or more complex filters (on function, recipient, input object,
+	changed object, or wrapped or deleted object), and can be at most
+	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+	any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -721,10 +724,11 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	The transaction blocks that sent objects to this object.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
-	gathering a page of results. It is required for queries that apply
-	more than two complex filters (on function, kind, sender, recipient,
-	input object, changed object, or ids), and can be at most
-	`serviceConfig.maxScanLimit`.
+	gathering a page of results. It is required for queries that apply two
+	or more complex filters (on function, recipient, input object,
+	changed object, or wrapped or deleted object), and can be at most
+	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+	any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -1165,10 +1169,11 @@ type Epoch {
 	The epoch's corresponding transaction blocks.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
-	gathering a page of results. It is required for queries that apply
-	more than two complex filters (on function, kind, sender, recipient,
-	input object, changed object, or ids), and can be at most
-	`serviceConfig.maxScanLimit`.
+	gathering a page of results. It is required for queries that apply two
+	or more complex filters (on function, recipient, input object,
+	changed object, or wrapped or deleted object), and can be at most
+	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+	any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -2142,10 +2147,11 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	The transaction blocks that sent objects to this object.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
-	gathering a page of results. It is required for queries that apply
-	more than two complex filters (on function, kind, sender, recipient,
-	input object, changed object, or ids), and can be at most
-	`serviceConfig.maxScanLimit`.
+	gathering a page of results. It is required for queries that apply two
+	or more complex filters (on function, recipient, input object,
+	changed object, or wrapped or deleted object), and can be at most
+	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+	any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -2352,10 +2358,11 @@ type MovePackage implements IObject & IOwner {
 	Note that objects that have been sent to a package become inaccessible.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
-	gathering a page of results. It is required for queries that apply
-	more than two complex filters (on function, kind, sender, recipient,
-	input object, changed object, or ids), and can be at most
-	`serviceConfig.maxScanLimit`.
+	gathering a page of results. It is required for queries that apply two
+	or more complex filters (on function, recipient, input object,
+	changed object, or wrapped or deleted object), and can be at most
+	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+	any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -2796,10 +2803,11 @@ type NameRegistration implements IMoveObject & IOwner {
 	The transaction blocks that sent objects to this object.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
-	gathering a page of results. It is required for queries that apply
-	more than two complex filters (on function, kind, sender, recipient,
-	input object, changed object, or ids), and can be at most
-	`serviceConfig.maxScanLimit`.
+	gathering a page of results. It is required for queries that apply two
+	or more complex filters (on function, recipient, input object,
+	changed object, or wrapped or deleted object), and can be at most
+	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+	any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -2981,10 +2989,11 @@ type Object implements IObject & IOwner {
 	The transaction blocks that sent objects to this object.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
-	gathering a page of results. It is required for queries that apply
-	more than two complex filters (on function, kind, sender, recipient,
-	input object, changed object, or ids), and can be at most
-	`serviceConfig.maxScanLimit`.
+	gathering a page of results. It is required for queries that apply two
+	or more complex filters (on function, recipient, input object,
+	changed object, or wrapped or deleted object), and can be at most
+	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+	any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -3650,10 +3659,11 @@ type Query {
 	The transaction blocks that exist in the network.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
-	gathering a page of results. It is required for queries that apply
-	more than two complex filters (on function, kind, sender, recipient,
-	input object, changed object, or ids), and can be at most
-	`serviceConfig.maxScanLimit`.
+	gathering a page of results. It is required for queries that apply two
+	or more complex filters (on function, recipient, input object,
+	changed object, or wrapped or deleted object), and can be at most
+	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+	any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -4110,10 +4120,11 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	The transaction blocks that sent objects to this object.
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
-	gathering a page of results. It is required for queries that apply
-	more than two complex filters (on function, kind, sender, recipient,
-	input object, changed object, or ids), and can be at most
-	`serviceConfig.maxScanLimit`.
+	gathering a page of results. It is required for queries that apply two
+	or more complex filters (on function, recipient, input object,
+	changed object, or wrapped or deleted object), and can be at most
+	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+	any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when

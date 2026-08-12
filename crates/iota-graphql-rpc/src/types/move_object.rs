@@ -264,10 +264,11 @@ impl MoveObject {
     /// The transaction blocks that sent objects to this object.
     ///
     /// `scanLimit` restricts the number of candidate transactions scanned when
-    /// gathering a page of results. It is required for queries that apply
-    /// more than two complex filters (on function, kind, sender, recipient,
-    /// input object, changed object, or ids), and can be at most
-    /// `serviceConfig.maxScanLimit`.
+    /// gathering a page of results. It is required for queries that apply two
+    /// or more complex filters (on function, recipient, input object,
+    /// changed object, or wrapped or deleted object), and can be at most
+    /// `serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
+    /// any of them.
     ///
     /// When the scan limit is reached the page will be returned even if it has
     /// fewer than `first` results when paginating forward (`last` when
