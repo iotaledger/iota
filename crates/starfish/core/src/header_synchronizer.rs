@@ -144,7 +144,9 @@ impl SyncMethod {
 /// responsiveness recording needs.
 struct FetchedHeaders {
     serialized_headers: Vec<Bytes>,
-    /// Round trip measured when the response arrived, before verification.
+    /// Round trip measured when the response arrived. The recording site adds
+    /// the verification time on top, so a peer is charged for checking what it
+    /// sent but not for the wait on the other periodic fetches in the batch.
     elapsed: Duration,
     /// Whether the peer was known to hold the requested headers and thus owes
     /// the whole request.
@@ -728,9 +730,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
     /// to Core for processing.
     ///
     /// Records the fetch in the responsiveness tracker once the payload has
-    /// been verified: a verification failure counts as a failure, a success is
-    /// credited with the latency scaled by how many of the requested headers
-    /// were actually delivered.
+    /// been verified: a verification failure or a gap-fill window violation
+    /// counts as a failure, a success is credited with the fetch-plus-verify
+    /// latency scaled by how many of the requested headers were actually
+    /// delivered.
     async fn process_fetched_headers_from_authority(
         fetched: FetchedHeaders,
         peer_index: AuthorityIndex,
@@ -766,6 +769,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         }
 
         // Verify all the fetched block headers
+        let verify_start = Instant::now();
         let block_headers = Handle::current()
             .spawn_blocking({
                 let block_verifier = block_verifier.clone();
@@ -786,15 +790,18 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 }
             })
             .await
-            .expect("Spawn blocking should not fail")
-            .inspect_err(|_| {
-                // A fast response of invalid headers must not earn rank.
-                context.peer_responsiveness.record_failure_with_timeout(
-                    DataSource::HeaderSynchronizerRequested,
-                    peer_index,
-                    FETCH_REQUEST_TIMEOUT,
-                );
-            })?;
+            .expect("Spawn blocking should not fail");
+        // Fetch and verification both count against the peer, matching the
+        // commit syncer.
+        let elapsed = fetched.elapsed + verify_start.elapsed();
+        let block_headers = block_headers.inspect_err(|_| {
+            // A fast response of invalid headers must not earn rank.
+            context.peer_responsiveness.record_failure_with_timeout(
+                DataSource::HeaderSynchronizerRequested,
+                peer_index,
+                FETCH_REQUEST_TIMEOUT,
+            );
+        })?;
 
         // Record commit votes from the verified blocks.
         for block in &block_headers {
@@ -877,24 +884,31 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 additional_headers.len()
             );
             additional_headers.clear();
-        }
-
-        // Credit the fetch now that the payload verified. Only requested
-        // headers count as delivered, so unsolicited extras cannot mask a
-        // shortfall.
-        let factor = if fetched.holds_requested {
-            shortfall_factor(
-                requested_blocks_guard.block_refs.len(),
-                requested_headers.len(),
-            )
+            // A proven violation is charged like a failed fetch: the peer is
+            // dishonest, so its response speed must not earn rank.
+            context.peer_responsiveness.record_failure_with_timeout(
+                DataSource::HeaderSynchronizerRequested,
+                peer_index,
+                FETCH_REQUEST_TIMEOUT,
+            );
         } else {
-            1.0
-        };
-        context.peer_responsiveness.record_success(
-            DataSource::HeaderSynchronizerRequested,
-            peer_index,
-            fetched.elapsed.mul_f64(factor),
-        );
+            // Credit the fetch now that the payload verified. Only requested
+            // headers count as delivered, so unsolicited extras cannot mask a
+            // shortfall.
+            let factor = if fetched.holds_requested {
+                shortfall_factor(
+                    requested_blocks_guard.block_refs.len(),
+                    requested_headers.len(),
+                )
+            } else {
+                1.0
+            };
+            context.peer_responsiveness.record_success(
+                DataSource::HeaderSynchronizerRequested,
+                peer_index,
+                elapsed.mul_f64(factor),
+            );
+        }
 
         let requested_headers = drop_far_future(
             &context,
@@ -4242,13 +4256,13 @@ mod tests {
         );
 
         // Peer 2 is asked for four headers and delivers one of them plus three
-        // valid but unrequested headers, so the response length matches the
+        // valid in-window gap-fill headers, so the response length matches the
         // request while three quarters of it are missing.
         let requested_headers = (30..34)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
-        let extras = (30..33)
-            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 1).build()))
+        let extras = (10..13)
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
         let mut serialized = vec![requested_headers[0].serialized().clone()];
         serialized.extend(extras.iter().map(|header| header.serialized().clone()));
@@ -4267,10 +4281,39 @@ mod tests {
         let elapsed_ms = fetched.elapsed.as_millis() as f64;
         let result = process(fetched, blocks_guard, padding_peer).await;
         assert!(result.is_ok());
+        let recorded = latency(padding_peer).expect("the delivery is recorded");
+        assert!(
+            (elapsed_ms * 4.0..elapsed_ms * 4.0 + 100.0).contains(&recorded),
+            "one of four requested headers delivered should scale the fetch-plus-verify \
+             latency by four, got {recorded}"
+        );
+
+        // Peer 3 pads its response with a header from an author we did not
+        // request from — a window violation.
+        let requested = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(61, 0).build());
+        let out_of_window = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(20, 3).build());
+        let violating_peer = AuthorityIndex::new_for_test(3);
+        let blocks_guard = inflight_blocks_map
+            .lock_headers(
+                BTreeSet::from([requested.reference()]),
+                violating_peer,
+                SyncMethod::Live,
+            )
+            .expect("the header is free to lock");
+        let result = process(
+            fetched_for_test(vec![
+                requested.serialized().clone(),
+                out_of_window.serialized().clone(),
+            ]),
+            blocks_guard,
+            violating_peer,
+        )
+        .await;
+        assert!(result.is_ok());
         assert_eq!(
-            latency(padding_peer),
-            Some(elapsed_ms * 4.0),
-            "one of four requested headers delivered should scale the latency by four"
+            latency(violating_peer),
+            Some(FETCH_REQUEST_TIMEOUT.as_millis() as f64),
+            "a window violation should be charged like a failed fetch"
         );
     }
 }
