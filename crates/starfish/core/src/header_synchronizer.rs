@@ -1695,7 +1695,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             if let Some(blocks_guard) =
                 inflight_block_headers.lock_headers(block_refs.clone(), peer, SyncMethod::Periodic)
             {
-                info!(
+                debug!(
                     "Periodic sync of {} missing block headers from peer {} {}: {}",
                     block_refs.len(),
                     peer,
@@ -1743,7 +1743,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     let peer_hostname = &context.committee.authority(peer_index).hostname;
                     match response {
                         Ok(fetched) => {
-                            info!("Fetched {} block headers from peer {}", fetched.serialized_headers.len(), peer_hostname);
+                            debug!("Fetched {} block headers from peer {}", fetched.serialized_headers.len(), peer_hostname);
                             results.push((blocks_guard, fetched, peer_index, highest_rounds));
 
                             // no more pending requests are left, just break the loop
@@ -1757,7 +1757,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                             if let Some(next_peer) = remaining_peers.next() {
                                 // do best effort to lock guards. If we can't lock then don't bother at this run.
                                 if let Some(blocks_guard) = inflight_block_headers.swap_locks(blocks_guard, next_peer) {
-                                    info!(
+                                    debug!(
                                         "Retrying syncing {} missing block headers from peer {}: {}",
                                         blocks_guard.block_refs.len(),
                                         peer_hostname,
