@@ -53,7 +53,7 @@ impl DataSource {
         DataSource::TransactionSynchronizer,
         DataSource::CommitSyncer,
         DataSource::FastCommitSyncer,
-        DataSource::HeaderSynchronizer,
+        DataSource::HeaderSynchronizerRequested,
     ];
 
     /// Sources whose measurements order the peers this source has no sample
@@ -68,16 +68,16 @@ impl DataSource {
         match self {
             DataSource::CommitSyncer => &[
                 DataSource::FastCommitSyncer,
-                DataSource::HeaderSynchronizer,
+                DataSource::HeaderSynchronizerRequested,
                 DataSource::TransactionSynchronizer,
             ],
             DataSource::FastCommitSyncer => &[
                 DataSource::CommitSyncer,
-                DataSource::HeaderSynchronizer,
+                DataSource::HeaderSynchronizerRequested,
                 DataSource::TransactionSynchronizer,
             ],
-            DataSource::TransactionSynchronizer => &[DataSource::HeaderSynchronizer],
-            DataSource::HeaderSynchronizer => &[DataSource::TransactionSynchronizer],
+            DataSource::TransactionSynchronizer => &[DataSource::HeaderSynchronizerRequested],
+            DataSource::HeaderSynchronizerRequested => &[DataSource::TransactionSynchronizer],
             _ => &[],
         }
     }
@@ -89,7 +89,7 @@ impl DataSource {
         match self {
             DataSource::CommitSyncer => COMMIT_SYNC_NEUTRAL_LATENCY_MS,
             DataSource::FastCommitSyncer => FAST_COMMIT_SYNC_NEUTRAL_LATENCY_MS,
-            DataSource::HeaderSynchronizer => HEADER_SYNC_NEUTRAL_LATENCY_MS,
+            DataSource::HeaderSynchronizerRequested => HEADER_SYNC_NEUTRAL_LATENCY_MS,
             _ => TRANSACTIONS_SYNC_NEUTRAL_LATENCY_MS,
         }
     }
@@ -750,7 +750,11 @@ mod tests {
     fn transactions_cold_start_follows_header_synchronizer_order() {
         let pr = responsiveness(5);
         for (peer, latency) in [(1, 400), (2, 300), (3, 200), (4, 100)] {
-            pr.record_success(DataSource::HeaderSynchronizer, idx(peer), ms(latency));
+            pr.record_success(
+                DataSource::HeaderSynchronizerRequested,
+                idx(peer),
+                ms(latency),
+            );
         }
 
         let candidates = vec![idx(1), idx(2), idx(3), idx(4)];
@@ -777,7 +781,7 @@ mod tests {
             let pr = responsiveness(4);
             // Peer 1 is slow on header fetches but quick on transaction
             // fetches; peer 2 is only known to the latter.
-            pr.record_success(DataSource::HeaderSynchronizer, idx(1), ms(5_000));
+            pr.record_success(DataSource::HeaderSynchronizerRequested, idx(1), ms(5_000));
             pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(10));
             pr.record_success(DataSource::TransactionSynchronizer, idx(2), ms(10));
 
