@@ -201,21 +201,32 @@ impl ScorerV1 {
     }
 
     /// `(row in median, params)` pairs for the explicit named-field iteration
-    /// used by both phases of the score formula. Adding a metric to
-    /// `MisbehaviorObservationsV1` / `ScorerV1` makes this array a
-    /// missing-field error, forcing the new metric to be wired in.
+    /// used by both phases of the score formula. Both structs are
+    /// destructured, so adding a metric to `MisbehaviorObservationsV1` /
+    /// `ScorerV1` is a missing-field error here, forcing the new metric to
+    /// be wired in.
     fn metric_pairs<'a>(
         &'a self,
         median: &'a MisbehaviorObservationsV1,
     ) -> [(&'a [u64], &'a MetricParams); 4] {
+        let MisbehaviorObservationsV1 {
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations,
+        } = median;
+        let Self {
+            faulty_blocks_provable: provable_params,
+            faulty_blocks_unprovable: unprovable_params,
+            missing_proposals: missing_params,
+            equivocations: equivocation_params,
+            baseline_score: _,
+        } = self;
         [
-            (&median.faulty_blocks_provable, &self.faulty_blocks_provable),
-            (
-                &median.faulty_blocks_unprovable,
-                &self.faulty_blocks_unprovable,
-            ),
-            (&median.missing_proposals, &self.missing_proposals),
-            (&median.equivocations, &self.equivocations),
+            (faulty_blocks_provable.as_slice(), provable_params),
+            (faulty_blocks_unprovable.as_slice(), unprovable_params),
+            (missing_proposals.as_slice(), missing_params),
+            (equivocations.as_slice(), equivocation_params),
         ]
     }
 
@@ -345,22 +356,35 @@ impl ScorerV2 {
     }
 
     /// `(row in median, params)` pairs for the explicit named-field iteration
-    /// used by both phases of the score formula. Adding a metric to
-    /// `MisbehaviorObservationsV2` / `ScorerV2` makes this array a
-    /// missing-field error, forcing the new metric to be wired in.
+    /// used by both phases of the score formula. Both structs are
+    /// destructured, so adding a metric to `MisbehaviorObservationsV2` /
+    /// `ScorerV2` is a missing-field error here, forcing the new metric to
+    /// be wired in.
     fn metric_pairs<'a>(
         &'a self,
         median: &'a MisbehaviorObservationsV2,
     ) -> [(&'a [u64], &'a MetricParams); 5] {
+        let MisbehaviorObservationsV2 {
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations,
+            invalid_bundle_parts,
+        } = median;
+        let Self {
+            faulty_blocks_provable: provable_params,
+            faulty_blocks_unprovable: unprovable_params,
+            missing_proposals: missing_params,
+            equivocations: equivocation_params,
+            invalid_bundle_parts: bundle_params,
+            baseline_score: _,
+        } = self;
         [
-            (&median.faulty_blocks_provable, &self.faulty_blocks_provable),
-            (
-                &median.faulty_blocks_unprovable,
-                &self.faulty_blocks_unprovable,
-            ),
-            (&median.missing_proposals, &self.missing_proposals),
-            (&median.equivocations, &self.equivocations),
-            (&median.invalid_bundle_parts, &self.invalid_bundle_parts),
+            (faulty_blocks_provable.as_slice(), provable_params),
+            (faulty_blocks_unprovable.as_slice(), unprovable_params),
+            (missing_proposals.as_slice(), missing_params),
+            (equivocations.as_slice(), equivocation_params),
+            (invalid_bundle_parts.as_slice(), bundle_params),
         ]
     }
 
