@@ -210,6 +210,7 @@ impl ValidatorConfigBuilder {
                 .unwrap(),
             consensus_config: Some(consensus_config),
             enable_jsonrpc_api: default_enable_jsonrpc_api(),
+            enable_index_processing: None,
             genesis: Genesis::new_empty(),
             migration_tx_data_path,
             grpc_load_shed: None,
@@ -438,6 +439,8 @@ impl FullnodeConfigBuilder {
         self
     }
 
+    /// A `FullNodeHandle` cannot be built against `false`: it needs a
+    /// JSON-RPC client, and nothing is mounted on the JSON-RPC address.
     pub fn with_enable_jsonrpc_api(mut self, enable_jsonrpc_api: bool) -> Self {
         self.enable_jsonrpc_api = enable_jsonrpc_api;
         self
@@ -576,6 +579,7 @@ impl FullnodeConfigBuilder {
             json_rpc_address: self.json_rpc_address.unwrap_or(json_rpc_address),
             consensus_config: None,
             enable_jsonrpc_api: self.enable_jsonrpc_api,
+            enable_index_processing: None,
             genesis,
             migration_tx_data_path,
             grpc_load_shed: None,
