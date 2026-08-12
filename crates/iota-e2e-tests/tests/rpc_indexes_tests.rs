@@ -9,13 +9,15 @@
 //! harness fix first; reopen semantics are pinned by the `rpc_indexes`
 //! unit tests instead.
 
-use std::time::Duration;
+use std::{num::NonZeroUsize, time::Duration};
 
 use iota_core::authority::authority_store_pruner::MIN_EPOCHS_TO_RETAIN_FOR_INDEXES;
-use iota_json_rpc_types::TransactionFilter;
+use iota_json_rpc_api::{CoinReadApiClient, IndexerApiClient};
+use iota_json_rpc_types::{EventFilter, IotaTransactionBlockResponseQuery, TransactionFilter};
 use iota_macros::sim_test;
 use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{Address, TransactionDigest};
+use iota_swarm::memory::Swarm;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -118,5 +120,96 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
     assert!(
         txes.contains(&recent_digest) && !txes.contains(&old_digest),
         "queries must serve the retained epochs only"
+    );
+}
+
+/// A node serving the JSON-RPC API answers every index-backed endpoint,
+/// so a client needs no capability probe before using it.
+#[sim_test]
+async fn jsonrpc_node_serves_every_index_backed_endpoint() {
+    // The JSON-RPC API is on by default; `TestClusterBuilder` has no knob to
+    // turn it off, so this exercises that default rather than setting it.
+    let cluster = TestClusterBuilder::new().build().await;
+    let address = cluster.get_address_0();
+    let client = cluster.rpc_client();
+
+    client
+        .get_owned_objects(address, None, None, None)
+        .await
+        .expect("getOwnedObjects must be served");
+    client
+        .get_coins(address, None, None, None)
+        .await
+        .expect("getCoins must be served");
+    client
+        .get_balance(address, None)
+        .await
+        .expect("getBalance must be served");
+    client
+        .get_all_balances(address)
+        .await
+        .expect("getAllBalances must be served");
+    client
+        .query_transaction_blocks(
+            IotaTransactionBlockResponseQuery::default(),
+            None,
+            Some(1),
+            Some(false),
+        )
+        .await
+        .expect("queryTransactionBlocks must be served");
+    client
+        .query_events(EventFilter::All(vec![]), None, Some(1), Some(false))
+        .await
+        .expect("queryEvents must be served");
+}
+
+/// A node with the JSON-RPC API off serves no JSON-RPC, but still answers
+/// `/health` on its JSON-RPC address, which liveness probes rely on.
+#[sim_test]
+async fn node_without_jsonrpc_api_serves_only_health() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let mut swarm = Swarm::builder()
+        .committee_size(NonZeroUsize::new(1).unwrap())
+        .with_fullnode_count(1)
+        .with_fullnode_enable_jsonrpc_api(false)
+        .build();
+    swarm.launch().await.unwrap();
+
+    let fullnode = swarm.fullnodes().next().unwrap();
+    let address = fullnode.config().json_rpc_address;
+    let status_line = |request: String| async move {
+        let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+        stream.write_all(request.as_bytes()).await.unwrap();
+        // Read only up to the status line and keep the connection open: the
+        // simulator drops a response the server sent just before closing.
+        let mut response = Vec::new();
+        let mut buf = [0u8; 4096];
+        while !response.windows(2).any(|w| w == b"\r\n") {
+            let n = stream.read(&mut buf).await.unwrap();
+            assert_ne!(n, 0, "the connection closed before a status line");
+            response.extend_from_slice(&buf[..n]);
+        }
+        String::from_utf8_lossy(&response)
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .to_string()
+    };
+
+    let health = status_line("GET /health HTTP/1.1\r\nHost: node\r\n\r\n".to_string()).await;
+    assert!(health.contains(" 200 "), "/health must answer: {health}");
+
+    let body = r#"{"jsonrpc":"2.0","id":1,"method":"iota_getChainIdentifier","params":[]}"#;
+    let json_rpc = status_line(format!(
+        "POST / HTTP/1.1\r\nHost: node\r\nContent-Type: application/json\r\n\
+         Content-Length: {}\r\n\r\n{body}",
+        body.len()
+    ))
+    .await;
+    assert!(
+        !json_rpc.contains(" 200 "),
+        "JSON-RPC must not be served: {json_rpc}"
     );
 }

@@ -619,7 +619,7 @@ impl IotaNode {
         );
 
         let mut index_groups = BTreeSet::new();
-        if is_full_node && config.enable_index_processing {
+        if is_full_node && config.enable_jsonrpc_api {
             index_groups.insert(IndexGroup::JsonRpc);
         }
         if is_full_node && config.enable_grpc_api {
@@ -2654,10 +2654,11 @@ async fn build_grpc_server(
 /// 1. Checks if the node is a validator by inspecting the consensus configuration; if so, it
 ///    returns early as validators do not expose these APIs.
 /// 2. Creates an Axum router to handle HTTP requests.
-/// 3. Initializes the JSON-RPC server and registers various RPC modules based on the node's state
-///    and configuration, including CoinApi, TransactionBuilderApi, GovernanceApi,
-///    TransactionExecutionApi, and IndexerApi.
-/// 4. Binds the server to the specified JSON-RPC address and starts listening for incoming
+/// 3. If the JSON-RPC API is enabled, initializes the JSON-RPC server and registers various RPC
+///    modules based on the node's state and configuration, including CoinApi,
+///    TransactionBuilderApi, GovernanceApi, TransactionExecutionApi, and IndexerApi.
+/// 4. Adds the `/health` endpoint, which is served whether or not the JSON-RPC API is enabled.
+/// 5. Binds the server to the specified JSON-RPC address and starts listening for incoming
 ///    connections.
 pub async fn build_http_server(
     state: Arc<AuthorityState>,
@@ -2672,65 +2673,68 @@ pub async fn build_http_server(
 
     let mut router = axum::Router::new();
 
-    let json_rpc_router = {
-        let traffic_controller = state.traffic_controller.clone();
-        let mut server = JsonRpcServerBuilder::new(
-            env!("CARGO_PKG_VERSION"),
-            prometheus_registry,
-            traffic_controller,
-            config.policy_config.clone(),
-        );
+    // A full node with JSON-RPC off still serves `/health`, which liveness
+    // probes rely on.
+    if config.enable_jsonrpc_api {
+        let json_rpc_router = {
+            let traffic_controller = state.traffic_controller.clone();
+            let mut server = JsonRpcServerBuilder::new(
+                env!("CARGO_PKG_VERSION"),
+                prometheus_registry,
+                traffic_controller,
+                config.policy_config.clone(),
+            );
 
-        let kv_store = build_kv_store(&state, config, prometheus_registry)?;
+            let kv_store = build_kv_store(&state, config, prometheus_registry)?;
 
-        let metrics = Arc::new(JsonRpcMetrics::new(prometheus_registry));
-        server.register_module(ReadApi::new(
-            state.clone(),
-            kv_store.clone(),
-            metrics.clone(),
-        ))?;
-        server.register_module(CoinReadApi::new(
-            state.clone(),
-            kv_store.clone(),
-            metrics.clone(),
-        )?)?;
-
-        // if run_with_range is enabled we want to prevent any transactions
-        // run_with_range = None is normal operating conditions
-        if config.run_with_range.is_none() {
-            server.register_module(TransactionBuilderApi::new(state.clone()))?;
-        }
-        server.register_module(GovernanceReadApi::new(state.clone(), metrics.clone()))?;
-
-        if let Some(transaction_orchestrator) = transaction_orchestrator {
-            server.register_module(TransactionExecutionApi::new(
+            let metrics = Arc::new(JsonRpcMetrics::new(prometheus_registry));
+            server.register_module(ReadApi::new(
                 state.clone(),
-                transaction_orchestrator.clone(),
+                kv_store.clone(),
                 metrics.clone(),
             ))?;
-        }
+            server.register_module(CoinReadApi::new(
+                state.clone(),
+                kv_store.clone(),
+                metrics.clone(),
+            )?)?;
 
-        let iota_names_config = config
-            .iota_names_config
-            .clone()
-            .unwrap_or_else(|| IotaNamesConfig::from_chain(&state.get_chain_identifier().chain()));
+            // if run_with_range is enabled we want to prevent any transactions
+            // run_with_range = None is normal operating conditions
+            if config.run_with_range.is_none() {
+                server.register_module(TransactionBuilderApi::new(state.clone()))?;
+            }
+            server.register_module(GovernanceReadApi::new(state.clone(), metrics.clone()))?;
 
-        server.register_module(IndexerApi::new(
-            state.clone(),
-            ReadApi::new(state.clone(), kv_store.clone(), metrics.clone()),
-            kv_store,
-            metrics,
-            iota_names_config,
-            config.indexer_max_subscriptions,
-        ))?;
-        server.register_module(MoveUtils::new(state.clone()))?;
+            if let Some(transaction_orchestrator) = transaction_orchestrator {
+                server.register_module(TransactionExecutionApi::new(
+                    state.clone(),
+                    transaction_orchestrator.clone(),
+                    metrics.clone(),
+                ))?;
+            }
 
-        let server_type = config.jsonrpc_server_type();
+            let iota_names_config = config.iota_names_config.clone().unwrap_or_else(|| {
+                IotaNamesConfig::from_chain(&state.get_chain_identifier().chain())
+            });
 
-        server.to_router(server_type).await?
-    };
+            server.register_module(IndexerApi::new(
+                state.clone(),
+                ReadApi::new(state.clone(), kv_store.clone(), metrics.clone()),
+                kv_store,
+                metrics,
+                iota_names_config,
+                config.indexer_max_subscriptions,
+            ))?;
+            server.register_module(MoveUtils::new(state.clone()))?;
 
-    router = router.merge(json_rpc_router);
+            let server_type = config.jsonrpc_server_type();
+
+            server.to_router(server_type).await?
+        };
+
+        router = router.merge(json_rpc_router);
+    }
 
     router = router
         .route("/health", axum::routing::get(health_check_handler))
@@ -2755,7 +2759,12 @@ pub async fn build_http_server(
         )
         .serve(&config.json_rpc_address, router)
         .map_err(|e| anyhow::anyhow!("{e}"))?;
-    info!(local_addr =? handle.local_addr(), "IOTA JSON-RPC server listening on {}", handle.local_addr());
+    info!(
+        local_addr =? handle.local_addr(),
+        json_rpc = config.enable_jsonrpc_api,
+        "IOTA HTTP server listening on {}",
+        handle.local_addr()
+    );
 
     Ok(Some(handle))
 }
