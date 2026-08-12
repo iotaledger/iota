@@ -151,13 +151,12 @@ async fn update_next_epoch_metadata(
     // network key
     let new_network_key_pair: Ed25519KeyPair = get_key_pair().1;
     let new_network_key_pair_copy = new_network_key_pair.copy();
-    new_config.network_key_pair = KeyPairWithPath::new(IotaKeyPair::Ed25519(new_network_key_pair));
+    new_config.network_key_pair = KeyPairWithPath::new(new_network_key_pair.into());
 
     // protocol key
     let new_protocol_key_pair: Ed25519KeyPair = get_key_pair().1;
     let new_protocol_key_pair_copy = new_protocol_key_pair.copy();
-    new_config.protocol_key_pair =
-        KeyPairWithPath::new(IotaKeyPair::Ed25519(new_protocol_key_pair));
+    new_config.protocol_key_pair = KeyPairWithPath::new(new_protocol_key_pair.into());
 
     // needs to be active_validators instead of committee_members here, so that
     // every validator can update their own metadata

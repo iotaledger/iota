@@ -32,7 +32,7 @@ use crate::{
         VerifiedTransactions, genesis_blocks,
     },
     commit::{
-        CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
+        CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef, CommitVote,
         GENESIS_COMMIT_INDEX, SubDagBase, TrustedCommit, load_pending_subdag_from_store,
     },
     context::Context,
@@ -271,8 +271,14 @@ pub(crate) struct DagState {
     /// Rounds for latest blocks traversed by linearizer per authority.
     last_committed_rounds: Vec<Round>,
 
-    /// The committed subdags that have been scored but scores have not been
-    /// used for leader schedule yet.
+    /// Committed subdags scored since the last leader-schedule rotation, not
+    /// yet applied to the schedule. The V2 path computes its reputation
+    /// scores from these; the sliding-window path takes scores from the
+    /// window scorer instead, so there this serves only as the rotation
+    /// counter (`scoring_subdags_count`) and the just-rotated edge
+    /// (`is_scoring_subdag_empty`). Once V2 is removed it can be dropped
+    /// entirely, both roles replaced by a single recovered `u32` holding the
+    /// last rotation boundary index.
     scoring_subdag: ScoringSubdag,
 
     /// Commit votes pending to be included in new blocks. Ordered by
@@ -304,9 +310,8 @@ pub(crate) struct DagState {
     /// the next dag state flush. This is okay because we can recover
     /// reputation scores & last_committed_rounds from the commits as
     /// needed.
-    /// The index in CommitRef correspond to the first index of the next
-    /// scheduler window, while the reputation scores in CommitInfoare for
-    /// the previous window.
+    /// The `CommitRef` is the boundary commit — the last commit of the window
+    /// that just closed — so recovery resumes from its index + 1.
     commit_info_to_write: Vec<(CommitRef, CommitInfo)>,
 
     /// Misbehavior scoring metrics (in-memory + persisted buckets).
@@ -324,6 +329,9 @@ pub(crate) struct DagState {
     /// History of strong-vote complaint masks against this node's own
     /// leader rounds, keyed by leader round.
     starfish_speed_leader_hints: BTreeMap<Round, StarfishSpeedLeaderRoundHints>,
+
+    /// Commitment over an empty transaction list for this committee.
+    empty_transactions_commitment: TransactionsCommitment,
 
     /// Broadcast sender for DAG visualizer events.
     #[cfg(feature = "dag-visualizer")]
@@ -420,6 +428,9 @@ impl DagState {
             unscored_committed_subdags.len()
         );
 
+        let empty_transactions_commitment =
+            TransactionsCommitment::compute_empty_transactions_commitment(&context);
+
         let mut state = Self {
             context,
             genesis,
@@ -451,6 +462,7 @@ impl DagState {
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
             starfish_speed_leader_hints: BTreeMap::new(),
+            empty_transactions_commitment,
             #[cfg(feature = "dag-visualizer")]
             dag_visualizer_sender: None,
         };
@@ -639,28 +651,19 @@ impl DagState {
     }
 
     fn rebuild_scoring_subdag_from_store(&mut self) {
-        let Some(last_commit) = self.last_commit.as_ref() else {
+        let Some(last_commit_index) = self.last_commit.as_ref().map(|c| c.index()) else {
             return;
         };
 
         let commit_recovery_start_index = self.last_commit_info_index().saturating_add(1);
 
-        if commit_recovery_start_index > last_commit.index() {
+        if commit_recovery_start_index > last_commit_index {
             return;
         }
 
-        let commits = self
-            .store
-            .scan_commits((commit_recovery_start_index..=last_commit.index()).into())
-            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
-
-        let mut unscored_subdags = Vec::with_capacity(commits.len());
-        for commit in commits {
-            let pending_subdag =
-                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])
-                    .unwrap_or_else(|e| panic!("Failed to recover pending subdag: {e:?}"));
-            unscored_subdags.push(pending_subdag.base);
-        }
+        let unscored_subdags = self.load_scoring_subdags_from_store(
+            (commit_recovery_start_index..=last_commit_index).into(),
+        );
 
         if !unscored_subdags.is_empty() {
             self.scoring_subdag.add_subdags(unscored_subdags);
@@ -1108,6 +1111,10 @@ impl DagState {
                 transactions[index] = Some(transaction.clone());
                 continue;
             }
+            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+                transactions[index] = Some(empty);
+                continue;
+            }
             missing.push((index, transactions_ref));
         }
 
@@ -1161,6 +1168,10 @@ impl DagState {
                 transactions[index] = Some(transaction.serialized().clone());
                 continue;
             }
+            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+                transactions[index] = Some(empty.serialized().clone());
+                continue;
+            }
             missing.push((index, transactions_ref));
         }
 
@@ -1204,7 +1215,6 @@ impl DagState {
     /// Checks if verified block headers exist for the given transaction refs.
     /// Checks in-memory data (genesis and recent_block_headers) first, then
     /// falls back to storage for blocks not found in memory.
-    #[cfg_attr(test, expect(dead_code))]
     pub(crate) fn contains_verified_block_headers_for_transaction_refs(
         &self,
         tx_refs: &[TransactionRef],
@@ -1960,6 +1970,10 @@ impl DagState {
                 exist[index] = self.get_genesis_block(tx_ref).is_some();
                 continue;
             }
+            if self.empty_transactions_for_ref(&tx_ref).is_some() {
+                exist[index] = true;
+                continue;
+            }
             if self.recent_transactions_by_authority[tx_ref.author()].contains_key(&tx_ref) {
                 exist[index] = true;
             } else {
@@ -2142,9 +2156,17 @@ impl DagState {
 
     /// Check if a block's transactions are locally available.
     pub(crate) fn are_transactions_available(&self, block_ref: &BlockRef) -> bool {
+        // Genesis blocks carry no transactions.
+        if self.genesis.contains_key(block_ref) {
+            return true;
+        }
         let Some(header) = self.recent_block_headers.get(block_ref) else {
             return false;
         };
+        // An empty payload is fully determined by the header's commitment.
+        if header.transactions_commitment() == self.empty_transactions_commitment {
+            return true;
+        }
         let transaction_ref = GenericTransactionRef::from(TransactionRef {
             round: block_ref.round,
             author: block_ref.author,
@@ -2626,12 +2648,11 @@ impl DagState {
         self.scoring_subdag.calculate_distributed_vote_scores()
     }
 
-    pub(crate) fn scoring_subdag_commit_range(&self) -> CommitIndex {
+    pub(crate) fn scoring_subdag_commit_range(&self) -> CommitRange {
         self.scoring_subdag
             .commit_range
-            .as_ref()
+            .clone()
             .expect("commit range should exist for scoring subdag")
-            .end()
     }
 
     /// The last round that should get evicted after a cache-clean-up operation.
@@ -2732,7 +2753,7 @@ impl DagState {
         self.pending_acknowledgments = acknowledgments.into_iter().collect::<BTreeSet<_>>();
     }
 
-    pub(crate) fn misbehavior_store(&self) -> &MisbehaviorStore {
+    pub(crate) fn misbehavior_store(&self) -> &Arc<MisbehaviorStore> {
         &self.misbehavior_store
     }
 
@@ -2843,6 +2864,39 @@ impl DagState {
             .adaptive_ack_excluded_authorities
             .set(mask.len() as i64);
         mask
+    }
+
+    /// Loads the committed subdags in `range` from stored commits, for
+    /// re-scoring. The commits and their block headers must exist in the
+    /// store.
+    pub(crate) fn load_scoring_subdags_from_store(&self, range: CommitRange) -> Vec<SubDagBase> {
+        self.store
+            .scan_commits(range)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
+            .into_iter()
+            .map(|commit| {
+                load_pending_subdag_from_store(self.store.as_ref(), commit, vec![])
+                    .unwrap_or_else(|e| panic!("Failed to recover pending subdag: {e:?}"))
+                    .base
+            })
+            .collect()
+    }
+
+    /// Returns the empty transactions object for `tx_ref` when its commitment
+    /// is the commitment over an empty transaction list, `None` otherwise.
+    fn empty_transactions_for_ref(
+        &self,
+        tx_ref: &GenericTransactionRef,
+    ) -> Option<VerifiedTransactions> {
+        match tx_ref {
+            GenericTransactionRef::TransactionRef(tx_ref) => (tx_ref.transactions_commitment
+                == self.empty_transactions_commitment)
+                .then(|| VerifiedTransactions::new_empty_from_ref(*tx_ref, None)),
+            // The legacy BlockRef form carries no commitment; commits that
+            // use it derive refs from acknowledgments, which never include
+            // empty blocks.
+            GenericTransactionRef::BlockRef(_) => None,
+        }
     }
 }
 #[cfg(test)]
@@ -4018,7 +4072,7 @@ mod test {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context, store);
+        let mut dag_state = DagState::new(context.clone(), store.clone());
 
         let block = VerifiedBlock::new_for_test(TestBlockHeader::new(5, 1).build());
         let block_ref = block.reference();
@@ -4039,6 +4093,84 @@ mod test {
         let other_ref = other.reference();
         dag_state.add_transactions(other.verified_transactions, DataSource::Test);
         assert!(!dag_state.are_transactions_available(&other_ref));
+
+        // Genesis blocks carry no transactions.
+        let genesis_ref = dag_state.genesis_blocks()[0].reference();
+        assert!(dag_state.are_transactions_available(&genesis_ref));
+
+        // A fabricated round-0 ref that is not a genesis block.
+        let fake_genesis_ref = BlockRef::new(
+            GENESIS_ROUND,
+            AuthorityIndex::new_for_test(0),
+            BlockHeaderDigest::MIN,
+        );
+        assert!(!dag_state.are_transactions_available(&fake_genesis_ref));
+
+        // A header whose commitment matches the empty transaction list is
+        // available without its payload.
+        let mut encoder = create_encoder(&context);
+        let empty_header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new_with_commitment(7, 3, &context, &mut encoder).build(),
+        );
+        let empty_ref = empty_header.reference();
+        dag_state.accept_block_header(empty_header, DataSource::Test);
+        assert!(dag_state.are_transactions_available(&empty_ref));
+
+        // The empty block stays available after a restart, from the recovered
+        // header alone.
+        dag_state.flush();
+        let dag_state = DagState::new(context, store);
+        assert!(dag_state.are_transactions_available(&empty_ref));
+    }
+
+    #[tokio::test]
+    async fn test_empty_transactions_readable_without_payload() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        let mut encoder = create_encoder(&context);
+        let empty_header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new_with_commitment(5, 2, &context, &mut encoder).build(),
+        );
+        dag_state.accept_block_header(empty_header.clone(), DataSource::Test);
+
+        // An empty-commitment ref counts as present and reads back as the
+        // empty payload, although no payload was stored. The legacy BlockRef
+        // form carries no commitment and is not recognized.
+        let tx_ref = GenericTransactionRef::from(empty_header.transaction_ref());
+        let block_ref = GenericTransactionRef::BlockRef(empty_header.reference());
+        assert_eq!(
+            dag_state.contains_transactions(vec![tx_ref, block_ref]),
+            vec![true, false]
+        );
+        let read = dag_state.try_get_verified_transactions(&[tx_ref]).unwrap();
+        let transactions = read[0].as_ref().unwrap();
+        assert!(!transactions.has_transactions());
+        assert_eq!(
+            transactions.transaction_ref(),
+            empty_header.transaction_ref()
+        );
+        assert_eq!(
+            dag_state.get_serialized_transactions(&[tx_ref])[0].as_ref(),
+            Some(transactions.serialized())
+        );
+
+        // A non-empty commitment without a stored payload stays missing.
+        let other = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(6, 1).build());
+        let other_ref = GenericTransactionRef::from(other.transaction_ref());
+        dag_state.accept_block_header(other, DataSource::Test);
+        assert_eq!(
+            dag_state.contains_transactions(vec![other_ref]),
+            vec![false]
+        );
+        assert!(
+            dag_state
+                .try_get_verified_transactions(&[other_ref])
+                .unwrap()[0]
+                .is_none()
+        );
     }
 
     #[tokio::test]

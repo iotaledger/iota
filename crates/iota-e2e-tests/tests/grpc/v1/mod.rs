@@ -15,7 +15,7 @@ use iota_grpc_types::v1::{
         argument::{Input, Result},
     },
     dynamic_field::DynamicField,
-    epoch::{Epoch, ProtocolConfig},
+    epoch::{Epoch, EpochCloseProof, ProtocolConfig},
     event::Event,
     ledger_service::GetServiceInfoResponse,
     move_package_service::PackageVersion,
@@ -134,6 +134,13 @@ impl_field_presence_checker!(Epoch {
     end,
     reference_gas_price,
     protocol_config: ProtocolConfig,
+    epoch_close_proof: EpochCloseProof,
+});
+impl_field_presence_checker!(EpochCloseProof {
+    checkpoint: Checkpoint,
+    end_of_epoch_transaction_effects: TransactionEffects,
+    end_of_epoch_transaction_events: TransactionEvents,
+    bcs_next_epoch_system_state_objects: [],
 });
 
 impl_field_presence_checker!(DynamicField {

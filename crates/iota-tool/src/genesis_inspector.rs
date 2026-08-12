@@ -6,30 +6,18 @@ use std::collections::BTreeMap;
 
 use inquire::Select;
 use iota_config::genesis::UnsignedGenesis;
-use iota_sdk_types::{ObjectId, Owner, move_package::MovePackage};
+use iota_sdk_types::{MoveStruct, ObjectId, Owner, move_package::MovePackage};
 use iota_types::{
-    balance::Balance,
     coin::CoinMetadata,
     gas_coin::{GasCoin, IotaTreasuryCap, NANOS_PER_IOTA},
     governance::StakedIota,
     iota_system_state::IotaValidatorGenesis,
-    object::{MoveObject, Object},
-    stardust::output::{AliasOutput, BasicOutput, NftOutput},
-    timelock::{
-        timelock::{TimeLock, is_timelocked_gas_balance},
-        timelocked_staked_iota::TimelockedStakedIota,
-    },
 };
 
 const STR_ALL: &str = "All";
 const STR_EXIT: &str = "Exit";
 const STR_IOTA: &str = "Iota";
 const STR_STAKED_IOTA: &str = "StakedIota";
-const STR_TIMELOCKED_IOTA: &str = "TimelockedIota";
-const STR_TIMELOCKED_STAKED_IOTA: &str = "TimelockedStakedIota";
-const STR_ALIAS_OUTPUT_IOTA: &str = "AliasOutputIota";
-const STR_BASIC_OUTPUT_IOTA: &str = "BasicOutputIota";
-const STR_NFT_OUTPUT_IOTA: &str = "NftOutputIota";
 const STR_PACKAGE: &str = "Package";
 const STR_COIN_METADATA: &str = "CoinMetadata";
 const STR_OTHER: &str = "Other";
@@ -37,10 +25,7 @@ const STR_IOTA_DISTRIBUTION: &str = "IOTA Distribution";
 const STR_OBJECTS: &str = "Objects";
 const STR_VALIDATORS: &str = "Validators";
 
-pub fn examine_genesis_checkpoint(
-    genesis: UnsignedGenesis,
-    migration_objects: impl Iterator<Item = Object>,
-) {
+pub fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
     let system_object = genesis
         .iota_system_object()
         .into_genesis_version_for_tooling();
@@ -78,19 +63,12 @@ pub fn examine_genesis_checkpoint(
     let mut package_map = BTreeMap::new();
     let mut iota_map = BTreeMap::new();
     let mut staked_iota_map = BTreeMap::new();
-    let mut timelocked_iota_map = BTreeMap::new();
-    let mut timelocked_staked_iota_map = BTreeMap::new();
-    let mut alias_output_iota_map = BTreeMap::new();
-    let mut basic_output_iota_map = BTreeMap::new();
-    let mut nft_output_iota_map = BTreeMap::new();
     let mut coin_metadata_map = BTreeMap::new();
     let mut other_object_map = BTreeMap::new();
 
     let additional_objects = genesis.objects();
-    let tot_additional_objects = additional_objects.len();
-    let mut total_objects = 0;
-    for object in additional_objects.iter().cloned().chain(migration_objects) {
-        total_objects += 1;
+    let total_objects = additional_objects.len();
+    for object in additional_objects.iter().cloned() {
         let object_id = object.id();
         let object_id_str = object_id.to_string();
         assert_eq!(object.storage_rebate, 0);
@@ -115,62 +93,6 @@ pub fn examine_genesis_checkpoint(
                     let validator = validator_pool_id_map.get(&staked_iota.pool_id()).unwrap();
                     assert_eq!(validator.staking_pool.id, staked_iota.pool_id());
                     staked_iota_map.insert(object.id(), staked_iota);
-                } else if let Ok(timelock_balance) = TimeLock::<Balance>::try_from(&object) {
-                    assert!(is_timelocked_gas_balance(
-                        &object.struct_tag().expect("should not be a package")
-                    ));
-                    let entry = iota_distribution
-                        .entry(object.owner.to_string())
-                        .or_default();
-                    entry.insert(
-                        object_id_str,
-                        (STR_TIMELOCKED_IOTA, timelock_balance.locked().value()),
-                    );
-                    timelocked_iota_map.insert(object.id(), timelock_balance);
-                } else if let Ok(alias_output) = AliasOutput::try_from(&object) {
-                    let entry = iota_distribution
-                        .entry(object.owner.to_string())
-                        .or_default();
-                    entry.insert(
-                        object_id_str,
-                        (STR_ALIAS_OUTPUT_IOTA, alias_output.balance.value()),
-                    );
-                    alias_output_iota_map.insert(object.id(), alias_output);
-                } else if let Ok(basic_output) = BasicOutput::try_from(&object) {
-                    let entry = iota_distribution
-                        .entry(object.owner.to_string())
-                        .or_default();
-                    entry.insert(
-                        object_id_str,
-                        (STR_BASIC_OUTPUT_IOTA, basic_output.balance.value()),
-                    );
-                    basic_output_iota_map.insert(object.id(), basic_output);
-                } else if let Ok(nft_output) = NftOutput::try_from(&object) {
-                    let entry = iota_distribution
-                        .entry(object.owner.to_string())
-                        .or_default();
-                    entry.insert(
-                        object_id_str,
-                        (STR_NFT_OUTPUT_IOTA, nft_output.balance.value()),
-                    );
-                    nft_output_iota_map.insert(object.id(), nft_output);
-                } else if let Ok(timelocked_staked_iota) = TimelockedStakedIota::try_from(&object) {
-                    let entry = iota_distribution
-                        .entry(object.owner.to_string())
-                        .or_default();
-                    entry.insert(
-                        object_id_str,
-                        (
-                            STR_TIMELOCKED_STAKED_IOTA,
-                            timelocked_staked_iota.principal(),
-                        ),
-                    );
-                    // Assert pool id is associated with a known validator.
-                    let validator = validator_pool_id_map
-                        .get(&timelocked_staked_iota.pool_id())
-                        .unwrap();
-                    assert_eq!(validator.staking_pool.id, timelocked_staked_iota.pool_id());
-                    timelocked_staked_iota_map.insert(object.id(), timelocked_staked_iota);
                 } else {
                     other_object_map.insert(object.id(), move_object.clone());
                 }
@@ -181,10 +103,6 @@ pub fn examine_genesis_checkpoint(
         }
     }
 
-    println!(
-        "Total Number of Migration Objects: {}",
-        total_objects - tot_additional_objects
-    );
     println!("Total Number of Objects/Packages: {total_objects}");
 
     // Always check the Total Supply
@@ -214,11 +132,6 @@ pub fn examine_genesis_checkpoint(
                     &package_map,
                     &iota_map,
                     &staked_iota_map,
-                    &timelocked_iota_map,
-                    &timelocked_staked_iota_map,
-                    &alias_output_iota_map,
-                    &basic_output_iota_map,
-                    &nft_output_iota_map,
                     &coin_metadata_map,
                     &other_object_map,
                 );
@@ -266,22 +179,12 @@ fn examine_object(
     package_map: &BTreeMap<ObjectId, MovePackage>,
     iota_map: &BTreeMap<ObjectId, GasCoin>,
     staked_iota_map: &BTreeMap<ObjectId, StakedIota>,
-    timelocked_iota_map: &BTreeMap<ObjectId, TimeLock<Balance>>,
-    timelocked_staked_iota: &BTreeMap<ObjectId, TimelockedStakedIota>,
-    alias_output_iota_map: &BTreeMap<ObjectId, AliasOutput>,
-    basic_output_iota_map: &BTreeMap<ObjectId, BasicOutput>,
-    nft_output_iota_map: &BTreeMap<ObjectId, NftOutput>,
     coin_metadata_map: &BTreeMap<ObjectId, CoinMetadata>,
-    other_object_map: &BTreeMap<ObjectId, MoveObject>,
+    other_object_map: &BTreeMap<ObjectId, MoveStruct>,
 ) {
     let object_options: Vec<&str> = vec![
         STR_IOTA,
         STR_STAKED_IOTA,
-        STR_TIMELOCKED_IOTA,
-        STR_TIMELOCKED_STAKED_IOTA,
-        STR_ALIAS_OUTPUT_IOTA,
-        STR_BASIC_OUTPUT_IOTA,
-        STR_NFT_OUTPUT_IOTA,
         STR_COIN_METADATA,
         STR_PACKAGE,
         STR_OTHER,
@@ -306,40 +209,6 @@ fn examine_object(
                     display_staked_iota(staked_iota_coin, validator_pool_id_map, owner_map);
                 }
                 print_divider(STR_STAKED_IOTA);
-            }
-            Ok(name) if name == STR_TIMELOCKED_IOTA => {
-                for timelocked in timelocked_iota_map.values() {
-                    println!("{timelocked:#?}");
-                }
-                print_divider(STR_TIMELOCKED_IOTA);
-            }
-            Ok(name) if name == STR_TIMELOCKED_STAKED_IOTA => {
-                for timelocked_staked in timelocked_staked_iota.values() {
-                    display_timelocked_staked_iota(
-                        timelocked_staked,
-                        validator_pool_id_map,
-                        owner_map,
-                    );
-                }
-                print_divider(STR_TIMELOCKED_STAKED_IOTA);
-            }
-            Ok(name) if name == STR_ALIAS_OUTPUT_IOTA => {
-                for alias_output in alias_output_iota_map.values() {
-                    println!("{alias_output:#?}");
-                }
-                print_divider(STR_ALIAS_OUTPUT_IOTA);
-            }
-            Ok(name) if name == STR_BASIC_OUTPUT_IOTA => {
-                for basic_output in basic_output_iota_map.values() {
-                    println!("{basic_output:#?}");
-                }
-                print_divider(STR_BASIC_OUTPUT_IOTA);
-            }
-            Ok(name) if name == STR_NFT_OUTPUT_IOTA => {
-                for nft_output in nft_output_iota_map.values() {
-                    println!("{nft_output:#?}");
-                }
-                print_divider(STR_NFT_OUTPUT_IOTA);
             }
             Ok(name) if name == STR_PACKAGE => {
                 for package in package_map.values() {
@@ -383,7 +252,7 @@ fn examine_total_supply(
         let mut amount_sum = 0;
         for (owner, value) in coins.values() {
             amount_sum += value;
-            if *owner == STR_STAKED_IOTA || *owner == STR_TIMELOCKED_STAKED_IOTA {
+            if *owner == STR_STAKED_IOTA {
                 total_staked_iota += value;
             }
         }
@@ -484,20 +353,6 @@ fn display_staked_iota(
     display_staked(
         &staked_iota.pool_id(),
         &staked_iota.id(),
-        validator_pool_id_map,
-        owner_map,
-    );
-}
-
-fn display_timelocked_staked_iota(
-    timelocked_staked_iota: &TimelockedStakedIota,
-    validator_pool_id_map: &BTreeMap<ObjectId, &IotaValidatorGenesis>,
-    owner_map: &BTreeMap<ObjectId, Owner>,
-) {
-    println!("{timelocked_staked_iota:#?}");
-    display_staked(
-        &timelocked_staked_iota.pool_id(),
-        &timelocked_staked_iota.id(),
         validator_pool_id_map,
         owner_map,
     );

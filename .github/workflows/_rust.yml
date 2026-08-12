@@ -51,8 +51,10 @@ jobs:
       isRustExample: ${{ inputs.isRustExample }}
       isNightly: ${{ inputs.isNightly }}
 
+  # Only feeds rust-tests, which doesn't run on pull_request events (below).
   crates-changes:
     needs: rust-lints
+    if: (!cancelled() && !failure() && github.event_name != 'pull_request')
     runs-on: [self-hosted-x64]
     outputs:
       components: ${{ steps.filter.outputs.changes }}
@@ -63,13 +65,30 @@ jobs:
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
+          # In the merge queue, diff against the target branch instead of the
+          # previous queue entry (merge_group.base_sha) so the head entry's
+          # run selects tests for every entry in the group (HEADGREEN
+          # grouping). Empty (default behavior) for all other events.
+          base: ${{ github.event.merge_group.base_ref }}
           list-files: "json"
           filters: .github/crates-filters.yml
+      # Runs after the filter step because it relies on the history that
+      # paths-filter fetched to find the merge base.
+      - name: Log merge queue comparison
+        if: github.event_name == 'merge_group'
+        shell: bash
+        env:
+          BASE_REF: ${{ github.event.merge_group.base_ref }}
+          ENTRY_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          base="${BASE_REF#refs/heads/}"
+          echo "Compared $(git rev-parse HEAD) against merge-base with $base: $(git merge-base "origin/$base" HEAD 2>/dev/null || echo 'not found') (this queue entry's base_sha: $ENTRY_BASE_SHA)"
 
+  # Only feeds rust-tests, which doesn't run on pull_request events (below).
   external-changes:
     needs: rust-lints
     runs-on: [self-hosted-x64]
-    if: (!cancelled() && !failure())
+    if: (!cancelled() && !failure() && github.event_name != 'pull_request')
     outputs:
       components: ${{ steps.filter.outputs.changes }}
     steps:
@@ -79,11 +98,29 @@ jobs:
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: filter
         with:
+          # See crates-changes above: cover the whole merge group, not just
+          # this queue entry's increment.
+          base: ${{ github.event.merge_group.base_ref }}
           list-files: "json"
           filters: .github/external-crates-filters.yml
+      # Runs after the filter step because it relies on the history that
+      # paths-filter fetched to find the merge base.
+      - name: Log merge queue comparison
+        if: github.event_name == 'merge_group'
+        shell: bash
+        env:
+          BASE_REF: ${{ github.event.merge_group.base_ref }}
+          ENTRY_BASE_SHA: ${{ github.event.merge_group.base_sha }}
+        run: |
+          base="${BASE_REF#refs/heads/}"
+          echo "Compared $(git rev-parse HEAD) against merge-base with $base: $(git merge-base "origin/$base" HEAD 2>/dev/null || echo 'not found') (this queue entry's base_sha: $ENTRY_BASE_SHA)"
 
+  # Heavy chain (tests + simtests): not on pull_request events — PRs get
+  # these in the merge queue (merge_group) via `heavy-tests-status` in
+  # hierarchy.yml. Pushes to long-lived branches are unchanged; nightly
+  # calls _rust_tests.yml directly and is unaffected.
   rust-tests:
-    if: (!cancelled() && !failure() && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
+    if: (!cancelled() && !failure() && github.event_name != 'pull_request' && (inputs.isRust || inputs.isPgIntegration || inputs.isMoveExampleUsedByOthers))
     needs:
       - crates-changes
       - external-changes

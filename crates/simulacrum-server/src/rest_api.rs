@@ -50,7 +50,7 @@ pub struct CheckpointResponse {
     pub epoch: u64,
     pub timestamp_ms: u64,
     pub network_total_transactions: u64,
-    pub content_digest: String,
+    pub contents_digest: String,
 }
 
 #[derive(Deserialize)]
@@ -103,7 +103,7 @@ pub fn checkpoint_to_response(
         epoch: checkpoint.epoch(),
         timestamp_ms: checkpoint_data.timestamp_ms,
         network_total_transactions: checkpoint_data.network_total_transactions,
-        content_digest: checkpoint_data.content_digest.to_string(),
+        contents_digest: checkpoint_data.contents_digest.to_string(),
     }
 }
 

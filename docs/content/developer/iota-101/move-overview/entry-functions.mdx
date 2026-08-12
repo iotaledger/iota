@@ -4,8 +4,6 @@ tags: [move-sc]
 teams:
   - iotaledger/vm-language
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/move-overview/entry-functions.json';
 
 # Public and Entry Functions
 
@@ -59,10 +57,7 @@ but are restricted like an `entry` function when invoked within transaction bloc
 This combination is rarely necessary,
 as in most cases, you will want to choose either `public` or `entry` based on the specific needs of your module.
 
-
 ## Example Code
 
 ```move file=<rootDir>/docs/examples/move/move-overview/entry.move
 ```
-
-<Quiz questions={questions} />

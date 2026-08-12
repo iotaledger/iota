@@ -15,17 +15,37 @@ use iota_types::{
     object::OBJECT_START_VERSION,
     transaction::CallArg,
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 #[sim_test]
-async fn fresh_shared_object_initial_version_matches_current() {
+async fn fresh_shared_object_initial_version_matches_current_pre_consensus_flow() {
+    fresh_shared_object_initial_version_matches_current(false).await;
+}
+
+#[sim_test]
+async fn fresh_shared_object_initial_version_matches_current_pcool_flow() {
+    fresh_shared_object_initial_version_matches_current(true).await;
+}
+
+async fn fresh_shared_object_initial_version_matches_current(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let env = TestEnvironment::new().await;
     let (object_ref, owner) = env.create_shared_counter().await;
     assert!(is_shared_at(&owner, object_ref.version));
 }
 
 #[sim_test]
-async fn objects_transitioning_to_shared_remember_their_previous_version() {
+async fn objects_transitioning_to_shared_remember_their_previous_version_pre_consensus_flow() {
+    objects_transitioning_to_shared_remember_their_previous_version(false).await;
+}
+
+#[sim_test]
+async fn objects_transitioning_to_shared_remember_their_previous_version_pcool_flow() {
+    objects_transitioning_to_shared_remember_their_previous_version(true).await;
+}
+
+async fn objects_transitioning_to_shared_remember_their_previous_version(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let env = TestEnvironment::new().await;
     let (counter, _) = env.create_counter().await;
 

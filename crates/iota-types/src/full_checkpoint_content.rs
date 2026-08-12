@@ -4,16 +4,17 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectId, ObjectReference, TransactionKind};
+use iota_sdk_types::{ObjectId, ObjectReference, TransactionKind, checkpoint::CheckpointContents};
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
 
 use crate::{
+    base_types::ExecutionData,
     effects::{
         TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
     },
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents},
+    messages_checkpoint::CertifiedCheckpointSummary,
     object::Object,
     storage::{BackingPackageStore, EpochInfo, error::Error as StorageError},
     transaction::{Transaction, TransactionDataAPI},
@@ -77,8 +78,7 @@ impl CheckpointData {
         let transaction = self.transactions.last()?;
         transaction
             .transaction
-            .intent_message()
-            .value
+            .transaction()
             .is_end_of_epoch_tx()
             .then_some(transaction)
     }
@@ -110,7 +110,7 @@ impl CheckpointData {
             // For checkpoint 0, we look for the genesis transaction
             let Some(transaction) = self.transactions.iter().find(|tx| {
                 matches!(
-                    tx.transaction.intent_message().value.kind(),
+                    tx.transaction.transaction().kind(),
                     TransactionKind::Genesis(_)
                 )
             }) else {
@@ -217,6 +217,13 @@ impl CheckpointTransaction {
                     .find(|o| o.id() == object_ref.object_id && o.version() == object_ref.version)
                     .expect("created objects should show up in output objects")
             })
+    }
+
+    pub fn execution_data(&self) -> ExecutionData {
+        ExecutionData {
+            transaction: self.transaction.clone(),
+            effects: self.effects.clone(),
+        }
     }
 }
 

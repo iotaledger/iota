@@ -7,10 +7,11 @@ use std::sync::Arc;
 use anyhow::Result;
 use fastcrypto::traits::EncodeDecodeBase64;
 use iota_data_ingestion_core::Worker;
+use iota_sdk_types::checkpoint::CheckpointSummary;
 use iota_types::{
     effects::TransactionEffectsAPI,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary},
+    messages_checkpoint::CertifiedCheckpointSummary,
     transaction::TransactionDataAPI,
 };
 use tokio::sync::Mutex;
@@ -95,8 +96,8 @@ impl CheckpointHandler {
         let mut total_successful_transaction_blocks: u64 = 0;
         let mut total_successful_transactions: u64 = 0;
         for checkpoint_transaction in checkpoint_transactions {
-            let txn_data = checkpoint_transaction.transaction.transaction_data();
-            let cmds = txn_data.kind().num_commands() as u64;
+            let tx = checkpoint_transaction.transaction.transaction();
+            let cmds = tx.kind().num_commands() as u64;
             total_transactions += cmds;
             if checkpoint_transaction.effects.status().is_success() {
                 total_successful_transaction_blocks += 1;

@@ -25,16 +25,12 @@ use iota_config::{
     genesis::{GenesisCeremonyParameters, TokenDistributionScheduleBuilder},
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
-use iota_genesis_builder::{
-    Builder, genesis_build_effects::GenesisBuildEffects, validator_info::ValidatorInfo,
-};
-use iota_sdk_types::Address;
+use iota_genesis_builder::{Builder, validator_info::ValidatorInfo};
 use iota_swarm_config::genesis_config::GenesisConfig;
 use iota_types::{
-    base_types::address_from_iota_pub_key,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, IotaKeyPair, NetworkKeyPair,
-        generate_proof_of_possession, get_key_pair_from_rng,
+        AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
+        get_key_pair_from_rng,
     },
     multiaddr::Multiaddr,
 };
@@ -43,9 +39,8 @@ use rand::{SeedableRng, rngs::StdRng};
 #[test]
 #[cfg_attr(msim, ignore)]
 fn genesis_config_snapshot_matches() {
-    let ed_kp1: IotaKeyPair =
-        IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1);
-    let fake_addr: Address = (&ed_kp1.public()).into();
+    let ed_kp1: AccountKeyPair = get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
+    let fake_addr = ed_kp1.public_key().derive_address();
 
     let mut genesis_config = GenesisConfig::for_local_testing();
     genesis_config.parameters.chain_start_timestamp_ms = 0;
@@ -66,11 +61,12 @@ fn populated_genesis_snapshot_matches() {
     let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
     let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rng).1;
     let account_key: AccountKeyPair = get_key_pair_from_rng(&mut rng).1;
+    let account_address = account_key.public_key().derive_address();
     let validator = ValidatorInfo {
         name: "0".into(),
         authority_key: authority_key.public().into(),
         protocol_key: protocol_key.public().clone(),
-        account_address: address_from_iota_pub_key(account_key.public()),
+        account_address,
         network_key: network_key.public().clone(),
         gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
         commission_rate: DEFAULT_COMMISSION_RATE,
@@ -81,25 +77,29 @@ fn populated_genesis_snapshot_matches() {
         image_url: String::new(),
         project_url: String::new(),
     };
-    let pop = generate_proof_of_possession(
-        &authority_key,
-        address_from_iota_pub_key(account_key.public()),
-    );
+    let pop = generate_proof_of_possession(&authority_key, account_address);
+
+    // No custom protocol version is configured for this genesis, so it builds at
+    // the default `GenesisCeremonyParameters::new()` version
+    // (`ProtocolVersion::MAX`).
+    let protocol_version = GenesisCeremonyParameters::new().protocol_version;
 
     let token_distribution_schedule = {
         let mut builder = TokenDistributionScheduleBuilder::new();
         for allocation in allocations {
             builder.add_allocation(allocation);
         }
-        builder.default_allocation_for_validators(Some(validator.account_address));
+        builder
+            .default_allocation_for_validators(Some(validator.account_address), protocol_version);
         builder.build()
     };
 
-    let GenesisBuildEffects { genesis, .. } = Builder::new()
+    let genesis = Builder::new()
         .with_token_distribution_schedule(token_distribution_schedule)
         .add_validator(validator, pop)
         .with_parameters(GenesisCeremonyParameters {
             chain_start_timestamp_ms: 10,
+            protocol_version,
             ..GenesisCeremonyParameters::new()
         })
         .add_validator_signature(&authority_key)

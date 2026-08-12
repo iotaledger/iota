@@ -12,7 +12,7 @@ use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     object::{Object, bounded_visitor::BoundedVisitor},
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::{SenderSignedData, SenderSignedTransactionAPI, TransactionDataAPI},
 };
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout, MoveValue};
 
@@ -88,12 +88,8 @@ impl InputObjectTracker {
             .into_iter()
             .map(|shared_io| shared_io.object_id)
             .collect();
-        let tx_data = txn.transaction_data();
-        let coins: BTreeSet<ObjectId> = tx_data
-            .gas()
-            .iter()
-            .map(|obj_ref| obj_ref.object_id)
-            .collect();
+        let tx = txn.transaction();
+        let coins: BTreeSet<ObjectId> = tx.gas().iter().map(|obj_ref| obj_ref.object_id).collect();
         // All input objects (transaction + authenticators) are collected here, just
         // like the shared objects previously.
         let input: BTreeSet<ObjectId> = txn

@@ -5,12 +5,13 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use iota_sdk_types::checkpoint::{CheckpointContents, CheckpointSummary};
 use iota_types::{
     base_types::AuthorityName,
     error::IotaResult,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSignatureMessage,
-        CheckpointSummary, CheckpointSummaryExt, SignedCheckpointSummary, VerifiedCheckpoint,
+        CertifiedCheckpointSummary, CheckpointSignatureMessage, CheckpointSummaryExt,
+        SignedCheckpointSummary, VerifiedCheckpoint,
     },
     messages_consensus::ConsensusTransaction,
 };
@@ -204,7 +205,7 @@ impl CheckpointOutput for LogCheckpointOutput {
             summary.sequence_number,
             summary.previous_digest,
             contents.len(),
-            summary.content_digest,
+            summary.contents_digest,
             summary.end_of_epoch_data,
         );
 

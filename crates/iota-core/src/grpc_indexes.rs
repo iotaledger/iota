@@ -10,12 +10,15 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag, TransactionDigest, TypeTag, Version};
+use iota_sdk_types::{
+    Address, ObjectId, Owner, StructTag, TransactionDigest, TypeTag, Version,
+    checkpoint::CheckpointContents,
+};
 use iota_types::{
     committee::EpochId,
     error::IotaResult,
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::{CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber},
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     move_package::MovePackageExt,
     object::Object,
     storage::{
@@ -554,7 +557,7 @@ impl IndexStoreTables {
                     ))
                 })?;
             let contents = checkpoint_store
-                .get_checkpoint_contents(&summary.content_digest)?
+                .get_checkpoint_contents(&summary.contents_digest)?
                 .ok_or_else(|| {
                     StorageError::missing(format!(
                         "missing checkpoint {checkpoint_sequence_number}"
@@ -1371,12 +1374,10 @@ impl LiveObjectIndexer for GrpcLiveObjectIndexer<'_> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::GasCostSummary;
+    use iota_sdk_types::{GasCostSummary, checkpoint::CheckpointSummary};
     use iota_types::{
-        crypto::AuthorityStrongQuorumSignInfo,
-        iota_system_state::IotaSystemState,
-        message_envelope::Envelope,
-        messages_checkpoint::{CheckpointSummary, VerifiedCheckpoint},
+        crypto::AuthorityStrongQuorumSignInfo, iota_system_state::IotaSystemState,
+        message_envelope::Envelope, messages_checkpoint::VerifiedCheckpoint,
     };
     use typed_store::rocks::{MetricConf, ReadWriteOptions, open_cf_opts};
 
@@ -1390,7 +1391,7 @@ mod tests {
             epoch,
             sequence_number,
             network_total_transactions: 0,
-            content_digest: Default::default(),
+            contents_digest: Default::default(),
             previous_digest: None,
             epoch_rolling_gas_cost_summary: GasCostSummary::default(),
             end_of_epoch_data: None,

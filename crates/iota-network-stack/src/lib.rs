@@ -6,6 +6,7 @@ pub mod anemo_ext;
 pub mod callback;
 pub mod client;
 pub mod codec;
+pub mod concurrency;
 pub mod config;
 pub mod grpc_timeout;
 pub mod metrics;

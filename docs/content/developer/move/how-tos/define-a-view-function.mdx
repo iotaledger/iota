@@ -1,0 +1,89 @@
+---
+description: 'How to define a read-only view function in a Move module by annotating it with the #[view] attribute.'
+tags:
+  - how-to
+  - move-sc
+---
+
+# Define a View Function
+
+This how-to demonstrates how to mark a Move function as a read-only [view function](../explanations/view-functions.mdx) using the `#[view]` attribute. The examples come from a package with four modules: a `leaderboard` that ranks player scores, an `auction`, a `counter` and a generic, time-locked `vault`.
+
+## Read State From a View
+
+These examples come from the `leaderboard` module, which stores player scores in a shared object.
+
+1. Start from a module with some state to read. Here a shared `Leaderboard` holds a vector of `ScoreEntry` values.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L9-L20
+```
+2. Annotate a `public` function with `#[view]`. A view takes its object by immutable reference (`&Leaderboard`) and returns a value — this one returns the entry count.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L56-L60
+```
+3. A view may take additional immutable references and return an `Option`. This one looks up the entry for a given `player`, returning `none` when the player has no score.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L62-L72
+```
+4. A view may return a vector of values, such as `vector<ScoreEntry>` — `ScoreEntry` is a non-object struct with `copy` and `drop`, so it may be returned by value.
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L74-L78
+```
+
+## Return a Reference From a View
+
+A view may return an **immutable** reference; mutable references are rejected. This lets a view hand back a borrow into the state it read, instead of a copy. The `auction` module keeps its bids inline and stores a per-bidder tally as dynamic fields.
+
+1. Define the auction and its bids.
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L15-L47
+```
+2. Return an immutable reference into a field of the object received by reference.
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L84-L91
+```
+3. Return a reference to a value stored as a dynamic field.
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L99-L103
+```
+4. Return a tuple that mixes a value and a reference.
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L105-L112
+```
+
+## Write a Generic View
+
+A view can be generic. A type parameter used only behind a reference may be unconstrained; a type parameter passed or returned by value must have `copy` or `drop`. The `vault` module wraps a single generic value behind a time lock.
+
+1. Define a generic container.
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L13-L24
+```
+2. Return an immutable reference to the stored item. `T` needs no extra constraint because it is only accessed behind a reference.
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L44-L51
+```
+3. A view on a generic type can read more than one object. This one also takes the shared `Clock` by immutable reference to report whether the time lock has elapsed.
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L65-L69
+```
+
+## What Not to Annotate
+
+A function that mutates state cannot be a view. `submit_score` takes `&mut Leaderboard` and re-ranks its entries, so it is a regular function — adding `#[view]` to it would be a compile error.
+
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move#L31-L54
+```
+
+A view also cannot take an object by value. `vault::unlock` consumes the `Vault` to release its contents, so it too must be a regular function.
+
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move#L32-L42
+```
+
+For the full list of what a view function may and may not do, see the [view functions reference](../../references/move/view-functions.mdx). To call the views you defined from off-chain, see [Call a View Function](./call-a-view-function.mdx).
+
+## Full Example Code
+
+The complete `leaderboard` module:
+
+```move file=<rootDir>/examples/move/view_functions/sources/leaderboard.move
+```
+
+The complete `auction` module:
+
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move
+```
+
+The complete `vault` module:
+
+```move file=<rootDir>/examples/move/view_functions/sources/vault.move
+```

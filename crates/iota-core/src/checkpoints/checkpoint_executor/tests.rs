@@ -6,13 +6,13 @@ use std::{sync::Arc, time::Duration};
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_metrics::spawn_monitored_task;
-use iota_sdk_types::{CheckpointCommitment, gas::GasCostSummary};
+use iota_sdk_types::{CheckpointCommitment, checkpoint::EndOfEpochData, gas::GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     committee::ProtocolVersion,
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemState,
     messages_checkpoint::{
-        ECMHLiveObjectSetDigest, EndOfEpochData, VerifiedCheckpoint, VerifiedCheckpointContents,
+        ECMHLiveObjectSetDigest, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     supported_protocol_versions::SupportedProtocolVersions,
 };
@@ -61,12 +61,12 @@ pub async fn test_fallback_load_populates_contents_cache() {
         .expect("fallback load should populate the contents cache");
     assert_eq!(
         cached.checkpoint_contents().digest(),
-        checkpoint.content_digest
+        checkpoint.contents_digest
     );
     // The peer-serving lookup by contents digest must hit too.
     assert!(
         checkpoint_store
-            .get_full_checkpoint_contents_by_digest(&checkpoint.content_digest)
+            .get_full_checkpoint_contents_by_digest(&checkpoint.contents_digest)
             .is_some()
     );
 }
@@ -115,7 +115,7 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
     let frontier_checkpoint = test_checkpoint_with_contents(frontier_seq, &frontier_contents);
     checkpoint_store.cache_full_checkpoint_contents(
         frontier_checkpoint.sequence_number(),
-        frontier_checkpoint.content_digest,
+        frontier_checkpoint.contents_digest,
         frontier_contents,
     );
 

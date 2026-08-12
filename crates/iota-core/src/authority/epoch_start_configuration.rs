@@ -98,7 +98,7 @@ impl fmt::Display for EpochFlag {
 }
 
 /// Parameters of the epoch fixed at epoch start.
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 #[enum_dispatch(EpochStartConfigTrait)]
 pub enum EpochStartConfiguration {
     V1(EpochStartConfigurationV1),
@@ -174,7 +174,7 @@ impl EpochStartConfiguration {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct EpochStartConfigurationV1 {
     system_state: EpochStartSystemState,
     epoch_digest: CheckpointDigest,
@@ -209,7 +209,7 @@ impl EpochStartConfigTrait for EpochStartConfigurationV1 {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Eq, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, Debug, Eq, PartialEq)]
 pub struct EpochStartConfigurationV2 {
     system_state: EpochStartSystemState,
     epoch_digest: CheckpointDigest,

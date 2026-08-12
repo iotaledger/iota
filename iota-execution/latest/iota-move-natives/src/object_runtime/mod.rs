@@ -12,14 +12,13 @@ use std::{
 use better_any::{Tid, TidAble};
 use indexmap::{map::IndexMap, set::IndexSet};
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-use iota_sdk_types::{Address, ObjectId, Owner, StructTag, Version};
+use iota_sdk_types::{Address, MoveStruct, ObjectId, Owner, StructTag, Version};
 use iota_types::{
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
     execution::DynamicallyLoadedObjectMetadata,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     metrics::LimitsMetrics,
-    object::MoveObject,
     storage::ChildObjectResolver,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -47,7 +46,7 @@ mod fingerprint;
 
 pub enum ObjectEvent {
     /// Transfer to a new address or object. Or make it shared or immutable.
-    Transfer(Owner, MoveObject),
+    Transfer(Owner, MoveStruct),
     /// An object ID is deleted
     DeleteObjectID(ObjectId),
 }

@@ -5,8 +5,6 @@ teams:
   - iotaledger/dev-tools
   - iotaledger/tooling
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/using-events.json';
 import DeprecatedMethodsNote from '../../_snippets/deprecated_methods_note.mdx';
 
 # Subscribing to On-Chain Events in IOTA
@@ -159,7 +157,6 @@ interact with the IOTA GraphQL service.
 </TabItem>
 </Tabs>
 
-
 ## Subscribing to Events
 
 This example leverages the IOTA TypeScript SDK to subscribe to events the package with ID `<PACKAGE_ID>` emits. Each time the event fires, the code displays the response to the console.
@@ -280,7 +277,6 @@ The `queryEvents` method allows you to retrieve specific events based on filters
 
 While events provide high-level data on interactions, such as user actions, contract calls, or state changes, the `queryEvents` method allows you to retrieve these events from the blockchain. You can filter these events by various criteria, such as the emitting package, module, or sender address. This is particularly useful for tracking smart contract execution, monitoring state changes, or auditing blockchain interactions.
 
-
 The following example filters events emitted by a known Move module.
 
 ```ts
@@ -315,7 +311,6 @@ queryEvents();
 - Uses a `MoveModule` filter to query a specific event type.
 - Limits the result to the 5 most recent events.
 - Skips metadata to keep the response concise.
-
 
 ### Querying Transaction Blocks with `queryTransactionBlocks`
 
@@ -355,9 +350,6 @@ queryTransactionBlocks();
 - Omits metadata from the response.
 - Provides an easy way to track activity from known accounts or smart contracts.
 
-
-
-
 ## Filtering Events
 
 You can filter events when [querying](#querying-events) or [subscribing](#subscribing-to-events) to receive only the events you are interested in.
@@ -388,5 +380,3 @@ The following filters are supported when querying an indexer endpoint (e.g. `ind
 | `Package`          | Events emitted in the specified package                                                                                                                                                       | `{"Package":"<PACKAGE-ID>"}`                                                                          |
 | `MoveModule`       | Events emitted in the specified Move module. If the event is defined in Module A but emitted in a tx with Module B, query by Module B returns the event.                                      | `{"MoveModule":{"package":"<PACKAGE-ID>", "module":"nft"}}`                                           |
 | `MoveEventType`    | Events with the given Move event struct name (struct tag), e.g. `<PACKAGE-ID>::MyModule::Foo`                                                                                                 | `{"MoveEventType":"<PACKAGE-ID>::nft::MintNFTEvent"}`                                                 |
-
-<Quiz questions={questions} />

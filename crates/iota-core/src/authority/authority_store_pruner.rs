@@ -11,16 +11,13 @@ use std::{
 
 use anyhow::anyhow;
 use bincode::Options;
-use iota_archival::reader::ArchiveReaderBalancer;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{CheckpointDigest, ObjectId, Version};
+use iota_sdk_types::{CheckpointDigest, ObjectId, Version, checkpoint::CheckpointContents};
 use iota_types::{
     base_types::VersionNumber,
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsExt, CheckpointSequenceNumber, CheckpointTimestamp,
-    },
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber, CheckpointTimestamp},
     storage::ObjectKey,
 };
 use once_cell::sync::Lazy;
@@ -55,7 +52,7 @@ static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
         "objects",
         "effects",
         "transactions",
-        "events",
+        "events_2",
         "executed_effects",
         "executed_transactions_to_checkpoint",
     ]
@@ -357,27 +354,20 @@ impl AuthorityStorePruner {
             debug!("Pruning effects {:?}", effects_digest);
             effect_digests.push(effects_digest);
 
-            if let Some(event_digest) = effects.events_digest() {
+            if effects.events_digest().is_some() {
                 perpetual_batch
                     .delete_batch(&perpetual_db.events_2, [effects.transaction_digest()])?;
-                if let Some(next_digest) = event_digest.next_lexicographical_opt() {
-                    perpetual_batch.schedule_delete_range(
-                        &perpetual_db.events,
-                        &(*event_digest, 0),
-                        &(next_digest, 0),
-                    )?;
-                }
             }
         }
         perpetual_batch.delete_batch(&perpetual_db.effects, effect_digests)?;
 
         let mut checkpoints_batch = checkpoint_db.tables.certified_checkpoints.batch();
 
-        let checkpoint_content_digests =
+        let checkpoint_contents_digests =
             checkpoint_content_to_prune.iter().map(|ckpt| ckpt.digest());
         checkpoints_batch.delete_batch(
             &checkpoint_db.tables.checkpoint_content,
-            checkpoint_content_digests,
+            checkpoint_contents_digests,
         )?;
 
         checkpoints_batch.delete_batch(
@@ -463,7 +453,6 @@ impl AuthorityStorePruner {
         pruner_db: Option<&Arc<AuthorityPrunerTables>>,
         config: AuthorityStorePruningConfig,
         metrics: Arc<AuthorityStorePruningMetrics>,
-        archive_readers: ArchiveReaderBalancer,
         epoch_duration_ms: u64,
         progress_tracker: Option<&Arc<CheckpointProgressTracker>>,
     ) -> anyhow::Result<()> {
@@ -471,15 +460,10 @@ impl AuthorityStorePruner {
         let pruned_checkpoint_number = checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()?
             .unwrap_or(0);
-        let (last_executed_checkpoint, last_executed_timestamp_ms) = checkpoint_store
+        let (mut max_eligible_checkpoint, last_executed_timestamp_ms) = checkpoint_store
             .get_highest_executed_checkpoint()?
             .map(|c| (c.sequence_number(), c.timestamp_ms))
             .unwrap_or_default();
-        let latest_archived_checkpoint = archive_readers
-            .get_archive_watermark()
-            .await?
-            .unwrap_or(u64::MAX);
-        let mut max_eligible_checkpoint = min(latest_archived_checkpoint, last_executed_checkpoint);
         if config.num_epochs_to_retain != u64::MAX {
             max_eligible_checkpoint = min(
                 max_eligible_checkpoint,
@@ -566,7 +550,7 @@ impl AuthorityStorePruner {
             last_pruned_timestamp_ms = checkpoint.timestamp_ms;
 
             let content = checkpoint_store
-                .get_checkpoint_contents(&checkpoint.content_digest)?
+                .get_checkpoint_contents(&checkpoint.contents_digest)?
                 .ok_or_else(|| {
                     anyhow::anyhow!(
                         "checkpoint content data is missing: {}",
@@ -771,7 +755,6 @@ impl AuthorityStorePruner {
         jsonrpc_index: Option<Arc<IndexStore>>,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         metrics: Arc<AuthorityStorePruningMetrics>,
-        archive_readers: ArchiveReaderBalancer,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         mut executed_rx: watch::Receiver<CheckpointSequenceNumber>,
     ) -> Sender<()> {
@@ -907,7 +890,6 @@ impl AuthorityStorePruner {
                         pruner_db.as_ref(),
                         config.clone(),
                         metrics.clone(),
-                        archive_readers.clone(),
                         epoch_duration_ms,
                         progress_tracker.as_ref(),
                     )
@@ -962,7 +944,6 @@ impl AuthorityStorePruner {
         is_validator: bool,
         epoch_duration_ms: u64,
         registry: &Registry,
-        archive_readers: ArchiveReaderBalancer,
         pruner_db: Option<Arc<AuthorityPrunerTables>>,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Self {
@@ -993,7 +974,6 @@ impl AuthorityStorePruner {
                 jsonrpc_index,
                 pruner_db,
                 AuthorityStorePruningMetrics::new(registry),
-                archive_readers,
                 progress_tracker,
                 executed_rx,
             ),

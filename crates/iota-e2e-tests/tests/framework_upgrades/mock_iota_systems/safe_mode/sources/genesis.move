@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 module iota_system::genesis {
-    use std::string::String;
 
     use iota::balance;
     use iota::iota::IotaTreasuryCap;
@@ -66,7 +65,6 @@ module iota_system::genesis {
         genesis_chain_parameters: GenesisChainParameters,
         genesis_validators: vector<GenesisValidatorMetadata>,
         _token_distribution_schedule: TokenDistributionSchedule,
-        _timelock_genesis_label: Option<String>,
         iota_system_admin_cap: IotaSystemAdminCap,
         ctx: &mut TxContext,
     ) {

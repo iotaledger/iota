@@ -172,13 +172,15 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         let SerializedHeaderAndTransactions {
             serialized_block_header,
             serialized_transactions,
-        } = SerializedHeaderAndTransactions::try_from(SerializedBlock { serialized_block })?;
+        } = SerializedHeaderAndTransactions::try_from(SerializedBlock { serialized_block })
+            .inspect_err(|e| {
+                self.misbehavior_store.record_faulty_block(peer, peer, e);
+            })?;
 
         let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
             .map_err(ConsensusError::MalformedHeader)
             .inspect_err(|e| {
-                self.misbehavior_store
-                    .record_faulty_block_header(peer, peer, e);
+                self.misbehavior_store.record_faulty_block(peer, peer, e);
             })?;
 
         // Reject blocks not produced by the peer.
@@ -190,8 +192,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
-            self.misbehavior_store
-                .record_faulty_block_header(peer, peer, &e);
+            self.misbehavior_store.record_faulty_block(peer, peer, &e);
             info!("Block with wrong authority from {}: {}", peer, e);
             return Err(e);
         }
@@ -203,13 +204,10 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .with_label_values(&[peer_hostname, "header", e.name()])
                 .inc();
             // peer == author is guaranteed by the UnexpectedAuthority check above.
-            // Pass both so record_faulty_block_header can attribute correctly:
+            // Pass both so record_faulty_block can attribute correctly:
             // provable errors → author, unprovable (bad signature) → peer.
-            self.misbehavior_store.record_faulty_block_header(
-                peer,
-                signed_block_header.author(),
-                &e,
-            );
+            self.misbehavior_store
+                .record_faulty_block(peer, signed_block_header.author(), &e);
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
         }
@@ -279,7 +277,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .with_label_values(&[peer_hostname, "transactions", error.name()])
             .inc();
         self.misbehavior_store
-            .record_faulty_block_header(peer, peer, error);
+            .record_faulty_block(peer, peer, error);
     }
 
     fn extract_additional_block_headers_from_bundle(
@@ -312,28 +310,24 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 .map_err(ConsensusError::MalformedHeader)
                 .inspect_err(|e| {
                     // Author is unknown when deserialization fails — blame the peer.
-                    self.misbehavior_store
-                        .record_faulty_block_header(peer, peer, e);
+                    self.misbehavior_store.record_faulty_block(peer, peer, e);
                 })?;
 
             let header_round = signed_block_header.round();
             if header_round >= block_round {
-                let e = Err(ConsensusError::TooBigHeaderRoundInABundle {
+                let e = ConsensusError::TooBigHeaderRoundInABundle {
                     header_round,
                     block_round,
-                });
+                };
                 self.context
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "header", "invalid round in header"])
                     .inc();
-                info!(
-                    "Invalid additional block header from {}: {}",
-                    peer,
-                    e.as_ref().unwrap_err()
-                );
-                return e;
+                self.misbehavior_store.record_faulty_block(peer, peer, &e);
+                info!("Invalid additional block header from {}: {}", peer, e);
+                return Err(e);
             }
 
             if let Err(e) = self.block_verifier.verify(&signed_block_header) {
@@ -347,11 +341,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 // (the sender) and author separately so provable errors (valid
                 // signature, protocol violation) are charged to the block author
                 // while unprovable errors (bad signature) are charged to the peer.
-                self.misbehavior_store.record_faulty_block_header(
-                    peer,
-                    signed_block_header.author(),
-                    &e,
-                );
+                self.misbehavior_store
+                    .record_faulty_block(peer, signed_block_header.author(), &e);
                 info!("Invalid additional block header from {}: {}", peer, e);
                 return Err(e);
             }
@@ -387,10 +378,24 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 
         let mut verified_shards: Vec<ShardWithProof> = vec![];
         for serialized_shard in &serialized_shards {
-            let shard: ShardWithProof =
-                bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
+            let shard: ShardWithProof = bcs::from_bytes(serialized_shard)
+                .map_err(ConsensusError::MalformedShard)
+                .inspect_err(|e| {
+                    self.misbehavior_store.record_faulty_block(peer, peer, e);
+                })?;
 
             if let Err(e) = check_shard_version(&shard) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname, "shard", e.name()])
+                    .inc();
+                info!("Invalid shard from {}: {}", peer, e);
+                return Err(e);
+            }
+
+            if let Err(e) = check_shard_transaction_author(&shard, peer, &self.context) {
                 self.context
                     .metrics
                     .node_metrics
@@ -412,6 +417,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
+                self.misbehavior_store.record_faulty_block(peer, peer, &e);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -434,6 +440,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .bundles_with_invalid_parts
                     .with_label_values(&[peer_hostname, "shard", e.name()])
                     .inc();
+                self.misbehavior_store.record_faulty_block(peer, peer, &e);
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
             }
@@ -671,6 +678,22 @@ pub(crate) fn check_shard_version(shard: &ShardWithProof) -> ConsensusResult<()>
     }
 }
 
+pub(crate) fn check_shard_transaction_author(
+    shard: &ShardWithProof,
+    peer: AuthorityIndex,
+    context: &Context,
+) -> ConsensusResult<()> {
+    let index = shard.author();
+    if !context.committee.is_valid_index(index) {
+        return Err(ConsensusError::InvalidAuthorityIndexRequested {
+            index,
+            max: context.committee.size(),
+            peer,
+        });
+    }
+    Ok(())
+}
+
 #[async_trait]
 impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     async fn handle_subscribed_block_bundle(
@@ -690,7 +713,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         let mut serialized_block_bundle_parts =
-            SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
+            SerializedBlockBundleParts::try_from(serialized_block_bundle).inspect_err(|e| {
+                self.misbehavior_store.record_faulty_block(peer, peer, e);
+            })?;
         if let Err(e) =
             serialized_block_bundle_parts.validate_useful_authorities(&self.context.committee)
         {
@@ -700,6 +725,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .bundles_with_invalid_parts
                 .with_label_values(&[peer_hostname.as_str(), "metadata", e.name()])
                 .inc();
+            self.misbehavior_store.record_faulty_block(peer, peer, &e);
             warn!("Invalid bundle metadata from {}: {}", peer, e);
             return Err(e);
         }
@@ -730,6 +756,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .metrics
             .node_metrics
             .latency_to_process_stream
+            .observe(latency_to_process_stream.as_secs_f64());
+        self.context
+            .metrics
+            .node_metrics
+            .latency_to_process_stream_by_peer
             .with_label_values(&[peer_hostname.as_str()])
             .observe(latency_to_process_stream.as_secs_f64());
 
@@ -1806,6 +1837,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -1898,6 +1930,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
         let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
@@ -1985,6 +2018,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2102,6 +2136,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2117,6 +2152,7 @@ mod tests {
             Arc::new(MisbehaviorStore::new(&context)),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
             block_verifier,
@@ -2127,7 +2163,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
-            Arc::new(MisbehaviorStore::new(&context)),
+            misbehavior_store.clone(),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2178,6 +2214,10 @@ mod tests {
         } else {
             panic!("Expected TooBigHeaderRoundInABundle error, got {result:?}",);
         }
+
+        // The relaying peer (authority 0) is charged for the invalid header.
+        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
+        assert_eq!(counts.faulty_blocks_unprovable, 1);
 
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
@@ -2242,6 +2282,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2257,6 +2298,7 @@ mod tests {
             Arc::new(MisbehaviorStore::new(&context)),
         );
 
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
         let authority_service = Arc::new(AuthorityService::new(
             context.clone(),
             block_verifier,
@@ -2267,7 +2309,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
-            Arc::new(MisbehaviorStore::new(&context)),
+            misbehavior_store.clone(),
             tx_message_sender,
             cordial_knowledge,
         ));
@@ -2305,6 +2347,10 @@ mod tests {
         assert!(core_dispatcher.get_blocks().is_empty());
         assert!(core_dispatcher.get_block_headers().is_empty());
         assert_eq!(authority_service.received_block_headers.size(), 0);
+
+        // The relaying peer (authority 0) is charged for the invalid metadata.
+        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
+        assert_eq!(counts.faulty_blocks_unprovable, 1);
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -2327,6 +2373,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2566,6 +2613,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2733,6 +2781,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -2911,6 +2960,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3244,6 +3294,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3395,6 +3446,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3565,6 +3617,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3788,6 +3841,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -3987,6 +4041,7 @@ mod tests {
             context.clone(),
             core_dispatcher.clone(),
             dag_state.clone(),
+            block_verifier.clone(),
         );
 
         let header_synchronizer = HeaderSynchronizer::start(
@@ -4155,5 +4210,46 @@ mod tests {
             TransactionsCommitment::default(),
         );
         check_shard_version(&shard_v2).unwrap();
+    }
+
+    #[tokio::test]
+    async fn check_shard_transaction_author_rejects_invalid_author() {
+        use super::check_shard_transaction_author;
+        use crate::{
+            block_header::{ShardWithProof, ShardWithProofV2},
+            error::ConsensusError,
+            transaction_ref::TransactionRef,
+        };
+
+        let (context, _) = Context::new_for_test(4);
+        let peer = context.committee.to_authority_index(1).unwrap();
+        let invalid_author = AuthorityIndex::new_for_test(context.committee.size() as u8);
+        let shard = ShardWithProof::V2(ShardWithProofV2 {
+            shard: vec![],
+            proof: vec![],
+            transaction_ref: TransactionRef {
+                round: 1,
+                author: invalid_author,
+                transactions_commitment: TransactionsCommitment::default(),
+            },
+        });
+
+        let result = check_shard_transaction_author(&shard, peer, &context);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::InvalidAuthorityIndexRequested {
+                index,
+                max: 4,
+                peer: err_peer,
+            }) if index == invalid_author && err_peer == peer
+        ));
+
+        let valid_shard = ShardWithProof::new(
+            vec![],
+            vec![],
+            BlockRef::new(1, peer, BlockHeaderDigest::default()),
+            TransactionsCommitment::default(),
+        );
+        check_shard_transaction_author(&valid_shard, peer, &context).unwrap();
     }
 }

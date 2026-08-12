@@ -26,7 +26,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -59,10 +59,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -125,7 +122,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -158,10 +155,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -224,7 +218,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -257,10 +251,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -323,7 +314,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -356,10 +347,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -422,7 +410,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -455,10 +443,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -521,7 +506,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -554,10 +539,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~
@@ -620,7 +602,7 @@ validator_configs:
     enable-index-processing: true
     jsonrpc-server-type: ~
     grpc-load-shed: ~
-    grpc-concurrency-limit: 20000000000
+    grpc-concurrency-limit-per-core: 500000000
     p2p-config:
       listen-address: "0.0.0.0:1"
       state-sync:
@@ -653,10 +635,7 @@ validator_configs:
       move-authenticator-disabled: false
     certificate-deny-config: {}
     state-debug-dump-config: {}
-    state-archive-write-config:
-      concurrency: 0
-      use-for-pruning-watermark: false
-    state-archive-read-config: []
+    checkpoint-archive-config: ~
     state-snapshot-write-config:
       concurrency: 0
     indexer-max-subscriptions: ~

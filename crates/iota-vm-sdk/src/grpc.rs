@@ -142,26 +142,16 @@ impl ObjectFetcher for GrpcFetcher {
         &self,
         refs: &[(ObjectId, Option<Version>)],
     ) -> Result<Vec<Object>, StoreError> {
-        let proto_objects = match self.client.get_objects(refs, None).await {
-            Ok(resp) => resp.into_inner(),
-            // A missing object is reported by the node as a `NOT_FOUND` server
-            // error. The `Store` contract treats absence as `Ok(None)` (the
-            // VM's child-object resolver relies on this — a dynamic field that
-            // does not exist must read as absent, not fault), so a single-object
-            // request that comes back not-found yields no objects rather than an
-            // error. A batched request can't say which ref was missing, so its
-            // error still propagates; the on-demand resolution path only ever
-            // fetches one object at a time.
-            Err(iota_grpc_client::api::Error::Server(status))
-                if refs.len() == 1 && status.code == tonic::Code::NotFound as i32 =>
-            {
-                return Ok(Vec::new());
-            }
-            Err(e) => return Err(StoreError::new("fetch objects via gRPC", e)),
-        };
+        let results = self
+            .client
+            .get_objects(refs, None)
+            .await
+            .map_err(|e| StoreError::new("fetch objects via gRPC", e))?
+            .into_inner();
+
         // The proto helper yields the SDK `Object`, which the node's
         // `iota_types::object::Object` is a newtype over.
-        proto_objects
+        skip_not_found(results)?
             .into_iter()
             .map(|proto_obj| {
                 proto_obj
@@ -170,5 +160,66 @@ impl ObjectFetcher for GrpcFetcher {
                     .map_err(|e| StoreError::new("decode gRPC object", e))
             })
             .collect()
+    }
+}
+
+/// Keep the items the node returned, dropping the ones it reported as
+/// `NOT_FOUND`.
+///
+/// The `Store` contract treats absence as `Ok(None)` — the VM's child-object
+/// resolver relies on this, since a dynamic field that does not exist must read
+/// as absent rather than fault. The batched read reports a missing object per
+/// requested ref, so the refs the node could serve survive a missing one.
+fn skip_not_found<T>(
+    results: Vec<Result<T, iota_grpc_client::api::Error>>,
+) -> Result<Vec<T>, StoreError> {
+    let mut items = Vec::with_capacity(results.len());
+    for result in results {
+        match result {
+            Ok(item) => items.push(item),
+            Err(e) if e.is_not_found() => {}
+            Err(e) => return Err(StoreError::new("fetch objects via gRPC", e)),
+        }
+    }
+    Ok(items)
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_grpc_client::{RpcStatus, api::Error};
+
+    use super::skip_not_found;
+
+    fn server_error(code: tonic::Code) -> Error {
+        Error::Server(RpcStatus {
+            code: code.into(),
+            message: String::new(),
+            details: Vec::new(),
+        })
+    }
+
+    #[test]
+    fn a_missing_ref_is_skipped_without_dropping_the_rest() {
+        let results = vec![Ok(1), Err(server_error(tonic::Code::NotFound)), Ok(3)];
+
+        assert_eq!(skip_not_found(results).unwrap(), vec![1, 3]);
+    }
+
+    #[test]
+    fn every_ref_missing_yields_no_objects() {
+        let results: Vec<Result<u32, Error>> = vec![
+            Err(server_error(tonic::Code::NotFound)),
+            Err(server_error(tonic::Code::NotFound)),
+        ];
+
+        assert!(skip_not_found(results).unwrap().is_empty());
+    }
+
+    #[test]
+    fn an_error_other_than_not_found_fails_the_fetch() {
+        let results: Vec<Result<u32, Error>> =
+            vec![Ok(1), Err(server_error(tonic::Code::Internal))];
+
+        assert!(skip_not_found(results).is_err());
     }
 }

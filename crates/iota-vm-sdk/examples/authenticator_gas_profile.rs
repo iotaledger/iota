@@ -18,10 +18,10 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_sdk_types::UserSignature;
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::Object,
-    signature::GenericSignature,
     transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
 };
 use iota_vm_sdk::{
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
     let out_path = PathBuf::from("authenticator_gas_profile.speedscope.json");
 
     let signed = example_signed_transaction()?;
-    let sender = signed.transaction_data().sender();
+    let sender = signed.transaction().sender();
 
     // Store: framework packages plus every object the run touches.
     let f = fixture()?;
@@ -106,13 +106,13 @@ fn example_signed_transaction() -> Result<SenderSignedData> {
     let f = fixture()?;
     let tx: TransactionData =
         bcs::from_bytes(&Base64::decode(f["tx_b64"].as_str().unwrap()).unwrap())?;
-    let sigs: Vec<GenericSignature> = f["signatures"]
+    let sigs: Vec<UserSignature> = f["signatures"]
         .as_array()
         .context("`signatures` must be an array")?
         .iter()
         .map(|s| {
-            Ok(GenericSignature::from_bytes(
-                &Base64::decode(s.as_str().unwrap()).unwrap(),
+            Ok(UserSignature::from_bytes(
+                Base64::decode(s.as_str().unwrap()).unwrap(),
             )?)
         })
         .collect::<Result<_>>()?;

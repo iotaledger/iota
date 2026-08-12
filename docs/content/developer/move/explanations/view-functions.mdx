@@ -1,0 +1,54 @@
+---
+description: 'What view functions are in Move on IOTA, the read-only guarantees they provide, and how those guarantees are enforced and recorded on-chain.'
+tags:
+  - explanation
+  - move-sc
+  - move-vm
+---
+
+# View Functions
+
+A _Move View Function_ is a standardized interface for enabling ergonomic and application-specific queries to on-chain state. Move view functions are developer defined on-chain read API that can be easily queried off-chain without requiring transaction signing or state mutation. In a Move module, the view function is annotated with the `#[view]` attribute.  
+The attribute marks the function as **read-only**: it may inspect on-chain state but cannot modify it. IOTA enforces this guarantee at both compile time and verifier time, and records it on-chain, so that off-chain consumers can rely on a function being a view without trusting its author.
+
+## Why view functions exist
+
+Reading data from a Move package has always been possible by simulating a call, but nothing about a function's declaration told a client whether calling it was safe to treat as a pure read. Moreover, one must write a significant amount of custom client-side logic to inspect on-chain data. This often involves multiple layers of fetching object IDs, deserializing raw bytes, and navigating dynamic fields just to reach an information stored within a Move object. 
+
+The Move View Function closes that gap:
+
+- **Package authors** express intent directly in the source, and the compiler holds them to it.
+- **Client and SDK developers** can discover a package's view functions and call them knowing the call has no side effects.
+- **Tooling** (explorers, indexers, wallets) can surface view functions as a safe, queryable read API for a package.
+- **Extends current RPC** by enabling easy access to data structures using custom fields or dynamic fields, e.g., Bag and Table.
+- **Returned results** are resolved, i.e., the Move types are deserialized.
+
+Given that a view function has no side effects, it can be called off-chain over JSON-RPC or GraphQL, or through an SDK, without submitting a transaction. A view call needs **no gas coin** and **no signature**. The returned values are deserialized to spare callers from decoding raw BCS bytes. See [Call a View Function](../how-tos/call-a-view-function.mdx).
+
+The motivation, design, and on-chain encoding are specified in [IIP-0005](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0005/iip-0005.md) and [IIP-0011](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0011/IIP-0011.md).
+
+## What is a `#[view]` function
+
+A `#[view]` function cannot take a mutable reference (through which it could mutate state), cannot consume objects by value (which would let it destroy or transfer them), and must return a value. For the exact rules, see the [view functions reference](../../references/move/view-functions.mdx).
+
+This is an example of view function that reads a `Bid` value from an `Auction` object:
+```move file=<rootDir>/examples/move/view_functions/sources/auction.move#L93-L97
+```
+
+A view may return an immutable reference. Because the reference only borrows existing state, it cannot be used to mutate it, so it stays within the read-only guarantee. When a view is [called from off-chain](../how-tos/call-a-view-function.mdx) — over JSON-RPC or GraphQL, or through an SDK — the caller has no Move stack to hold a reference into, so the returned reference is dereferenced and serialized as its underlying value. An off-chain consumer always receives a concrete value, never a pointer.
+
+## The two enforcement layers
+
+The `#[view]` property is enforced both by the Move compiler and the IOTA bytecode verifier.
+
+1. **The Move compiler** checks every `#[view]` function during type checking. A function whose signature violates the view rules fails to compile. The compiler additionally emits a lint warning when a function _would_ qualify as a view but is not annotated, nudging authors toward the attribute.
+2. **The IOTA bytecode verifier** re-checks the same constraints on the compiled package at publish time. A package that violates the view rules fails to publish. This way, a package that bypassed the compiler checks cannot smuggle in a non-conforming view function.
+
+Because both layers check the same constraints, the guarantee holds even for packages that were not built with the IOTA compiler.
+
+## How a view is recorded on-chain
+
+When a package is published, the names of its view functions are recorded in on-chain `PackageMetadata`. Each module gets a `ModuleMetadata` object whose address is derived deterministically from the package ID and the module name. The list of view-function names for a module is stored under that object as a dynamic field, readable through the `iota::module_metadata` module:
+
+- `borrow_view_functions_metadata_v1` returns the recorded view-function names for a module.
+- `is_view_function_v1` reports whether a given function name is a recorded view in that module.
