@@ -2561,7 +2561,12 @@ impl AuthorityState {
                     let Some(df_info) = self
                         .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut())
                         .unwrap_or_else(|e| {
-                            error!("try_create_dynamic_field_info should not fail, {}, new_object={:?}", e, new_object);
+                            error!(
+                                "try_create_dynamic_field_info should not fail, {}, new_object={}, new_object_type={}",
+                                e,
+                                new_object.id(),
+                                ObjectType::from(new_object)
+                            );
                             None
                         }
                         )

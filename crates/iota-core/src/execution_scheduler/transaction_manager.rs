@@ -410,7 +410,13 @@ impl TransactionManager {
                         };
 
                     if input_object_kinds.len() != input_object_keys.len() {
-                        error!("Duplicated input objects: {:?}", input_object_kinds);
+                        let mut seen = HashSet::with_capacity(input_object_kinds.len());
+                        let duplicates: Vec<_> = input_object_kinds
+                            .iter()
+                            .map(|kind| kind.object_id())
+                            .filter(|id| !seen.insert(*id))
+                            .collect();
+                        error!("Duplicated input objects: {:?}", duplicates);
                     }
 
                     let receiving_object_entries = tx.data().transaction().receiving_objects();

@@ -127,24 +127,6 @@ impl ConsensusManagerTrait for StarfishManager {
             .find(|(_, a)| a.protocol_key == own_protocol_key)
             .expect("Own authority should be among the consensus authorities!");
 
-        // Apply the protective consensus gRPC resource limits by default,
-        // filling only the bounds left unconfigured so explicit node config is
-        // respected. A node can opt out via the environment variable without a
-        // redeploy; these are local operational parameters, so heterogeneous
-        // values across validators are safe.
-        let parameters = {
-            let mut p = parameters;
-            if matches!(
-                std::env::var("CONSENSUS_GRPC_PROTECTIVE_LIMITS").as_deref(),
-                Ok("0") | Ok("false")
-            ) {
-                info!("Consensus gRPC protective limits disabled for validator {own_index}");
-            } else {
-                p.tonic.apply_protective();
-            }
-            p
-        };
-
         // Allow DAG visualizer port to be set via environment variable.
         // The port is used as-is (no offset) — in Docker each validator has its
         // own container so port collisions aren't a concern.

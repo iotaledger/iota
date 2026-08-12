@@ -578,7 +578,7 @@ impl TransactionExecutionApi {
 
 #[async_trait]
 impl WriteApiServer for TransactionExecutionApi {
-    #[instrument(skip(self))]
+    #[instrument(skip(self, tx_bytes, signatures))]
     async fn execute_transaction_block(
         &self,
         tx_bytes: Base64,
@@ -592,7 +592,7 @@ impl WriteApiServer for TransactionExecutionApi {
     }
 
     /// Calls a move view function.
-    #[instrument(skip(self))]
+    #[instrument(skip(self, arguments))]
     async fn view_function_call(
         &self,
         function_name: String,
@@ -626,7 +626,10 @@ impl WriteApiServer for TransactionExecutionApi {
         )
     }
 
-    #[instrument(skip(self, sender_address), fields(sender_address = %sender_address))]
+    #[instrument(
+        skip(self, sender_address, tx_bytes, additional_args),
+        fields(sender_address = %sender_address)
+    )]
     async fn dev_inspect_transaction_block(
         &self,
         sender_address: Address,
@@ -649,7 +652,7 @@ impl WriteApiServer for TransactionExecutionApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, tx_bytes))]
     async fn dry_run_transaction_block(
         &self,
         tx_bytes: Base64,

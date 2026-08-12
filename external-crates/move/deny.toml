@@ -51,6 +51,8 @@ ignore = [
   "RUSTSEC-2024-0384",
   # `paste` is unmaintained
   "RUSTSEC-2024-0436",
+  # `bitmaps` is unmaintained, pulled in by `imbl-sized-chunks`
+  "RUSTSEC-2026-0247",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
