@@ -35,7 +35,7 @@ mod checked {
         metrics::LimitsMetrics,
         move_package::{MovePackageExt, derive_package_metadata_id},
         object::{MoveStructExt, Object, ObjectInner},
-        storage::{BackingPackageStore, DenyListResult, PackageObject},
+        storage::DenyListResult,
         transaction::CallArg,
     };
     use move_binary_format::{
@@ -58,6 +58,10 @@ mod checked {
 
     use crate::{
         adapter::new_native_extensions,
+        data_store::{
+            PackageStore, cached_data_store::CachedPackageStore, iota_data_store::IotaDataStore,
+            linkage_view::LinkageView,
+        },
         error::convert_vm_error,
         execution_mode::ExecutionMode,
         execution_value::{
@@ -66,7 +70,6 @@ mod checked {
         },
         gas_charger::GasCharger,
         gas_meter::IotaGasMeter,
-        programmable_transactions::{data_store::IotaDataStore, linkage_view::LinkageView},
         type_resolver::TypeTagResolver,
     };
 
@@ -158,7 +161,9 @@ mod checked {
         where
             'a: 'state,
         {
-            let mut linkage_view = LinkageView::new(Box::new(state_view.as_iota_resolver()));
+            let mut linkage_view = LinkageView::new(Box::new(CachedPackageStore::new(Box::new(
+                state_view.as_iota_resolver(),
+            ))));
             let mut input_object_map = BTreeMap::new();
             let inputs = inputs
                 .into_iter()
@@ -318,7 +323,7 @@ mod checked {
             let package = package_for_linkage(&self.linkage_view, package_id)
                 .map_err(|e| self.convert_vm_error(e))?;
 
-            self.linkage_view.set_linkage(package.move_package())
+            self.linkage_view.set_linkage(&package)
         }
 
         /// Load a type using the context's current session.
@@ -1260,13 +1265,13 @@ mod checked {
     /// context.  Produces an error if the object at that ID does not exist,
     /// or is not a package.
     fn package_for_linkage(
-        linkage_view: &LinkageView,
+        package_store: &dyn PackageStore,
         package_id: ObjectId,
-    ) -> VMResult<PackageObject> {
+    ) -> VMResult<Rc<MovePackage>> {
         use move_binary_format::errors::PartialVMError;
         use move_core_types::vm_status::StatusCode;
 
-        match linkage_view.get_package_object(&package_id) {
+        match package_store.get_package(&package_id) {
             Ok(Some(package)) => Ok(package),
             Ok(None) => Err(PartialVMError::new(StatusCode::LINKER_ERROR)
                 .with_message(format!("Cannot find link context {package_id} in store"))
@@ -1300,13 +1305,11 @@ mod checked {
 
         // Set the defining package as the link context while loading the
         // struct
-        let original_address = linkage_view
-            .set_linkage(package.move_package())
-            .map_err(|e| {
-                PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                    .with_message(e.to_string())
-                    .finish(Location::Undefined)
-            })?;
+        let original_address = linkage_view.set_linkage(&package).map_err(|e| {
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message(e.to_string())
+                .finish(Location::Undefined)
+        })?;
 
         let runtime_id = ModuleId::new(
             original_address,
