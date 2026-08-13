@@ -26,6 +26,7 @@ use crate::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
         obj_indices::StoredObjectVersion,
+        objects::StoredCheckpointedObject,
         packages::StoredPackage,
     },
     pruning::pruner::PrunableTable,
@@ -96,7 +97,21 @@ impl Restore for PgIndexerStore {
 
         let persist_tasks = chunks
             .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_live_objects(c)));
+            .map(|c| {
+                let checkpointed = c
+                    .iter()
+                    .map(|live| StoredCheckpointedObject::try_from(live.indexed_object.clone()))
+                    .collect::<Result<Vec<_>, IndexerError>>()?;
+                Ok([
+                    self.spawn_blocking_task(move |this| {
+                        this.persist_checkpointed_objects_chunk(checkpointed)
+                    }),
+                    self.spawn_blocking_task(move |this| this.persist_live_objects(c)),
+                ])
+            })
+            .collect::<Result<Vec<_>, IndexerError>>()?
+            .into_iter()
+            .flatten();
         futures::future::try_join_all(persist_tasks)
             .await
             .map_err(|e| {
