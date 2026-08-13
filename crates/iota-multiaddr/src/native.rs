@@ -393,7 +393,7 @@ pub(crate) fn parse_end<'a, T: Iterator<Item = Protocol<'a>>>(protocols: &mut T)
 }
 
 // Parse a full /dns/-/tcp/-/{http,https} address
-pub(crate) fn parse_dns(address: &Multiaddr) -> Result<(Cow<'_, str>, u16, &'static str)> {
+pub fn parse_dns(address: &Multiaddr) -> Result<(Cow<'_, str>, u16, &'static str)> {
     let mut iter = address.iter();
 
     let dns_name = match iter
@@ -410,7 +410,7 @@ pub(crate) fn parse_dns(address: &Multiaddr) -> Result<(Cow<'_, str>, u16, &'sta
 }
 
 // Parse a full /ip4/-/tcp/-/{http,https} address
-pub(crate) fn parse_ip4(address: &Multiaddr) -> Result<(SocketAddr, &'static str)> {
+pub fn parse_ip4(address: &Multiaddr) -> Result<(SocketAddr, &'static str)> {
     let mut iter = address.iter();
 
     let ip_addr = match iter
@@ -429,7 +429,7 @@ pub(crate) fn parse_ip4(address: &Multiaddr) -> Result<(SocketAddr, &'static str
 }
 
 // Parse a full /ip6/-/tcp/-/{http,https} address
-pub(crate) fn parse_ip6(address: &Multiaddr) -> Result<(SocketAddr, &'static str)> {
+pub fn parse_ip6(address: &Multiaddr) -> Result<(SocketAddr, &'static str)> {
     let mut iter = address.iter();
 
     let ip_addr = match iter
@@ -611,6 +611,17 @@ mod test {
     use multiaddr::multiaddr;
 
     use super::Multiaddr;
+
+    #[test]
+    fn document_multiaddr_limitation_for_unix_protocol() {
+        // You can construct a multiaddr by hand (ie binary format) just fine
+        let path = "/tmp/foo";
+        let addr = Multiaddr::new_internal(multiaddr!(Unix(path), Http));
+
+        // But it doesn't round-trip in the human readable format
+        let s = addr.to_string();
+        assert!(s.parse::<Multiaddr>().is_err());
+    }
 
     #[test]
     fn test_to_socket_addr_basic() {

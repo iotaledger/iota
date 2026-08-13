@@ -26,13 +26,11 @@ use iota_config::{
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
 use iota_genesis_builder::{Builder, validator_info::ValidatorInfo};
+use iota_multiaddr::Multiaddr;
 use iota_swarm_config::genesis_config::GenesisConfig;
-use iota_types::{
-    crypto::{
-        AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
-        get_key_pair_from_rng,
-    },
-    multiaddr::Multiaddr,
+use iota_types::crypto::{
+    AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
+    get_key_pair_from_rng,
 };
 use rand::{SeedableRng, rngs::StdRng};
 
