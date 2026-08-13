@@ -57,6 +57,7 @@ fn err_to_js(e: VmSdkError) -> JsError {
         VmSdkError::MissingObject { .. } => "MissingObject",
         VmSdkError::Execution(_) => "Execution",
         VmSdkError::Vm(_) => "Vm",
+        VmSdkError::Trace(_) => "Trace",
         VmSdkError::UnsupportedProtocolVersion { .. } => "UnsupportedProtocolVersion",
     };
     JsError::new(&format!("{tag}: {e}"))
