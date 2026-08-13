@@ -38,7 +38,6 @@ prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
-# internal dependencies
 iota-common.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
