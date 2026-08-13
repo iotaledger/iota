@@ -1011,11 +1011,7 @@ impl IotaClientCommands {
                 let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
                 let upgrade_ticket = builder
                     .move_call(Address::FRAMEWORK, "package", "authorize_upgrade")
-                    .arguments((
-                        upgrade_capability.clone(),
-                        upgrade_policy,
-                        package_data.digest,
-                    ))
+                    .arguments((upgrade_capability, upgrade_policy, package_data.digest))
                     .arg();
                 let upgrade_receipt = builder
                     .upgrade(package_id, package_data, upgrade_ticket)
