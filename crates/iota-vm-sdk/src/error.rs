@@ -47,7 +47,6 @@ pub enum VmSdkError {
     Vm(#[from] VmError),
     /// A captured [`ExecutionTrace`](crate::ExecutionTrace)'s encoded bytes
     /// could not be read back into events.
-    #[cfg(not(target_arch = "wasm32"))]
     #[error(transparent)]
     Trace(#[from] TraceError),
     /// The requested protocol version cannot serve the request: either this
@@ -156,7 +155,6 @@ impl VmError {
 
 /// A captured execution trace's encoded bytes could not be decoded back into
 /// events.
-#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 #[error("read execution trace: {source}")]

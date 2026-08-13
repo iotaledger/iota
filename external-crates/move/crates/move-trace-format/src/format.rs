@@ -4,11 +4,11 @@
 
 // IDEA: Post trace analysis -- report when values are dropped.
 
-use std::fmt::Display;
 #[cfg(not(target_arch = "wasm32"))]
+use std::sync::mpsc::Receiver;
 use std::{
+    fmt::Display,
     io::{BufRead, BufReader},
-    sync::mpsc::Receiver,
 };
 
 use move_binary_format::{
@@ -37,12 +37,10 @@ const TRACE_VERSION: TraceVersion = 2;
 
 /// Compression level for the trace. This is the level of compression that we
 /// will use for the trace in zstd.
-#[cfg(not(target_arch = "wasm32"))]
 const COMPRESSION_LEVEL: i32 = 1;
 
 /// Size of the compression chunk. This is the size of the buffer that we will
 /// compress at a time.
-#[cfg(not(target_arch = "wasm32"))]
 const COMPRESSION_CHUNK_SIZE: usize = 1024 * 1024 * 1024;
 
 /// Size of the channel buffer. This is the size of the buffer that we will use
@@ -208,13 +206,13 @@ pub struct BufferedEventStream {
     sender: std::sync::mpsc::SyncSender<TraceEvent>,
 }
 
-// `wasm32-unknown-unknown` has neither threads nor the `zstd` C library, so the
-// trace is buffered uncompressed on that target. Tracing is not exercised on
-// wasm (the builder is only created when tracing is enabled); this exists so
-// the crate compiles there.
+// `wasm32-unknown-unknown` has no threads, so events are compressed on the
+// calling thread there. Both variants feed the encoder the same bytes in the
+// same order, so the trace they produce is identical.
 #[cfg(target_arch = "wasm32")]
 pub struct BufferedEventStream {
     pub event_count: TraceIndex,
+    events: zstd::stream::Encoder<'static, Vec<u8>>,
     buf: Vec<u8>,
 }
 
@@ -310,18 +308,20 @@ impl BufferedEventStream {
 impl BufferedEventStream {
     pub fn new() -> Self {
         use std::io::Write;
-        let mut buf = Vec::new();
+        let mut events = zstd::stream::Encoder::new(Vec::new(), COMPRESSION_LEVEL).unwrap();
         serde_json::to_writer(
-            &mut buf,
+            &mut events,
             &TraceVersionData {
                 version: TRACE_VERSION,
             },
         )
         .unwrap();
-        writeln!(&mut buf).unwrap();
+        writeln!(&mut events).unwrap();
+
         Self {
             event_count: 0,
-            buf,
+            events,
+            buf: Vec::new(),
         }
     }
 
@@ -329,11 +329,19 @@ impl BufferedEventStream {
         use std::io::Write;
         serde_json::to_writer(&mut self.buf, &event).unwrap();
         writeln!(&mut self.buf).unwrap();
+
+        if self.buf.len() > COMPRESSION_CHUNK_SIZE {
+            self.events
+                .write_all(&std::mem::take(&mut self.buf))
+                .unwrap();
+        }
         self.event_count += 1;
     }
 
-    pub fn finish(self) -> Vec<u8> {
-        self.buf
+    pub fn finish(mut self) -> Vec<u8> {
+        use std::io::Write;
+        self.events.write_all(self.buf.as_slice()).unwrap();
+        self.events.finish().unwrap()
     }
 }
 
@@ -540,13 +548,11 @@ impl Display for Effect {
 
 // Streaming reader for Move traces
 
-#[cfg(not(target_arch = "wasm32"))]
 pub struct MoveTraceReader<'a, R: std::io::Read> {
     pub version: TraceVersion,
     reader: BufReader<zstd::stream::Decoder<'a, BufReader<R>>>,
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl<R: std::io::Read> MoveTraceReader<'_, R> {
     pub fn new(data: R) -> std::io::Result<Self> {
         let data = zstd::stream::Decoder::new(data)?;
@@ -570,7 +576,6 @@ impl<R: std::io::Read> MoveTraceReader<'_, R> {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl<R: std::io::Read> Iterator for MoveTraceReader<'_, R> {
     type Item = std::io::Result<TraceEvent>;
 
