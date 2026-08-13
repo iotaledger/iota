@@ -325,7 +325,7 @@ impl RpcExampleProvider {
                 IotaObjectResponse::new_with_data(IotaObjectData {
                     content: Some(
                         IotaParsedData::try_from_object(
-                            coin.to_object(Version::from_u64(1)),
+                            coin.to_move_struct(Version::from_u64(1)),
                             GasCoin::layout(),
                         )
                         .unwrap(),
@@ -367,7 +367,7 @@ impl RpcExampleProvider {
         let result = IotaPastObjectResponse::VersionFound(IotaObjectData {
             content: Some(
                 IotaParsedData::try_from_object(
-                    coin.to_object(Version::from_u64(1)),
+                    coin.to_move_struct(Version::from_u64(1)),
                     GasCoin::layout(),
                 )
                 .unwrap(),
@@ -1482,7 +1482,7 @@ impl RpcExampleProvider {
             IotaPastObjectResponse::VersionFound(IotaObjectData {
                 content: Some(
                     IotaParsedData::try_from_object(
-                        coin.to_object(Version::from_u64(1)),
+                        coin.to_move_struct(Version::from_u64(1)),
                         GasCoin::layout(),
                     )
                     .unwrap(),
@@ -1500,7 +1500,7 @@ impl RpcExampleProvider {
             IotaPastObjectResponse::VersionFound(IotaObjectData {
                 content: Some(
                     IotaParsedData::try_from_object(
-                        coin2.to_object(Version::from_u64(4)),
+                        coin2.to_move_struct(Version::from_u64(4)),
                         GasCoin::layout(),
                     )
                     .unwrap(),
