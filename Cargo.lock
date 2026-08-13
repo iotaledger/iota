@@ -6626,7 +6626,6 @@ dependencies = [
  "iota-enum-compat-util",
  "iota-json",
  "iota-macros",
- "iota-metrics",
  "iota-names",
  "iota-package-resolver",
  "iota-protocol-config",
