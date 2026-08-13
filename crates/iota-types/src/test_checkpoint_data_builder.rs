@@ -217,7 +217,7 @@ impl TestCheckpointDataBuilder {
             !self.live_objects.contains_key(&object_id),
             "Object already exists: {object_id}. Please use a different object index.",
         );
-        let move_object = MoveStruct::new_coin(
+        let move_struct = MoveStruct::new_coin(
             coin_type,
             // version doesn't matter since we will set it to the lamport version when we finalize
             // the transaction
@@ -225,7 +225,7 @@ impl TestCheckpointDataBuilder {
             object_id,
             balance,
         );
-        let object = Object::new_move(move_object, owner, TransactionDigest::ZERO);
+        let object = Object::new_move(move_struct, owner, TransactionDigest::ZERO);
         tx_builder.created_objects.insert(object_id, object);
         self
     }

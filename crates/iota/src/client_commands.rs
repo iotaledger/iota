@@ -19,7 +19,7 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::read_mask_fields::ObjectField;
+use iota_grpc_client::read_mask_fields::{ObjectField, OwnedObjectReadMask};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -52,7 +52,7 @@ use iota_sdk::{
 use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderClient, unresolved};
 use iota_sdk_types::{
     Address, Identifier, Input, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference,
-    Owner, SenderSignedTransaction, SharedObjectReference, SignatureScheme, Transaction,
+    Owner, SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
     TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
@@ -66,6 +66,7 @@ use iota_types::{
             AuthenticatorFunctionRefV1, derive_authenticator_function_ref_v1_dynamic_field_id,
         },
     },
+    coin::{PAY_SPLIT_N_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
     crypto::EmptySignInfo,
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, Field},
@@ -1683,40 +1684,62 @@ impl IotaClientCommands {
                     _ => { /*no_op*/ }
                 }
 
-                let client = context.get_client().await?;
                 let signer = context.get_object_owner(&coin_id).await?;
-                let gas_coins_page = client
-                    .coin_read_api()
-                    .get_coins(signer, None, None, None)
-                    .await?;
-                // If we only have a single coin, we have to split from the gas coin
-                let tx_kind = if gas_coins_page.data.len() == 1 {
-                    if let Some(amounts) = amounts {
-                        client
-                            .transaction_builder()
-                            .pay_iota_tx_kind(vec![signer; amounts.len()], amounts)?
-                    } else if let Some(count_to_compute) = count {
-                        let amount = gas_coins_page.data[0].balance / count_to_compute;
-                        // Reduce by 1 as the gas coin is not included in the split
-                        let count_to_split = count_to_compute.saturating_sub(1);
-                        client.transaction_builder().pay_iota_tx_kind(
-                            vec![signer; count_to_split as usize],
-                            vec![amount; count_to_split as usize],
-                        )?
-                    } else {
-                        unreachable!("amount or count must be provided")
-                    }
+                let client = context.get_grpc_client().await?;
+                // Two coins are enough to tell a lone coin from several
+                let iota_coins = client
+                    .get_coins(
+                        signer,
+                        StructTag::new_gas(),
+                        Some(2),
+                        None,
+                        OwnedObjectReadMask::default(),
+                    )
+                    .await?
+                    .into_inner();
+
+                // The coin being split cannot also pay for gas, so if it is the
+                // signer's only IOTA coin the split has to come out of the gas coin
+                let split_from_gas = iota_coins.items.len() == 1
+                    && iota_coins.next_page_token.is_none()
+                    && iota_coins.items[0].id() == &coin_id;
+
+                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let (coin, coin_type) = if split_from_gas {
+                    (
+                        builder.apply_argument(unresolved::Argument::Gas),
+                        TypeTag::Struct(Box::new(StructTag::new_gas())),
+                    )
                 } else {
-                    client
-                        .transaction_builder()
-                        .split_coin_tx_kind(coin_id, amounts, count)
-                        .await?
+                    // Resolved here rather than by the builder, so that the
+                    // transaction pins the version the coin type was read from
+                    let (coin_ref, coin_type) = grpc_coin(&client, coin_id).await?;
+                    (builder.apply_argument(coin_ref), coin_type)
                 };
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                if let Some(amounts) = amounts {
+                    builder
+                        .move_call(
+                            ObjectId::FRAMEWORK,
+                            Identifier::PAY_MODULE.as_str(),
+                            PAY_SPLIT_VEC_FUNC_NAME.as_str(),
+                        )
+                        .type_tags([coin_type])
+                        .arguments((coin, amounts));
+                } else if let Some(count) = count {
+                    builder
+                        .move_call(
+                            ObjectId::FRAMEWORK,
+                            Identifier::PAY_MODULE.as_str(),
+                            PAY_SPLIT_N_FUNC_NAME.as_str(),
+                        )
+                        .type_tags([coin_type])
+                        .arguments((coin, count));
+                } else {
+                    unreachable!("amounts or count must be provided")
+                }
+                let tx_kind = builder.finish_kind().await?;
+                let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
@@ -1735,18 +1758,13 @@ impl IotaClientCommands {
                 gas_data,
                 processing,
             } => {
-                let client = context.get_client().await?;
                 let signer = context.get_object_owner(&primary_coin).await?;
+                let client = context.get_grpc_client().await?;
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .merge_coins_tx_kind(primary_coin, coin_to_merge)
-                    .await?;
-
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                builder.merge_coins(primary_coin, [coin_to_merge]);
+                let tx_kind = builder.finish_kind().await?;
+                let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
 
                 dry_run_or_execute_or_serialize(
                     signer,
@@ -3328,6 +3346,24 @@ async fn grpc_input_refs(
             Err(e) => Err(anyhow::anyhow!(e)),
         })
         .collect()
+}
+
+/// Fetch the coin with the given ID over gRPC, as a reference pinning the
+/// version its type was read at, and the `T` of its `Coin<T>`.
+async fn grpc_coin(
+    client: &iota_grpc_client::Client,
+    coin_id: ObjectId,
+) -> Result<(ObjectReference, TypeTag), anyhow::Error> {
+    let object = client
+        .object(coin_id, None)
+        .await?
+        .ok_or_else(|| anyhow!("Coin {coin_id} does not exist"))?;
+    let coin_type = object
+        .coin_type_opt()
+        .ok_or_else(|| anyhow!("Object {coin_id} is not a coin"))?
+        .clone();
+
+    Ok((object.object_ref(), coin_type))
 }
 
 /// Dry run, execute, or serialize a transaction.

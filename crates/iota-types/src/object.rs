@@ -617,9 +617,9 @@ impl Object {
     /// Make a new random test shared object.
     pub fn shared_for_testing() -> Object {
         let id = ObjectId::random();
-        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, id, 10);
-        let owner = Owner::Shared(obj.version());
-        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, id, 10);
+        let owner = Owner::Shared(move_struct.version());
+        Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
     }
 
     pub fn with_id_owner_gas_for_testing(id: ObjectId, owner: Address, gas: u64) -> Self {
@@ -724,9 +724,9 @@ impl Object {
     /// Generate a new gas coin worth `value` with a random object ID and owner
     /// For testing purposes only
     pub fn new_gas_with_balance_and_owner_for_testing(value: u64, owner: Address) -> Self {
-        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), value);
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), value);
         Object::new_move(
-            obj,
+            move_struct,
             Owner::Address(owner),
             TransactionDigest::GENESIS_MARKER,
         )
@@ -904,8 +904,8 @@ mod tests {
     // inadvertently changed.
     #[test]
     fn test_object_digest_and_serialized_format() {
-        let g =
-            GasCoin::new_for_testing_with_id(ObjectId::ZERO, 123).to_object(OBJECT_START_VERSION);
+        let g = GasCoin::new_for_testing_with_id(ObjectId::ZERO, 123)
+            .to_move_struct(OBJECT_START_VERSION);
         let o = Object::new_move(g, Owner::Address(Address::ZERO), TransactionDigest::ZERO);
         let bytes = bcs::to_bytes(&o).unwrap();
 
@@ -932,7 +932,7 @@ mod tests {
     #[test]
     fn test_get_coin_value_unchecked() {
         fn test_for_value(v: u64) {
-            let g = GasCoin::new_for_testing(v).to_object(OBJECT_START_VERSION);
+            let g = GasCoin::new_for_testing(v).to_move_struct(OBJECT_START_VERSION);
             assert_eq!(g.get_coin_value_unchecked(), v);
             assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
         }
@@ -953,7 +953,7 @@ mod tests {
     #[test]
     fn test_set_coin_value_unchecked() {
         fn test_for_value(v: u64) {
-            let mut g = GasCoin::new_for_testing(u64::MAX).to_object(OBJECT_START_VERSION);
+            let mut g = GasCoin::new_for_testing(u64::MAX).to_move_struct(OBJECT_START_VERSION);
             g.set_coin_value_unchecked(v);
             assert_eq!(g.get_coin_value_unchecked(), v);
             assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
