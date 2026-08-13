@@ -4763,35 +4763,60 @@ impl AuthorityState {
     ///   authority can satisfy that upgrade, in which case the contents are
     ///   included in the output.
     ///
-    /// If the current version of the framework can't be loaded, the binary does
+    /// If a needed version of the framework can't be loaded, the binary does
     /// not contain the bytes for that framework ID, or the resulting
     /// package fails the digest check, `None` is returned indicating that
     /// this authority cannot run the upgrade that the network voted on.
+    ///
+    /// All object lookups are pinned to the versions in `system_packages`
+    /// instead of using the latest versions, so that the result is
+    /// deterministic even if the change epoch transaction that performs the
+    /// upgrade has already been executed locally (e.g. via state sync). In
+    /// that case the reconstructed change epoch transaction is byte-identical
+    /// to the executed one, and the caller detects it as already executed.
     async fn get_system_package_bytes(
         &self,
         system_packages: Vec<ObjectReference>,
         binary_config: &BinaryConfig,
     ) -> Option<Vec<SystemPackage>> {
-        let ids: Vec<_> = system_packages
-            .iter()
-            .map(|object_ref| object_ref.object_id)
-            .collect();
-        let objects = self.get_objects(&ids);
+        let object_store = self.get_object_cache_reader();
 
         let mut res = Vec::with_capacity(system_packages.len());
-        for (system_package_ref, object) in system_packages.into_iter().zip(objects.iter()) {
-            let prev_transaction = match object {
-                Some(cur_object) if cur_object.object_ref() == system_package_ref => {
-                    // Skip this one because it doesn't need to be upgraded.
-                    info!(
-                        "Framework {} does not need updating",
+        for system_package_ref in system_packages {
+            if object_store
+                .get_object_by_key(&system_package_ref.object_id, system_package_ref.version)
+                .is_some_and(|object| object.object_ref() == system_package_ref)
+            {
+                // Skip this one because it doesn't need to be upgraded.
+                info!(
+                    "Framework {} does not need updating",
+                    system_package_ref.object_id
+                );
+                continue;
+            }
+
+            // The digest in `system_package_ref` commits to a package built on top of the
+            // predecessor version's `previous_transaction` (see `compare_system_package`),
+            // so it must be re-derived from that version. A ref at
+            // `Version::OBJECT_START` is a freshly created package with no predecessor.
+            let prev_transaction = if system_package_ref.version == Version::OBJECT_START {
+                TransactionDigest::GENESIS_MARKER
+            } else {
+                let prev_version = system_package_ref
+                    .version
+                    .previous()
+                    .expect("version is greater than Version::OBJECT_START");
+                let Some(prev_object) =
+                    object_store.get_object_by_key(&system_package_ref.object_id, prev_version)
+                else {
+                    error!(
+                        "Framework {} not available locally at version {prev_version:?}, cannot \
+                         derive upgrade to {system_package_ref:?}",
                         system_package_ref.object_id
                     );
-                    continue;
-                }
-
-                Some(cur_object) => cur_object.previous_transaction,
-                None => TransactionDigest::GENESIS_MARKER,
+                    return None;
+                };
+                prev_object.previous_transaction
             };
 
             #[cfg(msim)]
