@@ -1095,6 +1095,7 @@ mod tests {
             core_thread::tests::MockCoreThreadDispatcher,
             dag_state::DagState,
             encoder::create_encoder,
+            error::ConsensusError,
             header_synchronizer::HeaderSynchronizer,
             misbehavior_store::MisbehaviorStore,
             network::SerializedTransactionsV2,
@@ -1229,17 +1230,21 @@ mod tests {
             )
         }
 
+        fn fast_sync_context() -> Arc<Context> {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            Arc::new(context)
+        }
+
         /// A response whose transaction payload covers only some of the
         /// returned commits (e.g. the stream was cut off by the response byte
         /// limit) must still produce output for the covered prefix of commits
         /// instead of failing the whole fetch.
         #[tokio::test]
         async fn returns_covered_prefix_of_truncated_response() {
-            let (mut context, _) = Context::new_for_test(4);
-            context
-                .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(true);
-            let context = Arc::new(context);
+            let context = fast_sync_context();
 
             // Drop the second commit's transaction, as if the transaction
             // stream was cut off by the response byte limit.
@@ -1277,6 +1282,160 @@ mod tests {
                     .with_label_values(&[CommitSyncType::Fast.as_str()])
                     .get(),
                 1
+            );
+        }
+
+        /// Runs `fetch_once` against a canned response served by authority 1
+        /// and returns the error and the `Inner` whose misbehavior store the
+        /// fetch recorded into.
+        async fn fetch_once_error(
+            context: Arc<Context>,
+            response: (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>),
+        ) -> (ConsensusError, Arc<Inner<FakeNetworkClient>>) {
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some(response),
+                ..Default::default()
+            });
+            let inner = make_inner(context, network_client);
+            let err = FastCommitSyncer::fetch_once(
+                inner.clone(),
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap_err();
+            (err, inner)
+        }
+
+        /// An entry referencing a transaction no commit in the range commits
+        /// to is content the serving peer produced, so the peer is charged an
+        /// unprovable fault.
+        #[tokio::test]
+        async fn records_misbehavior_for_unrequested_transaction() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) = two_commit_response(&context);
+            let serialized = Transaction::serialize(&[Transaction::new(vec![9u8; 16])]).unwrap();
+            let mut encoder = create_encoder(&context);
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized,
+                &context,
+                &mut encoder,
+            )
+            .unwrap();
+            response_transactions.push(
+                bcs::to_bytes(&SerializedTransactionsV2 {
+                    transaction_ref: TransactionRef {
+                        round: 3,
+                        author: AuthorityIndex::new_for_test(0),
+                        transactions_commitment: commitment,
+                    },
+                    serialized_transactions: serialized,
+                })
+                .unwrap()
+                .into(),
+            );
+
+            let (err, inner) =
+                fetch_once_error(context, (commits, vote_headers, response_transactions)).await;
+
+            assert!(
+                matches!(err, ConsensusError::UnexpectedTransactionForCommit { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                vec![0, 1, 0, 0]
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
+            );
+        }
+
+        /// An entry that does not deserialize is content the serving peer
+        /// produced — truncation only drops whole entries — so the peer is
+        /// charged an unprovable fault.
+        #[tokio::test]
+        async fn records_misbehavior_for_malformed_transaction_entry() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) = two_commit_response(&context);
+            response_transactions[1] = Bytes::from_static(b"garbage");
+
+            let (err, inner) =
+                fetch_once_error(context, (commits, vote_headers, response_transactions)).await;
+
+            assert!(
+                matches!(err, ConsensusError::MalformedTransactions(_)),
+                "unexpected error: {err:?}"
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                vec![0, 1, 0, 0]
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
+            );
+        }
+
+        /// A payload that fails the commitment of the ref it is paired with
+        /// is charged to the serving peer, which may have forged the pairing.
+        #[tokio::test]
+        async fn records_misbehavior_for_payload_commitment_mismatch() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, response_transactions) = two_commit_response(&context);
+            // Swap the two payloads so each entry fails its ref's commitment.
+            let mut entries: Vec<SerializedTransactionsV2> = response_transactions
+                .iter()
+                .map(|bytes| bcs::from_bytes(bytes).unwrap())
+                .collect();
+            let payload = entries[0].serialized_transactions.clone();
+            entries[0].serialized_transactions = entries[1].serialized_transactions.clone();
+            entries[1].serialized_transactions = payload;
+            let response_transactions = entries
+                .iter()
+                .map(|entry| bcs::to_bytes(entry).unwrap().into())
+                .collect();
+
+            let (err, inner) =
+                fetch_once_error(context, (commits, vote_headers, response_transactions)).await;
+
+            assert!(
+                matches!(err, ConsensusError::TransactionCommitmentFailure { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                vec![0, 1, 0, 0]
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
+            );
+        }
+
+        /// A response with no transactions at all is indistinguishable from
+        /// one cut down by the client's byte cap or a mid-stream error, so it
+        /// fails the fetch without recording misbehavior.
+        #[tokio::test]
+        async fn does_not_record_misbehavior_for_missing_transactions() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, _) = two_commit_response(&context);
+
+            let (err, inner) = fetch_once_error(context, (commits, vote_headers, vec![])).await;
+
+            assert!(
+                matches!(err, ConsensusError::FetchedTransactionsMismatch { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                vec![0; 4]
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
             );
         }
     }

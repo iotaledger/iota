@@ -596,6 +596,14 @@ impl MisbehaviorStore {
     pub(crate) fn in_memory_equivocations(&self) -> Vec<u64> {
         self.in_memory.collect(|c| c.equivocations)
     }
+
+    pub(crate) fn in_memory_faulty_blocks_provable(&self) -> Vec<u64> {
+        self.in_memory.collect(|c| c.faulty_blocks_provable)
+    }
+
+    pub(crate) fn in_memory_faulty_blocks_unprovable(&self) -> Vec<u64> {
+        self.in_memory.collect(|c| c.faulty_blocks_unprovable)
+    }
 }
 
 #[cfg(test)]

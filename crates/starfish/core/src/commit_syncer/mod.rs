@@ -931,8 +931,8 @@ pub(crate) mod tests {
     };
 
     /// Fake `NetworkClient` for commit syncer tests. Serves the canned
-    /// `fetch_commits_and_transactions` response when one is set and fails the
-    /// fetch when none is; all other endpoints are unimplemented.
+    /// responses when set: `fetch_commits_and_transactions` fails the fetch
+    /// when none is set, the other fetch endpoints stay unimplemented.
     #[derive(Default)]
     pub(crate) struct FakeNetworkClient {
         pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
@@ -941,6 +941,12 @@ pub(crate) mod tests {
         pub(crate) response_delay: Duration,
         /// Every peer asked for commits, in the order it was asked.
         pub(crate) requested_peers: parking_lot::Mutex<Vec<AuthorityIndex>>,
+        /// Canned `fetch_commits` response: commits and certifier headers.
+        pub(crate) commits: Option<(Vec<Bytes>, Vec<Bytes>)>,
+        /// Canned `fetch_block_headers` response.
+        pub(crate) block_headers: Option<Vec<Bytes>>,
+        /// Canned `fetch_transactions` response.
+        pub(crate) transactions: Option<Vec<Bytes>>,
     }
 
     #[async_trait::async_trait]
@@ -960,7 +966,10 @@ pub(crate) mod tests {
             _transaction_refs: Vec<TransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
+            match &self.transactions {
+                Some(response) => Ok(response.clone()),
+                None => unimplemented!("Unimplemented"),
+            }
         }
 
         async fn fetch_block_headers(
@@ -970,16 +979,23 @@ pub(crate) mod tests {
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
+            match &self.block_headers {
+                Some(response) => Ok(response.clone()),
+                None => unimplemented!("Unimplemented"),
+            }
         }
 
         async fn fetch_commits(
             &self,
-            _peer: AuthorityIndex,
+            peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
         ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
-            unimplemented!("Unimplemented")
+            self.requested_peers.lock().push(peer);
+            match &self.commits {
+                Some(response) => Ok(response.clone()),
+                None => unimplemented!("Unimplemented"),
+            }
         }
 
         async fn fetch_commits_and_transactions(
