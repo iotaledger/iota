@@ -731,7 +731,7 @@ impl Swarm {
     pub fn validator_nodes(&self) -> impl Iterator<Item = &Node> {
         self.nodes
             .values()
-            .filter(|node| node.config().consensus_config.is_some())
+            .filter(|node| node.config().is_validator())
     }
 
     pub fn validator_node_handles(&self) -> Vec<IotaNodeHandle> {
@@ -764,7 +764,7 @@ impl Swarm {
     pub fn fullnodes(&self) -> impl Iterator<Item = &Node> {
         self.nodes
             .values()
-            .filter(|node| node.config().consensus_config.is_none())
+            .filter(|node| !node.config().is_validator())
     }
 
     /// Start a node from `config` and add it to the swarm.
@@ -790,7 +790,7 @@ impl Swarm {
     /// initial build. `validator-<N>` scoped overrides refer to positions in
     /// the initial network config, so they are skipped here.
     fn apply_node_config_overrides_for_spawn(&self, config: &mut NodeConfig) {
-        let is_fullnode = config.consensus_config.is_none();
+        let is_fullnode = !config.is_validator();
         apply_node_config_overrides(
             self.node_config_overrides.iter().filter(|config_override| {
                 if is_fullnode {
