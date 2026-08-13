@@ -27,11 +27,11 @@ use hyper::{
     header::{HeaderName, HeaderValue},
 };
 pub use iota_config::node::ServerType;
-use iota_core::traffic_controller::TrafficController;
 use iota_json_rpc_api::{
     CLIENT_SDK_TYPE_HEADER, CLIENT_SDK_VERSION_HEADER, CLIENT_TARGET_API_VERSION_HEADER,
 };
 use iota_open_rpc::{Module, Project};
+use iota_traffic_controller::TrafficController;
 use iota_types::traffic_control::PolicyConfig;
 use jsonrpsee::{Extensions, RpcModule, types::ErrorObjectOwned};
 pub use object_changes::*;

@@ -54,6 +54,7 @@ use iota_storage::{
     },
     key_value_store_metrics::KeyValueStoreMetrics,
 };
+use iota_traffic_controller::{TrafficController, metrics::TrafficControllerMetrics};
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
@@ -176,7 +177,6 @@ use crate::{
     },
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
-    traffic_controller::{TrafficController, metrics::TrafficControllerMetrics},
     transaction_input_loader::TransactionInputLoader,
     transaction_outputs::TransactionOutputs,
     validator_tx_finalizer::ValidatorTxFinalizer,

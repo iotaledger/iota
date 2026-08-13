@@ -13,10 +13,10 @@ use axum::{
     response::Response,
 };
 use hyper::{HeaderMap, header::HeaderValue};
-use iota_core::traffic_controller::{TrafficController, parse_ip, policies::TrafficTally};
 use iota_json_rpc_api::{
     CLIENT_TARGET_API_VERSION_HEADER, TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
 };
+use iota_traffic_controller::{TrafficController, parse_ip, policies::TrafficTally};
 use iota_types::traffic_control::{ClientIdSource, PolicyConfig, Weight};
 use jsonrpsee::{
     BoundedSubscriptions, ConnectionId, Extensions, MethodCallback, MethodKind, MethodResponse,
