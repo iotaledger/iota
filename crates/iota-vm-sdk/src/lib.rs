@@ -47,12 +47,12 @@ pub mod graphql;
 #[cfg(all(feature = "wasm-bindgen", target_arch = "wasm32"))]
 mod wasm;
 
-#[cfg(not(target_arch = "wasm32"))]
-pub use debug::TraceEvents;
-pub use debug::{DebugArtifacts, DebugConfig, ExecutionTrace, ProfileOutput, ProfileSink};
-#[cfg(not(target_arch = "wasm32"))]
-pub use error::TraceError;
-pub use error::{ExecutionError, SignatureError, StoreError, ValidationError, VmError, VmSdkError};
+pub use debug::{
+    DebugArtifacts, DebugConfig, ExecutionTrace, ProfileOutput, ProfileSink, TraceEvents,
+};
+pub use error::{
+    ExecutionError, SignatureError, StoreError, TraceError, ValidationError, VmError, VmSdkError,
+};
 pub use executor::{
     ChainContext, CommandResult, DecodedEvent, ExecuteOptions, ExecutionMode, ExecutionResult,
     LocalVm, SignatureStatus,
