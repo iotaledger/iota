@@ -641,6 +641,11 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         //     TransactionSynchronizer will take care of fetching missing
                         //     transactions later.
                         if request_tx_refs.len() < serialized_transactions.len() {
+                            inner.misbehavior_store.record_faulty_transactions(
+                                target_authority,
+                                false,
+                                [target_authority],
+                            );
                             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                                 target_authority,
                             ));
@@ -651,14 +656,31 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         // directly
                         let mut result = BTreeMap::new();
                         for serialized_bytes in serialized_transactions {
+                            // A malformed or unrequested entry is content the
+                            // serving peer produced (truncation only drops
+                            // whole entries), but it can't be proven against an
+                            // author, so the peer is charged an unprovable
+                            // fault.
                             let serialized_tx: SerializedTransactionsV2 =
                                 bcs::from_bytes(&serialized_bytes)
+                                    .inspect_err(|_| {
+                                        inner.misbehavior_store.record_faulty_transactions(
+                                            target_authority,
+                                            false,
+                                            [target_authority],
+                                        )
+                                    })
                                     .map_err(ConsensusError::MalformedTransactions)?;
 
                             // 11. Verify the returned transactions match the requested transaction
                             //     refs.
                             let committed_transaction_ref = serialized_tx.transaction_ref;
                             if !requested_tx_refs_set.contains(&committed_transaction_ref) {
+                                inner.misbehavior_store.record_faulty_transactions(
+                                    target_authority,
+                                    false,
+                                    [target_authority],
+                                );
                                 return Err(ConsensusError::UnexpectedTransactionForCommit {
                                     peer: target_authority,
                                     received: committed_transaction_ref,
@@ -712,7 +734,17 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                     }
                 })
                 .await
-                .expect("Spawn blocking should not fail")?
+                .expect("Spawn blocking should not fail")
+                .inspect_err(|_| {
+                    // The peer served a payload that fails verification against
+                    // its own claimed ref; the mismatch can't be proven against
+                    // the author, whose commitment the peer may have forged.
+                    inner.misbehavior_store.record_faulty_transactions(
+                        target_authority,
+                        false,
+                        [target_authority],
+                    );
+                })?
         } else {
             BTreeMap::new()
         };

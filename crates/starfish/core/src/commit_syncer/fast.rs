@@ -641,7 +641,18 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             target_authority,
             serialized_transactions,
             &mut committed_tx_refs,
-        )?;
+        )
+        .inspect_err(|_| {
+            // A malformed or uncommitted entry is content the serving peer
+            // produced (truncation only drops whole entries), but it can't be
+            // proven against an author, so the peer is charged an unprovable
+            // fault.
+            inner.misbehavior_store.record_faulty_transactions(
+                target_authority,
+                false,
+                [target_authority],
+            );
+        })?;
 
         // The response may be missing transactions for a suffix of the commits,
         // e.g. when the stream was cut off by the response byte limit or a
@@ -687,7 +698,17 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     }
                 })
                 .await
-                .expect("Spawn blocking should not fail")?
+                .expect("Spawn blocking should not fail")
+                .inspect_err(|_| {
+                    // The peer served a payload that fails verification against
+                    // its own claimed ref; the mismatch can't be proven against
+                    // the author, whose commitment the peer may have forged.
+                    inner.misbehavior_store.record_faulty_transactions(
+                        target_authority,
+                        false,
+                        [target_authority],
+                    );
+                })?
         } else {
             BTreeMap::new()
         };
@@ -987,8 +1008,11 @@ fn process_serialized_transactions(
 /// `verify_commits` are chained by digest up to a vote-certified last commit,
 /// so any prefix of them remains trusted on its own.
 ///
-/// Returns an error attributed to `peer` when even the first commit is missing
-/// transactions, since the response then allows no forward progress.
+/// Returns an error naming `peer` when even the first commit is missing
+/// transactions, since the response then allows no forward progress. The error
+/// is not recorded as peer misbehavior: the fetch client caps response bytes
+/// and keeps partial data on mid-stream errors, so an honest response can be
+/// cut down to any prefix, including an empty one.
 fn truncate_to_fully_fetched_prefix(
     peer: AuthorityIndex,
     commits: &mut Vec<TrustedCommit>,

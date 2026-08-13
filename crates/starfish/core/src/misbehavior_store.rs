@@ -338,6 +338,13 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // transport, request-shape checks, local lifecycle signals, and version
         // mismatches that may stem from a benign upgrade misconfiguration rather
         // than a faulty peer.
+        //
+        // Fetch shortfalls (fewer entries than requested, or transactions
+        // covering no commit) stay untracked because the fetch client caps
+        // response bytes and keeps partial data on mid-stream errors, so an
+        // honest response can arrive incomplete. Transaction fetch faults that
+        // are peer-attributable are untracked here and recorded at the fetch
+        // sites via `record_faulty_transactions` instead.
         ConsensusError::MalformedCommit(_)
         | ConsensusError::UnexpectedGenesisRequested { .. }
         | ConsensusError::UnexpectedNumberOfHeadersFetched { .. }
