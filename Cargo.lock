@@ -5484,6 +5484,7 @@ dependencies = [
  "iota-metrics",
  "iota-move",
  "iota-move-build",
+ "iota-multiaddr",
  "iota-names",
  "iota-package-management",
  "iota-protocol-config",
@@ -5718,6 +5719,7 @@ dependencies = [
  "fastcrypto",
  "iota-keys",
  "iota-metrics",
+ "iota-multiaddr",
  "iota-names",
  "iota-protocol-config",
  "iota-sdk-crypto",
@@ -5774,6 +5776,7 @@ dependencies = [
  "iota-metrics",
  "iota-move",
  "iota-move-build",
+ "iota-multiaddr",
  "iota-network",
  "iota-network-stack",
  "iota-node-storage",
@@ -6156,6 +6159,7 @@ dependencies = [
  "iota-framework",
  "iota-framework-snapshot",
  "iota-genesis-common",
+ "iota-multiaddr",
  "iota-protocol-config",
  "iota-sdk-types",
  "iota-swarm-config",
@@ -6976,6 +6980,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-multiaddr"
+version = "1.30.0-alpha"
+dependencies = [
+ "anemo",
+ "eyre",
+ "idna",
+ "multiaddr",
+ "serde",
+ "tracing",
+]
+
+[[package]]
 name = "iota-names"
 version = "1.30.0-alpha"
 dependencies = [
@@ -7009,6 +7025,7 @@ dependencies = [
  "iota-data-ingestion-core",
  "iota-macros",
  "iota-metrics",
+ "iota-multiaddr",
  "iota-network-stack",
  "iota-protocol-config",
  "iota-sdk-types",
@@ -7047,8 +7064,8 @@ dependencies = [
  "http-body 1.0.1",
  "hyper-rustls",
  "hyper-util",
- "idna",
  "iota-http",
+ "iota-multiaddr",
  "iota-tls",
  "multiaddr",
  "once_cell",
@@ -7091,6 +7108,7 @@ dependencies = [
  "iota-macros",
  "iota-metrics",
  "iota-metrics-push-client",
+ "iota-multiaddr",
  "iota-names",
  "iota-network",
  "iota-network-stack",
@@ -7866,6 +7884,7 @@ dependencies = [
  "iota-config",
  "iota-execution",
  "iota-genesis-builder",
+ "iota-multiaddr",
  "iota-names",
  "iota-protocol-config",
  "iota-sdk-crypto",
@@ -7961,6 +7980,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-macros",
+ "iota-multiaddr",
  "iota-network",
  "iota-package-dump",
  "iota-protocol-config",
@@ -8091,7 +8111,7 @@ dependencies = [
  "hex",
  "indexmap 2.11.0",
  "iota-macros",
- "iota-network-stack",
+ "iota-multiaddr",
  "iota-protocol-config",
  "iota-sdk-crypto",
  "iota-sdk-types",

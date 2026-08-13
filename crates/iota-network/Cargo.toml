@@ -35,6 +35,7 @@ iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
+iota-multiaddr.workspace = true
 iota-network-stack.workspace = true
 iota-sdk-types.workspace = true
 iota-storage.workspace = true

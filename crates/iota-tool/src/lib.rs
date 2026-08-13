@@ -40,6 +40,7 @@ use iota_core::{
 use iota_data_ingestion_core::history::reader::{
     HistoricalReader, HistoricalReaderConfig, make_blob_iterator_for_range,
 };
+use iota_multiaddr::Multiaddr;
 use iota_network::default_iota_network_config;
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_types::{
@@ -69,7 +70,6 @@ use iota_types::{
         LayoutGenerationOption, ObjectInfoRequest, ObjectInfoRequestKind, ObjectInfoResponse,
         TransactionInfoRequest, TransactionStatus,
     },
-    multiaddr::Multiaddr,
     object::MoveStructExt,
     storage::WriteStore,
 };
