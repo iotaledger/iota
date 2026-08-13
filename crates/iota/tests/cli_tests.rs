@@ -155,7 +155,8 @@ impl TreeShakingTest {
     ) -> Result<ObjectId, anyhow::Error> {
         let mut build_config = BuildConfig::new_for_testing().config;
         build_config.lock_file = Some(self.package_path(package_name).join("Move.lock"));
-        // Boxed for the same stack-limit reason as `publish_package`.
+        // Boxed because the tree-shaking tests chain many CLI commands in a single
+        // test future, which otherwise gets close to the test thread's stack limit.
         let resp = Box::pin(
             IotaClientCommands::Upgrade {
                 package_path: self.package_path(package_name),
