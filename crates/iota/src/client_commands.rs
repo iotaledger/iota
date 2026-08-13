@@ -51,8 +51,8 @@ use iota_sdk::{
 };
 use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderClient, unresolved};
 use iota_sdk_types::{
-    Address, Identifier, Input, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference,
-    Owner, SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
+    Address, Identifier, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference, Owner,
+    SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
     TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
@@ -1008,43 +1008,21 @@ impl IotaClientCommands {
                 }
 
                 let grpc_client = context.get_grpc_client().await?;
-                let capability = grpc_client
-                    .object(upgrade_capability, None)
-                    .await?
-                    .ok_or_else(|| {
-                        anyhow!("Could not find upgrade capability at {upgrade_capability}")
-                    })?;
-                let capability_arg = match capability.owner() {
-                    Owner::Address(_) => Input::ImmutableOrOwned(capability.object_ref()),
-                    Owner::Shared(initial_shared_version) => {
-                        Input::Shared(SharedObjectReference::new(
-                            upgrade_capability,
-                            *initial_shared_version,
-                            true,
-                        ))
-                    }
-                    Owner::Immutable => bail!(
-                        "Upgrade capability is stored immutably and cannot be used for upgrades"
-                    ),
-                    // If the capability is owned by an object, then the module defining the
-                    // owning object gets to decide how the upgrade capability should be used.
-                    Owner::Object(_) => bail!("Upgrade capability controlled by object"),
-                    _ => {
-                        unimplemented!("a new Owner enum variant was added and needs to be handled")
-                    }
-                };
-
                 let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
                 let upgrade_ticket = builder
                     .move_call(Address::FRAMEWORK, "package", "authorize_upgrade")
-                    .arguments((capability_arg.clone(), upgrade_policy, package_data.digest))
+                    .arguments((
+                        upgrade_capability.clone(),
+                        upgrade_policy,
+                        package_data.digest,
+                    ))
                     .arg();
                 let upgrade_receipt = builder
                     .upgrade(package_id, package_data, upgrade_ticket)
                     .arg();
                 builder
                     .move_call(Address::FRAMEWORK, "package", "commit_upgrade")
-                    .arguments((capability_arg, upgrade_receipt));
+                    .arguments((upgrade_capability, upgrade_receipt));
                 let tx_kind = builder.finish_kind().await?;
 
                 let gas_payment = grpc_input_refs(&grpc_client, &payment.gas).await?;
