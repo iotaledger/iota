@@ -1384,7 +1384,11 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             "data_ingestion_executor".to_string(),
             checkpoint_archive_config.verify_concurrency.get(),
             Default::default(),
-            StateSyncReducer(store, metrics),
+            StateSyncReducer {
+                store,
+                metrics,
+                verify_concurrency: checkpoint_archive_config.verify_concurrency,
+            },
         );
         let setup_result = setup_data_ingestion_executor(
             worker_pool,

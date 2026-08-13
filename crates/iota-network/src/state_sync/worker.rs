@@ -2,10 +2,11 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
 use anemo::async_trait;
 use anyhow::{Context, anyhow, ensure};
+use futures::{StreamExt, TryStreamExt};
 use iota_data_ingestion_core::{Reducer, Worker};
 use iota_storage::verify_checkpoint_linkage;
 use iota_types::{
@@ -82,7 +83,13 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
 /// verifies the signatures the workers had to defer — the checkpoints at the
 /// head of an epoch whose committee only becomes available here, once the
 /// previous epoch's last checkpoint is committed.
-pub(crate) struct StateSyncReducer<S>(pub(crate) S, pub(crate) Metrics);
+pub(crate) struct StateSyncReducer<S> {
+    pub(crate) store: S,
+    pub(crate) metrics: Metrics,
+    /// How many deferred signature verifications to run in parallel; the
+    /// workers use the same bound for their own verification.
+    pub(crate) verify_concurrency: NonZeroUsize,
+}
 
 /// How many checkpoints the reducer commits per store insertion at most,
 /// bounding the size of the underlying write batches.
@@ -104,12 +111,13 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
             to_insert.push((verified_checkpoint, message.contents.clone()));
         }
 
-        self.0
+        self.store
             .try_insert_synced_checkpoints(to_insert)
             .map_err(|e| anyhow!("failed to insert synced checkpoints: {e}"))?;
 
         for _ in batch {
-            self.1.update_checkpoints_synced_from_checkpoint_archive();
+            self.metrics
+                .update_checkpoints_synced_from_checkpoint_archive();
         }
         Ok(())
     }
@@ -134,35 +142,43 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
 }
 
 impl<S: WriteStore + Clone> StateSyncReducer<S> {
-    /// Verifies the authority signatures the workers had to
-    /// defer in parallel. The deferred checkpoints sit at the head of an epoch,
-    /// so by commit time the previous epoch's last checkpoint — which
-    /// carries their committee — is committed and the committee is in the
-    /// store.
+    /// Verifies in parallel the authority signatures the workers had to defer.
+    /// The deferred checkpoints sit at the head of an epoch, so by commit time
+    /// the previous epoch's last checkpoint — which carries their committee —
+    /// is committed and the committee is in the store.
     async fn verify_deferred_signatures(
         &self,
         batch: &[VerifiedArchiveCheckpoint],
     ) -> anyhow::Result<()> {
-        let tasks: Vec<_> = batch
+        let deferred = batch
             .iter()
             .filter(|message| !message.signatures_verified)
             .map(|message| {
                 let summary = message.summary.clone();
-                let committee = self.0.get_committee(summary.epoch()).context(format!(
+                let committee = self.store.get_committee(summary.epoch()).context(format!(
                     "missing committee for epoch {} in store",
                     summary.epoch()
                 ))?;
-                Ok(tokio::task::spawn_blocking(move || {
-                    summary
-                        .verify_authority_signatures(&committee)
-                        .map_err(|e| anyhow!("checkpoint signature verification failed: {e}"))
-                }))
+                Ok((summary, committee))
             })
-            .collect::<anyhow::Result<_>>()?;
-        for task in tasks {
-            task.await??;
-        }
-        Ok(())
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        futures::stream::iter(deferred.into_iter().map(|(summary, committee)| async move {
+            tokio::task::spawn_blocking(move || {
+                summary
+                    .verify_authority_signatures(&committee)
+                    .map_err(|e| {
+                        anyhow!(
+                            "signature verification failed for checkpoint {}: {e}",
+                            summary.sequence_number
+                        )
+                    })
+            })
+            .await?
+        }))
+        .buffer_unordered(self.verify_concurrency.get())
+        .try_collect()
+        .await
     }
 
     /// Chain-checks one checkpoint against its predecessor — the previous
@@ -174,7 +190,10 @@ impl<S: WriteStore + Clone> StateSyncReducer<S> {
         prev_in_batch: Option<&VerifiedCheckpoint>,
     ) -> anyhow::Result<VerifiedCheckpoint> {
         let sequence_number = message.summary.sequence_number;
-        if let Some(existing) = self.0.get_checkpoint_by_sequence_number(sequence_number) {
+        if let Some(existing) = self
+            .store
+            .get_checkpoint_by_sequence_number(sequence_number)
+        {
             // The contents will be inserted under the stored summary, and
             // mismatched contents would only panic after the transactions are
             // written, so reject archive data that diverges from the store
@@ -192,7 +211,7 @@ impl<S: WriteStore + Clone> StateSyncReducer<S> {
         let prev_checkpoint = match prev_in_batch {
             Some(prev) if prev.sequence_number == prev_checkpoint_seq_num => prev.clone(),
             _ => self
-                .0
+                .store
                 .get_checkpoint_by_sequence_number(prev_checkpoint_seq_num)
                 .context(format!(
                     "missing previous checkpoint {prev_checkpoint_seq_num} in store"
