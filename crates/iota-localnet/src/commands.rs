@@ -271,16 +271,14 @@ pub enum LocalnetCommand {
         #[arg(long, conflicts_with = "no_full_node")]
         disable_fullnode_pruning: bool,
         /// Override a value in the generated node configs for this run, e.g.
-        /// `--node-config-override
-        /// fullnode:authority-store-pruning-config.num-epochs-to-retain=5`.
+        /// `fullnode:authority-store-pruning-config.num-epochs-to-retain=5`.
         ///
         /// Scope is `all` (default), `fullnode`, `validator` (all
         /// validators), or `validator-<N>`; the path uses the field names
         /// from the node config YAML. Repeatable; later overrides win.
-        /// Values are YAML — quote values that would parse as structure
-        /// (e.g. `'[::1]:9000'`); `null` or an empty value clears a field; a
-        /// mapping merges with the section's current fields, a list replaces
-        /// the whole list.
+        /// Values are YAML: quote one that would parse as structure (e.g.
+        /// `'[::1]:9000'`), an empty value or `null` clears the field, a
+        /// mapping merges with the section, a list replaces it.
         ///
         /// Warning: overriding per-node values (e.g. `db-path`) for every
         /// node or clearing `p2p-config.seed-peers` breaks the network.
@@ -288,30 +286,15 @@ pub enum LocalnetCommand {
         // value by echoing the whole argument, which may carry a credential.
         #[arg(long, value_name = "[SCOPE:]PATH=VALUE")]
         node_config_override: Vec<String>,
-        /// Print each node's final config, with the node config overrides
+        /// Print each node's final config with the node config overrides
         /// applied and the fields they set listed, then exit without
-        /// starting the nodes. The output contains every value from the
-        /// config verbatim, except the key pairs and an embedded genesis,
-        /// which are omitted for readability (a genesis file reference
-        /// keeps its path); review the output before sharing it. The
-        /// output is for inspection, not a loadable config file.
+        /// starting the nodes. Values are verbatim except the key pairs
+        /// and an embedded genesis; review the output before sharing it.
         ///
-        /// Generated configs get network addresses other than
-        /// `json-rpc-address` allocated fresh on every run; validators
-        /// from a persisted network.yaml keep theirs. Under
-        /// `--force-regenesis` the printed `db-path`s point into a
-        /// temporary directory that is removed on exit. The listed fields
-        /// are the ones the overrides name, so a whole-section override
-        /// followed by an edit inside that section lists both.
-        #[cfg_attr(
-            feature = "indexer",
-            doc = "The data-ingestion directory `--with-indexer` allocates is temporary and \
-                   removed on exit; pass `--data-ingestion-dir` to render the path a real run \
-                   would use."
-        )]
-        /// If the configuration directory has no genesis, one is generated
-        /// and a full network configuration, key files included, is
-        /// persisted there. Cannot be combined with `--with-faucet`.
+        /// Addresses and paths are the ones this run allocated, so they
+        /// differ from a later run's. Generates and persists a genesis,
+        /// key files included, if the configuration directory has none.
+        /// Cannot be combined with `--with-faucet`.
         #[arg(long)]
         print_config: bool,
         /// Set the number of validators in the network.
