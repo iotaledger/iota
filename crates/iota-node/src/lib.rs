@@ -2567,7 +2567,7 @@ pub async fn build_http_server(
     prometheus_registry: &Registry,
 ) -> Result<Option<iota_http::ServerHandle>> {
     // Validators do not expose these APIs
-    if config.consensus_config().is_some() {
+    if config.is_validator() {
         return Ok(None);
     }
 
