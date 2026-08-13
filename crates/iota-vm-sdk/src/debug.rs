@@ -7,11 +7,8 @@
 
 use std::path::PathBuf;
 
-use move_trace_format::format::{MoveTraceBuilder, TraceVersion};
-#[cfg(not(target_arch = "wasm32"))]
-use move_trace_format::format::{MoveTraceReader, TraceEvent};
+use move_trace_format::format::{MoveTraceBuilder, MoveTraceReader, TraceEvent, TraceVersion};
 
-#[cfg(not(target_arch = "wasm32"))]
 use crate::error::TraceError;
 
 /// Configuration for a single debug-enabled run.
@@ -125,9 +122,6 @@ impl ExecutionTrace {
     /// The trace as the VM encoded it: a version header line followed by one
     /// JSON-encoded event per line, zstd-compressed. Write it to a file with
     /// the `json.zst` extension to open the run in the Move trace debugger.
-    ///
-    /// (On wasm32 the Move trace format is not compressed, so these are plain
-    /// line-delimited JSON bytes.)
     pub fn bytes(&self) -> &[u8] {
         &self.bytes
     }
@@ -138,7 +132,6 @@ impl ExecutionTrace {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 impl ExecutionTrace {
     /// The events the VM emitted, in order, decoded from the encoded trace.
     ///
@@ -147,8 +140,6 @@ impl ExecutionTrace {
     /// encoded bytes do (a run of ~15,000 events decodes from 66 KB of
     /// compressed bytes to about 4 MB), which is why they are not decoded up
     /// front.
-    ///
-    /// Not available on wasm32; see [`bytes`](Self::bytes).
     ///
     /// # Errors
     ///
@@ -163,10 +154,8 @@ impl ExecutionTrace {
 
 /// The events of an [`ExecutionTrace`], decoded as the iterator advances. See
 /// [`ExecutionTrace::events`].
-#[cfg(not(target_arch = "wasm32"))]
 pub struct TraceEvents<'a>(MoveTraceReader<'static, std::io::Cursor<&'a [u8]>>);
 
-#[cfg(not(target_arch = "wasm32"))]
 impl Iterator for TraceEvents<'_> {
     type Item = Result<TraceEvent, TraceError>;
 
