@@ -8,7 +8,6 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
-use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_types::{
     Address, Argument, CanceledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
@@ -2757,7 +2756,6 @@ impl TransactionFilter {
 
 impl Filter<EffectsWithInput> for TransactionFilter {
     fn matches(&self, item: &EffectsWithInput) -> bool {
-        let _scope = monitored_scope("TransactionFilter::matches");
         match self {
             TransactionFilter::InputObject(o) => {
                 let Ok(input_objects) = item.input.input_objects() else {
@@ -2918,7 +2916,6 @@ impl TransactionFilterV2 {
 
 impl Filter<EffectsWithInput> for TransactionFilterV2 {
     fn matches(&self, item: &EffectsWithInput) -> bool {
-        let _scope = monitored_scope("TransactionFilterV2::matches");
         if let Some(v1) = self.as_v1() {
             return v1.matches(item);
         }
