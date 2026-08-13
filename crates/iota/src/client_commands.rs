@@ -1048,7 +1048,6 @@ impl IotaClientCommands {
                 let tx_kind = builder.finish_kind().await?;
 
                 let gas_payment = grpc_input_refs(&grpc_client, &payment.gas).await?;
-
                 let result = dry_run_or_execute_or_serialize(
                     sender,
                     tx_kind,
@@ -1167,6 +1166,7 @@ impl IotaClientCommands {
                 let upgrade_cap = builder.publish(package_data).arg();
                 builder.transfer_objects(sender, [upgrade_cap]);
                 let tx_kind = builder.finish_kind().await?;
+
                 let gas_payment = grpc_input_refs(&grpc_client, &payment.gas).await?;
                 let result = dry_run_or_execute_or_serialize(
                     sender,
