@@ -34,7 +34,6 @@ iota-sdk-crypto.workspace = true
 iota-sdk-types.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
-iota-types.workspace = true
 prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 

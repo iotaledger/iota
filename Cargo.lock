@@ -6784,7 +6784,6 @@ dependencies = [
  "iota-simulator",
  "iota-swarm",
  "iota-swarm-config",
- "iota-types",
  "msim",
  "prometheus-filtered",
  "rand 0.8.6",
