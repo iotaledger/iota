@@ -121,7 +121,7 @@ pub mod checked {
     ///
     /// Payload-only: reads no objects and no frontier state, so it is safe to
     /// run post-consensus before version assignment. Mirrors the price checks
-    /// in [`IotaGasStatus::check_gas_preconditions`] and the budget-bound
+    /// in `IotaGasStatus::check_gas_preconditions` and the budget-bound
     /// checks in `IotaGasStatusV1::check_gas_balance`, without touching gas
     /// coins.
     pub fn check_gas_bounds(
