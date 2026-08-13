@@ -40,7 +40,7 @@ use tokio::{
 use tracing::{debug, error, info, trace, warn};
 
 use self::metrics::TrafficControllerMetrics;
-use crate::traffic_controller::{
+use crate::{
     nodefw_client::{BlockAddress, BlockAddresses, NodeFWClient},
     policies::{Policy, PolicyResponse, TrafficControlPolicy, TrafficTally},
 };

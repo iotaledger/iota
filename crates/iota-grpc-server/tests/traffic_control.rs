@@ -25,7 +25,6 @@ use common::{
     start_test_server_with_traffic_controller,
 };
 use futures::StreamExt;
-use iota_core::traffic_controller::TrafficController;
 use iota_grpc_server::GrpcServerHandle;
 use iota_grpc_types::{
     field::FieldMaskUtil,
@@ -43,6 +42,7 @@ use iota_grpc_types::{
     },
 };
 use iota_sdk_types::{Transaction, TransactionDigest};
+use iota_traffic_controller::TrafficController;
 use iota_types::{
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,

@@ -5743,12 +5743,10 @@ dependencies = [
  "anyhow",
  "arc-swap",
  "async-trait",
- "axum 0.8.8",
  "bcs",
  "bincode",
  "bytes",
  "clap",
- "count-min-sketch",
  "criterion",
  "dashmap",
  "diffy",
@@ -5760,7 +5758,6 @@ dependencies = [
  "fastcrypto-tbls",
  "fs_extra",
  "futures",
- "http 1.4.0",
  "iota-authority-aggregation",
  "iota-common",
  "iota-config",
@@ -5785,6 +5782,7 @@ dependencies = [
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-tls",
+ "iota-traffic-controller",
  "iota-transaction-checks",
  "iota-types",
  "itertools 0.13.0",
@@ -5808,7 +5806,6 @@ dependencies = [
  "prometheus-filtered",
  "quinn-proto",
  "rand 0.8.6",
- "reqwest",
  "roaring",
  "rstest",
  "scopeguard",
@@ -6309,7 +6306,6 @@ dependencies = [
  "futures",
  "http 1.4.0",
  "iota-config",
- "iota-core",
  "iota-metrics",
  "iota-node-storage",
  "iota-protocol-config",
@@ -6317,6 +6313,7 @@ dependencies = [
  "iota-sdk-grpc-types",
  "iota-sdk-types",
  "iota-test-transaction-builder",
+ "iota-traffic-controller",
  "iota-types",
  "itertools 0.13.0",
  "move-binary-format",
@@ -7988,6 +7985,28 @@ dependencies = [
  "tokio",
  "tracing",
  "typed-store",
+]
+
+[[package]]
+name = "iota-traffic-controller"
+version = "1.30.0-alpha"
+dependencies = [
+ "axum 0.8.8",
+ "count-min-sketch",
+ "dashmap",
+ "futures",
+ "http 1.4.0",
+ "iota-common",
+ "iota-macros",
+ "iota-metrics",
+ "iota-types",
+ "parking_lot 0.12.3",
+ "prometheus-filtered",
+ "rand 0.8.6",
+ "reqwest",
+ "serde",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]

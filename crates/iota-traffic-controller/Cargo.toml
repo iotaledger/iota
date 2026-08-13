@@ -1,0 +1,34 @@
+[package]
+name = "iota-traffic-controller"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Rate limiting and IP blocking for the IOTA node RPC endpoints"
+
+[dependencies]
+# external dependencies
+axum.workspace = true
+count-min-sketch = "0.1.7"
+dashmap.workspace = true
+futures.workspace = true
+http.workspace = true
+parking_lot.workspace = true
+rand.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "net"] }
+tracing.workspace = true
+
+# internal dependencies
+iota-common.workspace = true
+iota-metrics.workspace = true
+iota-types.workspace = true
+prometheus-filtered.workspace = true
+
+[dev-dependencies]
+iota-macros.workspace = true
+
+[lints]
+workspace = true

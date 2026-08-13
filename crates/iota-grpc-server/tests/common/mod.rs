@@ -511,7 +511,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 async fn start_test_server_with(
     state_reader: Arc<MockGrpcStateReader>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
-    traffic_controller: Option<Arc<iota_core::traffic_controller::TrafficController>>,
+    traffic_controller: Option<Arc<iota_traffic_controller::TrafficController>>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     let grpc_reader = Arc::new(GrpcReader::new(state_reader, Some("test".to_string())));
@@ -557,7 +557,7 @@ pub async fn start_test_server(
 /// registered).
 pub async fn start_test_server_with_traffic_controller(
     state_reader: Arc<MockGrpcStateReader>,
-    traffic_controller: Arc<iota_core::traffic_controller::TrafficController>,
+    traffic_controller: Arc<iota_traffic_controller::TrafficController>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     start_test_server_with(state_reader, executor, Some(traffic_controller), |_| {}).await

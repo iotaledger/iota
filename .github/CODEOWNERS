@@ -79,6 +79,7 @@
 /crates/iota-test-transaction-builder/ @iotaledger/dev-tools
 /crates/iota-tls/ @iotaledger/core-protocol
 /crates/iota-tool/ @iotaledger/node
+/crates/iota-traffic-controller/ @iotaledger/node
 /crates/iota-transaction-builder/ @iotaledger/dev-tools
 /crates/iota-transaction-checks/ @iotaledger/core-protocol
 /crates/iota-transactional-test-runner/ @iotaledger/vm-language
