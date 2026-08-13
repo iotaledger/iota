@@ -307,7 +307,12 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TooBigShardRoundInABundle { .. }
         | ConsensusError::IncorrectShardProof { .. }
         | ConsensusError::UnrequestedHeaderOutOfWindow { .. }
-        | ConsensusError::SerializedShardTooLarge { .. } => FaultType::Unprovable,
+        | ConsensusError::SerializedShardTooLarge { .. }
+        // A fetched block header other than the one requested. The fetch
+        // client only drops whole response entries and the entry count is
+        // checked before the per-entry references, so a mismatched header is
+        // content the serving peer produced.
+        | ConsensusError::UnexpectedBlockHeaderForCommit { .. } => FaultType::Unprovable,
 
         // Checks that run only after the author's signature is verified, so the
         // signed header itself proves the author produced a block that violates
@@ -370,7 +375,6 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::SerializedCommitTooLarge { .. }
         | ConsensusError::SerializedBlockHeaderTooLarge { .. }
         | ConsensusError::InvalidCommitRange { .. }
-        | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
         | ConsensusError::UnexpectedTransactionForCommit { .. }
         | ConsensusError::FetchedTransactionsMismatch { .. }
         | ConsensusError::RocksDBFailure(_)
@@ -999,6 +1003,13 @@ mod tests {
                 peer: AuthorityIndex::new_for_test(0),
                 round: 3,
             },
+            // A fetched header other than the one requested: charged to the
+            // serving peer.
+            ConsensusError::UnexpectedBlockHeaderForCommit {
+                peer: AuthorityIndex::new_for_test(0),
+                requested: BlockRef::MIN,
+                received: BlockRef::MIN,
+            },
         ];
         for e in cases {
             let (prov, unprov) = classify_via_record(e);
@@ -1021,16 +1032,11 @@ mod tests {
             // Commit-chain inconsistencies.
             ConsensusError::NoCommitReceived { peer: authority },
             ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
-            // Fetch-shape errors (peer returned wrong count/ref/transactions).
+            // Fetch shortfalls (client-side truncation can produce them).
             ConsensusError::UnexpectedNumberOfHeadersFetched {
                 authority,
                 requested: 5,
                 received_headers: 3,
-            },
-            ConsensusError::UnexpectedBlockHeaderForCommit {
-                peer: authority,
-                requested: BlockRef::MIN,
-                received: BlockRef::MIN,
             },
             ConsensusError::FetchedTransactionsMismatch {
                 peer: authority,

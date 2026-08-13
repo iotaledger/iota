@@ -590,16 +590,22 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         )
                         .await?;
                     // 5. Verify headers: count matches and each reference matches requested.
-                    // TODO: verify_fetched_headers currently only returns fetch-shape
-                    // errors (wrong count/ref) which classify as Untracked. When
-                    // per-header faults become observable here, record them as peer
-                    // misbehavior via
-                    // `inner.misbehavior_store.record_faulty_block`.
+                    // Classification charges the peer for malformed or
+                    // mismatched headers and leaves a short response untracked,
+                    // since the fetch client's byte cap can truncate an honest
+                    // one.
                     verify_fetched_headers(
                         target_authority,
                         request_block_refs,
                         serialized_block_headers,
                     )
+                    .inspect_err(|e| {
+                        inner.misbehavior_store.record_faulty_block(
+                            target_authority,
+                            target_authority,
+                            e,
+                        );
+                    })
                 }
             })
             .collect();

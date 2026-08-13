@@ -890,11 +890,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 break;
                             }
                             Err(e) => {
-                                // TODO: verify_fetched_headers currently only returns
-                                // fetch-shape errors (wrong count/ref) which classify
-                                // as Untracked. When per-header faults become observable
-                                // here, record them as peer misbehavior via
-                                // `inner.misbehavior_store.record_faulty_block`.
+                                // Classification charges the peer for malformed
+                                // or mismatched headers and leaves a short
+                                // response untracked, since the fetch client's
+                                // byte cap can truncate an honest one.
+                                inner
+                                    .misbehavior_store
+                                    .record_faulty_block(authority, authority, &e);
                                 record_headers_for_reinitialization_failure(&inner, authority);
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
