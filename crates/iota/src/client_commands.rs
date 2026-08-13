@@ -49,10 +49,10 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_transaction_builder::{TransactionBuilder, unresolved};
+use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderClient, unresolved};
 use iota_sdk_types::{
-    Address, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
-    SenderSignedTransaction, SharedObjectReference, SignatureScheme, Transaction,
+    Address, Identifier, Input, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference,
+    Owner, SenderSignedTransaction, SharedObjectReference, SignatureScheme, Transaction,
     TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
     crypto::{Intent, IntentMessage},
     gas::GasCostSummary,
@@ -966,12 +966,11 @@ impl IotaClientCommands {
                 let (upgrade_policy, compiled_package) =
                     upgrade_result.map_err(|e| anyhow!("{e}"))?;
 
-                let compiled_modules =
-                    compiled_package.get_package_bytes(with_unpublished_dependencies);
+                let package_data = MovePackageData::new(
+                    compiled_package.get_package_bytes(with_unpublished_dependencies),
+                    compiled_package.get_published_dependencies_ids(),
+                );
                 let package_id = compiled_package.published_at.clone()?;
-                let package_digest =
-                    compiled_package.get_package_digest(with_unpublished_dependencies);
-                let dep_ids = compiled_package.get_published_dependencies_ids();
 
                 if verify_compatibility {
                     let protocol_version =
@@ -1007,22 +1006,47 @@ impl IotaClientCommands {
                     .await?;
                 }
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .upgrade_tx_kind(
-                        package_id,
-                        compiled_modules,
-                        dep_ids,
-                        upgrade_capability,
-                        upgrade_policy,
-                        package_digest.to_vec(),
-                    )
-                    .await?;
+                let grpc_client = context.get_grpc_client().await?;
+                let capability = grpc_client
+                    .object(upgrade_capability, None)
+                    .await?
+                    .ok_or_else(|| {
+                        anyhow!("Could not find upgrade capability at {upgrade_capability}")
+                    })?;
+                let capability_arg = match capability.owner() {
+                    Owner::Address(_) => Input::ImmutableOrOwned(capability.object_ref()),
+                    Owner::Shared(initial_shared_version) => {
+                        Input::Shared(SharedObjectReference::new(
+                            upgrade_capability,
+                            *initial_shared_version,
+                            true,
+                        ))
+                    }
+                    Owner::Immutable => bail!(
+                        "Upgrade capability is stored immutably and cannot be used for upgrades"
+                    ),
+                    // If the capability is owned by an object, then the module defining the
+                    // owning object gets to decide how the upgrade capability should be used.
+                    Owner::Object(_) => bail!("Upgrade capability controlled by object"),
+                    _ => {
+                        unimplemented!("a new Owner enum variant was added and needs to be handled")
+                    }
+                };
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
+                let upgrade_ticket = builder
+                    .move_call(Address::FRAMEWORK, "package", "authorize_upgrade")
+                    .arguments((capability_arg.clone(), upgrade_policy, package_data.digest))
+                    .arg();
+                let upgrade_receipt = builder
+                    .upgrade(package_id, package_data, upgrade_ticket)
+                    .arg();
+                builder
+                    .move_call(Address::FRAMEWORK, "package", "commit_upgrade")
+                    .arguments((capability_arg, upgrade_receipt));
+                let tx_kind = builder.finish_kind().await?;
+
+                let gas_payment = grpc_input_refs(&grpc_client, &payment.gas).await?;
 
                 let result = dry_run_or_execute_or_serialize(
                     sender,
@@ -1132,18 +1156,17 @@ impl IotaClientCommands {
                 }
 
                 let compiled_package = compile_result?;
-                let compiled_modules =
-                    compiled_package.get_package_bytes(with_unpublished_dependencies);
-                let dep_ids = compiled_package.get_published_dependencies_ids();
+                let package_data = MovePackageData::new(
+                    compiled_package.get_package_bytes(with_unpublished_dependencies),
+                    compiled_package.get_published_dependencies_ids(),
+                );
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .publish_tx_kind(sender, compiled_modules, dep_ids)
-                    .await?;
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let grpc_client = context.get_grpc_client().await?;
+                let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
+                let upgrade_cap = builder.publish(package_data).arg();
+                builder.transfer_objects(sender, [upgrade_cap]);
+                let tx_kind = builder.finish_kind().await?;
+                let gas_payment = grpc_input_refs(&grpc_client, &payment.gas).await?;
                 let result = dry_run_or_execute_or_serialize(
                     sender,
                     tx_kind,
