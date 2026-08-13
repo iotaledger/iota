@@ -124,6 +124,61 @@ pub fn check_coin_deny_list_v1(
     Ok(())
 }
 
+/// Checks `sender` against the deny list of every non-gas coin type among
+/// `objects` while returning an [`ExecutionError`] that folds into
+/// `ExecutionStatus::Failure`.
+///
+/// The read is epoch-gated, so the verdict is the same on every validator.
+pub fn check_coin_deny_list_v1_for_sender_during_execution(
+    sender: Address,
+    objects: &BTreeMap<ObjectId, Object>,
+    cur_epoch: EpochId,
+    object_store: &dyn ObjectStore,
+) -> DenyListResult {
+    let coin_types = objects
+        .values()
+        .filter(|obj| !obj.is_gas_coin())
+        .filter_map(|obj| {
+            obj.coin_type_opt()
+                .map(|coin_type| coin_type.to_canonical_string(false))
+        })
+        .collect::<BTreeSet<_>>();
+    let num_non_gas_coin_owners = coin_types.len() as u64;
+    DenyListResult {
+        result: check_sender_against_coin_types(sender, coin_types, cur_epoch, object_store),
+        num_non_gas_coin_owners,
+    }
+}
+
+fn check_sender_against_coin_types(
+    sender: Address,
+    coin_types: BTreeSet<String>,
+    cur_epoch: EpochId,
+    object_store: &dyn ObjectStore,
+) -> Result<(), ExecutionError> {
+    for coin_type in coin_types {
+        let Some(deny_list) = get_per_type_coin_deny_list_v1(&coin_type, object_store) else {
+            continue;
+        };
+        if check_global_pause(&deny_list, object_store, Some(cur_epoch)) {
+            return Err(ExecutionError::new(
+                ExecutionErrorKind::CoinTypeGlobalPause { coin_type },
+                None,
+            ));
+        }
+        if check_address_denied_by_config(&deny_list, sender, object_store, Some(cur_epoch)) {
+            return Err(ExecutionError::new(
+                ExecutionErrorKind::AddressDeniedForCoin {
+                    address: sender,
+                    coin_type,
+                },
+                None,
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Returns 1) whether the coin deny list check passed,
 ///         2) the deny lists checked
 ///         2) the number of regulated coin owners checked.

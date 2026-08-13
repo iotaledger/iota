@@ -7,7 +7,7 @@ use std::sync::Arc;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
-    SharedObjectReference, StructTag, TransactionDigest, TypeTag, Version,
+    SharedObjectReference, StructTag, TransactionDigest, TypeTag, UnchangedSharedKind, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -467,6 +467,15 @@ async fn test_execution_fails_spending_denied_coin_under_attestation() {
     assert!(
         effects.gas_cost_summary().gas_used() > 0,
         "the issuer must be charged gas for the failed execution"
+    );
+    // The check read the deny list to decide the failure, so the effects must
+    // report that read even though the transaction failed.
+    assert!(
+        effects
+            .unchanged_shared_objects()
+            .contains(&(ObjectId::DENY_LIST, UnchangedSharedKind::PerEpochConfig)),
+        "expected the deny list recorded as a per-epoch config read, got {:?}",
+        effects.unchanged_shared_objects()
     );
 }
 

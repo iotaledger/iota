@@ -48,7 +48,7 @@ mod checked {
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
-        storage::{BackingStore, Storage},
+        storage::{BackingStore, DenyListResult, Storage},
         transaction::{CallArg, CheckedInputObjects, InputObjects, TransactionKindExt},
     };
     use move_binary_format::CompiledModule;
@@ -834,6 +834,10 @@ mod checked {
         let is_genesis_or_epoch_change_tx = matches!(transaction_kind, TransactionKind::Genesis(_))
             || transaction_kind.is_end_of_epoch();
 
+        let is_system_tx = transaction_kind.is_system();
+
+        let sender = tx_ctx.borrow().sender();
+
         let advance_epoch_gas_summary = transaction_kind.get_advance_epoch_tx_gas_summary();
 
         let tx_digest = tx_ctx.borrow().digest();
@@ -853,17 +857,24 @@ mod checked {
             // If the pre-execution (Move authentication) succeeded, proceed with
             // the main execution loop; else propagate the pre-execution error.
             let mut execution_result = pre_execution_result_opt.unwrap_or(Ok(())).and_then(|_| {
-                // Coin deny-list check over the input objects for attested
-                // transactions. Runs only after Move authentication has
-                // succeeded, so an authentication failure — which is not
-                // attributable to the issuer — is never masked by a coin-deny
-                // failure that would charge the issuer. Enforced here
-                // (fail-to-effects, issuer pays) rather than post-consensus, so a
-                // stale-attestation view resolves to an execution failure instead
-                // of being dropped. Gated on the attestation flag so V1 and
-                // historical replay are byte-identical.
-                if protocol_config.enable_validator_attestation() {
-                    temporary_store.check_input_coin_deny_list()?;
+                // Coin deny-list check over the input objects for attested transactions. Runs
+                // only after Move authentication has succeeded, so an authentication failure —
+                // which is not attributable to the issuer — is never masked by a coin-deny
+                // failure that would charge the issuer. Enforced here so a stale-attestation
+                // view resolves to an execution failure instead of being dropped.
+                //
+                // Gated on the attestation flag. `UserTransactionV1` is rejected by the
+                // consensus verifier once the flag is on, so every user transaction reaching
+                // this point is attested; epochs before the flag flips are unaffected. System
+                // transactions are never attested and hold no address-owned coin inputs, so
+                // they are excluded.
+                if protocol_config.enable_validator_attestation() && !is_system_tx {
+                    let DenyListResult {
+                        result,
+                        num_non_gas_coin_owners,
+                    } = temporary_store.check_input_coin_deny_list(sender);
+                    gas_charger.charge_coin_transfers(protocol_config, num_non_gas_coin_owners)?;
+                    result?;
                 }
                 execution_loop::<Mode>(
                     temporary_store,
