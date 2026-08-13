@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Minimal wasm-compatible stand-in for the native [`Multiaddr`].
+//! Minimal wasm-compatible stand-in for the native `Multiaddr`.
 //!
 //! The native implementation doesn't compile for wasm32: it needs `anemo` for
 //! `to_anemo_address`, and the address parsing helpers are only useful to a
@@ -14,8 +14,6 @@
 //! stand-in matches that. It does not validate the string on deserialization,
 //! where the native implementation parses it; on wasm we are inspecting
 //! already-on-chain state, which the Move verifier gated at validator creation.
-//!
-//! [`Multiaddr`]: super::Multiaddr
 
 use std::fmt;
 
