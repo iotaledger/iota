@@ -500,6 +500,13 @@ impl ReadStore for InMemoryStore {
                 )
             })
     }
+
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> Option<Vec<iota_types::storage::ObjectKey>> {
+        None
+    }
 }
 
 #[derive(Debug)]

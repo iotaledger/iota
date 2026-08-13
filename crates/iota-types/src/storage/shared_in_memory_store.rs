@@ -130,6 +130,13 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> Option<Vec<crate::storage::ObjectKey>> {
+        todo!()
+    }
+
     fn try_get_latest_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         todo!()
     }
@@ -568,6 +575,13 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
 
     fn try_get_events(&self, digest: &TransactionDigest) -> Result<Option<TransactionEvents>> {
         self.0.try_get_events(digest)
+    }
+
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> Option<Vec<crate::storage::ObjectKey>> {
+        todo!()
     }
 
     fn try_get_latest_checkpoint(&self) -> Result<VerifiedCheckpoint> {

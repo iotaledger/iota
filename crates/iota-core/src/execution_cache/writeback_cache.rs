@@ -234,6 +234,8 @@ struct UncommittedData {
 
     transaction_events: DashMap<TransactionDigest, TransactionEvents>,
 
+    unchanged_loaded_runtime_objects: DashMap<TransactionDigest, Vec<ObjectKey>>,
+
     executed_effects_digests: DashMap<TransactionDigest, TransactionEffectsDigest>,
 
     // Transaction outputs that have not yet been written to the DB. Items are removed from this
@@ -253,6 +255,7 @@ impl UncommittedData {
             executed_effects_digests: DashMap::with_shard_amount(2048),
             pending_transaction_writes: DashMap::with_shard_amount(2048),
             transaction_events: DashMap::with_shard_amount(2048),
+            unchanged_loaded_runtime_objects: DashMap::with_shard_amount(2048),
             total_transaction_inserts: AtomicU64::new(0),
             total_transaction_commits: AtomicU64::new(0),
         }
@@ -265,6 +268,7 @@ impl UncommittedData {
         self.executed_effects_digests.clear();
         self.pending_transaction_writes.clear();
         self.transaction_events.clear();
+        self.unchanged_loaded_runtime_objects.clear();
         self.total_transaction_inserts
             .store(0, std::sync::atomic::Ordering::Relaxed);
         self.total_transaction_commits
@@ -280,6 +284,7 @@ impl UncommittedData {
                     && self.transaction_effects.is_empty()
                     && self.executed_effects_digests.is_empty()
                     && self.transaction_events.is_empty()
+                    && self.unchanged_loaded_runtime_objects.is_empty()
                     && self
                         .total_transaction_inserts
                         .load(std::sync::atomic::Ordering::Relaxed)
@@ -881,6 +886,7 @@ impl WritebackCache {
             deleted,
             wrapped,
             events,
+            unchanged_loaded_runtime_objects,
             ..
         } = &*tx_outputs;
 
@@ -943,6 +949,12 @@ impl WritebackCache {
         self.dirty
             .transaction_events
             .insert(tx_digest, events.clone());
+
+        self.metrics
+            .record_cache_write("unchanged_loaded_runtime_objects");
+        self.dirty
+            .unchanged_loaded_runtime_objects
+            .insert(tx_digest, unchanged_loaded_runtime_objects.clone());
 
         self.metrics.record_cache_write("executed_effects_digests");
         self.dirty
@@ -1145,6 +1157,11 @@ impl WritebackCache {
             .transaction_events
             .remove(&tx_digest)
             .expect("events must exist");
+
+        self.dirty
+            .unchanged_loaded_runtime_objects
+            .remove(&tx_digest)
+            .expect("unchanged_loaded_runtime_objects must exist");
 
         self.dirty
             .executed_effects_digests
@@ -2161,6 +2178,21 @@ impl TransactionCacheRead for WritebackCache {
                 Ok(results)
             },
         )
+    }
+
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Vec<ObjectKey>> {
+        self.dirty
+            .unchanged_loaded_runtime_objects
+            .get(digest)
+            .map(|b| b.clone())
+            .or_else(|| {
+                self.store
+                    .get_unchanged_loaded_runtime_objects(digest)
+                    .expect("db error")
+            })
     }
 }
 

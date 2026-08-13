@@ -2941,6 +2941,13 @@ impl ReadStore for IotaTestAdapter {
     > {
         self.executor.try_get_full_checkpoint_contents(digest)
     }
+
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Vec<iota_types::storage::ObjectKey>> {
+        self.executor.get_unchanged_loaded_runtime_objects(digest)
+    }
 }
 
 fn find_iota_root_dir() -> PathBuf {

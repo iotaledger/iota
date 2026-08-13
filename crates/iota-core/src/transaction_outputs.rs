@@ -20,6 +20,7 @@ pub struct TransactionOutputs {
     pub transaction: Arc<VerifiedTransaction>,
     pub effects: TransactionEffects,
     pub events: TransactionEvents,
+    pub unchanged_loaded_runtime_objects: Vec<ObjectKey>,
 
     pub markers: Vec<(ObjectKey, MarkerValue)>,
     pub wrapped: Vec<ObjectKey>,
@@ -36,6 +37,7 @@ impl TransactionOutputs {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         inner_temporary_store: InnerTemporaryStore,
+        unchanged_loaded_runtime_objects: Vec<ObjectKey>,
     ) -> TransactionOutputs {
         let InnerTemporaryStore {
             input_objects,
@@ -130,6 +132,7 @@ impl TransactionOutputs {
             transaction: Arc::new(transaction),
             effects,
             events,
+            unchanged_loaded_runtime_objects,
             markers,
             wrapped,
             deleted,

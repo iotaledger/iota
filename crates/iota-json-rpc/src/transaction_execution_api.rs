@@ -378,14 +378,15 @@ impl TransactionExecutionApi {
         // Resolve types against the objects the simulation wrote before falling back to
         // the store, so that packages published by the transaction itself are visible.
         let (input, events) = {
+            let output_objects = simulation.output_objects.clone();
             let mut layout_resolver = epoch_store.executor().type_layout_resolver(Box::new(
                 PackageStoreWithFallback::new(
-                    ObjectMapPackageStore(&simulation.output_objects),
+                    ObjectMapPackageStore(&output_objects),
                     self.state.get_backing_package_store(),
                 ),
             ));
             let module_cache = TemporaryModuleResolver::new(
-                &simulation.output_objects,
+                &output_objects,
                 to_binary_config(epoch_store.protocol_config()),
                 epoch_store.module_cache().clone(),
             );
@@ -540,11 +541,12 @@ impl TransactionExecutionApi {
 
         // Resolve types against the objects the simulation wrote before falling back to
         // the store, so that packages published by the transaction itself are visible.
+        let output_objects = &simulation.output_objects;
         let mut layout_resolver =
             epoch_store
                 .executor()
                 .type_layout_resolver(Box::new(PackageStoreWithFallback::new(
-                    ObjectMapPackageStore(&simulation.output_objects),
+                    ObjectMapPackageStore(output_objects),
                     self.state.get_backing_package_store(),
                 )));
 

@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::Arc,
+};
 
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, MoveObjectType, ObjectId,
@@ -16,14 +19,14 @@ use super::{ObjectStore, error::Result};
 use crate::{
     base_types::{EpochId, ObjectType},
     committee::Committee,
-    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    full_checkpoint_content::{Checkpoint, CheckpointTransaction, ExecutedTransaction},
     iota_system_state::{IotaSystemState, IotaSystemStateTrait},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
         FullCheckpointContents, VerifiedCheckpoint,
     },
-    object::Object,
-    storage::{get_transaction_input_objects, get_transaction_output_objects},
+    object::{Object, ObjectSet},
+    storage::{ObjectKey, get_transaction_input_objects, get_transaction_output_objects},
     transaction::VerifiedTransaction,
 };
 
@@ -271,6 +274,11 @@ pub trait ReadStore: ObjectStore {
             .expect("storage access failed")
     }
 
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Vec<ObjectKey>>;
+
     // Extra Checkpoint fetching apis
     //
 
@@ -421,7 +429,7 @@ pub trait ReadStore: ObjectStore {
         &self,
         checkpoint: VerifiedCheckpoint,
         checkpoint_contents: CheckpointContents,
-    ) -> anyhow::Result<CheckpointData> {
+    ) -> anyhow::Result<Checkpoint> {
         let transaction_digests = checkpoint_contents
             .iter()
             .map(|execution_digests| execution_digests.transaction)
@@ -432,13 +440,53 @@ pub trait ReadStore: ObjectStore {
 
         let mut transactions = Vec::with_capacity(txs_with_events_and_effects.len());
         for tx_with_events_and_effects in txs_with_events_and_effects {
-            transactions.push(self.get_checkpoint_transaction(tx_with_events_and_effects)?);
+            let tx = tx_with_events_and_effects.transaction;
+            let transaction = ExecutedTransaction {
+                transaction: tx.data().transaction().clone(),
+                signatures: tx.data().signatures().to_vec(),
+                effects: tx_with_events_and_effects.effects,
+                events: tx_with_events_and_effects.events,
+                unchanged_loaded_runtime_objects: self
+                    .get_unchanged_loaded_runtime_objects(tx.digest())
+                    // TODO Do we throw an error or just stub in an empty vector?
+                    .unwrap_or_default(),
+            };
+            transactions.push(transaction);
         }
 
-        let checkpoint_data = CheckpointData {
-            checkpoint_summary: checkpoint.into(),
-            checkpoint_contents,
+        let object_set = {
+            let refs = transactions
+                .iter()
+                .flat_map(|tx| {
+                    crate::storage::get_transaction_object_set(
+                        &tx.transaction,
+                        &tx.effects,
+                        &tx.unchanged_loaded_runtime_objects,
+                    )
+                })
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+
+            let objects = self.multi_get_objects_by_key(&refs);
+
+            let mut object_set = ObjectSet::default();
+            for (idx, object) in objects.into_iter().enumerate() {
+                object_set.insert(object.ok_or_else(|| {
+                    crate::storage::error::Error::custom(format!(
+                        "unable to load object {:?}",
+                        refs[idx]
+                    ))
+                })?);
+            }
+            object_set
+        };
+
+        let checkpoint_data = Checkpoint {
+            summary: checkpoint.into(),
+            contents: checkpoint_contents,
             transactions,
+            object_set,
         };
 
         Ok(checkpoint_data)
@@ -449,7 +497,7 @@ pub trait ReadStore: ObjectStore {
         &self,
         checkpoint: VerifiedCheckpoint,
         checkpoint_contents: CheckpointContents,
-    ) -> CheckpointData {
+    ) -> Checkpoint {
         self.try_get_checkpoint_data(checkpoint, checkpoint_contents)
             .expect("storage access failed")
     }
@@ -551,6 +599,13 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
         (*self).try_multi_get_events(digests)
     }
 
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Vec<ObjectKey>> {
+        (*self).get_unchanged_loaded_runtime_objects(digest)
+    }
+
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
@@ -569,7 +624,7 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
         &self,
         checkpoint: VerifiedCheckpoint,
         checkpoint_contents: CheckpointContents,
-    ) -> anyhow::Result<CheckpointData> {
+    ) -> anyhow::Result<Checkpoint> {
         (*self).try_get_checkpoint_data(checkpoint, checkpoint_contents)
     }
 }
@@ -670,6 +725,13 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
         (**self).try_multi_get_events(digests)
     }
 
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Vec<ObjectKey>> {
+        (**self).get_unchanged_loaded_runtime_objects(digest)
+    }
+
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
@@ -688,7 +750,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
         &self,
         checkpoint: VerifiedCheckpoint,
         checkpoint_contents: CheckpointContents,
-    ) -> anyhow::Result<CheckpointData> {
+    ) -> anyhow::Result<Checkpoint> {
         (**self).try_get_checkpoint_data(checkpoint, checkpoint_contents)
     }
 }
@@ -789,6 +851,13 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
         (**self).try_multi_get_events(digests)
     }
 
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Vec<ObjectKey>> {
+        (**self).get_unchanged_loaded_runtime_objects(digest)
+    }
+
     fn try_get_full_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: CheckpointSequenceNumber,
@@ -807,7 +876,7 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
         &self,
         checkpoint: VerifiedCheckpoint,
         checkpoint_contents: CheckpointContents,
-    ) -> anyhow::Result<CheckpointData> {
+    ) -> anyhow::Result<Checkpoint> {
         (**self).try_get_checkpoint_data(checkpoint, checkpoint_contents)
     }
 }

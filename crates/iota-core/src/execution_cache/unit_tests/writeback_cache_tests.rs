@@ -175,6 +175,7 @@ impl Scenario {
             transaction: Arc::new(tx),
             effects,
             events,
+            unchanged_loaded_runtime_objects: Default::default(),
             markers: Default::default(),
             wrapped: Default::default(),
             deleted: Default::default(),

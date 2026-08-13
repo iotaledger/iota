@@ -57,7 +57,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
-    storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
+    storage::{EpochInfoV2, ObjectKey, ObjectStore, ReadStore, TransactionInfo},
     transaction::{TransactionAPI, TransactionEnvelope, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
@@ -551,7 +551,9 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let path = self.inner.read().unwrap().data_ingestion_path.clone();
         if let Some(data_path) = path {
             let file_name = format!("{}.chk", checkpoint.sequence_number);
-            let checkpoint_data = self.try_get_checkpoint_data(checkpoint, checkpoint_contents)?;
+            let checkpoint_data: iota_types::full_checkpoint_content::CheckpointData = self
+                .try_get_checkpoint_data(checkpoint, checkpoint_contents)?
+                .into();
             std::fs::create_dir_all(&data_path)?;
             let blob = Blob::encode(&checkpoint_data, BlobEncoding::Bcs)?;
             std::fs::write(data_path.join(file_name), blob.to_bytes())?;
@@ -731,6 +733,13 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
                 )
             })
         })
+    }
+
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> Option<Vec<ObjectKey>> {
+        None
     }
 }
 

@@ -3664,6 +3664,13 @@ mod tests {
     }
 
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
+        fn get_unchanged_loaded_runtime_objects(
+            &self,
+            _digest: &TransactionDigest,
+        ) -> Option<Vec<iota_types::storage::ObjectKey>> {
+            unimplemented!()
+        }
+
         fn try_notify_read_executed_effects(
             &self,
             _: &str,

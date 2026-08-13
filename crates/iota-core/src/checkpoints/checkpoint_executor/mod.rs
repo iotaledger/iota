@@ -35,7 +35,7 @@ use iota_types::{
     base_types::ExecutionData,
     effects::TransactionEffectsAPI,
     executable_transaction::VerifiedExecutableTransaction,
-    full_checkpoint_content::CheckpointData,
+    full_checkpoint_content::{Checkpoint, CheckpointData},
     global_state_hash::GlobalStateHash,
     messages_checkpoint::{
         CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
@@ -68,7 +68,7 @@ pub(crate) mod utils;
 #[cfg(test)]
 pub(crate) mod tests;
 
-use data_ingestion_handler::{load_checkpoint_data, store_checkpoint_locally};
+use data_ingestion_handler::{load_checkpoint, store_checkpoint_locally};
 use metrics::CheckpointExecutorMetrics;
 use utils::*;
 
@@ -96,7 +96,7 @@ pub(crate) struct CheckpointTransactionData {
 pub(crate) struct CheckpointExecutionState {
     pub data: CheckpointExecutionData,
     state_hash: Option<GlobalStateHash>,
-    full_data: Option<CheckpointData>,
+    full_data: Option<Checkpoint>,
 }
 
 impl CheckpointExecutionState {
@@ -660,7 +660,7 @@ impl CheckpointExecutor {
         &self,
         ckpt_data: &CheckpointExecutionData,
         tx_data: &CheckpointTransactionData,
-    ) -> Option<CheckpointData> {
+    ) -> Option<Checkpoint> {
         let is_checkpoint_data_enabled = self.checkpoint_data_enabled();
         // Boundaries always need full `CheckpointData` to persist `epoch_info`,
         // even when no other consumer is configured.
@@ -669,13 +669,15 @@ impl CheckpointExecutor {
             return None;
         }
 
-        let checkpoint_data = load_checkpoint_data(
+        let checkpoint = load_checkpoint(
             ckpt_data,
             tx_data,
             self.state.get_object_store(),
             &*self.transaction_cache_reader,
         )
         .expect("failed to load checkpoint data");
+        // The consumers below still take `CheckpointData`.
+        let checkpoint_data: CheckpointData = (&checkpoint).into();
 
         // Persist the boundary's `epoch_info` row eagerly. Two properties make
         // that safe. Boundaries run in epoch order: the boundary waits for every
@@ -711,7 +713,7 @@ impl CheckpointExecutor {
                 .expect("failed to store checkpoint locally");
         }
 
-        Some(checkpoint_data)
+        Some(checkpoint)
     }
 
     // Load all required transaction and effects data for the checkpoint.
@@ -1007,23 +1009,24 @@ impl CheckpointExecutor {
     fn broadcast_checkpoint(
         &self,
         checkpoint_exec_data: &CheckpointExecutionData,
-        checkpoint_data: Option<&CheckpointData>,
+        checkpoint: Option<&Checkpoint>,
     ) {
         if let Some(data_sender) = &self.data_sender {
-            let checkpoint_data = if let Some(data) = checkpoint_data {
-                data.clone()
+            let checkpoint_data: CheckpointData = if let Some(checkpoint) = checkpoint {
+                checkpoint.into()
             } else {
                 // Reconstruct checkpoint data if needed (rare case: data_sender configured but
                 // checkpoint_data_enabled is false)
                 let (_, tx_data) =
                     self.load_checkpoint_transactions(checkpoint_exec_data.checkpoint.clone());
-                load_checkpoint_data(
+                load_checkpoint(
                     checkpoint_exec_data,
                     &tx_data,
                     self.state.get_object_store(),
                     self.transaction_cache_reader.as_ref(),
                 )
                 .expect("Failed to load full CheckpointData")
+                .into()
             };
             data_sender(&checkpoint_data);
         }
@@ -1037,10 +1040,10 @@ impl CheckpointExecutor {
     /// If configured, commit the pending index updates for the provided
     /// checkpoint
     #[instrument(level = "info", skip_all)]
-    fn commit_index_updates(&self, checkpoint: CheckpointData) {
+    fn commit_index_updates(&self, checkpoint: Checkpoint) {
         if let Some(grpc_indexes_store) = &self.state.grpc_indexes_store {
             grpc_indexes_store
-                .commit_update_for_checkpoint(checkpoint.checkpoint_summary.sequence_number)
+                .commit_update_for_checkpoint(checkpoint.summary.sequence_number)
                 .expect("failed to update gRPC indexes");
         }
     }

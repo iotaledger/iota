@@ -438,12 +438,14 @@ impl LocalVm {
             self.apply_effects(&sim);
         }
 
+        let input_objects = sim.input_objects.into_values().collect();
+        let output_objects = sim.output_objects.into_values().collect();
         Ok(ExecutionResult {
             effects: sim.effects,
             events: sim.events,
             command_results: sim.execution_result.unwrap_or_default(),
-            input_objects: sim.input_objects.into_values().collect(),
-            output_objects: sim.output_objects.into_values().collect(),
+            input_objects,
+            output_objects,
             gas_summary,
             mock_gas_id: sim.mock_gas_id,
             status,
@@ -459,8 +461,8 @@ impl LocalVm {
         // `output_objects` is authoritative for what survives; then drop what
         // was deleted or wrapped. `unwrapped_then_deleted` objects were nested,
         // never standalone store entries, so they need no removal.
-        for obj in sim.output_objects.values() {
-            self.store.insert(obj.clone());
+        for obj in sim.output_objects.values().cloned() {
+            self.store.insert(obj);
         }
         for objref in sim.effects.deleted() {
             self.store.remove(&objref.object_id);

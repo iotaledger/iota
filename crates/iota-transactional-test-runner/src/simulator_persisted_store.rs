@@ -598,6 +598,13 @@ impl ReadStore for PersistedStore {
     > {
         unimplemented!()
     }
+
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> Option<Vec<iota_types::storage::ObjectKey>> {
+        None
+    }
 }
 
 impl ObjectStore for PersistedStoreInnerReadOnlyWrapper {
@@ -773,6 +780,13 @@ impl ReadStore for PersistedStoreInnerReadOnlyWrapper {
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
         todo!()
+    }
+
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> Option<Vec<iota_types::storage::ObjectKey>> {
+        None
     }
 }
 

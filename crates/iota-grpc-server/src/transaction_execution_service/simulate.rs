@@ -207,16 +207,7 @@ async fn simulate_single_transaction(
     };
 
     // Simulate the transaction
-    let InternalSimulateResult {
-        effects,
-        events,
-        input_objects,
-        output_objects,
-        execution_result,
-        mock_gas_id,
-        suggested_gas_price,
-        gas_data,
-    } = executor
+    let simulation = executor
         .simulate_transaction(transaction_data.clone(), vm_checks)
         .map_err(|e| {
             RpcError::new(
@@ -224,6 +215,16 @@ async fn simulate_single_transaction(
                 format!("transaction simulation failed: {e}"),
             )
         })?;
+    let InternalSimulateResult {
+        effects,
+        events,
+        execution_result,
+        mock_gas_id,
+        suggested_gas_price,
+        gas_data,
+        input_objects,
+        output_objects,
+    } = simulation;
 
     // Build the response
     let mut response = SimulatedTransaction::default();

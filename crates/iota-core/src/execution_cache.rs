@@ -934,6 +934,11 @@ pub trait TransactionCacheRead: Send + Sync {
         self.try_get_events(digest).expect("storage access failed")
     }
 
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Vec<ObjectKey>>;
+
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         task_name: &'static str,

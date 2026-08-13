@@ -20,13 +20,13 @@ use iota_sdk_types::{
 };
 use iota_types::{
     crypto::AuthorityStrongQuorumSignInfo,
-    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    full_checkpoint_content::{Checkpoint, CheckpointTransaction, ExecutedTransaction},
     gas_coin::GasCoin,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSequenceNumber,
         VerifiedCheckpoint,
     },
-    object::{MoveStructExt, OBJECT_START_VERSION, Object},
+    object::{MoveStructExt, OBJECT_START_VERSION, Object, ObjectSet},
     storage::error::Result as StorageResult,
     transaction::VerifiedTransaction,
 };
@@ -332,24 +332,47 @@ impl iota_types::storage::ReadStore for MockGrpcStateReader {
         unimplemented!()
     }
 
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        _digest: &TransactionDigest,
+    ) -> Option<Vec<iota_types::storage::ObjectKey>> {
+        None
+    }
+
     fn get_checkpoint_data(
         &self,
         checkpoint: VerifiedCheckpoint,
         checkpoint_contents: CheckpointContents,
-    ) -> CheckpointData {
+    ) -> Checkpoint {
         let seq = checkpoint.sequence_number;
-        if self.is_large_checkpoint(seq) {
-            CheckpointData {
-                checkpoint_summary: checkpoint.into_inner(),
-                checkpoint_contents,
-                transactions: self.large_checkpoint_transactions.clone(),
-            }
+        let checkpoint_transactions = if self.is_large_checkpoint(seq) {
+            self.large_checkpoint_transactions.clone()
         } else {
-            CheckpointData {
-                checkpoint_summary: checkpoint.into_inner(),
-                checkpoint_contents,
-                transactions: self.checkpoint_transactions.clone(),
-            }
+            self.checkpoint_transactions.clone()
+        };
+
+        let mut object_set = ObjectSet::default();
+        let transactions = checkpoint_transactions
+            .into_iter()
+            .map(|tx| {
+                for o in tx.input_objects.into_iter().chain(tx.output_objects) {
+                    object_set.insert(o);
+                }
+                ExecutedTransaction {
+                    transaction: tx.transaction.data().transaction().clone(),
+                    signatures: tx.transaction.data().signatures().to_vec(),
+                    effects: tx.effects,
+                    events: tx.events,
+                    unchanged_loaded_runtime_objects: vec![],
+                }
+            })
+            .collect();
+
+        Checkpoint {
+            summary: checkpoint.into_inner(),
+            contents: checkpoint_contents,
+            transactions,
+            object_set,
         }
     }
 

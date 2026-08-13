@@ -18,7 +18,7 @@ use crate::{
     },
 };
 
-/// Trait to define the interface for how the REST service interacts with a
+/// Trait to define the interface for how the gRPC service interacts with a
 /// QuorumDriver or a simulated transaction executor.
 #[async_trait::async_trait]
 pub trait TransactionExecutor: Send + Sync {
@@ -83,7 +83,12 @@ pub struct CachedTransactionData {
 pub struct SimulateTransactionResult {
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
+    /// Every object the transaction ran with as input — including immutable
+    /// and read-only shared inputs, the packages it calls, and the gas coins
+    /// (the mock one included) — keyed by id. Inputs that leave no trace in
+    /// the effects are covered too.
     pub input_objects: BTreeMap<ObjectId, Object>,
+    /// The objects written by the transaction, keyed by id.
     pub output_objects: BTreeMap<ObjectId, Object>,
     /// The return values and mutable-reference outputs of every command, under
     /// either [`VmChecks`] — both run through the executor's dev-inspect entry

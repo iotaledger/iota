@@ -347,7 +347,7 @@ impl AuthorityStorePruner {
         perpetual_batch.delete_batch(&perpetual_db.executed_effects, transactions.iter())?;
         perpetual_batch.delete_batch(
             &perpetual_db.executed_transactions_to_checkpoint,
-            transactions,
+            transactions.iter(),
         )?;
 
         let mut effect_digests = vec![];
@@ -361,6 +361,10 @@ impl AuthorityStorePruner {
                     .delete_batch(&perpetual_db.events_2, [effects.transaction_digest()])?;
             }
         }
+        perpetual_batch.delete_batch(
+            &perpetual_db.unchanged_loaded_runtime_objects,
+            transactions.iter(),
+        )?;
         perpetual_batch.delete_batch(&perpetual_db.effects, effect_digests)?;
 
         let mut checkpoints_batch = checkpoint_db.tables.certified_checkpoints.batch();

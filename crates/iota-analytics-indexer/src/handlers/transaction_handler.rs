@@ -223,11 +223,13 @@ mod tests {
 
         // Create a checkpoint which should include the transaction we executed.
         let checkpoint = sim.create_checkpoint();
-        let checkpoint_data = sim.get_checkpoint_data(
-            checkpoint.clone(),
-            sim.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
-                .unwrap(),
-        );
+        let checkpoint_data: iota_types::full_checkpoint_content::CheckpointData = sim
+            .get_checkpoint_data(
+                checkpoint.clone(),
+                sim.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
+                    .unwrap(),
+            )
+            .into();
         let shared_checkpoint_data = Arc::new(checkpoint_data);
         let txn_handler = TransactionHandler::new();
         txn_handler

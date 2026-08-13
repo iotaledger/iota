@@ -5,8 +5,8 @@
 use std::collections::BTreeMap;
 
 use iota_sdk_types::{
-    ObjectId, ObjectReference, TransactionEffects, TransactionEvents, TransactionKind,
-    checkpoint::CheckpointContents,
+    ObjectId, ObjectReference, Transaction, TransactionEffects, TransactionEvents, TransactionKind,
+    UserSignature, checkpoint::CheckpointContents,
 };
 use serde::{Deserialize, Serialize};
 use tap::Pipe;
@@ -16,8 +16,8 @@ use crate::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::CertifiedCheckpointSummary,
-    object::Object,
-    storage::{BackingPackageStore, EpochInfo, error::Error as StorageError},
+    object::{Object, ObjectSet},
+    storage::{BackingPackageStore, EpochInfo, ObjectKey, error::Error as StorageError},
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 
@@ -240,5 +240,88 @@ impl BackingPackageStore for CheckpointData {
             .cloned()
             .map(crate::storage::PackageObject::new)
             .pipe(Ok)
+    }
+}
+
+// Never remove these asserts!
+// These data structures are meant to be used in-memory, for structures that can
+// be persisted in storage you should look at the protobuf versions.
+static_assertions::assert_not_impl_any!(Checkpoint: serde::Serialize, serde::de::DeserializeOwned);
+static_assertions::assert_not_impl_any!(ExecutedTransaction: serde::Serialize, serde::de::DeserializeOwned);
+
+#[derive(Clone, Debug)]
+pub struct Checkpoint {
+    pub summary: CertifiedCheckpointSummary,
+    pub contents: CheckpointContents,
+    pub transactions: Vec<ExecutedTransaction>,
+    pub object_set: ObjectSet,
+}
+
+#[derive(Clone, Debug)]
+pub struct ExecutedTransaction {
+    /// The input Transaction
+    pub transaction: Transaction,
+    pub signatures: Vec<UserSignature>,
+    /// The effects produced by executing this transaction
+    pub effects: TransactionEffects,
+    /// The events, if any, emitted by this transactions during execution
+    pub events: Option<TransactionEvents>,
+    pub unchanged_loaded_runtime_objects: Vec<ObjectKey>,
+}
+
+impl From<&Checkpoint> for CheckpointData {
+    fn from(value: &Checkpoint) -> Self {
+        let get_object = |key: ObjectKey| {
+            let object = value.object_set.get(&key).cloned();
+            if object.is_none() {
+                let msg = format!(
+                    "object {key:?} missing from the object set of checkpoint {}",
+                    value.summary.sequence_number
+                );
+                debug_assert!(false, "{msg}");
+                tracing::error!("{msg}");
+            }
+            object
+        };
+        let transactions = value
+            .transactions
+            .iter()
+            .map(|tx| {
+                let input_objects = tx
+                    .effects
+                    .modified_at_versions()
+                    .into_iter()
+                    .filter_map(|(object_id, version)| get_object(ObjectKey(object_id, version)))
+                    .collect::<Vec<_>>();
+                let output_objects = tx
+                    .effects
+                    .all_changed_objects()
+                    .into_iter()
+                    .filter_map(|(object_ref, _owner, _kind)| get_object(object_ref.into()))
+                    .collect::<Vec<_>>();
+
+                CheckpointTransaction {
+                    transaction: TransactionEnvelope::from_user_sig_data(
+                        tx.transaction.clone(),
+                        tx.signatures.clone(),
+                    ),
+                    effects: tx.effects.clone(),
+                    events: tx.events.clone(),
+                    input_objects,
+                    output_objects,
+                }
+            })
+            .collect();
+        Self {
+            checkpoint_summary: value.summary.clone(),
+            checkpoint_contents: value.contents.clone(),
+            transactions,
+        }
+    }
+}
+
+impl From<Checkpoint> for CheckpointData {
+    fn from(value: Checkpoint) -> Self {
+        (&value).into()
     }
 }

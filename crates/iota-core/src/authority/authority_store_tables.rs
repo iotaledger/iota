@@ -109,6 +109,9 @@ pub struct AuthorityPerpetualTables {
     // Events keyed by the digest of the transaction that produced them.
     pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
 
+    // Loaded (and unchanged) runtime object references.
+    pub(crate) unchanged_loaded_runtime_objects: DBMap<TransactionDigest, Vec<ObjectKey>>,
+
     /// Epoch and checkpoint of transactions finalized by checkpoint
     /// executor. Currently, mainly used to implement JSON RPC `ReadApi`.
     /// Note, there is a table with the same name in

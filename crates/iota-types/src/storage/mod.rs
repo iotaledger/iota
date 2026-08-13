@@ -10,15 +10,15 @@ mod write_store;
 
 use std::{
     cell::RefCell,
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::{Display, Formatter},
     rc::Rc,
     sync::Arc,
 };
 
 use iota_sdk_types::{
-    ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest, TransactionEffects,
-    Version, move_package::MovePackage,
+    ObjectId, ObjectReference, SenderSignedTransaction, Transaction, TransactionDigest,
+    TransactionEffects, UnchangedSharedKind, Version, move_package::MovePackage,
 };
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
@@ -42,7 +42,7 @@ use crate::{
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
     iota_sdk_types_conversions::identifier_core_to_sdk,
-    object::Object,
+    object::{Object, ObjectSet},
     storage::error::Error as StorageError,
     transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
@@ -627,4 +627,178 @@ pub fn get_transaction_output_objects(
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(output_objects)
+}
+
+// Returns an iterator over the ObjectKey's of objects read or written by this
+// transaction
+pub fn get_transaction_object_set(
+    transaction: &Transaction,
+    effects: &TransactionEffects,
+    unchanged_loaded_runtime_objects: &[ObjectKey],
+) -> BTreeSet<ObjectKey> {
+    // enumerate the full set of input objects in order to properly capture
+    // immutable objects that may not appear in the effects.
+    //
+    // This excludes packages
+    let input_objects = transaction
+        .input_objects()
+        .expect("txn was executed and must have valid input objects")
+        .into_iter()
+        .filter_map(|input| {
+            input
+                .version()
+                .map(|version| ObjectKey(input.object_id(), version))
+        });
+
+    // The full set of output/written objects as well as any of their initial
+    // versions
+    let modified_set = effects
+        .object_changes()
+        .into_iter()
+        .flat_map(|change| {
+            [
+                change
+                    .input_version
+                    .map(|version| ObjectKey(change.id, version)),
+                change
+                    .output_version
+                    .map(|version| ObjectKey(change.id, version)),
+            ]
+        })
+        .flatten();
+
+    // The set of unchanged shared objects
+    let unchanged_shared = effects
+        .unchanged_shared_objects()
+        .into_iter()
+        .flat_map(|unchanged| {
+            if let UnchangedSharedKind::ReadOnlyRoot { version, .. } = unchanged.1 {
+                Some(ObjectKey(unchanged.0, version))
+            } else {
+                None
+            }
+        });
+
+    input_objects
+        .chain(modified_set)
+        .chain(unchanged_shared)
+        .chain(unchanged_loaded_runtime_objects.iter().copied())
+        .collect()
+}
+
+// Returns the ObjectKey's of the objects that were loaded during execution but
+// left unchanged: everything in `loaded_runtime_objects` except packages and
+// the objects the effects record as changed.
+pub fn unchanged_loaded_runtime_objects(
+    _transaction: &Transaction,
+    effects: &TransactionEffects,
+    loaded_runtime_objects: &ObjectSet,
+) -> Vec<ObjectKey> {
+    let mut unchanged_loaded_runtime_objects: BTreeMap<_, _> = loaded_runtime_objects
+        .iter()
+        // Don't include loaded packages (which are used for doing UID tracking inside the VM)
+        .filter(|o| !o.is_package())
+        .map(|o| (o.id(), o.version()))
+        .collect();
+
+    // Remove any object that is referenced in the changed objects effects set since
+    // it would be redundant to include it again.
+    for change in effects.object_changes() {
+        unchanged_loaded_runtime_objects.remove(&change.id);
+    }
+
+    unchanged_loaded_runtime_objects
+        .into_iter()
+        .map(|(id, v)| ObjectKey(id, v))
+        .collect()
+}
+
+// A BackingStore to pass to execution in order to track all objects loaded
+// during execution.
+//
+// Today this is used to very accurately track the objects that were loaded but
+// unchanged during execution.
+pub struct TrackingBackingStore<'a> {
+    inner: &'a dyn BackingStore,
+    read_objects: RefCell<ObjectSet>,
+}
+
+impl<'a> TrackingBackingStore<'a> {
+    pub fn new(inner: &'a dyn BackingStore) -> Self {
+        Self {
+            inner,
+            read_objects: Default::default(),
+        }
+    }
+
+    pub fn into_read_objects(self) -> ObjectSet {
+        self.read_objects.into_inner()
+    }
+
+    fn track_object(&self, object: &Object) {
+        self.read_objects.borrow_mut().insert(object.clone());
+    }
+}
+
+impl BackingPackageStore for TrackingBackingStore<'_> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        self.inner.get_package_object(package_id).inspect(|o| {
+            o.as_ref()
+                .inspect(|package| self.track_object(package.object()));
+        })
+    }
+}
+
+impl ChildObjectResolver for TrackingBackingStore<'_> {
+    fn read_child_object(
+        &self,
+        parent: &ObjectId,
+        child: &ObjectId,
+        child_version_upper_bound: Version,
+    ) -> IotaResult<Option<Object>> {
+        self.inner
+            .read_child_object(parent, child, child_version_upper_bound)
+            .inspect(|o| {
+                o.as_ref().inspect(|object| self.track_object(object));
+            })
+    }
+
+    fn get_object_received_at_version(
+        &self,
+        owner: &ObjectId,
+        receiving_object_id: &ObjectId,
+        receive_object_at_version: Version,
+        epoch_id: EpochId,
+    ) -> IotaResult<Option<Object>> {
+        self.inner
+            .get_object_received_at_version(
+                owner,
+                receiving_object_id,
+                receive_object_at_version,
+                epoch_id,
+            )
+            .inspect(|o| {
+                o.as_ref().inspect(|object| self.track_object(object));
+            })
+    }
+}
+
+impl ObjectStore for TrackingBackingStore<'_> {
+    fn try_get_object(&self, object_id: &ObjectId) -> error::Result<Option<Object>> {
+        self.inner.try_get_object(object_id).inspect(|o| {
+            o.as_ref().inspect(|object| self.track_object(object));
+        })
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectId,
+        version: VersionNumber,
+    ) -> error::Result<Option<Object>> {
+        self.inner
+            .try_get_object_by_key(object_id, version)
+            .inspect(|o| {
+                o.as_ref().inspect(|object| self.track_object(object));
+            })
+    }
 }

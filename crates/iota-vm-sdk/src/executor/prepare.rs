@@ -262,6 +262,7 @@ pub(super) fn execute_prepared(
 
     let dev_inspect = matches!(mode, ExecutionMode::DevInspect);
     let (kind, signer, gas_data) = transaction.execution_parts();
+
     // `dev_inspect_transaction` accepts no `MoveTraceBuilder`; tracing is only
     // available on the `authenticate_then_execute_transaction_to_effects` path.
     let (inner_temp_store, _, effects, execution_result) = env.executor.dev_inspect_transaction(

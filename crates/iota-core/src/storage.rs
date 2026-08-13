@@ -220,6 +220,15 @@ impl ReadStore for RocksDbStore {
             .map_err(StorageError::custom)
     }
 
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Vec<ObjectKey>> {
+        self.cache_traits
+            .transaction_cache_reader
+            .get_unchanged_loaded_runtime_objects(digest)
+    }
+
     fn try_get_latest_checkpoint(&self) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.checkpoint_store
             .get_highest_executed_checkpoint()
@@ -477,6 +486,13 @@ impl ReadStore for GrpcReadStore {
         digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<Option<FullCheckpointContents>> {
         self.rocks.try_get_full_checkpoint_contents(digest)
+    }
+
+    fn get_unchanged_loaded_runtime_objects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Option<Vec<ObjectKey>> {
+        self.rocks.get_unchanged_loaded_runtime_objects(digest)
     }
 }
 
