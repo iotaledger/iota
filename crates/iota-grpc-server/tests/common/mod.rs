@@ -61,7 +61,7 @@ pub fn create_large_object(padding_bytes_len: usize) -> (ObjectId, Object) {
     let owner = Address::random();
     let mut contents = GasCoin::new(id, 100).to_bcs_bytes();
     contents.extend(vec![0u8; padding_bytes_len]);
-    let move_obj = MoveStruct::new_from_execution_with_limit(
+    let move_struct = MoveStruct::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
@@ -69,7 +69,7 @@ pub fn create_large_object(padding_bytes_len: usize) -> (ObjectId, Object) {
     )
     .unwrap();
     let obj = Object::new_move(
-        move_obj,
+        move_struct,
         Owner::Address(owner),
         TransactionDigest::GENESIS_MARKER,
     );
