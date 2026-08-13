@@ -15,7 +15,10 @@ pub mod checked {
     use crate::{
         ObjectId,
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
-        gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
+        gas_model::{
+            gas_v1::{IotaGasStatus as IotaGasStatusV1, min_transaction_cost},
+            tables::GasStatus,
+        },
         object::{MoveStructExt, Object},
         transaction::ObjectReadResult,
     };
@@ -142,9 +145,7 @@ pub mod checked {
             });
         }
         let max_gas_budget = config.max_tx_gas();
-        // Uses the transaction `gas_price`, not the reference gas price, to match
-        // `IotaCostTable::new`.
-        let min_transaction_cost = config.base_tx_cost_fixed() * gas_price;
+        let min_transaction_cost = min_transaction_cost(config, gas_price);
         if gas_budget > max_gas_budget {
             return Err(UserInputError::GasBudgetTooHigh {
                 gas_budget,

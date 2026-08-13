@@ -350,8 +350,8 @@ pub async fn validate_and_resolve_conflicts(
         //     left to execution; the payload-only gas bounds are checked below.
         //   - Coin deny list: enforced during execution
         //     (`TemporaryStore::check_input_coin_deny_list`), so a stale attestation
-        //     view resolves to a failed effect charged to the issuer instead of a
-        //     free drop.
+        //     view resolves to a failed effect charged to the issuer instead of a free
+        //     drop.
         //
         // The user signature is verified pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`) for both `UserTransactionV1`
