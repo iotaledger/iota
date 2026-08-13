@@ -802,16 +802,8 @@ impl NodeConfig {
         self.consensus_config.is_some()
     }
 
-    /// Check the startup invariants centralized here. Call this before
-    /// starting a node, and after assembling or patching a config.
-    ///
-    /// This performs no I/O and is not an exhaustive check that every
-    /// subsystem-specific value can be initialized.
-    ///
-    /// # Errors
-    ///
-    /// An error means a checked invariant is broken: no node could start with
-    /// this config as it stands, or would start ignoring part of it.
+    /// Validate the node config, returning an error if a node could not
+    /// start with this config or would start ignoring part of it.
     pub fn validate(&self) -> Result<()> {
         // Validators do not expose the gRPC API, so these two fields are only
         // checked on a fullnode. An absent `grpc-api-config` key deserializes
