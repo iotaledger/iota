@@ -1190,10 +1190,7 @@ impl GrpcReader {
         };
 
         let (checkpoint, timestamp_ms) = if fields.include_checkpoint || fields.include_timestamp {
-            let checkpoint = self
-                .require_indexes()?
-                .get_transaction_info(digest)?
-                .map(|info| info.checkpoint);
+            let checkpoint = self.state_reader.get_transaction_checkpoint(digest)?;
 
             let timestamp_ms = if fields.include_timestamp {
                 match checkpoint {
