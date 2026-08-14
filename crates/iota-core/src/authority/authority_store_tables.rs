@@ -117,8 +117,7 @@ pub struct AuthorityPerpetualTables {
     pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
 
     /// Epoch and checkpoint of transactions finalized by checkpoint
-    /// executor. Note, there is a table with the same name in
-    /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
+    /// executor.
     ///
     /// Prunes with the ledger, not with the RPC index; see
     /// [`AuthorityStorePruner::prune_checkpoints`].
