@@ -54,7 +54,9 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
         let summary = checkpoint.checkpoint_summary.clone();
         let committee = self.0.get_committee(summary.epoch());
         // As many workers run as there are cores, so keep their CPU-bound
-        // verification off the runtime's worker threads.
+        // verification off the runtime's worker threads, where it would hold up
+        // checkpoint execution — which in turn gates how far sync may run
+        // ahead.
         tokio::task::spawn_blocking(move || {
             let signatures_verified = match committee {
                 Some(committee) => {
