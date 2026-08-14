@@ -4,6 +4,7 @@
 
 use std::{fs::read_dir, net::SocketAddr, time::Duration};
 
+use clap::Parser;
 use iota_config::{
     IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
     IOTA_NETWORK_CONFIG, PersistedConfig,
@@ -99,6 +100,7 @@ async fn test_start() -> Result<(), anyhow::Error> {
             data_ingestion_dir: None,
             config_dir: Some(working_dir.to_path_buf()),
             no_full_node: false,
+            disable_fullnode_pruning: false,
             force_regenesis: false,
             with_faucet: None,
             faucet_amount: None,
@@ -142,6 +144,39 @@ async fn test_start() -> Result<(), anyhow::Error> {
 
     tmp_dir.close()?;
     Ok(())
+}
+
+#[test]
+fn test_parse_disable_fullnode_pruning() {
+    let command =
+        LocalnetCommand::try_parse_from(["iota-localnet", "start", "--disable-fullnode-pruning"])
+            .unwrap();
+    assert!(matches!(
+        command,
+        LocalnetCommand::Start {
+            disable_fullnode_pruning: true,
+            ..
+        }
+    ));
+
+    let command = LocalnetCommand::try_parse_from(["iota-localnet", "start"]).unwrap();
+    assert!(matches!(
+        command,
+        LocalnetCommand::Start {
+            disable_fullnode_pruning: false,
+            ..
+        }
+    ));
+
+    assert!(
+        LocalnetCommand::try_parse_from([
+            "iota-localnet",
+            "start",
+            "--disable-fullnode-pruning",
+            "--no-full-node",
+        ])
+        .is_err()
+    );
 }
 
 #[tokio::test]

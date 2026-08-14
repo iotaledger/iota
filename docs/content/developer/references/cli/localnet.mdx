@@ -53,6 +53,7 @@ iota-localnet start [OPTIONS]
 | `--epoch-duration-ms <MS>` | Epoch duration in milliseconds (default: `60000`). Only with `--force-regenesis` or auto-generated genesis. |
 | `--committee-size <N>` | Number of validators in the network (default: `1`). |
 | `--no-full-node` | Start the network without a fullnode. |
+| `--disable-fullnode-pruning` | Keep the fullnode's full history instead of pruning old object versions and checkpoints. Cannot be combined with `--no-full-node`. |
 | `--local-migration-snapshots <PATH>...` | Paths to local migration snapshot files. |
 | `--remote-migration-snapshots <URL>...` | Remotely stored migration snapshot URLs. |
 | `--delegator <ADDRESS>` | Specify the delegator address. |
