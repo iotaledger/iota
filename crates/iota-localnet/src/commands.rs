@@ -57,6 +57,13 @@ const DEFAULT_GRPC_PORT: u16 = 50051;
 const DEFAULT_GRAPHQL_PORT: u16 = 9125;
 #[cfg(feature = "indexer")]
 const DEFAULT_INDEXER_PORT: u16 = 9124;
+/// The fullnode's metrics port on 127.0.0.1. Its admin interface takes the
+/// next port and its p2p address the one after that.
+const FULLNODE_PORT_BASE: u16 = 9184;
+/// First port of the validator layout on 127.0.0.1: validator `i` takes the
+/// ten ports starting at `VALIDATOR_PORT_BASE + 10 * i`, of which the first
+/// five are its network, p2p, metrics, primary and admin interface addresses.
+const VALIDATOR_PORT_BASE: u16 = 9200;
 
 #[cfg(feature = "indexer")]
 #[derive(Args)]
@@ -442,7 +449,9 @@ async fn start(
         let committee_size = NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE))
             .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
 
-        swarm_builder = swarm_builder.committee_size(committee_size);
+        swarm_builder = swarm_builder
+            .committee_size(committee_size)
+            .with_deterministic_validator_ports(VALIDATOR_PORT_BASE);
         let genesis_config = GenesisConfig::custom_genesis(1, 100);
         swarm_builder = swarm_builder.with_genesis_config(genesis_config);
         let epoch_duration_ms = epoch_duration_ms.unwrap_or(DEFAULT_EPOCH_DURATION_MS);
@@ -615,7 +624,8 @@ async fn start(
     } else {
         swarm_builder = swarm_builder
             .with_fullnode_count(1)
-            .with_fullnode_rpc_addr(fullnode_url);
+            .with_fullnode_rpc_addr(fullnode_url)
+            .with_deterministic_fullnode_ports(FULLNODE_PORT_BASE);
     }
 
     let mut swarm = tokio::task::spawn_blocking(move || swarm_builder.build()).await?;
@@ -969,7 +979,9 @@ async fn genesis(
     builder = if let Some(validators) = validator_info {
         builder.with_validators(validators)
     } else {
-        builder.committee_size(NonZeroUsize::new(committee_size).unwrap())
+        builder
+            .committee_size(NonZeroUsize::new(committee_size).unwrap())
+            .with_deterministic_ports(VALIDATOR_PORT_BASE)
     };
 
     if let Some(address) = admin_interface_address_with_port {
@@ -1006,6 +1018,7 @@ async fn genesis(
         .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
         .with_admin_interface_address(admin_interface_address_with_port)
+        .with_deterministic_ports(FULLNODE_PORT_BASE)
         .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
 
     fullnode_config.save(iota_config_dir.join(IOTA_FULLNODE_CONFIG))?;

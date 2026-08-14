@@ -2,11 +2,11 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::read_dir, net::SocketAddr, time::Duration};
+use std::{collections::BTreeSet, fs::read_dir, net::SocketAddr, time::Duration};
 
 use iota_config::{
     IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME,
-    IOTA_NETWORK_CONFIG, PersistedConfig,
+    IOTA_NETWORK_CONFIG, NodeConfig, PersistedConfig,
 };
 use iota_keys::keystore::AccountKeystore;
 #[cfg(feature = "indexer")]
@@ -82,6 +82,114 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     .execute()
     .await;
     assert!(matches!(result, Err(..)));
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+/// The port layout documented in
+/// `docs/content/developer/references/cli/localnet.mdx`.
+#[tokio::test]
+async fn genesis_gives_every_node_fixed_ports() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
+
+    LocalnetCommand::Genesis {
+        working_dir: Some(working_dir.to_path_buf()),
+        write_config: None,
+        force: false,
+        from_config: None,
+        epoch_duration_ms: None,
+        benchmark_ips: None,
+        with_faucet: false,
+        committee_size: 4,
+        num_additional_gas_accounts: None,
+        chain_start_timestamp_ms: None,
+        admin_interface_address: None,
+    }
+    .execute()
+    .await?;
+
+    let network_config =
+        PersistedConfig::<NetworkConfigLight>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
+    let mut ports = Vec::new();
+
+    for (i, validator) in network_config.validator_configs().iter().enumerate() {
+        let base = 9200 + 10 * i as u16;
+        assert_eq!(
+            validator.network_address.to_string(),
+            format!("/ip4/127.0.0.1/tcp/{base}/http")
+        );
+        assert_eq!(
+            validator
+                .p2p_config
+                .external_address
+                .as_ref()
+                .unwrap()
+                .to_string(),
+            format!("/ip4/127.0.0.1/udp/{}/http", base + 1)
+        );
+        assert_eq!(
+            validator.p2p_config.listen_address,
+            SocketAddr::from(([127, 0, 0, 1], base + 1))
+        );
+        assert_eq!(
+            validator.metrics_address,
+            SocketAddr::from(([127, 0, 0, 1], base + 2))
+        );
+        assert_eq!(
+            validator.admin_interface_address,
+            SocketAddr::from(([127, 0, 0, 1], base + 4))
+        );
+        ports.extend([base, base + 1, base + 2, base + 4]);
+    }
+
+    // The primary address is only kept in the committee metadata of the genesis
+    // blob, in an order of its own.
+    let genesis = network_config.validator_configs()[0].genesis.genesis()?;
+    let primary_addresses = genesis
+        .validator_set_for_tooling()
+        .iter()
+        .map(|validator| validator.verified_metadata().primary_address.to_string())
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        primary_addresses,
+        (0..4)
+            .map(|i| format!("/ip4/127.0.0.1/udp/{}/http", 9203 + 10 * i))
+            .collect::<BTreeSet<_>>()
+    );
+    ports.extend((0..4).map(|i| 9203 + 10 * i));
+
+    let fullnode = PersistedConfig::<NodeConfig>::read(&working_dir.join(IOTA_FULLNODE_CONFIG))?;
+    assert_eq!(
+        fullnode.metrics_address,
+        SocketAddr::from(([127, 0, 0, 1], 9184))
+    );
+    assert_eq!(
+        fullnode.admin_interface_address,
+        SocketAddr::from(([127, 0, 0, 1], 9185))
+    );
+    assert_eq!(
+        fullnode
+            .p2p_config
+            .external_address
+            .as_ref()
+            .unwrap()
+            .to_string(),
+        "/ip4/127.0.0.1/udp/9186/http"
+    );
+    assert_eq!(
+        fullnode.p2p_config.listen_address,
+        SocketAddr::from(([127, 0, 0, 1], 9186))
+    );
+    assert_eq!(fullnode.json_rpc_address.port(), 9000);
+    ports.extend([9184, 9185, 9186, 9000]);
+
+    assert_eq!(
+        ports.iter().collect::<BTreeSet<_>>().len(),
+        ports.len(),
+        "two nodes share a port: {ports:?}"
+    );
 
     tmp_dir.close()?;
     Ok(())

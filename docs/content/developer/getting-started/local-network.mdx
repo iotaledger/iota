@@ -75,6 +75,10 @@ Use `iota-localnet start --help` to see these options in your console.
 
 :::
 
+The network binds the same ports on every run: the fullnode uses `9000` for JSON-RPC, `9184` for metrics, `9185` for its
+admin interface and `9186` for p2p, and validator `i` uses the ten ports starting at `9200 + 10 * i`. See
+[Ports](../references/cli/localnet.mdx#ports) for the full layout.
+
 ## Interact With Your Local Node
 
 ### Using cURL

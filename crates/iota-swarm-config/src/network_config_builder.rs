@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    net::SocketAddr,
+    net::{Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
     path::{Path, PathBuf},
     sync::Arc,
@@ -13,6 +13,7 @@ use fastcrypto::traits::KeyPair;
 use iota_config::{
     ExecutionCacheConfig,
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
+    local_ip_utils,
     node::AuthorityOverloadConfig,
     transaction_deny_config::TransactionDenyConfig,
 };
@@ -37,6 +38,9 @@ use crate::{
     node_config_builder::ValidatorConfigBuilder,
 };
 
+/// Number of ports the deterministic layout reserves per validator.
+const DETERMINISTIC_PORTS_PER_VALIDATOR: u16 = 10;
+
 pub enum CommitteeConfig {
     Size(NonZeroUsize),
     Validators(Vec<ValidatorGenesisConfig>),
@@ -45,6 +49,31 @@ pub enum CommitteeConfig {
     /// the provided rng as a source of randomness as well as generating
     /// deterministic network port information.
     Deterministic((NonZeroUsize, Option<Vec<AccountKeyPair>>)),
+}
+
+/// Give the validator at `index` its fixed addresses on 127.0.0.1, including
+/// the metrics endpoint, which the deterministic layout otherwise binds on all
+/// interfaces.
+fn place_on_deterministic_ports(
+    builder: ValidatorGenesisConfigBuilder,
+    port_base: u16,
+    index: usize,
+) -> ValidatorGenesisConfigBuilder {
+    let port_offset = u16::try_from(index)
+        .ok()
+        .and_then(|index| index.checked_mul(DETERMINISTIC_PORTS_PER_VALIDATOR))
+        .and_then(|offset| port_base.checked_add(offset))
+        .unwrap_or_else(|| {
+            panic!(
+                "committee of {} does not fit above port {port_base}",
+                index + 1
+            )
+        });
+
+    builder
+        .with_ip(local_ip_utils::localhost_for_testing())
+        .with_deterministic_ports(port_offset)
+        .with_metrics_ip_address(Ipv4Addr::LOCALHOST.into())
 }
 
 pub type SupportedProtocolVersionsCallback = Arc<
@@ -97,6 +126,7 @@ pub struct ConfigBuilder<R = OsRng> {
     global_state_hash_v1_enabled_config: Option<GlobalStateHashV1EnabledConfig>,
     empty_validator_genesis: bool,
     admin_interface_address: Option<SocketAddr>,
+    deterministic_port_base: Option<u16>,
 }
 
 impl ConfigBuilder {
@@ -124,6 +154,7 @@ impl ConfigBuilder {
             global_state_hash_v1_enabled_config: Some(GlobalStateHashV1EnabledConfig::Global(true)),
             empty_validator_genesis: false,
             admin_interface_address: None,
+            deterministic_port_base: None,
         }
     }
 
@@ -163,6 +194,19 @@ impl<R> ConfigBuilder<R> {
 
     pub fn with_validators(mut self, validators: Vec<ValidatorGenesisConfig>) -> Self {
         self.committee = CommitteeConfig::Validators(validators);
+        self
+    }
+
+    /// Give every generated validator fixed addresses on 127.0.0.1 instead of
+    /// currently-free ports: validator `i` takes the ten ports starting at
+    /// `port_base + 10 * i`, of which the first five are its network, p2p,
+    /// metrics, primary and admin interface addresses.
+    ///
+    /// Has no effect on `CommitteeConfig::Validators`, whose addresses come
+    /// from the caller, or on `CommitteeConfig::Deterministic`, which lays out
+    /// its own ports.
+    pub fn with_deterministic_ports(mut self, port_base: u16) -> Self {
+        self.deterministic_port_base = Some(port_base);
         self
     }
 
@@ -324,6 +368,7 @@ impl<R> ConfigBuilder<R> {
             global_state_hash_v1_enabled_config: self.global_state_hash_v1_enabled_config,
             empty_validator_genesis: self.empty_validator_genesis,
             admin_interface_address: self.admin_interface_address,
+            deterministic_port_base: self.deterministic_port_base,
         }
     }
 
@@ -360,11 +405,15 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 let (_, keys) = Committee::new_simple_test_committee_of_size(size.into());
 
                 keys.into_iter()
-                    .map(|authority_key| {
+                    .enumerate()
+                    .map(|(i, authority_key)| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
                             .with_authority_key_pair(authority_key);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
+                        }
+                        if let Some(port_base) = self.deterministic_port_base {
+                            builder = place_on_deterministic_ports(builder, port_base, i);
                         }
                         builder.build(&mut rng)
                     })
@@ -378,12 +427,16 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
                 let (_, authority_keys) = Committee::new_simple_test_committee_of_size(keys.len());
                 keys.into_iter()
                     .zip(authority_keys)
-                    .map(|(account_key, authority_key)| {
+                    .enumerate()
+                    .map(|(i, (account_key, authority_key))| {
                         let mut builder = ValidatorGenesisConfigBuilder::new()
                             .with_authority_key_pair(authority_key)
                             .with_account_key_pair(account_key);
                         if let Some(rgp) = self.reference_gas_price {
                             builder = builder.with_gas_price(rgp);
+                        }
+                        if let Some(port_base) = self.deterministic_port_base {
+                            builder = place_on_deterministic_ports(builder, port_base, i);
                         }
                         builder.build(&mut rng)
                     })

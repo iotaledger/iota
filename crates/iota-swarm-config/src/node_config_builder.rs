@@ -2,7 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, num::NonZeroUsize, path::PathBuf};
+use std::{
+    net::{Ipv4Addr, SocketAddr},
+    num::NonZeroUsize,
+    path::PathBuf,
+};
 
 use anyhow::anyhow;
 use fastcrypto::{
@@ -302,6 +306,7 @@ pub struct FullnodeConfigBuilder {
     grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
     chain_override: Option<Chain>,
+    deterministic_port_base: Option<u16>,
 }
 
 impl FullnodeConfigBuilder {
@@ -444,6 +449,16 @@ impl FullnodeConfigBuilder {
         self
     }
 
+    /// Give the fullnode fixed addresses on 127.0.0.1 instead of
+    /// currently-free ports: `port_base` for the metrics endpoint,
+    /// `port_base + 1` for the admin interface and `port_base + 2` for p2p.
+    ///
+    /// Addresses set explicitly on this builder still win.
+    pub fn with_deterministic_ports(mut self, port_base: u16) -> Self {
+        self.deterministic_port_base = Some(port_base);
+        self
+    }
+
     /// Build the fullnode config against the given validator configs.
     ///
     /// # Panics
@@ -493,6 +508,17 @@ impl FullnodeConfigBuilder {
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
 
+        let localhost = local_ip_utils::localhost_for_testing();
+        let deterministic_metrics_address = self
+            .deterministic_port_base
+            .map(|port_base| SocketAddr::from((Ipv4Addr::LOCALHOST, port_base)));
+        let deterministic_admin_interface_address = self
+            .deterministic_port_base
+            .map(|port_base| SocketAddr::from((Ipv4Addr::LOCALHOST, port_base + 1)));
+        let deterministic_p2p_address = self.deterministic_port_base.map(|port_base| {
+            local_ip_utils::new_deterministic_udp_address_for_testing(&localhost, port_base + 2)
+        });
+
         let p2p_config = {
             let seed_peers = validator_configs
                 .iter()
@@ -515,16 +541,24 @@ impl FullnodeConfigBuilder {
                 .collect::<anyhow::Result<Vec<_>>>()?;
 
             P2pConfig {
-                listen_address: self.p2p_listen_address.unwrap_or_else(|| {
-                    validator_config.p2p_listen_address.unwrap_or_else(|| {
-                        validator_config
-                            .p2p_address
-                            .udp_multiaddr_to_listen_address()
-                            .unwrap()
+                listen_address: self
+                    .p2p_listen_address
+                    .or_else(|| {
+                        deterministic_p2p_address
+                            .as_ref()
+                            .and_then(|address| address.udp_multiaddr_to_listen_address())
                     })
-                }),
+                    .unwrap_or_else(|| {
+                        validator_config.p2p_listen_address.unwrap_or_else(|| {
+                            validator_config
+                                .p2p_address
+                                .udp_multiaddr_to_listen_address()
+                                .unwrap()
+                        })
+                    }),
                 external_address: self
                     .p2p_external_address
+                    .or(deterministic_p2p_address)
                     .or(Some(validator_config.p2p_address.clone())),
                 seed_peers,
                 // Set a shorter timeout for checkpoint content download in tests, since
@@ -589,9 +623,11 @@ impl FullnodeConfigBuilder {
                 .unwrap_or(validator_config.network_address),
             metrics_address: self
                 .metrics_address
+                .or(deterministic_metrics_address)
                 .unwrap_or_else(local_ip_utils::new_local_tcp_socket_for_testing),
             admin_interface_address: self
                 .admin_interface_address
+                .or(deterministic_admin_interface_address)
                 .unwrap_or_else(local_ip_utils::new_local_tcp_socket_for_testing),
             json_rpc_address,
             consensus_config: None,
@@ -691,4 +727,40 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
     // being unique.
     key_path.truncate(12);
     key_path
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::rngs::OsRng;
+
+    use super::{FullnodeConfigBuilder, Genesis};
+
+    #[test]
+    fn deterministic_ports_fill_the_three_slots_of_a_fullnode() {
+        let config = FullnodeConfigBuilder::new()
+            .with_deterministic_ports(9184)
+            .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
+
+        assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9184");
+        assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:9185");
+        assert_eq!(
+            config.p2p_config.external_address.unwrap().to_string(),
+            "/ip4/127.0.0.1/udp/9186/http"
+        );
+        assert_eq!(
+            config.p2p_config.listen_address.to_string(),
+            "127.0.0.1:9186"
+        );
+    }
+
+    #[test]
+    fn an_address_set_on_the_builder_wins_over_the_deterministic_ports() {
+        let config = FullnodeConfigBuilder::new()
+            .with_deterministic_ports(9184)
+            .with_admin_interface_address(Some(([127, 0, 0, 1], 1337)))
+            .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
+
+        assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:1337");
+        assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9184");
+    }
 }
