@@ -187,3 +187,56 @@ async fn node_without_jsonrpc_api_mounts_no_http_server() {
         "nothing must listen on the JSON-RPC address when the API is off"
     );
 }
+
+/// A transaction still held by the ledger reports its checkpoint even when
+/// the RPC index retains fewer epochs than the ledger does — the finality
+/// answer lives with the transaction, not with the query indexes.
+#[sim_test]
+async fn transaction_checkpoint_survives_a_shorter_index_window() {
+    let cluster = TestClusterBuilder::new()
+        .with_fullnode_num_epochs_to_retain_for_indexes(Some(1))
+        .with_fullnode_enable_grpc_api(true)
+        .build()
+        .await;
+
+    let (_sender, digest) = transfer_coin(&cluster.wallet).await;
+    let indexes = cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().rpc_indexes_store.clone().unwrap());
+
+    // Advance past the index retention so the transaction's epoch bucket is
+    // dropped, while the ledger still holds the transaction itself.
+    for _ in 0..=1 {
+        cluster.force_new_epoch().await;
+    }
+    tokio::task::spawn_blocking({
+        let indexes = indexes.clone();
+        move || indexes.prune()
+    })
+    .await
+    .unwrap()
+    .unwrap();
+
+    let checkpoint = cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| {
+            node.state()
+                .get_checkpoint_cache()
+                .try_get_transaction_perpetual_checkpoint(&digest)
+        })
+        .unwrap();
+    assert!(
+        checkpoint.is_some(),
+        "the ledger must still answer which checkpoint confirmed {digest}"
+    );
+
+    // The query index is what the shorter window costs: the transaction can
+    // no longer be found by query, while remaining fetchable by digest.
+    assert_eq!(
+        indexes.lookup_digest(&digest).unwrap(),
+        None,
+        "the pruned index must no longer place {digest} in the query order"
+    );
+}
