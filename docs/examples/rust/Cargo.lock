@@ -2906,6 +2906,7 @@ dependencies = [
  "fastcrypto",
  "iota-keys",
  "iota-metrics",
+ "iota-multiaddr",
  "iota-names",
  "iota-protocol-config",
  "iota-sdk-crypto",
@@ -3029,7 +3030,6 @@ dependencies = [
  "iota-enum-compat-util",
  "iota-json",
  "iota-macros",
- "iota-metrics",
  "iota-names",
  "iota-package-resolver",
  "iota-protocol-config",
@@ -3133,6 +3133,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-multiaddr"
+version = "1.30.0-alpha"
+dependencies = [
+ "anemo",
+ "eyre",
+ "idna",
+ "multiaddr",
+ "serde",
+ "tracing",
+]
+
+[[package]]
 name = "iota-names"
 version = "1.30.0-alpha"
 dependencies = [
@@ -3157,8 +3169,8 @@ dependencies = [
  "http-body",
  "hyper-rustls",
  "hyper-util",
- "idna",
  "iota-http",
+ "iota-multiaddr",
  "multiaddr",
  "once_cell",
  "pin-project-lite",
@@ -3294,7 +3306,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8b122bb1baec67f86f82457c43787062acbbafd6#8b122bb1baec67f86f82457c43787062acbbafd6"
 dependencies = [
  "base64ct",
  "bech32 0.11.1",
@@ -3310,7 +3322,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8b122bb1baec67f86f82457c43787062acbbafd6#8b122bb1baec67f86f82457c43787062acbbafd6"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -3329,7 +3341,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8b122bb1baec67f86f82457c43787062acbbafd6#8b122bb1baec67f86f82457c43787062acbbafd6"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -3345,7 +3357,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8b122bb1baec67f86f82457c43787062acbbafd6#8b122bb1baec67f86f82457c43787062acbbafd6"
 dependencies = [
  "base64ct",
  "bcs",
@@ -3364,7 +3376,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e4e5e09b690f0ac63698f252382b4423470debd6#e4e5e09b690f0ac63698f252382b4423470debd6"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=8b122bb1baec67f86f82457c43787062acbbafd6#8b122bb1baec67f86f82457c43787062acbbafd6"
 dependencies = [
  "base64ct",
  "bcs",
@@ -3448,7 +3460,7 @@ dependencies = [
  "hex",
  "indexmap 2.14.0",
  "iota-macros",
- "iota-network-stack",
+ "iota-multiaddr",
  "iota-protocol-config",
  "iota-sdk-crypto",
  "iota-sdk-types",
