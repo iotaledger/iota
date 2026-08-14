@@ -158,8 +158,17 @@ pub(crate) fn verify_fetched_headers(
             received: serialized_block_headers.len(),
         });
     }
+    if serialized_block_headers.len() < request_block_refs.len() {
+        return Err(ConsensusError::NotEnoughHeadersFetched {
+            peer,
+            requested: request_block_refs.len(),
+            received: serialized_block_headers.len(),
+        });
+    }
+    // Counts match, so consuming a distinct requested ref per header drains
+    // the set exactly when no header errors below.
     let mut pending_refs: BTreeSet<BlockRef> = request_block_refs.iter().cloned().collect();
-    let headers = serialized_block_headers
+    serialized_block_headers
         .into_iter()
         .map(|serialized| {
             let header = VerifiedBlockHeader::new_from_bytes(serialized)?;
@@ -171,15 +180,7 @@ pub(crate) fn verify_fetched_headers(
             }
             Ok(header)
         })
-        .collect::<ConsensusResult<Vec<_>>>()?;
-    if !pending_refs.is_empty() {
-        return Err(ConsensusError::NotEnoughHeadersFetched {
-            peer,
-            requested: request_block_refs.len(),
-            received: headers.len(),
-        });
-    }
-    Ok(headers)
+        .collect()
 }
 
 // Handle to stop the CommitSyncer loop.
