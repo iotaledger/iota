@@ -129,14 +129,16 @@ pub struct AuthorityPerpetualTables {
     pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
 
     /// Epoch and checkpoint of transactions finalized by checkpoint
-    /// executor. Note, there is a table with the same name in
-    /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
+    /// executor.
     ///
     /// Only the APIs read this, but it prunes with the transaction record
     /// rather than with the RPC index: it answers whether a transaction was
     /// confirmed, and a missing answer cannot be told from "not confirmed".
     /// A finality answer must not be able to expire before the transaction
     /// it describes, so it is deleted in the same batch as `transactions`.
+    ///
+    /// Note, there is a table with the same name in
+    /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, (EpochId, CheckpointSequenceNumber)>,
 
