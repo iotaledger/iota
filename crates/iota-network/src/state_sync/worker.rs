@@ -12,11 +12,12 @@ use iota_types::{
     committee::{Committee, EpochId},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, FullCheckpointContents, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointSequenceNumber, FullCheckpointContents,
+        VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     storage::WriteStore,
 };
+use tracing::debug;
 
 use crate::state_sync::metrics::Metrics;
 
@@ -94,6 +95,9 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
 pub(crate) struct StateSyncReducer<S> {
     pub(crate) store: S,
     pub(crate) metrics: Metrics,
+    /// How far the synced watermark may run ahead of the executed one before
+    /// insertion waits for execution to catch up.
+    pub(crate) max_checkpoints_ahead_of_execution: u64,
 }
 
 /// How many checkpoints the reducer commits per store insertion at most,
@@ -106,6 +110,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
 {
     async fn commit(&self, batch: &[VerifiedArchiveCheckpoint]) -> anyhow::Result<()> {
         self.verify_deferred_signatures(batch).await?;
+        self.wait_for_execution_to_catch_up(batch).await;
 
         let mut to_insert = Vec::with_capacity(batch.len());
         let mut prev_checkpoint = None;
@@ -147,6 +152,40 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
 }
 
 impl<S: WriteStore + Clone> StateSyncReducer<S> {
+    /// Waits until the whole batch fits within
+    /// `max_checkpoints_ahead_of_execution` of the executed watermark.
+    ///
+    /// Synced contents can only be pruned once executed, so inserting far
+    /// ahead of execution grows disk usage without bound. Waiting here rather
+    /// than bounding what the workers download keeps the disk bound while
+    /// leaving the run's range untouched; execution advances from the
+    /// checkpoints already in the store, so it makes progress in the meantime.
+    async fn wait_for_execution_to_catch_up(&self, batch: &[VerifiedArchiveCheckpoint]) {
+        let (Some(first), Some(last)) = (batch.first(), batch.last()) else {
+            return;
+        };
+        let required = required_executed_checkpoint(
+            last.summary.sequence_number,
+            self.max_checkpoints_ahead_of_execution,
+        )
+        // Execution can only reach checkpoints that are inserted, so never
+        // wait past the batch's predecessor: a cap below the batch size would
+        // otherwise wait for a checkpoint this very batch has to insert.
+        .min(first.summary.sequence_number.saturating_sub(1));
+
+        let highest_executed = self.store.get_highest_executed_checkpoint_seq_number();
+        if highest_executed.unwrap_or(0) >= required {
+            return;
+        }
+        debug!(
+            "checkpoint archive sync paused: inserting checkpoint {} needs executed checkpoint \
+             {required}, which is at {highest_executed:?}",
+            last.summary.sequence_number
+        );
+        self.store.wait_for_executed_checkpoint(required).await;
+        debug!("checkpoint archive sync resumed at executed checkpoint {required}");
+    }
+
     /// Verifies the authority signatures the workers had to defer, batched per
     /// epoch. The deferred checkpoints sit at the head of an epoch, so by
     /// commit time the previous epoch's last checkpoint — which carries their
@@ -215,6 +254,15 @@ impl<S: WriteStore + Clone> StateSyncReducer<S> {
             .map(VerifiedCheckpoint::new_unchecked)
             .map_err(|_| anyhow!("checkpoint linkage verification failed"))
     }
+}
+
+/// The executed checkpoint that inserting `sequence_number` waits for, so that
+/// insertion stays within `max_ahead_of_execution` checkpoints of execution.
+pub(crate) fn required_executed_checkpoint(
+    sequence_number: CheckpointSequenceNumber,
+    max_ahead_of_execution: u64,
+) -> CheckpointSequenceNumber {
+    sequence_number.saturating_sub(max_ahead_of_execution)
 }
 
 /// Verifies the authority signatures of `summaries`, all certified by

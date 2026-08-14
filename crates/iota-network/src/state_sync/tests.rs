@@ -1081,22 +1081,24 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
 fn test_checkpoint_archive_sync_end() {
     use crate::state_sync::checkpoint_archive_sync_end;
 
-    // No cap in play: the window ends just below the peers' lowest checkpoint.
-    assert_eq!(
-        checkpoint_archive_sync_end(1, 100, Some(90), 1000),
-        Some(99)
-    );
-
-    // The execution cap shortens the window.
-    assert_eq!(checkpoint_archive_sync_end(1, 100, Some(20), 30), Some(50));
-
-    // Nothing executed yet: the cap is anchored at checkpoint 0.
-    assert_eq!(checkpoint_archive_sync_end(1, 100, None, 30), Some(30));
-
-    // Sync is already at the cap: pause until execution catches up.
-    assert_eq!(checkpoint_archive_sync_end(61, 100, Some(20), 40), None);
+    // The run ends just below the peers' lowest checkpoint.
+    assert_eq!(checkpoint_archive_sync_end(1, 100), Some(99));
 
     // Peers already cover everything from checkpoint 1 on.
-    assert_eq!(checkpoint_archive_sync_end(1, 1, Some(0), 1000), None);
-    assert_eq!(checkpoint_archive_sync_end(1, 0, Some(0), 1000), None);
+    assert_eq!(checkpoint_archive_sync_end(1, 1), None);
+    assert_eq!(checkpoint_archive_sync_end(1, 0), None);
+}
+
+#[test]
+fn test_required_executed_checkpoint() {
+    use crate::state_sync::worker::required_executed_checkpoint;
+
+    // Within the cap of checkpoint 0: nothing to wait for.
+    assert_eq!(required_executed_checkpoint(30, 30), 0);
+    assert_eq!(required_executed_checkpoint(50, 1000), 0);
+
+    // Past the cap: execution has to reach the checkpoint the cap is anchored
+    // to, so that inserting stays exactly at the cap.
+    assert_eq!(required_executed_checkpoint(31, 30), 1);
+    assert_eq!(required_executed_checkpoint(51, 30), 21);
 }

@@ -368,6 +368,12 @@ impl WriteStore for RocksDbStore {
             .map_err(Into::into)
     }
 
+    async fn wait_for_executed_checkpoint(&self, sequence_number: CheckpointSequenceNumber) {
+        self.checkpoint_store
+            .notify_read_executed_checkpoint(sequence_number)
+            .await;
+    }
+
     fn try_insert_synced_checkpoints(
         &self,
         checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,

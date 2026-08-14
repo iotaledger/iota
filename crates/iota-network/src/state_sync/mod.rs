@@ -123,6 +123,12 @@ const PEER_BALANCER_SELECTION_WINDOW: usize = 10;
 // entire sync range.
 const PEER_HEIGHTS_CLEANUP_CHECKPOINT_INTERVAL: u64 = 10_000;
 
+/// Caps the memory the archive reader may hold in downloaded checkpoints that
+/// have not been inserted yet. Without it the reader keeps downloading until it
+/// is `MAX_CHECKPOINTS_IN_PROGRESS` checkpoints ahead, which is a lot of memory
+/// while the reducer waits for execution to catch up.
+const CHECKPOINT_ARCHIVE_DATA_LIMIT: usize = 256 * 1024 * 1024;
+
 /// A handle to the StateSync subsystem.
 ///
 /// This handle can be cloned and shared. Once all copies of a StateSync
@@ -1347,32 +1353,21 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             return;
         };
         // The archive should cover [start, end); we want everything up to end-1
-        // and leave `end` onward to normal p2p sync. The end of the window is
-        // additionally bounded relative to the executed watermark: synced
-        // contents can only be pruned once executed, so letting sync run
-        // unboundedly ahead of execution grows disk usage without bound. This
-        // function runs periodically, so a paused or shortened window resumes
-        // once execution catches up. `MaxCheckpoint(last)` makes the executor
-        // shut down on its own once it has processed that range.
-        let highest_executed = store.get_highest_executed_checkpoint_seq_number();
+        // and leave `end` onward to normal p2p sync. `MaxCheckpoint(last)`
+        // makes the executor shut down on its own once it has processed that
+        // range.
         let Some(last) = checkpoint_archive_sync_end(
             start,
             lowest_checkpoint_on_peers.expect("checked by sync_from_checkpoint_archive"),
-            highest_executed,
-            checkpoint_archive_config
-                .max_checkpoints_ahead_of_execution
-                .get() as u64,
         ) else {
-            debug!(
-                "Checkpoint archive sync paused: synced checkpoint {highest_synced} is more than \
-                 {} checkpoints ahead of executed checkpoint {highest_executed:?}",
-                checkpoint_archive_config.max_checkpoints_ahead_of_execution
-            );
             return;
         };
         let ingestion_limit = Some(IngestionLimit::MaxCheckpoint(last));
         let reader_options = ReaderOptions {
             batch_size: checkpoint_archive_config.download_concurrency.get(),
+            // The reducer waits for execution before inserting, and downloaded
+            // checkpoints pile up in memory while it does.
+            data_limit: CHECKPOINT_ARCHIVE_DATA_LIMIT,
             ..Default::default()
         };
         // Keep a clone for the final log; the original is moved into the reducer.
@@ -1384,7 +1379,13 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             "data_ingestion_executor".to_string(),
             checkpoint_archive_config.verify_concurrency.get(),
             Default::default(),
-            StateSyncReducer { store, metrics },
+            StateSyncReducer {
+                store,
+                metrics,
+                max_checkpoints_ahead_of_execution: checkpoint_archive_config
+                    .max_checkpoints_ahead_of_execution
+                    .get() as u64,
+            },
         );
         let setup_result = setup_data_ingestion_executor(
             worker_pool,
@@ -1418,21 +1419,14 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
     }
 }
 
-/// The last checkpoint an archive sync window may cover: below the peers'
-/// lowest available checkpoint (everything from there on comes from normal
-/// p2p sync), and at most `max_ahead_of_execution` checkpoints ahead of the
-/// executed watermark. `None` when the window is empty and sync should pause.
+/// The last checkpoint an archive sync run covers: the one below the peers'
+/// lowest available checkpoint, since everything from there on comes from
+/// normal p2p sync. `None` when the range is empty.
 fn checkpoint_archive_sync_end(
     start: CheckpointSequenceNumber,
     lowest_checkpoint_on_peers: CheckpointSequenceNumber,
-    highest_executed: Option<CheckpointSequenceNumber>,
-    max_ahead_of_execution: u64,
 ) -> Option<CheckpointSequenceNumber> {
-    let below_peers = lowest_checkpoint_on_peers.checked_sub(1)?;
-    let cap = highest_executed
-        .unwrap_or(0)
-        .saturating_add(max_ahead_of_execution);
-    let last = below_peers.min(cap);
+    let last = lowest_checkpoint_on_peers.checked_sub(1)?;
     (start <= last).then_some(last)
 }
 

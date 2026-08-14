@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 use super::error::Result;
 use crate::{
@@ -79,6 +79,16 @@ pub trait WriteStore: ReadStore {
             .expect("storage access failed")
     }
 
+    /// Resolves once the store's executed watermark has reached the given
+    /// sequence number. Returns right away for stores that don't track
+    /// execution (the default), since their watermark never advances.
+    fn wait_for_executed_checkpoint(
+        &self,
+        _sequence_number: CheckpointSequenceNumber,
+    ) -> impl Future<Output = ()> + Send {
+        std::future::ready(())
+    }
+
     /// Inserts a consecutive run of verified checkpoints with their full
     /// contents and advances the verified and synced watermarks past the
     /// last one.
@@ -139,6 +149,13 @@ impl<T: WriteStore + ?Sized> WriteStore for &T {
     ) -> Result<()> {
         (*self).try_insert_synced_checkpoints(checkpoints)
     }
+
+    fn wait_for_executed_checkpoint(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> impl Future<Output = ()> + Send {
+        (*self).wait_for_executed_checkpoint(sequence_number)
+    }
 }
 
 impl<T: WriteStore + ?Sized> WriteStore for Box<T> {
@@ -181,6 +198,13 @@ impl<T: WriteStore + ?Sized> WriteStore for Box<T> {
     ) -> Result<()> {
         (**self).try_insert_synced_checkpoints(checkpoints)
     }
+
+    fn wait_for_executed_checkpoint(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> impl Future<Output = ()> + Send {
+        (**self).wait_for_executed_checkpoint(sequence_number)
+    }
 }
 
 impl<T: WriteStore + ?Sized> WriteStore for Arc<T> {
@@ -222,5 +246,12 @@ impl<T: WriteStore + ?Sized> WriteStore for Arc<T> {
         checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
     ) -> Result<()> {
         (**self).try_insert_synced_checkpoints(checkpoints)
+    }
+
+    fn wait_for_executed_checkpoint(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> impl Future<Output = ()> + Send {
+        (**self).wait_for_executed_checkpoint(sequence_number)
     }
 }
