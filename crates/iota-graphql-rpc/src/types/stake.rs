@@ -237,6 +237,11 @@ impl StakedIota {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    ///
+    /// DEPRECATION NOTICE: Support for the combination of two or more complex
+    /// filters as discussed above will stop with the v1.38 release, after more
+    /// than three months. `scanLimit` will thus become obsolete and will be
+    /// removed as well.
     #[graphql(
         complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
     )]
@@ -248,6 +253,9 @@ impl StakedIota {
         last: Option<u64>,
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
+        #[graphql(
+            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
+        )]
         scan_limit: Option<u64>,
     ) -> Result<ScanConnection<String, TransactionBlock>> {
         ObjectImpl(&self.super_.super_)

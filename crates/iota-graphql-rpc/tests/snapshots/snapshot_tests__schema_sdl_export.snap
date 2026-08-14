@@ -71,8 +71,13 @@ type Address implements IOwner {
 	GraphQL, but it can be restricted by the `after` and `before`
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
 	`atCheckpoint` filters.
+	
+	DEPRECATION NOTICE: Support for the combination of two or more complex
+	filters as discussed above will stop with the v1.38 release, after more
+	than three months. `scanLimit` will thus become obsolete and will be
+	removed as well.
 	"""
-	transactionBlocks(first: Int, after: String, last: Int, before: String, relation: AddressTransactionBlockRelationship, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	transactionBlocks(first: Int, after: String, last: Int, before: String, relation: AddressTransactionBlockRelationship, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 }
 
 type AddressConnection {
@@ -439,8 +444,13 @@ type Checkpoint {
 	
 	By default, the scanning range consists of all transactions in this
 	checkpoint.
+	
+	DEPRECATION NOTICE: Support for the combination of two or more complex
+	filters as discussed above will stop with the v1.38 release, after more
+	than three months. `scanLimit` will thus become obsolete and will be
+	removed as well.
 	"""
-	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 }
 
 type CheckpointConnection {
@@ -576,8 +586,13 @@ type Coin implements IMoveObject & IObject & IOwner {
 	GraphQL, but it can be restricted by the `after` and `before`
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
 	`atCheckpoint` filters.
+	
+	DEPRECATION NOTICE: Support for the combination of two or more complex
+	filters as discussed above will stop with the v1.38 release, after more
+	than three months. `scanLimit` will thus become obsolete and will be
+	removed as well.
 	"""
-	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
 	The Base64-encoded BCS serialization of the object's content.
 	"""
@@ -751,8 +766,13 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	GraphQL, but it can be restricted by the `after` and `before`
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
 	`atCheckpoint` filters.
+	
+	DEPRECATION NOTICE: Support for the combination of two or more complex
+	filters as discussed above will stop with the v1.38 release, after more
+	than three months. `scanLimit` will thus become obsolete and will be
+	removed as well.
 	"""
-	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
 	The Base64-encoded BCS serialization of the object's content.
 	"""
@@ -1194,8 +1214,13 @@ type Epoch {
 	
 	By default, the scanning range consists of all transactions in this
 	epoch.
+	
+	DEPRECATION NOTICE: Support for the combination of two or more complex
+	filters as discussed above will stop with the v1.38 release, after more
+	than three months. `scanLimit` will thus become obsolete and will be
+	removed as well.
 	"""
-	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 }
 
 type Event {
@@ -1576,7 +1601,7 @@ interface IObject {
 	"""
 	The transaction blocks that sent objects to this object.
 	"""
-	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
 	The Base64-encoded BCS serialization of the object's content.
 	"""
@@ -2174,8 +2199,13 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	GraphQL, but it can be restricted by the `after` and `before`
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
 	`atCheckpoint` filters.
+	
+	DEPRECATION NOTICE: Support for the combination of two or more complex
+	filters as discussed above will stop with the v1.38 release, after more
+	than three months. `scanLimit` will thus become obsolete and will be
+	removed as well.
 	"""
-	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
 	The Base64-encoded BCS serialization of the object's content.
 	"""
@@ -2385,8 +2415,13 @@ type MovePackage implements IObject & IOwner {
 	GraphQL, but it can be restricted by the `after` and `before`
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
 	`atCheckpoint` filters.
+	
+	DEPRECATION NOTICE: Support for the combination of two or more complex
+	filters as discussed above will stop with the v1.38 release, after more
+	than three months. `scanLimit` will thus become obsolete and will be
+	removed as well.
 	"""
-	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
 	The Base64-encoded BCS serialization of the package's content.
 	"""
@@ -2830,8 +2865,13 @@ type NameRegistration implements IMoveObject & IOwner {
 	GraphQL, but it can be restricted by the `after` and `before`
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
 	`atCheckpoint` filters.
+	
+	DEPRECATION NOTICE: Support for the combination of two or more complex
+	filters as discussed above will stop with the v1.38 release, after more
+	than three months. `scanLimit` will thus become obsolete and will be
+	removed as well.
 	"""
-	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
 	The Base64-encoded BCS serialization of the object's content.
 	"""
@@ -3016,8 +3056,13 @@ type Object implements IObject & IOwner {
 	GraphQL, but it can be restricted by the `after` and `before`
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
 	`atCheckpoint` filters.
+	
+	DEPRECATION NOTICE: Support for the combination of two or more complex
+	filters as discussed above will stop with the v1.38 release, after more
+	than three months. `scanLimit` will thus become obsolete and will be
+	removed as well.
 	"""
-	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
 	The Base64-encoded BCS serialization of the object's content.
 	"""
@@ -3687,8 +3732,13 @@ type Query {
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
 	`atCheckpoint` filters. Transactions that don't have a checkpoint yet
 	are always omitted.
+	
+	DEPRECATION NOTICE: Support for the combination of two or more complex
+	filters as discussed above will stop with the v1.38 release, after more
+	than three months. `scanLimit` will thus become obsolete and will be
+	removed as well.
 	"""
-	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
 	Query events that are emitted in the network.
 	We currently do not support filtering by emitting module and event type
@@ -4147,8 +4197,13 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	GraphQL, but it can be restricted by the `after` and `before`
 	cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
 	`atCheckpoint` filters.
+	
+	DEPRECATION NOTICE: Support for the combination of two or more complex
+	filters as discussed above will stop with the v1.38 release, after more
+	than three months. `scanLimit` will thus become obsolete and will be
+	removed as well.
 	"""
-	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int): TransactionBlockConnection!
+	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
 	The Base64-encoded BCS serialization of the object's content.
 	"""
