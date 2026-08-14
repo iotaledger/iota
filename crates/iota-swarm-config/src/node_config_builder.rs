@@ -509,14 +509,19 @@ impl FullnodeConfigBuilder {
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
 
         let localhost = local_ip_utils::localhost_for_testing();
-        let deterministic_metrics_address = self
-            .deterministic_port_base
-            .map(|port_base| SocketAddr::from((Ipv4Addr::LOCALHOST, port_base)));
-        let deterministic_admin_interface_address = self
-            .deterministic_port_base
-            .map(|port_base| SocketAddr::from((Ipv4Addr::LOCALHOST, port_base + 1)));
-        let deterministic_p2p_address = self.deterministic_port_base.map(|port_base| {
-            local_ip_utils::new_deterministic_udp_address_for_testing(&localhost, port_base + 2)
+        let deterministic_port = |offset: u16| {
+            self.deterministic_port_base.map(|port_base| {
+                port_base.checked_add(offset).unwrap_or_else(|| {
+                    panic!("the fullnode port layout does not fit above port {port_base}")
+                })
+            })
+        };
+        let deterministic_metrics_address =
+            deterministic_port(0).map(|port| SocketAddr::from((Ipv4Addr::LOCALHOST, port)));
+        let deterministic_admin_interface_address =
+            deterministic_port(1).map(|port| SocketAddr::from((Ipv4Addr::LOCALHOST, port)));
+        let deterministic_p2p_address = deterministic_port(2).map(|port| {
+            local_ip_utils::new_deterministic_udp_address_for_testing(&localhost, port)
         });
 
         let p2p_config = {
