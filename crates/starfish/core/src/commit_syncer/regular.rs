@@ -1390,9 +1390,10 @@ mod tests {
         }
 
         /// A response with more headers than requested is rejected before any
-        /// parsing, so nothing is recorded for it.
+        /// parsing and charged to the serving peer, since an honest response
+        /// can only be incomplete, never oversized.
         #[tokio::test]
-        async fn does_not_record_misbehavior_for_extra_headers() {
+        async fn records_misbehavior_for_extra_headers() {
             let context = Arc::new(Context::new_for_test(4).0);
             let (commits, mut block_headers, transactions) = two_commit_response(&context);
             block_headers.push(
@@ -1406,12 +1407,12 @@ mod tests {
 
             let err = result.unwrap_err();
             assert!(
-                matches!(err, ConsensusError::UnexpectedNumberOfHeadersFetched { .. }),
+                matches!(err, ConsensusError::TooManyFetchedHeadersReturned { .. }),
                 "unexpected error: {err:?}"
             );
             assert_eq!(
                 inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
-                vec![0; 4]
+                vec![0, 1, 0, 0]
             );
             assert_eq!(
                 inner.misbehavior_store.in_memory_faulty_blocks_provable(),
@@ -1432,7 +1433,7 @@ mod tests {
 
             let err = result.unwrap_err();
             assert!(
-                matches!(err, ConsensusError::UnexpectedNumberOfHeadersFetched { .. }),
+                matches!(err, ConsensusError::NotEnoughHeadersFetched { .. }),
                 "unexpected error: {err:?}"
             );
             assert_eq!(

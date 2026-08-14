@@ -145,19 +145,17 @@ impl CommitSyncType {
 }
 
 /// Verifies that the fetched headers are exactly the requested ones, in any
-/// order. Unrequested or duplicate headers are peer faults; missing headers
-/// are benign, since an honest response can arrive incomplete. Requested refs
-/// must be distinct, which holds by construction (a header is committed once).
+/// order. Requested refs must be distinct.
 pub(crate) fn verify_fetched_headers(
     peer: AuthorityIndex,
     request_block_refs: &[BlockRef],
     serialized_block_headers: Vec<Bytes>,
 ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
     if serialized_block_headers.len() > request_block_refs.len() {
-        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-            authority: peer,
+        return Err(ConsensusError::TooManyFetchedHeadersReturned {
+            peer,
             requested: request_block_refs.len(),
-            received_headers: serialized_block_headers.len(),
+            received: serialized_block_headers.len(),
         });
     }
     let mut pending_refs: BTreeSet<BlockRef> = request_block_refs.iter().cloned().collect();
@@ -175,10 +173,10 @@ pub(crate) fn verify_fetched_headers(
         })
         .collect::<ConsensusResult<Vec<_>>>()?;
     if !pending_refs.is_empty() {
-        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-            authority: peer,
+        return Err(ConsensusError::NotEnoughHeadersFetched {
+            peer,
             requested: request_block_refs.len(),
-            received_headers: headers.len(),
+            received: headers.len(),
         });
     }
     Ok(headers)

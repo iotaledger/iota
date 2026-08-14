@@ -61,12 +61,21 @@ pub(crate) enum ConsensusError {
     UnexpectedGenesisRequested { peer: AuthorityIndex },
 
     #[error(
-        "Expected {requested} but received {received_headers} block headers from authority {authority}"
+        "Received fewer block headers than requested from peer {peer}: requested {requested}, received {received}"
     )]
-    UnexpectedNumberOfHeadersFetched {
-        authority: AuthorityIndex,
+    NotEnoughHeadersFetched {
+        peer: AuthorityIndex,
         requested: usize,
-        received_headers: usize,
+        received: usize,
+    },
+
+    #[error(
+        "Received more block headers than requested from peer {peer}: requested {requested}, received {received}"
+    )]
+    TooManyFetchedHeadersReturned {
+        peer: AuthorityIndex,
+        requested: usize,
+        received: usize,
     },
 
     #[error(

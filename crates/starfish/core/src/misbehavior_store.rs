@@ -297,6 +297,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::SerializedTransactionsTooLarge { .. }
         | ConsensusError::TransactionCommitmentFailure { .. }
         | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
+        | ConsensusError::TooManyFetchedHeadersReturned { .. }
         // Corrupt or invalid relayed bundle parts (framing, additional-header
         // round, and shard structure/proof). We know which peer relayed them
         // but can't tie them to a verified author.
@@ -338,7 +339,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // than a faulty peer.
         ConsensusError::MalformedCommit(_)
         | ConsensusError::UnexpectedGenesisRequested { .. }
-        | ConsensusError::UnexpectedNumberOfHeadersFetched { .. }
+        | ConsensusError::NotEnoughHeadersFetched { .. }
         | ConsensusError::UnexpectedLastOwnHeader { .. }
         // Transaction fetch faults, recorded against the serving peer at the
         // fetch sites via `record_faulty_transactions` — deliberately not
@@ -1006,6 +1007,11 @@ mod tests {
                 peer: AuthorityIndex::new_for_test(0),
                 received: BlockRef::MIN,
             },
+            ConsensusError::TooManyFetchedHeadersReturned {
+                peer: AuthorityIndex::new_for_test(0),
+                requested: 2,
+                received: 3,
+            },
         ];
         for e in cases {
             let (prov, unprov) = classify_via_record(e);
@@ -1029,10 +1035,10 @@ mod tests {
             ConsensusError::NoCommitReceived { peer: authority },
             ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
             // Fetch shortfalls (client-side truncation can produce them).
-            ConsensusError::UnexpectedNumberOfHeadersFetched {
-                authority,
+            ConsensusError::NotEnoughHeadersFetched {
+                peer: authority,
                 requested: 5,
-                received_headers: 3,
+                received: 3,
             },
             ConsensusError::FetchedTransactionsMismatch {
                 peer: authority,
