@@ -366,12 +366,19 @@ impl Query {
     }
 
     /// Fetch multiple transaction blocks by their digests.
-    /// This includes all transactions, even if they are not checkpointed yet.
+    ///
+    /// Unlike `transactionBlocks(filter: { transactionIds })`, this includes
+    /// all transactions, even if they are not checkpointed yet.
+    /// The connection is ordered by transaction digest.
     async fn transaction_blocks_by_digests(
         &self,
         ctx: &Context<'_>,
+        first: Option<u64>,
+        after: Option<transaction_block::ByDigestCursor>,
+        last: Option<u64>,
+        before: Option<transaction_block::ByDigestCursor>,
         digests: Vec<Digest>,
-    ) -> Result<Vec<Option<TransactionBlock>>> {
+    ) -> Result<ScanConnection<String, TransactionBlock>> {
         let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
         if digests.len() > limits.max_transaction_ids as usize {
             return Err(Error::Client(format!(
@@ -382,16 +389,10 @@ impl Query {
         }
 
         let Watermark { checkpoint, .. } = *ctx.data()?;
-        let mut result = TransactionBlock::multi_query(ctx, digests.clone(), checkpoint)
+        let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
+        TransactionBlock::paginate_by_digests(ctx, page, &digests, checkpoint)
             .await
-            .extend()?;
-
-        // Map each input digest to Some(transaction) if found, None otherwise
-        // This maintains the same order and length as the input vector
-        Ok(digests
-            .into_iter()
-            .map(|digest| result.remove(&digest))
-            .collect())
+            .extend()
     }
 
     /// The coin objects that exist in the network.

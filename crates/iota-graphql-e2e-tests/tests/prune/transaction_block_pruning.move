@@ -64,10 +64,11 @@ module Test::M {
 }
 
 //# run-graphql
-# C: mixed case - one pruned and one unpruned
+# C: mixed case - one pruned and one unpruned. Without a fallback the pruned
+# digest is absent from the result, only the unpruned one is returned.
 {
   transactionBlocksByDigests(digests: ["@{digest_2}", "@{digest_10}"]) {
-    digest
+    nodes { digest }
   }
 }
 
