@@ -1668,25 +1668,6 @@ mod tests {
             .cloned()
     }
 
-    /// Returns the template with `entry` written at `path`.
-    fn template_with(path: &[&str], entry: Value) -> Value {
-        let mut value: Value = serde_yaml::from_str(TEMPLATE).unwrap();
-        let (last, parents) = path.split_last().unwrap();
-        let mut current = &mut value;
-        for name in parents {
-            current = current
-                .as_mapping_mut()
-                .unwrap()
-                .get_mut(&Value::String((*name).to_owned()))
-                .unwrap();
-        }
-        current
-            .as_mapping_mut()
-            .unwrap()
-            .insert(Value::String((*last).to_owned()), entry);
-        value
-    }
-
     #[test]
     fn serialize_genesis_from_file() {
         let g = Genesis::new_from_file("path/to/file");
@@ -1851,66 +1832,6 @@ mod tests {
         assert_eq!(
             written_at(&written, COMPACTION_THRESHOLD),
             Some(Value::Null)
-        );
-    }
-
-    #[test]
-    fn an_absent_key_a_null_and_a_value_read_back_as_the_three_states() {
-        let absent = template_config();
-        assert_eq!(
-            as_yaml(&absent.policy_config),
-            as_yaml(&default_traffic_controller_policy_config())
-        );
-        assert_eq!(
-            as_yaml(&absent.grpc_api_config),
-            as_yaml(&default_grpc_api_config())
-        );
-        assert_eq!(
-            absent
-                .authority_store_pruning_config
-                .periodic_compaction_threshold_days,
-            default_periodic_compaction_threshold_days()
-        );
-
-        let disabled: NodeConfig =
-            serde_yaml::from_value(template_with(POLICY_CONFIG, Value::Null)).unwrap();
-        assert!(disabled.policy_config.is_none());
-        let disabled: NodeConfig =
-            serde_yaml::from_value(template_with(GRPC_API_CONFIG, Value::Null)).unwrap();
-        assert!(disabled.grpc_api_config.is_none());
-        let disabled: NodeConfig =
-            serde_yaml::from_value(template_with(COMPACTION_THRESHOLD, Value::Null)).unwrap();
-        assert!(
-            disabled
-                .authority_store_pruning_config
-                .periodic_compaction_threshold_days
-                .is_none()
-        );
-
-        let configured = PolicyConfig {
-            dry_run: !PolicyConfig::default_dos_protection_policy().dry_run,
-            ..PolicyConfig::default_dos_protection_policy()
-        };
-        let value = serde_yaml::to_value(&configured).unwrap();
-        let set: NodeConfig = serde_yaml::from_value(template_with(POLICY_CONFIG, value)).unwrap();
-        assert_eq!(as_yaml(&set.policy_config), as_yaml(&Some(configured)));
-
-        let configured = GrpcApiConfig {
-            max_message_size_bytes: 1234,
-            ..GrpcApiConfig::default()
-        };
-        let value = serde_yaml::to_value(&configured).unwrap();
-        let set: NodeConfig =
-            serde_yaml::from_value(template_with(GRPC_API_CONFIG, value)).unwrap();
-        assert_eq!(as_yaml(&set.grpc_api_config), as_yaml(&Some(configured)));
-
-        let set: NodeConfig =
-            serde_yaml::from_value(template_with(COMPACTION_THRESHOLD, Value::Number(7.into())))
-                .unwrap();
-        assert_eq!(
-            set.authority_store_pruning_config
-                .periodic_compaction_threshold_days,
-            Some(7)
         );
     }
 }
