@@ -154,6 +154,7 @@ When writing or modifying comments, follow the **Comments** rules in [`RUST_CONV
 
 - The change is user-visible in some component → check the matching box(es) and write a one-line note after each colon (a checked box with no note also fails).
 - The change has nothing worth a release note (tests, CI, internal refactors, docs) → **delete the entire "### Release Notes" section** (and the "Breaking Changes Rollout" subsection) from the PR description. Never leave it as the empty template — CI (`scripts/release_notes/release_notes.py check-pr`) rejects a PR whose "Release Notes" section has only unchecked boxes with no notes.
+- The PR merges a feature branch → keep the notes on the PRs that were merged into the branch, and delete the section here. The generator follows a feature branch back to those PRs, so repeating their notes would list each one twice.
 
 ### Plain language, no coined terms
 
