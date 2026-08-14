@@ -541,6 +541,12 @@ impl AuthorityStorePruner {
             checkpoint_number = checkpoint.sequence_number();
             last_pruned_timestamp_ms = checkpoint.timestamp_ms;
 
+            // Both pruners walk this loop, and it needs the checkpoint's contents
+            // and effects to know what to delete. So the objects retention must
+            // not exceed the checkpoint retention: otherwise the checkpoint
+            // pruner deletes these rows first and the objects pruner fails here
+            // when it reaches the same checkpoint.
+            // TODO: remove once the objects historic table split is implemented
             let content = checkpoint_store
                 .get_checkpoint_contents(&checkpoint.contents_digest)?
                 .ok_or_else(|| {

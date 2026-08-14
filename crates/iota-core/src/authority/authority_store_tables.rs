@@ -68,6 +68,12 @@ pub struct AuthorityPerpetualTables {
     /// executed transactions whose effects have not yet been written out,
     /// and which must be retried. But, they cannot be retried unless their
     /// input objects are still accessible!
+    ///
+    /// Non-latest versions are historical state, needed only to derive
+    /// `showBalanceChanges` / `showObjectChanges` for a past transaction.
+    /// They prune with their own knob rather than the ledger's: peers never
+    /// need old versions to sync, and both APIs already degrade explicitly
+    /// when a version is gone.
     pub(crate) objects: DBMap<ObjectKey, StoreObjectWrapper>,
 
     /// Object references of currently active objects that can be mutated.
@@ -77,6 +83,9 @@ pub struct AuthorityPerpetualTables {
     /// transaction that's known to be executable. This means that it may
     /// have been executed locally, or it may have been synced through
     /// state-sync but hasn't been executed yet.
+    ///
+    /// Prunes with the ledger: this is half of the `ExecutionData` peers
+    /// sync, and it is also the transaction body every API read returns.
     pub(crate) transactions: DBMap<TransactionDigest, TrustedTransaction>,
 
     /// A map between the transaction digest of a certificate to the effects of
@@ -91,6 +100,10 @@ pub struct AuthorityPerpetualTables {
     ///
     /// It's also possible for the effects to be reverted if the transaction
     /// didn't make it into the epoch.
+    ///
+    /// Prunes with the ledger: this is the other half of the `ExecutionData`
+    /// peers sync, and it carries `events_digest`, the only marker that
+    /// distinguishes "produced no events" from "events missing".
     pub(crate) effects: DBMap<TransactionEffectsDigest, TransactionEffects>,
 
     /// Transactions that have been executed locally on this node. We need this
@@ -98,6 +111,9 @@ pub struct AuthorityPerpetualTables {
     /// execution status of the transaction on this node. When we wait for
     /// transactions to be executed, we wait for them to appear in this
     /// table. When we revert transactions, we remove them from both tables.
+    ///
+    /// Prunes with the ledger, in the same batch as `transactions` and
+    /// `effects`, since it tracks the same execution record.
     pub(crate) executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
 
     /// Deprecated: events keyed by events digest moved to `events_2`.
@@ -106,13 +122,27 @@ pub struct AuthorityPerpetualTables {
     #[deprecated_db_map]
     events: Option<DBMap<(), ()>>,
 
-    // Events keyed by the digest of the transaction that produced them.
+    /// Events produced by each transaction, keyed by the transaction's
+    /// digest.
+    ///
+    /// Only the APIs read this — peers never receive events, since state
+    /// sync carries `(transaction, effects)` and each node re-executes to
+    /// produce its own. It is nonetheless pruned with the ledger rather
+    /// than with the RPC index, for two reasons: the event indexes are
+    /// rebuilt from it and have no other source, and a read of a
+    /// transaction whose events were pruned cannot currently be told from
+    /// one racing execution, so the two must disappear together.
     pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
 
     /// Epoch and checkpoint of transactions finalized by checkpoint
-    /// executor. Currently, mainly used to implement JSON RPC `ReadApi`.
-    /// Note, there is a table with the same name in
+    /// executor. Note, there is a table with the same name in
     /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
+    ///
+    /// Only the APIs read this, but it prunes with the transaction record
+    /// rather than with the RPC index: it answers whether a transaction was
+    /// confirmed, and a missing answer cannot be told from "not confirmed".
+    /// A finality answer must not be able to expire before the transaction
+    /// it describes, so it is deleted in the same batch as `transactions`.
     pub(crate) executed_transactions_to_checkpoint:
         DBMap<TransactionDigest, (EpochId, CheckpointSequenceNumber)>,
 
@@ -152,6 +182,10 @@ pub struct AuthorityPerpetualTables {
 
 #[derive(DBMapUtils)]
 pub struct AuthorityPrunerTables {
+    /// Each deleted object's highest tombstoned version, fed to the
+    /// compaction filter that drops old rows from `objects` at or below it.
+    /// Belongs to the objects knob, since it exists solely to serve that
+    /// pruner.
     pub(crate) object_tombstones: DBMap<ObjectId, Version>,
 }
 
