@@ -360,8 +360,3 @@ min_validator_joining_stake: 2000000000000000
 validator_low_stake_threshold: 1500000000000000
 validator_very_low_stake_threshold: 1000000000000000
 validator_low_stake_grace_period: 7
-min_attestor_joining_bond: 2000000000000
-attestor_low_bond_threshold: 1000000000000
-max_attestor_count: 1000
-attestor_max_inactivity_epochs: 7
-attestor_inactivity_penalty: 500000000000

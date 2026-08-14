@@ -1,21 +1,19 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{
     fmt::{Debug, Display, Formatter, Write as _},
     fs,
     path::{Path, PathBuf},
 };
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 
 use anyhow::{Result, anyhow, bail};
 use clap::Parser;
 use colored::Colorize;
 use fastcrypto::{
-    ed25519::Ed25519KeyPair,
-    encoding::Hex,
-    secp256k1::Secp256k1KeyPair,
+    ed25519::Ed25519KeyPair, encoding::Hex, secp256k1::Secp256k1KeyPair,
     secp256r1::Secp256r1KeyPair,
 };
 use iota_json_rpc_types::{
@@ -39,7 +37,9 @@ use iota_types::{
 use rand::rngs::OsRng;
 use serde::Serialize;
 
-use crate::{PrintableResult, signing::sign_transaction, validator_commands::write_transaction_response};
+use crate::{
+    PrintableResult, signing::sign_transaction, validator_commands::write_transaction_response,
+};
 
 #[path = "unit_tests/attestor_tests.rs"]
 #[cfg(test)]
@@ -221,9 +221,14 @@ impl IotaAttestorCommand {
 
             IotaAttestorCommand::DepositBond { amount, gas_budget } => {
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
-                let response =
-                    call_0x5_with_bond(context, "deposit_attestor_bond", amount, vec![], gas_budget)
-                        .await?;
+                let response = call_0x5_with_bond(
+                    context,
+                    "deposit_attestor_bond",
+                    amount,
+                    vec![],
+                    gas_budget,
+                )
+                .await?;
                 IotaAttestorCommandResponse::DepositBond(response)
             }
 
@@ -325,16 +330,19 @@ fn generate_attestor_keypair(scheme: SignatureScheme) -> Result<IotaKeyPair> {
         SignatureScheme::Secp256r1 => {
             IotaKeyPair::Secp256r1(get_key_pair_from_rng::<Secp256r1KeyPair, _>(&mut rng).1)
         }
-        other => bail!("unsupported attestor key scheme: {other}, expected ed25519, secp256k1 or secp256r1"),
+        other => bail!(
+            "unsupported attestor key scheme: {other}, expected ed25519, secp256k1 or secp256r1"
+        ),
     })
 }
 
 fn attestor_key_path(context: &WalletContext) -> Result<PathBuf> {
-    let config_dir = context
-        .config()
-        .path()
-        .parent()
-        .ok_or_else(|| anyhow!("client config path {:?} has no parent directory", context.config().path()))?;
+    let config_dir = context.config().path().parent().ok_or_else(|| {
+        anyhow!(
+            "client config path {:?} has no parent directory",
+            context.config().path()
+        )
+    })?;
     Ok(config_dir.join("attestor.key"))
 }
 
@@ -392,10 +400,25 @@ fn read_attestor_key(path: &Path) -> Result<IotaKeyPair> {
     read_keypair_from_file(path)
 }
 
+/// Mirrors `attestor_registry.move`'s `min_joining_bond`: the joining bond is
+/// `min_validator_joining_stake` scaled by `attestor_joining_bond_rate`
+/// (basis points). The Move implementation cannot be called from the client,
+/// so the derivation is repeated here.
 async fn default_bond_amount(client: &IotaClient) -> Result<u64> {
+    const BASIS_POINT_DENOMINATOR: u128 = 10_000;
+
     let cfg = client.read_api().get_protocol_config(None).await?;
-    match cfg.attributes.get("min_attestor_joining_bond") {
-        Some(Some(IotaProtocolConfigValue::U64(bond))) => Ok(*bond),
+    let attr = |name: &str| match cfg.attributes.get(name) {
+        Some(Some(IotaProtocolConfigValue::U64(value))) => Some(*value),
+        _ => None,
+    };
+    match (
+        attr("min_validator_joining_stake"),
+        attr("attestor_joining_bond_rate"),
+    ) {
+        (Some(stake), Some(rate)) => {
+            Ok((stake as u128 * rate as u128 / BASIS_POINT_DENOMINATOR) as u64)
+        }
         _ => bail!(
             "Could not automatically determine the network's minimum attestor joining bond. \
              Please provide a bond amount with --bond. The parameter's absence usually means \
@@ -462,12 +485,16 @@ async fn call_0x5_with_bond(
         .get_reference_gas_price()
         .await?;
     // The same coin pays gas and funds the bond, so it must cover both.
-    let gas_obj_ref = get_gas_obj_ref(sender, &iota_client, gas_budget.saturating_add(bond_amount)).await?;
+    let gas_obj_ref =
+        get_gas_obj_ref(sender, &iota_client, gas_budget.saturating_add(bond_amount)).await?;
 
     let mut builder = ProgrammableTransactionBuilder::new();
     let system_state_arg = builder.obj(CallArg::IOTA_SYSTEM_MUTABLE)?;
     let bond_amount_arg = builder.pure(bond_amount)?;
-    let coin_arg = builder.command(Command::new_split_coins(Argument::Gas, vec![bond_amount_arg]));
+    let coin_arg = builder.command(Command::new_split_coins(
+        Argument::Gas,
+        vec![bond_amount_arg],
+    ));
     let mut arguments = vec![system_state_arg, coin_arg];
     for arg in trailing_args {
         arguments.push(builder.input(arg)?);
@@ -590,16 +617,26 @@ async fn display_attestor(client: &IotaClient, address: Address) -> Result<Strin
     };
 
     let Some(entry) = entry else {
-        return Ok(format!("Attestor {address}\n  status:            not registered"));
+        return Ok(format!(
+            "Attestor {address}\n  status:            not registered"
+        ));
     };
 
     let metadata = read_attestor_metadata(client, address).await?;
 
     let mut out = format!("Attestor {address}\n");
     writeln!(out, "  status:            {status}")?;
-    writeln!(out, "  pubkey:            {}", Hex::encode_with_format(&entry.attestor_pubkey))?;
+    writeln!(
+        out,
+        "  pubkey:            {}",
+        Hex::encode_with_format(&entry.attestor_pubkey)
+    )?;
     match &entry.next_epoch_attestor_pubkey {
-        Some(pubkey) => writeln!(out, "  staged rotation:   {}", Hex::encode_with_format(pubkey))?,
+        Some(pubkey) => writeln!(
+            out,
+            "  staged rotation:   {}",
+            Hex::encode_with_format(pubkey)
+        )?,
         None => writeln!(out, "  staged rotation:   none")?,
     }
     writeln!(out, "  bond:              {} nanos", entry.bond.value())?;
@@ -673,7 +710,8 @@ mod tests {
         // second write without overwrite permission must fail: this is what makes both
         // register and rotate-key refuse to run while a key file is already present.
         assert!(write_attestor_key(&path, &kp, false).is_err());
-        // callers that have already made their own overwrite decision may still force it.
+        // callers that have already made their own overwrite decision may still force
+        // it.
         write_attestor_key(&path, &kp, true).unwrap();
     }
 

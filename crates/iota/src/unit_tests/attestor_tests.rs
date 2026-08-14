@@ -69,9 +69,13 @@ async fn test_attestor_cli_lifecycle() {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let address = test_cluster.get_address_0();
 
-    // `min_attestor_joining_bond` from the devnet protocol config; register
-    // below uses the default bond, so display math builds on this value.
-    let min_joining_bond: u64 = 2_000_000_000_000;
+    // The default bond derivation from the protocol config the cluster runs;
+    // register below uses the default bond, so display math builds on this
+    // value.
+    let protocol_config = iota_protocol_config::ProtocolConfig::get_for_max_version_UNSAFE();
+    let min_joining_bond: u64 = (protocol_config.min_validator_joining_stake() as u128
+        * protocol_config.attestor_joining_bond_rate() as u128
+        / 10_000) as u64;
 
     // Same derivation attestor_commands.rs uses for the key file location:
     // next to the wallet's client config.
@@ -101,15 +105,14 @@ async fn test_attestor_cli_lifecycle() {
     assert_eq!(
         register_response.status_ok(),
         Some(true),
-        "register transaction must succeed"
+        "register transaction must succeed, effects: {:?}",
+        register_response.effects
     );
     assert!(
         attestor_key_path.exists(),
         "register must write attestor.key"
     );
-    let registered_pubkey = read_keypair_from_file(&attestor_key_path)
-        .unwrap()
-        .public();
+    let registered_pubkey = read_keypair_from_file(&attestor_key_path).unwrap().public();
 
     // Pending until the epoch boundary.
     let IotaAttestorCommandResponse::Display(out) = IotaAttestorCommand::Display { address: None }
@@ -158,8 +161,9 @@ async fn test_attestor_cli_lifecycle() {
         "update-name transaction must succeed"
     );
 
-    // rotate-key refuses to run while `attestor.key` is present (the current key stays
-    // valid on-chain until the rotation lands, so the operator must move it aside first).
+    // rotate-key refuses to run while `attestor.key` is present (the current key
+    // stays valid on-chain until the rotation lands, so the operator must move
+    // it aside first).
     let attestor_key_backup_path = attestor_key_path.with_extension("key.bak");
     std::fs::rename(&attestor_key_path, &attestor_key_backup_path).unwrap();
 
@@ -178,9 +182,7 @@ async fn test_attestor_cli_lifecycle() {
         Some(true),
         "rotate-key transaction must succeed"
     );
-    let rotated_pubkey = read_keypair_from_file(&attestor_key_path)
-        .unwrap()
-        .public();
+    let rotated_pubkey = read_keypair_from_file(&attestor_key_path).unwrap().public();
     assert_ne!(
         registered_pubkey, rotated_pubkey,
         "rotate-key must write a new keypair to attestor.key"
@@ -210,8 +212,7 @@ async fn test_attestor_cli_lifecycle() {
     }
     .execute(&mut test_cluster.wallet)
     .await
-    .unwrap()
-    else {
+    .unwrap() else {
         panic!("expected Display response");
     };
     assert!(
@@ -251,8 +252,7 @@ async fn test_attestor_cli_lifecycle() {
     }
     .execute(&mut test_cluster.wallet)
     .await
-    .unwrap()
-    else {
+    .unwrap() else {
         panic!("expected Display response");
     };
     assert!(
@@ -267,8 +267,7 @@ async fn test_attestor_cli_lifecycle() {
     }
     .execute(&mut test_cluster.wallet)
     .await
-    .unwrap()
-    else {
+    .unwrap() else {
         panic!("expected Display response");
     };
     assert!(

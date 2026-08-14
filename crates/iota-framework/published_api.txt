@@ -49,6 +49,15 @@ is_feature_enabled
 assert_feature_enabled
 	public(package) fun
 	0x3::attestor_registry
+min_joining_bond
+	public(package) fun
+	0x3::attestor_registry
+low_bond_threshold
+	public(package) fun
+	0x3::attestor_registry
+stake_fraction
+	fun
+	0x3::attestor_registry
 registry_key
 	public(package) fun
 	0x3::attestor_registry

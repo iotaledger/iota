@@ -29,11 +29,17 @@ use iota_system::protocol_config;
 use std::string::String;
 
 // Protocol config parameter names, read via `protocol_config::get_attr`.
-const MIN_ATTESTOR_JOINING_BOND_PARAM: vector<u8> = b"min_attestor_joining_bond";
-const ATTESTOR_LOW_BOND_THRESHOLD_PARAM: vector<u8> = b"attestor_low_bond_threshold";
+// The bond levels are rates (basis points) applied to
+// `min_validator_joining_stake`, so they stay consistent as the stake is
+// tuned.
+const MIN_VALIDATOR_JOINING_STAKE_PARAM: vector<u8> = b"min_validator_joining_stake";
+const ATTESTOR_JOINING_BOND_RATE_PARAM: vector<u8> = b"attestor_joining_bond_rate";
+const ATTESTOR_LOW_BOND_THRESHOLD_RATE_PARAM: vector<u8> = b"attestor_low_bond_threshold_rate";
 const MAX_ATTESTOR_COUNT_PARAM: vector<u8> = b"max_attestor_count";
 const ATTESTOR_MAX_INACTIVITY_EPOCHS_PARAM: vector<u8> = b"attestor_max_inactivity_epochs";
 const ATTESTOR_INACTIVITY_PENALTY_PARAM: vector<u8> = b"attestor_inactivity_penalty";
+
+const BASIS_POINT_DENOMINATOR: u128 = 10000;
 
 // Exit reasons for advance_epoch's combined exit pass, in precedence
 // order: eviction > inactivity > voluntary removal.
@@ -181,6 +187,24 @@ public(package) fun assert_feature_enabled() {
     assert!(is_feature_enabled(), EFeatureNotEnabled);
 }
 
+/// Minimum bond to register as an attestor.
+public(package) fun min_joining_bond(): u64 {
+    stake_fraction(ATTESTOR_JOINING_BOND_RATE_PARAM)
+}
+
+/// Bond level below which an active attestor is evicted at the epoch boundary.
+public(package) fun low_bond_threshold(): u64 {
+    stake_fraction(ATTESTOR_LOW_BOND_THRESHOLD_RATE_PARAM)
+}
+
+/// `min_validator_joining_stake` scaled by the rate (basis points) named by
+/// `rate_param`.
+fun stake_fraction(rate_param: vector<u8>): u64 {
+    let stake = protocol_config::get_attr<u64>(MIN_VALIDATOR_JOINING_STAKE_PARAM);
+    let rate = protocol_config::get_attr<u64>(rate_param);
+    ((stake as u128) * (rate as u128) / BASIS_POINT_DENOMINATOR) as u64
+}
+
 // === Construction ===
 
 public(package) fun registry_key(): AttestorRegistryKey { AttestorRegistryKey {} }
@@ -240,10 +264,7 @@ public(package) fun register(
     sender: address,
     current_epoch: u64,
 ) {
-    assert!(
-        bond.value() >= protocol_config::get_attr(MIN_ATTESTOR_JOINING_BOND_PARAM),
-        EBondTooLow,
-    );
+    assert!(bond.value() >= min_joining_bond(), EBondTooLow);
     assert!(
         self.active_attestors.length() + self.pending_active.length()
             < protocol_config::get_attr(MAX_ATTESTOR_COUNT_PARAM),
@@ -408,7 +429,8 @@ public(package) fun rotate_key(
 ///    Inactivity beating a pending removal means an inactive attestor
 ///    cannot escape the penalty by deregistering in the same epoch.
 /// 2. Staged key rotations applied in place.
-/// 3. Pending activations appended in registration order.
+/// 3. Pending activations appended in registration order; an entry below the
+///    current joining bond is refused and refunded like a voluntary removal.
 /// Emits at most one `AttestorsExitedEvent` and one `AttestorsActivatedEvent`
 /// for the whole boundary, batching every departed/activated attestor into
 /// them — a per-attestor event here would risk exceeding the per-tx event
@@ -432,9 +454,7 @@ public(package) fun advance_epoch(
     // is safe here as long as the active set is empty (register also reads
     // params and would already abort, so it can't be populated otherwise).
     if (!self.active_attestors.is_empty()) {
-        let low_bond_threshold: u64 = protocol_config::get_attr(
-            ATTESTOR_LOW_BOND_THRESHOLD_PARAM,
-        );
+        let low_bond_threshold = low_bond_threshold();
         let max_inactivity_epochs: u64 = protocol_config::get_attr(
             ATTESTOR_MAX_INACTIVITY_EPOCHS_PARAM,
         );
@@ -528,12 +548,36 @@ public(package) fun advance_epoch(
     };
 
     // --- 3. Activations, in registration order ---
+    // The joining bond is re-checked against the current parameter: a raise
+    // between registration and activation refuses the entry, refunding the
+    // bond like a voluntary removal.
+    let min_joining_bond = min_joining_bond();
     let mut activated = vector<address>[];
     self.pending_active.reverse();
     while (!self.pending_active.is_empty()) {
         let entry = self.pending_active.pop_back();
-        activated.push_back(entry.attestor_address);
-        self.active_attestors.push_back(entry);
+        if (entry.bond.value() < min_joining_bond) {
+            let AttestorV1 {
+                attestor_address,
+                attestor_pubkey: _,
+                next_epoch_attestor_pubkey,
+                bond,
+                activation_epoch: _,
+                last_active_epoch: _,
+            } = entry;
+            next_epoch_attestor_pubkey.destroy!(|_| ());
+            departed.push_back(attestor_address);
+            exited.push_back(AttestorExitInfo {
+                attestor_address,
+                reason: EXIT_REMOVAL,
+                refunded_amount: bond.value(),
+                burned_amount: 0,
+            });
+            transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
+        } else {
+            activated.push_back(entry.attestor_address);
+            self.active_attestors.push_back(entry);
+        }
     };
 
     if (!activated.is_empty()) {

@@ -1579,13 +1579,14 @@ pub struct ProtocolConfig {
     /// when `consensus_enable_sliding_window_leader_schedule` is set.
     consensus_leader_schedule_window_size: Option<u32>,
 
-    /// Minimum bond, in NANOS, required to register as an attestor.
-    min_attestor_joining_bond: Option<u64>,
+    /// Minimum bond required to register as an attestor, as a rate (basis
+    /// points) applied to `min_validator_joining_stake`.
+    attestor_joining_bond_rate: Option<u64>,
 
-    /// Minimum bond, in NANOS, an active attestor must hold at an epoch
-    /// boundary; below it the remaining bond is burned and the attestor is
-    /// evicted.
-    attestor_low_bond_threshold: Option<u64>,
+    /// Bond level an active attestor must hold at an epoch boundary, as a
+    /// rate (basis points) applied to `min_validator_joining_stake`; below it
+    /// the remaining bond is burned and the attestor is evicted.
+    attestor_low_bond_threshold_rate: Option<u64>,
 
     /// Maximum number of attestors (active + pending) in the registry.
     max_attestor_count: Option<u64>,
@@ -1596,8 +1597,9 @@ pub struct ProtocolConfig {
     attestor_max_inactivity_epochs: Option<u64>,
 
     /// Amount, in NANOS, burned from an attestor's bond when it is dropped
-    /// for inactivity; the remaining bond is refunded. Must not exceed
-    /// `attestor_low_bond_threshold` so the refund cannot underflow.
+    /// for inactivity; the remaining bond is refunded. Must not exceed the
+    /// bond level implied by `attestor_low_bond_threshold_rate` so the refund
+    /// cannot underflow.
     attestor_inactivity_penalty: Option<u64>,
 }
 
@@ -2767,8 +2769,8 @@ impl ProtocolConfig {
             validator_very_low_stake_threshold: None,
             validator_low_stake_grace_period: None,
             consensus_leader_schedule_window_size: None,
-            min_attestor_joining_bond: None,
-            attestor_low_bond_threshold: None,
+            attestor_joining_bond_rate: None,
+            attestor_low_bond_threshold_rate: None,
             max_attestor_count: None,
             attestor_max_inactivity_epochs: None,
             attestor_inactivity_penalty: None,
@@ -3424,8 +3426,9 @@ impl ProtocolConfig {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Attestor registry parameters (devnet only for now),
                         // read from Move via get_attr.
-                        cfg.min_attestor_joining_bond = Some(2_000_000_000_000);
-                        cfg.attestor_low_bond_threshold = Some(1_000_000_000_000);
+                        // 10% and 5% of `min_validator_joining_stake`.
+                        cfg.attestor_joining_bond_rate = Some(1_000);
+                        cfg.attestor_low_bond_threshold_rate = Some(500);
                         cfg.max_attestor_count = Some(1_000);
                         cfg.attestor_max_inactivity_epochs = Some(7);
                         cfg.attestor_inactivity_penalty = Some(500_000_000_000);
