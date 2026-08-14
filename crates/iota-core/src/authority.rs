@@ -4113,12 +4113,11 @@ impl AuthorityState {
 
         // Get the tx_num from tx_digest
         let (tx_num, event_num) = if let Some(cursor) = cursor.as_ref() {
-            let tx_seq = index_store
-                .lookup_digest(&cursor.tx_digest)?
-                .map(|(seq, _)| seq)
-                .ok_or(IotaError::TransactionNotFound {
+            let tx_seq = index_store.lookup_digest(&cursor.tx_digest)?.ok_or(
+                IotaError::TransactionNotFound {
                     digest: cursor.tx_digest,
-                })?;
+                },
+            )?;
             let event = (tx_seq, cursor.event_seq as usize);
             // The page below drops its first row as the cursor's own, which is
             // only right for an event the index holds.
