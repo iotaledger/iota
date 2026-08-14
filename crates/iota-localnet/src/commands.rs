@@ -53,6 +53,8 @@ use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::info;
 
+use crate::ports::{BoundAddress, addresses_bound_at_launch, check_ports_are_free};
+
 const CONCURRENCY_LIMIT: usize = 30;
 const DEFAULT_COMMITTEE_SIZE: usize = 1;
 const DEFAULT_EPOCH_DURATION_MS: u64 = 60_000;
@@ -516,6 +518,30 @@ async fn start(
         );
     }
 
+    // The service addresses are resolved here rather than where each service
+    // starts, so that an unparsable one fails before genesis and so that the
+    // port check knows every address this run binds.
+    let faucet_address = with_faucet
+        .map(|input| {
+            parse_host_port(input, DEFAULT_FAUCET_PORT)
+                .map_err(|_| anyhow!("Invalid faucet host and port"))
+        })
+        .transpose()?;
+    #[cfg(feature = "indexer")]
+    let indexer_address = with_indexer
+        .map(|input| {
+            parse_host_port(input, DEFAULT_INDEXER_PORT)
+                .map_err(|_| anyhow!("Invalid indexer host and port"))
+        })
+        .transpose()?;
+    #[cfg(feature = "indexer")]
+    let graphql_address = with_graphql
+        .map(|input| {
+            parse_host_port(input, DEFAULT_GRAPHQL_PORT)
+                .map_err(|_| anyhow!("Invalid graphql host and port"))
+        })
+        .transpose()?;
+
     if epoch_duration_ms.is_some() && genesis_blob_exists(config_dir.clone()) && !force_regenesis {
         bail!(
             "epoch duration can only be set when passing the `--force-regenesis` flag, or when \
@@ -641,7 +667,7 @@ async fn start(
     // the indexer and GraphQL services communicate with the fullnode via gRPC, we
     // must enable it by default.
     #[cfg(feature = "indexer")]
-    if with_indexer.is_some() || with_graphql.is_some() {
+    if indexer_address.is_some() || graphql_address.is_some() {
         // The gRPC API config is given rather than left out. The builder
         // would otherwise put the API on a free port, which differs on every
         // run. A `--node-config-override` still wins over it.
@@ -657,7 +683,7 @@ async fn start(
     // The directory is owned here until the network launches, so that
     // `--write-config`, which starts nothing, leaves none behind.
     #[cfg(feature = "indexer")]
-    let data_ingestion_tempdir = if with_indexer.is_some() && data_ingestion_dir.is_none() {
+    let data_ingestion_tempdir = if indexer_address.is_some() && data_ingestion_dir.is_none() {
         let tempdir = tempdir()?;
         data_ingestion_dir = Some(tempdir.path().to_path_buf());
         Some(tempdir)
@@ -693,6 +719,33 @@ async fn start(
     if let Some(directory) = write_config {
         return write_node_configs(&swarm, &directory);
     }
+
+    let mut addresses = addresses_bound_at_launch(&swarm);
+    if let Some(faucet_address) = faucet_address {
+        addresses.push(BoundAddress::service(
+            "faucet",
+            "--with-faucet",
+            faucet_address,
+        ));
+    }
+    #[cfg(feature = "indexer")]
+    {
+        if let Some(indexer_address) = indexer_address {
+            addresses.push(BoundAddress::service(
+                "indexer",
+                "--with-indexer",
+                indexer_address,
+            ));
+        }
+        if let Some(graphql_address) = graphql_address {
+            addresses.push(BoundAddress::service(
+                "GraphQL",
+                "--with-graphql",
+                graphql_address,
+            ));
+        }
+    }
+    check_ports_are_free(&addresses)?;
 
     // The fullnode writes to the data ingestion directory for as long as it
     // runs, so it outlives this function from here on.
@@ -751,9 +804,7 @@ async fn start(
     };
 
     #[cfg(feature = "indexer")]
-    if let Some(input) = with_indexer {
-        let indexer_address = parse_host_port(input, DEFAULT_INDEXER_PORT)
-            .map_err(|_| anyhow!("Invalid indexer host and port"))?;
+    if let Some(indexer_address) = indexer_address {
         tracing::info!("Starting the indexer service at {indexer_address}");
         // Start in writer mode
         start_test_indexer(
@@ -794,9 +845,7 @@ async fn start(
     }
 
     #[cfg(feature = "indexer")]
-    if let Some(input) = with_graphql {
-        let graphql_address = parse_host_port(input, DEFAULT_GRAPHQL_PORT)
-            .map_err(|_| anyhow!("Invalid graphql host and port"))?;
+    if let Some(graphql_address) = graphql_address {
         tracing::info!("Starting the GraphQL service at {graphql_address}");
         // The metrics address the service picks by default collides with the
         // fullnode metrics endpoint, which binds `FULLNODE_PORT_BASE` before
@@ -832,9 +881,7 @@ async fn start(
         info!("GraphQL started");
     }
 
-    if let Some(input) = with_faucet {
-        let faucet_address = parse_host_port(input, DEFAULT_FAUCET_PORT)
-            .map_err(|_| anyhow!("Invalid faucet host and port"))?;
+    if let Some(faucet_address) = faucet_address {
         tracing::info!("Starting the faucet service at {faucet_address}");
         let faucet_config_dir = if force_regenesis {
             // tempdir is used so the faucet file is cleaned up afterwards
