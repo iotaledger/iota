@@ -39,9 +39,10 @@ pub(crate) fn query(
 ///
 /// # Implementation notes
 ///
-/// NOT EXISTS is used instead of a JOIN because it allows Postgres to pick a
-/// better plan in some cases: it can check each row with a single index
-/// lookup, instead of scanning the whole list of changed objects for every
+/// NOT EXISTS lets Postgres answer "did this object change?" row by row,
+/// with one index lookup each. A LEFT JOIN on a `SELECT DISTINCT` subquery
+/// takes that option away: the full list of changed objects must always be
+/// built first, and in the worst plans it is then also scanned for every
 /// row.
 fn consistent_checkpointed_objects(
     checkpoint_viewed_at: i64,
