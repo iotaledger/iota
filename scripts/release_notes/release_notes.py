@@ -31,6 +31,12 @@ PR_CACHE = {}
 # pull requests.
 SUB_PR_PAGE_LIMIT = 10
 
+# The default branch, network branches, and release branches. A merged PR whose
+# head is one of these is a sync or back-merge (e.g. "merge develop into the
+# feature branch"), not a feature branch: expanding it would claim every PR
+# merged into that branch as part of the feature.
+RE_LONG_LIVED_BRANCH = re.compile(r"^(develop|main|master|devnet|testnet|mainnet)$|^releases?[-/]")
+
 RE_NUM = re.compile("[0-9_]+")
 
 RE_PR = re.compile(
@@ -383,7 +389,9 @@ def find_sub_prs(pr_number, visited=None):
 
     Only branches of this repository are followed: PRs are matched by base
     branch name, and a fork's branch name says nothing about a branch of the
-    same name here.
+    same name here. Long-lived branches are never followed: a PR merging one
+    into another branch is a sync or back-merge, and the PRs merged into it
+    are not part of the feature being expanded.
 
     """
     if visited is None:
@@ -393,6 +401,8 @@ def find_sub_prs(pr_number, visited=None):
     head = pr.get("head") or {}
     branch = head.get("ref")
     if not branch or (head.get("repo") or {}).get("full_name") != GH_REPO:
+        return []
+    if RE_LONG_LIVED_BRANCH.match(branch):
         return []
     if not pr.get("merged_at"):
         return []
