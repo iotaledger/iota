@@ -202,6 +202,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable the P-COOL flow on devnet.
 // Version 33: Rebuild the framework binaries to add the Move stdlib `bool`
 //             module and vector sorting functions.
+//             Allow objects created or mutated by system transactions to exceed
+//             the max object size limit.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
