@@ -305,9 +305,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::IncorrectShardProof { .. }
         | ConsensusError::UnrequestedHeaderOutOfWindow { .. }
         | ConsensusError::SerializedShardTooLarge { .. }
-        // A fetched header other than the one requested. Unlike a fetch
-        // shortfall, this is not explainable by response truncation, since
-        // the entry-count check runs before references are compared.
+        // A fetched header outside the requested set, or served twice.
         | ConsensusError::UnexpectedBlockHeaderForCommit { .. } => FaultType::Unprovable,
 
         // Checks that run only after the author's signature is verified, so the
@@ -1002,11 +1000,10 @@ mod tests {
                 peer: AuthorityIndex::new_for_test(0),
                 round: 3,
             },
-            // A fetched header other than the one requested: charged to the
+            // A fetched header outside the requested set: charged to the
             // serving peer.
             ConsensusError::UnexpectedBlockHeaderForCommit {
                 peer: AuthorityIndex::new_for_test(0),
-                requested: BlockRef::MIN,
                 received: BlockRef::MIN,
             },
         ];

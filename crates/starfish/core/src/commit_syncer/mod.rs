@@ -144,38 +144,48 @@ impl CommitSyncType {
     }
 }
 
-/// Verifies that fetched block headers match the requested block refs.
-/// Returns verified headers or an error if count/reference mismatch.
+/// Verifies that the fetched block headers are exactly the requested ones, in
+/// any order. The requested refs are distinct by construction (each header is
+/// committed once), so each received header must consume one of them: a header
+/// outside the requested set — or served twice — is an error attributed to the
+/// peer. Missing headers are a shortfall error instead, since an honest
+/// response can arrive incomplete (the server omits headers it lacks, the
+/// client cuts the stream at its byte cap). A response with more entries than
+/// requested is rejected before spending any parsing work on it.
 pub(crate) fn verify_fetched_headers(
     peer: AuthorityIndex,
     request_block_refs: &[BlockRef],
     serialized_block_headers: Vec<Bytes>,
 ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
-    // 1. Verify count matches
-    if request_block_refs.len() != serialized_block_headers.len() {
+    if serialized_block_headers.len() > request_block_refs.len() {
         return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
             authority: peer,
             requested: request_block_refs.len(),
             received_headers: serialized_block_headers.len(),
         });
     }
-
-    // 2. Verify each header's reference matches requested
-    serialized_block_headers
+    let mut pending_refs: BTreeSet<BlockRef> = request_block_refs.iter().cloned().collect();
+    let headers = serialized_block_headers
         .into_iter()
-        .zip(request_block_refs)
-        .map(|(serialized, requested_ref)| {
+        .map(|serialized| {
             let header = VerifiedBlockHeader::new_from_bytes(serialized)?;
-            if *requested_ref != header.reference() {
+            if !pending_refs.remove(&header.reference()) {
                 return Err(ConsensusError::UnexpectedBlockHeaderForCommit {
                     peer,
-                    requested: *requested_ref,
                     received: header.reference(),
                 });
             }
             Ok(header)
         })
-        .collect()
+        .collect::<ConsensusResult<Vec<_>>>()?;
+    if !pending_refs.is_empty() {
+        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
+            authority: peer,
+            requested: request_block_refs.len(),
+            received_headers: headers.len(),
+        });
+    }
+    Ok(headers)
 }
 
 // Handle to stop the CommitSyncer loop.

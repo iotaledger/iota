@@ -589,11 +589,10 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             timeout,
                         )
                         .await?;
-                    // 5. Verify headers: count matches and each reference matches requested.
+                    // 5. Verify the returned headers are the requested ones.
                     // Classification charges the peer for malformed or
-                    // mismatched headers and leaves a short response untracked,
-                    // since the fetch client's byte cap can truncate an honest
-                    // one.
+                    // unrequested headers and leaves a short response
+                    // untracked, since an honest one can arrive incomplete.
                     verify_fetched_headers(
                         target_authority,
                         request_block_refs,
@@ -1322,13 +1321,15 @@ mod tests {
             );
         }
 
-        /// A header other than the requested one — the count matches, so
-        /// truncation cannot be the cause — is charged to the serving peer.
+        /// A header outside the requested set is charged to the serving peer.
         #[tokio::test]
-        async fn records_misbehavior_for_mismatched_header() {
+        async fn records_misbehavior_for_unrequested_header() {
             let context = Arc::new(Context::new_for_test(4).0);
             let (commits, mut block_headers, transactions) = two_commit_response(&context);
-            block_headers.swap(0, 1);
+            block_headers[1] =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(3, 2).build())
+                    .serialized()
+                    .clone();
 
             let (result, inner) =
                 run_fetch_once(commits, block_headers, transactions, context).await;
@@ -1341,6 +1342,111 @@ mod tests {
             assert_eq!(
                 inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
                 vec![0, 1, 0, 0]
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
+            );
+        }
+
+        /// A requested header served twice is charged to the serving peer.
+        #[tokio::test]
+        async fn records_misbehavior_for_duplicate_header() {
+            let context = Arc::new(Context::new_for_test(4).0);
+            let (commits, mut block_headers, transactions) = two_commit_response(&context);
+            block_headers[1] = block_headers[0].clone();
+
+            let (result, inner) =
+                run_fetch_once(commits, block_headers, transactions, context).await;
+
+            let err = result.unwrap_err();
+            assert!(
+                matches!(err, ConsensusError::UnexpectedBlockHeaderForCommit { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                vec![0, 1, 0, 0]
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
+            );
+        }
+
+        /// Headers are matched by requested ref, not position, so a reordered
+        /// response is accepted.
+        #[tokio::test]
+        async fn accepts_headers_in_any_order() {
+            let context = Arc::new(Context::new_for_test(4).0);
+            let (commits, mut block_headers, transactions) = two_commit_response(&context);
+            block_headers.swap(0, 1);
+
+            let (result, inner) =
+                run_fetch_once(commits, block_headers, transactions, context).await;
+
+            let certified = result.unwrap();
+            assert_eq!(certified.commits().len(), 2);
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                vec![0; 4]
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
+            );
+        }
+
+        /// A response with more headers than requested is rejected before any
+        /// parsing, so nothing is recorded for it.
+        #[tokio::test]
+        async fn does_not_record_misbehavior_for_extra_headers() {
+            let context = Arc::new(Context::new_for_test(4).0);
+            let (commits, mut block_headers, transactions) = two_commit_response(&context);
+            block_headers.push(
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(3, 2).build())
+                    .serialized()
+                    .clone(),
+            );
+
+            let (result, inner) =
+                run_fetch_once(commits, block_headers, transactions, context).await;
+
+            let err = result.unwrap_err();
+            assert!(
+                matches!(err, ConsensusError::UnexpectedNumberOfHeadersFetched { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                vec![0; 4]
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
+            );
+        }
+
+        /// A response missing a header fails the fetch (the commits cannot be
+        /// certified without it) but records no misbehavior, since an honest
+        /// response can arrive incomplete.
+        #[tokio::test]
+        async fn does_not_record_misbehavior_for_missing_headers() {
+            let context = Arc::new(Context::new_for_test(4).0);
+            let (commits, mut block_headers, transactions) = two_commit_response(&context);
+            block_headers.truncate(1);
+
+            let (result, inner) =
+                run_fetch_once(commits, block_headers, transactions, context).await;
+
+            let err = result.unwrap_err();
+            assert!(
+                matches!(err, ConsensusError::UnexpectedNumberOfHeadersFetched { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                vec![0; 4]
             );
             assert_eq!(
                 inner.misbehavior_store.in_memory_faulty_blocks_provable(),

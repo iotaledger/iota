@@ -276,10 +276,9 @@ pub(crate) enum ConsensusError {
         end: CommitIndex,
     },
 
-    #[error("Received unexpected block header from peer {peer}: {requested:?} vs {received:?}")]
+    #[error("Received unrequested block header from peer {peer}: {received:?}")]
     UnexpectedBlockHeaderForCommit {
         peer: AuthorityIndex,
-        requested: BlockRef,
         received: BlockRef,
     },
 

@@ -891,9 +891,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                             }
                             Err(e) => {
                                 // Classification charges the peer for malformed
-                                // or mismatched headers and leaves a short
-                                // response untracked, since the fetch client's
-                                // byte cap can truncate an honest one.
+                                // or unrequested headers and leaves a short
+                                // response untracked, since an honest one can
+                                // arrive incomplete.
                                 inner
                                     .misbehavior_store
                                     .record_faulty_block(authority, authority, &e);
