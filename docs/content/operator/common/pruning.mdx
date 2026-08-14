@@ -53,9 +53,11 @@ authority-store-pruning-config:
   #   N (>= 1) — retains object versions from the last N epochs. Use this when
   #              the node must serve lookups by object ID + version.
   #   u64::MAX — disables object pruning entirely (18446744073709551615).
-  # Must not exceed num-epochs-to-retain-for-checkpoints below, or the
-  # objects pruner fails when it reaches a checkpoint whose contents were
-  # already deleted.
+  # With transaction pruning enabled, a finite value must not exceed
+  # num-epochs-to-retain-for-checkpoints below, or the objects pruner fails
+  # when it reaches a checkpoint whose contents were already deleted.
+  # u64::MAX turns object pruning off, so it never reaches such a
+  # checkpoint and the limit does not apply to it.
   num-epochs-to-retain: 0
 
   # Number of epochs to keep historic transactions, effects, events, and
