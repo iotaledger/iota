@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{future::Future, sync::Arc};
 
 use super::error::Result;
 use crate::{
     committee::Committee,
-    messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
+    messages_checkpoint::{
+        CheckpointSequenceNumber, VerifiedCheckpoint, VerifiedCheckpointContents,
+    },
     storage::ReadStore,
 };
 
@@ -60,6 +62,51 @@ pub trait WriteStore: ReadStore {
         self.try_insert_committee(new_committee)
             .expect("storage access failed")
     }
+
+    /// The highest checkpoint whose transactions have been executed, when the
+    /// store tracks execution progress. `None` when nothing has been executed
+    /// yet or the store does not track execution (the default).
+    fn try_get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>> {
+        Ok(None)
+    }
+
+    /// Non-fallible version of
+    /// `try_get_highest_executed_checkpoint_seq_number`.
+    fn get_highest_executed_checkpoint_seq_number(&self) -> Option<CheckpointSequenceNumber> {
+        self.try_get_highest_executed_checkpoint_seq_number()
+            .expect("storage access failed")
+    }
+
+    /// Resolves once the store's executed watermark has reached the given
+    /// sequence number. Returns right away for stores that don't track
+    /// execution (the default), since their watermark never advances.
+    fn wait_for_executed_checkpoint(
+        &self,
+        _sequence_number: CheckpointSequenceNumber,
+    ) -> impl Future<Output = ()> + Send {
+        std::future::ready(())
+    }
+
+    /// Inserts a consecutive run of verified checkpoints with their full
+    /// contents and advances the verified and synced watermarks past the
+    /// last one.
+    ///
+    /// The default implementation inserts the checkpoints one at a time;
+    /// implementations can override it to batch the writes.
+    fn try_insert_synced_checkpoints(
+        &self,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
+    ) -> Result<()> {
+        for (checkpoint, contents) in checkpoints {
+            self.try_insert_checkpoint(&checkpoint)?;
+            self.try_update_highest_verified_checkpoint(&checkpoint)?;
+            self.try_insert_checkpoint_contents(&checkpoint, contents)?;
+            self.try_update_highest_synced_checkpoint(&checkpoint)?;
+        }
+        Ok(())
+    }
 }
 
 impl<T: WriteStore + ?Sized> WriteStore for &T {
@@ -88,6 +135,26 @@ impl<T: WriteStore + ?Sized> WriteStore for &T {
 
     fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
         (*self).try_insert_committee(new_committee)
+    }
+
+    fn try_get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>> {
+        (*self).try_get_highest_executed_checkpoint_seq_number()
+    }
+
+    fn try_insert_synced_checkpoints(
+        &self,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
+    ) -> Result<()> {
+        (*self).try_insert_synced_checkpoints(checkpoints)
+    }
+
+    fn wait_for_executed_checkpoint(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> impl Future<Output = ()> + Send {
+        (*self).wait_for_executed_checkpoint(sequence_number)
     }
 }
 
@@ -118,6 +185,26 @@ impl<T: WriteStore + ?Sized> WriteStore for Box<T> {
     fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
         (**self).try_insert_committee(new_committee)
     }
+
+    fn try_get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>> {
+        (**self).try_get_highest_executed_checkpoint_seq_number()
+    }
+
+    fn try_insert_synced_checkpoints(
+        &self,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
+    ) -> Result<()> {
+        (**self).try_insert_synced_checkpoints(checkpoints)
+    }
+
+    fn wait_for_executed_checkpoint(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> impl Future<Output = ()> + Send {
+        (**self).wait_for_executed_checkpoint(sequence_number)
+    }
 }
 
 impl<T: WriteStore + ?Sized> WriteStore for Arc<T> {
@@ -146,5 +233,25 @@ impl<T: WriteStore + ?Sized> WriteStore for Arc<T> {
 
     fn try_insert_committee(&self, new_committee: Committee) -> Result<()> {
         (**self).try_insert_committee(new_committee)
+    }
+
+    fn try_get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>> {
+        (**self).try_get_highest_executed_checkpoint_seq_number()
+    }
+
+    fn try_insert_synced_checkpoints(
+        &self,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
+    ) -> Result<()> {
+        (**self).try_insert_synced_checkpoints(checkpoints)
+    }
+
+    fn wait_for_executed_checkpoint(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+    ) -> impl Future<Output = ()> + Send {
+        (**self).wait_for_executed_checkpoint(sequence_number)
     }
 }
