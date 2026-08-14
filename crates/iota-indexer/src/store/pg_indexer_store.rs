@@ -431,7 +431,7 @@ impl PgIndexerStore {
         })
     }
 
-    fn persist_checkpointed_objects_chunk(
+    pub(crate) fn persist_checkpointed_objects_chunk(
         &self,
         objects: Vec<StoredCheckpointedObject>,
     ) -> Result<(), IndexerError> {
