@@ -635,7 +635,7 @@ impl IotaNode {
                 .is_none()
             {
                 warn!(
-                    "index pruning is off (num-epochs-to-retain-for-indexes is unset): the history index, including the transaction-digest lookups the gRPC API serves, adds a column family per epoch and grows without bound"
+                    "index pruning is off (num-epochs-to-retain-for-indexes is unset): the history index backing queries like iotax_getBalance(), dynamic-field lookups, event queries, and owned-object listings adds a column family per epoch and grows without bound"
                 );
             }
             Some(
