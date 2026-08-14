@@ -1101,7 +1101,7 @@ impl Default for AuthorityStorePruningConfig {
         Self {
             num_latest_epoch_dbs_to_retain: default_num_latest_epoch_dbs_to_retain(),
             num_epochs_to_retain: 0,
-            periodic_compaction_threshold_days: None,
+            periodic_compaction_threshold_days: default_periodic_compaction_threshold_days(),
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             enable_compaction_filter: cfg!(test) || cfg!(msim),
             num_epochs_to_retain_for_indexes: None,
@@ -1797,6 +1797,14 @@ mod tests {
         assert_eq!(
             as_yaml(&round_trip(&config).grpc_api_config),
             as_yaml(&Some(configured))
+        );
+    }
+
+    #[test]
+    fn the_default_pruning_config_agrees_with_the_serde_default() {
+        assert_eq!(
+            super::AuthorityStorePruningConfig::default().periodic_compaction_threshold_days,
+            default_periodic_compaction_threshold_days()
         );
     }
 
