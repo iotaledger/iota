@@ -299,9 +299,6 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // Corrupt or invalid relayed bundle parts (framing, additional-header
         // round, and shard structure/proof). We know which peer relayed them
         // but can't tie them to a verified author.
-        // TODO(iotaledger/iota-private#470): count these under a dedicated
-        // bundle-part counter instead of folding them into the unprovable
-        // block-fault bucket.
         | ConsensusError::MalformedShard(_)
         | ConsensusError::TooBigHeaderRoundInABundle { .. }
         | ConsensusError::TooBigShardRoundInABundle { .. }
@@ -342,19 +339,15 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // transport, request-shape checks, local lifecycle signals, and version
         // mismatches that may stem from a benign upgrade misconfiguration rather
         // than a faulty peer.
-        //
-        // Fetch shortfalls (fewer entries than requested, or transactions
-        // covering no commit) stay untracked because the fetch client caps
-        // response bytes and keeps partial data on mid-stream errors, so an
-        // honest response can arrive incomplete. Transaction fetch faults that
-        // are peer-attributable are untracked here and recorded at the fetch
-        // sites via `record_faulty_transactions` instead.
         ConsensusError::MalformedCommit(_)
         | ConsensusError::UnexpectedGenesisRequested { .. }
         | ConsensusError::UnexpectedNumberOfHeadersFetched { .. }
         | ConsensusError::UnexpectedLastOwnHeader { .. }
+        // Recorded against the serving peer at the fetch sites via
+        // `record_faulty_transactions`, so deliberately not tracked again here.
         | ConsensusError::TooManyFetchedTransactionsReturned(_)
         | ConsensusError::UnrequestedTransactionFetched { .. }
+        | ConsensusError::UnexpectedTransactionForCommit { .. }
         | ConsensusError::TooManyAuthoritiesProvided(_)
         | ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
         | ConsensusError::InvalidAuthorityIndexRequested { .. }
@@ -374,7 +367,6 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::SerializedCommitTooLarge { .. }
         | ConsensusError::SerializedBlockHeaderTooLarge { .. }
         | ConsensusError::InvalidCommitRange { .. }
-        | ConsensusError::UnexpectedTransactionForCommit { .. }
         | ConsensusError::FetchedTransactionsMismatch { .. }
         | ConsensusError::RocksDBFailure(_)
         | ConsensusError::NetworkConfig(_)
