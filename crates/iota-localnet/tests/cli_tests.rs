@@ -195,14 +195,54 @@ async fn genesis_gives_every_node_fixed_ports() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Waits for the fullnode to execute a checkpoint, which it can only get by
+/// syncing from the validators.
+#[cfg(not(msim))]
+async fn wait_until_the_fullnode_syncs(rpc_port: u16) {
+    use iota_sdk::IotaClientBuilder;
+
+    let url = format!("http://127.0.0.1:{rpc_port}");
+    let synced = tokio::time::timeout(Duration::from_secs(120), async {
+        loop {
+            if let Ok(client) = IotaClientBuilder::default().build(&url).await {
+                if let Ok(checkpoint) = client
+                    .read_api()
+                    .get_latest_checkpoint_sequence_number()
+                    .await
+                {
+                    // Checkpoint 0 comes from the genesis blob the fullnode
+                    // already has, so only a later one is synced.
+                    if checkpoint > 0 {
+                        return;
+                    }
+                }
+            }
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        }
+    })
+    .await;
+
+    assert!(synced.is_ok(), "the fullnode executed no checkpoint");
+}
+
+/// The simulator gives every node an address of its own and routes loopback
+/// addresses back to the caller, so the fullnode's JSON-RPC endpoint, which
+/// `start` binds on all interfaces without reporting the address, cannot be
+/// reached from the test. Give the network time to come up instead.
+#[cfg(msim)]
+async fn wait_until_the_fullnode_syncs(_rpc_port: u16) {
+    tokio::time::sleep(Duration::from_secs(10)).await;
+}
+
 #[sim_test]
 async fn test_start() -> Result<(), anyhow::Error> {
     let tmp_dir = iota_common::tempdir();
     let working_dir = tmp_dir.path();
+    let fullnode_rpc_port = 9000;
 
-    if let Ok(res) = tokio::time::timeout(
-        Duration::from_secs(10),
-        LocalnetCommand::Start {
+    // `start` runs until the network fails, so race it against the fullnode.
+    tokio::select! {
+        result = LocalnetCommand::Start {
             #[cfg(feature = "indexer")]
             data_ingestion_dir: None,
             config_dir: Some(working_dir.to_path_buf()),
@@ -213,18 +253,18 @@ async fn test_start() -> Result<(), anyhow::Error> {
             faucet_amount: None,
             faucet_coin_count: None,
             with_grpc: None,
-            fullnode_rpc_port: 9000,
+            fullnode_rpc_port,
             committee_size: None,
             epoch_duration_ms: None,
             #[cfg(feature = "indexer")]
             indexer_feature_args: Box::new(IndexerFeatureArgs::for_testing()),
         }
-        .execute(),
-    )
-    .await
-    {
-        res.unwrap();
-    };
+        .execute() => {
+            result?;
+            unreachable!("the local network stops on failure only");
+        }
+        () = wait_until_the_fullnode_syncs(fullnode_rpc_port) => {}
+    }
 
     // Get all the new file names
     let files = read_dir(working_dir)?
@@ -248,6 +288,47 @@ async fn test_start() -> Result<(), anyhow::Error> {
     assert!(!wallet_conf.envs().is_empty());
 
     assert_eq!(5, wallet_conf.keystore().addresses().len());
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+/// The deterministic port layout must leave every node its own IP, which the
+/// simulator hands out one per node and panics on if two nodes share one.
+#[sim_test]
+async fn start_works_with_a_committee_of_two() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
+
+    if let Ok(res) = tokio::time::timeout(
+        Duration::from_secs(10),
+        LocalnetCommand::Start {
+            #[cfg(feature = "indexer")]
+            data_ingestion_dir: None,
+            config_dir: Some(working_dir.to_path_buf()),
+            no_full_node: false,
+            disable_fullnode_pruning: false,
+            force_regenesis: false,
+            with_faucet: None,
+            faucet_amount: None,
+            faucet_coin_count: None,
+            with_grpc: None,
+            fullnode_rpc_port: 9000,
+            committee_size: Some(2),
+            epoch_duration_ms: None,
+            #[cfg(feature = "indexer")]
+            indexer_feature_args: Box::new(IndexerFeatureArgs::for_testing()),
+        }
+        .execute(),
+    )
+    .await
+    {
+        res.unwrap();
+    };
+
+    let network_conf =
+        PersistedConfig::<NetworkConfigLight>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
+    assert_eq!(2, network_conf.validator_configs().len());
 
     tmp_dir.close()?;
     Ok(())
