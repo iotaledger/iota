@@ -54,6 +54,7 @@ iota-localnet start [OPTIONS]
 | `--committee-size <N>` | Number of validators in the network (default: `1`). |
 | `--no-full-node` | Start the network without a fullnode. |
 | `--disable-fullnode-pruning` | Keep the fullnode's full history instead of pruning old object versions and checkpoints. Cannot be combined with `--no-full-node`. |
+| `--node-config-override <[SCOPE:]PATH=VALUE>` | Override a node config field for this run. Repeatable; later overrides win. See [Node config overrides](#node-config-overrides). |
 | `--local-migration-snapshots <PATH>...` | Paths to local migration snapshot files. |
 | `--remote-migration-snapshots <URL>...` | Remotely stored migration snapshot URLs. |
 | `--delegator <ADDRESS>` | Specify the delegator address. |
@@ -89,6 +90,40 @@ Each validator owns a block of ten ports starting at `9200 + 10 * i`: validator 
 The default committee of 1 therefore owns `9200`-`9209`, and `--committee-size 4` owns `9200`-`9239`.
 A node fails to start if one of its ports is already taken, for instance by a second local network.
 The admin interface addresses can be changed with `iota-localnet genesis --admin-interface-address`.
+
+### Node config overrides
+
+`--node-config-override [SCOPE:]PATH=VALUE` sets a field of the node configs `start` generates, for that run only.
+The flag is repeatable and later overrides win per field.
+
+| Part | Meaning |
+|--------|-------------|
+| `SCOPE` | Which nodes the override reaches: `all` (the default), `fullnode`, `validator` (every validator), or `validator-<N>` (the validator at index `N`). |
+| `PATH` | A dot-separated path of field names as they appear in the node config YAML, for instance `authority-store-pruning-config.num-epochs-to-retain`. |
+| `VALUE` | YAML. An empty value or `null` clears the field, a mapping merges with the section, a list replaces it. Quote a value that would otherwise parse as structure, such as `'[::1]:9000'`. |
+
+```sh
+iota-localnet start --force-regenesis \
+  --node-config-override 'fullnode:authority-store-pruning-config.num-epochs-to-retain=5' \
+  --node-config-override 'validator-0:metrics-address=127.0.0.1:19202'
+```
+
+Every run that has overrides logs the fields each node ended up with:
+
+```
+applied 2 overrides to fullnode: authority-store-pruning-config.num-epochs-to-retain, enable-grpc-api
+```
+
+The following are rejected:
+
+- A validator's `network-address`, `p2p-address` and `primary-address`. These sit in the committee metadata inside `genesis.blob`, so overriding one at start would leave the validator unreachable at the address its peers dial. Re-run `iota-localnet genesis` to change them. On a fullnode, which is not a committee member, the same fields are ordinary config and stay overridable.
+- Adding or removing `consensus-config`, which is what makes a node a validator.
+- The key pair fields, `genesis` and `migration-tx-data-path`.
+- A field inside a section the generated config switched off with an explicit `null`, such as `policy-config.dry-run` while `policy-config` is `null`. Set the whole section instead, for example `policy-config={dry-run: false}`.
+
+`metrics-address`, `admin-interface-address`, `json-rpc-address`, the gRPC settings and the database paths are freely overridable.
+
+A field set inside a section the config leaves at its default starts from that section's own per-field defaults, which for `policy-config` are not the traffic control policy the node config defaults to. Set the whole section when the rest of it matters.
 
 :::info Indexer options
 
