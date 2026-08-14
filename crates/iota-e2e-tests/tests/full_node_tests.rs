@@ -30,7 +30,6 @@ use iota_test_transaction_builder::{
     publish_nfts_package,
 };
 use iota_types::{
-    crypto::get_key_pair,
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
     object::{Object, ObjectRead, PastObjectRead},
@@ -865,14 +864,14 @@ async fn test_validator_node_has_no_transaction_orchestrator() {
 async fn test_execute_tx_with_serialized_signature() -> Result<(), anyhow::Error> {
     let mut test_cluster = TestClusterBuilder::new().build().await;
     let context = &mut test_cluster.wallet;
-    context.config_mut().keystore_mut().add_key(
-        None,
-        SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1),
-    )?;
-    context.config_mut().keystore_mut().add_key(
-        None,
-        SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1),
-    )?;
+    context
+        .config_mut()
+        .keystore_mut()
+        .add_key(None, SimpleKeypair::from(Secp256k1PrivateKey::random()))?;
+    context
+        .config_mut()
+        .keystore_mut()
+        .add_key(None, SimpleKeypair::from(Ed25519PrivateKey::random()))?;
 
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 

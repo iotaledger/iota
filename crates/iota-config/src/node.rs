@@ -14,6 +14,7 @@ use anyhow::Result;
 use fastcrypto::ed25519::Ed25519KeyPair;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_metrics::MetricGroups;
+use iota_multiaddr::Multiaddr;
 use iota_names::config::IotaNamesConfig;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
@@ -24,7 +25,6 @@ use iota_types::{
         get_key_pair_from_rng, simple_to_network_keypair,
     },
     messages_checkpoint::CheckpointSequenceNumber,
-    multiaddr::Multiaddr,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
@@ -689,11 +689,7 @@ fn default_authority_key_pair() -> AuthorityKeyPairWithPath {
 }
 
 fn default_key_pair() -> KeyPairWithPath {
-    KeyPairWithPath::new(
-        get_key_pair_from_rng::<AccountKeyPair, _>(&mut OsRng)
-            .1
-            .into(),
-    )
+    KeyPairWithPath::new(AccountKeyPair::random().into())
 }
 
 fn default_metrics_address() -> SocketAddr {

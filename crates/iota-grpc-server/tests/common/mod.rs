@@ -19,7 +19,7 @@ use iota_sdk_types::{
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_types::{
-    crypto::{AccountKeyPair, AuthorityStrongQuorumSignInfo, get_key_pair},
+    crypto::AuthorityStrongQuorumSignInfo,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GasCoin,
     messages_checkpoint::{
@@ -58,10 +58,10 @@ pub fn assert_messages_within_limit<M: prost::Message>(messages: &[M], limit: u3
 /// objects exceeds the 1 MB minimum message size.
 pub fn create_large_object(padding_bytes_len: usize) -> (ObjectId, Object) {
     let id = ObjectId::random();
-    let (owner, _) = get_key_pair::<AccountKeyPair>();
+    let owner = Address::random();
     let mut contents = GasCoin::new(id, 100).to_bcs_bytes();
     contents.extend(vec![0u8; padding_bytes_len]);
-    let move_obj = MoveStruct::new_from_execution_with_limit(
+    let move_struct = MoveStruct::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
@@ -69,7 +69,7 @@ pub fn create_large_object(padding_bytes_len: usize) -> (ObjectId, Object) {
     )
     .unwrap();
     let obj = Object::new_move(
-        move_obj,
+        move_struct,
         Owner::Address(owner),
         TransactionDigest::GENESIS_MARKER,
     );

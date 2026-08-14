@@ -19,7 +19,7 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        crypto::{IotaSignature, PublicKey, get_key_pair_from_rng},
+        crypto::{IotaSignature, PublicKey},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::TransactionAPI,
     },
@@ -46,15 +46,9 @@ async fn main() -> Result<(), anyhow::Error> {
         SimpleKeypair::from(Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32])));
 
     // randomly generate a keypair.
-    let _ikp_rand_0 = SimpleKeypair::from(
-        get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut rand::rngs::OsRng).1,
-    );
-    let _ikp_rand_1 = SimpleKeypair::from(
-        get_key_pair_from_rng::<Secp256k1PrivateKey, _>(&mut rand::rngs::OsRng).1,
-    );
-    let _ikp_rand_2 = SimpleKeypair::from(
-        get_key_pair_from_rng::<Secp256r1PrivateKey, _>(&mut rand::rngs::OsRng).1,
-    );
+    let _ikp_rand_0 = SimpleKeypair::from(Ed25519PrivateKey::random());
+    let _ikp_rand_1 = SimpleKeypair::from(Secp256k1PrivateKey::random());
+    let _ikp_rand_2 = SimpleKeypair::from(Secp256r1PrivateKey::random());
 
     // import a keypair from a base64 encoded 32-byte `private key` assuming scheme
     // is Ed25519.

@@ -4,7 +4,7 @@
 
 use authority_tests::send_and_confirm_transaction;
 use bcs;
-use iota_sdk_types::{ExecutionStatus, Identifier, Owner};
+use iota_sdk_types::{Address, ExecutionStatus, Identifier, Owner};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -20,7 +20,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
     // This test tests a successful normal batch transaction.
     // This batch transaction contains 5 transfers, and 5 Move calls.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (recipient, _): (_, AccountKeyPair) = get_key_pair();
+    let recipient = Address::random();
     const N: usize = 5;
     const TOTAL: usize = N + 1;
     let all_ids = (0..TOTAL).map(|_| ObjectId::random()).collect::<Vec<_>>();
@@ -100,7 +100,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
     // would fail to execute. We make sure that the entire batch is rolled back,
     // and only gas is charged.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (recipient, _): (_, AccountKeyPair) = get_key_pair();
+    let recipient = Address::random();
     const N: usize = 5;
     const TOTAL: usize = N + 1;
     let all_ids = (0..TOTAL).map(|_| ObjectId::random()).collect::<Vec<_>>();

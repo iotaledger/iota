@@ -29,18 +29,19 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, StructTag, Transaction, TransactionDigest,
-    TransactionEffects, TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version,
-    VersionAssignment, crypto::SimpleSignature,
+    TransactionEffects, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
+    TransactionV1, TypeTag, Version, VersionAssignment,
+    crypto::{Intent, IntentScope, SimpleSignature},
 };
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, IotaSignature, get_key_pair,
-        random_committee_key_pairs_of_size,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, AuthoritySignInfo, IotaSignature,
+        get_key_pair, random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
-    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
@@ -436,7 +437,7 @@ async fn test_dev_inspect_unowned_object() {
     let alice_gas_id = ObjectId::random();
     let (validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(alice, alice_gas_id)]).await;
-    let (bob, _bob_key): (_, AccountKeyPair) = get_key_pair();
+    let bob = Address::random();
 
     // make an object, send it to bob
     let effects = call_move_(
@@ -538,7 +539,7 @@ async fn test_dev_inspect_dynamic_field() {
         (mk_obj!(), mk_obj!())
     };
 
-    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
     let gas_object_id = ObjectId::random();
     let (_validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -1018,7 +1019,7 @@ fn check_coin_value(actual_value: &[u8], actual_type: &TypeTag, expected_value: 
 
 #[tokio::test]
 async fn test_dev_inspect_uses_unbound_object() {
-    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
     let gas_object_id = ObjectId::random();
     let (_validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -1055,7 +1056,7 @@ async fn test_dev_inspect_uses_unbound_object() {
 
 #[tokio::test]
 async fn test_dev_inspect_on_validator() {
-    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
     let gas_object_id = ObjectId::random();
     let (validator, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -1281,7 +1282,7 @@ async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
 // tests using a gas coin with version MAX - 1
 #[tokio::test]
 async fn test_dry_run_dev_inspect_max_gas_version() {
-    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
     let gas_object_id = ObjectId::random();
     let (validator, fullnode) = init_state_validator_with_fullnode().await;
     let (validator, object_basics) = publish_object_basics(validator).await;
@@ -1362,7 +1363,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
     .await
     .unwrap();
 
-    let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
+    let unknown_key = AccountKeyPair::random();
     let mut bad_signature_transfer_transaction = transfer_transaction.clone().into_inner();
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
@@ -3230,7 +3231,7 @@ async fn test_invalid_object_ownership() {
     // User transaction that attempts to mutate an object it does not own will fail
     // to sign.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (invalid_owner, _): (_, AccountKeyPair) = get_key_pair();
+    let invalid_owner = Address::random();
 
     let recipient = dbg_addr(2);
     let gas_object_id = ObjectId::random();
@@ -3437,7 +3438,7 @@ async fn test_transfer_iota_with_amount() {
 async fn test_store_revert_transfer_iota() {
     // This test checks the correctness of revert_state_update in IotaDataStore.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (recipient, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = Address::random();
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
     let gas_object_ref = gas_object.object_ref();
@@ -4086,7 +4087,7 @@ async fn test_store_revert_remove_ofield() {
 #[tokio::test]
 async fn test_iter_live_object_set() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+    let receiver = Address::random();
     let gas = ObjectId::random();
     let obj_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas), (sender, obj_id)]).await;
@@ -4878,9 +4879,9 @@ async fn prepare_authority_and_shared_object_cert()
 
     let shared_object_id = ObjectId::random();
     let shared_object = {
-        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-        let owner = Owner::Shared(obj.version());
-        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let owner = Owner::Shared(move_struct.version());
+        Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
 
@@ -4978,9 +4979,9 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
     let gas_objects = create_gas_objects(2, sender);
     let shared_object_id = ObjectId::random();
     let shared_object = {
-        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-        let owner = Owner::Shared(obj.version());
-        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let owner = Owner::Shared(move_struct.version());
+        Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
     let (authority_state, package_object_ref) = init_state_with_objects_and_object_basics(
@@ -5114,9 +5115,9 @@ async fn test_consensus_message_processed() {
 
     let shared_object_id = ObjectId::random();
     let shared_object = {
-        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-        let owner = Owner::Shared(obj.version());
-        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let owner = Owner::Shared(move_struct.version());
+        Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
 
@@ -5949,7 +5950,7 @@ async fn test_gas_smashing() {
 async fn test_for_inc_201_dev_inspect() {
     use iota_move_build::BuildConfig;
 
-    let (sender, _sender_key): (_, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
     let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -6477,9 +6478,9 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
     for _ in 0..num {
         let shared_object_id = ObjectId::random();
         let shared_object = {
-            let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-            let owner = Owner::Shared(obj.version());
-            Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
+            let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+            let owner = Owner::Shared(move_struct.version());
+            Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
         };
         objects.push(shared_object);
     }
@@ -7953,7 +7954,7 @@ async fn test_consensus_queue_graduated_load_shedding() {
         soft_limit_pct,
     ));
 
-    let (recipient, _): (_, AccountKeyPair) = get_key_pair();
+    let recipient = Address::random();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let tx = make_transfer_object_transaction(
         gas_object1.object_ref(),
@@ -8195,4 +8196,93 @@ fn rules_denying(
         denied_addresses: [address].into(),
         ..Default::default()
     }
+}
+
+#[tokio::test]
+async fn test_effects_equivocation_prevented_at_signing_not_execution() {
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = dbg_addr(2);
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state =
+        init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
+
+    let transfer_transaction = init_transfer_transaction(
+        &authority_state,
+        sender,
+        &sender_key,
+        recipient,
+        object.object_ref(),
+        gas_object.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+        transfer_transaction,
+        epoch_store.epoch(),
+        1,
+    );
+    let tx_digest = *executable.digest();
+
+    // Simulate having previously signed different effects for this transaction, as
+    // could happen if a divergent re-execution occurs after signed effects were
+    // returned to a client but before the transaction was committed to a
+    // checkpoint.
+    let previously_signed_digest = TransactionEffectsDigest::random();
+    let previously_signed_sig = AuthoritySignInfo::new(
+        epoch_store.epoch(),
+        &TestEffectsBuilder::new(executable.data()).build(),
+        Intent::iota_app(IntentScope::TransactionEffects),
+        authority_state.name,
+        &*authority_state.secret,
+    );
+    epoch_store
+        .insert_effects_digest_and_signature(
+            &tx_digest,
+            &previously_signed_digest,
+            &previously_signed_sig,
+        )
+        .unwrap();
+
+    // Execution must not consult previously signed effects: it succeeds even
+    // though the resulting effects differ from the previously signed digest.
+    let (effects, execution_error) = authority_state
+        .try_execute_immediately(&executable, None, &epoch_store)
+        .unwrap();
+    assert!(execution_error.is_none());
+    assert_ne!(effects.digest(), previously_signed_digest);
+
+    // Signing must refuse to contradict the previously signed effects.
+    let err = authority_state
+        .get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        IotaError::GenericAuthority { ref error }
+            if error.contains("differs from previously signed effects digest")
+    ));
+
+    // Recording a conflicting digest for the same transaction is rejected.
+    let err = epoch_store
+        .insert_effects_digest_and_signature(&tx_digest, &effects.digest(), &previously_signed_sig)
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        IotaError::GenericAuthority { ref error }
+            if error.contains("differs from previously signed effects digest")
+    ));
+
+    // Re-recording the same digest remains idempotent.
+    epoch_store
+        .insert_effects_digest_and_signature(
+            &tx_digest,
+            &previously_signed_digest,
+            &previously_signed_sig,
+        )
+        .unwrap();
 }

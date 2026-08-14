@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::ToFromBytes;
-use iota_network_stack::Multiaddr;
+use iota_multiaddr::Multiaddr;
 use iota_sdk_types::Address;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
