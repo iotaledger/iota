@@ -3,10 +3,10 @@
 
 //! The RPC index store: the on-disk indexes both the JSON-RPC and gRPC APIs
 //! read from. A store is configured with the [`IndexGroup`]s its node needs;
-//! tables of a disabled group stay empty, and the digest history (see
-//! [`schema::HistoryBucket`]) is filled from checkpoint contents alone when
-//! the JSON-RPC group is off, since gRPC needs only the checkpoint a
-//! transaction landed in, not its network sequence number.
+//! tables of a disabled group stay empty, except for the digest row (see
+//! [`schema::HistoryBucket`]), which is written whatever the enabled groups
+//! are because checkpoint ingest reads it to tell a replayed checkpoint
+//! from a new one.
 //!
 //! This module is schema, open, rebuild, backfill, prune, and the
 //! per-checkpoint ingest; [`jsonrpc_api`] and [`grpc_api`] add the two read
