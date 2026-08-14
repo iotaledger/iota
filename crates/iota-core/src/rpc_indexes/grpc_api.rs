@@ -6,11 +6,10 @@
 //! enabled")` when the store does not maintain the [`IndexGroup::Grpc`]
 //! group's tables.
 
-use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest};
+use iota_sdk_types::{Address, ObjectId, StructTag};
 use iota_types::storage::{
     AccountOwnedObjectInfo, DynamicFieldIteratorItem, DynamicFieldKey, OwnedObjectCursor,
-    OwnedObjectIteratorItem, PackageVersionIteratorItem, TransactionInfo,
-    error::Error as StorageError,
+    OwnedObjectIteratorItem, PackageVersionIteratorItem, error::Error as StorageError,
 };
 use typed_store::{TypedStoreError, traits::Map};
 
@@ -38,26 +37,6 @@ impl RpcIndexesStore {
         } else {
             Err(StorageError::custom("the gRPC index group is not enabled"))
         }
-    }
-
-    /// The checkpoint containing `digest`, from the digest history buckets.
-    ///
-    /// An exact-key probe over the buckets, newest first; a miss in a sealed
-    /// bucket is answered by its in-memory bloom filters. Digests of
-    /// checkpoints pruned mid-epoch stay answerable until the whole epoch's
-    /// bucket drops.
-    pub fn get_transaction_info(
-        &self,
-        digest: &TransactionDigest,
-    ) -> Result<Option<TransactionInfo>, StorageError> {
-        self.require_grpc()?;
-        Ok(self
-            .lookup_digest(digest)
-            .map_err(|e| StorageError::custom(e.to_string()))?
-            .map(|(_, checkpoint)| TransactionInfo {
-                checkpoint,
-                object_types: Default::default(),
-            }))
     }
 
     /// The dynamic fields of `parent`, keyed on the field's own object id.
@@ -109,13 +88,6 @@ impl RpcIndexesStore {
 // ---------------------------------------------------------------------------
 
 impl iota_node_storage::GrpcIndexes for RpcIndexesStore {
-    fn get_transaction_info(
-        &self,
-        digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<TransactionInfo>> {
-        RpcIndexesStore::get_transaction_info(self, digest)
-    }
-
     fn account_owned_objects_info_iter(
         &self,
         owner: Address,

@@ -1472,10 +1472,9 @@ async fn test_balance_reads_narrow_and_group_by_coin_type() {
 // gRPC read surface
 // ---------------------------------------------------------------------------
 
-/// `get_transaction_info` probes every retained epoch's bucket, newest
-/// first, reading the digest table both API surfaces share.
+/// `lookup_digest` probes every retained epoch's bucket, newest first.
 #[tokio::test]
-async fn test_get_transaction_info_probes_across_epoch_buckets() {
+async fn test_lookup_digest_probes_across_epoch_buckets() {
     let index_store = open_index_store(iota_common::tempdir().path().to_path_buf());
     let (old_digest, new_digest) = (TransactionDigest::random(), TransactionDigest::random());
 
@@ -1494,24 +1493,16 @@ async fn test_get_transaction_info_probes_across_epoch_buckets() {
     batch.write().unwrap();
 
     assert_eq!(
-        index_store
-            .get_transaction_info(&old_digest)
-            .unwrap()
-            .unwrap()
-            .checkpoint,
+        index_store.lookup_digest(&old_digest).unwrap().unwrap().1,
         5
     );
     assert_eq!(
-        index_store
-            .get_transaction_info(&new_digest)
-            .unwrap()
-            .unwrap()
-            .checkpoint,
+        index_store.lookup_digest(&new_digest).unwrap().unwrap().1,
         9
     );
     assert!(
         index_store
-            .get_transaction_info(&TransactionDigest::random())
+            .lookup_digest(&TransactionDigest::random())
             .unwrap()
             .is_none()
     );
@@ -1535,11 +1526,7 @@ async fn test_digest_buckets_survive_a_reopen() {
     let index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
     assert_eq!(index_store.history.newest_epoch(), Some(3));
     assert_eq!(
-        index_store
-            .get_transaction_info(&digest)
-            .unwrap()
-            .unwrap()
-            .checkpoint,
+        index_store.lookup_digest(&digest).unwrap().unwrap().1,
         checkpoint
     );
 }
@@ -1568,7 +1555,7 @@ async fn test_digest_pruning_drops_expired_epoch_buckets() {
     drop(new_bucket);
 
     assert_eq!(index_store.prune().unwrap(), Some(1));
-    assert_eq!(index_store.get_transaction_info(&old_digest).unwrap(), None);
+    assert_eq!(index_store.lookup_digest(&old_digest).unwrap(), None);
     assert!(
         index_store.ensure_history_bucket(0).is_err(),
         "a pruned epoch must not be recreated"
@@ -1592,13 +1579,6 @@ async fn test_grpc_reads_fail_when_the_group_is_disabled() {
         BTreeSet::from([IndexGroup::JsonRpc]),
     );
 
-    let error = index_store
-        .get_transaction_info(&TransactionDigest::random())
-        .unwrap_err();
-    assert!(
-        error.to_string().contains("not enabled"),
-        "unexpected error: {error}"
-    );
     assert!(
         index_store
             .dynamic_field_iter(ObjectId::random(), None)
@@ -1805,9 +1785,12 @@ async fn test_account_owned_objects_info_iter_narrows_and_pages() {
     );
 }
 
-/// Both APIs answer from the same digest row.
+/// The digest row carries both the sequence number the JSON-RPC surface
+/// queries by and the checkpoint that the row was originally introduced to
+/// answer, though nothing reads the checkpoint half any more now that gRPC
+/// answers checkpoint lookups from the ledger.
 #[tokio::test]
-async fn test_one_digest_row_serves_both_apis() {
+async fn test_digest_row_stores_sequence_and_checkpoint() {
     let store = open_index_store(iota_common::tempdir().path().to_path_buf());
     let digest = TransactionDigest::random();
     let bucket = store.history.ensure(0).unwrap();
@@ -1816,19 +1799,7 @@ async fn test_one_digest_row_serves_both_apis() {
         .insert_batch_tagged(&bucket.digests, [(digest, (42, 7))])
         .unwrap();
     batch.write().unwrap();
-    assert_eq!(
-        store.lookup_digest(&digest).unwrap().map(|(seq, _)| seq),
-        Some(42),
-        "the JSON-RPC surface reads the sequence number from the same row"
-    );
-    assert_eq!(
-        store
-            .get_transaction_info(&digest)
-            .unwrap()
-            .unwrap()
-            .checkpoint,
-        7
-    );
+    assert_eq!(store.lookup_digest(&digest).unwrap(), Some((42, 7)));
 }
 
 /// A checkpoint replayed after a crash (or one the history backfill already

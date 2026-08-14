@@ -17,7 +17,6 @@ pub mod store;
 pub mod transaction_executor;
 
 use std::{
-    collections::HashMap,
     num::NonZeroUsize,
     path::PathBuf,
     sync::{Arc, RwLock},
@@ -57,7 +56,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
-    storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
+    storage::{EpochInfoV2, ObjectStore, ReadStore},
     transaction::{TransactionAPI, TransactionEnvelope, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
@@ -797,6 +796,33 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcStateReader for
         Some(self)
     }
 
+    fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        Ok(self.with_store(|store| {
+            let highest_seq = store
+                .get_highest_checkpoint()
+                .map(|cp| cp.sequence_number())?;
+
+            for seq in (0..=highest_seq).rev() {
+                if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
+                    if let Some(contents) =
+                        store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
+                    {
+                        if contents
+                            .iter()
+                            .any(|exec_digests| exec_digests.transaction == *digest)
+                        {
+                            return Some(checkpoint.sequence_number());
+                        }
+                    }
+                }
+            }
+            None
+        }))
+    }
+
     fn get_struct_layout(
         &self,
         _: &StructTag,
@@ -822,39 +848,6 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> Simulacrum<T, V> {
 }
 
 impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Simulacrum<T, V> {
-    fn get_transaction_info(
-        &self,
-        digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<TransactionInfo>> {
-        Ok(self.with_store(|store| {
-            let highest_seq = store
-                .get_highest_checkpoint()
-                .map(|cp| cp.sequence_number())?;
-
-            for seq in (0..=highest_seq).rev() {
-                if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
-                    if let Some(contents) =
-                        store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
-                    {
-                        if contents
-                            .iter()
-                            .any(|exec_digests| exec_digests.transaction == *digest)
-                        {
-                            // object_types left empty — production GrpcIndexesStore
-                            // populates this from input/output objects but that is
-                            // not needed for the simulacrum test harness.
-                            return Some(TransactionInfo {
-                                checkpoint: checkpoint.sequence_number(),
-                                object_types: HashMap::new(),
-                            });
-                        }
-                    }
-                }
-            }
-            None
-        }))
-    }
-
     fn account_owned_objects_info_iter(
         &self,
         _owner: Address,
