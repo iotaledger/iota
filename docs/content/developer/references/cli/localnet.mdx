@@ -74,7 +74,7 @@ The metrics, admin interface, p2p, network and primary addresses are on `127.0.0
 | `9186` | Fullnode p2p (UDP). |
 | `50051` | Fullnode gRPC API (`--with-grpc`). |
 
-Validator `i` takes the ten ports starting at `9200 + 10 * i`, so validator 0 uses `9200`-`9209`, validator 1 uses `9210`-`9219`, and so on.
+Each validator owns a block of ten ports starting at `9200 + 10 * i`: validator 0 owns `9200`-`9209`, validator 1 owns `9210`-`9219`, and so on. Only the first five of a block are used; the other five are reserved so future endpoints don't shift the layout.
 
 | Port | Used by |
 |--------|-------------|
@@ -85,7 +85,7 @@ Validator `i` takes the ten ports starting at `9200 + 10 * i`, so validator 0 us
 | `9204 + 10 * i` | Validator admin interface. |
 | `9205 + 10 * i` to `9209 + 10 * i` | Reserved. |
 
-With the default committee size of 1 a local network uses `9200`-`9204`, and with `--committee-size 4` it uses `9200`-`9234`.
+The default committee of 1 therefore owns `9200`-`9209`, and `--committee-size 4` owns `9200`-`9239`.
 A node fails to start if one of its ports is already taken, for instance by a second local network.
 The admin interface addresses can be changed with `iota-localnet genesis --admin-interface-address`.
 
