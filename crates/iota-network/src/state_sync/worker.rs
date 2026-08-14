@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{num::NonZeroUsize, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc};
 
 use anemo::async_trait;
 use anyhow::{Context, anyhow, ensure};
-use futures::{StreamExt, TryStreamExt};
 use iota_data_ingestion_core::{Reducer, Worker};
 use iota_storage::verify_checkpoint_linkage;
 use iota_types::{
+    committee::{Committee, EpochId},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::{
         CertifiedCheckpointSummary, FullCheckpointContents, VerifiedCheckpoint,
@@ -92,9 +92,6 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
 pub(crate) struct StateSyncReducer<S> {
     pub(crate) store: S,
     pub(crate) metrics: Metrics,
-    /// How many deferred signature verifications to run in parallel; the
-    /// workers use the same bound for their own verification.
-    pub(crate) verify_concurrency: NonZeroUsize,
 }
 
 /// How many checkpoints the reducer commits per store insertion at most,
@@ -148,43 +145,31 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
 }
 
 impl<S: WriteStore + Clone> StateSyncReducer<S> {
-    /// Verifies in parallel the authority signatures the workers had to defer.
-    /// The deferred checkpoints sit at the head of an epoch, so by commit time
-    /// the previous epoch's last checkpoint — which carries their committee —
-    /// is committed and the committee is in the store.
+    /// Verifies the authority signatures the workers had to defer, batched per
+    /// epoch. The deferred checkpoints sit at the head of an epoch, so by
+    /// commit time the previous epoch's last checkpoint — which carries their
+    /// committee — is committed and the committee is in the store.
     async fn verify_deferred_signatures(
         &self,
         batch: &[VerifiedArchiveCheckpoint],
     ) -> anyhow::Result<()> {
-        let deferred = batch
-            .iter()
-            .filter(|message| !message.signatures_verified)
-            .map(|message| {
-                let summary = message.summary.clone();
-                let committee = self.store.get_committee(summary.epoch()).context(format!(
-                    "missing committee for epoch {} in store",
-                    summary.epoch()
-                ))?;
-                Ok((summary, committee))
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
+        let mut deferred: BTreeMap<EpochId, Vec<CertifiedCheckpointSummary>> = BTreeMap::new();
+        for message in batch.iter().filter(|message| !message.signatures_verified) {
+            deferred
+                .entry(message.summary.epoch())
+                .or_default()
+                .push(message.summary.clone());
+        }
 
-        futures::stream::iter(deferred.into_iter().map(|(summary, committee)| async move {
-            tokio::task::spawn_blocking(move || {
-                summary
-                    .verify_authority_signatures(&committee)
-                    .map_err(|e| {
-                        anyhow!(
-                            "signature verification failed for checkpoint {}: {e}",
-                            summary.sequence_number
-                        )
-                    })
-            })
-            .await?
-        }))
-        .buffer_unordered(self.verify_concurrency.get())
-        .try_collect()
-        .await
+        for (epoch, summaries) in deferred {
+            let committee = self
+                .store
+                .get_committee(epoch)
+                .context(format!("missing committee for epoch {epoch} in store"))?;
+            tokio::task::spawn_blocking(move || batch_verify_signatures(&summaries, &committee))
+                .await??;
+        }
+        Ok(())
     }
 
     /// Chain-checks one checkpoint against its predecessor — the previous
@@ -228,4 +213,32 @@ impl<S: WriteStore + Clone> StateSyncReducer<S> {
             .map(VerifiedCheckpoint::new_unchecked)
             .map_err(|_| anyhow!("checkpoint linkage verification failed"))
     }
+}
+
+/// Verifies the authority signatures of `summaries`, all certified by
+/// `committee`, in one batched signature verification. On failure the
+/// summaries are verified one by one, so that the error names the offending
+/// checkpoint.
+fn batch_verify_signatures(
+    summaries: &[CertifiedCheckpointSummary],
+    committee: &Committee,
+) -> anyhow::Result<()> {
+    let Err(batch_error) =
+        CertifiedCheckpointSummary::batch_verify_authority_signatures(summaries, committee)
+    else {
+        return Ok(());
+    };
+    for summary in summaries {
+        summary
+            .verify_authority_signatures(committee)
+            .map_err(|e| {
+                anyhow!(
+                    "checkpoint {} signature verification failed: {e}",
+                    summary.sequence_number
+                )
+            })?;
+    }
+    Err(anyhow!(
+        "checkpoint signature batch verification failed: {batch_error}"
+    ))
 }
