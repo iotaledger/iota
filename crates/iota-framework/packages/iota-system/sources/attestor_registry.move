@@ -550,34 +550,38 @@ public(package) fun advance_epoch(
     // --- 3. Activations, in registration order ---
     // The joining bond is re-checked against the current parameter: a raise
     // between registration and activation refuses the entry, refunding the
-    // bond like a voluntary removal.
-    let min_joining_bond = min_joining_bond();
+    // bond like a voluntary removal. The param read is guarded like the exit
+    // pass above: a pending entry exists only if register() read the same
+    // params, so the read cannot abort here.
     let mut activated = vector<address>[];
-    self.pending_active.reverse();
-    while (!self.pending_active.is_empty()) {
-        let entry = self.pending_active.pop_back();
-        if (entry.bond.value() < min_joining_bond) {
-            let AttestorV1 {
-                attestor_address,
-                attestor_pubkey: _,
-                next_epoch_attestor_pubkey,
-                bond,
-                activation_epoch: _,
-                last_active_epoch: _,
-            } = entry;
-            next_epoch_attestor_pubkey.destroy!(|_| ());
-            departed.push_back(attestor_address);
-            exited.push_back(AttestorExitInfo {
-                attestor_address,
-                reason: EXIT_REMOVAL,
-                refunded_amount: bond.value(),
-                burned_amount: 0,
-            });
-            transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
-        } else {
-            activated.push_back(entry.attestor_address);
-            self.active_attestors.push_back(entry);
-        }
+    if (!self.pending_active.is_empty()) {
+        let min_joining_bond = min_joining_bond();
+        self.pending_active.reverse();
+        while (!self.pending_active.is_empty()) {
+            let entry = self.pending_active.pop_back();
+            if (entry.bond.value() < min_joining_bond) {
+                let AttestorV1 {
+                    attestor_address,
+                    attestor_pubkey: _,
+                    next_epoch_attestor_pubkey,
+                    bond,
+                    activation_epoch: _,
+                    last_active_epoch: _,
+                } = entry;
+                next_epoch_attestor_pubkey.destroy!(|_| ());
+                departed.push_back(attestor_address);
+                exited.push_back(AttestorExitInfo {
+                    attestor_address,
+                    reason: EXIT_REMOVAL,
+                    refunded_amount: bond.value(),
+                    burned_amount: 0,
+                });
+                transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
+            } else {
+                activated.push_back(entry.attestor_address);
+                self.active_attestors.push_back(entry);
+            }
+        };
     };
 
     if (!activated.is_empty()) {
