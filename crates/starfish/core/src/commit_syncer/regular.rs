@@ -658,9 +658,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         // directly
                         let mut result = BTreeMap::new();
                         for serialized_bytes in serialized_transactions {
-                            // Truncation only drops whole entries, so a
-                            // malformed or unrequested entry is the peer's own
-                            // content.
+                            // Truncation drops whole entries and never
+                            // corrupts one, so a malformed or unrequested
+                            // entry is the peer's fault.
                             let serialized_tx: SerializedTransactionsV2 =
                                 bcs::from_bytes(&serialized_bytes)
                                     .inspect_err(|_| {
@@ -1215,7 +1215,7 @@ mod tests {
             )
         }
 
-        /// Runs `fetch_once` against the canned responses served by
+        /// Runs `fetch_once` against the preset responses served by
         /// authority 1 and returns the result and the `Inner` whose
         /// misbehavior store the fetch recorded into.
         async fn run_fetch_once(

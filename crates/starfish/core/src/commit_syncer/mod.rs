@@ -935,9 +935,9 @@ pub(crate) mod tests {
         transaction_ref::TransactionRef,
     };
 
-    /// Fake `NetworkClient` for commit syncer tests. Serves the canned
-    /// responses when set: `fetch_commits_and_transactions` fails the fetch
-    /// when none is set, the other fetch endpoints stay unimplemented.
+    /// Fake `NetworkClient` for commit syncer tests, serving preset responses.
+    /// With no preset response, `fetch_commits_and_transactions` fails the
+    /// fetch, while the other fetch endpoints panic as unimplemented.
     #[derive(Default)]
     pub(crate) struct FakeNetworkClient {
         pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
@@ -946,11 +946,11 @@ pub(crate) mod tests {
         pub(crate) response_delay: Duration,
         /// Every peer asked for commits, in the order it was asked.
         pub(crate) requested_peers: parking_lot::Mutex<Vec<AuthorityIndex>>,
-        /// Canned `fetch_commits` response: commits and certifier headers.
+        /// Preset `fetch_commits` response: commits and certifier headers.
         pub(crate) commits: Option<(Vec<Bytes>, Vec<Bytes>)>,
-        /// Canned `fetch_block_headers` response.
+        /// Preset `fetch_block_headers` response.
         pub(crate) block_headers: Option<Vec<Bytes>>,
-        /// Canned `fetch_transactions` response.
+        /// Preset `fetch_transactions` response.
         pub(crate) transactions: Option<Vec<Bytes>>,
     }
 

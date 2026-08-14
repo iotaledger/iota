@@ -643,8 +643,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             &mut committed_tx_refs,
         )
         .inspect_err(|_| {
-            // Truncation only drops whole entries, so a malformed or
-            // uncommitted entry is the peer's own content.
+            // Truncation drops whole entries and never corrupts one, so a
+            // malformed or uncommitted entry is the peer's fault.
             inner.misbehavior_store.record_faulty_transactions(
                 target_authority,
                 false,
@@ -1276,7 +1276,7 @@ mod tests {
             );
         }
 
-        /// Runs `fetch_once` against a canned response served by authority 1
+        /// Runs `fetch_once` against a preset response served by authority 1
         /// and returns the error and the `Inner` whose misbehavior store the
         /// fetch recorded into.
         async fn fetch_once_error(
@@ -1455,7 +1455,7 @@ mod tests {
                 .enable_commit_sync_peer_selection_by_commit_votes = enabled;
             let context = Arc::new(context);
 
-            // No canned response, so every fetch fails and the loop keeps
+            // No preset response, so every fetch fails and the loop keeps
             // trying peers, exposing the full selection order.
             let network_client = Arc::new(FakeNetworkClient::default());
             let inner = make_inner(context, network_client.clone());
@@ -1572,7 +1572,7 @@ mod tests {
         async fn records_fixed_penalty_for_the_failing_peer() {
             let context = fast_sync_context(2);
             let peer = AuthorityIndex::new_for_test(1);
-            // No canned response, so the only peer always fails and the loop
+            // No preset response, so the only peer always fails and the loop
             // retries forever.
             let network_client = Arc::new(FakeNetworkClient::default());
             let inner = make_inner(context.clone(), network_client);
