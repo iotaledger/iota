@@ -468,10 +468,7 @@ async fn test_unopenable_database_is_wiped_and_rebuilt() {
     .unwrap();
     index_store.wait_for_history_backfill_for_testing().await;
     assert_eq!(
-        index_store
-            .lookup_digest(&genesis_tx_digest)
-            .unwrap()
-            .map(|(sequence, _)| sequence),
+        index_store.lookup_digest(&genesis_tx_digest).unwrap(),
         Some(0)
     );
 }
@@ -592,7 +589,7 @@ async fn test_grpc_only_backfill_fills_digests_from_contents() {
     assert_eq!(store.tables.history_watermark.get(&()).unwrap(), Some(0));
     assert_eq!(
         store.lookup_digest(&genesis_tx_digest).unwrap(),
-        Some((0, 0)),
+        Some(0),
         "the digest table must fill without the JSON-RPC group"
     );
     let bucket = store.history.ensure(0).unwrap();
@@ -1481,25 +1478,19 @@ async fn test_lookup_digest_probes_across_epoch_buckets() {
     let old_bucket = index_store.ensure_history_bucket(0).unwrap();
     let mut batch = index_store.tables.meta.batch();
     batch
-        .insert_batch_tagged(&old_bucket.digests, [(old_digest, (0, 5))])
+        .insert_batch_tagged(&old_bucket.digests, [(old_digest, 0)])
         .unwrap();
     batch.write().unwrap();
 
     let new_bucket = index_store.ensure_history_bucket(1).unwrap();
     let mut batch = index_store.tables.meta.batch();
     batch
-        .insert_batch_tagged(&new_bucket.digests, [(new_digest, (1, 9))])
+        .insert_batch_tagged(&new_bucket.digests, [(new_digest, 1)])
         .unwrap();
     batch.write().unwrap();
 
-    assert_eq!(
-        index_store.lookup_digest(&old_digest).unwrap().unwrap().1,
-        5
-    );
-    assert_eq!(
-        index_store.lookup_digest(&new_digest).unwrap().unwrap().1,
-        9
-    );
+    assert_eq!(index_store.lookup_digest(&old_digest).unwrap(), Some(0));
+    assert_eq!(index_store.lookup_digest(&new_digest).unwrap(), Some(1));
     assert!(
         index_store
             .lookup_digest(&TransactionDigest::random())
@@ -1514,21 +1505,18 @@ async fn test_lookup_digest_probes_across_epoch_buckets() {
 async fn test_digest_buckets_survive_a_reopen() {
     let tmp_dir = iota_common::tempdir();
     let index_store = open_index_store(tmp_dir.path().to_path_buf());
-    let (digest, checkpoint) = (TransactionDigest::random(), 7);
+    let digest = TransactionDigest::random();
     let bucket = index_store.ensure_history_bucket(3).unwrap();
     let mut batch = index_store.tables.meta.batch();
     batch
-        .insert_batch_tagged(&bucket.digests, [(digest, (2, checkpoint))])
+        .insert_batch_tagged(&bucket.digests, [(digest, 2)])
         .unwrap();
     batch.write().unwrap();
     drop(bucket); // release the database handle before closing it below
 
     let index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
     assert_eq!(index_store.history.newest_epoch(), Some(3));
-    assert_eq!(
-        index_store.lookup_digest(&digest).unwrap().unwrap().1,
-        checkpoint
-    );
+    assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some(2));
 }
 
 /// Pruning the one indexes retention drops whole epoch buckets, digests
@@ -1542,13 +1530,13 @@ async fn test_digest_pruning_drops_expired_epoch_buckets() {
     let old_bucket = index_store.ensure_history_bucket(0).unwrap();
     let mut batch = index_store.tables.meta.batch();
     batch
-        .insert_batch_tagged(&old_bucket.digests, [(old_digest, (0, 5))])
+        .insert_batch_tagged(&old_bucket.digests, [(old_digest, 0)])
         .unwrap();
     batch.write().unwrap();
     let new_bucket = index_store.ensure_history_bucket(1).unwrap();
     let mut batch = index_store.tables.meta.batch();
     batch
-        .insert_batch_tagged(&new_bucket.digests, [(TransactionDigest::random(), (1, 9))])
+        .insert_batch_tagged(&new_bucket.digests, [(TransactionDigest::random(), 1)])
         .unwrap();
     batch.write().unwrap();
     drop(old_bucket); // release the database handles before closing it below
@@ -1785,23 +1773,6 @@ async fn test_account_owned_objects_info_iter_narrows_and_pages() {
     );
 }
 
-/// The digest row carries both the sequence number the JSON-RPC surface
-/// queries by and the checkpoint that the row was originally introduced to
-/// answer, though nothing reads the checkpoint half any more now that gRPC
-/// answers checkpoint lookups from the ledger.
-#[tokio::test]
-async fn test_digest_row_stores_sequence_and_checkpoint() {
-    let store = open_index_store(iota_common::tempdir().path().to_path_buf());
-    let digest = TransactionDigest::random();
-    let bucket = store.history.ensure(0).unwrap();
-    let mut batch = store.tables.meta.batch();
-    batch
-        .insert_batch_tagged(&bucket.digests, [(digest, (42, 7))])
-        .unwrap();
-    batch.write().unwrap();
-    assert_eq!(store.lookup_digest(&digest).unwrap(), Some((42, 7)));
-}
-
 /// A checkpoint replayed after a crash (or one the history backfill already
 /// covered) must skip its indexed transactions: no new sequence numbers, no
 /// duplicate rows, no double-counted balances.
@@ -1818,13 +1789,13 @@ async fn test_index_checkpoint_skips_already_indexed() {
     let digest = *checkpoint.transactions[0].effects.transaction_digest();
 
     index_checkpoint_for_testing(&index_store, &checkpoint);
-    assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some((0, 0)));
+    assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some(0));
     assert_eq!(index_store.tables.watermark.get(&()).unwrap(), Some(0));
 
     // Replay the same checkpoint.
     index_checkpoint_for_testing(&index_store, &checkpoint);
 
-    assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some((0, 0)));
+    assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some(0));
     assert_eq!(
         index_store
             .get_transactions(None, None, None, false)
@@ -2127,7 +2098,7 @@ async fn test_stale_database_is_wiped_and_rebuilt_on_open() {
     );
     assert_eq!(
         index_store.lookup_digest(&genesis_tx_digest).unwrap(),
-        Some((0, 0))
+        Some(0)
     );
     assert_eq!(
         index_store
@@ -2295,7 +2266,7 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
     index_checkpoint_for_testing(&index_store, &checkpoint);
 
     // The digest row and the shared live state are always written.
-    assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some((0, 0)));
+    assert_eq!(index_store.lookup_digest(&digest).unwrap(), Some(0));
     let coin_object = checkpoint.transactions[0]
         .output_objects
         .iter()
@@ -2336,7 +2307,7 @@ async fn test_groups_gate_the_ingest_and_toggle_triggers_rebuild() {
     );
     index_checkpoint_for_testing(&jsonrpc_store, &checkpoint);
 
-    assert_eq!(jsonrpc_store.lookup_digest(&digest).unwrap(), Some((0, 0)));
+    assert_eq!(jsonrpc_store.lookup_digest(&digest).unwrap(), Some(0));
     assert_eq!(
         jsonrpc_store.tables.owner.get(&owner_key).unwrap(),
         Some(owner_info),
@@ -3019,10 +2990,7 @@ async fn test_history_backfill_after_rebuild() {
     index_store.wait_for_history_backfill_for_testing().await;
 
     assert_eq!(
-        index_store
-            .lookup_digest(&genesis_tx_digest)
-            .unwrap()
-            .map(|(sequence, _)| sequence),
+        index_store.lookup_digest(&genesis_tx_digest).unwrap(),
         Some(0)
     );
     assert_eq!(
@@ -3053,10 +3021,7 @@ async fn test_history_backfill_after_rebuild() {
         Some(0)
     );
     assert_eq!(
-        index_store
-            .lookup_digest(&genesis_tx_digest)
-            .unwrap()
-            .map(|(sequence, _)| sequence),
+        index_store.lookup_digest(&genesis_tx_digest).unwrap(),
         Some(0)
     );
     assert_eq!(
@@ -3145,7 +3110,7 @@ async fn test_history_tables_do_not_bleed_across_tags() {
         .insert_batch_tagged(&bucket.tx_order, [(7u64, digest)])
         .unwrap();
     batch
-        .insert_batch_tagged(&bucket.digests, [(digest, (7u64, 0u64))])
+        .insert_batch_tagged(&bucket.digests, [(digest, 7u64)])
         .unwrap();
     batch.write().unwrap();
 
@@ -3166,7 +3131,7 @@ async fn test_history_tables_do_not_bleed_across_tags() {
         .safe_range_iter_reversed(TransactionDigest::ZERO..=[0xff; 32].into())
         .collect::<Result<_, _>>()
         .unwrap();
-    assert_eq!(rows, vec![(digest, (7, 0))]);
+    assert_eq!(rows, vec![(digest, 7)]);
 }
 
 /// A read error in the rebuild predicate propagates instead of silently

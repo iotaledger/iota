@@ -475,11 +475,13 @@ pub(super) struct HistoryBucket {
     /// group is enabled.
     pub(super) tx_order: TaggedDBMap<TxSequenceNumber, TransactionDigest>,
 
-    /// Index from transaction digest to its position in the network order
-    /// and the checkpoint that committed it. Shared by both API surfaces
-    /// and always filled, from the checkpoint's contents alone.
-    pub(super) digests:
-        TaggedDBMap<TransactionDigest, (TxSequenceNumber, CheckpointSequenceNumber)>,
+    /// Index from transaction digest to its position in the network order.
+    /// Filled for both API surfaces from the checkpoint's contents alone,
+    /// and used to place a query cursor. The checkpoint that confirmed a
+    /// transaction is *not* here: that answer must not be able to expire
+    /// before the transaction it describes, so it lives with the ledger in
+    /// `AuthorityPerpetualTables::executed_transactions_to_checkpoint`.
+    pub(super) digests: TaggedDBMap<TransactionDigest, TxSequenceNumber>,
 
     /// Index from iota address to transactions initiated by that address.
     pub(super) txs_from_addr: TaggedDBMap<(Address, TxSequenceNumber), TransactionDigest>,
@@ -560,7 +562,6 @@ impl HistoryBucket {
         &self,
         batch: &mut DBBatch,
         sequence: TxSequenceNumber,
-        checkpoint_seq: CheckpointSequenceNumber,
         timestamp_ms: u64,
         tx: TransactionIndexData,
     ) -> IotaResult {
@@ -575,10 +576,7 @@ impl HistoryBucket {
 
         batch.insert_batch_tagged(&self.tx_order, std::iter::once((sequence, digest)))?;
 
-        batch.insert_batch_tagged(
-            &self.digests,
-            std::iter::once((digest, (sequence, checkpoint_seq))),
-        )?;
+        batch.insert_batch_tagged(&self.digests, std::iter::once((digest, sequence)))?;
 
         batch.insert_batch_tagged(
             &self.txs_from_addr,

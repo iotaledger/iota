@@ -3828,10 +3828,7 @@ async fn test_rpc_index_rebuild_on_open() {
         .unwrap();
     let genesis_tx_digest = genesis_contents.iter().next().unwrap().transaction;
     assert_eq!(
-        index_store
-            .lookup_digest(&genesis_tx_digest)
-            .unwrap()
-            .map(|(seq, _)| seq),
+        index_store.lookup_digest(&genesis_tx_digest).unwrap(),
         Some(0)
     );
 }
@@ -3910,10 +3907,7 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
     index_store.wait_for_history_backfill_for_testing().await;
     let genesis_tx_digest = genesis_digests.transaction;
     assert_eq!(
-        index_store
-            .lookup_digest(&genesis_tx_digest)
-            .unwrap()
-            .map(|(seq, _)| seq),
+        index_store.lookup_digest(&genesis_tx_digest).unwrap(),
         Some(0)
     );
 
