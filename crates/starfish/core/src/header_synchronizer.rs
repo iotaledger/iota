@@ -893,13 +893,15 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             );
         } else {
             // Credit the fetch now that the payload verified. Only requested
-            // headers count as delivered, so unsolicited extras cannot mask a
-            // shortfall.
+            // headers count as delivered, each ref once, so neither unsolicited
+            // extras nor duplicated copies can mask a shortfall.
             let factor = if fetched.holds_requested {
-                shortfall_factor(
-                    requested_blocks_guard.block_refs.len(),
-                    requested_headers.len(),
-                )
+                let delivered = requested_headers
+                    .iter()
+                    .map(|header| header.reference())
+                    .collect::<BTreeSet<_>>()
+                    .len();
+                shortfall_factor(requested_blocks_guard.block_refs.len(), delivered)
             } else {
                 1.0
             };
@@ -4255,16 +4257,19 @@ mod tests {
             "a peer serving invalid headers should be demoted to the timeout"
         );
 
-        // Peer 2 is asked for four headers and delivers one of them plus three
-        // valid in-window gap-fill headers, so the response length matches the
-        // request while three quarters of it are missing.
+        // Peer 2 is asked for four headers and delivers one of them twice plus
+        // two valid in-window gap-fill headers, so the response length matches
+        // the request while three quarters of it are missing.
         let requested_headers = (30..34)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
-        let extras = (10..13)
+        let extras = (10..12)
             .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
             .collect::<Vec<_>>();
-        let mut serialized = vec![requested_headers[0].serialized().clone()];
+        let mut serialized = vec![
+            requested_headers[0].serialized().clone(),
+            requested_headers[0].serialized().clone(),
+        ];
         serialized.extend(extras.iter().map(|header| header.serialized().clone()));
         let padding_peer = AuthorityIndex::new_for_test(2);
         let blocks_guard = inflight_blocks_map
