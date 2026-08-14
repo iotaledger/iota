@@ -37,6 +37,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      periodic-compaction-threshold-days: ~
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -84,6 +85,7 @@ validator_configs:
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
       max-transaction-manager-queue-length-soft-limit-pct: 50
+    policy-config: ~
     execution-cache-config:
       writeback-cache: {}
     full-checkpoint-contents-cache-size-mb: 1024
@@ -97,6 +99,7 @@ validator_configs:
       max-back-edges-per-module: ~
       sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
+    grpc-api-config: ~
   - authority-key-pair:
       value: avYcyVgYMXTyaUYh9IRwLK0gSzl7YF6ZQDAbrS1Bhvo=
     protocol-key-pair:
@@ -131,6 +134,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      periodic-compaction-threshold-days: ~
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -178,6 +182,7 @@ validator_configs:
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
       max-transaction-manager-queue-length-soft-limit-pct: 50
+    policy-config: ~
     execution-cache-config:
       writeback-cache: {}
     full-checkpoint-contents-cache-size-mb: 1024
@@ -191,6 +196,7 @@ validator_configs:
       max-back-edges-per-module: ~
       sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
+    grpc-api-config: ~
   - authority-key-pair:
       value: OXnx3yM1C/ppgnDMx/o1d49fJs7E05kq11mXNae/O+I=
     protocol-key-pair:
@@ -225,6 +231,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      periodic-compaction-threshold-days: ~
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -272,6 +279,7 @@ validator_configs:
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
       max-transaction-manager-queue-length-soft-limit-pct: 50
+    policy-config: ~
     execution-cache-config:
       writeback-cache: {}
     full-checkpoint-contents-cache-size-mb: 1024
@@ -285,6 +293,7 @@ validator_configs:
       max-back-edges-per-module: ~
       sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
+    grpc-api-config: ~
   - authority-key-pair:
       value: CyNkjqNVr3HrHTH7f/NLs7u5lUHJzuPAw0PqMTD2y2s=
     protocol-key-pair:
@@ -319,6 +328,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      periodic-compaction-threshold-days: ~
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -366,6 +376,7 @@ validator_configs:
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
       max-transaction-manager-queue-length-soft-limit-pct: 50
+    policy-config: ~
     execution-cache-config:
       writeback-cache: {}
     full-checkpoint-contents-cache-size-mb: 1024
@@ -379,6 +390,7 @@ validator_configs:
       max-back-edges-per-module: ~
       sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
+    grpc-api-config: ~
   - authority-key-pair:
       value: X/I/kM+KvHcxAKEf2UU6Sr7SpN3bhiE9nP5CuM/iIY0=
     protocol-key-pair:
@@ -413,6 +425,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      periodic-compaction-threshold-days: ~
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -460,6 +473,7 @@ validator_configs:
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
       max-transaction-manager-queue-length-soft-limit-pct: 50
+    policy-config: ~
     execution-cache-config:
       writeback-cache: {}
     full-checkpoint-contents-cache-size-mb: 1024
@@ -473,6 +487,7 @@ validator_configs:
       max-back-edges-per-module: ~
       sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
+    grpc-api-config: ~
   - authority-key-pair:
       value: N272EiFDyKtxRbDKbyN6ujenJ+skPcRoc/XolpOLGnU=
     protocol-key-pair:
@@ -507,6 +522,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      periodic-compaction-threshold-days: ~
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -554,6 +570,7 @@ validator_configs:
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
       max-transaction-manager-queue-length-soft-limit-pct: 50
+    policy-config: ~
     execution-cache-config:
       writeback-cache: {}
     full-checkpoint-contents-cache-size-mb: 1024
@@ -567,6 +584,7 @@ validator_configs:
       max-back-edges-per-module: ~
       sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
+    grpc-api-config: ~
   - authority-key-pair:
       value: a74f03IOjL8ZFSWFChFVEi+wiMwHNwNCPDGIYkGfgjs=
     protocol-key-pair:
@@ -601,6 +619,7 @@ validator_configs:
     authority-store-pruning-config:
       num-latest-epoch-dbs-to-retain: 3
       num-epochs-to-retain: 0
+      periodic-compaction-threshold-days: ~
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
       checkpoint-execution-max-concurrency: 4
@@ -648,6 +667,7 @@ validator_configs:
       max-transaction-manager-queue-length: 100000
       max-transaction-manager-per-object-queue-length: 20
       max-transaction-manager-queue-length-soft-limit-pct: 50
+    policy-config: ~
     execution-cache-config:
       writeback-cache: {}
     full-checkpoint-contents-cache-size-mb: 1024
@@ -661,6 +681,7 @@ validator_configs:
       max-back-edges-per-module: ~
       sanity-check-with-regex-reference-safety: ~
     enable-grpc-api: false
+    grpc-api-config: ~
 account_keys:
   - Hloy4pnf8pWEHGP+4OFsXz56bLdIJhkD2O+OdKMqCA4=
   - pvMScjoMR/DaN0M5IOxS2VpGC59N6kv6gDm63ufLQ5w=
