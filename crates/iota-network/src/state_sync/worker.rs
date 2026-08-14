@@ -52,26 +52,32 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
         checkpoint: Arc<CheckpointData>,
     ) -> anyhow::Result<Self::Message> {
         let summary = checkpoint.checkpoint_summary.clone();
-        let signatures_verified = match self.0.get_committee(summary.epoch()) {
-            Some(committee) => {
-                summary
-                    .verify_authority_signatures(&committee)
-                    .map_err(|e| anyhow!("checkpoint signature verification failed: {e}"))?;
-                true
-            }
-            None => false,
-        };
-        let full_contents = FullCheckpointContents::from_contents_and_execution_data(
-            checkpoint.checkpoint_contents.clone(),
-            checkpoint.transactions.iter().map(|t| t.execution_data()),
-        );
-        full_contents.verify_digests(summary.contents_digest)?;
-        let contents = VerifiedCheckpointContents::new_unchecked(full_contents);
-        Ok(VerifiedArchiveCheckpoint {
-            summary,
-            contents,
-            signatures_verified,
+        let committee = self.0.get_committee(summary.epoch());
+        // As many workers run as there are cores, so keep their CPU-bound
+        // verification off the runtime's worker threads.
+        tokio::task::spawn_blocking(move || {
+            let signatures_verified = match committee {
+                Some(committee) => {
+                    summary
+                        .verify_authority_signatures(&committee)
+                        .map_err(|e| anyhow!("checkpoint signature verification failed: {e}"))?;
+                    true
+                }
+                None => false,
+            };
+            let full_contents = FullCheckpointContents::from_contents_and_execution_data(
+                checkpoint.checkpoint_contents.clone(),
+                checkpoint.transactions.iter().map(|t| t.execution_data()),
+            );
+            full_contents.verify_digests(summary.contents_digest)?;
+            let contents = VerifiedCheckpointContents::new_unchecked(full_contents);
+            Ok(VerifiedArchiveCheckpoint {
+                summary,
+                contents,
+                signatures_verified,
+            })
         })
+        .await?
     }
 }
 
