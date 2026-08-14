@@ -470,6 +470,13 @@ pub(super) fn transaction_index_data(
 /// of every history table: chaining per-bucket scans in epoch order
 /// preserves the global iteration order, and pruning an epoch is one
 /// constant-time column-family drop.
+///
+/// Every field below is query acceleration, pruned by the indexes retention
+/// knob: losing a bucket means this node cannot *find* a transaction or
+/// event through these tables, not that the transaction is gone. The
+/// indexes window must therefore never exceed the ledger's, or a query can
+/// return a digest whose transaction has already been pruned from the
+/// ledger.
 pub(super) struct HistoryBucket {
     /// Ordering of all indexed transactions. Filled only when the JSON-RPC
     /// group is enabled.
