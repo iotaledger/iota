@@ -1197,7 +1197,7 @@ impl GrpcReader {
             fields.include_balance_changes || fields.include_object_changes;
 
         // Get the effects if any of the following are requested: effects, events,
-        // checkpoint/timestamp, input/output objects, balance/object changes
+        // input/output objects, balance/object changes
         let (effects, events, input_objects, output_objects) = if fields.include_effects
             || fields.include_events
             || fields.include_input_objects
