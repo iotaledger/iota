@@ -181,10 +181,10 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    /// Give every generated validator fixed addresses on 127.0.0.1 instead of
-    /// currently-free ports: validator `i` takes the ten ports starting at
-    /// `port_base + 10 * i`, of which the first five are its network, p2p,
-    /// metrics, primary and admin interface addresses.
+    /// Give every generated validator fixed ports instead of currently-free
+    /// ones: validator `i` takes the ten ports starting at `port_base + 10 *
+    /// i`, of which the first five are its network, p2p, metrics, primary and
+    /// admin interface addresses.
     ///
     /// Has no effect when the validators come from a network config or from
     /// `with_validators`.
@@ -193,9 +193,10 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    /// Give the first fullnode fixed addresses on 127.0.0.1 instead of
-    /// currently-free ports: `port_base` for the metrics endpoint,
-    /// `port_base + 1` for the admin interface and `port_base + 2` for p2p.
+    /// Give the first fullnode fixed ports instead of currently-free ones:
+    /// `port_base` for the metrics endpoint, `port_base + 1` for the admin
+    /// interface and `port_base + 2` for p2p, all on the fullnode's own
+    /// address.
     ///
     /// Further fullnodes keep currently-free ports, since the three addresses
     /// can only be used once.
@@ -766,7 +767,7 @@ impl AsRef<Path> for SwarmDirectory {
 
 #[cfg(test)]
 mod test {
-    use std::{collections::BTreeSet, num::NonZeroUsize};
+    use std::{collections::BTreeSet, net::SocketAddr, num::NonZeroUsize};
 
     use iota_swarm_config::network_config_builder::ConfigBuilder;
 
@@ -815,6 +816,9 @@ mod test {
         println!("hello");
     }
 
+    /// The layout owns the ports only: every address stays on the IP its node
+    /// would have used anyway, which is localhost outside the simulator and one
+    /// address per node inside it.
     #[test]
     fn deterministic_ports_reach_the_node_configs() {
         let swarm = Swarm::builder()
@@ -826,25 +830,24 @@ mod test {
 
         let validator_ports = swarm
             .validator_nodes()
-            .map(|validator| validator.config().network_address.to_string())
+            .map(|validator| {
+                validator
+                    .config()
+                    .network_address
+                    .to_socket_addr()
+                    .unwrap()
+                    .port()
+            })
             .collect::<BTreeSet<_>>();
-        assert_eq!(
-            validator_ports,
-            BTreeSet::from([
-                "/ip4/127.0.0.1/tcp/9200/http".to_owned(),
-                "/ip4/127.0.0.1/tcp/9210/http".to_owned(),
-            ])
-        );
+        assert_eq!(validator_ports, BTreeSet::from([9200, 9210]));
 
         let fullnode = swarm.fullnodes().next().unwrap().config();
-        assert_eq!(fullnode.metrics_address.to_string(), "127.0.0.1:9184");
+        let ip = fullnode.network_address.to_socket_addr().unwrap().ip();
+        assert_eq!(fullnode.metrics_address, SocketAddr::new(ip, 9184));
+        assert_eq!(fullnode.admin_interface_address, SocketAddr::new(ip, 9185));
         assert_eq!(
-            fullnode.admin_interface_address.to_string(),
-            "127.0.0.1:9185"
-        );
-        assert_eq!(
-            fullnode.p2p_config.listen_address.to_string(),
-            "127.0.0.1:9186"
+            fullnode.p2p_config.listen_address,
+            SocketAddr::new(ip, 9186)
         );
     }
 }

@@ -2,11 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    net::{Ipv4Addr, SocketAddr},
-    num::NonZeroUsize,
-    path::PathBuf,
-};
+use std::{net::SocketAddr, num::NonZeroUsize, path::PathBuf};
 
 use anyhow::anyhow;
 use fastcrypto::{
@@ -449,9 +445,10 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    /// Give the fullnode fixed addresses on 127.0.0.1 instead of
-    /// currently-free ports: `port_base` for the metrics endpoint,
-    /// `port_base + 1` for the admin interface and `port_base + 2` for p2p.
+    /// Give the fullnode fixed ports instead of currently-free ones:
+    /// `port_base` for the metrics endpoint, `port_base + 1` for the admin
+    /// interface and `port_base + 2` for p2p, all on the fullnode's own
+    /// address.
     ///
     /// Addresses set explicitly on this builder still win.
     pub fn with_deterministic_ports(mut self, port_base: u16) -> Self {
@@ -493,12 +490,12 @@ impl FullnodeConfigBuilder {
         // Take advantage of ValidatorGenesisConfigBuilder to build the keypairs and
         // addresses, even though this is a fullnode.
         let validator_config = ValidatorGenesisConfigBuilder::new().build(rng);
-        let ip = validator_config
+        let node_ip = validator_config
             .network_address
             .to_socket_addr()
             .unwrap()
-            .ip()
-            .to_string();
+            .ip();
+        let ip = node_ip.to_string();
 
         let key_path = get_key_path(&validator_config.authority_key_pair);
         let config_directory = self
@@ -508,7 +505,6 @@ impl FullnodeConfigBuilder {
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
 
-        let localhost = local_ip_utils::localhost_for_testing();
         let deterministic_port = |offset: u16| {
             self.deterministic_port_base.map(|port_base| {
                 port_base.checked_add(offset).unwrap_or_else(|| {
@@ -517,12 +513,11 @@ impl FullnodeConfigBuilder {
             })
         };
         let deterministic_metrics_address =
-            deterministic_port(0).map(|port| SocketAddr::from((Ipv4Addr::LOCALHOST, port)));
+            deterministic_port(0).map(|port| SocketAddr::new(node_ip, port));
         let deterministic_admin_interface_address =
-            deterministic_port(1).map(|port| SocketAddr::from((Ipv4Addr::LOCALHOST, port)));
-        let deterministic_p2p_address = deterministic_port(2).map(|port| {
-            local_ip_utils::new_deterministic_udp_address_for_testing(&localhost, port)
-        });
+            deterministic_port(1).map(|port| SocketAddr::new(node_ip, port));
+        let deterministic_p2p_address = deterministic_port(2)
+            .map(|port| local_ip_utils::new_deterministic_udp_address_for_testing(&ip, port));
 
         let p2p_config = {
             let seed_peers = validator_configs
@@ -736,26 +731,29 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::net::SocketAddr;
+
     use rand::rngs::OsRng;
 
     use super::{FullnodeConfigBuilder, Genesis};
 
+    /// The layout owns the ports only: the addresses stay on the IP the
+    /// fullnode would have used anyway, which is localhost outside the
+    /// simulator and one address of its own inside it.
     #[test]
     fn deterministic_ports_fill_the_three_slots_of_a_fullnode() {
         let config = FullnodeConfigBuilder::new()
             .with_deterministic_ports(9184)
             .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
+        let ip = config.network_address.to_socket_addr().unwrap().ip();
 
-        assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9184");
-        assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:9185");
+        assert_eq!(config.metrics_address, SocketAddr::new(ip, 9184));
+        assert_eq!(config.admin_interface_address, SocketAddr::new(ip, 9185));
         assert_eq!(
             config.p2p_config.external_address.unwrap().to_string(),
-            "/ip4/127.0.0.1/udp/9186/http"
+            format!("/ip4/{ip}/udp/9186/http")
         );
-        assert_eq!(
-            config.p2p_config.listen_address.to_string(),
-            "127.0.0.1:9186"
-        );
+        assert_eq!(config.p2p_config.listen_address, SocketAddr::new(ip, 9186));
     }
 
     #[test]
@@ -764,8 +762,9 @@ mod tests {
             .with_deterministic_ports(9184)
             .with_admin_interface_address(Some(([127, 0, 0, 1], 1337)))
             .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
+        let ip = config.network_address.to_socket_addr().unwrap().ip();
 
         assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:1337");
-        assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9184");
+        assert_eq!(config.metrics_address, SocketAddr::new(ip, 9184));
     }
 }

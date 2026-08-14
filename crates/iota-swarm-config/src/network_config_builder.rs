@@ -13,7 +13,6 @@ use fastcrypto::traits::KeyPair;
 use iota_config::{
     ExecutionCacheConfig,
     genesis::{TokenAllocation, TokenDistributionScheduleBuilder},
-    local_ip_utils,
     node::AuthorityOverloadConfig,
     transaction_deny_config::TransactionDenyConfig,
 };
@@ -51,9 +50,9 @@ pub enum CommitteeConfig {
     Deterministic((NonZeroUsize, Option<Vec<AccountKeyPair>>)),
 }
 
-/// Give the validator at `index` its fixed addresses on 127.0.0.1, including
-/// the metrics endpoint, which the deterministic layout otherwise binds on all
-/// interfaces.
+/// Give the validator at `index` its fixed ports on the address it would get
+/// anyway, and bind its metrics endpoint on localhost, which the deterministic
+/// layout otherwise binds on all interfaces.
 fn place_on_deterministic_ports(
     builder: ValidatorGenesisConfigBuilder,
     port_base: u16,
@@ -71,7 +70,6 @@ fn place_on_deterministic_ports(
         });
 
     builder
-        .with_ip(local_ip_utils::localhost_for_testing())
         .with_deterministic_ports(port_offset)
         .with_metrics_ip_address(Ipv4Addr::LOCALHOST.into())
 }
@@ -197,10 +195,10 @@ impl<R> ConfigBuilder<R> {
         self
     }
 
-    /// Give every generated validator fixed addresses on 127.0.0.1 instead of
-    /// currently-free ports: validator `i` takes the ten ports starting at
-    /// `port_base + 10 * i`, of which the first five are its network, p2p,
-    /// metrics, primary and admin interface addresses.
+    /// Give every generated validator fixed ports instead of currently-free
+    /// ones: validator `i` takes the ten ports starting at `port_base + 10 *
+    /// i`, of which the first five are its network, p2p, metrics, primary and
+    /// admin interface addresses.
     ///
     /// Has no effect on `CommitteeConfig::Validators`, whose addresses come
     /// from the caller, or on `CommitteeConfig::Deterministic`, which lays out
