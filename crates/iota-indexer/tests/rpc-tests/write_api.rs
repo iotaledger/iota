@@ -1,7 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::Path, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl};
 use fastcrypto::encoding::Base64;
@@ -291,6 +294,72 @@ fn dry_run_transaction_block_without_gas_payment() {
             "object changes should still report the mock gas coin, got {:?}",
             response.object_changes
         );
+    });
+}
+
+/// Dry-running a publish decodes an event the new package's `init` emits.
+///
+/// The event's type is defined only by the package being published, which was
+/// never committed and so is not in the database. Decoding it requires
+/// resolving the type against the objects the simulation wrote. Without that
+/// the payload comes back undecoded.
+///
+/// Uses the test smart contract under `tests/data/publish_with_event`.
+#[test]
+fn dry_run_publish_resolves_events_of_the_published_package() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (address, _): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10 * NANOS_PER_IOTA),
+                address,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
+
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.extend(["tests", "data", "publish_with_event"]);
+        let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+        let compiled_modules_bytes = compiled_package.get_package_base64(false);
+        let dependencies = compiled_package.get_dependency_storage_package_ids();
+
+        let transaction_bytes: TransactionBlockBytes = client
+            .publish(
+                address,
+                compiled_modules_bytes,
+                dependencies,
+                Some(gas_ref.object_id),
+                100_000_000.into(),
+            )
+            .await
+            .unwrap();
+
+        let response = client
+            .dry_run_transaction_block(transaction_bytes.tx_bytes)
+            .await
+            .unwrap();
+        assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+
+        assert_eq!(
+            response.events.data.len(),
+            1,
+            "`init` emits exactly one event, got {:?}",
+            response.events.data
+        );
+        let event = &response.events.data[0];
+        assert_eq!(event.type_.name().to_string(), "PublishEvent");
+        // An unresolved type would leave the payload undecoded.
+        assert_eq!(event.parsed_json, serde_json::json!({ "foo": "bar" }));
     });
 }
 
