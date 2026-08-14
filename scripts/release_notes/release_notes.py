@@ -881,7 +881,9 @@ def do_generate(from_, to, is_dry_run, network=None):
                     next_epoch, when = upgrade
                     print(
                         f"\nOn `{network}`, this protocol version can be enabled no "
-                        f"earlier than `{when}` (start of epoch {next_epoch})."
+                        f"earlier than `{when}` (start of epoch {next_epoch}). "
+                        f"Please ensure that you update your validators before this epoch change. "
+                        f"Otherwise, the protocol will remove you from the committee, and both you and your stakers will lose rewards."
                     )
         print()
 
