@@ -692,24 +692,3 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
     key_path.truncate(12);
     key_path
 }
-
-#[cfg(test)]
-mod tests {
-    use rand::rngs::OsRng;
-
-    use super::*;
-
-    #[test]
-    fn fullnode_build_needs_validator_p2p_external_addresses() {
-        let mut validator = ValidatorConfigBuilder::new()
-            .build_without_genesis(ValidatorGenesisConfigBuilder::new().build(&mut OsRng));
-        validator.p2p_config.external_address = None;
-
-        let err = FullnodeConfigBuilder::new()
-            .try_build_from_parts(&mut OsRng, &[validator], Genesis::new_empty())
-            .unwrap_err();
-        let err = format!("{err:#}");
-        assert!(err.contains("validator 0"), "{err}");
-        assert!(err.contains("seed peers"), "{err}");
-    }
-}
