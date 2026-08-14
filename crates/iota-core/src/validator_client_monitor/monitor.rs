@@ -47,9 +47,12 @@ impl ValidatorClientMonitor {
         }
     }
 
+    /// `enabled` is checked per round; rounds are skipped while it reports
+    /// false.
     pub fn spawn_health_checks<A: AuthorityAPI + Send + Sync + 'static>(
         self: &Arc<Self>,
         authority_aggregator: &Arc<ArcSwap<AuthorityAggregator<A>>>,
+        enabled: Arc<dyn Fn() -> bool + Send + Sync>,
     ) -> JoinHandle<()> {
         let period = self.config.health_check_interval;
         let monitor = Arc::downgrade(self);
@@ -57,7 +60,7 @@ impl ValidatorClientMonitor {
         // weak pointers allow health check task break early once shared arc objects are
         // dropped
         tokio::spawn(async move {
-            Self::run_health_checks(monitor, authority_aggregator, period).await;
+            Self::run_health_checks(monitor, authority_aggregator, period, enabled).await;
         })
     }
 
@@ -117,12 +120,16 @@ impl ValidatorClientMonitor {
         monitor: Weak<Self>,
         authority_aggregator: Weak<ArcSwap<AuthorityAggregator<A>>>,
         period: Duration,
+        enabled: Arc<dyn Fn() -> bool + Send + Sync>,
     ) {
         let mut interval = interval(period);
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         loop {
             interval.tick().await;
+            if !enabled() {
+                continue;
+            }
             let Some(monitor) = monitor.upgrade() else {
                 break;
             };

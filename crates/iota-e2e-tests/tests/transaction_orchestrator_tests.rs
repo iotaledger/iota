@@ -26,11 +26,13 @@ use iota_test_transaction_builder::{
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
+    iota_system_state::IotaSystemStateTrait,
     quorum_driver_types::{
         EffectsFinalityInfo, ExecuteTransactionRequestType, ExecuteTransactionRequestV1,
         ExecuteTransactionResponseV1, FinalizedEffects, IsTransactionExecutedLocally,
         QuorumDriverError,
     },
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use test_cluster::{TestClusterBuilder, override_pcool_flow};
@@ -61,7 +63,6 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     let digest = *txn.digest();
     orchestrator
         .quorum_driver()
-        .expect("quorum driver should be present when P-COOL is disabled")
         .submit_transaction_no_ticket(
             ExecuteTransactionRequestV1::new(txn),
             Some(make_socket_addr()),
@@ -201,7 +202,6 @@ async fn test_transaction_orchestrator_reconfig() {
         node.transaction_orchestrator()
             .unwrap()
             .quorum_driver()
-            .expect("quorum driver should be present when P-COOL is disabled")
             .current_epoch()
     });
     assert_eq!(epoch, 0);
@@ -218,7 +218,6 @@ async fn test_transaction_orchestrator_reconfig() {
                 node.transaction_orchestrator()
                     .unwrap()
                     .quorum_driver()
-                    .expect("quorum driver should be present when P-COOL is disabled")
                     .current_epoch()
             });
             if epoch == 1 {
@@ -397,6 +396,93 @@ async fn test_wait_for_local_execution_across_epoch_boundary() {
         EffectsFinalityInfo::Checkpointed(epoch, _seq) => assert_eq!(epoch, 1),
         other => panic!("expected Checkpointed finality, got {other:?}"),
     }
+}
+
+/// The driver must follow `enable_pcool_flow` across the upgrade that flips
+/// it, without a fullnode restart: boot at v31 (flag off, QuorumDriver),
+/// upgrade to v32 (flag on), and the same orchestrator instance must serve
+/// both sides — post-upgrade via the TransactionDriver.
+///
+/// No `override_pcool_flow`: the env override would pin the flag for every
+/// version.
+#[sim_test]
+async fn test_orchestrator_follows_pcool_flag_across_protocol_upgrade() {
+    telemetry_subscribers::init_for_testing();
+    const START: u64 = 31;
+    const FINISH: u64 = 32;
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_protocol_version(START.into())
+        .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(START, FINISH))
+        .with_epoch_duration_ms(20_000)
+        .build()
+        .await;
+
+    let orchestrator = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.transaction_orchestrator().unwrap());
+    let pcool_enabled = || {
+        test_cluster.fullnode_handle.iota_node.with(|node| {
+            node.state()
+                .epoch_store_for_testing()
+                .protocol_config()
+                .enable_pcool_flow()
+        })
+    };
+
+    // Boot state: flag off, WAL recovery already ran.
+    assert!(!pcool_enabled());
+    assert!(orchestrator.qd_recovery_started_for_testing());
+
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
+    let (response, _) = execute_with_orchestrator(
+        &orchestrator,
+        tx,
+        ExecuteTransactionRequestType::WaitForLocalExecution,
+    )
+    .await
+    .expect("pre-upgrade submission must succeed on the certificate flow");
+    assert!(matches!(
+        response.effects.finality_info,
+        EffectsFinalityInfo::Certified(_)
+    ));
+
+    // All validators support FINISH, so the upgrade lands at the first epoch
+    // boundary.
+    let system_state = test_cluster.wait_for_protocol_version(FINISH.into()).await;
+    let flip_epoch = system_state.epoch();
+    test_cluster.wait_for_epoch_all_nodes(flip_epoch).await;
+    assert!(pcool_enabled());
+
+    // Same orchestrator, no restart: the request must use the
+    // TransactionDriver — validators now reject the certificate flow.
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
+    let (response, executed_locally) = execute_with_orchestrator(
+        &orchestrator,
+        tx,
+        ExecuteTransactionRequestType::WaitForLocalExecution,
+    )
+    .await
+    .expect("post-upgrade submission must succeed without a fullnode restart");
+    assert!(executed_locally);
+    match response.effects.finality_info {
+        EffectsFinalityInfo::Checkpointed(epoch, _) => assert!(epoch >= flip_epoch),
+        EffectsFinalityInfo::QuorumExecuted(epoch) => assert!(epoch >= flip_epoch),
+        other => panic!("expected TransactionDriver finality, got {other:?}"),
+    }
+
+    // The TransactionDriver must keep tracking reconfiguration.
+    test_cluster.wait_for_epoch(Some(flip_epoch + 1)).await;
+    test_cluster.wait_for_epoch_all_nodes(flip_epoch + 1).await;
+    let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
+    execute_with_orchestrator(
+        &orchestrator,
+        tx,
+        ExecuteTransactionRequestType::WaitForLocalExecution,
+    )
+    .await
+    .expect("submission must succeed one epoch after the flip");
 }
 
 async fn execute_with_orchestrator(
@@ -1315,4 +1401,107 @@ async fn test_submission_survives_caller_abort() -> Result<(), anyhow::Error> {
     );
 
     Ok(())
+}
+
+/// The ON→OFF flip: a rollback epoch must not strand fullnodes that booted
+/// under P-COOL. msim-only: the per-version protocol override is
+/// thread-local, and `MAX_ALLOWED` exists only under msim.
+#[cfg(msim)]
+mod pcool_rollback {
+    use iota_protocol_config::ProtocolVersion;
+
+    use super::*;
+
+    const START: u64 = ProtocolVersion::MAX.as_u64();
+    const FINISH: u64 = ProtocolVersion::MAX_ALLOWED.as_u64();
+
+    /// Mirror of `test_orchestrator_follows_pcool_flag_across_protocol_upgrade`:
+    /// boot with P-COOL on, flip it off at the upgrade, and the same
+    /// fullnode must switch to the QuorumDriver (running its deferred WAL
+    /// recovery) and keep serving.
+    #[sim_test]
+    async fn test_orchestrator_follows_pcool_rollback_across_protocol_upgrade() {
+        telemetry_subscribers::init_for_testing();
+        // Set on both branches: the FINISH config derives from START, where
+        // the flag defaults to on. No `override_pcool_flow` — the env
+        // override applies to every version.
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|version, mut config| {
+            config.set_enable_pcool_flow_for_testing(version.as_u64() < FINISH);
+            config
+        });
+
+        let test_cluster = TestClusterBuilder::new()
+            .with_supported_protocol_versions(SupportedProtocolVersions::new_for_testing(
+                START, FINISH,
+            ))
+            .with_epoch_duration_ms(20_000)
+            .build()
+            .await;
+
+        let orchestrator = test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.transaction_orchestrator().unwrap());
+        let pcool_enabled = || {
+            test_cluster.fullnode_handle.iota_node.with(|node| {
+                node.state()
+                    .epoch_store_for_testing()
+                    .protocol_config()
+                    .enable_pcool_flow()
+            })
+        };
+
+        // Boot state: flag on, WAL recovery deferred.
+        assert!(pcool_enabled());
+        assert!(!orchestrator.qd_recovery_started_for_testing());
+
+        let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
+        let (response, _) = execute_with_orchestrator(
+            &orchestrator,
+            tx,
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+        )
+        .await
+        .expect("pre-rollback submission must succeed on the P-COOL flow");
+        assert!(matches!(
+            response.effects.finality_info,
+            EffectsFinalityInfo::Checkpointed(..) | EffectsFinalityInfo::QuorumExecuted(_)
+        ));
+
+        let system_state = test_cluster.wait_for_protocol_version(FINISH.into()).await;
+        let flip_epoch = system_state.epoch();
+        test_cluster.wait_for_epoch_all_nodes(flip_epoch).await;
+        assert!(!pcool_enabled());
+
+        // Same orchestrator, no restart: the request must use the
+        // QuorumDriver — validators now reject `submit_tx`.
+        let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
+        let digest = *tx.digest();
+        let (response, _executed_locally) = execute_with_orchestrator(
+            &orchestrator,
+            tx,
+            ExecuteTransactionRequestType::WaitForLocalExecution,
+        )
+        .await
+        .expect("post-rollback submission must succeed without a fullnode restart");
+        // `Certified` proves the QuorumDriver served it. `executed_locally`
+        // is not asserted: consensus needs ~10s post-boundary to regain
+        // block subscribers, which can exceed the 10s local-execution wait.
+        assert!(matches!(
+            response.effects.finality_info,
+            EffectsFinalityInfo::Certified(_)
+        ));
+        timeout(
+            Duration::from_secs(30),
+            test_cluster
+                .fullnode_handle
+                .iota_node
+                .state()
+                .get_transaction_cache_reader()
+                .notify_read_executed_effects_for_testing("", &[digest]),
+        )
+        .await
+        .expect("the fullnode must execute the post-rollback transaction locally");
+        assert!(orchestrator.qd_recovery_started_for_testing());
+    }
 }

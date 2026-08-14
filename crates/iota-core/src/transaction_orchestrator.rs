@@ -2,16 +2,17 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Transaction Orchestrator is a Node component that utilizes Quorum Driver (or
-// optionally TransactionDriver) to submit transactions to validators for
-// finality, and proactively executes finalized transactions locally.
+// Transaction Orchestrator is a Node component that utilizes Quorum Driver or
+// TransactionDriver (selected per request by the P-COOL protocol flag) to
+// submit transactions to validators for finality, and proactively executes
+// finalized transactions locally.
 
 use std::{
     collections::{BTreeMap, HashMap, hash_map::Entry},
     net::SocketAddr,
     ops::Deref,
     path::Path,
-    sync::Arc,
+    sync::{Arc, OnceLock},
     time::Duration,
 };
 
@@ -84,9 +85,8 @@ const LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(10);
 
 const WAIT_FOR_FINALITY_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// The submission flow used to drive transactions to finality. Exactly one
-/// flow is active, selected by the P-COOL protocol flag at construction
-/// time.
+/// The submission flow for a transaction, selected per request by the
+/// epoch's P-COOL flag.
 enum Driver<A: Clone> {
     /// Certificate-based flow (P-COOL disabled).
     Quorum(Arc<QuorumDriverHandler<A>>),
@@ -98,10 +98,19 @@ enum Driver<A: Clone> {
 /// and TransactionDriver for submitting transactions to validators for
 /// finality. It adds inflight deduplication, waiting for local execution,
 /// recovery, and epoch change handling.
+///
+/// Both drivers exist for the node's lifetime; the epoch's P-COOL flag
+/// selects which one serves a request. QuorumDriver WAL recovery runs
+/// exactly once: at construction when the flag is off, else on the first
+/// flag-off selection.
 pub struct TransactionOrchestrator<A: Clone> {
-    driver: Driver<A>,
+    quorum_driver: Arc<QuorumDriverHandler<A>>,
+    transaction_driver: Arc<TransactionDriver<A>>,
+    /// Set once QuorumDriver WAL recovery has run.
+    qd_recovery: OnceLock<()>,
     validator_state: Arc<AuthorityState>,
-    _local_executor_handle: Option<JoinHandle<()>>,
+    /// Keeps the pending-tx-log cleanup loop alive.
+    _local_executor_handle: JoinHandle<()>,
     pending_tx_log: Arc<WritePathPendingTransactionLog>,
     /// Digests currently being driven to finality by the TransactionDriver;
     /// used to deduplicate concurrent submissions of the same transaction,
@@ -124,34 +133,20 @@ impl TransactionOrchestrator<NetworkAuthorityClient> {
         prometheus_registry: &Registry,
         node_config: Option<&NodeConfig>,
     ) -> Self {
-        // Check protocol config to determine if P-COOL flow is enabled
-        let epoch_store = validator_state.load_epoch_store_one_call_per_task();
-        let use_transaction_driver = epoch_store.protocol_config().enable_pcool_flow();
+        let td_reconfig_observer = TdOnsiteReconfigObserver::new(
+            reconfig_channel.resubscribe(),
+            validator_state.get_object_cache_reader().clone(),
+            validator_state.clone_committee_store(),
+            validators.safe_client_metrics_base.clone(),
+        );
 
-        // Create TransactionDriver reconfig observer only if P-COOL is enabled
-        let td_reconfig_observer = if use_transaction_driver {
-            Some(TdOnsiteReconfigObserver::new(
-                reconfig_channel.resubscribe(),
-                validator_state.get_object_cache_reader().clone(),
-                validator_state.clone_committee_store(),
-                validators.safe_client_metrics_base.clone(),
-            ))
-        } else {
-            None
-        };
-
-        // Create QuorumDriver reconfig observer only if P-COOL is NOT enabled
-        let qd_reconfig_observer = if !use_transaction_driver {
-            Some(OnsiteReconfigObserver::new(
-                reconfig_channel.resubscribe(),
-                validator_state.get_object_cache_reader().clone(),
-                validator_state.clone_committee_store(),
-                validators.safe_client_metrics_base.clone(),
-                validators.metrics.deref().clone(),
-            ))
-        } else {
-            None
-        };
+        let qd_reconfig_observer = OnsiteReconfigObserver::new(
+            reconfig_channel.resubscribe(),
+            validator_state.get_object_cache_reader().clone(),
+            validator_state.clone_committee_store(),
+            validators.safe_client_metrics_base.clone(),
+            validators.metrics.deref().clone(),
+        );
 
         TransactionOrchestrator::new(
             validators,
@@ -176,11 +171,10 @@ where
         validator_state: Arc<AuthorityState>,
         parent_path: &Path,
         prometheus_registry: &Registry,
-        reconfig_observer: Option<OnsiteReconfigObserver>,
-        td_reconfig_observer: Option<TdOnsiteReconfigObserver>,
+        reconfig_observer: OnsiteReconfigObserver,
+        td_reconfig_observer: TdOnsiteReconfigObserver,
         node_config: Option<&NodeConfig>,
     ) -> Self {
-        // Check protocol config to determine if P-COOL flow is enabled
         let epoch_store = validator_state.load_epoch_store_one_call_per_task();
         let use_transaction_driver = epoch_store.protocol_config().enable_pcool_flow();
 
@@ -190,54 +184,63 @@ where
             parent_path.join("fullnode_pending_transactions"),
         ));
 
-        let (driver, _local_executor_handle) = if !use_transaction_driver {
-            let qd_metrics = Arc::new(QuorumDriverMetrics::new(prometheus_registry));
-            let reconfig_observer = Arc::new(
-                reconfig_observer
-                    .expect("QuorumDriver reconfig observer required when P-COOL is disabled"),
-            );
-            let handler = Arc::new(
-                QuorumDriverHandlerBuilder::new(validators, qd_metrics)
-                    .with_notifier(notifier.clone())
-                    .with_reconfig_observer(reconfig_observer)
-                    .start(),
-            );
-            let effects_receiver = handler.subscribe_to_effects();
-            let pending_tx_log_clone = pending_tx_log.clone();
-            let local_executor_handle = spawn_monitored_task!(async move {
-                Self::loop_pending_transaction_log(effects_receiver, pending_tx_log_clone).await;
-            });
-            // Pending-transaction recovery is QuorumDriver-only; the
-            // TransactionDriver goes directly to consensus and tracks no
-            // pending certificates.
-            Self::schedule_txes_in_log(pending_tx_log.clone(), handler.clone());
-            (Driver::Quorum(handler), Some(local_executor_handle))
-        } else {
-            let td_metrics = Arc::new(TransactionDriverMetrics::new(prometheus_registry));
-            let client_metrics = Arc::new(ValidatorClientMetrics::new(prometheus_registry));
-            let observer = td_reconfig_observer
-                .expect("TransactionDriver reconfig observer required when P-COOL is enabled");
-            (
-                Driver::Transaction(TransactionDriver::new(
-                    validators,
-                    Arc::new(observer),
-                    td_metrics,
-                    node_config,
-                    client_metrics,
-                )),
-                None,
-            )
-        };
+        // Registered up front for both flows: registration panics on
+        // duplicates.
+        let quorum_driver_metrics = Arc::new(QuorumDriverMetrics::new(prometheus_registry));
+        let transaction_driver_metrics =
+            Arc::new(TransactionDriverMetrics::new(prometheus_registry));
+        let client_metrics = Arc::new(ValidatorClientMetrics::new(prometheus_registry));
 
-        Self {
-            driver,
+        let quorum_driver = Arc::new(
+            QuorumDriverHandlerBuilder::new(validators.clone(), quorum_driver_metrics)
+                .with_notifier(notifier.clone())
+                .with_reconfig_observer(Arc::new(reconfig_observer))
+                .start(),
+        );
+
+        // The cleanup loop must exist before any WAL recovery runs, so a
+        // recovered transaction cannot complete before its receiver exists.
+        let effects_receiver = quorum_driver.subscribe_to_effects();
+        let pending_tx_log_clone = pending_tx_log.clone();
+        let _local_executor_handle = spawn_monitored_task!(async move {
+            Self::loop_pending_transaction_log(effects_receiver, pending_tx_log_clone).await;
+        });
+
+        let pcool_flow_enabled: Arc<dyn Fn() -> bool + Send + Sync> = {
+            let validator_state = validator_state.clone();
+            Arc::new(move || {
+                validator_state
+                    .load_epoch_store_one_call_per_task()
+                    .protocol_config()
+                    .enable_pcool_flow()
+            })
+        };
+        let transaction_driver = TransactionDriver::new(
+            validators,
+            Arc::new(td_reconfig_observer),
+            transaction_driver_metrics,
+            node_config.and_then(|config| config.validator_client_monitor_config.clone()),
+            client_metrics,
+            pcool_flow_enabled,
+        );
+
+        let this = Self {
+            quorum_driver,
+            transaction_driver,
+            qd_recovery: OnceLock::new(),
             validator_state,
             _local_executor_handle,
             pending_tx_log,
             in_flight_transactions: Default::default(),
             notifier,
             metrics,
+        };
+        // WAL recovery is a startup duty when the quorum driver serves from
+        // boot; under P-COOL it is deferred to the first flag-off selection.
+        if !use_transaction_driver {
+            this.ensure_qd_recovery();
         }
+        this
     }
 }
 
@@ -245,6 +248,27 @@ impl<A> TransactionOrchestrator<A>
 where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
 {
+    /// Returns the flow selected by `epoch_store`'s P-COOL flag. Call with
+    /// the request's own epoch store snapshot so the flag and the submission
+    /// see the same epoch.
+    fn select_driver(&self, epoch_store: &AuthorityPerEpochStore) -> Driver<A> {
+        if epoch_store.protocol_config().enable_pcool_flow() {
+            Driver::Transaction(self.transaction_driver.clone())
+        } else {
+            self.ensure_qd_recovery();
+            Driver::Quorum(self.quorum_driver.clone())
+        }
+    }
+
+    /// Runs QuorumDriver WAL recovery exactly once. The snapshot happens
+    /// before the caller can submit (concurrent callers block on the
+    /// `OnceLock`), so a triggering request cannot be double-driven.
+    fn ensure_qd_recovery(&self) {
+        self.qd_recovery.get_or_init(|| {
+            Self::schedule_txes_in_log(self.pending_tx_log.clone(), self.quorum_driver.clone());
+        });
+    }
+
     #[instrument(name = "tx_orchestrator_execute_transaction_block", level = "trace", skip_all,
         fields(
         tx_digest = ?request.transaction.digest(),
@@ -305,9 +329,9 @@ where
             request_type,
             ExecuteTransactionRequestType::WaitForLocalExecution
         );
-        let (mut response, seq) = match (&self.driver, wait_for_local_execution) {
+        let (mut response, seq) = match (self.select_driver(&epoch_store), wait_for_local_execution)
+        {
             (Driver::Transaction(td), true) => {
-                let td = td.clone();
                 let in_flight_transactions = self.in_flight_transactions.clone();
                 let validator_state = self.validator_state.clone();
                 let metrics = self.metrics.clone();
@@ -326,7 +350,6 @@ where
                 .await?
             }
             (Driver::Transaction(td), false) => {
-                let td = td.clone();
                 let in_flight_transactions = self.in_flight_transactions.clone();
                 let validator_state = self.validator_state.clone();
                 // Detached for the same reason as above.
@@ -346,7 +369,7 @@ where
             (Driver::Quorum(qd), _) => {
                 let qd_resp = self
                     .execute_transaction_impl(
-                        qd,
+                        &qd,
                         &epoch_store,
                         request,
                         transaction.clone(),
@@ -659,9 +682,8 @@ where
             .validity_check(&epoch_store.tx_validity_check_context())
             .map_err(QuorumDriverError::InvalidTransaction)?;
 
-        match &self.driver {
+        match self.select_driver(&epoch_store) {
             Driver::Transaction(td) => {
-                let td = td.clone();
                 let in_flight_transactions = self.in_flight_transactions.clone();
                 let validator_state = self.validator_state.clone();
                 // v1 does not do an internal wait; callers (e.g. the gRPC
@@ -683,7 +705,7 @@ where
             }
             Driver::Quorum(qd) => {
                 let qd_resp = self
-                    .execute_transaction_impl(qd, &epoch_store, request, transaction, client_addr)
+                    .execute_transaction_impl(&qd, &epoch_store, request, transaction, client_addr)
                     .await?;
                 Ok(quorum_driver_response_to_v1(qd_resp))
             }
@@ -1236,39 +1258,45 @@ where
         }
     }
 
-    /// Returns the quorum driver, or `None` under the P-COOL flow.
-    pub fn quorum_driver(&self) -> Option<&Arc<QuorumDriverHandler<A>>> {
-        match &self.driver {
-            Driver::Quorum(handler) => Some(handler),
-            Driver::Transaction(_) => None,
-        }
+    pub fn quorum_driver(&self) -> &Arc<QuorumDriverHandler<A>> {
+        &self.quorum_driver
     }
 
-    /// Returns the quorum driver, or `None` under the P-COOL flow.
-    pub fn clone_quorum_driver(&self) -> Option<Arc<QuorumDriverHandler<A>>> {
-        self.quorum_driver().cloned()
+    pub fn clone_quorum_driver(&self) -> Arc<QuorumDriverHandler<A>> {
+        self.quorum_driver.clone()
     }
 
-    /// Returns the transaction driver, or `None` when the P-COOL flow is
-    /// disabled.
-    pub fn transaction_driver(&self) -> Option<&Arc<TransactionDriver<A>>> {
-        match &self.driver {
-            Driver::Quorum(_) => None,
-            Driver::Transaction(td) => Some(td),
-        }
+    pub fn transaction_driver(&self) -> &Arc<TransactionDriver<A>> {
+        &self.transaction_driver
     }
 
-    /// Returns the authority aggregator of the active driver.
+    /// Returns the quorum driver's aggregator; both drivers keep theirs
+    /// current, so either is authoritative.
     pub fn clone_authority_aggregator(&self) -> Arc<AuthorityAggregator<A>> {
-        match &self.driver {
-            Driver::Quorum(qd) => qd.authority_aggregator().load_full(),
-            Driver::Transaction(td) => td.authority_aggregator().load_full(),
-        }
+        self.quorum_driver.authority_aggregator().load_full()
     }
 
-    /// Returns `None` under the P-COOL flow, which has no effects broadcast.
+    /// Returns an effects receiver only while the quorum driver is the
+    /// currently selected flow; the P-COOL flow has no effects broadcast.
     pub fn subscribe_to_effects_queue(&self) -> Option<Receiver<QuorumDriverEffectsQueueResult>> {
-        self.quorum_driver().map(|qd| qd.subscribe_to_effects())
+        let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
+        if epoch_store.protocol_config().enable_pcool_flow() {
+            return None;
+        }
+        Some(self.quorum_driver.subscribe_to_effects())
+    }
+
+    /// Runs driver selection for `epoch_store`, with its recovery side
+    /// effect.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn select_driver_for_testing(&self, epoch_store: &AuthorityPerEpochStore) {
+        self.select_driver(epoch_store);
+    }
+
+    /// Reports whether QuorumDriver WAL recovery has run.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn qd_recovery_started_for_testing(&self) -> bool {
+        self.qd_recovery.get().is_some()
     }
 
     fn update_metrics(
@@ -1301,18 +1329,24 @@ where
         pending_tx_log: Arc<WritePathPendingTransactionLog>,
         quorum_driver: Arc<QuorumDriverHandler<A>>,
     ) {
+        if std::env::var("SKIP_LOADING_FROM_PENDING_TX_LOG").is_ok() {
+            info!("Skipping loading pending transactions from pending_tx_log.");
+            return;
+        }
+        // Snapshot before the driver is handed out, so a submission that
+        // triggered deferred recovery cannot land in the log and be
+        // double-driven. Bounded: only the quorum-driver path writes this
+        // log, so it holds at most what was pending when that flow was last
+        // active.
+        let pending_txes = pending_tx_log
+            .load_all_pending_transactions()
+            // Failing to read the WAL means the store is broken.
+            .expect("failed to load all pending transactions");
+        info!(
+            "Recovering {} pending transactions from pending_tx_log.",
+            pending_txes.len()
+        );
         spawn_logged_monitored_task!(async move {
-            if std::env::var("SKIP_LOADING_FROM_PENDING_TX_LOG").is_ok() {
-                info!("Skipping loading pending transactions from pending_tx_log.");
-                return;
-            }
-            let pending_txes = pending_tx_log
-                .load_all_pending_transactions()
-                .expect("failed to load all pending transactions");
-            info!(
-                "Recovering {} pending transactions from pending_tx_log.",
-                pending_txes.len()
-            );
             for (i, tx) in pending_txes.into_iter().enumerate() {
                 // TODO: ideally pending_tx_log would not contain VerifiedTransaction, but that
                 // requires a migration.
@@ -1995,5 +2029,88 @@ mod tests {
 
         // The digest can be driven again once the entry is gone.
         let _guard = acquire_driving(&in_flight, tx_digest);
+    }
+
+    async fn build_orchestrator_with_pcool(
+        enable_pcool: bool,
+    ) -> (
+        Arc<AuthorityState>,
+        TransactionOrchestrator<NetworkAuthorityClient>,
+        tempfile::TempDir,
+        tokio::sync::broadcast::Sender<IotaSystemState>,
+    ) {
+        use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+
+        use crate::{
+            authority::test_authority_builder::TestAuthorityBuilder,
+            authority_aggregator::AuthorityAggregatorBuilder,
+        };
+
+        telemetry_subscribers::init_for_testing();
+        let network_config =
+            iota_swarm_config::network_config_builder::ConfigBuilder::new_with_temp_dir().build();
+
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown);
+        protocol_config.set_enable_pcool_flow_for_testing(enable_pcool);
+        let state = TestAuthorityBuilder::new()
+            .with_network_config(&network_config, 0)
+            .with_protocol_config(protocol_config)
+            .build()
+            .await;
+
+        let (aggregator, _clients) =
+            AuthorityAggregatorBuilder::from_genesis(&network_config.genesis)
+                .build_network_clients();
+        let (reconfig_tx, reconfig_rx) = tokio::sync::broadcast::channel(16);
+        let tempdir = tempfile::tempdir().unwrap();
+        let orchestrator = TransactionOrchestrator::new_with_auth_aggregator(
+            Arc::new(aggregator),
+            state.clone(),
+            reconfig_rx,
+            tempdir.path(),
+            &Registry::new(),
+            None,
+        );
+        (state, orchestrator, tempdir, reconfig_tx)
+    }
+
+    /// A flag-off boot runs QuorumDriver WAL recovery at construction.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn qd_recovery_eager_on_flag_off_boot() {
+        let (_state, orchestrator, _tempdir, _reconfig_tx) =
+            build_orchestrator_with_pcool(false).await;
+        assert!(orchestrator.qd_recovery_started_for_testing());
+    }
+
+    /// A flag-on boot leaves QuorumDriver WAL recovery uninitialized; the
+    /// first flag-off selection runs it, before the request path can submit.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn qd_recovery_deferred_until_first_flag_off_selection() {
+        use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+
+        let (state, orchestrator, _tempdir, _reconfig_tx) =
+            build_orchestrator_with_pcool(true).await;
+        assert!(!orchestrator.qd_recovery_started_for_testing());
+
+        // Selection under the flag keeps recovery uninitialized.
+        orchestrator.select_driver_for_testing(&state.epoch_store_for_testing());
+        assert!(!orchestrator.qd_recovery_started_for_testing());
+
+        // Epoch 1 with P-COOL off: the first selection runs recovery.
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown);
+        protocol_config.set_enable_pcool_flow_for_testing(false);
+        state
+            .reconfigure_for_testing_with_protocol_config(protocol_config)
+            .await;
+        let epoch_store = state.epoch_store_for_testing();
+        assert_eq!(epoch_store.epoch(), 1);
+
+        orchestrator.select_driver_for_testing(&epoch_store);
+        assert!(orchestrator.qd_recovery_started_for_testing());
+        // Repeated selections keep the one-shot state.
+        orchestrator.select_driver_for_testing(&epoch_store);
+        assert!(orchestrator.qd_recovery_started_for_testing());
     }
 }

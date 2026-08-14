@@ -54,7 +54,7 @@ pub trait AuthorityAggregatorUpdatable<A>: Send + Sync + 'static {
     fn update_authority_aggregator(&self, new_authorities: Arc<AuthorityAggregator<A>>);
 }
 
-use iota_config::node::NodeConfig;
+use iota_config::validator_client_monitor_config::ValidatorClientMonitorConfig;
 
 /// Options for submitting a transaction.
 #[derive(Clone, Default, Debug)]
@@ -93,6 +93,9 @@ pub struct TransactionDriver<A> {
     submitter: TransactionSubmitter,
     certifier: EffectsCertifier,
     client_monitor: Arc<ValidatorClientMonitor>,
+    /// Whether the P-COOL flow is enabled in the current epoch; latency-ping
+    /// and health-check rounds are skipped while false.
+    pcool_flow_enabled: Arc<dyn Fn() -> bool + Send + Sync>,
 }
 
 impl<A> TransactionDriver<A>
@@ -103,17 +106,15 @@ where
         authority_aggregator: Arc<AuthorityAggregator<A>>,
         reconfig_observer: Arc<dyn ReconfigObserver<A> + Sync + Send>,
         metrics: Arc<TransactionDriverMetrics>,
-        node_config: Option<&NodeConfig>,
+        validator_client_monitor_config: Option<ValidatorClientMonitorConfig>,
         client_metrics: Arc<ValidatorClientMetrics>,
+        pcool_flow_enabled: Arc<dyn Fn() -> bool + Send + Sync>,
     ) -> Arc<Self> {
         let shared_swap = Arc::new(ArcSwap::new(authority_aggregator));
 
-        // Extract validator client monitor config from NodeConfig or use default
-        let monitor_config = node_config
-            .and_then(|nc| nc.validator_client_monitor_config.clone())
-            .unwrap_or_default();
+        let monitor_config = validator_client_monitor_config.unwrap_or_default();
         let client_monitor = Arc::new(ValidatorClientMonitor::new(monitor_config, client_metrics));
-        client_monitor.spawn_health_checks(&shared_swap);
+        client_monitor.spawn_health_checks(&shared_swap, pcool_flow_enabled.clone());
 
         let driver = Arc::new(Self {
             authority_aggregator: shared_swap,
@@ -122,6 +123,7 @@ where
             submitter: TransactionSubmitter::new(metrics.clone()),
             certifier: EffectsCertifier::new(metrics),
             client_monitor,
+            pcool_flow_enabled,
         });
 
         let driver_clone = driver.clone();
@@ -415,6 +417,11 @@ where
 
         loop {
             interval.tick().await;
+
+            // Validators reject pings while the P-COOL flow is disabled.
+            if !(self.pcool_flow_enabled)() {
+                continue;
+            }
 
             let mut tasks = JoinSet::new();
 
