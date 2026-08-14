@@ -20,8 +20,7 @@ use iota_types::{
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     storage::{
         CoinInfo, DynamicFieldIteratorItem, EpochInfoV2, ObjectStore, OwnedObjectCursor,
-        OwnedObjectIteratorItem, PackageVersionIteratorItem, ReadStore, TransactionInfo,
-        error::Result,
+        OwnedObjectIteratorItem, PackageVersionIteratorItem, ReadStore, error::Result,
     },
 };
 
@@ -44,6 +43,15 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
 
     /// Get a handle to an instance of the gRPC indexes.
     fn grpc_indexes(&self) -> Option<&dyn GrpcIndexes>;
+
+    /// The checkpoint that confirmed `digest`, or `None` if this node no
+    /// longer holds the transaction. Answered from the ledger rather than
+    /// the RPC index, so a node retaining fewer index epochs than ledger
+    /// epochs still reports confirmation for every transaction it has.
+    fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> Result<Option<CheckpointSequenceNumber>>;
 
     fn get_type_layout(
         &self,
@@ -75,12 +83,9 @@ pub trait GrpcStateReader: ObjectStore + ReadStore + Send + Sync {
 
 /// GRPC-index-specific queries.
 ///
-/// Provides access to the on-disk indexes needed by the gRPC server:
-/// transaction-to-checkpoint mapping, owned objects, dynamic fields, coin
-/// info, and package versions.
+/// Provides access to the on-disk indexes needed by the gRPC server: owned
+/// objects, dynamic fields, coin info, and package versions.
 pub trait GrpcIndexes: Send + Sync {
-    fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
-
     /// Iterate over objects owned by `owner`, optionally filtered by
     /// `object_type`.
     ///

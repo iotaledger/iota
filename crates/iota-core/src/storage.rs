@@ -636,6 +636,18 @@ impl GrpcStateReader for GrpcReadStore {
         self.grpc_indexes_store().ok().map(|index| index as _)
     }
 
+    fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+        Ok(self
+            .state
+            .get_checkpoint_cache()
+            .try_get_transaction_perpetual_checkpoint(digest)
+            .map_err(iota_types::storage::error::Error::custom)?
+            .map(|(_epoch, checkpoint)| checkpoint))
+    }
+
     fn get_struct_layout(
         &self,
         struct_tag: &StructTag,
