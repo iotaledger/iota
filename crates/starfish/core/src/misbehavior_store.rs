@@ -308,10 +308,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::IncorrectShardProof { .. }
         | ConsensusError::UnrequestedHeaderOutOfWindow { .. }
         | ConsensusError::SerializedShardTooLarge { .. }
-        // A fetched block header other than the one requested. The fetch
-        // client only drops whole response entries and the entry count is
-        // checked before the per-entry references, so a mismatched header is
-        // content the serving peer produced.
+        // A fetched header other than the one requested. Unlike a fetch
+        // shortfall, this is not explainable by response truncation, since
+        // the entry-count check runs before references are compared.
         | ConsensusError::UnexpectedBlockHeaderForCommit { .. } => FaultType::Unprovable,
 
         // Checks that run only after the author's signature is verified, so the
