@@ -684,9 +684,9 @@ pub struct AuthorityPerEpochStore {
 
     /// In-memory cache of signed effects digests. Populated from disk at
     /// startup, updated on insert, and pruned on checkpoint finalization.
-    /// `get_signed_effects_digest` is called on every transaction; this
-    /// avoids a disk read on the hot path where the vast majority of
-    /// lookups return `None`. Writes still go to disk for crash recovery.
+    /// Consulted when reporting effects over RPC to refuse reporting
+    /// effects that differ from previously signed effects. Writes still go
+    /// to disk for crash recovery.
     signed_effects_digests_cache: DashMap<TransactionDigest, TransactionEffectsDigest>,
 
     /// Cancellation token used to signal epoch termination to all in-flight
@@ -799,10 +799,11 @@ pub struct AuthorityEpochTables {
     effects_signatures: DBMap<TransactionDigest, AuthoritySignInfo>,
 
     /// When we sign a TransactionEffects, we must record the digest of the
-    /// effects in order to detect and prevent equivocation when
-    /// re-executing a transaction that may not have been committed to disk.
+    /// effects in order to refuse to sign different effects for the same
+    /// transaction later, e.g. after a re-execution of an uncommitted
+    /// transaction produced divergent results.
     /// Entries are removed from this table after the transaction in question
-    /// has been committed to disk.
+    /// has been committed to a checkpoint.
     signed_effects_digests: DBMap<TransactionDigest, TransactionEffectsDigest>,
 
     /// Signatures of transaction certificates that are executed locally.
@@ -1675,6 +1676,26 @@ impl AuthorityPerEpochStore {
         effects_digest: &TransactionEffectsDigest,
         effects_signature: &AuthoritySignInfo,
     ) -> IotaResult {
+        // The entry guard serializes concurrent signers of the same transaction, so at
+        // most one effects digest can ever be recorded per transaction within an
+        // epoch.
+        match self.signed_effects_digests_cache.entry(*tx_digest) {
+            dashmap::mapref::entry::Entry::Occupied(entry) => {
+                if entry.get() != effects_digest {
+                    return Err(IotaError::GenericAuthority {
+                        error: format!(
+                            "Refusing to report effects for transaction {tx_digest}: effects \
+                             digest {effects_digest} differs from previously signed effects \
+                             digest {}",
+                            entry.get()
+                        ),
+                    });
+                }
+            }
+            dashmap::mapref::entry::Entry::Vacant(entry) => {
+                entry.insert(*effects_digest);
+            }
+        }
         let tables = self.tables()?;
         let mut batch = tables.effects_signatures.batch();
         batch.insert_batch(&tables.effects_signatures, [(tx_digest, effects_signature)])?;
@@ -1683,8 +1704,6 @@ impl AuthorityPerEpochStore {
             [(tx_digest, effects_digest)],
         )?;
         batch.write()?;
-        self.signed_effects_digests_cache
-            .insert(*tx_digest, *effects_digest);
         Ok(())
     }
 
