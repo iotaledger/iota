@@ -271,6 +271,10 @@ mod tests {
                     wrapped_or_deleted_object: Some(Self::OBJECT),
                     ..Default::default()
                 },
+                Self {
+                    affected_address: Some(Self::OBJECT),
+                    ..Default::default()
+                },
             ]
         }
 
