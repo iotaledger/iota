@@ -35,7 +35,7 @@ SUB_PR_PAGE_LIMIT = 10
 # head is one of these is a sync or back-merge (e.g. "merge develop into the
 # feature branch"), not a feature branch: expanding it would claim every PR
 # merged into that branch as part of the feature.
-RE_LONG_LIVED_BRANCH = re.compile(r"^(develop|main|master|devnet|testnet|mainnet)$|^releases?[-/]")
+RE_LONG_LIVED_BRANCH = re.compile(r"^(develop|devnet|testnet|mainnet)$|^releases?[-/]")
 
 RE_NUM = re.compile("[0-9_]+")
 
