@@ -11,23 +11,24 @@ use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig};
 // Additional imports for P-COOL tests
 use iota_sdk_types::{
     Address, Argument, Command, Identifier, ObjectId, ProgrammableTransaction, SplitCoins,
-    Transaction, TransactionDigest,
-    crypto::{Intent, IntentMessage, IntentScope::AuthorityCapabilities},
+    Transaction, TransactionDigest, TransactionEffectsDigest,
+    crypto::{Intent, IntentMessage, IntentScope, IntentScope::AuthorityCapabilities},
 };
 // Additional imports for P-COOL tests
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id, random_object_ref},
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        get_authority_key_pair, get_key_pair,
+        AccountKeyPair, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
+        IotaAuthoritySignature, get_authority_key_pair, get_key_pair,
     },
     error::IotaError,
+    executable_transaction::VerifiedExecutableTransaction,
     messages_checkpoint::CheckpointResponse,
     messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
     messages_grpc::{LayoutGenerationOption, TxStatusUpdate},
     object::Object,
     supported_protocol_versions::SupportedProtocolVersions,
-    transaction::TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, VerifiedTransaction},
     utils::to_sender_signed_transaction,
 };
 use tokio_stream::StreamExt;
@@ -695,6 +696,103 @@ async fn test_v2_submit_tx_already_executed() {
     }
 }
 
+// Test that the already-executed fast path refuses to report effects that
+// contradict effects the validator previously signed for the same
+// transaction.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_submit_tx_refuses_contradicting_previously_signed() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
+        .build()
+        .await;
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
+
+    let tx = Transaction::new_transfer(
+        dbg_addr(2),
+        object.object_ref(),
+        sender,
+        gas.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx, &sender_key);
+    let tx_digest = *tx.digest();
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+        VerifiedTransaction::new_unchecked(tx.clone()),
+        epoch_store.epoch(),
+        1,
+    );
+    let (effects, execution_error) = authority_state
+        .try_execute_immediately(&executable, None, &epoch_store)
+        .unwrap();
+    assert!(execution_error.is_none());
+
+    // Record a signed digest that differs from the executed effects,
+    // simulating divergent re-execution after the effects were signed.
+    let previously_signed_digest = TransactionEffectsDigest::random();
+    assert_ne!(previously_signed_digest, effects.digest());
+    let signature = AuthoritySignInfo::new(
+        epoch_store.epoch(),
+        &effects,
+        Intent::iota_app(IntentScope::TransactionEffects),
+        authority_state.name,
+        &*authority_state.secret,
+    );
+    epoch_store
+        .insert_effects_digest_and_signature(&tx_digest, &previously_signed_digest, &signature)
+        .unwrap();
+
+    let response = validator_service
+        .submit_tx(make_v2_submit_request(vec![tx]))
+        .await
+        .expect("submit_tx should succeed");
+
+    let results = collect_v2_stream(response).await;
+    assert_eq!(results.len(), 1);
+    match &results[0].1 {
+        TxStatusUpdate::Rejected { error } => {
+            assert!(
+                matches!(
+                    error,
+                    IotaError::GenericAuthority { error }
+                        if error.contains("differs from previously signed effects digest")
+                ),
+                "Expected equivocation refusal, got {error:?}"
+            );
+        }
+        other => panic!("Expected Rejected, got {other:?}"),
+    }
+}
+
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_v2_submit_tx_multiple_transactions() {
     telemetry_subscribers::init_for_testing();
@@ -1205,6 +1303,190 @@ async fn test_v2_get_tx_status_already_executed_with_details() {
                 details.is_some(),
                 "details should be present when requested"
             );
+        }
+        other => panic!("Expected Executed, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_get_tx_status_refuses_contradicting_previously_signed() {
+    // If the validator has signed effects for a transaction, get_tx_status
+    // must never acknowledge a different effects digest for it, even though
+    // the acknowledgment is unsigned. Simulates divergent re-execution by
+    // recording a signed digest that differs from the executed effects.
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
+        .build()
+        .await;
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
+
+    let tx = Transaction::new_transfer(
+        dbg_addr(2),
+        object.object_ref(),
+        sender,
+        gas.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx, &sender_key);
+    let tx_digest = *tx.digest();
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+        VerifiedTransaction::new_unchecked(tx),
+        epoch_store.epoch(),
+        1,
+    );
+    let (effects, execution_error) = authority_state
+        .try_execute_immediately(&executable, None, &epoch_store)
+        .unwrap();
+    assert!(execution_error.is_none());
+
+    let previously_signed_digest = TransactionEffectsDigest::random();
+    assert_ne!(previously_signed_digest, effects.digest());
+    let signature = AuthoritySignInfo::new(
+        epoch_store.epoch(),
+        &effects,
+        Intent::iota_app(IntentScope::TransactionEffects),
+        authority_state.name,
+        &*authority_state.secret,
+    );
+    epoch_store
+        .insert_effects_digest_and_signature(&tx_digest, &previously_signed_digest, &signature)
+        .unwrap();
+
+    let response = validator_service
+        .get_tx_status(make_v2_get_tx_status_request(vec![(tx_digest, true)]))
+        .await
+        .expect("get_tx_status should succeed");
+
+    let results = collect_v2_status_stream(response).await;
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].0, tx_digest);
+    match &results[0].1 {
+        TxStatusUpdate::Rejected { error } => {
+            assert!(
+                matches!(
+                    error,
+                    IotaError::GenericAuthority { error }
+                        if error.contains("differs from previously signed effects digest")
+                ),
+                "Expected equivocation refusal, got {error:?}"
+            );
+        }
+        other => panic!("Expected Rejected, got {other:?}"),
+    }
+}
+
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_v2_get_tx_status_allows_matching_previously_signed() {
+    // A previously signed digest that matches the executed effects does not
+    // block get_tx_status. The query is registered before execution so that
+    // the wait path serves it, exercising the equivocation check there.
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let authority_state = TestAuthorityBuilder::new()
+        .with_starting_objects(&[
+            Object::with_id_owner_for_testing(object_id, sender),
+            Object::with_id_owner_for_testing(gas_id, sender),
+        ])
+        .build()
+        .await;
+
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state.clone(),
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas = authority_state.get_object(&gas_id).unwrap();
+
+    let tx = Transaction::new_transfer(
+        dbg_addr(2),
+        object.object_ref(),
+        sender,
+        gas.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+    let tx = to_sender_signed_transaction(tx, &sender_key);
+    let tx_digest = *tx.digest();
+
+    // Register the query before execution so it is served by the wait path.
+    // get_tx_status only spawns the query task; on this single-threaded
+    // runtime it first runs when the test task yields. Blocking on the timer
+    // below hands it the thread: it finds no executed effects yet and parks
+    // on the executed-effects notification, committing it to the wait path
+    // before the transaction executes. With paused time the sleep does not
+    // delay the test; the clock only advances once the query task has parked.
+    let response = validator_service
+        .get_tx_status(make_v2_get_tx_status_request(vec![(tx_digest, true)]))
+        .await
+        .expect("get_tx_status should succeed");
+    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+        VerifiedTransaction::new_unchecked(tx),
+        epoch_store.epoch(),
+        1,
+    );
+    let (effects, execution_error) = authority_state
+        .try_execute_immediately(&executable, None, &epoch_store)
+        .unwrap();
+    assert!(execution_error.is_none());
+    authority_state
+        .sign_effects(effects.clone(), &epoch_store)
+        .unwrap();
+
+    let results = collect_v2_status_stream(response).await;
+    assert_eq!(results.len(), 1);
+    assert_eq!(results[0].0, tx_digest);
+    match &results[0].1 {
+        TxStatusUpdate::Executed { effects_digest, .. } => {
+            assert_eq!(*effects_digest, effects.digest());
         }
         other => panic!("Expected Executed, got {other:?}"),
     }

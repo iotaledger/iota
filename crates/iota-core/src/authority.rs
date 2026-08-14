@@ -255,6 +255,10 @@ pub struct AuthorityMetrics {
     execute_certificate_latency_shared_object: Histogram,
 
     internal_execution_latency: Histogram,
+    /// Number of times the validator refused to report effects (signed or
+    /// unsigned, labeled by RPC surface) because it had previously signed
+    /// different effects for the same transaction.
+    signed_effects_equivocation_prevented: IntCounterVec,
     execution_load_input_objects_latency: Histogram,
     prepare_certificate_latency: Histogram,
     commit_certificate_latency: Histogram,
@@ -487,6 +491,13 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
+            signed_effects_equivocation_prevented: register_int_counter_vec_with_registry!(
+                "authority_state_signed_effects_equivocation_prevented",
+                "Number of times the validator refused to report effects that differ from previously signed effects for the same transaction, by RPC surface",
+                &["surface"],
+                registry,
+            )
+            .unwrap(),
             execution_load_input_objects_latency: register_histogram_with_registry!(
                 "authority_state_execution_load_input_objects_latency",
                 "Latency of loading input objects for execution",
@@ -1473,14 +1484,6 @@ impl AuthorityState {
 
         let (tx_input_objects, per_authenticator_inputs) =
             self.read_objects_for_execution(tx_guard.as_lock_guard(), transaction, epoch_store)?;
-
-        // If no expected_effects_digest was provided, try to get it from storage.
-        // We could be re-executing a previously executed but uncommitted transaction,
-        // perhaps after restarting with a new binary. In this situation, if
-        // we have published an effects signature, we must be sure not to
-        // equivocate.
-        let expected_effects_digest =
-            expected_effects_digest.or(epoch_store.get_signed_effects_digest(tx_digest)?);
 
         self.process_transaction(
             tx_guard,
@@ -4508,6 +4511,47 @@ impl AuthorityState {
         }
     }
 
+    /// A client aggregating effects signatures towards a quorum assumes
+    /// finality once it collects 2f+1 of them, so within an epoch this
+    /// validator must never assert two different effects for the same
+    /// transaction on any RPC surface, signed or unsigned. Executed effects
+    /// can change across a restart if an uncommitted transaction is
+    /// re-executed with divergent results (e.g. by a new binary), so every
+    /// effects-reporting path calls this before returning effects, and
+    /// refuses to contradict a signature that may already be in a client's
+    /// hands.
+    pub fn check_effects_against_previously_signed(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        tx_digest: &TransactionDigest,
+        effects_digest: &TransactionEffectsDigest,
+        surface: &'static str,
+    ) -> IotaResult<()> {
+        if let Some(previously_signed_digest) = epoch_store.get_signed_effects_digest(tx_digest)? {
+            if previously_signed_digest != *effects_digest {
+                self.metrics
+                    .signed_effects_equivocation_prevented
+                    .with_label_values(&[surface])
+                    .inc();
+                error!(
+                    ?tx_digest,
+                    ?previously_signed_digest,
+                    executed_digest = ?effects_digest,
+                    surface,
+                    "refusing to report effects that differ from previously signed effects"
+                );
+                return Err(IotaError::GenericAuthority {
+                    error: format!(
+                        "Refusing to report effects for transaction {tx_digest}: effects digest \
+                         {effects_digest} differs from previously signed effects digest \
+                         {previously_signed_digest}"
+                    ),
+                });
+            }
+        }
+        Ok(())
+    }
+
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn sign_effects(
         &self,
@@ -4515,6 +4559,14 @@ impl AuthorityState {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<VerifiedSignedTransactionEffects> {
         let tx_digest = *effects.transaction_digest();
+
+        self.check_effects_against_previously_signed(
+            epoch_store,
+            &tx_digest,
+            &effects.digest(),
+            "sign_effects",
+        )?;
+
         let signed_effects = match epoch_store.get_effects_signature(&tx_digest)? {
             Some(sig) => {
                 debug_assert!(sig.epoch == epoch_store.epoch());
