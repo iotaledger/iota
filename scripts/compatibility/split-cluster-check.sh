@@ -66,6 +66,14 @@ rm -rf "$IOTA_CONFIG_DIR"
 
 "$WORKING_DIR/iota-localnet-release" genesis --epoch-duration-ms 20000 --committee-size 4
 
+# `genesis` wrote the node config files itself until the release that made
+# `start --write-config` write them instead. Asking for them only when they are
+# missing covers both, and can be made unconditional once RELEASE_COMMIT is at
+# or past that release.
+if [ -z "$(find "$IOTA_CONFIG_DIR" -name "127.0.0.1*.yaml" -print -quit)" ]; then
+  "$WORKING_DIR/iota-localnet-release" start --write-config "$IOTA_CONFIG_DIR"
+fi
+
 LOG_DIR="$WORKING_DIR/logs"
 
 mkdir -p "$LOG_DIR"
