@@ -21,7 +21,9 @@ Transaction pruning removes previous transactions and their effects from the dat
 
 ### Index Pruning
 
-Index pruning drops the expired epochs of the `rpc_indexes` store, the single secondary index store both the JSON-RPC and the gRPC API read from, so older entries are no longer served by index-backed queries (for example `iotax_getBalance()`, dynamic-field lookups, event queries, and gRPC transaction-digest lookups). Without it, the index adds a set of tables per epoch and grows without bound. Index pruning is relevant for every node that maintains the store, which is any node serving the JSON-RPC API (`enable-jsonrpc-api: true`, the default) or the gRPC API (`enable-grpc-api: true`).
+Index pruning drops the expired epochs of the `rpc_indexes` store, the single secondary index store both the JSON-RPC and the gRPC API read from, so older entries are no longer served by index-backed queries (for example `iotax_getBalance()`, dynamic-field lookups, event queries, and owned-object listings). Without it, the index adds a set of tables per epoch and grows without bound. Index pruning is relevant for every node that maintains the store, which is any node serving the JSON-RPC API (`enable-jsonrpc-api: true`, the default) or the gRPC API (`enable-grpc-api: true`).
+
+The index window may be shorter than the checkpoint window, and the only thing that costs is query reach: `iotax_queryTransactionBlocks()` and other query-style endpoints stop returning entries older than the index window, while every transaction the checkpoint window still retains remains fetchable by digest on both APIs and still reports the checkpoint that confirmed it — that answer is read from the ledger, not from the index.
 
 ## Pruning Parameters
 
@@ -51,6 +53,9 @@ authority-store-pruning-config:
   #   N (>= 1) — retains object versions from the last N epochs. Use this when
   #              the node must serve lookups by object ID + version.
   #   u64::MAX — disables object pruning entirely (18446744073709551615).
+  # Must not exceed num-epochs-to-retain-for-checkpoints below, or the
+  # objects pruner fails when it reaches a checkpoint whose contents were
+  # already deleted.
   num-epochs-to-retain: 0
 
   # Number of epochs to keep historic transactions, effects, events, and
@@ -71,6 +76,12 @@ authority-store-pruning-config:
   #   0        — rejected at startup: the running epoch's history is written
   #              whatever the retention, because checkpoint ingest reads its
   #              transaction digests.
+  # May be shorter than num-epochs-to-retain-for-checkpoints above — the
+  # only cost is query reach, since every retained transaction stays
+  # fetchable by digest and still reports its checkpoint regardless of
+  # index retention. Should not exceed it, though, or
+  # iotax_queryTransactionBlocks() returns transactions that can no longer
+  # be fetched.
   # num-epochs-to-retain-for-indexes: 2
 
   # Number of recent per-epoch RocksDB databases to keep. Default: 3.
