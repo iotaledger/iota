@@ -928,7 +928,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::{
         Round,
-        block_header::BlockHeaderDigest,
+        block_header::{BlockHeaderDigest, TestBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::{CommitV1, CommitV2, CommitV3},
         network::BlockBundleStream,
@@ -1247,5 +1247,84 @@ pub(crate) mod tests {
         // Never divides by zero, even though the fetch paths reject empty
         // responses before reaching this point.
         assert_eq!(shortfall_factor(10, 0), 10.0);
+    }
+
+    /// `n` distinct serialized test headers and their refs.
+    fn test_headers(n: u8) -> (Vec<BlockRef>, Vec<Bytes>) {
+        (0..n)
+            .map(|i| {
+                let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, i).build());
+                (header.reference(), header.serialized().clone())
+            })
+            .unzip()
+    }
+
+    #[test]
+    fn verify_fetched_headers_accepts_exact_set_in_any_order() {
+        let (refs, mut headers) = test_headers(3);
+        headers.swap(0, 2);
+        let verified =
+            verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, headers).unwrap();
+        assert_eq!(verified.len(), 3);
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_unrequested_header() {
+        let (refs, headers) = test_headers(3);
+        let response = vec![headers[0].clone(), headers[2].clone()];
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs[..2], response);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::UnexpectedBlockHeaderForCommit { .. })
+        ));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_duplicate_header() {
+        let (refs, headers) = test_headers(2);
+        let response = vec![headers[0].clone(), headers[0].clone()];
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, response);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::UnexpectedBlockHeaderForCommit { .. })
+        ));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_malformed_header() {
+        let (refs, headers) = test_headers(2);
+        let response = vec![headers[0].clone(), Bytes::from_static(b"garbage")];
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, response);
+        assert!(matches!(result, Err(ConsensusError::MalformedHeader(_))));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_extra_headers_before_parsing() {
+        let (refs, mut headers) = test_headers(2);
+        headers.push(Bytes::from_static(b"garbage"));
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, headers);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyFetchedHeadersReturned {
+                requested: 2,
+                received: 3,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_missing_headers() {
+        let (refs, mut headers) = test_headers(2);
+        headers.truncate(1);
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, headers);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::NotEnoughHeadersFetched {
+                requested: 2,
+                received: 1,
+                ..
+            })
+        ));
     }
 }

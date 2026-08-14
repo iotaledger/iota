@@ -1299,6 +1299,19 @@ mod tests {
             (err, inner)
         }
 
+        /// Asserts the peers' unprovable fault counts and that no provable
+        /// fault was recorded.
+        fn assert_unprovable_faults(inner: &Inner<FakeNetworkClient>, expected: Vec<u64>) {
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                expected
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
+            );
+        }
+
         /// An entry referencing a transaction no commit in the range commits
         /// to is charged to the serving peer.
         #[tokio::test]
@@ -1333,14 +1346,7 @@ mod tests {
                 matches!(err, ConsensusError::UnexpectedTransactionForCommit { .. }),
                 "unexpected error: {err:?}"
             );
-            assert_eq!(
-                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
-                vec![0, 1, 0, 0]
-            );
-            assert_eq!(
-                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
-                vec![0; 4]
-            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
         }
 
         /// An entry that does not deserialize is charged to the serving peer.
@@ -1357,14 +1363,7 @@ mod tests {
                 matches!(err, ConsensusError::MalformedTransactions(_)),
                 "unexpected error: {err:?}"
             );
-            assert_eq!(
-                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
-                vec![0, 1, 0, 0]
-            );
-            assert_eq!(
-                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
-                vec![0; 4]
-            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
         }
 
         /// A payload that fails the commitment of the ref it is paired with
@@ -1393,14 +1392,7 @@ mod tests {
                 matches!(err, ConsensusError::TransactionCommitmentFailure { .. }),
                 "unexpected error: {err:?}"
             );
-            assert_eq!(
-                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
-                vec![0, 1, 0, 0]
-            );
-            assert_eq!(
-                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
-                vec![0; 4]
-            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
         }
 
         /// A response with no transactions fails the fetch but records no
@@ -1416,14 +1408,7 @@ mod tests {
                 matches!(err, ConsensusError::FetchedTransactionsMismatch { .. }),
                 "unexpected error: {err:?}"
             );
-            assert_eq!(
-                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
-                vec![0; 4]
-            );
-            assert_eq!(
-                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
-                vec![0; 4]
-            );
+            assert_unprovable_faults(&inner, vec![0; 4]);
         }
     }
 
