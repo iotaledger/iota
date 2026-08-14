@@ -144,14 +144,10 @@ impl CommitSyncType {
     }
 }
 
-/// Verifies that the fetched block headers are exactly the requested ones, in
-/// any order. The requested refs are distinct by construction (each header is
-/// committed once), so each received header must consume one of them: a header
-/// outside the requested set — or served twice — is an error attributed to the
-/// peer. Missing headers are a shortfall error instead, since an honest
-/// response can arrive incomplete (the server omits headers it lacks, the
-/// client cuts the stream at its byte cap). A response with more entries than
-/// requested is rejected before spending any parsing work on it.
+/// Verifies that the fetched headers are exactly the requested ones, in any
+/// order. Unrequested or duplicate headers are peer faults; missing headers
+/// are benign, since an honest response can arrive incomplete. Requested refs
+/// must be distinct, which holds by construction (a header is committed once).
 pub(crate) fn verify_fetched_headers(
     peer: AuthorityIndex,
     request_block_refs: &[BlockRef],

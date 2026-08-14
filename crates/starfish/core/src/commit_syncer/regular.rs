@@ -590,9 +590,6 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         )
                         .await?;
                     // 5. Verify the returned headers are the requested ones.
-                    // Classification charges the peer for malformed or
-                    // unrequested headers and leaves a short response
-                    // untracked, since an honest one can arrive incomplete.
                     verify_fetched_headers(
                         target_authority,
                         request_block_refs,
@@ -661,11 +658,9 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         // directly
                         let mut result = BTreeMap::new();
                         for serialized_bytes in serialized_transactions {
-                            // A malformed or unrequested entry is content the
-                            // serving peer produced (truncation only drops
-                            // whole entries), but it can't be proven against an
-                            // author, so the peer is charged an unprovable
-                            // fault.
+                            // Truncation only drops whole entries, so a
+                            // malformed or unrequested entry is the peer's own
+                            // content.
                             let serialized_tx: SerializedTransactionsV2 =
                                 bcs::from_bytes(&serialized_bytes)
                                     .inspect_err(|_| {
@@ -741,9 +736,8 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                 .await
                 .expect("Spawn blocking should not fail")
                 .inspect_err(|_| {
-                    // The peer served a payload that fails verification against
-                    // its own claimed ref; the mismatch can't be proven against
-                    // the author, whose commitment the peer may have forged.
+                    // Not provable against the author, whose commitment the
+                    // peer may have forged.
                     inner.misbehavior_store.record_faulty_transactions(
                         target_authority,
                         false,
@@ -1250,9 +1244,8 @@ mod tests {
             (result, inner)
         }
 
-        /// A response missing some transactions is tolerated — the
-        /// transaction synchronizer fetches them later — and records no
-        /// misbehavior.
+        /// Missing transactions are tolerated (the transaction synchronizer
+        /// fetches them later) and record no misbehavior.
         #[tokio::test]
         async fn tolerates_missing_transactions_without_misbehavior() {
             let context = Arc::new(Context::new_for_test(4).0);
@@ -1275,8 +1268,7 @@ mod tests {
         }
 
         /// An entry referencing a transaction that was not requested is
-        /// content the serving peer produced, so the peer is charged an
-        /// unprovable fault.
+        /// charged to the serving peer.
         #[tokio::test]
         async fn records_misbehavior_for_unrequested_transaction() {
             let context = Arc::new(Context::new_for_test(4).0);
@@ -1427,9 +1419,8 @@ mod tests {
             );
         }
 
-        /// A response missing a header fails the fetch (the commits cannot be
-        /// certified without it) but records no misbehavior, since an honest
-        /// response can arrive incomplete.
+        /// A response missing a header fails the fetch but records no
+        /// misbehavior, since an honest response can arrive incomplete.
         #[tokio::test]
         async fn does_not_record_misbehavior_for_missing_headers() {
             let context = Arc::new(Context::new_for_test(4).0);

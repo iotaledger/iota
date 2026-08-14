@@ -643,10 +643,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             &mut committed_tx_refs,
         )
         .inspect_err(|_| {
-            // A malformed or uncommitted entry is content the serving peer
-            // produced (truncation only drops whole entries), but it can't be
-            // proven against an author, so the peer is charged an unprovable
-            // fault.
+            // Truncation only drops whole entries, so a malformed or
+            // uncommitted entry is the peer's own content.
             inner.misbehavior_store.record_faulty_transactions(
                 target_authority,
                 false,
@@ -700,9 +698,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .await
                 .expect("Spawn blocking should not fail")
                 .inspect_err(|_| {
-                    // The peer served a payload that fails verification against
-                    // its own claimed ref; the mismatch can't be proven against
-                    // the author, whose commitment the peer may have forged.
+                    // Not provable against the author, whose commitment the
+                    // peer may have forged.
                     inner.misbehavior_store.record_faulty_transactions(
                         target_authority,
                         false,
@@ -890,10 +887,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 break;
                             }
                             Err(e) => {
-                                // Classification charges the peer for malformed
-                                // or unrequested headers and leaves a short
-                                // response untracked, since an honest one can
-                                // arrive incomplete.
                                 inner
                                     .misbehavior_store
                                     .record_faulty_block(authority, authority, &e);
@@ -1011,10 +1004,8 @@ fn process_serialized_transactions(
 /// so any prefix of them remains trusted on its own.
 ///
 /// Returns an error naming `peer` when even the first commit is missing
-/// transactions, since the response then allows no forward progress. The error
-/// is not recorded as peer misbehavior: the fetch client caps response bytes
-/// and keeps partial data on mid-stream errors, so an honest response can be
-/// cut down to any prefix, including an empty one.
+/// transactions, since the response then allows no forward progress. Not
+/// recorded as misbehavior: an honest response can be cut to any prefix.
 fn truncate_to_fully_fetched_prefix(
     peer: AuthorityIndex,
     commits: &mut Vec<TrustedCommit>,
@@ -1309,8 +1300,7 @@ mod tests {
         }
 
         /// An entry referencing a transaction no commit in the range commits
-        /// to is content the serving peer produced, so the peer is charged an
-        /// unprovable fault.
+        /// to is charged to the serving peer.
         #[tokio::test]
         async fn records_misbehavior_for_unrequested_transaction() {
             let context = fast_sync_context();
@@ -1353,9 +1343,7 @@ mod tests {
             );
         }
 
-        /// An entry that does not deserialize is content the serving peer
-        /// produced — truncation only drops whole entries — so the peer is
-        /// charged an unprovable fault.
+        /// An entry that does not deserialize is charged to the serving peer.
         #[tokio::test]
         async fn records_misbehavior_for_malformed_transaction_entry() {
             let context = fast_sync_context();
@@ -1415,9 +1403,8 @@ mod tests {
             );
         }
 
-        /// A response with no transactions at all is indistinguishable from
-        /// one cut down by the client's byte cap or a mid-stream error, so it
-        /// fails the fetch without recording misbehavior.
+        /// A response with no transactions fails the fetch but records no
+        /// misbehavior, since an honest response can arrive incomplete.
         #[tokio::test]
         async fn does_not_record_misbehavior_for_missing_transactions() {
             let context = fast_sync_context();

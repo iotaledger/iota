@@ -296,6 +296,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::DeserializationFailure(_)
         | ConsensusError::SerializedTransactionsTooLarge { .. }
         | ConsensusError::TransactionCommitmentFailure { .. }
+        | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
         // Corrupt or invalid relayed bundle parts (framing, additional-header
         // round, and shard structure/proof). We know which peer relayed them
         // but can't tie them to a verified author.
@@ -304,9 +305,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TooBigShardRoundInABundle { .. }
         | ConsensusError::IncorrectShardProof { .. }
         | ConsensusError::UnrequestedHeaderOutOfWindow { .. }
-        | ConsensusError::SerializedShardTooLarge { .. }
-        // A fetched header outside the requested set, or served twice.
-        | ConsensusError::UnexpectedBlockHeaderForCommit { .. } => FaultType::Unprovable,
+        | ConsensusError::SerializedShardTooLarge { .. } => FaultType::Unprovable,
 
         // Checks that run only after the author's signature is verified, so the
         // signed header itself proves the author produced a block that violates
@@ -341,8 +340,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedGenesisRequested { .. }
         | ConsensusError::UnexpectedNumberOfHeadersFetched { .. }
         | ConsensusError::UnexpectedLastOwnHeader { .. }
-        // Recorded against the serving peer at the fetch sites via
-        // `record_faulty_transactions`, so deliberately not tracked again here.
+        // Transaction fetch faults, recorded against the serving peer at the
+        // fetch sites via `record_faulty_transactions` — deliberately not
+        // tracked again here.
         | ConsensusError::TooManyFetchedTransactionsReturned(_)
         | ConsensusError::UnrequestedTransactionFetched { .. }
         | ConsensusError::UnexpectedTransactionForCommit { .. }
