@@ -232,6 +232,10 @@ pub enum LocalnetCommand {
         /// Start the network without a fullnode
         #[arg(long)]
         no_full_node: bool,
+        /// Keep the fullnode's full history instead of pruning old object
+        /// versions and checkpoints.
+        #[arg(long, conflicts_with = "no_full_node")]
+        disable_fullnode_pruning: bool,
         /// Set the number of validators in the network.
         /// If a genesis was already generated with a specific number of
         /// validators, this will not override it; the user should recreate the
@@ -308,6 +312,7 @@ impl LocalnetCommand {
                 #[cfg(feature = "indexer")]
                 data_ingestion_dir,
                 no_full_node,
+                disable_fullnode_pruning,
                 committee_size,
                 epoch_duration_ms,
             } => {
@@ -325,6 +330,7 @@ impl LocalnetCommand {
                     #[cfg(feature = "indexer")]
                     data_ingestion_dir,
                     no_full_node,
+                    disable_fullnode_pruning,
                     committee_size,
                 )
                 .await
@@ -374,6 +380,7 @@ async fn start(
     fullnode_rpc_port: u16,
     #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
+    disable_fullnode_pruning: bool,
     committee_size: Option<usize>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
@@ -424,6 +431,10 @@ async fn start(
     let config_path = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
 
     let mut swarm_builder = Swarm::builder();
+
+    if disable_fullnode_pruning {
+        swarm_builder = swarm_builder.with_disable_fullnode_pruning();
+    }
 
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
