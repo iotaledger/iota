@@ -1012,10 +1012,10 @@ impl IotaClientCommands {
                 let upgrade_ticket = builder
                     .move_call(Address::FRAMEWORK, "package", "authorize_upgrade")
                     .arguments((upgrade_capability, upgrade_policy, package_data.digest))
-                    .arg();
+                    .result();
                 let upgrade_receipt = builder
                     .upgrade(package_id, package_data, upgrade_ticket)
-                    .arg();
+                    .result();
                 builder
                     .move_call(Address::FRAMEWORK, "package", "commit_upgrade")
                     .arguments((upgrade_capability, upgrade_receipt));
@@ -1137,7 +1137,7 @@ impl IotaClientCommands {
 
                 let grpc_client = context.get_grpc_client().await?;
                 let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
-                let upgrade_cap = builder.publish(package_data).arg();
+                let upgrade_cap = builder.publish(package_data).result();
                 builder.transfer_objects(sender, [upgrade_cap]);
                 let tx_kind = builder.finish_kind().await?;
 

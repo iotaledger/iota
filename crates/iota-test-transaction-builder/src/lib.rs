@@ -893,7 +893,7 @@ pub async fn split_coin_equal_tx(
     // Split off the new coin and transfer it back to the sender; an untransferred
     // `Coin` would be an unused PTB value (coins have no `drop`) and the
     // transaction would be rejected.
-    let new_coin = builder.split_coins(coin_to_split, split_amounts).arg();
+    let new_coin = builder.split_coins(coin_to_split, split_amounts).result();
     builder.transfer_objects(sender, [new_coin]);
 
     if let Some(gas) = gas_coin {
