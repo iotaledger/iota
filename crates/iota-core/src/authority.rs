@@ -1092,6 +1092,13 @@ impl AuthorityState {
         // anything reported to callers must be collected before this point.
         let pre_consensus_move_authenticators =
             pre_consensus_move_authenticators(transaction, protocol_config);
+        // Asserted before the zip below pairs them positionally; the two lists
+        // come from independent computations.
+        debug_assert_eq!(
+            move_authenticators.len(),
+            per_authenticator_checked_inputs.len(),
+            "Move authenticators amount must match the number of checked authenticator inputs"
+        );
         let (pre_consensus_authenticators, pre_consensus_authenticator_checked_inputs): (
             Vec<_>,
             Vec<_>,
@@ -1113,12 +1120,6 @@ impl AuthorityState {
                 iota_transaction_checks::aggregate_authenticator_input_objects(
                     &pre_consensus_authenticator_checked_input_objects,
                 )?;
-
-            debug_assert_eq!(
-                pre_consensus_authenticators.len(),
-                pre_consensus_authenticator_checked_inputs.len(),
-                "Move authenticators amount must match the number of checked authenticator inputs"
-            );
 
             let move_authenticators = pre_consensus_authenticators
                 .into_iter()

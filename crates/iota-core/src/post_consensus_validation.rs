@@ -465,8 +465,9 @@ fn extract_owned_input_objects(
     };
 
     // Use SenderSignedTransaction::input_objects() rather than
-    // Transaction::input_objects() to also include any owned objects
-    // that may come from MoveAuthenticator signatures in the future.
+    // Transaction::input_objects() to also include objects coming from
+    // MoveAuthenticator signatures; the lock-subset argument at the
+    // acquisition site relies on them being merged in here.
     let owned_objects = transaction_data
         .input_objects()?
         .into_iter()

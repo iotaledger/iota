@@ -2145,7 +2145,7 @@ impl ImmutableInputSetup {
 /// An immutable object is read-only and cannot be double-spent, so referencing
 /// it must not acquire an owned-object lock: any number of transactions in the
 /// same epoch may take it as an input (issue #12602).
-#[sim_test]
+#[tokio::test]
 async fn test_immutable_object_input_not_locked() {
     telemetry_subscribers::init_for_testing();
     let s = setup_immutable_input(true).await;
@@ -2174,7 +2174,7 @@ async fn test_immutable_object_input_not_locked() {
 
 /// The gate itself: with the flag off, the first reader locks the immutable
 /// object and the second is dropped against it.
-#[sim_test]
+#[tokio::test]
 async fn test_immutable_object_input_locked_when_flag_disabled() {
     telemetry_subscribers::init_for_testing();
     let s = setup_immutable_input(false).await;
@@ -2203,7 +2203,7 @@ async fn test_immutable_object_input_locked_when_flag_disabled() {
 /// effects, so it locks the owned inputs it consumed and leaves the immutable
 /// input free. A later reader of the same immutable object is then kept
 /// instead of hitting the winner-out-locked `fatal!`.
-#[sim_test]
+#[tokio::test]
 async fn test_already_executed_tx_does_not_lock_immutable_input() {
     telemetry_subscribers::init_for_testing();
     let s = setup_immutable_input(true).await;
