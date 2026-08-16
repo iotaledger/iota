@@ -293,8 +293,8 @@ async fn test_start() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-/// The deterministic port layout must leave every node its own IP, which the
-/// simulator hands out one per node and panics on if two nodes share one.
+/// The simulator panics when two nodes share an IP, so a second validator
+/// catches a layout that pins addresses instead of ports.
 #[sim_test]
 async fn start_works_with_a_committee_of_two() -> Result<(), anyhow::Error> {
     let tmp_dir = iota_common::tempdir();

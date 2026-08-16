@@ -57,12 +57,11 @@ const DEFAULT_GRPC_PORT: u16 = 50051;
 const DEFAULT_GRAPHQL_PORT: u16 = 9125;
 #[cfg(feature = "indexer")]
 const DEFAULT_INDEXER_PORT: u16 = 9124;
-/// The fullnode's metrics port on 127.0.0.1. Its admin interface takes the
-/// next port and its p2p address the one after that.
+/// Port base of the fullnode layout, see
+/// [`FullnodeConfigBuilder::with_deterministic_ports`].
 const FULLNODE_PORT_BASE: u16 = 9184;
-/// First port of the validator layout on 127.0.0.1: validator `i` takes the
-/// ten ports starting at `VALIDATOR_PORT_BASE + 10 * i`, of which the first
-/// five are its network, p2p, metrics, primary and admin interface addresses.
+/// Port base of the validator layout, see
+/// [`ConfigBuilder::with_deterministic_ports`].
 const VALIDATOR_PORT_BASE: u16 = 9200;
 
 #[cfg(feature = "indexer")]

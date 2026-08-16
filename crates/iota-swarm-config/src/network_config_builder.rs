@@ -50,9 +50,6 @@ pub enum CommitteeConfig {
     Deterministic((NonZeroUsize, Option<Vec<AccountKeyPair>>)),
 }
 
-/// Give the validator at `index` its fixed ports on the address it would get
-/// anyway, and bind its metrics endpoint on localhost, which the deterministic
-/// layout otherwise binds on all interfaces.
 fn place_on_deterministic_ports(
     builder: ValidatorGenesisConfigBuilder,
     port_base: u16,
@@ -199,6 +196,10 @@ impl<R> ConfigBuilder<R> {
     /// ones: validator `i` takes the ten ports starting at `port_base + 10 *
     /// i`, of which the first five are its network, p2p, metrics, primary and
     /// admin interface addresses.
+    ///
+    /// Only the ports are fixed: every address keeps the IP its validator
+    /// would have used anyway, except the metrics endpoint, which binds
+    /// localhost.
     ///
     /// Has no effect on `CommitteeConfig::Validators`, whose addresses come
     /// from the caller, or on `CommitteeConfig::Deterministic`, which lays out

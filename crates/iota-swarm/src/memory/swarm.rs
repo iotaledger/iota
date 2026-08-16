@@ -181,10 +181,8 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    /// Give every generated validator fixed ports instead of currently-free
-    /// ones: validator `i` takes the ten ports starting at `port_base + 10 *
-    /// i`, of which the first five are its network, p2p, metrics, primary and
-    /// admin interface addresses.
+    /// Lay the generated validators out as
+    /// [`ConfigBuilder::with_deterministic_ports`] describes.
     ///
     /// Has no effect when the validators come from a network config or from
     /// `with_validators`.
@@ -193,10 +191,8 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    /// Give the first fullnode fixed ports instead of currently-free ones:
-    /// `port_base` for the metrics endpoint, `port_base + 1` for the admin
-    /// interface and `port_base + 2` for p2p, all on the fullnode's own
-    /// address.
+    /// Lay the first fullnode out as
+    /// [`FullnodeConfigBuilder::with_deterministic_ports`] describes.
     ///
     /// Further fullnodes keep currently-free ports, since the three addresses
     /// can only be used once.
@@ -816,9 +812,6 @@ mod test {
         println!("hello");
     }
 
-    /// The layout owns the ports only: every address stays on the IP its node
-    /// would have used anyway, which is localhost outside the simulator and one
-    /// address per node inside it.
     #[test]
     fn deterministic_ports_reach_the_node_configs() {
         let swarm = Swarm::builder()

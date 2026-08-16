@@ -112,8 +112,6 @@ pub struct ValidatorGenesisConfigBuilder {
     /// Whether to use a specific p2p listen ip address. This is useful for
     /// testing on AWS.
     p2p_listen_ip_address: Option<IpAddr>,
-    /// Which ip the metrics endpoint binds. Defaults to all interfaces with
-    /// deterministic ports and to localhost otherwise.
     metrics_ip_address: Option<IpAddr>,
 }
 

@@ -737,9 +737,6 @@ mod tests {
 
     use super::{FullnodeConfigBuilder, Genesis};
 
-    /// The layout owns the ports only: the addresses stay on the IP the
-    /// fullnode would have used anyway, which is localhost outside the
-    /// simulator and one address of its own inside it.
     #[test]
     fn deterministic_ports_fill_the_three_slots_of_a_fullnode() {
         let config = FullnodeConfigBuilder::new()
