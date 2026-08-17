@@ -50,6 +50,7 @@ use crate::{
         authority_store_tables::TotalIotaSupplyCheck,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
+        historic_objects::{HistoricObjects, HistoricObjectsBucket},
     },
     global_state_hasher::GlobalStateHashStore,
     transaction_outputs::TransactionOutputs,
@@ -129,6 +130,11 @@ pub struct AuthorityStore {
     mutex_table: MutexTable<ObjectDigest>,
 
     pub(crate) perpetual_tables: Arc<AuthorityPerpetualTables>,
+
+    /// Object versions superseded by executed transactions, relocated out of
+    /// the live `objects` table in the same batch that commits those
+    /// transactions.
+    historic_objects: Arc<HistoricObjects>,
 
     pub(crate) root_state_notify_read:
         NotifyRead<EpochId, (CheckpointSequenceNumber, GlobalStateHash)>,
@@ -246,9 +252,12 @@ impl AuthorityStore {
         registry: &Registry,
         migration_tx_data: Option<&MigrationTxData>,
     ) -> IotaResult<Arc<Self>> {
+        let historic_objects =
+            Arc::new(HistoricObjects::open(perpetual_tables.objects.db.clone())?);
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
             perpetual_tables,
+            historic_objects,
             root_state_notify_read: NotifyRead::<
                 EpochId,
                 (CheckpointSequenceNumber, GlobalStateHash),
@@ -355,9 +364,12 @@ impl AuthorityStore {
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
     ) -> IotaResult<Arc<Self>> {
+        let historic_objects =
+            Arc::new(HistoricObjects::open(perpetual_tables.objects.db.clone())?);
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
             perpetual_tables,
+            historic_objects,
             root_state_notify_read: NotifyRead::<
                 EpochId,
                 (CheckpointSequenceNumber, GlobalStateHash),
@@ -366,6 +378,12 @@ impl AuthorityStore {
             metrics: AuthorityStoreMetrics::new(registry),
         });
         Ok(store)
+    }
+
+    /// The object versions this store's transactions superseded, bucketed by
+    /// the epoch that superseded them.
+    pub fn get_historic_objects(&self) -> &Arc<HistoricObjects> {
+        &self.historic_objects
     }
 
     pub fn get_recovery_epoch_at_restart(&self) -> IotaResult<EpochId> {
@@ -767,6 +785,10 @@ impl AuthorityStore {
     /// `checkpoint_sequence_number` is stamped onto each newly written object's
     /// `StoreObjectValueV2.previous_transaction_checkpoint` field.
     ///
+    /// The versions these transactions superseded leave the live `objects`
+    /// table in this same batch and arrive in `epoch_id`'s historic bucket, so
+    /// no reader can observe them in neither table.
+    ///
     /// **Invariant** Every `TransactionOutputs` in `tx_outputs` must belong to
     /// the checkpoint identified by `checkpoint_sequence_number`.
     #[instrument(level = "debug", skip_all)]
@@ -781,12 +803,14 @@ impl AuthorityStore {
             written.extend(outputs.written.values().cloned());
         }
 
+        let historic_bucket = self.historic_objects.ensure(epoch_id)?;
         let mut write_batch = self.perpetual_tables.transactions.batch();
         for outputs in tx_outputs {
             self.write_one_transaction_outputs(
                 &mut write_batch,
                 epoch_id,
                 checkpoint_sequence_number,
+                &historic_bucket,
                 outputs,
             )?;
         }
@@ -812,6 +836,7 @@ impl AuthorityStore {
         write_batch: &mut DBBatch,
         epoch_id: EpochId,
         checkpoint_sequence_number: CheckpointSequenceNumber,
+        historic_bucket: &HistoricObjectsBucket,
         tx_outputs: &TransactionOutputs,
     ) -> IotaResult {
         let TransactionOutputs {
@@ -824,6 +849,7 @@ impl AuthorityStore {
             events,
             live_object_markers_to_delete,
             new_live_object_markers_to_init,
+            superseded,
             ..
         } = tx_outputs;
 
@@ -863,6 +889,23 @@ impl AuthorityStore {
         });
 
         write_batch.insert_batch(&self.perpetual_tables.objects, new_objects)?;
+
+        // Relocate the versions this transaction superseded into the epoch's
+        // historic bucket. The insert and the delete join the batch that
+        // carries the transaction's own outputs, so a crash can leave a
+        // version in the live table or in the bucket, never in neither.
+        // The deletes follow the inserts above because an earlier transaction
+        // of the same batch may have written the very version superseded here.
+        write_batch.insert_batch_tagged(
+            &historic_bucket.objects,
+            superseded
+                .iter()
+                .map(|(key, object)| (*key, object.clone())),
+        )?;
+        write_batch.delete_batch(
+            &self.perpetual_tables.objects,
+            superseded.iter().map(|(key, _)| *key),
+        )?;
 
         // Write events into the new table keyed off of transaction_digest
         if effects.events_digest().is_some() {

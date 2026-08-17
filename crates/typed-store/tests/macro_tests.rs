@@ -4,14 +4,20 @@
 
 #![allow(dead_code)]
 
-use std::{borrow::Borrow, collections::HashSet, fmt::Debug, sync::Mutex, time::Duration};
+use std::{
+    borrow::Borrow,
+    collections::{BTreeMap, HashSet},
+    fmt::Debug,
+    sync::Mutex,
+    time::Duration,
+};
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use typed_store::{
     DBMapUtils, be_fix_int_ser,
     metrics::SamplingInterval,
-    rocks::{DBMap, MetricConf},
+    rocks::{DBMap, DBMapTableConfigMap, MetricConf, default_db_options},
     traits::Map,
 };
 
@@ -534,6 +540,26 @@ fn another_custom_fn_name() -> typed_store::rocks::DBOptions {
     TABLE2_OPTIONS_SET_FLAG.lock().unwrap().push(false);
     TABLE2_OPTIONS_SET_FLAG.lock().unwrap().push(false);
     typed_store::rocks::DBOptions::default()
+}
+
+/// A column family the caller manages itself, named in the options override
+/// but not a field of the struct, is opened together with the struct's own
+/// tables instead of being left to rocksdb's defaults.
+#[tokio::test]
+async fn open_tables_read_write_opens_column_families_outside_the_struct() {
+    let tmp_dir = iota_common::tempdir();
+    let table_options = DBMapTableConfigMap::new(BTreeMap::from([(
+        "outside".to_string(),
+        default_db_options().optimize_for_write_throughput(),
+    )]));
+    let tables = Tables::open_tables_read_write(
+        tmp_dir.path().to_path_buf(),
+        MetricConf::default(),
+        None,
+        Some(table_options),
+    );
+
+    assert!(tables.table1.db.cf_handle("outside").is_some());
 }
 
 /// We show that custom functions can be applied

@@ -148,6 +148,7 @@ use crate::{
             AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING, ObjectRetentionGuard,
         },
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
+        historic_objects::HistoricObjects,
         shared_object_version_manager::{AssignedVersions, Schedulable},
     },
     authority_client::NetworkAuthorityClient,
@@ -3074,6 +3075,12 @@ impl AuthorityState {
         &self.authority_per_epoch_pruner
     }
 
+    /// The object versions this authority's transactions superseded, bucketed
+    /// by the epoch that superseded them.
+    pub fn get_historic_objects(&self) -> &Arc<HistoricObjects> {
+        &self.historic_objects
+    }
+
     // TODO: Consolidate our traits to reduce the number of methods here.
     pub fn get_object_cache_reader(&self) -> &Arc<dyn ObjectCacheRead> {
         &self.execution_cache_trait_pointers.object_cache_reader
@@ -3362,6 +3369,11 @@ impl AuthorityState {
             .await;
 
         let new_epoch = new_committee.epoch;
+        // Create the new epoch's historic-object bucket while execution is
+        // stopped: creating a column family is a blocking RocksDB operation,
+        // and the first checkpoint commit of the epoch would otherwise wait
+        // for it.
+        self.historic_objects.ensure(new_epoch)?;
         let new_epoch_store = self
             .reopen_epoch_db(
                 cur_epoch_store,
