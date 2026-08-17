@@ -621,7 +621,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         .max_transactions_per_commit_sync_fetch,
                 )
                 .enumerate()
-                .map(|(i, request_block_refs)| {
+                .map(|(i, request_tx_refs)| {
                     let inner = inner.clone();
                     async move {
                         // 9. Send out pipelined fetch requests to avoid overloading the target
@@ -631,11 +631,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         sleep(individual_delay * i as u32 + individual_delay / 2).await;
                         let serialized_transactions = inner
                             .network_client
-                            .fetch_transactions(
-                                target_authority,
-                                request_block_refs.to_vec(),
-                                timeout,
-                            )
+                            .fetch_transactions(target_authority, request_tx_refs.to_vec(), timeout)
                             .await?;
 
                         // 10. Verify that the number of returned transactions is not greater than
@@ -644,13 +640,13 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         //     headers. We don't want to fail the whole fetch in this case.
                         //     TransactionSynchronizer will take care of fetching missing
                         //     transactions later.
-                        if request_block_refs.len() < serialized_transactions.len() {
+                        if request_tx_refs.len() < serialized_transactions.len() {
                             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                                 target_authority,
                             ));
                         }
                         let requested_tx_refs_set: BTreeSet<_> =
-                            request_block_refs.iter().cloned().collect();
+                            request_tx_refs.iter().cloned().collect();
                         // Deserialize to extract the TransactionRef and build a map
                         // directly
                         let mut result = BTreeMap::new();

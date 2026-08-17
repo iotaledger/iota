@@ -1875,7 +1875,7 @@ mod tests {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<TransactionRef>,
+            _transaction_refs: Vec<TransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -4062,7 +4062,7 @@ mod tests {
             all_block_headers.push(dag_builder.block_headers(round..=round));
         }
 
-        let mut block_refs_to_request_first_batch: Vec<TransactionRef> = (1..=rounds)
+        let mut tx_refs_to_request_first_batch: Vec<TransactionRef> = (1..=rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
@@ -4070,7 +4070,7 @@ mod tests {
             })
             .collect();
 
-        let mut block_refs_to_request_second_batch: Vec<TransactionRef> = (rounds + 1..=2 * rounds)
+        let mut tx_refs_to_request_second_batch: Vec<TransactionRef> = (rounds + 1..=2 * rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
@@ -4082,13 +4082,13 @@ mod tests {
         let serialized_transactions = authority_service
             .handle_fetch_transactions(
                 peer,
-                block_refs_to_request_first_batch.clone(),
+                tx_refs_to_request_first_batch.clone(),
                 TransactionFetchMode::TransactionSync,
             )
             .await
             .expect("We should expect a correct return of serialized transactions");
 
-        block_refs_to_request_first_batch.truncate(
+        tx_refs_to_request_first_batch.truncate(
             context
                 .parameters
                 .max_transactions_per_transaction_sync_fetch,
@@ -4096,9 +4096,9 @@ mod tests {
         // Verify that we received the correct number of requested transactions
         assert_eq!(
             serialized_transactions.len(),
-            block_refs_to_request_first_batch.len(),
-            "Should receive {} block transactions",
-            block_refs_to_request_first_batch.len()
+            tx_refs_to_request_first_batch.len(),
+            "Should receive {} transactions",
+            tx_refs_to_request_first_batch.len()
         );
 
         // Check the correctness of the received transactions
@@ -4109,7 +4109,7 @@ mod tests {
             let transaction_ref = deserialized.transaction_ref;
 
             // Verify it matches the expected ref
-            assert_eq!(transaction_ref, block_refs_to_request_first_batch[i]);
+            assert_eq!(transaction_ref, tx_refs_to_request_first_batch[i]);
 
             let serialized_transactions = deserialized.serialized_transactions;
             // Verify the transaction commitment matches
@@ -4124,7 +4124,7 @@ mod tests {
             );
         }
 
-        block_refs_to_request_second_batch.truncate(
+        tx_refs_to_request_second_batch.truncate(
             context
                 .parameters
                 .max_transactions_per_transaction_sync_fetch,
@@ -4133,7 +4133,7 @@ mod tests {
         let serialized_transactions = authority_service
             .handle_fetch_transactions(
                 peer,
-                block_refs_to_request_second_batch.clone(),
+                tx_refs_to_request_second_batch.clone(),
                 TransactionFetchMode::TransactionSync,
             )
             .await

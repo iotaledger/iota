@@ -349,7 +349,7 @@ impl NetworkClient for TonicClient {
     ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
         let mut request = Request::new(FetchTransactionsRequest {
-            block_refs: transactions_refs
+            transaction_refs: transactions_refs
                 .iter()
                 .filter_map(|tx_ref| match bcs::to_bytes(tx_ref) {
                     Ok(serialized) => Some(serialized),
@@ -1042,7 +1042,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
 
         let request = request.into_inner();
         let committed_transactions_refs: Vec<TransactionRef> = request
-            .block_refs
+            .transaction_refs
             .iter()
             .filter_map(|r| match bcs::from_bytes::<TransactionRef>(r) {
                 Ok(transaction_ref) => Some(transaction_ref),
@@ -1617,8 +1617,9 @@ pub(crate) struct GetLatestRoundsResponse {
 
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchTransactionsRequest {
+    // BCS-serialized `TransactionRef`s.
     #[prost(bytes = "vec", repeated, tag = "1")]
-    block_refs: Vec<Vec<u8>>,
+    transaction_refs: Vec<Vec<u8>>,
 }
 
 #[derive(Clone, prost::Message)]
