@@ -10,7 +10,7 @@ mod transaction_submitter;
 
 use std::{
     net::SocketAddr,
-    sync::Arc,
+    sync::{Arc, Weak},
     time::{Duration, Instant},
 };
 
@@ -126,9 +126,8 @@ where
             pcool_flow_enabled,
         });
 
-        let driver_clone = driver.clone();
-
-        spawn_logged_monitored_task!(Self::run_latency_checks(driver_clone));
+        let driver_weak = Arc::downgrade(&driver);
+        spawn_logged_monitored_task!(Self::run_latency_checks(driver_weak));
 
         driver.enable_reconfig(reconfig_observer);
         driver
@@ -407,7 +406,7 @@ where
 
     // Runs a background task to send ping transactions to all validators to perform
     // latency checks.
-    async fn run_latency_checks(self: Arc<Self>) {
+    async fn run_latency_checks(driver: Weak<Self>) {
         const INTERVAL_BETWEEN_RUNS: Duration = Duration::from_secs(15);
         const MAX_JITTER: Duration = Duration::from_secs(10);
         const PING_REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
@@ -418,14 +417,19 @@ where
         loop {
             interval.tick().await;
 
+            // Weak, so this detached task cannot keep the driver alive.
+            let Some(driver) = driver.upgrade() else {
+                break;
+            };
+
             // Validators reject pings while the P-COOL flow is disabled.
-            if !(self.pcool_flow_enabled)() {
+            if !(driver.pcool_flow_enabled)() {
                 continue;
             }
 
             let mut tasks = JoinSet::new();
 
-            Self::ping(self.clone(), &mut tasks, MAX_JITTER, PING_REQUEST_TIMEOUT);
+            Self::ping(driver, &mut tasks, MAX_JITTER, PING_REQUEST_TIMEOUT);
 
             while let Some(result) = tasks.join_next().await {
                 if let Err(e) = result {

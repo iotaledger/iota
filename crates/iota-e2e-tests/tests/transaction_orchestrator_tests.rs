@@ -401,7 +401,7 @@ async fn test_wait_for_local_execution_across_epoch_boundary() {
 /// The driver must follow `enable_pcool_flow` across the upgrade that flips
 /// it, without a fullnode restart: boot at v31 (flag off, QuorumDriver),
 /// upgrade to v32 (flag on), and the same orchestrator instance must serve
-/// both sides — post-upgrade via the TransactionDriver.
+/// both sides, post-upgrade via the TransactionDriver.
 ///
 /// No `override_pcool_flow`: the env override would pin the flag for every
 /// version.
@@ -456,7 +456,7 @@ async fn test_orchestrator_follows_pcool_flag_across_protocol_upgrade() {
     assert!(pcool_enabled());
 
     // Same orchestrator, no restart: the request must use the
-    // TransactionDriver — validators now reject the certificate flow.
+    // TransactionDriver, since validators now reject the certificate flow.
     let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
     let (response, executed_locally) = execute_with_orchestrator(
         &orchestrator,
@@ -1423,7 +1423,7 @@ mod pcool_rollback {
     async fn test_orchestrator_follows_pcool_rollback_across_protocol_upgrade() {
         telemetry_subscribers::init_for_testing();
         // Set on both branches: the FINISH config derives from START, where
-        // the flag defaults to on. No `override_pcool_flow` — the env
+        // the flag defaults to on. No `override_pcool_flow`, since the env
         // override applies to every version.
         let _guard = ProtocolConfig::apply_overrides_for_testing(|version, mut config| {
             config.set_enable_pcool_flow_for_testing(version.as_u64() < FINISH);
@@ -1474,7 +1474,7 @@ mod pcool_rollback {
         assert!(!pcool_enabled());
 
         // Same orchestrator, no restart: the request must use the
-        // QuorumDriver — validators now reject `submit_tx`.
+        // QuorumDriver, since validators now reject `submit_tx`.
         let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
         let digest = *tx.digest();
         let (response, _executed_locally) = execute_with_orchestrator(

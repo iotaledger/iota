@@ -127,15 +127,17 @@ impl ValidatorClientMonitor {
 
         loop {
             interval.tick().await;
-            if !enabled() {
-                continue;
-            }
+            // Upgrade first: a permanently false `enabled` must not keep
+            // the task alive past these exits.
             let Some(monitor) = monitor.upgrade() else {
                 break;
             };
             let Some(authority_agg) = authority_aggregator.upgrade() else {
                 break;
             };
+            if !enabled() {
+                continue;
+            }
             let authority_agg = authority_agg.load();
             let mut tasks = monitor.spawn_health_checks_tasks(&*authority_agg);
             drop(authority_agg);

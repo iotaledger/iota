@@ -106,8 +106,9 @@ enum Driver<A: Clone> {
 pub struct TransactionOrchestrator<A: Clone> {
     quorum_driver: Arc<QuorumDriverHandler<A>>,
     transaction_driver: Arc<TransactionDriver<A>>,
-    /// Set once QuorumDriver WAL recovery has run.
-    qd_recovery: OnceLock<()>,
+    /// Set once QuorumDriver WAL recovery has started. The receiver reports
+    /// completion.
+    qd_recovery: OnceLock<watch::Receiver<bool>>,
     validator_state: Arc<AuthorityState>,
     /// Keeps the pending-tx-log cleanup loop alive.
     _local_executor_handle: JoinHandle<()>,
@@ -206,13 +207,16 @@ where
             Self::loop_pending_transaction_log(effects_receiver, pending_tx_log_clone).await;
         });
 
+        // `Weak` so detached driver tasks cannot pin the authority state.
         let pcool_flow_enabled: Arc<dyn Fn() -> bool + Send + Sync> = {
-            let validator_state = validator_state.clone();
+            let validator_state = Arc::downgrade(&validator_state);
             Arc::new(move || {
-                validator_state
-                    .load_epoch_store_one_call_per_task()
-                    .protocol_config()
-                    .enable_pcool_flow()
+                validator_state.upgrade().is_some_and(|state| {
+                    state
+                        .load_epoch_store_one_call_per_task()
+                        .protocol_config()
+                        .enable_pcool_flow()
+                })
             })
         };
         let transaction_driver = TransactionDriver::new(
@@ -238,7 +242,11 @@ where
         // WAL recovery is a startup duty when the quorum driver serves from
         // boot; under P-COOL it is deferred to the first flag-off selection.
         if !use_transaction_driver {
-            this.ensure_qd_recovery();
+            Self::schedule_txes_in_log(this.pending_tx_log.clone(), this.quorum_driver.clone());
+            let (_complete_tx, complete_rx) = watch::channel(true);
+            this.qd_recovery
+                .set(complete_rx)
+                .expect("recovery cell is empty at construction");
         }
         this
     }
@@ -251,22 +259,41 @@ where
     /// Returns the flow selected by `epoch_store`'s P-COOL flag. Call with
     /// the request's own epoch store snapshot so the flag and the submission
     /// see the same epoch.
-    fn select_driver(&self, epoch_store: &AuthorityPerEpochStore) -> Driver<A> {
+    async fn select_driver(&self, epoch_store: &AuthorityPerEpochStore) -> Driver<A> {
         if epoch_store.protocol_config().enable_pcool_flow() {
             Driver::Transaction(self.transaction_driver.clone())
         } else {
-            self.ensure_qd_recovery();
+            self.ensure_qd_recovery().await;
             Driver::Quorum(self.quorum_driver.clone())
         }
     }
 
-    /// Runs QuorumDriver WAL recovery exactly once. The snapshot happens
-    /// before the caller can submit (concurrent callers block on the
-    /// `OnceLock`), so a triggering request cannot be double-driven.
-    fn ensure_qd_recovery(&self) {
-        self.qd_recovery.get_or_init(|| {
-            Self::schedule_txes_in_log(self.pending_tx_log.clone(), self.quorum_driver.clone());
-        });
+    /// Runs QuorumDriver WAL recovery exactly once, snapshotting before the
+    /// caller can submit. The receiver is stored synchronously and the scan
+    /// runs in a detached task, so a cancelled waiter cannot discard the
+    /// one-time state.
+    async fn ensure_qd_recovery(&self) {
+        let mut complete_rx = self
+            .qd_recovery
+            .get_or_init(|| {
+                let pending_tx_log = self.pending_tx_log.clone();
+                let quorum_driver = self.quorum_driver.clone();
+                let (complete_tx, complete_rx) = watch::channel(false);
+                spawn_monitored_task!(async move {
+                    tokio::task::spawn_blocking(move || {
+                        Self::schedule_txes_in_log(pending_tx_log, quorum_driver)
+                    })
+                    .await
+                    .expect("WAL recovery must not panic");
+                    let _ = complete_tx.send(true);
+                });
+                complete_rx
+            })
+            .clone();
+        complete_rx
+            .wait_for(|complete| *complete)
+            .await
+            .expect("the WAL recovery task must not panic");
     }
 
     #[instrument(name = "tx_orchestrator_execute_transaction_block", level = "trace", skip_all,
@@ -329,8 +356,10 @@ where
             request_type,
             ExecuteTransactionRequestType::WaitForLocalExecution
         );
-        let (mut response, seq) = match (self.select_driver(&epoch_store), wait_for_local_execution)
-        {
+        let (mut response, seq) = match (
+            self.select_driver(&epoch_store).await,
+            wait_for_local_execution,
+        ) {
             (Driver::Transaction(td), true) => {
                 let in_flight_transactions = self.in_flight_transactions.clone();
                 let validator_state = self.validator_state.clone();
@@ -682,7 +711,7 @@ where
             .validity_check(&epoch_store.tx_validity_check_context())
             .map_err(QuorumDriverError::InvalidTransaction)?;
 
-        match self.select_driver(&epoch_store) {
+        match self.select_driver(&epoch_store).await {
             Driver::Transaction(td) => {
                 let in_flight_transactions = self.in_flight_transactions.clone();
                 let validator_state = self.validator_state.clone();
@@ -1289,11 +1318,11 @@ where
     /// Runs driver selection for `epoch_store`, with its recovery side
     /// effect.
     #[cfg(any(test, feature = "test-utils"))]
-    pub fn select_driver_for_testing(&self, epoch_store: &AuthorityPerEpochStore) {
-        self.select_driver(epoch_store);
+    pub async fn select_driver_for_testing(&self, epoch_store: &AuthorityPerEpochStore) {
+        self.select_driver(epoch_store).await;
     }
 
-    /// Reports whether QuorumDriver WAL recovery has run.
+    /// Reports whether QuorumDriver WAL recovery has been started.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn qd_recovery_started_for_testing(&self) -> bool {
         self.qd_recovery.get().is_some()
@@ -2094,7 +2123,9 @@ mod tests {
         assert!(!orchestrator.qd_recovery_started_for_testing());
 
         // Selection under the flag keeps recovery uninitialized.
-        orchestrator.select_driver_for_testing(&state.epoch_store_for_testing());
+        orchestrator
+            .select_driver_for_testing(&state.epoch_store_for_testing())
+            .await;
         assert!(!orchestrator.qd_recovery_started_for_testing());
 
         // Epoch 1 with P-COOL off: the first selection runs recovery.
@@ -2107,10 +2138,41 @@ mod tests {
         let epoch_store = state.epoch_store_for_testing();
         assert_eq!(epoch_store.epoch(), 1);
 
-        orchestrator.select_driver_for_testing(&epoch_store);
+        orchestrator.select_driver_for_testing(&epoch_store).await;
         assert!(orchestrator.qd_recovery_started_for_testing());
         // Repeated selections keep the one-shot state.
-        orchestrator.select_driver_for_testing(&epoch_store);
+        orchestrator.select_driver_for_testing(&epoch_store).await;
+        assert!(orchestrator.qd_recovery_started_for_testing());
+    }
+
+    /// A cancelled first waiter must not discard the one-time recovery
+    /// state. A later selection completes against the same state.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn qd_recovery_survives_cancelled_first_selection() {
+        use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+
+        let (state, orchestrator, _tempdir, _reconfig_tx) =
+            build_orchestrator_with_pcool(true).await;
+        assert!(!orchestrator.qd_recovery_started_for_testing());
+
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown);
+        protocol_config.set_enable_pcool_flow_for_testing(false);
+        state
+            .reconfigure_for_testing_with_protocol_config(protocol_config)
+            .await;
+        let epoch_store = state.epoch_store_for_testing();
+
+        // One poll runs the synchronous init. Dropping the future then
+        // cancels the wait mid-recovery.
+        {
+            let selection = orchestrator.select_driver_for_testing(&epoch_store);
+            tokio::pin!(selection);
+            let _ = futures::poll!(selection.as_mut());
+        }
+        assert!(orchestrator.qd_recovery_started_for_testing());
+
+        orchestrator.select_driver_for_testing(&epoch_store).await;
         assert!(orchestrator.qd_recovery_started_for_testing());
     }
 }
