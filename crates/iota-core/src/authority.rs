@@ -4018,17 +4018,6 @@ impl AuthorityState {
             })
     }
 
-    #[cfg(msim)]
-    pub fn get_highest_pruned_checkpoint_for_testing(
-        &self,
-    ) -> IotaResult<CheckpointSequenceNumber> {
-        self.database_for_testing()
-            .perpetual_tables
-            .get_highest_pruned_checkpoint()
-            .map(|c| c.unwrap_or(0))
-            .map_err(Into::into)
-    }
-
     #[instrument(level = "trace", skip_all)]
     pub fn get_checkpoint_summary_by_sequence_number(
         &self,
