@@ -10,11 +10,13 @@
 
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 
+use iota_sdk_types::{TransactionDigest, TransactionEffects};
 use iota_types::{
     committee::EpochId,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     object::Object,
-    storage::ObjectKey,
+    storage::{ObjectKey, ObjectStore},
 };
 use typed_store::{
     TypedStoreError,
@@ -160,6 +162,96 @@ impl HistoricObjects {
         }
         Ok(None)
     }
+
+    /// Fills each `None` in `objects` — the live table's answers for `keys`, in
+    /// the same order — with the version the buckets hold under that key.
+    ///
+    /// Only for reads that serve a response: consensus and execution read
+    /// current versions, which never leave the live table, so a miss there is a
+    /// bug and must stay one.
+    ///
+    /// The caller reads the live table itself, so it can use
+    /// [`crate::execution_cache::ObjectCacheRead`]'s batched multi-get rather
+    /// than [`iota_types::storage::ObjectStore`]'s per-key one.
+    pub fn fill_missing(
+        &self,
+        keys: &[ObjectKey],
+        objects: &mut [Option<Object>],
+    ) -> IotaResult<()> {
+        for (object, key) in objects.iter_mut().zip(keys) {
+            if object.is_none() {
+                *object = self.get(key)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// The fallback-aware counterpart of
+/// [`iota_types::storage::get_transaction_input_objects`]. These are the
+/// versions the transaction superseded, so its own checkpoint commit relocates
+/// them out of the live table.
+pub fn get_transaction_input_objects(
+    object_store: &dyn ObjectStore,
+    historic_objects: &HistoricObjects,
+    effects: &TransactionEffects,
+) -> IotaResult<Vec<Object>> {
+    let keys = effects
+        .modified_at_versions()
+        .into_iter()
+        .map(|(object_id, version)| ObjectKey(object_id, version))
+        .collect::<Vec<_>>();
+    multi_get_objects_with_historic_fallback(
+        object_store,
+        historic_objects,
+        &keys,
+        effects.transaction_digest(),
+    )
+}
+
+/// The fallback-aware counterpart of
+/// [`iota_types::storage::get_transaction_output_objects`]. These versions are
+/// current when written, but a later transaction supersedes them and relocates
+/// them out of the live table.
+pub fn get_transaction_output_objects(
+    object_store: &dyn ObjectStore,
+    historic_objects: &HistoricObjects,
+    effects: &TransactionEffects,
+) -> IotaResult<Vec<Object>> {
+    let keys = effects
+        .all_changed_objects()
+        .into_iter()
+        .map(|(object_ref, _owner, _kind)| ObjectKey::from(object_ref))
+        .collect::<Vec<_>>();
+    multi_get_objects_with_historic_fallback(
+        object_store,
+        historic_objects,
+        &keys,
+        effects.transaction_digest(),
+    )
+}
+
+/// The objects at exactly `keys`, erroring on any the live table and the
+/// buckets both lack.
+fn multi_get_objects_with_historic_fallback(
+    object_store: &dyn ObjectStore,
+    historic_objects: &HistoricObjects,
+    keys: &[ObjectKey],
+    transaction_digest: &TransactionDigest,
+) -> IotaResult<Vec<Object>> {
+    let mut objects = object_store.multi_get_objects_by_key(keys);
+    historic_objects.fill_missing(keys, &mut objects)?;
+    objects
+        .into_iter()
+        .zip(keys)
+        .map(|(object, key)| {
+            object.ok_or_else(|| {
+                IotaError::Storage(format!(
+                    "missing object key {key:?} from tx {transaction_digest}"
+                ))
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]
