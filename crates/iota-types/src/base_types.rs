@@ -329,6 +329,12 @@ pub const RESOLVED_UTF8_STR: (&AccountAddress, &IdentStr, &IdentStr) = (
     ident_str!("String"),
 );
 
+pub const RESOLVED_TX_CONTEXT: (&AccountAddress, &IdentStr, &IdentStr) = (
+    &crate::IOTA_FRAMEWORK_ADDRESS,
+    ident_str!("tx_context"),
+    ident_str!("TxContext"),
+);
+
 pub fn move_ascii_str_layout() -> A::MoveStructLayout {
     A::MoveStructLayout {
         type_: struct_tag_sdk_to_core(&StructTag::new_ascii_string()),
