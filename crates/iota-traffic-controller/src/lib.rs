@@ -41,6 +41,7 @@ use tokio::{
     sync::{mpsc, mpsc::error::TrySendError},
     time,
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
 
 use self::metrics::TrafficControllerMetrics;
@@ -51,8 +52,9 @@ use crate::{
 
 /// How often expired blocklist entries are dropped.
 const CLEAR_BLOCKLIST_INTERVAL: Duration = Duration::from_secs(3);
-/// How often fully replenished per-client rate limiter cells are dropped.
-const EVICT_IDLE_CLIENTS_INTERVAL: Duration = Duration::from_secs(30);
+/// How often fully replenished per-client rate limiter cells are dropped, which
+/// also bounds how long the cells of a client that never returns are held.
+const EVICT_IDLE_CLIENTS_INTERVAL: Duration = Duration::from_secs(10);
 /// How often the dead man's switch checks whether tallies are still arriving.
 const DEADMANS_SWITCH_POLL_INTERVAL: Duration = Duration::from_secs(1);
 /// Number of pending firewall delegations held before further ones are dropped.
@@ -88,6 +90,15 @@ struct TallyState {
     /// Whether the firewall drain file is present, refreshed by the dead man's
     /// switch. Delegation pauses while it is.
     drainfile_present: Arc<AtomicBool>,
+    /// Stops the background loops once the last controller holding this state
+    /// is dropped.
+    shutdown: CancellationToken,
+}
+
+impl Drop for TallyState {
+    fn drop(&mut self) {
+        self.shutdown.cancel();
+    }
 }
 
 #[derive(Clone)]
@@ -301,7 +312,7 @@ impl TrafficController {
     pub fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
         let dry_run = self.dry_run.load(Ordering::Relaxed);
         let allowed = match &self.acl {
-            Acl::Allowlist(allowlist) => client.is_none() || allowlist.contains(&client.unwrap()),
+            Acl::Allowlist(allowlist) => client.is_none_or(|client| allowlist.contains(&client)),
             Acl::Blocklists(state) => {
                 check_blocklists(&state.blocklists, client, proxied_client, &self.metrics)
             }
@@ -337,7 +348,8 @@ fn parse_allowlist(allow_list: &[String]) -> Vec<IpAddr> {
 
 /// Builds the tallying state and spawns the background tasks that expire
 /// blocklist entries, evict idle rate limiter cells, and post delegated blocks
-/// to the remote firewall. Must be called from within a tokio runtime.
+/// to the remote firewall. The tasks stop when the returned state is dropped,
+/// so this must be called from within a tokio runtime.
 fn spawn_tally_state(
     policy_config: &PolicyConfig,
     metrics: &Arc<TrafficControllerMetrics>,
@@ -350,6 +362,7 @@ fn spawn_tally_state(
     let spam_policy = Arc::new(TrafficControlPolicy::from_spam_config(policy_config));
     let error_policy = Arc::new(TrafficControlPolicy::from_error_config(policy_config));
     let drainfile_present = Arc::new(AtomicBool::new(false));
+    let shutdown = CancellationToken::new();
     let mut firewall_delegation = None;
 
     if let Some(fw_config) = fw_config {
@@ -375,27 +388,33 @@ fn spawn_tally_state(
         let deadmans_switch_fw_config = fw_config.clone();
         let deadmans_switch_drainfile = drainfile_present.clone();
         let deadmans_switch_metrics = metrics.clone();
+        let deadmans_switch_shutdown = shutdown.clone();
         spawn_monitored_task!(run_deadmans_switch_loop(
             deadmans_switch_fw_config,
             deadmans_switch_drainfile,
-            deadmans_switch_metrics
+            deadmans_switch_metrics,
+            deadmans_switch_shutdown
         ));
     }
 
     let clear_loop_blocklists = blocklists.clone();
     let clear_loop_metrics = metrics.clone();
+    let clear_loop_shutdown = shutdown.clone();
     spawn_monitored_task!(run_clear_blocklists_loop(
         clear_loop_blocklists,
-        clear_loop_metrics
+        clear_loop_metrics,
+        clear_loop_shutdown
     ));
 
     let evict_loop_spam_policy = spam_policy.clone();
     let evict_loop_error_policy = error_policy.clone();
     let evict_loop_metrics = metrics.clone();
+    let evict_loop_shutdown = shutdown.clone();
     spawn_monitored_task!(run_evict_idle_clients_loop(
         evict_loop_spam_policy,
         evict_loop_error_policy,
-        evict_loop_metrics
+        evict_loop_metrics,
+        evict_loop_shutdown
     ));
 
     TallyState {
@@ -404,6 +423,7 @@ fn spawn_tally_state(
         blocklists,
         firewall_delegation,
         drainfile_present,
+        shutdown,
     }
 }
 
@@ -559,15 +579,27 @@ fn block_addresses(
     addresses
 }
 
+/// Waits for the next tick of a background loop, returning false once the last
+/// controller holding the loop's state has been dropped.
+async fn tick(interval: Duration, shutdown: &CancellationToken) -> bool {
+    tokio::select! {
+        _ = tokio::time::sleep(interval) => true,
+        _ = shutdown.cancelled() => false,
+    }
+}
+
 /// Although we clear IPs from the blocklist lazily when they are checked,
 /// it's possible that over time we may accumulate a large number of stale
 /// IPs in the blocklist for clients that are added, then once blocked,
 /// never checked again. This function runs periodically to clear out any
 /// such stale IPs. This also ensures that the blocklist length metric
 /// accurately reflects TTL.
-async fn run_clear_blocklists_loop(blocklists: Blocklists, metrics: Arc<TrafficControllerMetrics>) {
-    loop {
-        tokio::time::sleep(CLEAR_BLOCKLIST_INTERVAL).await;
+async fn run_clear_blocklists_loop(
+    blocklists: Blocklists,
+    metrics: Arc<TrafficControllerMetrics>,
+    shutdown: CancellationToken,
+) {
+    while tick(CLEAR_BLOCKLIST_INTERVAL, &shutdown).await {
         let now = SystemTime::now();
         blocklists.clients.retain(|_, expiration| now < *expiration);
         blocklists
@@ -590,9 +622,9 @@ async fn run_evict_idle_clients_loop(
     spam_policy: Arc<TrafficControlPolicy>,
     error_policy: Arc<TrafficControlPolicy>,
     metrics: Arc<TrafficControllerMetrics>,
+    shutdown: CancellationToken,
 ) {
-    loop {
-        tokio::time::sleep(EVICT_IDLE_CLIENTS_INTERVAL).await;
+    while tick(EVICT_IDLE_CLIENTS_INTERVAL, &shutdown).await {
         spam_policy.evict_idle();
         error_policy.evict_idle();
         metrics
@@ -631,12 +663,12 @@ async fn run_deadmans_switch_loop(
     fw_config: RemoteFirewallConfig,
     drainfile_present: Arc<AtomicBool>,
     metrics: Arc<TrafficControllerMetrics>,
+    shutdown: CancellationToken,
 ) {
     let timeout = Duration::from_secs(fw_config.drain_timeout_secs);
     let mut last_tallies = metrics.tallies.get();
     let mut last_tally_at = Instant::now();
-    loop {
-        tokio::time::sleep(DEADMANS_SWITCH_POLL_INTERVAL).await;
+    while tick(DEADMANS_SWITCH_POLL_INTERVAL, &shutdown).await {
         // The operator can add or remove the drain file at any time, so
         // delegation restarts after a drain. An I/O error keeps the last known
         // state, because `exists` cannot tell an error from a removal.

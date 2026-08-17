@@ -744,6 +744,44 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// The dead man's switch stops with the controller that spawned it, rather than
+/// draining a firewall on behalf of a node that no longer exists.
+#[sim_test]
+async fn test_dead_mans_switch_stops_with_the_controller() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+    let tmp_dir = iota_common::tempdir();
+    let drain_path = tmp_dir.path().join("drain");
+    let policy_config = PolicyConfig {
+        connection_blocklist_ttl_sec: 3,
+        spam_policy_type: PolicyType::TestNConnIP(10),
+        spam_sample_rate: Weight::one(),
+        dry_run: false,
+        ..Default::default()
+    };
+    let firewall_config = RemoteFirewallConfig {
+        remote_fw_url: String::from("http://127.0.0.1:65002"),
+        delegate_spam_blocking: true,
+        delegate_error_blocking: false,
+        destination_port: 9000,
+        drain_path: drain_path.clone(),
+        drain_timeout_secs: 2,
+    };
+
+    drop(TrafficController::init_for_test(
+        policy_config,
+        Some(firewall_config),
+    ));
+    // Well past the drain timeout: a switch still running would have created the
+    // drain file by now, as it sees no tallies at all.
+    tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
+    assert!(
+        !drain_path.exists(),
+        "Expected the dead man's switch to stop with the controller",
+    );
+
+    Ok(())
+}
+
 #[tokio::test]
 async fn test_traffic_control_manual_set_dead_mans_switch() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
