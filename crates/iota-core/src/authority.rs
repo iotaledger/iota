@@ -102,8 +102,11 @@ use iota_types::{
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticatorExt,
-    object::{Object, ObjectRead, PastObjectRead},
-    storage::{BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore},
+    object::{Object, ObjectRead, ObjectSet, PastObjectRead},
+    storage::{
+        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore,
+        TrackingBackingStore,
+    },
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
@@ -284,6 +287,12 @@ pub struct AuthorityMetrics {
     pub(crate) execution_queueing_delay_s: Histogram,
     pub(crate) prepare_cert_gas_latency_ratio: Histogram,
     pub(crate) execution_gas_latency_ratio: Histogram,
+
+    /// Count of modified object versions whose pre-image could not be found
+    /// in either the transaction's input objects or its tracked read
+    /// objects, and so were left uncaptured for relocation into the
+    /// historic store.
+    pub(crate) superseded_capture_misses: IntCounter,
 
     pub(crate) skipped_consensus_txns: IntCounter,
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
@@ -670,6 +679,13 @@ impl AuthorityMetrics {
                 registry
             )
                 .unwrap(),
+            superseded_capture_misses: register_int_counter_with_registry!(
+                "superseded_capture_misses",
+                "Count of modified object versions whose pre-image could not be captured for relocation into the historic store",
+                registry;
+                MetricLevel::Warn,
+            )
+                .unwrap(),
             skipped_consensus_txns: register_int_counter_with_registry!(
                 "skipped_consensus_txns",
                 "Total number of consensus transactions skipped",
@@ -876,6 +892,17 @@ impl ExecutionEnv {
         self
     }
 }
+/// `execute_transaction()`'s result: the temporary store of updates, the
+/// resulting effects, an execution error if one occurred and every object read
+/// during execution (by value) — where a mutated object's pre-image is found
+/// when it isn't among the transaction's declared inputs, as with a
+/// runtime-loaded dynamic field.
+type ExecutedTransaction = (
+    InnerTemporaryStore,
+    TransactionEffects,
+    Option<ExecutionError>,
+    ObjectSet,
+);
 
 pub struct AuthorityState {
     // Fixed size, static, identity of the authority
@@ -1702,13 +1729,14 @@ impl AuthorityState {
         // errors). However, all errors from this function occur before we have
         // written anything to the db, so we commit the tx guard and rely on the
         // client to retry the tx (if it was transient).
-        let (inner_temporary_store, effects, execution_error_opt) = match self.execute_transaction(
-            &execution_guard,
-            transaction,
-            tx_input_objects,
-            per_authenticator_inputs,
-            epoch_store,
-        ) {
+        let (inner_temporary_store, effects, execution_error_opt, read_objects) = match self
+            .execute_transaction(
+                &execution_guard,
+                transaction,
+                tx_input_objects,
+                per_authenticator_inputs,
+                epoch_store,
+            ) {
             Err(e) => {
                 info!(name = ?self.name, ?digest, "Error preparing transaction: {e}");
                 tx_guard.release();
@@ -1760,6 +1788,7 @@ impl AuthorityState {
             transaction,
             inner_temporary_store,
             &effects,
+            read_objects,
             tx_guard,
             execution_guard,
             expected_effects_digest,
@@ -1794,6 +1823,7 @@ impl AuthorityState {
         transaction: &VerifiedExecutableTransaction,
         inner_temporary_store: InnerTemporaryStore,
         effects: &TransactionEffects,
+        read_objects: ObjectSet,
         tx_guard: TxGuard,
         _execution_guard: ExecutionLockReadGuard<'_>,
         expected_effects_digest: Option<TransactionEffectsDigest>,
@@ -1834,6 +1864,8 @@ impl AuthorityState {
             transaction.clone().into_unsigned(),
             effects.clone(),
             inner_temporary_store,
+            read_objects,
+            &self.metrics,
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
@@ -1930,11 +1962,7 @@ impl AuthorityState {
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<(
-        InnerTemporaryStore,
-        TransactionEffects,
-        Option<ExecutionError>,
-    )> {
+    ) -> IotaResult<ExecutedTransaction> {
         let _scope = monitored_scope("Execution::execute_certificate");
         let _metrics_guard = self.metrics.prepare_certificate_latency.start_timer();
         let prepare_transaction_start_time = tokio::time::Instant::now();
@@ -1949,7 +1977,8 @@ impl AuthorityState {
             .epoch_data()
             .epoch_start_timestamp();
 
-        let backing_store = self.get_backing_store().as_ref();
+        let tracking_store = TrackingBackingStore::new(self.get_backing_store().as_ref());
+        let backing_store = &tracking_store;
 
         let tx_digest = *transaction.digest();
 
@@ -2156,7 +2185,14 @@ impl AuthorityState {
                 .observe(effects.gas_cost_summary().computation_cost as f64 / elapsed);
         }
 
-        Ok((inner_temp_store, effects, execution_error_opt.err()))
+        let read_objects = tracking_store.into_read_objects();
+
+        Ok((
+            inner_temp_store,
+            effects,
+            execution_error_opt.err(),
+            read_objects,
+        ))
     }
 
     pub fn prepare_transaction_for_benchmark(
@@ -2179,6 +2215,9 @@ impl AuthorityState {
             vec![],
             epoch_store,
         )
+        .map(|(inner_temp_store, effects, execution_error, _)| {
+            (inner_temp_store, effects, execution_error)
+        })
     }
 
     /// Simulate a transaction without committing it.
@@ -5096,7 +5135,7 @@ impl AuthorityState {
             epoch_store,
         )?;
 
-        let (temporary_store, effects, _execution_error_opt) = self.execute_transaction(
+        let (temporary_store, effects, _execution_error_opt, _) = self.execute_transaction(
             &execution_guard,
             &executable_tx,
             input_objects,
