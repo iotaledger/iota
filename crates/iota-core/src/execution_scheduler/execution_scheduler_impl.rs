@@ -11,6 +11,7 @@ use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk_types::SenderSignedTransaction;
 use iota_types::{
+    effects::TransactionEffectsAPI,
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::InputKey,
@@ -208,6 +209,32 @@ impl ExecutionScheduler {
         self.metrics.transaction_manager_num_ready.inc();
         self.metrics.execution_driver_dispatch_queue.inc();
     }
+
+    /// When we schedule a transaction, it should be impossible for it to have
+    /// been executed in a previous epoch.
+    #[cfg(debug_assertions)]
+    fn assert_not_executed_previous_epochs(&self, tx: &VerifiedExecutableTransaction) {
+        let epoch = tx.epoch();
+        let digest = *tx.digest();
+        let digests = [digest];
+        let executed = self
+            .transaction_cache_read
+            .multi_get_executed_effects(&digests)
+            .pop()
+            .unwrap();
+        // Due to pruning, we may not always have executed effects for the
+        // transaction even if it was executed. So this is a best-effort check.
+        if let Some(executed) = executed {
+            assert_eq!(
+                executed.epoch(),
+                epoch,
+                "Transaction {} was executed in epoch {}, but scheduled again in epoch {}",
+                digest,
+                executed.epoch(),
+                epoch
+            );
+        }
+    }
 }
 
 impl ExecutionSchedulerAPI for ExecutionScheduler {
@@ -315,6 +342,8 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
         );
 
         for (txn, execution_env) in pending {
+            #[cfg(debug_assertions)]
+            self.assert_not_executed_previous_epochs(&txn);
             let scheduler = self.clone();
             let epoch_store = epoch_store.clone();
             spawn_monitored_task!(
