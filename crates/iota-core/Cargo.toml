@@ -103,6 +103,7 @@ fs_extra.workspace = true
 more-asserts = "0.3.1"
 num-bigint = "0.4.4"
 pretty_assertions.workspace = true
+tracing-subscriber.workspace = true
 rstest.workspace = true
 serde-reflection.workspace = true
 serde_yaml.workspace = true
