@@ -158,7 +158,7 @@ impl Scenario {
     fn new_outputs() -> TransactionOutputs {
         let mut rng = StdRng::from_seed([0; 32]);
         let (sender, keypair): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
-        let (receiver, _): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let receiver = Address::random();
 
         // Tx is opaque to the cache, so we just build a dummy tx. The only requirement
         // is that it has a unique digest every time.

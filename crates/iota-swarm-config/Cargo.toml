@@ -25,6 +25,7 @@ tracing.workspace = true
 iota-common.workspace = true
 iota-config.workspace = true
 iota-genesis-builder.workspace = true
+iota-multiaddr.workspace = true
 iota-names.workspace = true
 iota-protocol-config.workspace = true
 iota-sdk-crypto.workspace = true

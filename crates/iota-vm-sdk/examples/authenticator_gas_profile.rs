@@ -17,12 +17,11 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::UserSignature;
+use iota_sdk_types::{SenderSignedTransaction, Transaction, UserSignature};
 use iota_types::{
     effects::TransactionEffectsAPI,
-    object::Object,
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
+    object::{Object, ObjectInner},
+    transaction::TransactionAPI,
 };
 use iota_vm_sdk::{
     Chain, ChainContext, DebugConfig, ExecuteOptions, InMemoryStore, LocalVm, ProfileOutput,
@@ -43,8 +42,7 @@ fn main() -> Result<()> {
         .as_array()
         .context("`objects` must be an array")?
     {
-        let object: Object =
-            bcs::from_bytes(&Base64::decode(obj["bcs_b64"].as_str().unwrap()).unwrap())?;
+        let object = Object::from(ObjectInner::from_base64(obj["bcs_b64"].as_str().unwrap())?);
         store.insert(object);
     }
 
@@ -102,19 +100,14 @@ fn fixture() -> Result<Value> {
 
 /// Build the example's signed transaction — PTB body plus its MoveAuthenticator
 /// signature — from the committed fixture.
-fn example_signed_transaction() -> Result<SenderSignedData> {
+fn example_signed_transaction() -> Result<SenderSignedTransaction> {
     let f = fixture()?;
-    let tx: TransactionData =
-        bcs::from_bytes(&Base64::decode(f["tx_b64"].as_str().unwrap()).unwrap())?;
+    let tx = Transaction::from_base64(f["tx_b64"].as_str().unwrap())?;
     let sigs: Vec<UserSignature> = f["signatures"]
         .as_array()
         .context("`signatures` must be an array")?
         .iter()
-        .map(|s| {
-            Ok(UserSignature::from_bytes(
-                Base64::decode(s.as_str().unwrap()).unwrap(),
-            )?)
-        })
+        .map(|s| Ok(UserSignature::from_base64(s.as_str().unwrap())?))
         .collect::<Result<_>>()?;
-    Ok(SenderSignedData::new(tx, sigs))
+    Ok(SenderSignedTransaction::new(tx, sigs))
 }

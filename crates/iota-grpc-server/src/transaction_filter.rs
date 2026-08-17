@@ -8,7 +8,7 @@ use iota_sdk_types::{Address, Command, ExecutionStatus, ObjectId, Owner};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::CheckpointTransaction,
-    transaction::TransactionDataAPI,
+    transaction::TransactionAPI,
 };
 use serde::{Deserialize, Serialize};
 
@@ -835,7 +835,7 @@ mod tests {
 
         // Cancelled due to congestion
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_sdk_types::ExecutionError::ExecutionCancelledDueToSharedObjectCongestion {
+            error: iota_sdk_types::ExecutionError::ExecutionCanceledDueToSharedObjectCongestion {
                 congested_objects: vec![],
             },
             command: None,
@@ -843,7 +843,7 @@ mod tests {
 
         // Cancelled due to randomness
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error: iota_sdk_types::ExecutionError::ExecutionCancelledDueToRandomnessUnavailable,
+            error: iota_sdk_types::ExecutionError::ExecutionCanceledDueToRandomnessUnavailable,
             command: None,
         }));
     }

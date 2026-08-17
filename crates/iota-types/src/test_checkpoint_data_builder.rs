@@ -7,7 +7,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, EndOfEpochTransactionKind, Event, Identifier, MoveStruct, ObjectId, ObjectReference,
-    Owner, SharedObjectReference, StructTag, TransactionDigest, TransactionKind, TypeTag, Version,
+    Owner, SenderSignedTransaction, SharedObjectReference, StructTag, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind, TypeTag, Version,
     checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use tap::Pipe;
@@ -15,10 +16,7 @@ use tap::Pipe;
 use crate::{
     base_types::{ExecutionDigests, dbg_addr, random_object_ref},
     committee::Committee,
-    effects::{
-        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI,
-        TransactionEffectsExtForTesting, TransactionEvents,
-    },
+    effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExtForTesting},
     event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas_coin::GAS,
@@ -27,7 +25,7 @@ use crate::{
     },
     object::{GAS_VALUE_FOR_TESTING, MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SenderSignedData, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 
 /// A builder for creating test checkpoint data.
@@ -219,7 +217,7 @@ impl TestCheckpointDataBuilder {
             !self.live_objects.contains_key(&object_id),
             "Object already exists: {object_id}. Please use a different object index.",
         );
-        let move_object = MoveStruct::new_coin(
+        let move_struct = MoveStruct::new_coin(
             coin_type,
             // version doesn't matter since we will set it to the lamport version when we finalize
             // the transaction
@@ -227,7 +225,7 @@ impl TestCheckpointDataBuilder {
             object_id,
             balance,
         );
-        let object = Object::new_move(move_object, owner, TransactionDigest::ZERO);
+        let object = Object::new_move(move_struct, owner, TransactionDigest::ZERO);
         tx_builder.created_objects.insert(object_id, object);
         self
     }
@@ -440,8 +438,8 @@ impl TestCheckpointDataBuilder {
         }
 
         let pt = pt_builder.finish();
-        let tx_data = TransactionData::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
-        let tx = Transaction::new(SenderSignedData::new(tx_data, vec![]));
+        let tx = Transaction::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
+        let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx, vec![]));
 
         let wrapped_objects: Vec<_> = wrapped_objects
             .into_iter()
@@ -559,15 +557,15 @@ impl TestCheckpointDataBuilder {
         // TODO: need the system state object wrapper and dynamic field object to
         // "correctly" mock advancing epoch, at least to satisfy kv_epoch_starts
         // pipeline.
-        let end_of_epoch_tx = TransactionData::new(
+        let end_of_epoch_tx = Transaction::new(
             TransactionKind::EndOfEpoch(vec![tx_kind]),
             Address::ZERO,
             random_object_ref(),
             1,
             1,
         )
-        .pipe(|data| SenderSignedData::new(data, vec![]))
-        .pipe(Transaction::new);
+        .pipe(|tx| SenderSignedTransaction::new(tx, vec![]))
+        .pipe(TransactionEnvelope::new);
 
         let events = if !safe_mode {
             let system_epoch_info_event = SystemEpochInfoEventV2 {
@@ -701,7 +699,7 @@ mod tests {
     use super::*;
     use crate::{
         ObjectId,
-        transaction::{TransactionDataAPI, TransactionKindExt},
+        transaction::{TransactionAPI, TransactionKindExt},
     };
     #[test]
     fn test_basic_checkpoint_builder() {

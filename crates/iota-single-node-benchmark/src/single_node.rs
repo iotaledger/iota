@@ -21,22 +21,23 @@ use iota_core::{
     mock_consensus::{ConsensusMode, MockConsensusClient},
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, ObjectReference, TransactionDigest};
+use iota_sdk_types::{Address, ObjectReference, TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
     crypto::{AccountKeyPair, AuthoritySignature, Signer},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     executable_transaction::VerifiedExecutableTransaction,
     messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     transaction::{
-        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedTransactionAPI, Transaction,
-        TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
+        CertifiedTransaction, DEFAULT_VALIDATOR_GAS_PRICE, SenderSignedTransactionAPI,
+        TransactionAPI, TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
     },
+    transaction_executor::VmChecks,
 };
 
 use crate::{command::Component, mock_storage::InMemoryObjectStore};
@@ -128,7 +129,10 @@ impl SingleValidator {
         (package, updated_gas)
     }
 
-    pub async fn execute_raw_transaction(&self, transaction: Transaction) -> TransactionEffects {
+    pub async fn execute_raw_transaction(
+        &self,
+        transaction: TransactionEnvelope,
+    ) -> TransactionEffects {
         let executable = VerifiedExecutableTransaction::new_from_quorum_execution(
             VerifiedTransaction::new_unchecked(transaction),
             0,
@@ -142,15 +146,15 @@ impl SingleValidator {
         effects
     }
 
-    pub async fn execute_dry_run(&self, transaction: Transaction) -> TransactionEffects {
+    pub async fn execute_dry_run(&self, transaction: TransactionEnvelope) -> TransactionEffects {
         let effects = self
             .get_validator()
-            .dry_exec_transaction_for_benchmark(
+            .simulate_transaction_for_benchmark(
                 transaction.data().transaction().clone(),
-                *transaction.digest(),
+                VmChecks::Enabled,
             )
             .unwrap()
-            .2;
+            .effects;
         assert!(effects.status().is_success());
         effects
     }
@@ -244,7 +248,10 @@ impl SingleValidator {
         effects
     }
 
-    pub async fn sign_transaction(&self, transaction: Transaction) -> HandleTransactionResponse {
+    pub async fn sign_transaction(
+        &self,
+        transaction: TransactionEnvelope,
+    ) -> HandleTransactionResponse {
         self.validator_service
             .handle_transaction_for_benchmarking(transaction)
             .await

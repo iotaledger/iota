@@ -12,7 +12,8 @@ use std::{
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectData, ObjectId, ObjectReference, Owner, TransactionDigest,
+    Address, ChangedObject, ExecutionStatus, IdOperation, ObjectData, ObjectId, ObjectIn,
+    ObjectOut, ObjectReference, Owner, TransactionDigest, TransactionEffects, TransactionEvents,
     Version, gas::GasCostSummary,
 };
 use iota_types::{
@@ -20,10 +21,7 @@ use iota_types::{
     base_types::VersionDigest,
     committee::EpochId,
     deny_list_v1::check_coin_deny_list_v1_during_execution,
-    effects::{
-        EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
-        TransactionEffectsExt, TransactionEvents,
-    },
+    effects::TransactionEffectsExt,
     error::{ExecutionError, IotaError, IotaResult},
     execution::{
         DynamicallyLoadedObjectMetadata, ExecutionResults, ExecutionResultsV1, SharedInput,
@@ -198,7 +196,7 @@ impl<'backing> TemporaryStore<'backing> {
         }
     }
 
-    fn get_object_changes(&self) -> BTreeMap<ObjectId, EffectsObjectChange> {
+    fn get_object_changes(&self) -> BTreeMap<ObjectId, ChangedObject> {
         let results = &self.execution_results;
         let all_ids = results
             .created_object_ids
@@ -213,9 +211,9 @@ impl<'backing> TemporaryStore<'backing> {
             .collect()
     }
 
-    /// Returns the [`EffectsObjectChange`] for `id`, gathered from the
+    /// Returns the [`ChangedObject`] for `id`, gathered from the
     /// execution results.
-    fn object_change_for_id(&self, id: &ObjectId) -> EffectsObjectChange {
+    fn object_change_for_id(&self, id: &ObjectId) -> ChangedObject {
         let results = &self.execution_results;
         let id_created = results.created_object_ids.contains(id);
         let id_deleted = results.deleted_object_ids.contains(id);
@@ -248,14 +246,14 @@ impl<'backing> TemporaryStore<'backing> {
                 }
             });
         let id_operation = if id_created {
-            IDOperation::Created
+            IdOperation::Created
         } else if id_deleted {
-            IDOperation::Deleted
+            IdOperation::Deleted
         } else {
-            IDOperation::None
+            IdOperation::None
         };
 
-        EffectsObjectChange {
+        ChangedObject {
             object_id: *id,
             input_state,
             output_state,

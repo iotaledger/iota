@@ -65,9 +65,9 @@ pub(crate) enum DataSource {
     /// Block headers received in bundles via block bundle streaming.
     BlockBundleStream,
 
-    /// Block headers fetched by the live/periodic header synchronizer
-    /// component.
-    HeaderSynchronizer,
+    /// Block headers the live/periodic header synchronizer requested by
+    /// reference and the peer returned.
+    HeaderSynchronizerRequested,
 
     /// Block headers loaded from persistent storage during node recovery.
     Recover,
@@ -89,6 +89,12 @@ pub(crate) enum DataSource {
     /// Transactions received via fast commit synchronization.
     FastCommitSyncer,
 
+    /// Block headers a header-sync response volunteered beyond the refs we
+    /// requested (the server's gap-fill below our requested rounds). These were
+    /// not asked for by digest, so they are subject to the one-header-per-slot
+    /// cap.
+    HeaderSynchronizerAdditional,
+
     /// Data added during testing.
     /// Only used in test code.
     #[cfg(test)]
@@ -103,7 +109,8 @@ impl DataSource {
         match self {
             DataSource::BlockStreaming
             | DataSource::BlockBundleStream
-            | DataSource::HeaderSynchronizer => true,
+            | DataSource::HeaderSynchronizerRequested
+            | DataSource::HeaderSynchronizerAdditional => true,
             DataSource::TransactionSynchronizer
             | DataSource::ShardReconstructor
             | DataSource::Recover
@@ -124,7 +131,8 @@ impl DataSource {
         match self {
             DataSource::BlockStreaming
             | DataSource::BlockBundleStream
-            | DataSource::HeaderSynchronizer => true,
+            | DataSource::HeaderSynchronizerRequested
+            | DataSource::HeaderSynchronizerAdditional => true,
             DataSource::TransactionSynchronizer
             | DataSource::ShardReconstructor
             | DataSource::Recover
@@ -143,14 +151,40 @@ impl DataSource {
             DataSource::TransactionSynchronizer => "Transactions synchronizer",
             DataSource::ShardReconstructor => "Shard reconstructor",
             DataSource::BlockBundleStream => "Block headers in streaming",
-            DataSource::HeaderSynchronizer => "Header synchronizer",
+            DataSource::HeaderSynchronizerRequested => "Header synchronizer requested",
             DataSource::Recover => "Recover",
             DataSource::OwnBlock => "Own block",
             DataSource::BlockStreaming => "Block streaming",
             DataSource::CommitSyncer => "Commit syncer",
             DataSource::FastCommitSyncer => "Fast commit syncer",
+            DataSource::HeaderSynchronizerAdditional => "Header synchronizer additional",
             #[cfg(test)]
             DataSource::Test => "Test",
+        }
+    }
+
+    /// Whether headers from this source are subject to the one-header-per-slot
+    /// cap. Only the live ingress paths, whose content a peer chooses freely,
+    /// are capped. The rest are exempt for different reasons: headers requested
+    /// by digest cannot be inflated by the peer serving them, and refusing a
+    /// requested ancestor would stall linearization; commit-sync headers arrive
+    /// with a commit carrying a quorum of votes; recovery reads our own store
+    /// and our own proposals are already one per slot by construction; and the
+    /// transaction sources carry no headers at all.
+    pub(crate) fn is_subject_to_slot_cap(&self) -> bool {
+        match self {
+            DataSource::BlockStreaming
+            | DataSource::BlockBundleStream
+            | DataSource::HeaderSynchronizerAdditional => true,
+            DataSource::HeaderSynchronizerRequested
+            | DataSource::TransactionSynchronizer
+            | DataSource::ShardReconstructor
+            | DataSource::Recover
+            | DataSource::OwnBlock
+            | DataSource::CommitSyncer
+            | DataSource::FastCommitSyncer => false,
+            #[cfg(test)]
+            DataSource::Test => false,
         }
     }
 }
@@ -1533,6 +1567,25 @@ impl DagState {
         self.get_recent_block_headers_at_slot(slot)
     }
 
+    /// Whether an accepted header exists at `block_ref`'s slot with a digest
+    /// different from `block_ref`'s — i.e. an equivocation for that slot.
+    pub(crate) fn contains_other_block_header_at_slot(&self, block_ref: &BlockRef) -> bool {
+        self.recent_headers_refs_by_authority[block_ref.author]
+            .range((
+                Included(BlockRef::new(
+                    block_ref.round,
+                    block_ref.author,
+                    BlockHeaderDigest::MIN,
+                )),
+                Included(BlockRef::new(
+                    block_ref.round,
+                    block_ref.author,
+                    BlockHeaderDigest::MAX,
+                )),
+            ))
+            .any(|existing| existing != block_ref)
+    }
+
     /// Returns headers from `recent_block_headers` at `round`. The caller must
     /// pass `round > last_commit_round()` so the lookup stays inside the
     /// not-yet-committed portion of the DAG.
@@ -1734,6 +1787,54 @@ impl DagState {
                 BlockHeaderDigest::MIN,
             )),
         )) {
+            let block_header = self
+                .recent_block_headers
+                .get(block_ref)
+                .expect("Block header should exist in recent block headers");
+            block_headers.push(block_header.clone());
+            if block_headers.len() >= limit {
+                break;
+            }
+        }
+        block_headers
+    }
+
+    /// Returns cached block headers from the specified authority within a given
+    /// round range, at most one per round: where the authority has several
+    /// headers in a round, the one with the lowest digest. Block headers
+    /// returned are limited to `start_round` <= round < `end_round`, up to
+    /// `limit` entries. NOTE: Only cached block headers are returned; storage
+    /// is not checked.
+    pub(crate) fn get_cached_block_headers_in_range_one_per_round(
+        &self,
+        authority: AuthorityIndex,
+        start_round: Round,
+        end_round: Round,
+        limit: usize,
+    ) -> Vec<VerifiedBlockHeader> {
+        if start_round >= end_round || limit == 0 {
+            return vec![];
+        }
+
+        let mut block_headers: Vec<VerifiedBlockHeader> = vec![];
+        for block_ref in self.recent_headers_refs_by_authority[authority].range((
+            Included(BlockRef::new(
+                start_round,
+                authority,
+                BlockHeaderDigest::MIN,
+            )),
+            Excluded(BlockRef::new(
+                end_round,
+                AuthorityIndex::MIN,
+                BlockHeaderDigest::MIN,
+            )),
+        )) {
+            if block_headers
+                .last()
+                .is_some_and(|last| last.round() == block_ref.round)
+            {
+                continue;
+            }
             let block_header = self
                 .recent_block_headers
                 .get(block_ref)
@@ -3675,6 +3776,52 @@ mod test {
         assert_eq!(cached_block_headers[0].round(), 10);
     }
 
+    /// `get_cached_block_headers_in_range_one_per_round` returns one header
+    /// per round when the authority equivocated, and the limit counts kept
+    /// headers, so equivocations don't crowd out later rounds.
+    #[tokio::test]
+    async fn test_get_cached_block_headers_one_per_round() {
+        let (mut context, _) = Context::new_for_test(4);
+        context.parameters.dag_state_cached_rounds = 10;
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store);
+
+        // Authority 1 equivocates at rounds 10 and 11; rounds 12 and 13 hold a
+        // single header each. Distinct ancestors give distinct digests.
+        for (round, versions) in [(10u32, 3u8), (11, 2), (12, 1), (13, 1)] {
+            for version in 0..versions {
+                let block_header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, 1)
+                        .set_ancestors(vec![BlockRef::new(
+                            round - 1,
+                            AuthorityIndex::new_for_test(version),
+                            BlockHeaderDigest::MIN,
+                        )])
+                        .build(),
+                );
+                dag_state.accept_block_header(block_header, DataSource::Test);
+            }
+        }
+        let authority = context.committee.to_authority_index(1).unwrap();
+
+        let headers =
+            dag_state.get_cached_block_headers_in_range_one_per_round(authority, 9, 20, 10);
+        assert_eq!(
+            headers.iter().map(|h| h.round()).collect::<Vec<_>>(),
+            vec![10, 11, 12, 13],
+        );
+
+        // The limit counts kept headers: with limit 3 the scan still reaches
+        // round 12 past the equivocations.
+        let headers =
+            dag_state.get_cached_block_headers_in_range_one_per_round(authority, 9, 20, 3);
+        assert_eq!(
+            headers.iter().map(|h| h.round()).collect::<Vec<_>>(),
+            vec![10, 11, 12],
+        );
+    }
+
     #[tokio::test]
     async fn test_get_last_cached_block_header() {
         // GIVEN
@@ -3706,7 +3853,7 @@ mod test {
             },
         }";
 
-        let dag_builder = parse_dag(dag_str).expect("Invalid dag");
+        let dag_builder = parse_dag(dag_str, false).expect("Invalid dag");
 
         // Add equivocating block for round 2 authority 3
         let block_header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 2).build());

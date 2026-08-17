@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffectsDigest, Version};
+use iota_sdk_types::{
+    ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionEvents, Version,
+};
 use move_core_types::annotated_value::MoveStructLayout;
 use serde::{Deserialize, Serialize};
 
@@ -10,13 +13,12 @@ use crate::{
     committee::EpochId,
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     effects::{
-        SignedTransactionEffects, TransactionEffects, TransactionEffectsExtForTesting,
-        TransactionEvents, VerifiedSignedTransactionEffects,
+        SignedTransactionEffects, TransactionEffectsExtForTesting, VerifiedSignedTransactionEffects,
     },
     error::IotaError,
     messages_consensus::SignedAuthorityCapabilitiesV1,
     object::Object,
-    transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction},
+    transaction::{CertifiedTransaction, SignedTransaction},
 };
 
 /// Request for validator health information.
@@ -179,7 +181,7 @@ pub struct HandleTransactionResponse {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct TransactionInfoResponse {
-    pub transaction: SenderSignedData,
+    pub transaction: SenderSignedTransaction,
     pub status: TransactionStatus,
 }
 

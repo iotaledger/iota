@@ -21,14 +21,14 @@ use iota_sdk::{
     },
     types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Transaction, TransactionData},
+        quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
     },
 };
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, ProgrammableTransaction, SignatureScheme, crypto::Intent,
+    Address, ObjectId, ObjectReference, ProgrammableTransaction, SignatureScheme, Transaction,
+    crypto::Intent,
 };
-use iota_types::{move_package, transaction::TransactionDataAPI};
+use iota_types::{move_package, transaction::TransactionAPI};
 use reqwest::Client;
 use serde::Deserialize;
 use serde_json::json;
@@ -90,7 +90,7 @@ pub async fn fund_address(
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create a transaction data that will be sent to the network.
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sponsor,
         vec![gas_coin.object_ref()],
         pt,
@@ -99,13 +99,13 @@ pub async fn fund_address(
     );
 
     // Sign the transaction.
-    let signature = keystore.sign_secure(&sponsor, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&sponsor, &tx, Intent::iota_transaction())?;
 
     // Execute the transaction.
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
@@ -214,7 +214,7 @@ pub async fn publish_package<Keystore: AccountKeystore>(
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create the transaction data that will be sent to the network
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         publisher,
         vec![gas_coin.object_ref()],
         pt,
@@ -223,13 +223,13 @@ pub async fn publish_package<Keystore: AccountKeystore>(
     );
 
     // Sign the transaction
-    let signature = keystore.sign_secure(&publisher, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&publisher, &tx, Intent::iota_transaction())?;
 
     // Execute transaction
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
@@ -339,13 +339,13 @@ pub async fn create_transaction_data(
     iota_client: &IotaClient,
     sender: Address,
     pt: ProgrammableTransaction,
-) -> Result<TransactionData> {
+) -> Result<Transaction> {
     let gas_coin = get_coin(iota_client, sender).await?;
 
     let gas_budget = 50_000_000;
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
-    Ok(TransactionData::new_programmable(
+    Ok(Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -360,18 +360,18 @@ pub async fn create_and_sign_transaction<Keystore: AccountKeystore>(
     keystore: &mut Keystore,
     sender: Address,
     pt: ProgrammableTransaction,
-) -> Result<Transaction> {
+) -> Result<TransactionEnvelope> {
     let tx_data = create_transaction_data(iota_client, sender, pt).await?;
 
     let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
 
-    Ok(Transaction::from_data(tx_data, vec![signature]))
+    Ok(TransactionEnvelope::from_data(tx_data, vec![signature]))
 }
 
 /// Utility function to execute a transaction.
 pub async fn execute_transaction(
     iota_client: &IotaClient,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
 ) -> Result<IotaTransactionBlockResponse> {
     Ok(iota_client
         .quorum_driver_api()

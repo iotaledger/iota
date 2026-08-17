@@ -17,7 +17,6 @@ use std::{
 };
 
 use expect_test::expect;
-use fastcrypto::encoding::{Base64, Encoding};
 use iota::{
     PrintableResult,
     client_commands::{
@@ -40,6 +39,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
     Address, ObjectId, ObjectReference, Owner, SignatureScheme, StructTag,
     move_package::{MovePackage, UpgradeInfo},
@@ -47,12 +47,11 @@ use iota_sdk_types::{
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     gas_coin::GasCoin,
     transaction::{
         TEST_ONLY_GAS_UNIT_FOR_GENERIC, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_SPLIT_COIN,
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionDataAPI,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
     },
 };
 use move_package::{BuildConfig as MoveBuildConfig, lock_file::schema::ManagedPackage};
@@ -357,10 +356,10 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
     // Add 3 accounts
     for _ in 0..3 {
-        context
-            .config_mut()
-            .keystore_mut()
-            .add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+        context.config_mut().keystore_mut().add_key(
+            None,
+            SimpleKeypair::from(iota_sdk_crypto::ed25519::Ed25519PrivateKey::random()),
+        )?;
     }
 
     // Print all addresses
@@ -704,18 +703,25 @@ async fn test_ptb_publish_upgrade() -> Result<(), anyhow::Error> {
     }
 
     // Update lock file for both packages
+    let chain_identifier = context
+        .get_client()
+        .await?
+        .read_api()
+        .get_chain_identifier()
+        .await?;
+    let env_alias = context.active_env()?.alias().clone();
     for (pkg_path, package_id, _) in &packages_with_upgrade_cap {
         let mut build_config = BuildConfig::new_for_testing().config;
         build_config.lock_file = Some(pkg_path.join("Move.lock"));
         iota_package_management::update_lock_file_with_package_id(
-            context,
+            chain_identifier.clone(),
+            &env_alias,
             iota_package_management::LockCommand::Publish,
             build_config.install_dir,
             build_config.lock_file,
             (*package_id).into(),
             1,
-        )
-        .await?;
+        )?;
     }
 
     let publish_ptb_string = format!(
@@ -819,15 +825,22 @@ async fn publish_package_for_upgrade(
     // Update lock file
     let mut build_config = BuildConfig::new_for_testing().config;
     build_config.lock_file = Some(package_path.join("Move.lock"));
+    let chain_identifier = context
+        .get_client()
+        .await?
+        .read_api()
+        .get_chain_identifier()
+        .await?;
+    let env_alias = context.active_env()?.alias().clone();
     iota_package_management::update_lock_file_with_package_id(
-        context,
+        chain_identifier,
+        &env_alias,
         iota_package_management::LockCommand::Publish,
         build_config.install_dir,
         build_config.lock_file,
         package_addr.into(),
         1,
-    )
-    .await?;
+    )?;
 
     Ok(upgrade_cap_id)
 }
@@ -4953,7 +4966,7 @@ async fn test_transfer_sponsored() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_transfer_serialized_data() -> Result<(), anyhow::Error> {
     // Like `test_transfer` but the transaction is pre-generated and serialized into
-    // a Base64 string containing a Base64-encoded TransactionData.
+    // a Base64 string containing a Base64-encoded Transaction.
     let (mut cluster, client, rgp, o, _, a) = test_cluster_helper().await;
     let context = &mut cluster.wallet;
 
@@ -4978,7 +4991,7 @@ async fn test_transfer_serialized_data() -> Result<(), anyhow::Error> {
         panic!("Expected SerializedUnsignedTransaction result");
     };
 
-    let tx_bytes = Base64::encode(bcs::to_bytes(&tx_data)?);
+    let tx_bytes = tx_data.to_base64();
     let transfer_serialized = IotaClientCommands::SerializedTx {
         tx_bytes,
         processing: TxProcessingArgs::default(),
@@ -5036,7 +5049,7 @@ async fn test_transfer_serialized_kind() -> Result<(), anyhow::Error> {
         panic!("Expected SerializedUnsignedTransaction result");
     };
 
-    let tx_bytes = Base64::encode(bcs::to_bytes(tx_data.kind())?);
+    let tx_bytes = tx_data.kind().to_base64();
     let transfer_serialized = IotaClientCommands::SerializedTxKind {
         tx_bytes,
         payment: PaymentArgs { gas: vec![o[1]] },
@@ -5338,7 +5351,7 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
     let mut context = WalletContext::new(&wallet_config)?;
 
-    let (address, _): (_, AccountKeyPair) = get_key_pair();
+    let address = Address::random();
 
     let faucet_result = IotaClientCommands::Faucet {
         address: Some(KeyIdentity::Address(address)),
@@ -5399,9 +5412,9 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
     let wallet_config = test_cluster.swarm.dir().join(IOTA_CLIENT_CONFIG);
     let mut context = WalletContext::new(&wallet_config)?;
 
-    let (address_1, _): (_, AccountKeyPair) = get_key_pair();
-    let (address_2, _): (_, AccountKeyPair) = get_key_pair();
-    let (address_3, _): (_, AccountKeyPair) = get_key_pair();
+    let address_1 = Address::random();
+    let address_2 = Address::random();
+    let address_3 = Address::random();
 
     assert_ne!(address_1, address_2);
     assert_ne!(address_1, address_3);
@@ -5444,9 +5457,9 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
     }
 
     // try with a new batch
-    let (address_4, _): (_, AccountKeyPair) = get_key_pair();
-    let (address_5, _): (_, AccountKeyPair) = get_key_pair();
-    let (address_6, _): (_, AccountKeyPair) = get_key_pair();
+    let address_4 = Address::random();
+    let address_5 = Address::random();
+    let address_6 = Address::random();
 
     assert_ne!(address_4, address_5);
     assert_ne!(address_4, address_6);
@@ -5528,9 +5541,7 @@ async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     let context = WalletContext::new(&wallet_config)?; // Use immutable context
 
     // Generate multiple addresses
-    let addresses: Vec<_> = (0..6)
-        .map(|_| get_key_pair::<AccountKeyPair>().0)
-        .collect::<Vec<Address>>();
+    let addresses: Vec<_> = (0..6).map(|_| Address::random()).collect::<Vec<Address>>();
 
     // Ensure all addresses have zero gas objects initially
     for address in &addresses {
@@ -5665,6 +5676,7 @@ async fn test_move_new() -> Result<(), anyhow::Error> {
             dump_bytecode_as_base64: false,
             generate_struct_layouts: false,
             with_unpublished_dependencies: false,
+            package_info: false,
             protocol_build_config_args: Default::default(),
         }),
     }
@@ -6815,7 +6827,7 @@ async fn test_move_authenticator() -> Result<(), anyhow::Error> {
 
     let sign_result = IotaClientCommands::Sign {
         address: KeyIdentity::Address(account_address.into()),
-        data: Base64::encode(bcs::to_bytes(&tx_data).unwrap()),
+        data: tx_data.to_base64(),
         intent: None,
         auth_call_args: Some(vec!["hello".to_string()]),
         auth_type_args: None,
@@ -7264,12 +7276,14 @@ fn protocol_build_config_args_resolve_to_protocol_build_config() {
     assert!(
         ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
             allow_view_function: Some(true),
+            max_move_package_size: None,
         })
         .allow_view_function
     );
     assert!(
         !ProtocolBuildConfig::from(ProtocolBuildConfigArgs {
             allow_view_function: Some(false),
+            max_move_package_size: None,
         })
         .allow_view_function
     );
@@ -7284,15 +7298,20 @@ fn protocol_build_config_args_fill_unset_from_keeps_user_overrides() {
     let mut args = ProtocolBuildConfigArgs::default();
     args.fill_unset_from(&ProtocolBuildConfig {
         allow_view_function: true,
+        max_move_package_size: Some(1234),
     });
     assert_eq!(args.allow_view_function, Some(true));
+    assert_eq!(args.max_move_package_size, Some(1234));
 
     // A command-line override is preserved even when the default differs.
     let mut args = ProtocolBuildConfigArgs {
         allow_view_function: Some(false),
+        max_move_package_size: None,
     };
     args.fill_unset_from(&ProtocolBuildConfig {
         allow_view_function: true,
+        max_move_package_size: Some(1234),
     });
     assert_eq!(args.allow_view_function, Some(false));
+    assert_eq!(args.max_move_package_size, Some(1234));
 }

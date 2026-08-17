@@ -287,6 +287,10 @@ where
         unimplemented!("unimplemented API");
     }
 
+    fn safe_range_iter_reversed(&'a self, _range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)> {
+        unimplemented!("unimplemented API");
+    }
+
     fn try_catch_up_with_primary(&self) -> Result<(), Self::Error> {
         Ok(())
     }

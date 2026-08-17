@@ -426,7 +426,7 @@ impl<R: rand::RngCore + rand::CryptoRng> ConfigBuilder<R> {
             }
             // Add allocations for each validator
             for validator in &validators {
-                let account_key: PublicKey = validator.account_key_pair.public();
+                let account_key = PublicKey::from(&validator.account_key_pair);
                 let address = Address::from(&account_key);
                 // Give each validator some gas so they can pay for their transactions.
                 let gas_coin = TokenAllocation {
@@ -607,7 +607,7 @@ mod test {
         in_memory_storage::InMemoryStorage,
         iota_system_state::IotaSystemStateTrait,
         metrics::LimitsMetrics,
-        transaction::{CheckedInputObjects, TransactionDataAPI},
+        transaction::{CheckedInputObjects, TransactionAPI},
     };
 
     #[test]

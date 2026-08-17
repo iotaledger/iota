@@ -10,19 +10,34 @@ task 1, lines 8-27:
 //# publish
 created: object(1,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5814000, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 5814000
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 2, line 29:
 //# run a::m::add_n_items --sender A --args 100 --gas-budget 1000000000000 --summarize
 created: 200
 mutated: 1
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 268500400, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 268500400
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 3, line 31:
 //# run a::m::add_n_items --sender A --args 1000 --gas-budget 1000000000000 --summarize
 created: 2000
 mutated: 1
-gas summary: computation_cost: 201000000, computation_cost_burned: 201000000, storage_cost: 2676180400, storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 201000000
+├── Computation Cost Burned: 201000000
+├── Storage Cost: 2676180400
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 4, line 33:
 //# run a::m::add_n_items --sender A --args 1025 --gas-budget 1000000000000

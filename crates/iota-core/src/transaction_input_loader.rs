@@ -201,7 +201,7 @@ impl TransactionInputLoader {
                     let version = assigned_shared_versions.get(id).unwrap_or_else(|| {
                         panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id}")
                     });
-                    if version.is_cancelled() {
+                    if version.is_canceled() {
                         // Do not need to fetch shared object for cancelled transaction.
                         results[i] = Some(ObjectReadResult {
                             input_object_kind: *input,

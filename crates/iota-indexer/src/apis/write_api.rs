@@ -8,8 +8,8 @@ use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use futures::{FutureExt, TryFutureExt};
 use iota_grpc_client::{
-    Client as GrpcClient, ReadMask,
-    read_mask_fields::{EpochField, SimulateExecutedTransactionField, SimulateField},
+    Client as GrpcClient,
+    read_mask_fields::{EpochField, SimulateField},
 };
 use iota_json::IotaJsonValue;
 use iota_json_rpc::{
@@ -25,16 +25,17 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, GasPayment, ObjectId, TransactionDigest, TransactionExpiration, TransactionKind,
-    UserSignature, Version,
+    Address, GasPayment, ObjectId, SenderSignedTransaction, Transaction, TransactionDigest,
+    TransactionEffects, TransactionExpiration, TransactionKind, TransactionV1, UserSignature,
+    Version,
 };
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::ExecutionError,
     iota_serde::BigInt,
     object::{Object, PastObjectRead},
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI, TransactionDataV1},
+    transaction::TransactionAPI,
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 
@@ -49,18 +50,18 @@ use crate::{
 };
 
 // As an optimization, we're trying to request only the fields we actually need.
-const DRY_RUN_TRANSACTION_READ_MASK: &[&str] = &[
-    SimulateExecutedTransactionField::SIGNATURES_BCS,
-    SimulateExecutedTransactionField::EFFECTS_BCS,
-    SimulateExecutedTransactionField::EVENTS_EVENTS_BCS,
-    SimulateExecutedTransactionField::INPUT_OBJECTS_BCS,
-    SimulateExecutedTransactionField::OUTPUT_OBJECTS_BCS,
+const DRY_RUN_TRANSACTION_READ_MASK: &[SimulateField] = &[
+    SimulateField::EXECUTED_TRANSACTION_SIGNATURES_BCS,
+    SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_INPUT_OBJECTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_OUTPUT_OBJECTS_BCS,
     SimulateField::SUGGESTED_GAS_PRICE,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
 ];
-const DEV_INSPECT_TRANSACTION_READ_MASK: &[&str] = &[
-    SimulateExecutedTransactionField::EFFECTS_BCS,
-    SimulateExecutedTransactionField::EVENTS_EVENTS_BCS,
+const DEV_INSPECT_TRANSACTION_READ_MASK: &[SimulateField] = &[
+    SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
+    SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_BCS_KIND,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_SOURCE,
     SimulateField::EXECUTION_RESULT_EXECUTION_ERROR_COMMAND_INDEX,
@@ -99,16 +100,12 @@ impl WriteApi {
         tx_bytes: Base64,
         package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DryRunTransactionBlockResponse> {
-        let transaction_data = bcs::from_bytes::<TransactionData>(&tx_bytes.to_vec()?)?;
-        let tx_digest = transaction_data.digest();
+        let tx = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
+        let tx_digest = tx.digest();
 
         let simulate_tx_response = self
             .fullnode_grpc_client
-            .simulate_transaction(
-                transaction_data.clone(),
-                false,
-                Some(ReadMask::from(DRY_RUN_TRANSACTION_READ_MASK)),
-            )
+            .simulate_transaction(tx.clone(), false, DRY_RUN_TRANSACTION_READ_MASK)
             .await?
             .into_inner();
 
@@ -135,7 +132,7 @@ impl WriteApi {
             .map(|s| -> IndexerResult<_> { Ok(s.signature()?) })
             .collect::<IndexerResult<Vec<UserSignature>>>()?;
 
-        let sender_signed_data = SenderSignedData::new(transaction_data.clone(), tx_signatures);
+        let sender_signed_tx = SenderSignedTransaction::new(tx.clone(), tx_signatures);
 
         let tx_events = executed_transaction.events()?.events()?;
 
@@ -143,7 +140,7 @@ impl WriteApi {
 
         // as a minor optimization we will run concurrently the following four futures
         let fut1 = in_mem_tx_changes
-            .get_changes(&transaction_data, &tx_effects, &tx_digest)
+            .get_changes(&tx, &tx_effects, &tx_digest)
             .map_ok(|(balance_changes, object_changes)| {
                 (
                     balance_changes,
@@ -155,7 +152,7 @@ impl WriteApi {
             });
 
         let fut2 = IotaTransactionBlock::try_from_with_package_resolver(
-            sender_signed_data,
+            sender_signed_tx,
             package_resolver,
             tx_digest,
         )
@@ -220,7 +217,7 @@ impl WriteApi {
 
         let kind = bcs::from_bytes::<TransactionKind>(&tx_bytes.to_vec()?)?;
 
-        let transaction_data = TransactionData::V1(TransactionDataV1 {
+        let tx = Transaction::V1(TransactionV1 {
             kind,
             sender: sender_address,
             gas_payment: GasPayment {
@@ -233,17 +230,13 @@ impl WriteApi {
         });
 
         let raw_txn_data = show_raw_txn_data_and_effects
-            .then(|| bcs::to_bytes(&transaction_data))
+            .then(|| bcs::to_bytes(&tx))
             .transpose()?
             .unwrap_or_default();
 
         let simulate_tx_response = self
             .fullnode_grpc_client
-            .simulate_transaction(
-                transaction_data,
-                skip_checks,
-                Some(ReadMask::from(DEV_INSPECT_TRANSACTION_READ_MASK)),
-            )
+            .simulate_transaction(tx, skip_checks, DEV_INSPECT_TRANSACTION_READ_MASK)
             .await?
             .into_inner();
 
@@ -303,11 +296,10 @@ impl WriteApi {
             .get_epoch(
                 None, // we're requesting the information for the current epoch.
                 {
-                    let max_tx_gas = EpochField::attribute("max_tx_gas");
-                    Some(ReadMask::from(&[
+                    [
                         EpochField::REFERENCE_GAS_PRICE,
-                        &max_tx_gas,
-                    ]))
+                        EpochField::attribute("max_tx_gas"),
+                    ]
                 },
             )
             .await?
@@ -420,7 +412,7 @@ impl WriteApiServer for WriteApi {
             )
             .await
             .map_err(IndexerError::from)?;
-        let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&tx_kind).map_err(IndexerError::from)?);
+        let tx_bytes = Base64::from_bytes(&tx_kind.to_bcs());
         let dev_inspect_results = self
             .dev_inspect_transaction_block(sender, tx_bytes, None, None, None)
             .await?;
@@ -554,7 +546,7 @@ impl TxObjectResolver {
 
     pub(crate) async fn get_changes(
         &self,
-        tx: &TransactionData,
+        tx: &Transaction,
         effects: &TransactionEffects,
         tx_digest: &TransactionDigest,
     ) -> IndexerResult<(

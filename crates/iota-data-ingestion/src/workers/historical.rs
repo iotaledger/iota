@@ -191,8 +191,9 @@ impl Reducer<RelayWorker> for HistoricalReducer {
                 .await?;
             }
         }
-        self.upload(uploaded_range, self.prepare_data_to_upload(buffer)?)
+        self.upload(uploaded_range.clone(), self.prepare_data_to_upload(buffer)?)
             .await?;
+        tracing::info!("committed checkpoints {uploaded_range:?} to the remote store");
         Ok(())
     }
 

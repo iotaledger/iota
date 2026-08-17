@@ -25,7 +25,7 @@ use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_conf
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, Command, Event, GenesisObject, Identifier, ObjectId, Owner, TransactionDigest,
-    Version,
+    TransactionEffects, TransactionEvents, Version,
     checkpoint::{CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentMessage, IntentScope},
 };
@@ -38,7 +38,6 @@ use iota_types::{
     },
     deny_list_v1::DENY_LIST_CREATE_FUNC,
     digests::ChainIdentifier,
-    effects::{TransactionEffects, TransactionEvents},
     epoch_data::EpochData,
     gas_coin::GasCoin,
     governance::StakedIota,
@@ -53,7 +52,9 @@ use iota_types::{
     object::{MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     randomness_state::RANDOMNESS_STATE_CREATE_FUNCTION_NAME,
-    transaction::{CallArg, CheckedInputObjects, InputObjectKind, ObjectReadResult, Transaction},
+    transaction::{
+        CallArg, CheckedInputObjects, InputObjectKind, ObjectReadResult, TransactionEnvelope,
+    },
 };
 use move_binary_format::CompiledModule;
 use tracing::trace;
@@ -846,7 +847,7 @@ fn update_system_packages_from_objects(
 fn create_genesis_checkpoint(
     protocol_config: &ProtocolConfig,
     parameters: &GenesisCeremonyParameters,
-    system_genesis_transaction: &Transaction,
+    system_genesis_transaction: &TransactionEnvelope,
     system_genesis_tx_effects: &TransactionEffects,
 ) -> (CheckpointSummary, CheckpointContents) {
     let genesis_execution_digests = ExecutionDigests {
@@ -890,7 +891,7 @@ fn create_genesis_transaction(
     metrics: Arc<LimitsMetrics>,
     epoch_data: &EpochData,
 ) -> (
-    Transaction,
+    TransactionEnvelope,
     TransactionEffects,
     TransactionEvents,
     Vec<Object>,
@@ -993,10 +994,9 @@ pub(crate) fn process_package(
 ) -> anyhow::Result<TransactionEvents> {
     let dependency_objects = store.get_objects(&dependencies);
     // When publishing genesis packages, since the std framework packages all have
-    // non-zero addresses, [`Transaction::input_objects_in_compiled_modules`] will
-    // consider them as dependencies even though they are not. Hence
-    // input_objects contain objects that don't exist on-chain because they are
-    // yet to be published.
+    // non-zero addresses, they will be considered as dependencies even though they
+    // are not. Hence input_objects contain objects that don't exist on-chain
+    // because they are yet to be published.
     #[cfg(debug_assertions)]
     {
         use std::collections::HashSet;
@@ -1195,8 +1195,7 @@ mod test {
     use iota_protocol_config::ProtocolVersion;
     use iota_sdk_types::Address;
     use iota_types::crypto::{
-        AccountKeyPair, AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession,
-        get_key_pair_from_rng,
+        AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession, get_key_pair_from_rng,
     };
 
     use crate::{Builder, validator_info::ValidatorInfo};
@@ -1227,8 +1226,7 @@ mod test {
 
         let authority_key: AuthorityKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let protocol_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-        let account_key: AccountKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
-        let account_address = account_key.public_key().derive_address();
+        let account_address = Address::random();
         let network_key: NetworkKeyPair = get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
         let validator = ValidatorInfo {
             name: "0".into(),

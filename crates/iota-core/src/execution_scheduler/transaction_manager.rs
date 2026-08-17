@@ -12,7 +12,9 @@ use std::{
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffectsDigest, Version};
+use iota_sdk_types::{
+    ObjectId, SenderSignedTransaction, TransactionDigest, TransactionEffectsDigest, Version,
+};
 use iota_types::{
     committee::EpochId,
     error::{IotaError, IotaResult},
@@ -20,9 +22,7 @@ use iota_types::{
     fp_bail, fp_ensure,
     message_envelope::Message,
     storage::InputKey,
-    transaction::{
-        SenderSignedData, SenderSignedTransactionAPI, TransactionDataAPI, VerifiedCertificate,
-    },
+    transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -33,10 +33,11 @@ use tracing::{error, info, instrument, trace, warn};
 use crate::{
     authority::{AuthorityMetrics, authority_per_epoch_store::AuthorityPerEpochStore},
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_scheduler::{ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats},
 };
 
 #[cfg(test)]
-#[path = "unit_tests/transaction_manager_tests.rs"]
+#[path = "../unit_tests/transaction_manager_tests.rs"]
 mod transaction_manager_tests;
 
 /// Minimum capacity of HashMaps used in TransactionManager.
@@ -61,54 +62,6 @@ pub struct TransactionManager {
     // acquire the outer lock for write, to ensure that no other threads can be running while
     // we reconfigure.
     inner: RwLock<RwLock<Inner>>,
-}
-
-/// Timing statistics for a pending transaction in the `TransactionManager`.
-///
-/// It tracks when a transaction was enqueued and when it became ready for
-/// execution and it is used for latency metrics.
-///
-/// The legacy name (in the certificate era) was `PendingCertificateStats`.
-/// It is renamed to `PendingTransactionStats` because this type now (in the
-/// certificate-less era) covers more consensus transaction kinds, not just
-/// certificates. The renaming is safe and backward-compatible since this is
-/// a fully internal type.
-#[derive(Clone, Debug)]
-pub struct PendingTransactionStats {
-    /// The time this transaction entered the transaction manager.
-    #[cfg(test)]
-    pub enqueue_time: Instant,
-
-    /// The time this transaction became ready for execution.
-    pub ready_time: Option<Instant>,
-}
-
-/// A transaction that is waiting in the `TransactionManager` for its input
-/// objects to become available before it can be sent to the execution driver.
-///
-/// Once all `waiting_input_objects` are available, the transaction is forwarded
-/// to the execution driver via a channel.
-///
-/// The legacy name (in the certificate era) was `PendingCertificate`.
-/// It is renamed to `PendingTransaction` because this type now (in the
-/// certificate-less era) covers more consensus transaction kinds, not
-/// just certificates. The renaming is safe and backward-compatible
-/// since this is a fully internal type.
-#[derive(Clone, Debug)]
-pub struct PendingTransaction {
-    /// The transaction to be executed.
-    pub transaction: VerifiedExecutableTransaction,
-
-    /// When executing from checkpoint, the certified effects digest is
-    /// provided so that forks can be detected prior to committing the
-    /// transaction.
-    pub expected_effects_digest: Option<TransactionEffectsDigest>,
-
-    /// The input objects this transaction is waiting for to become available.
-    pub waiting_input_objects: BTreeSet<InputKey>,
-
-    /// Timing statistics for this transaction.
-    pub stats: PendingTransactionStats,
 }
 
 struct CacheInner {
@@ -384,48 +337,6 @@ impl TransactionManager {
         }
     }
 
-    /// Enqueues certificates / verified transactions into TransactionManager.
-    /// Once all of the input objects are available locally for a
-    /// certificate, the certified transaction will be sent to execution driver.
-    ///
-    /// REQUIRED: Shared object locks must be taken before calling enqueueing
-    /// transactions with shared objects!
-    #[instrument(level = "trace", skip_all)]
-    pub(crate) fn enqueue_certificates(
-        &self,
-        certs: Vec<VerifiedCertificate>,
-        epoch_store: &AuthorityPerEpochStore,
-    ) {
-        let executable_txns = certs
-            .into_iter()
-            .map(VerifiedExecutableTransaction::new_from_certificate)
-            .collect();
-        self.enqueue(executable_txns, epoch_store)
-    }
-
-    #[instrument("transaction_manager_enqueue_transactions", level = "trace", skip_all)]
-    pub(crate) fn enqueue(
-        &self,
-        transactions: Vec<VerifiedExecutableTransaction>,
-        epoch_store: &AuthorityPerEpochStore,
-    ) {
-        let transactions = transactions.into_iter().map(|tx| (tx, None)).collect();
-        self.enqueue_impl(transactions, epoch_store)
-    }
-
-    #[instrument(level = "trace", skip_all)]
-    pub(crate) fn enqueue_with_expected_effects_digest(
-        &self,
-        transactions: Vec<(VerifiedExecutableTransaction, TransactionEffectsDigest)>,
-        epoch_store: &AuthorityPerEpochStore,
-    ) {
-        let transactions = transactions
-            .into_iter()
-            .map(|(tx, fx)| (tx, Some(fx)))
-            .collect();
-        self.enqueue_impl(transactions, epoch_store)
-    }
-
     fn enqueue_impl(
         &self,
         transactions: Vec<(
@@ -499,7 +410,13 @@ impl TransactionManager {
                         };
 
                     if input_object_kinds.len() != input_object_keys.len() {
-                        error!("Duplicated input objects: {:?}", input_object_kinds);
+                        let mut seen = HashSet::with_capacity(input_object_kinds.len());
+                        let duplicates: Vec<_> = input_object_kinds
+                            .iter()
+                            .map(|kind| kind.object_id())
+                            .filter(|id| !seen.insert(*id))
+                            .collect();
+                        error!("Duplicated input objects: {:?}", duplicates);
                     }
 
                     let receiving_object_entries = tx.data().transaction().receiving_objects();
@@ -556,7 +473,7 @@ impl TransactionManager {
             .object_cache_read
             .multi_input_objects_available(
                 &input_object_cache_misses,
-                receiving_objects,
+                &receiving_objects,
                 epoch_store.epoch(),
             )
             .into_iter()
@@ -614,6 +531,7 @@ impl TransactionManager {
                     enqueue_time: pending_transaction_enqueue_time,
                     ready_time: None,
                 },
+                executing_guard: None,
             });
         }
 
@@ -875,7 +793,7 @@ impl TransactionManager {
     pub(crate) fn check_execution_overload(
         &self,
         overload_config: &AuthorityOverloadConfig,
-        tx_data: &SenderSignedData,
+        tx: &SenderSignedTransaction,
     ) -> IotaResult {
         // Too many transactions are pending execution.
         let inflight_queue_len = self.inflight_queue_len();
@@ -886,11 +804,10 @@ impl TransactionManager {
                 threshold: overload_config.max_transaction_manager_queue_length,
             }
         );
-        tx_data.digest();
+        tx.digest();
 
         for (object_id, queue_len, txn_age) in self.objects_queue_len_and_age(
-            tx_data
-                .shared_input_objects()
+            tx.shared_input_objects()
                 .into_iter()
                 .filter_map(|r| r.mutable.then_some(r.object_id))
                 .collect(),
@@ -952,6 +869,31 @@ impl TransactionManager {
             "Executing transactions: {:?}",
             inner.executing_transactions
         );
+    }
+}
+
+impl ExecutionSchedulerAPI for TransactionManager {
+    fn enqueue_impl(
+        &self,
+        transactions: Vec<(
+            VerifiedExecutableTransaction,
+            Option<TransactionEffectsDigest>,
+        )>,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        TransactionManager::enqueue_impl(self, transactions, epoch_store)
+    }
+
+    fn check_execution_overload(
+        &self,
+        overload_config: &AuthorityOverloadConfig,
+        tx_data: &SenderSignedTransaction,
+    ) -> IotaResult {
+        TransactionManager::check_execution_overload(self, overload_config, tx_data)
+    }
+
+    fn num_pending_transactions(&self) -> usize {
+        self.inflight_queue_len()
     }
 }
 

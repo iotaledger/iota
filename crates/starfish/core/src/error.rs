@@ -403,6 +403,28 @@ pub(crate) enum ConsensusError {
         actual: &'static str,
         starfish_speed: bool,
     },
+
+    #[error("Authority {authority} equivocated: signed a second block header for round {round}")]
+    BlockHeaderEquivocation {
+        authority: AuthorityIndex,
+        round: Round,
+    },
+
+    #[error(
+        "Fetch response from {peer} contains unrequested header (author {author}, round {round}) outside the request's gap-fill window"
+    )]
+    UnrequestedHeaderOutOfWindow {
+        peer: AuthorityIndex,
+        author: AuthorityIndex,
+        round: Round,
+    },
+
+    #[error("Peer {peer} sent a shard that is too large: {size} > {limit}")]
+    SerializedShardTooLarge {
+        peer: AuthorityIndex,
+        size: usize,
+        limit: usize,
+    },
 }
 
 impl ConsensusError {

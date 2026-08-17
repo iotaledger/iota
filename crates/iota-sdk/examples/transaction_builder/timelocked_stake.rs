@@ -17,7 +17,7 @@ use iota_sdk::{
     },
     types::{
         iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-        quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction,
+        quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
     },
 };
 use iota_sdk_types::{SignatureScheme, crypto::Intent};
@@ -103,7 +103,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction_response = client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::new().with_object_changes(),
             ExecuteTransactionRequestType::WaitForLocalExecution,
         )
@@ -161,7 +161,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let transaction_response = client
             .quorum_driver_api()
             .execute_transaction_block(
-                Transaction::from_data(tx_data, vec![signature]),
+                TransactionEnvelope::from_data(tx_data, vec![signature]),
                 IotaTransactionBlockResponseOptions::full_content(),
                 ExecuteTransactionRequestType::WaitForLocalExecution,
             )

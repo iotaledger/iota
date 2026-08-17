@@ -27,8 +27,8 @@ use iota_open_rpc::ExamplePairing;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     Address, CheckpointDigest, Identifier, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
-    Owner, StructTag, TransactionDigest, TransactionEventsDigest, TypeTag, UserSignature, Version,
-    gas::GasCostSummary,
+    Owner, StructTag, Transaction, TransactionDigest, TransactionEventsDigest, TypeTag,
+    UserSignature, Version, gas::GasCostSummary,
 };
 use iota_types::{
     balance::Supply,
@@ -44,7 +44,7 @@ use iota_types::{
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{
@@ -188,7 +188,7 @@ impl RpcExampleProvider {
             builder.finish()
         };
         let gas_price = 10;
-        let data = TransactionData::new_programmable(
+        let tx = Transaction::new_programmable(
             signer,
             vec![ObjectReference::new(
                 gas_id,
@@ -200,7 +200,7 @@ impl RpcExampleProvider {
             gas_price,
         );
 
-        let result = TransactionBlockBytes::from_data(data).unwrap();
+        let result = TransactionBlockBytes::from_data(tx).unwrap();
 
         Examples::new(
             "iota_batchTransaction",
@@ -325,7 +325,7 @@ impl RpcExampleProvider {
                 IotaObjectResponse::new_with_data(IotaObjectData {
                     content: Some(
                         IotaParsedData::try_from_object(
-                            coin.to_object(Version::from_u64(1)),
+                            coin.to_move_struct(Version::from_u64(1)),
                             GasCoin::layout(),
                         )
                         .unwrap(),
@@ -367,7 +367,7 @@ impl RpcExampleProvider {
         let result = IotaPastObjectResponse::VersionFound(IotaObjectData {
             content: Some(
                 IotaParsedData::try_from_object(
-                    coin.to_object(Version::from_u64(1)),
+                    coin.to_move_struct(Version::from_u64(1)),
                     GasCoin::layout(),
                 )
                 .unwrap(),
@@ -661,7 +661,7 @@ impl RpcExampleProvider {
     fn get_transfer_data_response(
         &mut self,
     ) -> (
-        TransactionData,
+        Transaction,
         Vec<UserSignature>,
         Address,
         ObjectId,
@@ -681,7 +681,7 @@ impl RpcExampleProvider {
             ObjectDigest::new(self.rng.gen()),
         );
 
-        let data = TransactionData::new_transfer(
+        let tx = Transaction::new_transfer(
             recipient,
             object_ref,
             signer,
@@ -689,10 +689,10 @@ impl RpcExampleProvider {
             TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
             10,
         );
-        let data1 = data.clone();
-        let data2 = data.clone();
+        let data1 = tx.clone();
+        let data2 = tx.clone();
 
-        let tx = to_sender_signed_transaction(data, &kp);
+        let tx = to_sender_signed_transaction(tx, &kp);
         let signatures = tx.data().signatures().to_vec();
         let raw_transaction = bcs::to_bytes(tx.data()).unwrap();
 
@@ -1482,7 +1482,7 @@ impl RpcExampleProvider {
             IotaPastObjectResponse::VersionFound(IotaObjectData {
                 content: Some(
                     IotaParsedData::try_from_object(
-                        coin.to_object(Version::from_u64(1)),
+                        coin.to_move_struct(Version::from_u64(1)),
                         GasCoin::layout(),
                     )
                     .unwrap(),
@@ -1500,7 +1500,7 @@ impl RpcExampleProvider {
             IotaPastObjectResponse::VersionFound(IotaObjectData {
                 content: Some(
                     IotaParsedData::try_from_object(
-                        coin2.to_object(Version::from_u64(4)),
+                        coin2.to_move_struct(Version::from_u64(4)),
                         GasCoin::layout(),
                     )
                     .unwrap(),

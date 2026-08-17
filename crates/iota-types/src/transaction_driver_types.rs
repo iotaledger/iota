@@ -5,7 +5,7 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
-use iota_sdk_types::{ObjectReference, TransactionDigest};
+use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents};
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 use thiserror::Error;
@@ -14,20 +14,17 @@ use crate::{
     base_types::{AuthorityName, EpochId},
     committee::StakeUnit,
     crypto::{AuthorityStrongQuorumSignInfo, ConciseAuthorityPublicKeyBytes},
-    effects::{
-        CertifiedTransactionEffects, TransactionEffects, TransactionEvents,
-        VerifiedCertifiedTransactionEffects,
-    },
+    effects::{CertifiedTransactionEffects, VerifiedCertifiedTransactionEffects},
     error::{ErrorCategory, IotaError},
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    transaction::{Transaction, VerifiedTransaction},
+    transaction::{TransactionEnvelope, VerifiedTransaction},
 };
 
 pub type TransactionDriverResult = Result<TransactionDriverResponse, TransactionSubmissionError>;
 
 pub type TransactionDriverEffectsQueueResult = Result<
-    (Transaction, TransactionDriverResponse),
+    (TransactionEnvelope, TransactionDriverResponse),
     (TransactionDigest, TransactionSubmissionError),
 >;
 

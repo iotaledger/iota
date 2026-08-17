@@ -13,7 +13,7 @@ use iota_grpc_types::v1::{
 };
 
 /// Build an `ExecuteTransactionItem` from a signed transaction.
-fn build_item(txn: &iota_types::transaction::Transaction) -> ExecuteTransactionItem {
+fn build_item(txn: &iota_types::transaction::TransactionEnvelope) -> ExecuteTransactionItem {
     let transaction = ProtoTransaction::default()
         .with_bcs(BcsData::default().with_data(bcs::to_bytes(txn.transaction()).unwrap()));
 

@@ -26,6 +26,7 @@ use crate::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate, extract_epoch_info_event},
         obj_indices::StoredObjectVersion,
+        objects::StoredCheckpointedObject,
         packages::StoredPackage,
     },
     pruning::pruner::PrunableTable,
@@ -94,10 +95,23 @@ impl Restore for PgIndexerStore {
             );
         }
 
-        let persist_tasks = chunks
+        let (live_chunks, checkpointed_chunks): (Vec<_>, Vec<_>) = chunks
+            .into_iter()
+            .map(|c| {
+                let checkpointed = c
+                    .iter()
+                    .map(|live| StoredCheckpointedObject::try_from(live.indexed_object.clone()))
+                    .collect::<Result<Vec<_>, IndexerError>>()?;
+                Ok::<_, IndexerError>((c, checkpointed))
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .unzip();
+
+        let live_tasks = live_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_live_objects(c)));
-        futures::future::try_join_all(persist_tasks)
+        futures::future::try_join_all(live_tasks)
             .await
             .map_err(|e| {
                 tracing::error!(
@@ -110,6 +124,25 @@ impl Restore for PgIndexerStore {
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
                     "failed to persist all formal snapshot object chunks: {e:?}",
+                ))
+            })?;
+
+        let checkpointed_tasks = checkpointed_chunks.into_iter().map(|c| {
+            self.spawn_blocking_task(move |this| this.persist_checkpointed_objects_chunk(c))
+        });
+        futures::future::try_join_all(checkpointed_tasks)
+            .await
+            .map_err(|e| {
+                tracing::error!(
+                    "failed to join futures for persisting formal snapshot partition to checkpointed_objects: {e}"
+                );
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "failed to persist all formal snapshot checkpointed object chunks: {e:?}",
                 ))
             })?;
         self.persist_displays(derived_data.displays.into_values().collect())

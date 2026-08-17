@@ -13,13 +13,14 @@ use arc_swap::ArcSwap;
 use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc, monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{CancelledTransaction, ConsensusCommitDigest, TransactionDigest};
+use iota_sdk_types::{
+    CanceledTransaction, ConsensusCommitDigest, SenderSignedTransaction, TransactionDigest,
+};
 use iota_types::{
     base_types::AuthorityName,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
-    transaction::{SenderSignedData, SenderSignedTransactionAPI, VerifiedTransaction},
+    transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
@@ -41,9 +42,10 @@ use crate::{
         AuthorityIndex,
         consensus_output_api::{ConsensusOutputAPI, ConsensusOutputTransactions},
     },
+    epoch_start_consensus_committee::get_consensus_committee,
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     scoring_decision::update_low_scoring_authorities,
-    transaction_manager::TransactionManager,
 };
 
 pub struct ConsensusHandlerInitializer {
@@ -87,13 +89,13 @@ impl ConsensusHandlerInitializer {
 
     pub fn new_consensus_handler(&self) -> ConsensusHandler<CheckpointService> {
         let new_epoch_start_state = self.epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
 
         ConsensusHandler::new(
             self.epoch_store.clone(),
             self.state.clone(),
             self.checkpoint_service.clone(),
-            self.state.transaction_manager().clone(),
+            self.state.execution_scheduler().clone(),
             self.state.get_object_cache_reader().clone(),
             self.state.get_transaction_cache_reader().clone(),
             self.low_scoring_authorities.clone(),
@@ -141,11 +143,11 @@ pub struct ConsensusHandler<C> {
 const PROCESSED_CACHE_CAP: usize = 1024 * 1024;
 
 impl<C> ConsensusHandler<C> {
-    pub fn new(
+    pub(crate) fn new(
         epoch_store: Arc<AuthorityPerEpochStore>,
         state: Arc<AuthorityState>,
         checkpoint_service: Arc<C>,
-        transaction_manager: Arc<TransactionManager>,
+        execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         cache_reader: Arc<dyn ObjectCacheRead>,
         tx_reader: Arc<dyn TransactionCacheRead>,
         low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
@@ -162,7 +164,7 @@ impl<C> ConsensusHandler<C> {
             last_consensus_stats.stats = ConsensusStats::new(committee.size());
         }
         let transaction_scheduler =
-            AsyncTransactionScheduler::start(transaction_manager, epoch_store.clone());
+            AsyncTransactionScheduler::start(execution_scheduler, epoch_store.clone());
 
         // Seed the gauges so series exist from epoch start, not only after the
         // first commit.
@@ -475,11 +477,11 @@ struct AsyncTransactionScheduler {
 
 impl AsyncTransactionScheduler {
     pub fn start(
-        transaction_manager: Arc<TransactionManager>,
+        execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) -> Self {
         let (sender, recv) = tokio::sync::mpsc::channel(16);
-        spawn_monitored_task!(Self::run(recv, transaction_manager, epoch_store));
+        spawn_monitored_task!(Self::run(recv, execution_scheduler, epoch_store));
         Self { sender }
     }
 
@@ -490,12 +492,12 @@ impl AsyncTransactionScheduler {
 
     pub async fn run(
         mut recv: tokio::sync::mpsc::Receiver<Vec<VerifiedExecutableTransaction>>,
-        transaction_manager: Arc<TransactionManager>,
+        execution_scheduler: Arc<ExecutionSchedulerWrapper>,
         epoch_store: Arc<AuthorityPerEpochStore>,
     ) {
         while let Some(transactions) = recv.recv().await {
             let _guard = monitored_scope("ConsensusHandler::enqueue");
-            transaction_manager.enqueue(transactions, &epoch_store);
+            execution_scheduler.enqueue(transactions, &epoch_store);
         }
     }
 }
@@ -793,7 +795,9 @@ impl SequencedConsensusTransaction {
     /// always `false`, since only user transactions can request randomness.
     pub fn is_user_tx_with_randomness(&self) -> bool {
         match &self.transaction {
-            SequencedConsensusTransactionKind::External(ext) => ext.kind.as_sender_signed_data(),
+            SequencedConsensusTransactionKind::External(ext) => {
+                ext.kind.as_sender_signed_transaction()
+            }
             SequencedConsensusTransactionKind::System(_) => None,
         }
         .is_some_and(|data| data.uses_randomness())
@@ -803,11 +807,11 @@ impl SequencedConsensusTransaction {
     /// (`CertifiedTransaction` or `UserTransactionV1`) or system transaction
     /// that touches at least one shared object, and `None` otherwise (internal
     /// consensus messages, or a transaction with only owned objects).
-    pub fn as_shared_object_txn(&self) -> Option<&SenderSignedData> {
+    pub fn as_shared_object_txn(&self) -> Option<&SenderSignedTransaction> {
         match &self.transaction {
             SequencedConsensusTransactionKind::External(ext) => ext
                 .kind
-                .as_sender_signed_data()
+                .as_sender_signed_transaction()
                 .filter(|data| data.contains_shared_object()),
             SequencedConsensusTransactionKind::System(txn) => {
                 txn.contains_shared_object().then(|| txn.data())
@@ -889,7 +893,7 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
-        cancelled_transactions: Vec<CancelledTransaction>,
+        cancelled_transactions: Vec<CanceledTransaction>,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
@@ -904,7 +908,7 @@ impl ConsensusCommitInfo {
     pub fn create_consensus_commit_prologue_transaction(
         &self,
         epoch: u64,
-        cancelled_transactions: Vec<CancelledTransaction>,
+        cancelled_transactions: Vec<CanceledTransaction>,
     ) -> VerifiedExecutableTransaction {
         self.consensus_commit_prologue_v1_transaction(epoch, cancelled_transactions)
     }
@@ -917,7 +921,7 @@ mod tests {
     use arc_swap::ArcSwap;
     use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering, ProtocolConfig};
-    use iota_sdk_types::{Address, ObjectId};
+    use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, Transaction};
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
@@ -929,15 +933,12 @@ mod tests {
         supported_protocol_versions::{
             SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
         },
-        transaction::{
-            CertifiedTransaction, SenderSignedData, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-            TransactionData, TransactionDataAPI,
-        },
+        transaction::{CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
         utils::to_sender_signed_transaction,
     };
     use prometheus_filtered::Registry;
     use starfish_core::{
-        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader, Transaction,
+        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader,
         VerifiedBlockHeader, VerifiedTransactions,
     };
 
@@ -971,7 +972,7 @@ mod tests {
 
         let epoch_store = state.epoch_store_for_testing().clone();
         let new_epoch_start_state = epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
 
@@ -981,7 +982,7 @@ mod tests {
             epoch_store,
             state.clone(),
             Arc::new(CheckpointServiceNoop {}),
-            state.transaction_manager().clone(),
+            state.execution_scheduler().clone(),
             state.get_object_cache_reader().clone(),
             state.get_transaction_cache_reader().clone(),
             Arc::new(ArcSwap::default()),
@@ -1011,7 +1012,7 @@ mod tests {
             );
             let tx_batch = VerifiedTransactions::new_for_test(
                 &header,
-                vec![Transaction::new(transaction_bytes)],
+                vec![starfish_core::Transaction::new(transaction_bytes)],
             );
             headers.push(header);
             subdag_transactions.push(tx_batch);
@@ -1122,7 +1123,7 @@ mod tests {
 
         let epoch_store = state.epoch_store_for_testing().clone();
         let new_epoch_start_state = epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
         let rgp = epoch_store.reference_gas_price();
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
@@ -1132,7 +1133,7 @@ mod tests {
             epoch_store.clone(),
             state.clone(),
             Arc::new(CheckpointServiceNoop {}),
-            state.transaction_manager().clone(),
+            state.execution_scheduler().clone(),
             state.get_object_cache_reader().clone(),
             state.get_transaction_cache_reader().clone(),
             Arc::new(ArcSwap::default()),
@@ -1142,7 +1143,7 @@ mod tests {
         );
 
         // AND build one block per UserTransactionV1 transaction
-        let (recipient, _): (Address, AccountKeyPair) = get_key_pair();
+        let recipient = Address::random();
         let mut headers = Vec::new();
         let mut subdag_transactions = Vec::new();
 
@@ -1150,7 +1151,7 @@ mod tests {
             let owned_ref = state.get_object(&owned_obj.id()).unwrap().object_ref();
             let gas_ref = state.get_object(&gas_obj.id()).unwrap().object_ref();
 
-            let tx_data = TransactionData::new_transfer(
+            let tx = Transaction::new_transfer(
                 recipient,
                 owned_ref,
                 sender,
@@ -1158,7 +1159,7 @@ mod tests {
                 rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
                 rgp,
             );
-            let tx = to_sender_signed_transaction(tx_data, &sender_key);
+            let tx = to_sender_signed_transaction(tx, &sender_key);
             let verified_tx = epoch_store.verify_transaction(tx).unwrap();
 
             let consensus_tx = ConsensusTransaction {
@@ -1173,7 +1174,7 @@ mod tests {
             );
             let tx_batch = VerifiedTransactions::new_for_test(
                 &header,
-                vec![Transaction::new(transaction_bytes)],
+                vec![starfish_core::Transaction::new(transaction_bytes)],
             );
             headers.push(header);
             subdag_transactions.push(tx_batch);
@@ -1338,8 +1339,8 @@ mod tests {
 
     fn user_txn(gas_price: u64) -> VerifiedSequencedConsensusTransaction {
         let (committee, keypairs) = Committee::new_simple_test_committee();
-        let data = SenderSignedData::new(
-            TransactionData::new_transfer(
+        let tx = SenderSignedTransaction::new(
+            Transaction::new_transfer(
                 Address::ZERO,
                 random_object_ref(),
                 Address::ZERO,
@@ -1350,7 +1351,7 @@ mod tests {
             vec![],
         );
         txn(ConsensusTransactionKind::CertifiedTransaction(Box::new(
-            CertifiedTransaction::new_from_keypairs_for_testing(data, &keypairs, &committee),
+            CertifiedTransaction::new_from_keypairs_for_testing(tx, &keypairs, &committee),
         )))
     }
 

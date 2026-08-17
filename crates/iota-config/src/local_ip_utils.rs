@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 #[cfg(msim)]
 use std::sync::{Arc, atomic::AtomicI16};
 
-use iota_types::multiaddr::Multiaddr;
+use iota_multiaddr::Multiaddr;
 
 /// A singleton struct to manage IP addresses and ports for simtest.
 /// This allows us to generate unique IP addresses and ports for each node in

@@ -7,14 +7,16 @@ use std::sync::{Arc, OnceLock};
 
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Address, MoveAuthenticator};
+use iota_sdk_types::{
+    Address, MoveAuthenticator, SenderSignedTransaction, Transaction, TransactionEvents,
+};
 use iota_types::{
-    effects::{TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     gas::IotaGasStatus,
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     signature::VerifyParams,
     signature_verification::verify_sender_signed_data_message_signatures,
-    transaction::{SenderSignedData, TransactionData, TransactionDataAPI},
+    transaction::TransactionAPI,
     transaction_executor::SimulateTransactionResult,
 };
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
@@ -123,7 +125,7 @@ impl LocalVm {
     /// is reported via [`ExecutionResult::status`], not as an error.
     pub fn execute(
         &mut self,
-        tx: TransactionData,
+        tx: Transaction,
         opts: ExecuteOptions,
     ) -> Result<ExecutionResult, VmSdkError> {
         let env = ExecutionEnv::new(self, &opts.debug)?;
@@ -178,7 +180,7 @@ impl LocalVm {
     /// [`ExecutionResult::signature_status`], not as an error.
     pub fn execute_signed(
         &mut self,
-        signed: SenderSignedData,
+        signed: SenderSignedTransaction,
         opts: ExecuteOptions,
     ) -> Result<ExecutionResult, VmSdkError> {
         let env = ExecutionEnv::new(self, &opts.debug)?;
@@ -281,7 +283,7 @@ impl LocalVm {
     /// [`SignatureStatus::Failed`], not as an error.
     pub fn check_signing_authentication(
         &self,
-        signed: SenderSignedData,
+        signed: SenderSignedTransaction,
     ) -> Result<SignatureStatus, VmSdkError> {
         self.verify_standard_signatures(&signed)?;
 
@@ -402,7 +404,10 @@ impl LocalVm {
     }
 
     /// Verify the standard-scheme signatures on `signed`.
-    fn verify_standard_signatures(&self, signed: &SenderSignedData) -> Result<(), VmSdkError> {
+    fn verify_standard_signatures(
+        &self,
+        signed: &SenderSignedTransaction,
+    ) -> Result<(), VmSdkError> {
         // Match the node's verifier, which derives these from the protocol
         // config (see `AuthorityPerEpochStore`); `VerifyParams::default()` would
         // hardcode both off and diverge for passkey-in-multisig / additional
@@ -475,7 +480,7 @@ impl LocalVm {
 /// protocol enables `pre_consensus_sponsor_only_move_authentication`. Mirrors
 /// the node's `pre_consensus_move_authenticators`.
 fn pre_consensus_authenticator_addresses(
-    signed: &SenderSignedData,
+    signed: &SenderSignedTransaction,
     protocol_config: &ProtocolConfig,
 ) -> Vec<Address> {
     let selected: Vec<&MoveAuthenticator> = if protocol_config

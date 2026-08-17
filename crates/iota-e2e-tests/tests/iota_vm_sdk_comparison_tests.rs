@@ -23,10 +23,11 @@ use std::{
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionEffects,
 };
 use iota_test_transaction_builder::{TestTransactionBuilder, publish_package};
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, UserInputError},
     transaction::CallArg,
 };

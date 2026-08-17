@@ -21,12 +21,13 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionKind, TypeTag,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -118,7 +119,7 @@ fn dry_run_transaction_block() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
         let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let receiver = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -220,8 +221,8 @@ fn dev_inspect_transaction_block() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = Address::random();
+        let receiver = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -250,9 +251,7 @@ fn dev_inspect_transaction_block() {
         let indexer_devinspect_results = client
             .dev_inspect_transaction_block(
                 sender,
-                Base64::from_bytes(
-                    &bcs::to_bytes(&TransactionKind::new_programmable(ptb)).unwrap(),
-                ),
+                Base64::from_bytes(&TransactionKind::new_programmable(ptb).to_bcs()),
                 None,
                 None,
                 None,
@@ -317,7 +316,7 @@ fn execute_transaction_block() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
         let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let receiver = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -406,7 +405,7 @@ fn optimistic_objects_are_finalized() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let receiver = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1561,8 +1560,8 @@ fn move_view_function_call() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -1682,8 +1681,8 @@ fn clever_errors() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -1758,7 +1757,7 @@ fn dry_run_request_add_stake() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, _key_pair): (_, AccountKeyPair) = get_key_pair();
+        let sender = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(

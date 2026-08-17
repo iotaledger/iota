@@ -2699,8 +2699,8 @@ type Mutation {
 	"""
 	Execute a transaction, committing its effects on chain.
 	
-	- `txBytes` is a `TransactionData` struct that has been BCS-encoded and
-	then Base64-encoded.
+	- `txBytes` is a `Transaction` struct that has been BCS-encoded and then
+	Base64-encoded.
 	- `signatures` are a list of `flag || signature || pubkey` bytes,
 	Base64-encoded.
 	
@@ -3522,14 +3522,14 @@ type Query {
 	Simulate running a transaction to inspect its effects without
 	committing to them on-chain.
 	
-	`txBytes` either a `TransactionData` struct or a `TransactionKind`
+	`txBytes` either a `Transaction` struct or a `TransactionKind`
 	struct, BCS-encoded and then Base64-encoded.  The expected
 	type is controlled by the presence or absence of `txMeta`: If
 	present, `txBytes` is assumed to be a `TransactionKind`, if
-	absent, then `TransactionData`.
+	absent, then `Transaction`.
 	
 	`txMeta` the data that is missing from a `TransactionKind` to make
-	a `TransactionData` (sender address and gas information).  All
+	a `Transaction` (sender address and gas information).  All
 	its fields are nullable.
 	
 	`skipChecks` optional flag to disable the usual verification
@@ -4411,8 +4411,8 @@ type TransactionBlock {
 	"""
 	expiration: Epoch
 	"""
-	Serialized form of this transaction's `SenderSignedData`, BCS serialized
-	and Base64 encoded.
+	Serialized form of this transaction's `SenderSignedTransaction`, BCS
+	serialized and Base64 encoded.
 	"""
 	bcs: Base64
 	"""

@@ -28,19 +28,19 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, Version};
+use iota_sdk_types::{
+    Address, ObjectId, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
+};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     collection_types::VecMap,
     display::DisplayVersionUpdatedEvent,
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::IotaError,
     iota_serde::BigInt,
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
     object::{MoveStructExt, Object, ObjectRead, PastObjectRead},
-    transaction::{Transaction, TransactionDataAPI},
+    transaction::{TransactionAPI, TransactionEnvelope},
 };
 use itertools::Itertools;
 use jsonrpsee::{RpcModule, core::RpcResult};
@@ -76,7 +76,7 @@ pub struct ReadApi {
 #[derive(Default)]
 struct IntermediateTransactionResponse {
     digest: TransactionDigest,
-    transaction: Option<Transaction>,
+    transaction: Option<TransactionEnvelope>,
     effects: Option<TransactionEffects>,
     events: Option<IotaTransactionBlockEvents>,
     checkpoint_seq: Option<CheckpointSequenceNumber>,
@@ -94,7 +94,7 @@ impl IntermediateTransactionResponse {
         }
     }
 
-    pub fn transaction(&self) -> &Option<Transaction> {
+    pub fn transaction(&self) -> &Option<TransactionEnvelope> {
         &self.transaction
     }
 }
@@ -664,7 +664,7 @@ impl ReadApiServer for ReadApi {
         .await
     }
 
-    #[instrument(skip(self))]
+    #[instrument(skip(self, past_objects), fields(num_past_objects = past_objects.len()))]
     async fn try_multi_get_past_objects(
         &self,
         past_objects: Vec<IotaGetPastObjectRequest>,
@@ -1459,7 +1459,7 @@ mod tests {
 
     use iota_protocol_config::ProtocolConfig;
     use iota_sdk_types::{
-        CheckpointDigest, TransactionEffectsDigest,
+        CheckpointDigest, TransactionEffectsDigest, TransactionEvents,
         checkpoint::{CheckpointContents, CheckpointSummary},
         gas::GasCostSummary,
     };
@@ -1472,7 +1472,6 @@ mod tests {
     use iota_types::{
         base_types::ExecutionDigests,
         crypto::AuthorityStrongQuorumSignInfo,
-        effects::TransactionEvents,
         error::IotaResult,
         message_envelope::Envelope,
         messages_checkpoint::{

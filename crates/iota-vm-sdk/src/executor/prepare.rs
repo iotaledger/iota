@@ -3,7 +3,7 @@
 
 //! Shared transaction preparation, execution, and event decoding.
 //!
-//! These helpers turn a [`TransactionData`] into a checked, ready-to-run
+//! These helpers turn a [`Transaction`] into a checked, ready-to-run
 //! [`PreparedTransaction`], drive it through the Move engine (plain or via a
 //! [`MoveAuthenticator`]), and decode emitted events. They operate on an
 //! [`ExecutionEnv`] and a [`BackingStore`] and never touch the [`LocalVm`]'s
@@ -13,7 +13,8 @@ use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_sdk_types::{
-    Address, Digest, Event, MoveAuthenticator, ObjectId, ObjectReference, UserSignature,
+    Address, Digest, Event, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
+    TransactionEffects, UserSignature,
 };
 use iota_types::{
     account_abstraction::authenticator_function::{
@@ -22,9 +23,12 @@ use iota_types::{
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
-    gas::{IotaGasStatus, IotaGasStatusAPI},
+    gas::{
+        IotaGasStatus, IotaGasStatusAPI, check_gas_coins_cover_budget_in_simulation,
+        fill_in_unset_simulation_gas,
+    },
     gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
     layout_resolver::LayoutResolver,
@@ -33,7 +37,7 @@ use iota_types::{
     storage::BackingStore,
     transaction::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
-        ReceivingObjectReadResult, ReceivingObjects, TransactionData, TransactionDataAPI,
+        ReceivingObjectReadResult, ReceivingObjects, TransactionAPI,
         merge_authenticator_input_objects,
     },
     transaction_executor::SimulateTransactionResult,
@@ -49,7 +53,7 @@ use crate::{
 };
 
 pub(super) struct PreparedTransaction {
-    transaction: TransactionData,
+    transaction: Transaction,
     gas_status: IotaGasStatus,
     checked_input_objects: CheckedInputObjects,
     mock_gas_id: Option<ObjectId>,
@@ -58,7 +62,7 @@ pub(super) struct PreparedTransaction {
 pub(super) fn prepare_transaction(
     env: &ExecutionEnv,
     store: &dyn BackingStore,
-    mut transaction: TransactionData,
+    mut transaction: Transaction,
     mode: ExecutionMode,
     deny_config: &TransactionDenyConfig,
     tx_signatures: &[UserSignature],
@@ -78,19 +82,18 @@ pub(super) fn prepare_transaction(
         .validity_check_no_gas_check(&env.protocol_config)
         .map_err(|e| ValidationError::new("transaction validity check", e))?;
 
-    // Update gas payment references to match actual object versions in the
-    // store, summing the coins' balance for the dev-inspect budget below.
-    let mut gas_balance: u64 = 0;
+    transaction
+        .check_gas_payment_size(&env.protocol_config)
+        .map_err(|e| ValidationError::new("transaction validity check", e))?;
+
+    // Update gas payment references to match actual object versions in the store.
     let mut updated_gas = Vec::with_capacity(transaction.gas().len());
     for gas_ref in transaction.gas() {
         let obj = store
             .as_object_store()
             .try_get_object(&gas_ref.object_id)
             .map_err(|e| StoreError::new("load gas object", e))?;
-        updated_gas.push(obj.map_or(*gas_ref, |o| {
-            gas_balance = gas_balance.saturating_add(o.as_coin_maybe().map_or(0, |c| c.value()));
-            o.object_ref()
-        }));
+        updated_gas.push(obj.map_or(*gas_ref, |o| o.object_ref()));
     }
     transaction.gas_data_mut().objects = updated_gas;
 
@@ -104,7 +107,7 @@ pub(super) fn prepare_transaction(
     // shared/owned kind) that store loading does not change, so a denied
     // transaction is rejected without the intervening object I/O.
     //
-    // The node deny-checks `SenderSignedData::input_objects()`, which merges
+    // The node deny-checks `SenderSignedTransaction::input_objects()`, which merges
     // every `MoveAuthenticator`'s input objects into the transaction's; mirror
     // that merge so denied objects are also caught as authenticator inputs.
     let mut deny_check_input_kinds = raw_input_object_kinds.clone();
@@ -143,8 +146,20 @@ pub(super) fn prepare_transaction(
         None
     };
 
+    // `Execute` commits its effects, so it holds a transaction to its own declared
+    // gas the way a validator would; the two simulation modes fill in what the
+    // caller left unset, the same way the node's simulation paths do.
+    if !matches!(mode, ExecutionMode::Execute) {
+        fill_in_unset_simulation_gas(
+            &mut transaction,
+            &input_objects,
+            env.reference_gas_price,
+            &env.protocol_config,
+        );
+    }
+
     // Snapshot the received objects for the coin deny-list check below: the
-    // dev-inspect branch consumes `receiving_objects`, which is not `Clone`.
+    // simulation branch consumes `receiving_objects`, which is not `Clone`.
     let coin_deny_receiving = check_coin_deny_list.then(|| {
         receiving_objects
             .objects
@@ -154,25 +169,28 @@ pub(super) fn prepare_transaction(
     });
 
     let (gas_status, checked_input_objects) = if matches!(mode, ExecutionMode::DevInspect) {
-        let checked_input_objects = iota_transaction_checks::check_dev_inspect_input(
+        // Dev-inspect meters against the transaction's budget, which the fill-in
+        // above resolves to `max_tx_gas` when the caller declares none, matching
+        // the node's dev-inspect entry point.
+        //
+        // The engine smashes the gas coins and reserves the whole budget from them
+        // before running any command, treating the input checks as having verified
+        // that they are gas coins at all — so with those checks skipped here, this
+        // stands in for them, the same way the node's simulation does.
+        let gas_budget = transaction.gas_budget();
+        check_gas_coins_cover_budget_in_simulation(&input_objects, transaction.gas(), gas_budget)
+            .map_err(|e| ValidationError::new("gas balance check", e))?;
+
+        let checked_input_objects = iota_transaction_checks::check_simulation_input(
             &env.protocol_config,
             transaction.kind(),
             input_objects,
             receiving_objects,
         )
-        .map_err(|e| ValidationError::new("dev-inspect input check", e))?;
-        // Dev-inspect meters at `max_tx_gas`, not the transaction's declared
-        // budget, matching the node's dev-inspect entry point — a run before a
-        // budget is settled isn't limited by it. Real gas coins cap the budget
-        // at their total balance, since the engine smashes the budget off the
-        // coin up front (the mock coin's balance always covers `max_tx_gas`).
-        let dev_inspect_gas_budget = if mock_gas_id.is_some() {
-            env.protocol_config.max_tx_gas()
-        } else {
-            env.protocol_config.max_tx_gas().min(gas_balance)
-        };
+        .map_err(|e| ValidationError::new("simulation input check", e))?;
+
         let gas_status = IotaGasStatus::new(
-            dev_inspect_gas_budget,
+            gas_budget,
             transaction.gas_price(),
             env.reference_gas_price,
             &env.protocol_config,
@@ -268,6 +286,7 @@ pub(super) fn execute_prepared(
         effects,
         execution_result,
         mock_gas_id,
+        transaction.gas_data().clone(),
     ))
 }
 
@@ -277,6 +296,7 @@ fn simulation_result(
     effects: TransactionEffects,
     execution_result: Result<Vec<CommandResult>, iota_types::error::ExecutionError>,
     mock_gas_id: Option<ObjectId>,
+    gas_data: GasPayment,
 ) -> SimulateTransactionResult {
     SimulateTransactionResult {
         input_objects: inner_temp_store.input_objects,
@@ -286,6 +306,7 @@ fn simulation_result(
         execution_result,
         mock_gas_id,
         suggested_gas_price: None,
+        gas_data,
     }
 }
 
@@ -439,6 +460,7 @@ pub(super) fn execute_with_move_authenticators(
             effects,
             execution_result.map(|_| Vec::new()),
             mock_gas_id,
+            transaction.gas_data().clone(),
         ),
         authenticator_outcome,
     ))
@@ -479,7 +501,7 @@ pub(super) fn prepare_authenticators(
 /// function refs. The function refs are resolved from the full set of
 /// authenticators, matching the node, even when only a subset is executed.
 pub(super) fn build_auth_context_data(
-    transaction: &TransactionData,
+    transaction: &Transaction,
     prepared_auths: &[PreparedAuthenticator],
     auth_digests: (Digest, Option<Digest>),
 ) -> Result<AuthContextData, VmSdkError> {
@@ -513,7 +535,7 @@ pub(super) fn build_auth_context_data(
 pub(super) fn authenticate_only(
     env: &ExecutionEnv,
     store: &dyn BackingStore,
-    transaction: &TransactionData,
+    transaction: &Transaction,
     auths_to_run: &[PreparedAuthenticator],
     gas_status: IotaGasStatus,
     auth_context_data: AuthContextData,

@@ -4,18 +4,16 @@
 
 use anyhow::{anyhow, bail};
 use iota_sdk_types::{
-    Event, ObjectReference,
+    Event, ObjectReference, TransactionEffects, TransactionEvents,
     checkpoint::{CheckpointContents, EndOfEpochData},
 };
 use iota_types::{
     committee::Committee,
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     event::EventID,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt},
     object::Object,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use serde::{Deserialize, Serialize};
 
@@ -86,7 +84,7 @@ pub struct TransactionProof {
     pub checkpoint_contents: CheckpointContents,
 
     /// The transaction being certified.
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
 
     /// The effects of the transaction being certified.
     pub effects: TransactionEffects,

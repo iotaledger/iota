@@ -12,7 +12,7 @@ use rand::Rng;
 use tokio::sync::{Semaphore, mpsc::UnboundedReceiver, oneshot};
 use tracing::{Instrument, error_span, info, instrument, warn};
 
-use crate::{authority::AuthorityState, transaction_manager::PendingTransaction};
+use crate::{authority::AuthorityState, execution_scheduler::PendingTransaction};
 
 #[cfg(test)]
 #[path = "unit_tests/execution_driver_tests.rs"]
@@ -40,15 +40,19 @@ pub async fn execution_process(
         let transaction;
         let expected_effects_digest;
         let txn_ready_time;
+        // Held until execution completes, keeping the executing-certificates gauge
+        // accurate for ExecutionScheduler (always None for TransactionManager).
+        let executing_guard;
         tokio::select! {
             result = rx_ready_transactions.recv() => {
                 if let Some(pending_tx) = result {
                     transaction = pending_tx.transaction;
                     expected_effects_digest = pending_tx.expected_effects_digest;
                     txn_ready_time = pending_tx.stats.ready_time.unwrap();
+                    executing_guard = pending_tx.executing_guard;
                 } else {
                     // Should only happen after the AuthorityState has shut down and
-                    // tx_ready_transaction has been dropped by TransactionManager.
+                    // the scheduler has dropped its tx_ready_transactions sender.
                     info!("No more transaction will be received. Exiting executor ...");
                     return;
                 };
@@ -111,6 +115,10 @@ pub async fn execution_process(
         spawn_monitored_task!(epoch_store.within_alive_epoch(async move {
             let _scope = monitored_scope("ExecutionDriver::task");
             let _guard = permit;
+            // Held for the whole execution, not dropped at dispatch:
+            // `num_pending_transactions` counts executing transactions too, and
+            // overload admission reads that count.
+            let _executing_guard = executing_guard;
             if let Ok(true) = authority.try_is_tx_already_executed(&digest) {
                 return;
             }
@@ -123,11 +131,11 @@ pub async fn execution_process(
                 &epoch_store_clone,
             ) {
                 Err(IotaError::ValidatorHaltedAtEpochEnd) => {
-                    warn!("Could not execute transaction {digest:?} because validator is halted at epoch end. transaction={transaction:?}");
+                    warn!("Could not execute transaction {digest:?} because validator is halted at epoch end.");
                     return;
                 }
                 Err(e) => {
-                    fatal!("Failed to execute transaction {digest:?}! error={e} transaction={transaction:?}");
+                    fatal!("Failed to execute transaction {digest:?}! error={e}");
                 }
                 _ => (),
             }

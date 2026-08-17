@@ -3,9 +3,10 @@
 
 //! IOTA View Attribute
 
+use std::{collections::BTreeSet, fmt};
+
 use move_ir_types::location::Loc;
 use once_cell::sync::Lazy;
-use std::{collections::BTreeSet, fmt};
 
 use crate::{
     expansion::ast::{Attribute_, Attributes},

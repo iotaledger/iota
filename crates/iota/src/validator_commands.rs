@@ -30,15 +30,17 @@ use iota_keys::{
     },
     keystore::{AccountKeystore, StoredKey},
 };
+use iota_multiaddr::Multiaddr;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme, TypeTag,
+    Address, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme, Transaction, TypeTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use iota_types::{
     crypto::{
         AuthorityKeyPair, AuthorityPublicKey, AuthorityPublicKeyBytes, DEFAULT_EPOCH_ID,
-        IotaKeyPair, NetworkKeyPair, NetworkPublicKey, Signable, generate_proof_of_possession,
+        NetworkKeyPair, NetworkPublicKey, Signable, generate_proof_of_possession,
         get_authority_key_pair,
     },
     dynamic_field::{DynamicFieldName, Field},
@@ -47,8 +49,7 @@ use iota_types::{
         iota_system_state_inner_v1::{UnverifiedValidatorOperationCap, ValidatorV1},
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    multiaddr::Multiaddr,
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 use serde::Serialize;
 use tabled::{
@@ -167,7 +168,7 @@ pub enum IotaValidatorCommandResponse {
 fn make_key_files(
     file_name: PathBuf,
     is_authority_key: bool,
-    key: Option<IotaKeyPair>,
+    key: Option<SimpleKeypair>,
 ) -> Result<()> {
     if file_name.exists() {
         println!("Use existing {file_name:?} key file.");
@@ -565,7 +566,7 @@ async fn construct_unsigned_0x5_txn(
     function: &'static str,
     call_args: Vec<CallArg>,
     gas_budget: u64,
-) -> anyhow::Result<TransactionData> {
+) -> anyhow::Result<Transaction> {
     let iota_client = context.get_client().await?;
     let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
@@ -575,7 +576,7 @@ async fn construct_unsigned_0x5_txn(
         .await?;
 
     let gas_obj_ref = get_gas_obj_ref(sender, &iota_client, gas_budget).await?;
-    TransactionData::new_move_call(
+    Transaction::new_move_call(
         sender,
         ObjectId::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
@@ -600,7 +601,7 @@ async fn call_0x5(
     let iota_client = context.get_client().await?;
 
     let signature = sign_transaction(context, &tx_data, &tx_data.sender(), None).await?;
-    let transaction = Transaction::from_user_sig_data(tx_data, vec![signature]);
+    let transaction = TransactionEnvelope::from_user_sig_data(tx_data, vec![signature]);
 
     iota_client
         .quorum_driver_api()
