@@ -232,6 +232,10 @@ pub enum LocalnetCommand {
         /// Start the network without a fullnode
         #[arg(long)]
         no_full_node: bool,
+        /// Keep the fullnode's full history instead of pruning old object
+        /// versions and checkpoints.
+        #[arg(long, conflicts_with = "no_full_node")]
+        disable_fullnode_pruning: bool,
         /// Set the number of validators in the network.
         /// If a genesis was already generated with a specific number of
         /// validators, this will not override it; the user should recreate the
@@ -308,6 +312,7 @@ impl LocalnetCommand {
                 #[cfg(feature = "indexer")]
                 data_ingestion_dir,
                 no_full_node,
+                disable_fullnode_pruning,
                 committee_size,
                 epoch_duration_ms,
             } => {
@@ -325,6 +330,7 @@ impl LocalnetCommand {
                     #[cfg(feature = "indexer")]
                     data_ingestion_dir,
                     no_full_node,
+                    disable_fullnode_pruning,
                     committee_size,
                 )
                 .await
@@ -374,6 +380,7 @@ async fn start(
     fullnode_rpc_port: u16,
     #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
+    disable_fullnode_pruning: bool,
     committee_size: Option<usize>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
@@ -424,6 +431,10 @@ async fn start(
     let config_path = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
 
     let mut swarm_builder = Swarm::builder();
+
+    if disable_fullnode_pruning {
+        swarm_builder = swarm_builder.with_disable_fullnode_pruning();
+    }
 
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
@@ -995,7 +1006,7 @@ async fn genesis(
         .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
         .with_admin_interface_address(admin_interface_address_with_port)
-        .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
+        .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
 
     fullnode_config.save(iota_config_dir.join(IOTA_FULLNODE_CONFIG))?;
     let mut ssfn_nodes = vec![];
@@ -1016,20 +1027,29 @@ async fn genesis(
                 .with_admin_interface_address(admin_interface_address_with_port)
                 .with_json_rpc_address(([0, 0, 0, 0], 9000))
                 .with_genesis(genesis.clone())
-                .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
+                .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
             ssfn_nodes.push(ssfn_config.clone());
             ssfn_config.save(path)?;
         }
 
-        let ssfn_seed_peers: Vec<SeedPeer> = ssfn_nodes
+        let ssfn_seed_peers = ssfn_nodes
             .iter()
-            .map(|config| SeedPeer {
-                peer_id: Some(anemo::PeerId(
-                    config.network_key_pair().public().0.to_bytes(),
-                )),
-                address: config.p2p_config.external_address.clone().unwrap(),
+            .enumerate()
+            .map(|(index, config)| {
+                let address = config.p2p_config.external_address.clone().ok_or_else(|| {
+                    anyhow!(
+                        "state sync fullnode {index} has no `p2p-config.external-address`, which \
+                         the validators need to derive their seed peers"
+                    )
+                })?;
+                Ok(SeedPeer {
+                    peer_id: Some(anemo::PeerId(
+                        config.network_key_pair().public().0.to_bytes(),
+                    )),
+                    address,
+                })
             })
-            .collect();
+            .collect::<Result<Vec<SeedPeer>, anyhow::Error>>()?;
 
         for (i, mut validator) in network_config
             .into_validator_configs()

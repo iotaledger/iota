@@ -235,17 +235,6 @@ mod test {
 
     use crate::{Multiaddr, config::Config, metrics::MetricsCallbackProvider};
 
-    #[test]
-    fn document_multiaddr_limitation_for_unix_protocol() {
-        // You can construct a multiaddr by hand (ie binary format) just fine
-        let path = "/tmp/foo";
-        let addr = Multiaddr::new_internal(multiaddr::multiaddr!(Unix(path), Http));
-
-        // But it doesn't round-trip in the human readable format
-        let s = addr.to_string();
-        assert!(s.parse::<Multiaddr>().is_err());
-    }
-
     #[tokio::test]
     async fn test_metrics_layer_successful() {
         #[derive(Clone)]

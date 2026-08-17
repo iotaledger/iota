@@ -13,6 +13,7 @@ use iota_config::{
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
 use iota_genesis_builder::validator_info::{GenesisValidatorInfo, ValidatorInfo};
+use iota_multiaddr::Multiaddr;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
@@ -22,7 +23,6 @@ use iota_types::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
         NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
     },
-    multiaddr::Multiaddr,
 };
 use rand::{SeedableRng, rngs::StdRng};
 use serde::{Deserialize, Serialize};

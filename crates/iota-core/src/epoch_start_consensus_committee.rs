@@ -52,6 +52,7 @@ pub fn get_consensus_committee<T: EpochStartSystemStateTrait>(state: &T) -> Cons
 #[cfg(test)]
 mod test {
     use fastcrypto::traits::{KeyPair, ToFromBytes};
+    use iota_multiaddr::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
     use iota_sdk_types::Address;
     use iota_types::{
@@ -60,7 +61,6 @@ mod test {
         iota_system_state::epoch_start_iota_system_state::{
             EpochStartSystemState, EpochStartSystemStateTrait, EpochStartValidatorInfoV1,
         },
-        multiaddr::Multiaddr,
     };
     use rand::thread_rng;
 

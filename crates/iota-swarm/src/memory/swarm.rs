@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use futures::future::try_join_all;
 use iota_config::{
     ExecutionCacheConfig, IOTA_GENESIS_FILENAME, NodeConfig,
@@ -379,7 +379,28 @@ impl<R> SwarmBuilder<R> {
 
 impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     /// Create the configured Swarm.
+    ///
+    /// # Panics
+    ///
+    /// Panics if [`SwarmBuilder::try_build`] returns an error.
     pub fn build(self) -> Swarm {
+        self.try_build().unwrap_or_else(|err| panic!("{err:#}"))
+    }
+
+    /// Create the configured Swarm.
+    ///
+    /// # Errors
+    ///
+    /// - The network has a fullnode and a validator config has no
+    ///   `p2p-config.external-address`.
+    ///
+    /// # Panics
+    ///
+    /// Panics on failures the swarm cannot run without: creating its temporary
+    /// directory, saving the genesis blob, parsing a generated network address,
+    /// and building the genesis (e.g. on invalid genesis parameters or a
+    /// validator below the minimum stake).
+    pub fn try_build(self) -> Result<Swarm> {
         let dir = if let Some(dir) = self.dir {
             SwarmDirectory::Persistent(dir)
         } else {
@@ -525,33 +546,33 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 fullnode_config_builder.with_grpc_api_config(grpc_config.clone());
         }
 
-        if self.fullnode_count > 0 {
-            (0..self.fullnode_count).for_each(|idx| {
-                let mut builder = fullnode_config_builder.clone();
-                if idx == 0 {
-                    // Only the first fullnode is used as the rpc fullnode, we can only use the
-                    // same address once.
-                    if let Some(rpc_addr) = self.fullnode_rpc_addr {
-                        builder = builder.with_rpc_addr(rpc_addr);
-                    }
-                    if let Some(rpc_port) = self.fullnode_rpc_port {
-                        builder = builder.with_rpc_port(rpc_port);
-                    }
+        for idx in 0..self.fullnode_count {
+            let mut builder = fullnode_config_builder.clone();
+            if idx == 0 {
+                // Only the first fullnode is used as the rpc fullnode, we can only use the
+                // same address once.
+                if let Some(rpc_addr) = self.fullnode_rpc_addr {
+                    builder = builder.with_rpc_addr(rpc_addr);
                 }
-                let config = builder.build(&mut OsRng, &network_config);
-                info!(
-                    "SwarmBuilder configuring full node with name {}",
-                    config.authority_public_key()
-                );
-                nodes.insert(config.authority_public_key(), Node::new(config));
-            });
+                if let Some(rpc_port) = self.fullnode_rpc_port {
+                    builder = builder.with_rpc_port(rpc_port);
+                }
+            }
+            let config = builder
+                .try_build(&mut OsRng, &network_config)
+                .context("failed to build the fullnode config")?;
+            info!(
+                "SwarmBuilder configuring full node with name {}",
+                config.authority_public_key()
+            );
+            nodes.insert(config.authority_public_key(), Node::new(config));
         }
-        Swarm {
+        Ok(Swarm {
             dir,
             network_config,
             nodes,
             fullnode_config_builder,
-        }
+        })
     }
 }
 
@@ -711,7 +732,31 @@ impl AsRef<Path> for SwarmDirectory {
 mod test {
     use std::num::NonZeroUsize;
 
+    use iota_swarm_config::network_config_builder::ConfigBuilder;
+
     use super::Swarm;
+
+    #[test]
+    fn try_build_fails_when_a_validator_has_no_p2p_external_address() {
+        // The fullnode derives its seed peers from the validators' external
+        // addresses.
+        let dir = tempfile::TempDir::new().unwrap();
+        let mut network_config = ConfigBuilder::new(dir.path())
+            .committee_size(NonZeroUsize::new(1).unwrap())
+            .build();
+        network_config.validator_configs[0]
+            .p2p_config
+            .external_address = None;
+
+        let err = Swarm::builder()
+            .with_network_config(network_config)
+            .with_fullnode_count(1)
+            .try_build()
+            .unwrap_err();
+        let err = format!("{err:#}");
+        assert!(err.contains("validator 0"), "{err}");
+        assert!(err.contains("seed peers"), "{err}");
+    }
 
     #[tokio::test]
     async fn launch() {
