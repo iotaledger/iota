@@ -916,16 +916,6 @@ impl ObjectSet {
     }
 }
 
-impl FromIterator<Object> for ObjectSet {
-    fn from_iter<I: IntoIterator<Item = Object>>(iter: I) -> Self {
-        let mut set = Self::default();
-        for object in iter {
-            set.insert(object);
-        }
-        set
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use iota_sdk_types::{Address, ObjectId, TransactionDigest};
