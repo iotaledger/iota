@@ -1110,8 +1110,16 @@ pub struct MetricsConfig {
     pub groups: Option<MetricGroups>,
 }
 
-fn default_checkpoint_archive_download_concurrency() -> usize {
-    10
+fn default_checkpoint_archive_download_concurrency() -> NonZeroUsize {
+    NonZeroUsize::new(10).unwrap()
+}
+
+fn default_checkpoint_archive_verify_concurrency() -> NonZeroUsize {
+    std::thread::available_parallelism().unwrap_or(NonZeroUsize::new(4).unwrap())
+}
+
+fn default_checkpoint_archive_max_checkpoints_ahead_of_execution() -> NonZeroUsize {
+    NonZeroUsize::new(100_000).unwrap()
 }
 
 /// Configuration for backfilling checkpoint contents from the
@@ -1123,7 +1131,18 @@ pub struct CheckpointArchiveConfig {
     pub url: String,
     /// Non-zero number of checkpoints to download in parallel.
     #[serde(default = "default_checkpoint_archive_download_concurrency")]
-    pub download_concurrency: usize,
+    pub download_concurrency: NonZeroUsize,
+    /// Non-zero number of downloaded checkpoints to verify in parallel.
+    /// Defaults to the number of CPU cores.
+    #[serde(default = "default_checkpoint_archive_verify_concurrency")]
+    pub verify_concurrency: NonZeroUsize,
+    /// Pause downloading from the archive while the synced watermark is this
+    /// many checkpoints ahead of the executed watermark, and resume once
+    /// execution catches up. Bounds the disk space held by checkpoints that
+    /// are synced but not yet executed, since only executed checkpoints can
+    /// be pruned.
+    #[serde(default = "default_checkpoint_archive_max_checkpoints_ahead_of_execution")]
+    pub max_checkpoints_ahead_of_execution: NonZeroUsize,
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.
