@@ -260,15 +260,39 @@ pub struct LocalExec {
     // Retry policies due to RPC errors
     pub num_retries_for_timeout: u32,
     pub sleep_period_for_timeout: std::time::Duration,
+    // Per-transaction profile capture: one JSON row per replayed user
+    // transaction, from a timed second execution against the warmed local
+    // store (see `execution_engine_execute_with_tx_info_impl`). Shared
+    // across checkpoint-replay tasks.
+    pub profile_output: Option<Arc<Mutex<std::fs::File>>>,
+    // Counts every network fetch this executor issues. The profile capture
+    // snapshots it around the timed re-execution and drops the row if it
+    // moved: a wall-clock that includes an RPC round-trip (or its retry
+    // sleeps) is not lane work.
+    pub network_fetches: Arc<std::sync::atomic::AtomicU64>,
+    // Negative lookups (object absent at the queried bound), cached so a
+    // re-execution does not repeat the network round-trip; the positive
+    // caches only hold objects that exist. Only consulted on capture runs.
+    pub absent_object_cache: Arc<Mutex<HashSet<(ObjectId, Option<Version>)>>>,
 }
 
 impl LocalExec {
+    /// Route one profile row (digest, warm-re-execution wall-clock, resource
+    /// profile) per replayed user transaction into `out`.
+    pub fn with_profile_output(mut self, out: Option<Arc<Mutex<std::fs::File>>>) -> Self {
+        self.profile_output = out;
+        self
+    }
+
     /// Wrapper around fetcher in case we want to add more functionality
     /// Such as fetching from local DB from snapshot
     pub async fn multi_download(
         &self,
         objs: &[(ObjectId, Version)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
+        self.network_fetches
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        trace!(target: "replay_fetch", "multi_get_versioned: {objs:?}");
         let mut num_retries_for_timeout = self.num_retries_for_timeout as i64;
         while num_retries_for_timeout >= 0 {
             match self.fetcher.multi_get_versioned(objs).await {
@@ -293,6 +317,9 @@ impl LocalExec {
         &self,
         objs: &[ObjectId],
     ) -> Result<Vec<Object>, ReplayEngineError> {
+        self.network_fetches
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        trace!(target: "replay_fetch", "multi_get_latest: {objs:?}");
         let mut num_retries_for_timeout = self.num_retries_for_timeout as i64;
         while num_retries_for_timeout >= 0 {
             match self.fetcher.multi_get_latest(objs).await {
@@ -405,6 +432,9 @@ impl LocalExec {
             protocol_version: None,
             enable_profiler: None,
             config_and_versions: None,
+            profile_output: None,
+            network_fetches: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            absent_object_cache: Arc::new(Mutex::new(HashSet::new())),
         })
     }
 
@@ -448,6 +478,9 @@ impl LocalExec {
             protocol_version: None,
             enable_profiler: None,
             config_and_versions: None,
+            profile_output: None,
+            network_fetches: Arc::new(std::sync::atomic::AtomicU64::new(0)),
+            absent_object_cache: Arc::new(Mutex::new(HashSet::new())),
         })
     }
 
@@ -625,6 +658,25 @@ impl LocalExec {
         if local_object.is_some() {
             return Ok(local_object);
         }
+        if self.profile_output.is_some()
+            && self
+                .absent_object_cache
+                .lock()
+                .expect("Can't lock")
+                .contains(&(*object_id, Some(version_upper_bound)))
+        {
+            return Ok(None);
+        }
+        self.network_fetches
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        trace!(target: "replay_fetch", "get_child_object: {object_id} <= {version_upper_bound}");
+        let absent = |self_: &Self| {
+            self_
+                .absent_object_cache
+                .lock()
+                .expect("Can't lock")
+                .insert((*object_id, Some(version_upper_bound)));
+        };
         let response = block_on({
             self.fetcher
                 .get_child_object(object_id, version_upper_bound)
@@ -648,6 +700,7 @@ impl LocalExec {
                 error!(
                     "Could not find child object {id} on RPC server. It might have been pruned, deleted, or never existed."
                 );
+                absent(self);
                 Ok(None)
             }
             Err(ReplayEngineError::ObjectDeleted {
@@ -656,6 +709,7 @@ impl LocalExec {
                 digest,
             }) => {
                 error!("Object {id} {version} {digest} was deleted on RPC server.");
+                absent(self);
                 Ok(None)
             }
             // This is a child object which was not found in the store (e.g., due to exists
@@ -664,6 +718,7 @@ impl LocalExec {
                 info!(
                     "Object {id} {version} not found on RPC server -- this may have been pruned or never existed."
                 );
+                absent(self);
                 Ok(None)
             }
             Err(err) => Err(ReplayEngineError::IotaRpcError {
@@ -769,19 +824,25 @@ impl LocalExec {
         );
 
         // All prep done
-        let expensive_checks = true;
+        // Profile-capture runs skip the deep per-transaction conservation
+        // check: production validators do not run it either, so it would
+        // inflate the measured wall-clock — and it aborts the process when a
+        // non-archival RPC node cannot resolve a third-party object layout.
+        let expensive_checks = self.profile_output.is_none();
         let transaction_kind = override_transaction_kind.unwrap_or(tx_info.kind.clone());
         let certificate_deny_set = HashSet::new();
-        let gas_status = if tx_info.kind.is_system() {
-            IotaGasStatus::new_unmetered()
-        } else {
-            IotaGasStatus::new(
-                tx_info.gas_budget,
-                tx_info.gas_price,
-                tx_info.reference_gas_price,
-                protocol_config,
-            )
-            .expect("Failed to create gas status")
+        let make_gas_status = || {
+            if tx_info.kind.is_system() {
+                IotaGasStatus::new_unmetered()
+            } else {
+                IotaGasStatus::new(
+                    tx_info.gas_budget,
+                    tx_info.gas_price,
+                    tx_info.reference_gas_price,
+                    protocol_config,
+                )
+                .expect("Failed to create gas status")
+            }
         };
         let gas_data = GasPayment {
             objects: tx_info.gas.clone(),
@@ -794,22 +855,66 @@ impl LocalExec {
 
         let (inner_store, gas_status, effects, result) = if move_authenticators.is_empty() {
             // Standard path: no MoveAuthenticator
-            executor.execute_transaction_to_effects(
-                &self,
-                protocol_config,
-                metrics.clone(),
-                expensive_checks,
-                &certificate_deny_set,
-                &tx_info.executed_epoch,
-                tx_info.epoch_start_timestamp,
-                CheckedInputObjects::new_for_replay(input_objects.clone()),
-                gas_data,
-                gas_status,
-                transaction_kind.clone(),
-                tx_info.sender,
-                *tx_digest,
-                &mut None,
-            )
+            let execute_once = |gas_status: IotaGasStatus| {
+                executor.execute_transaction_to_effects(
+                    &self,
+                    protocol_config,
+                    metrics.clone(),
+                    expensive_checks,
+                    &certificate_deny_set,
+                    &tx_info.executed_epoch,
+                    tx_info.epoch_start_timestamp,
+                    CheckedInputObjects::new_for_replay(input_objects.clone()),
+                    gas_data.clone(),
+                    gas_status,
+                    transaction_kind.clone(),
+                    tx_info.sender,
+                    *tx_digest,
+                    &mut None,
+                )
+            };
+            let first = execute_once(make_gas_status());
+            if let Some(out) = &self.profile_output {
+                // The first execution may fetch child objects over the
+                // network; re-executing against the now-local state gives a
+                // wall-clock that is lane work only (warm reads), comparable
+                // with the benchmark's capture. System transactions are
+                // skipped: they are unmetered and bypass admission.
+                if !tx_info.kind.is_system() {
+                    let fetches_before = self
+                        .network_fetches
+                        .load(std::sync::atomic::Ordering::Relaxed);
+                    let warm_start = std::time::Instant::now();
+                    let (_, warm_gas_status, warm_effects, _) = execute_once(make_gas_status());
+                    let measured_ns = warm_start.elapsed().as_nanos() as u64;
+                    let fetched = self
+                        .network_fetches
+                        .load(std::sync::atomic::Ordering::Relaxed)
+                        != fetches_before;
+                    if fetched {
+                        warn!(
+                            "re-execution of {tx_digest} fetched over the network; dropping \
+                             profile row (its wall-clock is not lane work)"
+                        );
+                    } else if warm_effects != first.2 {
+                        warn!(
+                            "re-execution effects diverged for {tx_digest}; dropping profile row"
+                        );
+                    } else {
+                        let row = serde_json::json!({
+                            "tx_digest": tx_digest.to_string(),
+                            "measured_ns": measured_ns,
+                            "profile": warm_gas_status.resource_profile(),
+                        });
+                        use std::io::Write;
+                        if let Err(e) = writeln!(out.lock().expect("profile output lock"), "{row}")
+                        {
+                            warn!("failed to write profile row for {tx_digest}: {e}");
+                        }
+                    }
+                }
+            }
+            first
         } else {
             // MoveAuthenticator path: split input objects and run authentication
             // before PTB execution, matching the production flow.
@@ -897,7 +1002,7 @@ impl LocalExec {
                     &tx_info.executed_epoch,
                     tx_info.epoch_start_timestamp,
                     gas_data,
-                    gas_status,
+                    make_gas_status(),
                     move_authenticators,
                     CheckedInputObjects::new_for_replay(input_objects.clone()),
                     transaction_kind.clone(),
@@ -1349,7 +1454,22 @@ impl LocalExec {
             return Ok(Some(obj.clone()));
         }
 
+        if self.profile_output.is_some()
+            && self
+                .absent_object_cache
+                .lock()
+                .expect("Can't lock")
+                .contains(&(*obj_id, None))
+        {
+            return Ok(None);
+        }
         let Some(o) = self.download_latest_object(obj_id)? else {
+            if self.profile_output.is_some() {
+                self.absent_object_cache
+                    .lock()
+                    .expect("Can't lock")
+                    .insert((*obj_id, None));
+            }
             return Ok(None);
         };
 
@@ -1363,6 +1483,17 @@ impl LocalExec {
                 .package_cache
                 .lock()
                 .expect("Cannot lock")
+                .insert(*obj_id, o.clone());
+        } else if self.profile_output.is_some() {
+            // The lookup above reads `live_objects_store`, but this download
+            // used to land only in `object_version_cache` — so a re-execution
+            // re-fetched the same object and its profile row was dropped by
+            // the network-fetch guard. Capture runs cache it where the lookup
+            // will find it; the non-capture flow is left as it was.
+            self.storage
+                .live_objects_store
+                .lock()
+                .expect("Can't lock")
                 .insert(*obj_id, o.clone());
         }
         let o_ref = o.object_ref();
