@@ -74,15 +74,16 @@ pub(super) const CURRENT_DB_VERSION: u64 = 1;
 pub(super) const HISTORY_CF_PREFIX: &str = "hist_rpc_e";
 
 // The tag a history table's keys carry inside its bucket's column family.
-// Do not reuse these tags. Mark a tag retired in a comment, the way tag 1
-// is below, if its table is ever removed. Public so that the database
-// inspection tooling can scan a bucket without reopening the store.
+// Do not reuse a tag for a different table: mark it retired in a comment
+// instead, so an older bucket's rows can never be read as the wrong type.
+// Public so that the database inspection tooling can scan a bucket without
+// reopening the store.
 pub const DB_PREFIX_HISTORIC_TX_ORDER: u8 = 0;
 /// A transaction's position in the network order, which places a JSON-RPC
 /// query cursor. The checkpoint that confirmed the transaction is not here:
 /// it is kept with the ledger, so a finality answer cannot expire before
 /// the transaction it describes.
-pub const DB_PREFIX_HISTORIC_DIGESTS: u8 = 1;
+pub const DB_PREFIX_HISTORIC_TXS_SEQ: u8 = 1;
 pub const DB_PREFIX_HISTORIC_TXS_FROM_ADDR: u8 = 2;
 pub const DB_PREFIX_HISTORIC_TXS_TO_ADDR: u8 = 3;
 pub const DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID: u8 = 4;
@@ -488,7 +489,7 @@ pub(super) struct HistoryBucket {
     /// answer must not be able to expire before the transaction it
     /// describes, so it lives with the ledger in
     /// `AuthorityPerpetualTables::executed_transactions_to_checkpoint`.
-    pub(super) digests: TaggedDBMap<TransactionDigest, TxSequenceNumber>,
+    pub(super) txs_seq: TaggedDBMap<TransactionDigest, TxSequenceNumber>,
 
     /// Index from iota address to transactions initiated by that address.
     pub(super) txs_from_addr: TaggedDBMap<(Address, TxSequenceNumber), TransactionDigest>,
@@ -541,7 +542,7 @@ impl HistoryBucket {
         }
         Ok(Self {
             tx_order: map(db, cf_name, DB_PREFIX_HISTORIC_TX_ORDER)?,
-            digests: map(db, cf_name, DB_PREFIX_HISTORIC_DIGESTS)?,
+            txs_seq: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_SEQ)?,
             txs_from_addr: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_FROM_ADDR)?,
             txs_to_addr: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_TO_ADDR)?,
             txs_by_input_object_id: map(db, cf_name, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID)?,
@@ -563,7 +564,7 @@ impl HistoryBucket {
     /// Appends one transaction's history-table rows, digest included, to a
     /// checkpoint's batch. Only called for checkpoints replayed or indexed
     /// while the JSON-RPC group is enabled; a gRPC-only store fills
-    /// `digests` directly from the checkpoint's contents instead (see
+    /// `txs_seq` directly from the checkpoint's contents instead (see
     /// `RpcIndexesStore::replay_checkpoint_history`).
     pub(super) fn index_tx(
         &self,
@@ -583,7 +584,7 @@ impl HistoryBucket {
 
         batch.insert_batch_tagged(&self.tx_order, std::iter::once((sequence, digest)))?;
 
-        batch.insert_batch_tagged(&self.digests, std::iter::once((digest, sequence)))?;
+        batch.insert_batch_tagged(&self.txs_seq, std::iter::once((digest, sequence)))?;
 
         batch.insert_batch_tagged(
             &self.txs_from_addr,
