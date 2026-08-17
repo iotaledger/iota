@@ -409,7 +409,7 @@ impl TransactionBlock {
             ));
         }
 
-        // If the caller has provided some arbitrary combination of `function`, `kind`,
+        // If the caller has provided some arbitrary combination of `function`,
         // `recvAddress`, `inputObject`, or `changedObject`, we require setting a
         // `scanLimit`.
         if let Some(scan_limit) = scan_limit {

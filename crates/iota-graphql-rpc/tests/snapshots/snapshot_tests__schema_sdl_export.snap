@@ -49,10 +49,10 @@ type Address implements IOwner {
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply two
-	or more complex filters (on function, recipient, input object,
-	changed object, or wrapped or deleted object), and can be at most
-	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
-	any of them.
+	or more complex filters (on function, affected address, recipient, input
+	object, changed object, or wrapped or deleted object), and can be at
+	most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+	combined with any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -73,9 +73,8 @@ type Address implements IOwner {
 	`atCheckpoint` filters.
 	
 	DEPRECATION NOTICE: Support for the combination of two or more complex
-	filters as discussed above will stop with the v1.38 release, after more
-	than three months. `scanLimit` will thus become obsolete and will be
-	removed as well.
+	filters as discussed above will stop with the v1.38 release. `scanLimit`
+	will thus become obsolete and will be removed as well.
 	"""
 	transactionBlocks(first: Int, after: String, last: Int, before: String, relation: AddressTransactionBlockRelationship, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 }
@@ -424,10 +423,10 @@ type Checkpoint {
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply two
-	or more complex filters (on function, recipient, input object,
-	changed object, or wrapped or deleted object), and can be at most
-	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
-	any of them.
+	or more complex filters (on function, affected address, recipient, input
+	object, changed object, or wrapped or deleted object), and can be at
+	most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+	combined with any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -446,9 +445,8 @@ type Checkpoint {
 	checkpoint.
 	
 	DEPRECATION NOTICE: Support for the combination of two or more complex
-	filters as discussed above will stop with the v1.38 release, after more
-	than three months. `scanLimit` will thus become obsolete and will be
-	removed as well.
+	filters as discussed above will stop with the v1.38 release. `scanLimit`
+	will thus become obsolete and will be removed as well.
 	"""
 	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 }
@@ -564,10 +562,10 @@ type Coin implements IMoveObject & IObject & IOwner {
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply two
-	or more complex filters (on function, recipient, input object,
-	changed object, or wrapped or deleted object), and can be at most
-	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
-	any of them.
+	or more complex filters (on function, affected address, recipient, input
+	object, changed object, or wrapped or deleted object), and can be at
+	most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+	combined with any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -588,9 +586,8 @@ type Coin implements IMoveObject & IObject & IOwner {
 	`atCheckpoint` filters.
 	
 	DEPRECATION NOTICE: Support for the combination of two or more complex
-	filters as discussed above will stop with the v1.38 release, after more
-	than three months. `scanLimit` will thus become obsolete and will be
-	removed as well.
+	filters as discussed above will stop with the v1.38 release. `scanLimit`
+	will thus become obsolete and will be removed as well.
 	"""
 	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
@@ -744,10 +741,10 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply two
-	or more complex filters (on function, recipient, input object,
-	changed object, or wrapped or deleted object), and can be at most
-	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
-	any of them.
+	or more complex filters (on function, affected address, recipient, input
+	object, changed object, or wrapped or deleted object), and can be at
+	most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+	combined with any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -768,9 +765,8 @@ type CoinMetadata implements IMoveObject & IObject & IOwner {
 	`atCheckpoint` filters.
 	
 	DEPRECATION NOTICE: Support for the combination of two or more complex
-	filters as discussed above will stop with the v1.38 release, after more
-	than three months. `scanLimit` will thus become obsolete and will be
-	removed as well.
+	filters as discussed above will stop with the v1.38 release. `scanLimit`
+	will thus become obsolete and will be removed as well.
 	"""
 	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
@@ -1194,10 +1190,10 @@ type Epoch {
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply two
-	or more complex filters (on function, recipient, input object,
-	changed object, or wrapped or deleted object), and can be at most
-	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
-	any of them.
+	or more complex filters (on function, affected address, recipient, input
+	object, changed object, or wrapped or deleted object), and can be at
+	most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+	combined with any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -1216,9 +1212,8 @@ type Epoch {
 	epoch.
 	
 	DEPRECATION NOTICE: Support for the combination of two or more complex
-	filters as discussed above will stop with the v1.38 release, after more
-	than three months. `scanLimit` will thus become obsolete and will be
-	removed as well.
+	filters as discussed above will stop with the v1.38 release. `scanLimit`
+	will thus become obsolete and will be removed as well.
 	"""
 	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 }
@@ -2177,10 +2172,10 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply two
-	or more complex filters (on function, recipient, input object,
-	changed object, or wrapped or deleted object), and can be at most
-	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
-	any of them.
+	or more complex filters (on function, affected address, recipient, input
+	object, changed object, or wrapped or deleted object), and can be at
+	most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+	combined with any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -2201,9 +2196,8 @@ type MoveObject implements IMoveObject & IObject & IOwner {
 	`atCheckpoint` filters.
 	
 	DEPRECATION NOTICE: Support for the combination of two or more complex
-	filters as discussed above will stop with the v1.38 release, after more
-	than three months. `scanLimit` will thus become obsolete and will be
-	removed as well.
+	filters as discussed above will stop with the v1.38 release. `scanLimit`
+	will thus become obsolete and will be removed as well.
 	"""
 	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
@@ -2393,10 +2387,10 @@ type MovePackage implements IObject & IOwner {
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply two
-	or more complex filters (on function, recipient, input object,
-	changed object, or wrapped or deleted object), and can be at most
-	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
-	any of them.
+	or more complex filters (on function, affected address, recipient, input
+	object, changed object, or wrapped or deleted object), and can be at
+	most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+	combined with any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -2417,9 +2411,8 @@ type MovePackage implements IObject & IOwner {
 	`atCheckpoint` filters.
 	
 	DEPRECATION NOTICE: Support for the combination of two or more complex
-	filters as discussed above will stop with the v1.38 release, after more
-	than three months. `scanLimit` will thus become obsolete and will be
-	removed as well.
+	filters as discussed above will stop with the v1.38 release. `scanLimit`
+	will thus become obsolete and will be removed as well.
 	"""
 	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
@@ -2843,10 +2836,10 @@ type NameRegistration implements IMoveObject & IOwner {
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply two
-	or more complex filters (on function, recipient, input object,
-	changed object, or wrapped or deleted object), and can be at most
-	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
-	any of them.
+	or more complex filters (on function, affected address, recipient, input
+	object, changed object, or wrapped or deleted object), and can be at
+	most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+	combined with any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -2867,9 +2860,8 @@ type NameRegistration implements IMoveObject & IOwner {
 	`atCheckpoint` filters.
 	
 	DEPRECATION NOTICE: Support for the combination of two or more complex
-	filters as discussed above will stop with the v1.38 release, after more
-	than three months. `scanLimit` will thus become obsolete and will be
-	removed as well.
+	filters as discussed above will stop with the v1.38 release. `scanLimit`
+	will thus become obsolete and will be removed as well.
 	"""
 	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
@@ -3034,10 +3026,10 @@ type Object implements IObject & IOwner {
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply two
-	or more complex filters (on function, recipient, input object,
-	changed object, or wrapped or deleted object), and can be at most
-	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
-	any of them.
+	or more complex filters (on function, affected address, recipient, input
+	object, changed object, or wrapped or deleted object), and can be at
+	most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+	combined with any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -3058,9 +3050,8 @@ type Object implements IObject & IOwner {
 	`atCheckpoint` filters.
 	
 	DEPRECATION NOTICE: Support for the combination of two or more complex
-	filters as discussed above will stop with the v1.38 release, after more
-	than three months. `scanLimit` will thus become obsolete and will be
-	removed as well.
+	filters as discussed above will stop with the v1.38 release. `scanLimit`
+	will thus become obsolete and will be removed as well.
 	"""
 	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
@@ -3709,10 +3700,10 @@ type Query {
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply two
-	or more complex filters (on function, recipient, input object,
-	changed object, or wrapped or deleted object), and can be at most
-	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
-	any of them.
+	or more complex filters (on function, affected address, recipient, input
+	object, changed object, or wrapped or deleted object), and can be at
+	most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+	combined with any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -3734,9 +3725,8 @@ type Query {
 	are always omitted.
 	
 	DEPRECATION NOTICE: Support for the combination of two or more complex
-	filters as discussed above will stop with the v1.38 release, after more
-	than three months. `scanLimit` will thus become obsolete and will be
-	removed as well.
+	filters as discussed above will stop with the v1.38 release. `scanLimit`
+	will thus become obsolete and will be removed as well.
 	"""
 	transactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
@@ -4175,10 +4165,10 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	
 	`scanLimit` restricts the number of candidate transactions scanned when
 	gathering a page of results. It is required for queries that apply two
-	or more complex filters (on function, recipient, input object,
-	changed object, or wrapped or deleted object), and can be at most
-	`serviceConfig.maxScanLimit`. A `kind` filter cannot be combined with
-	any of them.
+	or more complex filters (on function, affected address, recipient, input
+	object, changed object, or wrapped or deleted object), and can be at
+	most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+	combined with any of them.
 	
 	When the scan limit is reached the page will be returned even if it has
 	fewer than `first` results when paginating forward (`last` when
@@ -4199,9 +4189,8 @@ type StakedIota implements IMoveObject & IObject & IOwner {
 	`atCheckpoint` filters.
 	
 	DEPRECATION NOTICE: Support for the combination of two or more complex
-	filters as discussed above will stop with the v1.38 release, after more
-	than three months. `scanLimit` will thus become obsolete and will be
-	removed as well.
+	filters as discussed above will stop with the v1.38 release. `scanLimit`
+	will thus become obsolete and will be removed as well.
 	"""
 	receivedTransactionBlocks(first: Int, after: String, last: Int, before: String, filter: TransactionBlockFilter, scanLimit: Int @deprecated(reason: "`scanLimit` will be removed with v1.38, along with the support for combining complex filters.")): TransactionBlockConnection!
 	"""
