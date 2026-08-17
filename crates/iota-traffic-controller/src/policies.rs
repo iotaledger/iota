@@ -25,9 +25,9 @@ use governor::{
 };
 use iota_types::traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType, Weight};
 
-/// Replenish period for the exact-count test policies, long enough that no
-/// cell recovers over the lifetime of a test.
-const EXACT_COUNT_REPLENISH_PERIOD: Duration = Duration::from_secs(60 * 60);
+/// Reset period for the exact-count test policies when the blocklist TTL is
+/// zero, long enough that no count recovers over the lifetime of a test.
+const EXACT_COUNT_FALLBACK_RESET_PERIOD: Duration = Duration::from_secs(60 * 60);
 
 /// Rate limiter keyed by client IP. Uses `std::time::Instant` rather than
 /// `governor`'s default TSC-backed clock so that the deterministic simulator,
@@ -47,13 +47,23 @@ fn sustained_quota(threshold: u64, window_size_secs: u64) -> Quota {
         .allow_burst(clamp_to_cells(threshold.saturating_mul(window_size_secs)))
 }
 
-/// The `threshold`-th tally in a row breaches, earlier ones pass. Thresholds
-/// below 2 clamp to a one-cell burst, so the second tally breaches rather than
-/// the first.
-fn exact_count_quota(threshold: u64) -> Quota {
-    Quota::with_period(EXACT_COUNT_REPLENISH_PERIOD)
+/// The `threshold`-th tally in a row breaches and earlier ones pass, with the
+/// full count recovering over `reset_period`. Thresholds below 2 cannot be
+/// expressed as a burst and use [`Policy::BlockOnFirstTally`] instead.
+fn exact_count_quota(threshold: u64, reset_period: Duration) -> Quota {
+    let burst = clamp_to_cells(threshold.saturating_sub(1));
+    Quota::with_period((reset_period / burst.get()).max(Duration::from_nanos(1)))
         .expect("replenish period is non-zero")
-        .allow_burst(clamp_to_cells(threshold.saturating_sub(1)))
+        .allow_burst(burst)
+}
+
+/// Counts recover over twice the blocklist TTL, matching the periodic reset the
+/// exact-count policy had before it moved to a rate limiter.
+fn exact_count_reset_period(connection_blocklist_ttl_sec: u64) -> Duration {
+    match connection_blocklist_ttl_sec.saturating_mul(2) {
+        0 => EXACT_COUNT_FALLBACK_RESET_PERIOD,
+        secs => Duration::from_secs(secs),
+    }
 }
 
 fn clamp_to_cells(value: u64) -> NonZeroU32 {
@@ -95,14 +105,14 @@ pub struct PolicyResponse {
 #[derive(Clone, Copy)]
 enum QuotaKind {
     Sustained { window_size_secs: u64 },
-    ExactCount,
+    ExactCount { reset_period: Duration },
 }
 
 impl QuotaKind {
     fn quota(&self, threshold: u64) -> Quota {
         match self {
             Self::Sustained { window_size_secs } => sustained_quota(threshold, *window_size_secs),
-            Self::ExactCount => exact_count_quota(threshold),
+            Self::ExactCount { reset_period } => exact_count_quota(threshold, *reset_period),
         }
     }
 }
@@ -169,6 +179,9 @@ impl RateLimitPolicy {
 enum Policy {
     NoOp,
     Limit(RateLimitPolicy),
+    /// Exact-count test policy with a threshold of one, which blocks the direct
+    /// client on its first tally and so cannot be expressed as a burst.
+    BlockOnFirstTally,
     /// Test policy that never permits a tally, to verify that a policy is not
     /// reached in tests that expect no matching traffic.
     PanicOnInvocation,
@@ -179,14 +192,20 @@ pub struct TrafficControlPolicy(Policy);
 
 impl TrafficControlPolicy {
     pub fn from_spam_config(policy_config: &PolicyConfig) -> Self {
-        Self::from_policy_type(&policy_config.spam_policy_type)
+        Self::from_policy_type(
+            &policy_config.spam_policy_type,
+            policy_config.connection_blocklist_ttl_sec,
+        )
     }
 
     pub fn from_error_config(policy_config: &PolicyConfig) -> Self {
-        Self::from_policy_type(&policy_config.error_policy_type)
+        Self::from_policy_type(
+            &policy_config.error_policy_type,
+            policy_config.connection_blocklist_ttl_sec,
+        )
     }
 
-    pub fn from_policy_type(policy_type: &PolicyType) -> Self {
+    pub fn from_policy_type(policy_type: &PolicyType, connection_blocklist_ttl_sec: u64) -> Self {
         Self(match policy_type {
             PolicyType::NoOp => Policy::NoOp,
             PolicyType::FreqThreshold(FreqThresholdConfig {
@@ -200,9 +219,12 @@ impl TrafficControlPolicy {
                 *client_threshold,
                 Some(*proxied_client_threshold),
             )),
+            PolicyType::TestNConnIP(threshold) if *threshold <= 1 => Policy::BlockOnFirstTally,
             // The exact-count test policy only ever blocks the direct client.
             PolicyType::TestNConnIP(threshold) => Policy::Limit(RateLimitPolicy::new(
-                QuotaKind::ExactCount,
+                QuotaKind::ExactCount {
+                    reset_period: exact_count_reset_period(connection_blocklist_ttl_sec),
+                },
                 *threshold,
                 None,
             )),
@@ -216,6 +238,10 @@ impl TrafficControlPolicy {
         match &self.0 {
             Policy::NoOp => PolicyResponse::default(),
             Policy::Limit(policy) => policy.charge(tally),
+            Policy::BlockOnFirstTally => PolicyResponse {
+                block_client: tally.direct,
+                block_proxied_client: None,
+            },
             Policy::PanicOnInvocation => panic!("Tally for this policy should never be invoked"),
         }
     }
@@ -275,11 +301,21 @@ mod tests {
         proxied_client_threshold: u64,
         window_size_secs: u64,
     ) -> TrafficControlPolicy {
-        TrafficControlPolicy::from_policy_type(&PolicyType::FreqThreshold(FreqThresholdConfig {
-            client_threshold,
-            proxied_client_threshold,
-            window_size_secs,
-        }))
+        TrafficControlPolicy::from_policy_type(
+            &PolicyType::FreqThreshold(FreqThresholdConfig {
+                client_threshold,
+                proxied_client_threshold,
+                window_size_secs,
+            }),
+            0,
+        )
+    }
+
+    fn exact_count(threshold: u64, connection_blocklist_ttl_sec: u64) -> TrafficControlPolicy {
+        TrafficControlPolicy::from_policy_type(
+            &PolicyType::TestNConnIP(threshold),
+            connection_blocklist_ttl_sec,
+        )
     }
 
     #[test]
@@ -294,10 +330,47 @@ mod tests {
 
     #[test]
     fn test_exact_count_quota_mapping() {
-        assert_eq!(exact_count_quota(5).burst_size().get(), 4);
-        // Thresholds below 2 cannot be represented, and clamp to one cell.
-        assert_eq!(exact_count_quota(1).burst_size().get(), 1);
-        assert_eq!(exact_count_quota(0).burst_size().get(), 1);
+        // Four cells, and the whole count recovers over the reset period.
+        let quota = exact_count_quota(5, Duration::from_secs(2));
+        assert_eq!(quota.burst_size().get(), 4);
+        assert_eq!(quota.replenish_interval(), Duration::from_millis(500));
+
+        // A zero blocklist TTL leaves counts in place for the lifetime of the
+        // policy.
+        assert_eq!(
+            exact_count_reset_period(0),
+            EXACT_COUNT_FALLBACK_RESET_PERIOD
+        );
+        assert_eq!(exact_count_reset_period(30), Duration::from_secs(60));
+    }
+
+    #[test]
+    fn test_threshold_of_one_blocks_on_the_first_tally() {
+        let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        for threshold in [0, 1] {
+            assert_eq!(
+                exact_count(threshold, 60)
+                    .charge(&direct_tally(client))
+                    .block_client,
+                Some(client),
+                "threshold {threshold} did not block on the first tally"
+            );
+        }
+    }
+
+    #[sim_test]
+    async fn test_exact_counts_recover_after_the_reset_period() {
+        // A one second blocklist TTL resets counts over two seconds.
+        let policy = exact_count(2, 1);
+        let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        assert_eq!(policy.charge(&direct_tally(client)).block_client, None);
+        assert_eq!(
+            policy.charge(&direct_tally(client)).block_client,
+            Some(client)
+        );
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
+        assert_eq!(policy.charge(&direct_tally(client)).block_client, None);
     }
 
     // The channel-based tally path could not pass this without sleeps: the
@@ -306,7 +379,7 @@ mod tests {
     #[test]
     fn test_exact_count_blocks_on_nth_tally() {
         let threshold = 5;
-        let policy = TrafficControlPolicy::from_policy_type(&PolicyType::TestNConnIP(threshold));
+        let policy = exact_count(threshold, 60);
         for round in 0..1_000u32 {
             let client = IpAddr::V4(Ipv4Addr::from(0x0A00_0000 + round));
             for i in 1..threshold {
@@ -412,7 +485,7 @@ mod tests {
 
     #[test]
     fn test_non_limiting_policies_reject_reconfiguration() {
-        let policy = TrafficControlPolicy::from_policy_type(&PolicyType::NoOp);
+        let policy = TrafficControlPolicy::from_policy_type(&PolicyType::NoOp, 0);
         assert_eq!(policy.client_threshold(), None);
         assert!(!policy.set_client_threshold(10));
     }
