@@ -1478,14 +1478,14 @@ async fn test_lookup_digest_probes_across_epoch_buckets() {
     let old_bucket = index_store.ensure_history_bucket(0).unwrap();
     let mut batch = index_store.tables.meta.batch();
     batch
-        .insert_batch_tagged(&old_bucket.digests, [(old_digest, 0)])
+        .insert_batch_tagged(&old_bucket.txs_seq, [(old_digest, 0)])
         .unwrap();
     batch.write().unwrap();
 
     let new_bucket = index_store.ensure_history_bucket(1).unwrap();
     let mut batch = index_store.tables.meta.batch();
     batch
-        .insert_batch_tagged(&new_bucket.digests, [(new_digest, 1)])
+        .insert_batch_tagged(&new_bucket.txs_seq, [(new_digest, 1)])
         .unwrap();
     batch.write().unwrap();
 
@@ -1509,7 +1509,7 @@ async fn test_digest_buckets_survive_a_reopen() {
     let bucket = index_store.ensure_history_bucket(3).unwrap();
     let mut batch = index_store.tables.meta.batch();
     batch
-        .insert_batch_tagged(&bucket.digests, [(digest, 2)])
+        .insert_batch_tagged(&bucket.txs_seq, [(digest, 2)])
         .unwrap();
     batch.write().unwrap();
     drop(bucket); // release the database handle before closing it below
@@ -1530,13 +1530,13 @@ async fn test_digest_pruning_drops_expired_epoch_buckets() {
     let old_bucket = index_store.ensure_history_bucket(0).unwrap();
     let mut batch = index_store.tables.meta.batch();
     batch
-        .insert_batch_tagged(&old_bucket.digests, [(old_digest, 0)])
+        .insert_batch_tagged(&old_bucket.txs_seq, [(old_digest, 0)])
         .unwrap();
     batch.write().unwrap();
     let new_bucket = index_store.ensure_history_bucket(1).unwrap();
     let mut batch = index_store.tables.meta.batch();
     batch
-        .insert_batch_tagged(&new_bucket.digests, [(TransactionDigest::random(), 1)])
+        .insert_batch_tagged(&new_bucket.txs_seq, [(TransactionDigest::random(), 1)])
         .unwrap();
     batch.write().unwrap();
     drop(old_bucket); // release the database handles before closing it below
@@ -2591,7 +2591,7 @@ async fn test_prune_racing_a_reader_reports_an_error() {
             .expect("the reverse scan must yield an error item")
             .is_err()
     );
-    assert!(snapshot[0].digests.get(&Default::default()).is_err());
+    assert!(snapshot[0].txs_seq.get(&Default::default()).is_err());
 
     // The retained bucket keeps serving, and a retry no longer sees the
     // dropped one.
@@ -2773,7 +2773,7 @@ async fn test_concurrent_prune_and_queries_never_panic() {
     // No bucket left in the map may point at a dropped column family.
     for bucket in index_store.history.iter(false) {
         bucket
-            .digests
+            .txs_seq
             .get(&Default::default())
             .expect("every bucket in the map must be readable");
     }
@@ -3110,7 +3110,7 @@ async fn test_history_tables_do_not_bleed_across_tags() {
         .insert_batch_tagged(&bucket.tx_order, [(7u64, digest)])
         .unwrap();
     batch
-        .insert_batch_tagged(&bucket.digests, [(digest, 7u64)])
+        .insert_batch_tagged(&bucket.txs_seq, [(digest, 7u64)])
         .unwrap();
     batch.write().unwrap();
 
@@ -3127,7 +3127,7 @@ async fn test_history_tables_do_not_bleed_across_tags() {
         .unwrap();
     assert_eq!(rows, vec![(7, digest)]);
     let rows: Vec<_> = bucket
-        .digests
+        .txs_seq
         .safe_range_iter_reversed(TransactionDigest::ZERO..=[0xff; 32].into())
         .collect::<Result<_, _>>()
         .unwrap();

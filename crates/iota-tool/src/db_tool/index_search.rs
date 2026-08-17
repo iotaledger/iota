@@ -6,13 +6,12 @@ use std::{fmt::Debug, path::PathBuf, str::FromStr, sync::Arc};
 
 use anyhow::{anyhow, bail};
 use iota_core::rpc_indexes::schema::{
-    DB_PREFIX_HISTORIC_DIGESTS, DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE,
-    DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE, DB_PREFIX_HISTORIC_EVENT_BY_SENDER,
-    DB_PREFIX_HISTORIC_EVENT_ORDER, DB_PREFIX_HISTORIC_TX_ORDER,
-    DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID, DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION,
-    DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID, DB_PREFIX_HISTORIC_TXS_FROM_ADDR,
-    DB_PREFIX_HISTORIC_TXS_TO_ADDR, IndexStoreTables, OwnerIndexKey, history_cf_epoch,
-    history_cf_name,
+    DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE, DB_PREFIX_HISTORIC_EVENT_BY_MOVE_MODULE,
+    DB_PREFIX_HISTORIC_EVENT_BY_SENDER, DB_PREFIX_HISTORIC_EVENT_ORDER,
+    DB_PREFIX_HISTORIC_TX_ORDER, DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID,
+    DB_PREFIX_HISTORIC_TXS_BY_MOVE_FUNCTION, DB_PREFIX_HISTORIC_TXS_BY_MUTATED_OBJECT_ID,
+    DB_PREFIX_HISTORIC_TXS_FROM_ADDR, DB_PREFIX_HISTORIC_TXS_SEQ, DB_PREFIX_HISTORIC_TXS_TO_ADDR,
+    IndexStoreTables, OwnerIndexKey, history_cf_epoch, history_cf_name,
 };
 use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEventsDigest};
 use iota_types::{base_types::TxSequenceNumber, committee::EpochId, storage::DynamicFieldKey};
@@ -86,10 +85,6 @@ pub fn search_index(
         "dynamic_field_index" => {
             bail!("no such table \"dynamic_field_index\"; it was renamed to \"dynamic_field\"")
         }
-        "txs_seq" => bail!(
-            "no such table \"txs_seq\"; transaction digest to sequence number lookups are now \
-             served by the \"digests\" table"
-        ),
         _ => search_history_table(db_path, &table_name, start, termination),
     }
 }
@@ -137,10 +132,10 @@ fn search_history_table(
             start,
             termination,
         ),
-        "digests" => get_history_entries::<TransactionDigest, TxSequenceNumber>(
+        "txs_seq" => get_history_entries::<TransactionDigest, TxSequenceNumber>(
             &db,
             &epochs,
-            DB_PREFIX_HISTORIC_DIGESTS,
+            DB_PREFIX_HISTORIC_TXS_SEQ,
             |s| Ok(TransactionDigest::from_str(s)?),
             start,
             termination,
@@ -508,7 +503,7 @@ mod tests {
 
         let entries = search_index(
             dir.path().to_path_buf(),
-            "digests".to_owned(),
+            "txs_seq".to_owned(),
             TransactionDigest::new([0; 32]).to_string(),
             SearchRange::Count(10),
         )

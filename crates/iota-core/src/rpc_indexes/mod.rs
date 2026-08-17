@@ -924,7 +924,7 @@ impl RpcIndexesStore {
         digest: &TransactionDigest,
     ) -> IotaResult<Option<TxSequenceNumber>> {
         for bucket in self.history.iter(true) {
-            if let Some(found) = bucket.digests.get(digest)? {
+            if let Some(found) = bucket.txs_seq.get(digest)? {
                 return Ok(Some(found));
             }
         }
@@ -980,7 +980,7 @@ impl RpcIndexesStore {
         // A transaction's digest row is written whatever the enabled groups
         // are, and always into the bucket of its own epoch, so this one
         // lookup decides for every table whether the transaction is new.
-        let already_indexed = bucket.digests.multi_get(&digests)?;
+        let already_indexed = bucket.txs_seq.multi_get(&digests)?;
         // The zip below pairs each transaction with its own lookup.
         debug_assert_eq!(digests.len(), already_indexed.len());
         let transactions: Vec<&CheckpointTransaction> = checkpoint
@@ -1002,7 +1002,7 @@ impl RpcIndexesStore {
                 // A gRPC-only store needs nothing beyond the digest row that
                 // `index_tx` would write alongside the JSON-RPC history.
                 batch.insert_batch_tagged(
-                    &bucket.digests,
+                    &bucket.txs_seq,
                     [(*tx.effects.transaction_digest(), sequence)],
                 )?;
             }
@@ -1379,7 +1379,7 @@ impl RpcIndexesStore {
             // write the same digest rows, but only after fetching
             // transactions, effects and events it has no other use for.
             batch.insert_batch_tagged(
-                &bucket.digests,
+                &bucket.txs_seq,
                 (first_sequence_number..)
                     .zip(contents.iter())
                     .map(|(sequence, digests)| (digests.transaction, sequence)),
