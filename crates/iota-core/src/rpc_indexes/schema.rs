@@ -79,8 +79,8 @@ pub(super) const HISTORY_CF_PREFIX: &str = "hist_e";
 // inspection tooling can scan a bucket without reopening the store.
 pub const DB_PREFIX_HISTORIC_TX_ORDER: u8 = 0;
 // Tag 1 was `txs_seq` in the JSON-RPC-only store (transaction digest to
-// sequence number). Retired in favor of `DB_PREFIX_HISTORIC_DIGESTS` below,
-// which both API surfaces share. Never reuse it.
+// sequence number). Retired in favor of `DB_PREFIX_HISTORIC_DIGESTS` below.
+// Never reuse it.
 pub const DB_PREFIX_HISTORIC_TXS_FROM_ADDR: u8 = 2;
 pub const DB_PREFIX_HISTORIC_TXS_TO_ADDR: u8 = 3;
 pub const DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID: u8 = 4;
@@ -92,9 +92,10 @@ pub const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT: u8 = 9;
 pub const DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE: u8 = 10;
 pub const DB_PREFIX_HISTORIC_EVENT_BY_SENDER: u8 = 11;
 pub const DB_PREFIX_HISTORIC_EVENT_BY_TIME: u8 = 12;
-/// The digest table shared by both APIs: a transaction's position in the
-/// network order (JSON-RPC sequence lookups) and its checkpoint (gRPC
-/// transaction info).
+/// A transaction's position in the network order, which places a JSON-RPC
+/// query cursor. The checkpoint that confirmed the transaction is not here:
+/// it is kept with the ledger, so a finality answer cannot expire before
+/// the transaction it describes.
 pub const DB_PREFIX_HISTORIC_DIGESTS: u8 = 13;
 
 /// The column-family name of `epoch`'s history bucket.
@@ -482,11 +483,13 @@ pub(super) struct HistoryBucket {
     /// group is enabled.
     pub(super) tx_order: TaggedDBMap<TxSequenceNumber, TransactionDigest>,
 
-    /// Index from transaction digest to its position in the network order.
-    /// Filled for both API surfaces from the checkpoint's contents alone,
-    /// and used to place a query cursor. The checkpoint that confirmed a
-    /// transaction is *not* here: that answer must not be able to expire
-    /// before the transaction it describes, so it lives with the ledger in
+    /// Index from transaction digest to its position in the network order,
+    /// which the JSON-RPC queries read to place a cursor. It is written
+    /// whatever the enabled groups are, because checkpoint ingest looks a
+    /// transaction up here to tell a replayed checkpoint from a new one.
+    /// The checkpoint that confirmed a transaction is *not* here: that
+    /// answer must not be able to expire before the transaction it
+    /// describes, so it lives with the ledger in
     /// `AuthorityPerpetualTables::executed_transactions_to_checkpoint`.
     pub(super) digests: TaggedDBMap<TransactionDigest, TxSequenceNumber>,
 
