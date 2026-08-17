@@ -78,9 +78,11 @@ pub(super) const HISTORY_CF_PREFIX: &str = "hist_e";
 // is below, if its table is ever removed. Public so that the database
 // inspection tooling can scan a bucket without reopening the store.
 pub const DB_PREFIX_HISTORIC_TX_ORDER: u8 = 0;
-// Tag 1 was `txs_seq` in the JSON-RPC-only store (transaction digest to
-// sequence number). Retired in favor of `DB_PREFIX_HISTORIC_DIGESTS` below.
-// Never reuse it.
+/// A transaction's position in the network order, which places a JSON-RPC
+/// query cursor. The checkpoint that confirmed the transaction is not here:
+/// it is kept with the ledger, so a finality answer cannot expire before
+/// the transaction it describes.
+pub const DB_PREFIX_HISTORIC_DIGESTS: u8 = 1;
 pub const DB_PREFIX_HISTORIC_TXS_FROM_ADDR: u8 = 2;
 pub const DB_PREFIX_HISTORIC_TXS_TO_ADDR: u8 = 3;
 pub const DB_PREFIX_HISTORIC_TXS_BY_INPUT_OBJECT_ID: u8 = 4;
@@ -92,11 +94,6 @@ pub const DB_PREFIX_HISTORIC_EVENT_BY_MOVE_EVENT: u8 = 9;
 pub const DB_PREFIX_HISTORIC_EVENT_BY_EVENT_MODULE: u8 = 10;
 pub const DB_PREFIX_HISTORIC_EVENT_BY_SENDER: u8 = 11;
 pub const DB_PREFIX_HISTORIC_EVENT_BY_TIME: u8 = 12;
-/// A transaction's position in the network order, which places a JSON-RPC
-/// query cursor. The checkpoint that confirmed the transaction is not here:
-/// it is kept with the ledger, so a finality answer cannot expire before
-/// the transaction it describes.
-pub const DB_PREFIX_HISTORIC_DIGESTS: u8 = 13;
 
 /// The column-family name of `epoch`'s history bucket.
 pub fn history_cf_name(epoch: EpochId) -> String {
