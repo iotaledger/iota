@@ -707,6 +707,24 @@ fn make_randomness_state_update(
     )
 }
 
+/// Builds the randomness state update for `round`, persists it and records its
+/// key, which is what `RandomnessRoundReceiver` does before it notifies.
+fn resolve_randomness_round(
+    state: &AuthorityState,
+    epoch_store: &AuthorityPerEpochStore,
+    round: u64,
+) -> VerifiedExecutableTransaction {
+    let transaction = make_randomness_state_update(epoch_store, round);
+    state.get_cache_commit().persist_transaction(&transaction);
+    epoch_store
+        .insert_tx_key(
+            TransactionKey::RandomnessRound(epoch_store.epoch(), RandomnessRound::new(round)),
+            *transaction.digest(),
+        )
+        .unwrap();
+    transaction
+}
+
 fn randomness_assigned_versions(epoch_store: &AuthorityPerEpochStore) -> Vec<VersionAssignment> {
     vec![VersionAssignment::new(
         ObjectId::RANDOMNESS_STATE,
@@ -722,7 +740,7 @@ fn randomness_assigned_versions(epoch_store: &AuthorityPerEpochStore) -> Vec<Ver
 /// `notify_read_tx_key_to_digest` and are zipped positionally with the envs, so
 /// a swapped pairing would execute a round on another round's versions.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn execution_scheduler_resolves_keyed_schedulables_with_matching_envs() {
+async fn execution_scheduler_resolves_schedulables_by_key_with_matching_envs() {
     let state = init_state_with_objects(vec![]).await;
     let epoch_store = state.epoch_store_for_testing();
     let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
@@ -751,17 +769,8 @@ async fn execution_scheduler_resolves_keyed_schedulables_with_matching_envs() {
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
 
-    let transaction_1 = make_randomness_state_update(&epoch_store, 1);
-    let transaction_2 = make_randomness_state_update(&epoch_store, 2);
-    for (transaction, round) in [(&transaction_1, 1), (&transaction_2, 2)] {
-        state.get_cache_commit().persist_transaction(transaction);
-        epoch_store
-            .insert_tx_key(
-                TransactionKey::RandomnessRound(epoch_store.epoch(), RandomnessRound::new(round)),
-                *transaction.digest(),
-            )
-            .unwrap();
-    }
+    let transaction_1 = resolve_randomness_round(&state, &epoch_store, 1);
+    let transaction_2 = resolve_randomness_round(&state, &epoch_store, 2);
 
     let first = rx_ready_transactions.recv().await.unwrap();
     let second = rx_ready_transactions.recv().await.unwrap();
@@ -793,15 +802,8 @@ async fn execution_scheduler_schedules_already_resolved_randomness_key() {
     let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
 
     let round = RandomnessRound::new(3);
-    let transaction = make_randomness_state_update(&epoch_store, 3);
+    let transaction = resolve_randomness_round(&state, &epoch_store, 3);
     let digest = *transaction.digest();
-    state.get_cache_commit().persist_transaction(&transaction);
-    epoch_store
-        .insert_tx_key(
-            TransactionKey::RandomnessRound(epoch_store.epoch(), round),
-            digest,
-        )
-        .unwrap();
 
     let assigned_versions = randomness_assigned_versions(&epoch_store);
     execution_scheduler.enqueue(
@@ -858,14 +860,7 @@ async fn execution_scheduler_mixed_batch_dispatches_plain_transaction_immediatel
     assert!(rx_ready_transactions.try_recv().is_err());
 
     // Resolving the key releases it.
-    let randomness_tx = make_randomness_state_update(&epoch_store, 5);
-    state.get_cache_commit().persist_transaction(&randomness_tx);
-    epoch_store
-        .insert_tx_key(
-            TransactionKey::RandomnessRound(epoch_store.epoch(), round),
-            *randomness_tx.digest(),
-        )
-        .unwrap();
+    let randomness_tx = resolve_randomness_round(&state, &epoch_store, 5);
     let ready = rx_ready_transactions.recv().await.unwrap();
     assert_eq!(ready.transaction.digest(), randomness_tx.digest());
 }
@@ -913,7 +908,7 @@ async fn execution_scheduler_missing_shared_version_assignment_drops_transaction
 /// terminating the epoch must cancel it, so a key resolved after the epoch
 /// ended dispatches nothing.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn execution_scheduler_drops_keyed_schedulable_on_epoch_termination() {
+async fn execution_scheduler_drops_unresolved_key_wait_on_epoch_termination() {
     let state = init_state_with_objects(vec![]).await;
     let epoch_store = state.epoch_store_for_testing();
     let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
@@ -932,14 +927,7 @@ async fn execution_scheduler_drops_keyed_schedulable_on_epoch_termination() {
     epoch_store.epoch_terminated().await;
 
     // Resolving the key after the epoch ended must not dispatch anything.
-    let transaction = make_randomness_state_update(&epoch_store, 4);
-    state.get_cache_commit().persist_transaction(&transaction);
-    epoch_store
-        .insert_tx_key(
-            TransactionKey::RandomnessRound(epoch_store.epoch(), round),
-            *transaction.digest(),
-        )
-        .unwrap();
+    resolve_randomness_round(&state, &epoch_store, 4);
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
 }

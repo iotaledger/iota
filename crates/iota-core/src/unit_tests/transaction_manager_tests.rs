@@ -904,7 +904,7 @@ async fn transaction_manager_with_cancelled_transactions() {
 
 /// Builds the randomness state update for `round`, persists it and records its
 /// key, which is what `RandomnessRoundReceiver` does before it notifies.
-async fn resolve_randomness_round(
+fn resolve_randomness_round(
     state: &AuthorityState,
     epoch_store: &AuthorityPerEpochStore,
     round: u64,
@@ -974,7 +974,7 @@ async fn transaction_manager_parks_randomness_schedulable_until_key_resolves() {
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
 
-    let transaction = resolve_randomness_round(&state, &epoch_store, 1).await;
+    let transaction = resolve_randomness_round(&state, &epoch_store, 1);
     let digest = *transaction.digest();
     transaction_manager.notify_transaction_key(&epoch_store, key, digest);
 
@@ -1098,7 +1098,7 @@ async fn transaction_manager_schedules_already_resolved_randomness_key() {
     let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
 
     let round = RandomnessRound::new(2);
-    let transaction = resolve_randomness_round(&state, &epoch_store, 2).await;
+    let transaction = resolve_randomness_round(&state, &epoch_store, 2);
     let digest = *transaction.digest();
 
     let assigned_versions = randomness_assigned_versions(&epoch_store);
@@ -1179,7 +1179,7 @@ async fn transaction_manager_propagates_execution_env() {
 /// schedulable is parked under. This test drives the authority's own scheduler,
 /// since that is the one `commit_transaction` notifies.
 #[tokio::test]
-async fn commit_transaction_resolves_the_key_of_a_locally_executed_update() {
+async fn commit_transaction_resolves_the_parked_key_without_local_generation() {
     let state = init_state_with_objects(vec![]).await;
     let epoch_store = state.epoch_store_for_testing();
 
