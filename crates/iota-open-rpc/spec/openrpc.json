@@ -1333,6 +1333,7 @@
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "max_ptb_value_size_v2": true,
                 "metadata_in_module_bytes": true,
                 "minimize_child_object_mutations": true,
                 "move_native_tx_context": true,
