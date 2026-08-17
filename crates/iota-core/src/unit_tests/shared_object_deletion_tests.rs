@@ -1155,23 +1155,21 @@ async fn test_mutate_after_delete_enqueued() {
         .await
         .unwrap();
 
-    let res = user_1
-        .enqueue_all_and_execute_all(vec![
-            (
-                delete_cert,
-                ExecutionEnv::new().with_assigned_versions(delete_cert_versions),
-            ),
-            (
-                mutate_cert,
-                ExecutionEnv::new().with_assigned_versions(mutate_cert_versions),
-            ),
-            (
-                mutate_cert_2,
-                ExecutionEnv::new().with_assigned_versions(mutate_cert_2_versions),
-            ),
-        ])
-        .await
-        .unwrap();
+    let txs = [
+        (delete_cert, delete_cert_versions),
+        (mutate_cert, mutate_cert_versions),
+        (mutate_cert_2, mutate_cert_2_versions),
+    ]
+    .into_iter()
+    .map(|(cert, assigned_versions)| {
+        (
+            cert,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        )
+    })
+    .collect();
+
+    let res = user_1.enqueue_all_and_execute_all(txs).await.unwrap();
 
     let effects = res.get(1).unwrap();
 
@@ -1239,23 +1237,21 @@ async fn test_delete_after_delete_enqueued() {
         .await
         .unwrap();
 
-    let res = user_1
-        .enqueue_all_and_execute_all(vec![
-            (
-                delete_cert,
-                ExecutionEnv::new().with_assigned_versions(delete_cert_versions),
-            ),
-            (
-                delete_cert1,
-                ExecutionEnv::new().with_assigned_versions(delete_cert1_versions),
-            ),
-            (
-                delete_cert_2,
-                ExecutionEnv::new().with_assigned_versions(delete_cert_2_versions),
-            ),
-        ])
-        .await
-        .unwrap();
+    let txs = [
+        (delete_cert, delete_cert_versions),
+        (delete_cert1, delete_cert1_versions),
+        (delete_cert_2, delete_cert_2_versions),
+    ]
+    .into_iter()
+    .map(|(cert, assigned_versions)| {
+        (
+            cert,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        )
+    })
+    .collect();
+
+    let res = user_1.enqueue_all_and_execute_all(txs).await.unwrap();
 
     let effects = res.get(1).unwrap();
 
@@ -1507,27 +1503,22 @@ async fn test_delete_with_shared_after_mutate_enqueued() {
     // shared object expects a higher version because of higher versioned
     // additional input expected input seq numbers (4, 6) (7) (15, 7_deleted)
     // (16_deleted)
-    let res = user_1
-        .enqueue_all_and_execute_all(vec![
-            (
-                delete_cert,
-                ExecutionEnv::new().with_assigned_versions(delete_cert_versions),
-            ),
-            (
-                mutate_cert,
-                ExecutionEnv::new().with_assigned_versions(mutate_cert_versions),
-            ),
-            (
-                second_mutate_cert,
-                ExecutionEnv::new().with_assigned_versions(second_mutate_cert_versions),
-            ),
-            (
-                third_mutate_cert,
-                ExecutionEnv::new().with_assigned_versions(third_mutate_cert_versions),
-            ),
-        ])
-        .await
-        .unwrap();
+    let txs = [
+        (delete_cert, delete_cert_versions),
+        (mutate_cert, mutate_cert_versions),
+        (second_mutate_cert, second_mutate_cert_versions),
+        (third_mutate_cert, third_mutate_cert_versions),
+    ]
+    .into_iter()
+    .map(|(cert, assigned_versions)| {
+        (
+            cert,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+        )
+    })
+    .collect();
+
+    let res = user_1.enqueue_all_and_execute_all(txs).await.unwrap();
 
     let delete_effects = res.first().unwrap();
     assert!(delete_effects.status().is_success());

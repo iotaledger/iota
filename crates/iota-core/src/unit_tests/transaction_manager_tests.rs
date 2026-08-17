@@ -901,6 +901,33 @@ async fn transaction_manager_with_cancelled_transactions() {
     transaction_manager.check_empty_for_testing();
 }
 
+/// Builds the randomness state update for `round`, persists it and records its
+/// key, which is what `RandomnessRoundReceiver` does before it notifies.
+async fn resolve_randomness_round(
+    state: &AuthorityState,
+    epoch_store: &AuthorityPerEpochStore,
+    round: u64,
+) -> VerifiedExecutableTransaction {
+    let transaction = make_randomness_state_update(epoch_store, round);
+    state.get_cache_commit().persist_transaction(&transaction);
+    epoch_store
+        .insert_tx_key(
+            TransactionKey::RandomnessRound(epoch_store.epoch(), RandomnessRound::new(round)),
+            *transaction.digest(),
+        )
+        .unwrap();
+    transaction
+}
+
+fn randomness_assigned_versions(epoch_store: &AuthorityPerEpochStore) -> Vec<VersionAssignment> {
+    vec![VersionAssignment::new(
+        ObjectId::RANDOMNESS_STATE,
+        epoch_store
+            .epoch_start_config()
+            .randomness_obj_initial_shared_version(),
+    )]
+}
+
 /// A randomness state update transaction for `round`, as
 /// `RandomnessRoundReceiver` would build it.
 fn make_randomness_state_update(
@@ -933,12 +960,7 @@ async fn transaction_manager_parks_randomness_schedulable_until_key_resolves() {
 
     let round = RandomnessRound::new(1);
     let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
-    let assigned_versions = vec![VersionAssignment::new(
-        ObjectId::RANDOMNESS_STATE,
-        epoch_store
-            .epoch_start_config()
-            .randomness_obj_initial_shared_version(),
-    )];
+    let assigned_versions = randomness_assigned_versions(&epoch_store);
     transaction_manager.enqueue(
         vec![(
             Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
@@ -951,12 +973,8 @@ async fn transaction_manager_parks_randomness_schedulable_until_key_resolves() {
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
 
-    // Create and persist the randomness state update, then resolve the key the
-    // way `RandomnessRoundReceiver` does.
-    let transaction = make_randomness_state_update(&epoch_store, 1);
+    let transaction = resolve_randomness_round(&state, &epoch_store, 1).await;
     let digest = *transaction.digest();
-    state.get_cache_commit().persist_transaction(&transaction);
-    epoch_store.insert_tx_key(key, digest).unwrap();
     transaction_manager.notify_transaction_key(&epoch_store, key, digest);
 
     let pending = rx_ready_transactions.recv().await.unwrap();
@@ -977,12 +995,7 @@ async fn transaction_manager_releases_each_parked_key_with_its_own_env() {
     let epoch_store = state.epoch_store_for_testing();
     let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
 
-    let assigned_versions = vec![VersionAssignment::new(
-        ObjectId::RANDOMNESS_STATE,
-        epoch_store
-            .epoch_start_config()
-            .randomness_obj_initial_shared_version(),
-    )];
+    let assigned_versions = randomness_assigned_versions(&epoch_store);
     let round_1 = RandomnessRound::new(1);
     let round_2 = RandomnessRound::new(2);
     let expected_1 = TransactionEffectsDigest::new([7; 32]);
@@ -1084,18 +1097,10 @@ async fn transaction_manager_schedules_already_resolved_randomness_key() {
     let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
 
     let round = RandomnessRound::new(2);
-    let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
-    let transaction = make_randomness_state_update(&epoch_store, 2);
+    let transaction = resolve_randomness_round(&state, &epoch_store, 2).await;
     let digest = *transaction.digest();
-    state.get_cache_commit().persist_transaction(&transaction);
-    epoch_store.insert_tx_key(key, digest).unwrap();
 
-    let assigned_versions = vec![VersionAssignment::new(
-        ObjectId::RANDOMNESS_STATE,
-        epoch_store
-            .epoch_start_config()
-            .randomness_obj_initial_shared_version(),
-    )];
+    let assigned_versions = randomness_assigned_versions(&epoch_store);
     transaction_manager.enqueue(
         vec![(
             Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
