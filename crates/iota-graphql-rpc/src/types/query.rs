@@ -367,7 +367,7 @@ impl Query {
 
     /// Fetch multiple transaction blocks by their digests.
     /// This includes all transactions, even if they are not checkpointed yet.
-    #[graphql(deprecation = "Use `transactionsByDigests` instead. Will be removed in v1.39.")]
+    #[graphql(deprecation = "Use `transactionsByDigests` instead. Will be removed in v1.38.")]
     async fn transaction_blocks_by_digests(
         &self,
         ctx: &Context<'_>,

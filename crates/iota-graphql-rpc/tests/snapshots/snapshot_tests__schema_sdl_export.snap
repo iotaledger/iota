@@ -3625,7 +3625,7 @@ type Query {
 	Fetch multiple transaction blocks by their digests.
 	This includes all transactions, even if they are not checkpointed yet.
 	"""
-	transactionBlocksByDigests(digests: [String!]!): [TransactionBlock]! @deprecated(reason: "Use `transactionsByDigests` instead. Will be removed in v1.39.")
+	transactionBlocksByDigests(digests: [String!]!): [TransactionBlock]! @deprecated(reason: "Use `transactionsByDigests` instead. Will be removed in v1.38.")
 	"""
 	Fetch multiple transaction blocks by their digests.
 	
