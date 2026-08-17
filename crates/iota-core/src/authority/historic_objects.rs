@@ -43,7 +43,7 @@ const EARLIEST_RETAINED_CF: &str = "hist_obj_earliest_retained";
 pub struct HistoricObjectsBucket {
     /// Object versions superseded during this epoch, keyed exactly as the
     /// live `objects` table keys them.
-    pub objects: TaggedDBMap<ObjectKey, Object>,
+    pub(crate) objects: TaggedDBMap<ObjectKey, Object>,
 }
 
 impl HistoricObjectsBucket {
