@@ -57,7 +57,11 @@ pub struct AttestorV1 {
     /// flag byte || raw pubkey bytes (plain schemes only).
     pub attestor_pubkey: Vec<u8>,
     pub next_epoch_attestor_pubkey: Option<Vec<u8>>,
+    /// At-stake part of the escrow, capped at the joining bond.
     pub bond: Balance,
+    /// Escrow above the joining bond; folded into `bond` at epoch
+    /// boundaries.
+    pub excess_bond: Balance,
     pub activation_epoch: u64,
     pub last_active_epoch: u64,
 }
@@ -337,6 +341,7 @@ mod tests {
                 attestor_pubkey: vec![0u8; 33],
                 next_epoch_attestor_pubkey: None,
                 bond: Balance::new(2_000_000_000_000),
+                excess_bond: Balance::new(500_000_000_000),
                 activation_epoch: 7,
                 last_active_epoch: 9,
             }],

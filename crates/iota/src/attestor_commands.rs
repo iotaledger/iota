@@ -12,19 +12,22 @@ use std::{
 use anyhow::{Result, anyhow, bail};
 use clap::Parser;
 use colored::Colorize;
-use fastcrypto::{
-    ed25519::Ed25519KeyPair, encoding::Hex, secp256k1::Secp256k1KeyPair,
-    secp256r1::Secp256r1KeyPair,
-};
+use fastcrypto::encoding::Hex;
 use iota_json_rpc_types::{
     IotaData, IotaObjectDataOptions, IotaProtocolConfigValue, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keypair_file::{read_keypair_from_file, write_keypair_to_file};
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
-use iota_sdk_types::{Address, Argument, Command, Identifier, ObjectId, ObjectReference};
+use iota_sdk_crypto::{
+    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    simple::SimpleKeypair,
+};
+use iota_sdk_types::{
+    Address, Argument, Command, Identifier, ObjectId, ObjectReference, SignatureScheme, Transaction,
+};
 use iota_types::{
-    crypto::{IotaKeyPair, SignatureScheme, get_key_pair_from_rng},
+    crypto::{PublicKey, get_key_pair_from_rng},
     dynamic_field::Field,
     iota_system_state::attestor_registry::{
         AttestorMetadataKey, AttestorMetadataV1, AttestorRegistryKey, AttestorRegistryV1,
@@ -32,7 +35,7 @@ use iota_types::{
         generate_attestor_proof_of_possession,
     },
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 use rand::rngs::OsRng;
 use serde::Serialize;
@@ -311,24 +314,24 @@ impl IotaAttestorCommand {
 }
 
 /// `flag || raw pubkey`, the on-chain encoding for an attestor signing key.
-fn flagged_pubkey(keypair: &IotaKeyPair) -> Vec<u8> {
-    let pk = keypair.public();
+fn flagged_pubkey(keypair: &SimpleKeypair) -> Vec<u8> {
+    let pk = PublicKey::from(keypair);
     let mut bytes = vec![pk.flag()];
     bytes.extend_from_slice(pk.as_ref());
     bytes
 }
 
-fn generate_attestor_keypair(scheme: SignatureScheme) -> Result<IotaKeyPair> {
+fn generate_attestor_keypair(scheme: SignatureScheme) -> Result<SimpleKeypair> {
     let mut rng = OsRng;
     Ok(match scheme {
         SignatureScheme::Ed25519 => {
-            IotaKeyPair::Ed25519(get_key_pair_from_rng::<Ed25519KeyPair, _>(&mut rng).1)
+            SimpleKeypair::from(get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut rng).1)
         }
         SignatureScheme::Secp256k1 => {
-            IotaKeyPair::Secp256k1(get_key_pair_from_rng::<Secp256k1KeyPair, _>(&mut rng).1)
+            SimpleKeypair::from(get_key_pair_from_rng::<Secp256k1PrivateKey, _>(&mut rng).1)
         }
         SignatureScheme::Secp256r1 => {
-            IotaKeyPair::Secp256r1(get_key_pair_from_rng::<Secp256r1KeyPair, _>(&mut rng).1)
+            SimpleKeypair::from(get_key_pair_from_rng::<Secp256r1PrivateKey, _>(&mut rng).1)
         }
         other => bail!(
             "unsupported attestor key scheme: {other}, expected ed25519, secp256k1 or secp256r1"
@@ -346,7 +349,7 @@ fn attestor_key_path(context: &WalletContext) -> Result<PathBuf> {
     Ok(config_dir.join("attestor.key"))
 }
 
-fn write_attestor_key(path: &Path, keypair: &IotaKeyPair, allow_overwrite: bool) -> Result<()> {
+fn write_attestor_key(path: &Path, keypair: &SimpleKeypair, allow_overwrite: bool) -> Result<()> {
     if !allow_overwrite && path.exists() {
         bail!("an attestor key already exists at {path:?}; move it away if you are re-registering");
     }
@@ -396,7 +399,7 @@ fn set_key_file_permissions(_path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn read_attestor_key(path: &Path) -> Result<IotaKeyPair> {
+fn read_attestor_key(path: &Path) -> Result<SimpleKeypair> {
     read_keypair_from_file(path)
 }
 
@@ -433,7 +436,7 @@ async fn construct_unsigned_0x5_txn(
     function: &'static str,
     call_args: Vec<CallArg>,
     gas_budget: u64,
-) -> Result<TransactionData> {
+) -> Result<Transaction> {
     let iota_client = context.get_client().await?;
     let mut args = vec![CallArg::IOTA_SYSTEM_MUTABLE];
     args.extend(call_args);
@@ -443,7 +446,7 @@ async fn construct_unsigned_0x5_txn(
         .await?;
 
     let gas_obj_ref = get_gas_obj_ref(sender, &iota_client, gas_budget).await?;
-    TransactionData::new_move_call(
+    Transaction::new_move_call(
         sender,
         ObjectId::SYSTEM,
         Identifier::IOTA_SYSTEM_MODULE,
@@ -507,18 +510,18 @@ async fn call_0x5_with_bond(
         arguments,
     );
     let pt = builder.finish();
-    let tx_data = TransactionData::new_programmable(sender, vec![gas_obj_ref], pt, gas_budget, rgp);
+    let tx_data = Transaction::new_programmable(sender, vec![gas_obj_ref], pt, gas_budget, rgp);
 
     execute_0x5_txn(context, tx_data).await
 }
 
 async fn execute_0x5_txn(
     context: &mut WalletContext,
-    tx_data: TransactionData,
+    tx_data: Transaction,
 ) -> Result<IotaTransactionBlockResponse> {
     let iota_client = context.get_client().await?;
     let signature = sign_transaction(context, &tx_data, &tx_data.sender(), None).await?;
-    let transaction = Transaction::from_user_sig_data(tx_data, vec![signature]);
+    let transaction = TransactionEnvelope::from_user_sig_data(tx_data, vec![signature]);
 
     iota_client
         .quorum_driver_api()
@@ -639,7 +642,12 @@ async fn display_attestor(client: &IotaClient, address: Address) -> Result<Strin
         )?,
         None => writeln!(out, "  staged rotation:   none")?,
     }
-    writeln!(out, "  bond:              {} nanos", entry.bond.value())?;
+    writeln!(out, "  bond at stake:     {} nanos", entry.bond.value())?;
+    writeln!(
+        out,
+        "  bond excess:       {} nanos",
+        entry.excess_bond.value()
+    )?;
     writeln!(out, "  activation epoch:  {}", entry.activation_epoch)?;
     writeln!(out, "  last active epoch: {}", entry.last_active_epoch)?;
     if let Some(metadata) = metadata {
@@ -703,10 +711,10 @@ mod tests {
     fn attestor_key_roundtrip_and_overwrite_protection() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("attestor.key");
-        let kp = IotaKeyPair::Ed25519(iota_types::crypto::get_key_pair().1);
+        let kp = SimpleKeypair::from(get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut OsRng).1);
         write_attestor_key(&path, &kp, false).unwrap();
         let read = read_attestor_key(&path).unwrap();
-        assert_eq!(read.public(), kp.public());
+        assert_eq!(read.public_key(), kp.public_key());
         // second write without overwrite permission must fail: this is what makes both
         // register and rotate-key refuse to run while a key file is already present.
         assert!(write_attestor_key(&path, &kp, false).is_err());
@@ -720,7 +728,7 @@ mod tests {
     fn attestor_key_file_is_owner_read_write_only() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("attestor.key");
-        let kp = IotaKeyPair::Ed25519(iota_types::crypto::get_key_pair().1);
+        let kp = SimpleKeypair::from(get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut OsRng).1);
         write_attestor_key(&path, &kp, false).unwrap();
         let mode = fs::metadata(&path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600);

@@ -97,6 +97,9 @@ rotate_key
 advance_epoch
 	public(package) fun
 	0x3::attestor_registry
+rebalance
+	fun
+	0x3::attestor_registry
 remove_departed_metadata
 	public(package) fun
 	0x3::attestor_registry
@@ -143,6 +146,9 @@ attestor_pubkey
 	public(package) fun
 	0x3::attestor_registry
 bond_value
+	public(package) fun
+	0x3::attestor_registry
+excess_bond_value
 	public(package) fun
 	0x3::attestor_registry
 activation_epoch
@@ -1183,6 +1189,27 @@ validator_voting_powers
 get_total_iota_supply
 	public fun
 	0x3::iota_system
+GenesisValidatorMetadata
+	public struct
+	0x3::genesis
+GenesisChainParameters
+	public struct
+	0x3::genesis
+TokenDistributionSchedule
+	public struct
+	0x3::genesis
+TokenAllocation
+	public struct
+	0x3::genesis
+create
+	fun
+	0x3::genesis
+allocate_tokens
+	fun
+	0x3::genesis
+activate_validators
+	fun
+	0x3::genesis
 TimelockedStakedIota
 	public struct
 	0x3::timelocked_staking
@@ -1255,30 +1282,6 @@ transfer
 transfer_multiple
 	fun
 	0x3::timelocked_staking
-request_add_stake_at_genesis
-	public(package) fun
-	0x3::timelocked_staking
-GenesisValidatorMetadata
-	public struct
-	0x3::genesis
-GenesisChainParameters
-	public struct
-	0x3::genesis
-TokenDistributionSchedule
-	public struct
-	0x3::genesis
-TokenAllocation
-	public struct
-	0x3::genesis
-create
-	fun
-	0x3::genesis
-allocate_tokens
-	fun
-	0x3::genesis
-activate_validators
-	fun
-	0x3::genesis
 secp256k1_ecrecover
 	public fun
 	0x2::ecdsa_k1
@@ -1454,6 +1457,9 @@ randomness_state
 	public(package) fun
 	0x2::object
 iota_deny_list_object_id
+	public(package) fun
+	0x2::object
+transaction_deny_rules
 	public(package) fun
 	0x2::object
 uid_as_inner
@@ -4156,6 +4162,27 @@ spent
 key
 	fun
 	0x2::token
+TransactionDenyRules
+	public struct
+	0x2::transaction_deny_rules
+TransactionDenyRulesInnerV1
+	public struct
+	0x2::transaction_deny_rules
+TransactionDenyRulesUpdated
+	public struct
+	0x2::transaction_deny_rules
+create
+	fun
+	0x2::transaction_deny_rules
+load_inner_mut
+	fun
+	0x2::transaction_deny_rules
+update
+	fun
+	0x2::transaction_deny_rules
+apply_delta
+	fun
+	0x2::transaction_deny_rules
 VerifiedID
 	public struct
 	0x2::zklogin_verified_id

@@ -292,7 +292,7 @@ fun test_reregister_while_exiting_rejected() {
 // === Deposit & rotation ===
 
 #[test]
-fun test_deposit_increases_bond_for_active_and_pending() {
+fun test_deposit_joins_excess_for_active_and_pending() {
     let mut registry = attestor_registry::new();
     registry.register(
         balance::create_for_testing(min_joining_bond()),
@@ -304,7 +304,8 @@ fun test_deposit_increases_bond_for_active_and_pending() {
     registry.deposit(@0xA1, balance::create_for_testing(500), 5);
     registry.activate_for_testing();
     registry.deposit(@0xA1, balance::create_for_testing(500), 6);
-    assert!(registry.active_attestors()[0].bond_value() == min_joining_bond() + 1000);
+    assert!(registry.active_attestors()[0].bond_value() == min_joining_bond());
+    assert!(registry.active_attestors()[0].excess_bond_value() == 1000);
     registry.destroy_for_testing();
 }
 
@@ -544,7 +545,7 @@ fun test_eviction_wins_over_voluntary_removal() {
 }
 
 #[test]
-fun test_topup_prevents_eviction() {
+fun test_topup_does_not_prevent_eviction_and_excess_is_burned() {
     let mut registry = attestor_registry::new();
     let mut ctx = tx_context::dummy();
     registry.register(
@@ -561,8 +562,58 @@ fun test_topup_prevents_eviction() {
     registry.deposit(@0xA1, balance::create_for_testing(low_bond_threshold()), 6);
     let (evicted, _departed) = registry.advance_epoch(7, &mut ctx);
     _departed.unpack_for_testing();
+    // The top-up sits in the excess, so the eviction check still sees the
+    // slashed at-stake bond (1) and the burn takes the excess with it.
+    assert!(evicted.value() == low_bond_threshold() + 1);
+    evicted.destroy_for_testing();
+    assert!(registry.active_count() == 0);
+    registry.destroy_for_testing();
+}
+
+#[test]
+fun test_topup_covers_slash_at_next_boundary() {
+    let mut registry = attestor_registry::new();
+    let mut ctx = tx_context::dummy();
+    registry.register(
+        balance::create_for_testing(min_joining_bond()),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
+    evicted_bond.destroy_zero();
+    // Slash down to exactly the threshold: no eviction, and the boundary
+    // rebalance refills the at-stake bond from the excess.
+    let slash_amount = min_joining_bond() - low_bond_threshold();
+    registry.slash(@0xA1, slash_amount).destroy_for_testing();
+    registry.deposit(@0xA1, balance::create_for_testing(slash_amount + 500), 6);
+    let (evicted, _departed) = registry.advance_epoch(7, &mut ctx);
+    _departed.unpack_for_testing();
     evicted.destroy_zero();
     assert!(registry.active_count() == 1);
+    assert!(registry.active_attestors()[0].bond_value() == min_joining_bond());
+    assert!(registry.active_attestors()[0].excess_bond_value() == 500);
+    registry.destroy_for_testing();
+}
+
+#[test]
+fun test_register_above_joining_bond_splits_excess() {
+    let mut registry = attestor_registry::new();
+    let mut ctx = tx_context::dummy();
+    registry.register(
+        balance::create_for_testing(min_joining_bond() + 700),
+        pubkey_a(),
+        ed25519_pop_a1(),
+        @0xA1,
+        5,
+    );
+    let (evicted_bond, _departed) = registry.advance_epoch(6, &mut ctx);
+    _departed.unpack_for_testing();
+    evicted_bond.destroy_zero();
+    assert!(registry.active_attestors()[0].bond_value() == min_joining_bond());
+    assert!(registry.active_attestors()[0].excess_bond_value() == 700);
     registry.destroy_for_testing();
 }
 

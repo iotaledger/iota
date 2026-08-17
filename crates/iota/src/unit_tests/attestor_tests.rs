@@ -7,7 +7,7 @@
 //! is safe.
 
 use iota_keys::keypair_file::read_keypair_from_file;
-use iota_types::crypto::SignatureScheme;
+use iota_sdk_types::SignatureScheme;
 use test_cluster::TestClusterBuilder;
 
 use crate::attestor_commands::{IotaAttestorCommand, IotaAttestorCommandResponse};
@@ -112,7 +112,9 @@ async fn test_attestor_cli_lifecycle() {
         attestor_key_path.exists(),
         "register must write attestor.key"
     );
-    let registered_pubkey = read_keypair_from_file(&attestor_key_path).unwrap().public();
+    let registered_pubkey = read_keypair_from_file(&attestor_key_path)
+        .unwrap()
+        .public_key();
 
     // Pending until the epoch boundary.
     let IotaAttestorCommandResponse::Display(out) = IotaAttestorCommand::Display { address: None }
@@ -182,7 +184,9 @@ async fn test_attestor_cli_lifecycle() {
         Some(true),
         "rotate-key transaction must succeed"
     );
-    let rotated_pubkey = read_keypair_from_file(&attestor_key_path).unwrap().public();
+    let rotated_pubkey = read_keypair_from_file(&attestor_key_path)
+        .unwrap()
+        .public_key();
     assert_ne!(
         registered_pubkey, rotated_pubkey,
         "rotate-key must write a new keypair to attestor.key"
@@ -205,8 +209,9 @@ async fn test_attestor_cli_lifecycle() {
         "deposit-bond transaction must succeed"
     );
 
-    // The rename and the deposit are effective immediately: display shows the
-    // new name and the increased bond.
+    // The rename is effective immediately, and the deposit lands in the
+    // excess: display shows the new name, the unchanged at-stake bond, and
+    // the deposited excess.
     let IotaAttestorCommandResponse::Display(out) = IotaAttestorCommand::Display {
         address: Some(address),
     }
@@ -220,8 +225,12 @@ async fn test_attestor_cli_lifecycle() {
         "update-name must be visible in display: {out}"
     );
     assert!(
-        out.contains(&(min_joining_bond + 1_000_000_000).to_string()),
-        "deposit-bond must raise the displayed bond: {out}"
+        out.contains(&format!("bond at stake:     {min_joining_bond} nanos")),
+        "deposit-bond must leave the at-stake bond unchanged: {out}"
+    );
+    assert!(
+        out.contains("bond excess:       1000000000 nanos"),
+        "deposit-bond must show up as excess: {out}"
     );
 
     // Deregister. For an active attestor this schedules removal at the next

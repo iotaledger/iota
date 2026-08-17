@@ -4,9 +4,15 @@
 /// A permissionless registry of third-party attestors for explicit
 /// transaction attestations. Anyone can register a dedicated attestor
 /// signing key by locking a bond; registrations, deregistrations and key
-/// rotations take effect at epoch boundaries. An active attestor whose bond
-/// falls below the low-bond threshold at an epoch boundary has its
-/// remaining bond burned and is evicted.
+/// rotations take effect at epoch boundaries.
+///
+/// The escrow is held in two parts: an at-stake bond capped at the joining
+/// bond — the only part slashing draws from and the eviction check reads —
+/// and the excess above it. Top-ups join the excess and are folded into the
+/// at-stake bond only at the boundary rebalance, so they cannot rescue an
+/// attestor whose at-stake bond was slashed below the low-bond threshold in
+/// the current epoch. An attestor below the threshold at the boundary is
+/// evicted and its entire escrow (at-stake and excess) burned.
 ///
 /// An active attestor that goes unreported by `refresh_activity` for more
 /// than the configured number of epochs is dropped at the boundary: a
@@ -112,9 +118,13 @@ public struct AttestorV1 has store {
     attestor_pubkey: vector<u8>,
     /// Staged replacement key, applied in place at the next epoch boundary.
     next_epoch_attestor_pubkey: Option<vector<u8>>,
-    /// Escrowed bond, held until removal (refund), eviction (burn), or a
-    /// future slash.
+    /// At-stake part of the escrow: what slashing draws from and the
+    /// eviction check reads. Rebalanced to min(total, joining bond) at
+    /// each epoch boundary.
     bond: Balance<IOTA>,
+    /// Escrow above the joining bond; top-ups land here and fold into
+    /// `bond` only at the boundary rebalance.
+    excess_bond: Balance<IOTA>,
     /// Epoch from which this attestor is considered active.
     activation_epoch: u64,
     /// Last epoch in which this attestor was reported active via
@@ -158,9 +168,9 @@ public struct AttestorsActivatedEvent has copy, drop {
 }
 
 /// One departed attestor; `reason` is EXIT_EVICTION / EXIT_INACTIVITY /
-/// EXIT_REMOVAL. Eviction burns the whole bond (refunded=0); inactivity
-/// burns the penalty and refunds the rest; removal refunds the whole bond
-/// (burned=0).
+/// EXIT_REMOVAL. Eviction burns the whole escrow, excess included
+/// (refunded=0); inactivity burns the penalty and refunds the rest;
+/// removal refunds the whole escrow (burned=0).
 public struct AttestorExitInfo has copy, drop, store {
     attestor_address: address,
     reason: u8,
@@ -258,13 +268,14 @@ fun pubkey_in_use(self: &AttestorRegistryV1, pubkey: &vector<u8>): bool {
 /// locking `bond`. Takes effect at the next epoch boundary.
 public(package) fun register(
     self: &mut AttestorRegistryV1,
-    bond: Balance<IOTA>,
+    mut bond: Balance<IOTA>,
     attestor_pubkey: vector<u8>,
     proof_of_possession: vector<u8>,
     sender: address,
     current_epoch: u64,
 ) {
-    assert!(bond.value() >= min_joining_bond(), EBondTooLow);
+    let min_joining_bond = min_joining_bond();
+    assert!(bond.value() >= min_joining_bond, EBondTooLow);
     assert!(
         self.active_attestors.length() + self.pending_active.length()
             < protocol_config::get_attr(MAX_ATTESTOR_COUNT_PARAM),
@@ -279,6 +290,7 @@ public(package) fun register(
 
     let activation_epoch = current_epoch + 1;
     let bond_amount = bond.value();
+    let excess_bond = bond.split(bond_amount - min_joining_bond);
     let pubkey_for_event = attestor_pubkey;
     self
         .pending_active
@@ -287,6 +299,7 @@ public(package) fun register(
             attestor_pubkey: pubkey_for_event,
             next_epoch_attestor_pubkey: option::none(),
             bond,
+            excess_bond,
             activation_epoch,
             last_active_epoch: activation_epoch,
         });
@@ -316,11 +329,13 @@ public(package) fun deregister(
             attestor_address: _,
             attestor_pubkey: _,
             next_epoch_attestor_pubkey,
-            bond,
+            mut bond,
+            excess_bond,
             activation_epoch: _,
             last_active_epoch: _,
         } = self.pending_active.remove(pending_idx.destroy_some());
         next_epoch_attestor_pubkey.destroy_none();
+        bond.join(excess_bond);
         event::emit(AttestorRemovedEvent {
             epoch: current_epoch,
             attestor_address: sender,
@@ -349,9 +364,9 @@ public(package) fun deregister(
 
 // === Bond top-up ===
 
-/// Add `additional` to the sender's bond (active or pending entry).
-/// Effective immediately; the boundary low-bond check sees the topped-up
-/// balance.
+/// Add `additional` to the sender's excess (active or pending entry). It
+/// folds into the at-stake bond only at the boundary rebalance, so the
+/// eviction check at the very next boundary does not see it.
 public(package) fun deposit(
     self: &mut AttestorRegistryV1,
     sender: address,
@@ -368,12 +383,12 @@ public(package) fun deposit(
         assert!(pending_idx.is_some(), ENotAnAttestor);
         &mut self.pending_active[pending_idx.destroy_some()]
     };
-    entry.bond.join(additional);
+    entry.excess_bond.join(additional);
     event::emit(AttestorBondDepositedEvent {
         epoch: current_epoch,
         attestor_address: sender,
         deposited_amount,
-        new_bond_amount: entry.bond.value(),
+        new_bond_amount: entry.bond.value() + entry.excess_bond.value(),
     });
 }
 
@@ -424,13 +439,18 @@ public(package) fun rotate_key(
 /// Process the epoch boundary for the registry. Order:
 /// 0. (Reserved) slashing executes before exits — see the design doc.
 /// 1. Combined exits, one pass so the stored indices stay valid; per-entry
-///    reason precedence: low-bond eviction (bond burned) > inactivity drop
-///    (penalty burned, rest refunded) > requested removal (bond refunded).
+///    reason precedence: low-bond eviction (whole escrow burned, excess
+///    included) > inactivity drop (penalty burned, rest refunded) >
+///    requested removal (escrow refunded). The eviction check reads the
+///    at-stake bond as slashing left it — before the rebalance below — so
+///    an in-epoch top-up cannot rescue a threshold-crossing slash.
 ///    Inactivity beating a pending removal means an inactive attestor
 ///    cannot escape the penalty by deregistering in the same epoch.
-/// 2. Staged key rotations applied in place.
-/// 3. Pending activations appended in registration order; an entry below the
-///    current joining bond is refused and refunded like a voluntary removal.
+/// 2. Staged key rotations and the bond rebalance (at-stake =
+///    min(total, current joining bond)), in place.
+/// 3. Pending activations appended in registration order; an entry whose
+///    total escrow is below the current joining bond is refused and
+///    refunded like a voluntary removal, the rest rebalanced like actives.
 /// Emits at most one `AttestorsExitedEvent` and one `AttestorsActivatedEvent`
 /// for the whole boundary, batching every departed/activated attestor into
 /// them — a per-attestor event here would risk exceeding the per-tx event
@@ -500,10 +520,12 @@ public(package) fun advance_epoch(
                 attestor_pubkey: _,
                 next_epoch_attestor_pubkey,
                 mut bond,
+                excess_bond,
                 activation_epoch: _,
                 last_active_epoch: _,
             } = self.active_attestors.remove(idx);
             next_epoch_attestor_pubkey.destroy!(|_| ());
+            bond.join(excess_bond);
             departed.push_back(attestor_address);
             if (reason == EXIT_EVICTION) {
                 let burned_amount = bond.value();
@@ -536,39 +558,48 @@ public(package) fun advance_epoch(
         };
     };
 
-    // --- 2. Staged key rotations, in place ---
+    // --- 2. Staged key rotations and bond rebalance, in place ---
+    // The param read is guarded like the exit pass: an active entry exists
+    // only if register() read the same params.
     let len = self.active_attestors.length();
-    let mut k = 0;
-    while (k < len) {
-        let entry = &mut self.active_attestors[k];
-        if (entry.next_epoch_attestor_pubkey.is_some()) {
-            entry.attestor_pubkey = entry.next_epoch_attestor_pubkey.extract();
+    if (len > 0) {
+        let min_joining_bond = min_joining_bond();
+        let mut k = 0;
+        while (k < len) {
+            let entry = &mut self.active_attestors[k];
+            if (entry.next_epoch_attestor_pubkey.is_some()) {
+                entry.attestor_pubkey = entry.next_epoch_attestor_pubkey.extract();
+            };
+            rebalance(entry, min_joining_bond);
+            k = k + 1;
         };
-        k = k + 1;
     };
 
     // --- 3. Activations, in registration order ---
-    // The joining bond is re-checked against the current parameter: a raise
-    // between registration and activation refuses the entry, refunding the
-    // bond like a voluntary removal. The param read is guarded like the exit
-    // pass above: a pending entry exists only if register() read the same
+    // The total escrow is re-checked against the current joining bond: a
+    // raise between registration and activation that the escrow (including
+    // top-ups) no longer covers refuses the entry, refunding it like a
+    // voluntary removal. The param read is guarded like the exit pass
+    // above: a pending entry exists only if register() read the same
     // params, so the read cannot abort here.
     let mut activated = vector<address>[];
     if (!self.pending_active.is_empty()) {
         let min_joining_bond = min_joining_bond();
         self.pending_active.reverse();
         while (!self.pending_active.is_empty()) {
-            let entry = self.pending_active.pop_back();
-            if (entry.bond.value() < min_joining_bond) {
+            let mut entry = self.pending_active.pop_back();
+            if (entry.bond.value() + entry.excess_bond.value() < min_joining_bond) {
                 let AttestorV1 {
                     attestor_address,
                     attestor_pubkey: _,
                     next_epoch_attestor_pubkey,
-                    bond,
+                    mut bond,
+                    excess_bond,
                     activation_epoch: _,
                     last_active_epoch: _,
                 } = entry;
                 next_epoch_attestor_pubkey.destroy!(|_| ());
+                bond.join(excess_bond);
                 departed.push_back(attestor_address);
                 exited.push_back(AttestorExitInfo {
                     attestor_address,
@@ -578,6 +609,7 @@ public(package) fun advance_epoch(
                 });
                 transfer::public_transfer(coin::from_balance(bond, ctx), attestor_address);
             } else {
+                rebalance(&mut entry, min_joining_bond);
                 activated.push_back(entry.attestor_address);
                 self.active_attestors.push_back(entry);
             }
@@ -592,6 +624,18 @@ public(package) fun advance_epoch(
     };
 
     (evicted_bonds, DepartedAttestors { addresses: departed })
+}
+
+/// Restore the boundary invariant: at-stake = min(total escrow, the
+/// current joining bond), the rest held as excess.
+fun rebalance(entry: &mut AttestorV1, min_joining_bond: u64) {
+    let at_stake = entry.bond.value();
+    let target = (at_stake + entry.excess_bond.value()).min(min_joining_bond);
+    if (at_stake < target) {
+        entry.bond.join(entry.excess_bond.split(target - at_stake));
+    } else if (at_stake > target) {
+        entry.excess_bond.join(entry.bond.split(at_stake - target));
+    };
 }
 
 /// Consume the departure list, removing each departed attestor's metadata
@@ -670,7 +714,8 @@ public(package) fun update_metadata_logo(uid: &mut UID, sender: address, logo: v
 
 // === Slash hook (no public trigger yet) ===
 
-/// Deduct up to `amount` from an active attestor's bond and return it.
+/// Deduct up to `amount` from an active attestor's at-stake bond and
+/// return it; the excess is untouched until the boundary rebalance.
 /// The trigger (evidence model, adjudication, destination of the returned
 /// balance) is a future slashing design; today only tests call this.
 public(package) fun slash(
@@ -705,6 +750,10 @@ public(package) fun attestor_pubkey(attestor: &AttestorV1): &vector<u8> {
 
 public(package) fun bond_value(attestor: &AttestorV1): u64 {
     attestor.bond.value()
+}
+
+public(package) fun excess_bond_value(attestor: &AttestorV1): u64 {
+    attestor.excess_bond.value()
 }
 
 public(package) fun activation_epoch(attestor: &AttestorV1): u64 {
@@ -765,11 +814,13 @@ fun destroy_attestor_for_testing(attestor: AttestorV1) {
         attestor_pubkey: _,
         next_epoch_attestor_pubkey,
         bond,
+        excess_bond,
         activation_epoch: _,
         last_active_epoch: _,
     } = attestor;
     next_epoch_attestor_pubkey.destroy!(|_| ());
     bond.destroy_for_testing();
+    excess_bond.destroy_for_testing();
 }
 
 #[test_only]
@@ -788,6 +839,7 @@ public fun push_pending_for_testing(
             attestor_pubkey: vector[],
             next_epoch_attestor_pubkey: option::none(),
             bond: balance::create_for_testing(bond_amount),
+            excess_bond: balance::zero(),
             activation_epoch: 0,
             last_active_epoch: 0,
         });
