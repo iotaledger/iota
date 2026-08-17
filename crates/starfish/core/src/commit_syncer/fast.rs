@@ -619,14 +619,20 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .await
             .expect("Spawn blocking should not fail")?;
 
-        // 3. Collect all committed transaction refs from commits. Commits passing
+        // 3. Collect the committed transaction refs of each commit. Commits passing
         //    verify_commits are V2/V3, which only carry `TransactionRef`s, so the
         //    legacy `BlockRef` variant is an error.
-        let mut committed_tx_refs: BTreeSet<TransactionRef> = commits
+        let mut commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .flat_map(|c| c.committed_transactions())
-            .map(GenericTransactionRef::expect_transaction_ref)
+            .map(|c| {
+                c.committed_transactions()
+                    .into_iter()
+                    .map(GenericTransactionRef::expect_transaction_ref)
+                    .collect()
+            })
             .collect::<ConsensusResult<_>>()?;
+        let mut committed_tx_refs: BTreeSet<TransactionRef> =
+            commits_tx_refs.iter().flatten().copied().collect();
 
         // 4. Process fetched transactions. Each serialized_transaction is a
         //    SerializedTransactionsV2 containing both the TransactionRef and the actual
@@ -647,6 +653,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             truncate_to_fully_fetched_prefix(
                 target_authority,
                 &mut commits,
+                &mut commits_tx_refs,
                 &mut fetched_transactions,
             )?;
             info!(
@@ -693,7 +700,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // consumers merge-max against their last-seen, so repeating absolute
         // totals across the batch is a no-op after the first.
         let misbehavior_counts = inner.dag_state.read().misbehavior_store().snapshot_totals();
-        for commit in &commits {
+        for (commit, commit_tx_refs) in commits.iter().zip(&commits_tx_refs) {
             // Get block headers from the commit
             let committed_header_refs = commit.block_headers().to_vec();
 
@@ -701,8 +708,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             let reputation_scores = commit.reputation_scores().to_vec();
 
             // Collect transactions for this commit
-            let commit_transactions: Vec<VerifiedTransactions> = commit
-                .committed_transactions()
+            let commit_transactions: Vec<VerifiedTransactions> = commit_tx_refs
                 .iter()
                 .filter_map(|tx_ref| transactions_map.remove(tx_ref))
                 .collect();
@@ -956,7 +962,7 @@ fn process_serialized_transactions(
     peer: AuthorityIndex,
     serialized_transactions: Vec<Bytes>,
     committed_tx_refs: &mut BTreeSet<TransactionRef>,
-) -> ConsensusResult<BTreeMap<GenericTransactionRef, Bytes>> {
+) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
     let mut fetched_transactions = BTreeMap::new();
     for serialized_transaction in serialized_transactions {
         let tx_v2: SerializedTransactionsV2 = bcs::from_bytes(&serialized_transaction)
@@ -965,19 +971,17 @@ fn process_serialized_transactions(
         if !committed_tx_refs.contains(&transaction_ref) {
             return Err(ConsensusError::UnexpectedTransactionForCommit {
                 peer,
-                received: GenericTransactionRef::TransactionRef(transaction_ref),
+                received: transaction_ref,
             });
         }
-        fetched_transactions.insert(
-            GenericTransactionRef::TransactionRef(transaction_ref),
-            tx_v2.serialized_transactions,
-        );
+        fetched_transactions.insert(transaction_ref, tx_v2.serialized_transactions);
         committed_tx_refs.remove(&transaction_ref);
     }
     Ok(fetched_transactions)
 }
 
-/// Truncates verified `commits` to the longest prefix whose committed
+/// Truncates verified `commits` (and their aligned per-commit transaction
+/// refs in `commits_tx_refs`) to the longest prefix whose committed
 /// transactions are all present in `fetched_transactions`, and drops fetched
 /// transactions not referenced by that prefix. Commits verified by
 /// `verify_commits` are chained by digest up to a vote-certified last commit,
@@ -988,13 +992,13 @@ fn process_serialized_transactions(
 fn truncate_to_fully_fetched_prefix(
     peer: AuthorityIndex,
     commits: &mut Vec<TrustedCommit>,
-    fetched_transactions: &mut BTreeMap<GenericTransactionRef, Bytes>,
+    commits_tx_refs: &mut Vec<Vec<TransactionRef>>,
+    fetched_transactions: &mut BTreeMap<TransactionRef, Bytes>,
 ) -> ConsensusResult<()> {
-    let prefix_len = commits
+    let prefix_len = commits_tx_refs
         .iter()
-        .take_while(|commit| {
-            commit
-                .committed_transactions()
+        .take_while(|commit_tx_refs| {
+            commit_tx_refs
                 .iter()
                 .all(|tx_ref| fetched_transactions.contains_key(tx_ref))
         })
@@ -1002,19 +1006,17 @@ fn truncate_to_fully_fetched_prefix(
     if prefix_len == 0 {
         return Err(ConsensusError::FetchedTransactionsMismatch {
             peer,
-            expected: commits
+            expected: commits_tx_refs
                 .iter()
-                .map(|commit| commit.committed_transactions().len())
+                .map(|commit_tx_refs| commit_tx_refs.len())
                 .sum(),
             received: fetched_transactions.len(),
         });
     }
     if prefix_len < commits.len() {
         commits.truncate(prefix_len);
-        let prefix_tx_refs: BTreeSet<GenericTransactionRef> = commits
-            .iter()
-            .flat_map(|commit| commit.committed_transactions())
-            .collect();
+        commits_tx_refs.truncate(prefix_len);
+        let prefix_tx_refs: BTreeSet<&TransactionRef> = commits_tx_refs.iter().flatten().collect();
         fetched_transactions.retain(|tx_ref, _| prefix_tx_refs.contains(tx_ref));
     }
     Ok(())

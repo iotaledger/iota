@@ -48,7 +48,7 @@ use crate::{
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
+    transaction_ref::{GenericTransactionRef, TransactionRef},
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -1372,10 +1372,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .handle_fetch_commits(peer, commit_range, CommitSyncType::Fast)
             .await?;
 
-        let transaction_refs: Vec<GenericTransactionRef> = commits
+        // The `BlockRef` arm exists only for `CommitV1`, which is no longer
+        // produced and never enters the per-epoch store these commits are read
+        // from.
+        let transaction_refs: Vec<TransactionRef> = commits
             .iter()
             .flat_map(|commit| commit.committed_transactions())
-            .collect();
+            .map(GenericTransactionRef::expect_transaction_ref)
+            .collect::<ConsensusResult<_>>()?;
 
         let serialized_transactions = self
             .handle_fetch_transactions(peer, transaction_refs, TransactionFetchMode::FastCommitSync)
@@ -1444,7 +1448,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        mut committed_transactions_refs: Vec<GenericTransactionRef>,
+        mut committed_transactions_refs: Vec<TransactionRef>,
         fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
@@ -1490,12 +1494,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let (below_gc, above_gc): (Vec<_>, Vec<_>) = committed_transactions_refs
             .iter()
             .cloned()
-            .partition(|gen_tx_ref| gen_tx_ref.round() < gc_round);
+            .partition(|tx_ref| tx_ref.round < gc_round);
 
         // Fetch transactions below GC from store
         let store_transactions = if !below_gc.is_empty() {
+            let refs: Vec<GenericTransactionRef> =
+                below_gc.iter().copied().map(Into::into).collect();
             self.store
-                .read_serialized_transactions(&below_gc)?
+                .read_serialized_transactions(&refs)?
                 .into_iter()
                 .zip(below_gc)
                 .collect::<Vec<_>>()
@@ -1505,9 +1511,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Fetch transactions at-or-above GC from dag_state
         let dag_transactions = if !above_gc.is_empty() {
+            let refs: Vec<GenericTransactionRef> =
+                above_gc.iter().copied().map(Into::into).collect();
             self.dag_state
                 .read()
-                .get_serialized_transactions(&above_gc)
+                .get_serialized_transactions(&refs)
                 .into_iter()
                 .zip(above_gc)
                 .collect::<Vec<_>>()
@@ -1517,9 +1525,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Combine and serialize the results
         let mut result = Vec::new();
-        for (opt_serialized_tx, gen_ref) in store_transactions.into_iter().chain(dag_transactions) {
+        for (opt_serialized_tx, transaction_ref) in
+            store_transactions.into_iter().chain(dag_transactions)
+        {
             if let Some(serialized_tx) = opt_serialized_tx {
-                let transaction_ref = gen_ref.expect_transaction_ref()?;
                 let serialized = bcs::to_bytes(&SerializedTransactionsV2 {
                     transaction_ref,
                     serialized_transactions: serialized_tx,
