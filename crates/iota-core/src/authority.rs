@@ -150,6 +150,7 @@ use crate::{
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
         authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
+        historic_objects::HistoricObjects,
         shared_object_version_manager::{AssignedVersions, Schedulable},
     },
     authority_client::NetworkAuthorityClient,
@@ -926,6 +927,10 @@ pub struct AuthorityState {
 
     /// The RPC index store, absent when this node maintains no index group.
     pub rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
+
+    /// The object versions superseded by executed transactions, bucketed by
+    /// the epoch that superseded them.
+    historic_objects: Arc<HistoricObjects>,
 
     pub subscription_handler: Arc<SubscriptionHandler>,
     pub checkpoint_store: Arc<CheckpointStore>,
@@ -2799,6 +2804,7 @@ impl AuthorityState {
             input_loader,
             execution_cache_trait_pointers,
             rpc_indexes_store,
+            historic_objects: store.get_historic_objects().clone(),
             subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
             checkpoint_store,
             committee_store,
@@ -2829,6 +2835,12 @@ impl AuthorityState {
 
     pub fn epoch_db_pruner(&self) -> &AuthorityPerEpochStorePruner {
         &self.authority_per_epoch_pruner
+    }
+
+    /// The object versions this authority's transactions superseded, bucketed
+    /// by the epoch that superseded them.
+    pub fn get_historic_objects(&self) -> &Arc<HistoricObjects> {
+        &self.historic_objects
     }
 
     // TODO: Consolidate our traits to reduce the number of methods here.
@@ -3125,6 +3137,11 @@ impl AuthorityState {
         }
 
         let new_epoch = new_committee.epoch;
+        // Create the new epoch's historic-object bucket while execution is
+        // stopped: creating a column family is a blocking RocksDB operation,
+        // and the first checkpoint commit of the epoch would otherwise wait
+        // for it.
+        self.historic_objects.ensure(new_epoch)?;
         let new_epoch_store = self
             .reopen_epoch_db(
                 cur_epoch_store,

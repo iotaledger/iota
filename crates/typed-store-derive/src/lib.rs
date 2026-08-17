@@ -379,17 +379,38 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
                     typed_store::rocks::default_db_options()
                 };
                 let (db, rwopt_cfs) = {
-                    let opt_cfs = match tables_db_options_override {
-                        None => [
+                    let opt_cfs: Vec<(String, typed_store::rocks::DBOptions)> = match tables_db_options_override {
+                        None => vec![
                             #(
                                 (stringify!(#active_cf_names).to_owned(), #active_default_options_override_fn_names()),
                             )*
                         ],
-                        Some(o) => [
-                            #(
-                                (stringify!(#active_cf_names).to_owned(), o.to_map().get(stringify!(#active_cf_names)).unwrap_or(&default_cf_opt).clone()),
-                            )*
-                        ]
+                        Some(o) => {
+                            let overrides = o.to_map();
+                            let mut opt_cfs = vec![
+                                #(
+                                    (stringify!(#active_cf_names).to_owned(), overrides.get(stringify!(#active_cf_names)).unwrap_or(&default_cf_opt).clone()),
+                                )*
+                            ];
+                            // Column families the caller manages outside this struct, such as
+                            // ones it creates per epoch: rocksdb has to be told about every
+                            // column family the database holds, and one left out here would
+                            // be opened with default options instead of the caller's.
+                            let declared: std::collections::HashSet<&str> = [
+                                #(
+                                    stringify!(#active_cf_names),
+                                )*
+                                #(
+                                    stringify!(#deprecated_cf_names),
+                                )*
+                            ].into_iter().collect();
+                            opt_cfs.extend(
+                                overrides
+                                    .into_iter()
+                                    .filter(|(name, _)| !declared.contains(name.as_str())),
+                            );
+                            opt_cfs
+                        }
                     };
                     // Safe to call unwrap because we will have at least one field_name entry in the struct
                     let rwopt_cfs: std::collections::HashMap<String, typed_store::rocks::ReadWriteOptions> = opt_cfs.iter().map(|q| (q.0.as_str().to_string(), q.1.rw_options.clone())).collect();
@@ -451,7 +472,8 @@ pub fn derive_dbmap_utils_general(input: TokenStream) -> TokenStream {
             /// Opens a set of tables in read-write mode
             /// Only one process is allowed to do this at a time
             /// `global_db_options_override` apply to the whole DB
-            /// `tables_db_options_override` apply to each table. If `None`, the attributes from `default_options_override_fn` are used if any
+            /// `tables_db_options_override` apply to each table. If `None`, the attributes from `default_options_override_fn` are used if any.
+            /// An entry naming a column family that is not a field of this struct is opened with those options too, for column families the caller manages itself
             #[expect(unused_parens)]
             pub fn open_tables_read_write(
                 path: std::path::PathBuf,

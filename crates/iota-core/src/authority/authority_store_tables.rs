@@ -26,6 +26,7 @@ use crate::authority::{
         StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
     },
     epoch_start_configuration::EpochStartConfiguration,
+    historic_objects::HistoricObjects,
 };
 
 const ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE: &str = "OBJECTS_BLOCK_CACHE_MB";
@@ -222,7 +223,8 @@ impl AuthorityPerpetualTables {
         let db_options_override = db_options_override.unwrap_or_default();
         let db_options =
             db_options_override.apply_to(default_db_options().optimize_db_for_write_throughput(4));
-        let table_options = DBMapTableConfigMap::new(BTreeMap::from([
+        let path = Self::path(parent_path);
+        let mut table_options = BTreeMap::from([
             (
                 "objects".to_string(),
                 objects_table_config(db_options.clone(), db_options_override.compaction_filter),
@@ -239,9 +241,13 @@ impl AuthorityPerpetualTables {
                 "effects".to_string(),
                 effects_table_config(db_options.clone()),
             ),
-        ]));
+        ]);
+        // The historic object buckets are column families of this database, so
+        // they are opened here together with the tables declared above.
+        table_options.extend(HistoricObjects::extra_column_family_options(&path));
+        let table_options = DBMapTableConfigMap::new(table_options);
         Self::open_tables_read_write(
-            Self::path(parent_path),
+            path,
             MetricConf::new("perpetual")
                 .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
             Some(db_options.options),
