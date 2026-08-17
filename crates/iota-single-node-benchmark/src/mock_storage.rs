@@ -32,6 +32,11 @@ pub(crate) struct InMemoryObjectStore {
     objects: Arc<RwLock<HashMap<ObjectId, Object>>>,
     package_cache: Arc<PackageObjectCache>,
     num_object_reads: Arc<AtomicU64>,
+    // Injected latency for `read_objects_for_execution`, in nanoseconds
+    // (0 = none). Lets the window-pinning test prove input-object loading
+    // happens inside the measured window: with a delay far above pure
+    // execution time, `measured_ns` must reflect it.
+    read_delay_nanos: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl InMemoryObjectStore {
@@ -40,7 +45,16 @@ impl InMemoryObjectStore {
             objects: Arc::new(RwLock::new(objects)),
             package_cache: PackageObjectCache::new(),
             num_object_reads: Arc::new(AtomicU64::new(0)),
+            read_delay_nanos: Arc::new(std::sync::atomic::AtomicU64::new(0)),
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_read_delay(&self, delay: std::time::Duration) {
+        self.read_delay_nanos.store(
+            delay.as_nanos() as u64,
+            std::sync::atomic::Ordering::Relaxed,
+        );
     }
 
     pub(crate) fn get_num_object_reads(&self) -> u64 {
@@ -57,6 +71,12 @@ impl InMemoryObjectStore {
         assigned_versions: &AssignedVersions,
         input_object_kinds: &[InputObjectKind],
     ) -> IotaResult<InputObjects> {
+        let delay = self
+            .read_delay_nanos
+            .load(std::sync::atomic::Ordering::Relaxed);
+        if delay > 0 {
+            std::thread::sleep(std::time::Duration::from_nanos(delay));
+        }
         let shared_version_assignments: HashMap<_, _> = assigned_versions
             .iter()
             .map(|assignment| (assignment.object_id, assignment.version))

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use iota_macros::sim_test;
 use iota_single_node_benchmark::{
-    command::{Component, WorkloadKind},
+    command::{BenchmarkConfig, Component, PtbParams, WorkloadKind},
     run_benchmark,
     workload::Workload,
 };
@@ -19,21 +19,19 @@ async fn benchmark_non_move_transactions_smoke_test() {
             run_benchmark(
                 Workload::new(
                     10,
-                    WorkloadKind::PTB {
+                    WorkloadKind::PTB(PtbParams {
                         num_transfers: 2,
                         use_native_transfer: true,
-                        num_dynamic_fields: 0,
-                        computation: 0,
-                        num_shared_objects: 0,
-                        num_mints: 0,
                         nft_size: 528,
-                        use_batch_mint: false,
-                    },
+                        ..Default::default()
+                    }),
                 ),
                 component,
-                1000,
-                false,
-                skip_signing,
+                BenchmarkConfig {
+                    checkpoint_size: 1000,
+                    skip_signing,
+                    ..Default::default()
+                },
             )
             .await;
         }
@@ -47,7 +45,7 @@ async fn benchmark_move_transactions_smoke_test() {
             run_benchmark(
                 Workload::new(
                     10,
-                    WorkloadKind::PTB {
+                    WorkloadKind::PTB(PtbParams {
                         num_transfers: 2,
                         use_native_transfer: false,
                         num_dynamic_fields: 1,
@@ -55,13 +53,15 @@ async fn benchmark_move_transactions_smoke_test() {
                         num_shared_objects: 2,
                         num_mints: 2,
                         nft_size: 528,
-                        use_batch_mint: false,
-                    },
+                        ..Default::default()
+                    }),
                 ),
                 component,
-                1000,
-                false,
-                skip_signing,
+                BenchmarkConfig {
+                    checkpoint_size: 1000,
+                    skip_signing,
+                    ..Default::default()
+                },
             )
             .await;
         }
@@ -75,21 +75,19 @@ async fn benchmark_batch_mint_smoke_test() {
             run_benchmark(
                 Workload::new(
                     10,
-                    WorkloadKind::PTB {
-                        num_transfers: 0,
-                        use_native_transfer: false,
-                        num_dynamic_fields: 0,
-                        computation: 0,
-                        num_shared_objects: 0,
+                    WorkloadKind::PTB(PtbParams {
                         num_mints: 10,
                         nft_size: 256,
                         use_batch_mint: true,
-                    },
+                        ..Default::default()
+                    }),
                 ),
                 component,
-                1000,
-                false,
-                skip_signing,
+                BenchmarkConfig {
+                    checkpoint_size: 1000,
+                    skip_signing,
+                    ..Default::default()
+                },
             )
             .await;
         }
@@ -115,9 +113,10 @@ async fn benchmark_publish_from_source() {
                 },
             ),
             component,
-            1000,
-            false,
-            false,
+            BenchmarkConfig {
+                checkpoint_size: 1000,
+                ..Default::default()
+            },
         )
         .await;
     }
@@ -142,9 +141,10 @@ async fn benchmark_publish_from_bytecode() {
                 },
             ),
             component,
-            1000,
-            false,
-            false,
+            BenchmarkConfig {
+                checkpoint_size: 1000,
+                ..Default::default()
+            },
         )
         .await;
     }
