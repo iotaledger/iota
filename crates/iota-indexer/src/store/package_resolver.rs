@@ -6,7 +6,9 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use async_trait::async_trait;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
-use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
+use iota_package_resolver::{
+    Package, PackageStore, Resolver, error::Error as PackageResolverError,
+};
 use iota_sdk_types::Address;
 use iota_types::object::Object;
 
@@ -20,16 +22,16 @@ use crate::{db::ConnectionPool, errors::IndexerError, schema::objects, store::di
 /// never committed, so it is not in the database and only the simulation's own
 /// output holds it. The node's JSON-RPC resolves the same way, over the objects
 /// the simulation wrote with its store behind them.
-pub struct SimulationPackageStore<F> {
+pub struct SimulationPackageStore<F: PackageStore> {
     /// The packages among the objects the simulation wrote, kept as objects and
     /// deserialized on demand: a simulation usually publishes nothing, and when
     /// it does the package is only read if a type actually refers to it.
     published: BTreeMap<Address, Object>,
-    fallback: F,
+    fallback: Arc<Resolver<F>>,
 }
 
-impl<F> SimulationPackageStore<F> {
-    pub fn new(written_objects: &[Object], fallback: F) -> Self {
+impl<F: PackageStore> SimulationPackageStore<F> {
+    pub fn new(written_objects: &[Object], fallback: Arc<Resolver<F>>) -> Self {
         let published = written_objects
             .iter()
             .filter(|object| object.data.as_opt_package().is_some())
@@ -48,7 +50,7 @@ impl<F: PackageStore> PackageStore for SimulationPackageStore<F> {
     async fn fetch(&self, id: Address) -> Result<Arc<Package>, PackageResolverError> {
         match self.published.get(&id) {
             Some(object) => Package::read_from_object(object).map(Arc::new),
-            None => self.fallback.fetch(id).await,
+            None => self.fallback.package_store().fetch(id).await,
         }
     }
 }

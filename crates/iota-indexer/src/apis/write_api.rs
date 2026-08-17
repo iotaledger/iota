@@ -99,7 +99,7 @@ impl WriteApi {
     async fn dry_run_transaction_block_impl(
         &self,
         tx_bytes: Base64,
-        package_resolver: &Arc<Resolver<impl PackageStore + Clone>>,
+        package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DryRunTransactionBlockResponse> {
         let tx: Transaction = bcs::from_bytes::<Transaction>(&tx_bytes.to_vec()?)?;
 
@@ -153,9 +153,8 @@ impl WriteApi {
         // the types it introduces — an event from its `init`, for one.
         let package_resolver = Arc::new(Resolver::new(SimulationPackageStore::new(
             &output_objects,
-            package_resolver.package_store().clone(),
+            package_resolver.clone(),
         )));
-        let package_resolver = &package_resolver;
 
         // A transaction that carries no gas payment is simulated against a mock gas
         // coin, which the response names in the payment it ran with. That coin is not
@@ -183,6 +182,23 @@ impl WriteApi {
         )
         .map_err(Into::into);
 
+        let fut2 = IotaTransactionBlock::try_from_with_package_resolver(
+            sender_signed_tx,
+            &package_resolver,
+            tx_digest,
+        )
+        .map_err(Into::into);
+
+        // timestamp is None because it represent a checkpoint one, on a dry run
+        // operation we don't have this information.
+        let fut3 = tx_events_to_iota_tx_events(tx_events, &package_resolver, tx_digest, None);
+
+        let fut4 = IotaTransactionBlockEffects::from_native_with_clever_error(
+            tx_effects.clone(),
+            &package_resolver,
+        )
+        .map(Ok);
+
         let fut5 = get_object_changes(
             &in_mem_tx_changes,
             sender,
@@ -191,23 +207,6 @@ impl WriteApi {
             tx_effects.all_removed_objects(),
         )
         .map_err(Into::<IndexerError>::into);
-
-        let fut2 = IotaTransactionBlock::try_from_with_package_resolver(
-            sender_signed_tx,
-            package_resolver,
-            tx_digest,
-        )
-        .map_err(Into::into);
-
-        // timestamp is None because it represent a checkpoint one, on a dry run
-        // operation we don't have this information.
-        let fut3 = tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, None);
-
-        let fut4 = IotaTransactionBlockEffects::from_native_with_clever_error(
-            tx_effects.clone(),
-            package_resolver,
-        )
-        .map(Ok);
 
         let (balance_changes, transaction_block, events, effects, object_changes) =
             futures::future::try_join5(fut1, fut2, fut3, fut4, fut5).await?;
@@ -229,7 +228,7 @@ impl WriteApi {
         tx_bytes: Base64,
         gas_price: Option<BigInt<u64>>,
         additional_args: Option<DevInspectArgs>,
-        package_resolver: &Arc<Resolver<impl PackageStore + Clone>>,
+        package_resolver: &Arc<Resolver<impl PackageStore>>,
     ) -> IndexerResult<DevInspectResults> {
         let DevInspectArgs {
             gas_sponsor,
@@ -302,15 +301,14 @@ impl WriteApi {
         let output_objects = grpc_conversion::objects(executed_transaction.output_objects()?)?;
         let package_resolver = Arc::new(Resolver::new(SimulationPackageStore::new(
             &output_objects,
-            package_resolver.package_store().clone(),
+            package_resolver.clone(),
         )));
-        let package_resolver = &package_resolver;
 
         let tx_digest = *tx_effects.transaction_digest();
         // timestamp is None because it represent a checkpoint one, on a dev inspect
         // operation we don't have this information.
         let events =
-            tx_events_to_iota_tx_events(tx_events, package_resolver, tx_digest, None).await?;
+            tx_events_to_iota_tx_events(tx_events, &package_resolver, tx_digest, None).await?;
 
         let execution_error = simulate_tx_response
             .execution_error()
