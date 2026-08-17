@@ -4422,6 +4422,7 @@ async fn reader_keeps_a_shared_deletion_from_its_tombstone_row_before_the_marker
             transaction: Arc::new(deletion),
             effects: deletion_effects.clone(),
             events: Default::default(),
+            superseded: vec![],
             markers: vec![],
             wrapped: vec![],
             deleted: vec![ObjectKey(shared_id, deletion_effects.lamport_version())],
