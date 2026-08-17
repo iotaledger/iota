@@ -175,6 +175,7 @@ impl Scenario {
             transaction: Arc::new(tx),
             effects,
             events,
+            superseded: Default::default(),
             markers: Default::default(),
             wrapped: Default::default(),
             deleted: Default::default(),
