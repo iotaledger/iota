@@ -6863,6 +6863,7 @@ dependencies = [
  "msim",
  "prometheus-filtered",
  "rand 0.8.6",
+ "serde_yaml",
  "telemetry-subscribers",
  "tempfile",
  "tokio",

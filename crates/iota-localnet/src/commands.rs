@@ -6,18 +6,18 @@ use std::{
     fs,
     net::{AddrParseError, IpAddr, Ipv4Addr, SocketAddr},
     num::NonZeroUsize,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
-use anyhow::{anyhow, bail, ensure};
+use anyhow::{Context, anyhow, bail, ensure};
 use clap::*;
 use colored::Colorize;
 use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG,
     IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig,
-    PersistedConfig, genesis_blob_exists, iota_config_dir,
+    PersistedConfig, genesis_blob_exists, iota_config_dir, local_ip_utils,
     node::{Genesis, GrpcApiConfig},
     p2p::SeedPeer,
 };
@@ -35,10 +35,12 @@ use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
-use iota_swarm::memory::Swarm;
+use iota_swarm::memory::{Node, Swarm};
 use iota_swarm_config::{
-    genesis_config::GenesisConfig,
-    network_config::{NetworkConfig, NetworkConfigLight},
+    genesis_config::{
+        GenesisConfig, SsfnGenesisConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
+    },
+    network_config::{NetworkConfig, PersistedNetworkConfig},
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
     node_config_override::{
@@ -49,7 +51,7 @@ use iota_swarm_config::{
 use iota_types::traffic_control::PolicyConfig;
 use rand::rngs::OsRng;
 use tempfile::tempdir;
-use tracing::{info, warn};
+use tracing::info;
 
 const CONCURRENCY_LIMIT: usize = 30;
 const DEFAULT_COMMITTEE_SIZE: usize = 1;
@@ -293,6 +295,14 @@ pub enum LocalnetCommand {
         /// genesis with the desired number of validators.
         #[arg(long, help = "The number of validators in the network.")]
         committee_size: Option<usize>,
+        /// Write the node config every node of this run would start with to
+        /// the given directory, then exit without starting the network.
+        ///
+        /// The configs are the ones the run would use, overrides included,
+        /// and each is runnable with `iota-node --config-path`. Nothing reads
+        /// them back: editing one does not change what `start` runs.
+        #[arg(long, value_name = "DIR")]
+        write_config: Option<PathBuf>,
     },
     /// Bootstrap and initialize a new IOTA network
     Genesis {
@@ -367,6 +377,7 @@ impl LocalnetCommand {
                 node_config_override,
                 committee_size,
                 epoch_duration_ms,
+                write_config,
             } => {
                 start(
                     config_dir.clone(),
@@ -385,6 +396,7 @@ impl LocalnetCommand {
                     disable_fullnode_pruning,
                     node_config_override,
                     committee_size,
+                    write_config,
                 )
                 .await
             }
@@ -436,6 +448,7 @@ async fn start(
     disable_fullnode_pruning: bool,
     node_config_override: Vec<String>,
     committee_size: Option<usize>,
+    write_config: Option<PathBuf>,
 ) -> Result<(), anyhow::Error> {
     // Parsed here rather than by clap, whose error would echo the whole
     // argument. These errors name the path only.
@@ -453,6 +466,20 @@ async fn start(
 
     if with_grpc.is_some() {
         ensure!(!no_full_node, "Cannot enable gRPC without a fullnode.");
+    }
+
+    if write_config.is_some() {
+        ensure!(
+            with_faucet.is_none(),
+            "Cannot pass `--with-faucet` and `--write-config` at the same time: the faucet is a \
+             service, and `--write-config` starts nothing."
+        );
+        ensure!(
+            !force_regenesis,
+            "Cannot pass `--force-regenesis` and `--write-config` at the same time: the written \
+             configs would point at a temporary directory that is removed on exit. Pass \
+             `--network.config <DIR>` or run `iota-localnet genesis` first."
+        );
     }
 
     #[cfg(feature = "indexer")]
@@ -508,6 +535,10 @@ async fn start(
     }
 
     let mut swarm_builder = Swarm::builder();
+    // The entry the fullnode's config is derived from. A persisted network
+    // keeps it, so that the fullnode's key pairs, ports and db path are the
+    // same on every run.
+    let mut fullnode_config_info = None;
 
     if disable_fullnode_pruning {
         swarm_builder = swarm_builder.with_disable_fullnode_pruning();
@@ -569,90 +600,28 @@ async fn start(
             );
         }
 
-        let NetworkConfigLight {
-            validator_configs,
-            account_keys,
-            ..
-        } = PersistedConfig::read(&network_config_path).map_err(|err| {
-            err.context(format!(
-                "Cannot open IOTA network config file at {network_config_path:?}"
-            ))
-        })?;
-        let first_validator_config = validator_configs.first().ok_or(anyhow!(
-            "IOTA network config file must contain at least one validator config"
-        ))?;
-        let genesis = first_validator_config.genesis.clone();
-        let migration_tx_data_path = first_validator_config.migration_tx_data_path.clone();
-        ensure!(
-            validator_configs
-                .iter()
-                .all(|config| genesis.eq(&config.genesis)),
-            "All validators in IOTA network config must use the same genesis blob"
-        );
-        ensure!(
-            validator_configs
-                .iter()
-                .all(|config| migration_tx_data_path.eq(&config.migration_tx_data_path)),
-            "All validators in IOTA network config must use the same migration blob"
-        );
-
-        let fullnode_config_path = config_path.join(IOTA_FULLNODE_CONFIG);
-        if fullnode_config_path.exists() {
-            info!(
-                "Loading IOTA-Names options from fullnode config file at {fullnode_config_path:?}"
-            );
-
-            let NodeConfig {
-                iota_names_config,
-                enable_grpc_api,
-                grpc_api_config,
-                db_path,
-                genesis: fullnode_genesis,
-                migration_tx_data_path: fullnode_migration_tx_data_path,
-                ..
-            } = PersistedConfig::read(&fullnode_config_path).map_err(|err| {
-                err.context(format!(
-                    "Cannot open fullnode config file at {fullnode_config_path:?}"
-                ))
-            })?;
-            ensure!(
-                genesis.eq(&fullnode_genesis),
-                "Fullnode must use the same genesis blob as validators in IOTA network config"
-            );
-            ensure!(
-                migration_tx_data_path.eq(&fullnode_migration_tx_data_path),
-                "Fullnode must use the same migration blob as validators in IOTA network config"
-            );
-            swarm_builder = swarm_builder.with_fullnode_db_path(db_path);
-
-            if let Some(iota_names_config) = iota_names_config {
-                swarm_builder = swarm_builder.with_iota_names_config(iota_names_config);
-            }
-
-            swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(enable_grpc_api);
-            if enable_grpc_api {
-                // Apply gRPC configuration if enabled
-                if let Some(grpc_config) = grpc_api_config {
-                    info!("Enabling gRPC API for fullnode with config: {grpc_config:?}");
-                    swarm_builder = swarm_builder.with_fullnode_grpc_api_config(grpc_config);
-                } else {
-                    warn!("gRPC API enabled but no grpc-api-config provided, using default");
-                    swarm_builder =
-                        swarm_builder.with_fullnode_grpc_api_config(GrpcApiConfig::default());
-                }
-            }
-        }
-
-        let network_config = NetworkConfig {
-            validator_configs,
-            account_keys,
-            genesis: genesis.genesis()?.clone(),
-        };
+        let mut persisted_network_config = PersistedNetworkConfig::read(&config_path)?;
+        fullnode_config_info = persisted_network_config
+            .genesis_config
+            .fullnode_config_info
+            .take();
+        // The genesis blob is read, never rebuilt: it is the network's
+        // identity, and the node configs only point at it.
+        let genesis = Genesis::new_from_file(config_path.join(IOTA_GENESIS_FILENAME));
+        let network_config = persisted_network_config.into_network_config(&config_path, genesis)?;
 
         swarm_builder = swarm_builder
             .dir(config_path.clone())
             .with_network_config(network_config);
     }
+
+    // A derived node config is a real node's, so it gets the default
+    // denial-of-service protection the swarm builders leave unset. Set in both
+    // modes, and before the overrides, so `policy-config=null` still clears it.
+    let policy_config = PolicyConfig::default_dos_protection_policy();
+    swarm_builder = swarm_builder
+        .with_validator_policy_config(Some(policy_config.clone()))
+        .with_fullnode_policy_config(Some(policy_config));
 
     // the indexer and GraphQL services communicate with the fullnode via gRPC, we
     // must enable it by default.
@@ -666,10 +635,17 @@ async fn start(
     // the indexer requires to set the fullnode's data ingestion directory
     // note that this overrides the default configuration that is set when running
     // the genesis command, which sets data_ingestion_dir to None.
+    //
+    // The directory is owned here until the network launches, so that
+    // `--write-config`, which starts nothing, leaves none behind.
     #[cfg(feature = "indexer")]
-    if with_indexer.is_some() && data_ingestion_dir.is_none() {
-        data_ingestion_dir = Some(tempdir()?.keep())
-    }
+    let data_ingestion_tempdir = if with_indexer.is_some() && data_ingestion_dir.is_none() {
+        let tempdir = tempdir()?;
+        data_ingestion_dir = Some(tempdir.path().to_path_buf());
+        Some(tempdir)
+    } else {
+        None
+    };
 
     #[cfg(feature = "indexer")]
     if let Some(ref dir) = data_ingestion_dir {
@@ -688,11 +664,25 @@ async fn start(
         swarm_builder = swarm_builder
             .with_fullnode_count(1)
             .with_fullnode_rpc_addr(fullnode_url)
-            .with_deterministic_fullnode_ports(FULLNODE_PORT_BASE);
+            .with_fullnode_genesis_config(
+                fullnode_config_info.unwrap_or_else(|| fullnode_genesis_config(&mut OsRng, None)),
+            );
     }
 
     let mut swarm = tokio::task::spawn_blocking(move || swarm_builder.try_build()).await??;
     log_applied_node_config_overrides(&swarm);
+
+    if let Some(directory) = write_config {
+        return write_node_configs(&swarm, &directory);
+    }
+
+    // The fullnode writes to the data ingestion directory for as long as it
+    // runs, so it outlives this function from here on.
+    #[cfg(feature = "indexer")]
+    if let Some(tempdir) = data_ingestion_tempdir {
+        let _ = tempdir.keep();
+    }
+
     swarm.launch().await?;
     // Let nodes connect to one another
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
@@ -1078,7 +1068,8 @@ async fn genesis(
         builder = builder.with_admin_interface_address(address);
     }
 
-    let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
+    let (network_config, mut genesis_config) =
+        tokio::task::spawn_blocking(move || builder.build_with_genesis_config()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     for key in &network_config.account_keys {
         keystore.add_key(None, SimpleKeypair::from(key.clone()))?;
@@ -1090,102 +1081,35 @@ async fn genesis(
         account_keys,
         genesis,
     } = network_config;
-    let mut network_config = NetworkConfigLight::new(validator_configs, account_keys, &genesis);
     genesis.save(&genesis_path)?;
-    let genesis = iota_config::node::Genesis::new_from_file(&genesis_path);
-    for validator in &mut network_config.validator_configs {
-        validator.genesis = genesis.clone();
-        // A written config starts a real node, which should get the safe
-        // default; the builders leave `policy-config` unset because in-memory
-        // swarm nodes run without a traffic controller.
-        validator.policy_config = Some(PolicyConfig::default_dos_protection_policy());
-    }
+    let genesis = Genesis::new_from_file(&genesis_path);
+
+    // The fullnode is not part of the genesis committee, but its entry is
+    // persisted with the validators' so that `start` derives the same fullnode
+    // config, and reuses its database, on every run.
+    genesis_config.fullnode_config_info.get_or_insert_with(|| {
+        fullnode_genesis_config(&mut OsRng, admin_interface_address_with_port)
+    });
 
     info!("Network genesis completed.");
-    network_config.save(&network_path)?;
+    PersistedNetworkConfig {
+        version: PersistedNetworkConfig::VERSION,
+        genesis_config,
+        account_keys,
+    }
+    .save(&network_path)?;
     info!("Network config file is stored in {:?}.", network_path);
 
     info!("Client keystore is stored in {:?}.", keystore_path);
 
-    let fullnode_config = FullnodeConfigBuilder::new()
-        .with_config_directory(iota_config_dir.to_path_buf())
-        .with_rpc_addr(iota_config::node::default_json_rpc_address())
-        .with_genesis(genesis.clone())
-        .with_admin_interface_address(admin_interface_address_with_port)
-        .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
-        .with_deterministic_ports(FULLNODE_PORT_BASE)
-        .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
-
-    fullnode_config.save(iota_config_dir.join(IOTA_FULLNODE_CONFIG))?;
-    let mut ssfn_nodes = vec![];
     if let Some(ssfn_info) = ssfn_info {
-        for (i, ssfn) in ssfn_info.into_iter().enumerate() {
-            let path =
-                iota_config_dir.join(iota_config::ssfn_config_file(ssfn.p2p_address.clone(), i));
-            // join base fullnode config with each SsfnGenesisConfig entry
-            let genesis = Genesis::new_from_file("/opt/iota/config/genesis.blob");
-            let ssfn_config = FullnodeConfigBuilder::new()
-                .with_config_directory(iota_config_dir.to_path_buf())
-                .with_p2p_external_address(ssfn.p2p_address)
-                .with_network_key_pair(ssfn.network_key_pair)
-                .with_p2p_listen_address(([0, 0, 0, 0], 8084))
-                .with_db_path(PathBuf::from("/opt/iota/db/authorities_db/full_node_db"))
-                .with_network_address("/ip4/0.0.0.0/tcp/8080/http".parse()?)
-                .with_metrics_address(([0, 0, 0, 0], 9184))
-                .with_admin_interface_address(admin_interface_address_with_port)
-                .with_json_rpc_address(([0, 0, 0, 0], 9000))
-                .with_genesis(genesis.clone())
-                .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
-                .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
-            ssfn_nodes.push(ssfn_config.clone());
-            ssfn_config.save(path)?;
-        }
-
-        let ssfn_seed_peers = ssfn_nodes
-            .iter()
-            .enumerate()
-            .map(|(index, config)| {
-                let address = config.p2p_config.external_address.clone().ok_or_else(|| {
-                    anyhow!(
-                        "state sync fullnode {index} has no `p2p-config.external-address`, which \
-                         the validators need to derive their seed peers"
-                    )
-                })?;
-                Ok(SeedPeer {
-                    peer_id: Some(anemo::PeerId(
-                        config.network_key_pair().public().0.to_bytes(),
-                    )),
-                    address,
-                })
-            })
-            .collect::<Result<Vec<SeedPeer>, anyhow::Error>>()?;
-
-        for (i, mut validator) in network_config
-            .into_validator_configs()
-            .into_iter()
-            .enumerate()
-        {
-            let path = iota_config_dir.join(iota_config::validator_config_file(
-                validator.network_address.clone(),
-                i,
-            ));
-            let mut val_p2p = validator.p2p_config.clone();
-            val_p2p.seed_peers.clone_from(&ssfn_seed_peers);
-            validator.p2p_config = val_p2p;
-            validator.save(path)?;
-        }
-    } else {
-        for (i, validator) in network_config
-            .into_validator_configs()
-            .into_iter()
-            .enumerate()
-        {
-            let path = iota_config_dir.join(iota_config::validator_config_file(
-                validator.network_address.clone(),
-                i,
-            ));
-            validator.save(path)?;
-        }
+        write_state_sync_fullnode_configs(
+            iota_config_dir,
+            ssfn_info,
+            validator_configs,
+            &genesis,
+            admin_interface_address_with_port,
+        )?;
     }
 
     let mut client_config = if client_path.exists() {
@@ -1201,19 +1125,15 @@ async fn genesis(
     // On windows, using 0.0.0.0 will usually yield in an networking error. This
     // localnet ip address must bind to 127.0.0.1 if the default 0.0.0.0 is
     // used.
-    let localnet_ip =
-        if fullnode_config.json_rpc_address.ip() == IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)) {
-            "127.0.0.1".to_string()
-        } else {
-            fullnode_config.json_rpc_address.ip().to_string()
-        };
+    let json_rpc_address = iota_config::node::default_json_rpc_address();
+    let localnet_ip = if json_rpc_address.ip() == IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)) {
+        "127.0.0.1".to_string()
+    } else {
+        json_rpc_address.ip().to_string()
+    };
     client_config.set_env(IotaEnv::new(
         "localnet",
-        format!(
-            "http://{}:{}",
-            localnet_ip,
-            fullnode_config.json_rpc_address.port()
-        ),
+        format!("http://{}:{}", localnet_ip, json_rpc_address.port()),
     ));
     client_config.add_env(IotaEnv::devnet());
 
@@ -1225,6 +1145,158 @@ async fn genesis(
     info!("Client config file is stored in {:?}.", client_path);
 
     Ok(())
+}
+
+/// Build the genesis config entry the network's fullnode is derived from: its
+/// key pairs, its metrics, admin interface and p2p addresses at the fixed
+/// localnet ports, and a network address on a currently-free port.
+///
+/// Only the ports are fixed. The addresses stay on the IP the fullnode would
+/// have used anyway, which is localhost outside the simulator and one address
+/// of its own inside it.
+fn fullnode_genesis_config<R: rand::RngCore + rand::CryptoRng>(
+    rng: &mut R,
+    admin_interface_address: Option<SocketAddr>,
+) -> ValidatorGenesisConfig {
+    let mut config = ValidatorGenesisConfigBuilder::new().build(rng);
+    let node_ip = config.network_address.to_socket_addr().unwrap().ip();
+    config.metrics_address = SocketAddr::new(node_ip, FULLNODE_PORT_BASE);
+    config.admin_interface_address =
+        admin_interface_address.unwrap_or(SocketAddr::new(node_ip, FULLNODE_PORT_BASE + 1));
+    config.p2p_address = local_ip_utils::new_deterministic_udp_address_for_testing(
+        &node_ip.to_string(),
+        FULLNODE_PORT_BASE + 2,
+    );
+    config.p2p_listen_address = None;
+    config
+}
+
+/// Write a node config file per state sync fullnode entry, and the validator
+/// config files that name them as seed peers.
+///
+/// These are templates for a deployment, not configs a local network runs:
+/// their paths and addresses are the ones a packaged node uses.
+fn write_state_sync_fullnode_configs(
+    config_directory: &Path,
+    ssfn_info: Vec<SsfnGenesisConfig>,
+    validator_configs: Vec<NodeConfig>,
+    genesis: &Genesis,
+    admin_interface_address: Option<SocketAddr>,
+) -> Result<(), anyhow::Error> {
+    let mut ssfn_configs = vec![];
+    for (index, ssfn) in ssfn_info.into_iter().enumerate() {
+        let path = config_directory.join(iota_config::ssfn_config_file(
+            ssfn.p2p_address.clone(),
+            index,
+        ));
+        // join base fullnode config with each SsfnGenesisConfig entry
+        let deployed_genesis = Genesis::new_from_file("/opt/iota/config/genesis.blob");
+        let ssfn_config = FullnodeConfigBuilder::new()
+            .with_config_directory(config_directory.to_path_buf())
+            .with_p2p_external_address(ssfn.p2p_address)
+            .with_network_key_pair(ssfn.network_key_pair)
+            .with_p2p_listen_address(([0, 0, 0, 0], 8084))
+            .with_db_path(PathBuf::from("/opt/iota/db/authorities_db/full_node_db"))
+            .with_network_address("/ip4/0.0.0.0/tcp/8080/http".parse()?)
+            .with_metrics_address(([0, 0, 0, 0], 9184))
+            .with_admin_interface_address(admin_interface_address)
+            .with_json_rpc_address(([0, 0, 0, 0], 9000))
+            .with_genesis(deployed_genesis.clone())
+            .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
+            .try_build_from_parts(&mut OsRng, &validator_configs, deployed_genesis)?;
+        ssfn_config.save(path)?;
+        ssfn_configs.push(ssfn_config);
+    }
+
+    let ssfn_seed_peers = ssfn_configs
+        .iter()
+        .enumerate()
+        .map(|(index, config)| {
+            let address = config.p2p_config.external_address.clone().ok_or_else(|| {
+                anyhow!(
+                    "state sync fullnode {index} has no `p2p-config.external-address`, which the \
+                     validators need to derive their seed peers"
+                )
+            })?;
+            Ok(SeedPeer {
+                peer_id: Some(anemo::PeerId(
+                    config.network_key_pair().public().0.to_bytes(),
+                )),
+                address,
+            })
+        })
+        .collect::<Result<Vec<SeedPeer>, anyhow::Error>>()?;
+
+    for (index, mut validator) in validator_configs.into_iter().enumerate() {
+        let path = config_directory.join(iota_config::validator_config_file(
+            validator.network_address.clone(),
+            index,
+        ));
+        validator.genesis = genesis.clone();
+        validator.policy_config = Some(PolicyConfig::default_dos_protection_policy());
+        validator.p2p_config.seed_peers.clone_from(&ssfn_seed_peers);
+        validator.save(path)?;
+    }
+    Ok(())
+}
+
+/// Prepended to every node config `--write-config` writes. `serde_yaml` drops
+/// comments, so the file is this text followed by the serialized config.
+const NODE_CONFIG_HEADER: &str = "\
+# Generated by `iota-localnet start --write-config`. Editing this file does not
+# change what `iota-localnet start` runs; pass `--node-config-override` to that
+# command instead.
+#
+# A key that is absent from this file is at its default. For `policy-config`
+# and `grpc-api-config` an explicit `null`, not an absent key, is what turns
+# the feature off.
+#
+# The key pairs below are not redacted: a node config only runs with them, and
+# they are the keys a persisted network already holds in plaintext in its
+# `network.yaml`.
+";
+
+/// Write the config of every node of `swarm` to `directory`, under the file
+/// names the config directory of a local network uses.
+fn write_node_configs(swarm: &Swarm, directory: &Path) -> Result<(), anyhow::Error> {
+    fs::create_dir_all(directory).map_err(|err| {
+        anyhow!(err).context(format!(
+            "Cannot create node config dir {}",
+            directory.display()
+        ))
+    })?;
+
+    for (index, config) in swarm.config().validator_configs().iter().enumerate() {
+        let path = directory.join(iota_config::validator_config_file(
+            config.network_address.clone(),
+            index,
+        ));
+        write_node_config(config, &path)?;
+    }
+
+    // The swarm keeps its nodes in a map, so sort them to give the same node
+    // the same file name on every run.
+    let mut fullnodes: Vec<&Node> = swarm.fullnodes().collect();
+    fullnodes.sort_by_key(|fullnode| fullnode.name());
+    for (index, fullnode) in fullnodes.iter().enumerate() {
+        let name = if index == 0 {
+            IOTA_FULLNODE_CONFIG.to_owned()
+        } else {
+            format!("fullnode-{index}.yaml")
+        };
+        write_node_config(&fullnode.config(), &directory.join(name))?;
+    }
+
+    info!("Node configs written to {}", directory.display());
+    Ok(())
+}
+
+fn write_node_config(config: &NodeConfig, path: &Path) -> Result<(), anyhow::Error> {
+    let mut contents = NODE_CONFIG_HEADER.to_owned();
+    contents.push('\n');
+    contents.push_str(&serde_yaml::to_string(config)?);
+    fs::write(path, contents)
+        .with_context(|| format!("Cannot write node config to {}", path.display()))
 }
 
 /// Translate the deprecated `--with-grpc` value into node config overrides.
