@@ -461,6 +461,7 @@ public(package) fun rotate_key(
 public(package) fun advance_epoch(
     self: &mut AttestorRegistryV1,
     new_epoch: u64,
+    feature_enabled: bool,
     ctx: &mut TxContext,
 ): (Balance<IOTA>, DepartedAttestors) {
     let mut evicted_bonds = balance::zero<IOTA>();
@@ -473,26 +474,31 @@ public(package) fun advance_epoch(
     // a chain with the feature flag on but the exit-threshold params unset
     // is safe here as long as the active set is empty (register also reads
     // params and would already abort, so it can't be populated otherwise).
+    //
+    // With the feature disabled only voluntary removals are processed: they
+    // read no params, so escrowed bonds can always exit, while eviction and
+    // inactivity stay suspended.
     if (!self.active_attestors.is_empty()) {
-        let low_bond_threshold = low_bond_threshold();
-        let max_inactivity_epochs: u64 = protocol_config::get_attr(
-            ATTESTOR_MAX_INACTIVITY_EPOCHS_PARAM,
-        );
-        let inactivity_penalty: u64 = protocol_config::get_attr(
-            ATTESTOR_INACTIVITY_PENALTY_PARAM,
-        );
+        let mut inactivity_penalty: u64 = 0;
         let mut exit_indices = vector<u64>[];
         let mut exit_reasons = vector<u8>[];
-        self.active_attestors.length().do!(|i| {
-            let entry = &self.active_attestors[i];
-            if (entry.bond.value() < low_bond_threshold) {
-                exit_indices.push_back(i);
-                exit_reasons.push_back(EXIT_EVICTION);
-            } else if (new_epoch - entry.last_active_epoch > max_inactivity_epochs) {
-                exit_indices.push_back(i);
-                exit_reasons.push_back(EXIT_INACTIVITY);
-            }
-        });
+        if (feature_enabled) {
+            let low_bond_threshold = low_bond_threshold();
+            let max_inactivity_epochs: u64 = protocol_config::get_attr(
+                ATTESTOR_MAX_INACTIVITY_EPOCHS_PARAM,
+            );
+            inactivity_penalty = protocol_config::get_attr(ATTESTOR_INACTIVITY_PENALTY_PARAM);
+            self.active_attestors.length().do!(|i| {
+                let entry = &self.active_attestors[i];
+                if (entry.bond.value() < low_bond_threshold) {
+                    exit_indices.push_back(i);
+                    exit_reasons.push_back(EXIT_EVICTION);
+                } else if (new_epoch - entry.last_active_epoch > max_inactivity_epochs) {
+                    exit_indices.push_back(i);
+                    exit_reasons.push_back(EXIT_INACTIVITY);
+                }
+            });
+        };
         // Add voluntary removals not already exiting for a stronger reason.
         while (!self.pending_removals.is_empty()) {
             let idx = self.pending_removals.pop_back();
@@ -562,7 +568,7 @@ public(package) fun advance_epoch(
     // The param read is guarded like the exit pass: an active entry exists
     // only if register() read the same params.
     let len = self.active_attestors.length();
-    if (len > 0) {
+    if (feature_enabled && len > 0) {
         let min_joining_bond = min_joining_bond();
         let mut k = 0;
         while (k < len) {
@@ -583,7 +589,7 @@ public(package) fun advance_epoch(
     // above: a pending entry exists only if register() read the same
     // params, so the read cannot abort here.
     let mut activated = vector<address>[];
-    if (!self.pending_active.is_empty()) {
+    if (feature_enabled && !self.pending_active.is_empty()) {
         let min_joining_bond = min_joining_bond();
         self.pending_active.reverse();
         while (!self.pending_active.is_empty()) {
@@ -683,8 +689,12 @@ public(package) fun add_metadata(
     );
 }
 
+/// Tolerates a missing field: it runs inside the epoch-change transaction,
+/// which a broken registry/metadata pairing must not abort.
 public(package) fun remove_metadata(uid: &mut UID, attestor_address: address) {
-    let _: AttestorMetadataV1 = dynamic_field::remove(uid, metadata_key(attestor_address));
+    if (dynamic_field::exists_(uid, metadata_key(attestor_address))) {
+        let _: AttestorMetadataV1 = dynamic_field::remove(uid, metadata_key(attestor_address));
+    }
 }
 
 fun borrow_metadata_mut(uid: &mut UID, sender: address): &mut AttestorMetadataV1 {

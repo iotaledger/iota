@@ -14,8 +14,10 @@ use fastcrypto::{
     secp256k1::{Secp256k1PublicKey, Secp256k1Signature},
     secp256r1::{Secp256r1PublicKey, Secp256r1Signature},
 };
+use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
+use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, StructTag,
+    Address, Identifier, ObjectId, SignatureScheme, SimpleSignature, StructTag,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 use serde::{Deserialize, Serialize};
@@ -23,10 +25,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     IOTA_SYSTEM_STATE_OBJECT_ID, MoveTypeTagTrait, TypeTag,
     balance::Balance,
-    crypto::{
-        DefaultHash, IotaKeyPair, IotaSignature, PublicKey, Signature, SignatureScheme,
-        ToFromBytes, VerifyingKey,
-    },
+    crypto::{DefaultHash, PublicKey, ToFromBytes, VerifyingKey},
+    digests::ChainIdentifier,
     dynamic_field::{derive_dynamic_field_id, get_dynamic_field_from_store},
     error::IotaError,
     storage::ObjectStore,
@@ -149,14 +149,14 @@ pub fn verify_attestor_pop(pubkey: &[u8], pop: &[u8], sender: Address) -> Result
 /// Generate the raw-signature proof of possession accepted by
 /// `iota_system::register_attestor` / `rotate_attestor_key` for `keypair`'s
 /// public key bound to `sender`.
-pub fn generate_attestor_proof_of_possession(keypair: &IotaKeyPair, sender: Address) -> Vec<u8> {
-    let pk = keypair.public();
+pub fn generate_attestor_proof_of_possession(keypair: &SimpleKeypair, sender: Address) -> Vec<u8> {
+    let pk = PublicKey::from(keypair);
     let mut pubkey = vec![pk.flag()];
     pubkey.extend_from_slice(pk.as_ref());
     let mut msg = pubkey;
     msg.extend_from_slice(sender.as_ref());
     let intent_msg = IntentMessage::new(Intent::iota_app(IntentScope::ProofOfPossession), msg);
-    let sig = Signature::new_secure(&intent_msg, keypair);
+    let sig: SimpleSignature = keypair.sign(&intent_msg.signing_digest());
     // Strip the composite `flag || sig || pubkey` down to the raw signature.
     sig.to_bytes()[1..65].to_vec()
 }
@@ -308,7 +308,25 @@ pub fn get_attestor_metadata(
     .map(Some)
 }
 
+/// The attestor set for an epoch-start configuration, present only when the
+/// epoch's protocol config enables external attestation. `None` keeps the
+/// epoch-start state at its previous version, so a chain with the feature
+/// off never stores a state variant older binaries cannot decode.
+pub fn epoch_start_attestors(
+    object_store: &dyn ObjectStore,
+    protocol_version: ProtocolVersion,
+    chain_identifier: ChainIdentifier,
+) -> Result<Option<Vec<EpochStartAttestorInfoV1>>, IotaError> {
+    let protocol_config =
+        ProtocolConfig::get_for_version(protocol_version, chain_identifier.chain());
+    if !protocol_config.enable_external_attestation() {
+        return Ok(None);
+    }
+    read_epoch_start_attestors(object_store).map(Some)
+}
+
 /// Read the registry and shape its active set for the epoch-start snapshot.
+/// Prefer [`epoch_start_attestors`], which applies the feature gate.
 pub fn read_epoch_start_attestors(
     object_store: &dyn ObjectStore,
 ) -> Result<Vec<EpochStartAttestorInfoV1>, IotaError> {
@@ -330,7 +348,10 @@ mod tests {
     fn attestor_registry_key_bcs_matches_move_empty_struct() {
         // Move adds a hidden `dummy_field: bool = false` to fieldless
         // structs; BCS must be exactly [0x00].
-        assert_eq!(bcs::to_bytes(&AttestorRegistryKey::default()).unwrap(), vec![0u8]);
+        assert_eq!(
+            bcs::to_bytes(&AttestorRegistryKey::default()).unwrap(),
+            vec![0u8]
+        );
     }
 
     #[test]
@@ -371,12 +392,13 @@ mod tests {
         assert_eq!(bcs::to_bytes(&key).unwrap().len(), 32);
     }
 
-    use fastcrypto::{
-        ed25519::Ed25519KeyPair, secp256k1::Secp256k1KeyPair, secp256r1::Secp256r1KeyPair,
+    use iota_sdk_crypto::{
+        ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+        simple::SimpleKeypair,
     };
     use rand::{SeedableRng, rngs::StdRng};
 
-    use crate::crypto::{IotaKeyPair, KeypairTraits, get_key_pair_from_rng};
+    use crate::crypto::get_key_pair_from_rng;
 
     /// `flag || raw_key` encoding for a public key.
     fn flagged(pk: &PublicKey) -> Vec<u8> {
@@ -385,25 +407,21 @@ mod tests {
         bytes
     }
 
-    fn seeded_rng() -> StdRng {
-        StdRng::from_seed([7u8; 32])
-    }
-
-    fn test_keypairs() -> Vec<IotaKeyPair> {
+    fn test_keypairs() -> Vec<SimpleKeypair> {
         let mut rng = StdRng::from_seed([42; 32]);
         vec![
-            IotaKeyPair::Ed25519(get_key_pair_from_rng::<Ed25519KeyPair, _>(&mut rng).1),
-            IotaKeyPair::Secp256k1(get_key_pair_from_rng::<Secp256k1KeyPair, _>(&mut rng).1),
-            IotaKeyPair::Secp256r1(get_key_pair_from_rng::<Secp256r1KeyPair, _>(&mut rng).1),
+            SimpleKeypair::from(get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut rng).1),
+            SimpleKeypair::from(get_key_pair_from_rng::<Secp256k1PrivateKey, _>(&mut rng).1),
+            SimpleKeypair::from(get_key_pair_from_rng::<Secp256r1PrivateKey, _>(&mut rng).1),
         ]
     }
 
     #[test]
     fn verify_attestor_pubkey_accepts_plain_schemes() {
-        let mut rng = seeded_rng();
-        let ed = IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut rng)).public();
-        let k1 = IotaKeyPair::Secp256k1(Secp256k1KeyPair::generate(&mut rng)).public();
-        let r1 = IotaKeyPair::Secp256r1(Secp256r1KeyPair::generate(&mut rng)).public();
+        let kps = test_keypairs();
+        let ed = PublicKey::from(&kps[0]);
+        let k1 = PublicKey::from(&kps[1]);
+        let r1 = PublicKey::from(&kps[2]);
         assert!(verify_attestor_pubkey(&flagged(&ed)).is_ok());
         assert!(verify_attestor_pubkey(&flagged(&k1)).is_ok());
         assert!(verify_attestor_pubkey(&flagged(&r1)).is_ok());
@@ -411,8 +429,7 @@ mod tests {
 
     #[test]
     fn verify_attestor_pubkey_rejects_bad_keys() {
-        let mut rng = seeded_rng();
-        let ed = IotaKeyPair::Ed25519(Ed25519KeyPair::generate(&mut rng)).public();
+        let ed = PublicKey::from(&test_keypairs()[0]);
         let valid = flagged(&ed);
 
         // empty
@@ -425,7 +442,10 @@ mod tests {
         // not a valid curve point (right length, garbage bytes)
         let mut garbage = vec![0u8];
         garbage.extend(std::iter::repeat_n(0xAB, 32));
-        assert_eq!(verify_attestor_pubkey(&garbage), Err(E_INVALID_ATTESTOR_PUBKEY));
+        assert_eq!(
+            verify_attestor_pubkey(&garbage),
+            Err(E_INVALID_ATTESTOR_PUBKEY)
+        );
         // non-plain scheme flags: multisig (3), bls (4), zklogin (5), passkey (6)
         for flag in [3u8, 4, 5, 6] {
             let mut k = vec![flag];
@@ -466,7 +486,7 @@ mod tests {
     fn pop_roundtrip_all_plain_schemes() {
         let sender = Address::from_short_hex("0xA1").unwrap();
         for kp in test_keypairs() {
-            let pubkey = flagged(&kp.public());
+            let pubkey = flagged(&PublicKey::from(&kp));
             let pop = generate_attestor_proof_of_possession(&kp, sender);
             assert_eq!(pop.len(), 64);
             verify_attestor_pubkey(&pubkey).unwrap();
@@ -479,7 +499,7 @@ mod tests {
         let sender = Address::from_short_hex("0xA1").unwrap();
         let other = Address::from_short_hex("0xA2").unwrap();
         for kp in test_keypairs() {
-            let pubkey = flagged(&kp.public());
+            let pubkey = flagged(&PublicKey::from(&kp));
             let pop = generate_attestor_proof_of_possession(&kp, sender);
             assert_eq!(
                 verify_attestor_pop(&pubkey, &pop, other),
@@ -493,7 +513,7 @@ mod tests {
         let sender = Address::from_short_hex("0xA1").unwrap();
         let kps = test_keypairs();
         for i in 0..kps.len() {
-            let pubkey = flagged(&kps[i].public());
+            let pubkey = flagged(&PublicKey::from(&kps[i]));
             let other_kp = &kps[(i + 1) % kps.len()];
             let pop_other_key = generate_attestor_proof_of_possession(other_kp, sender);
             assert_eq!(
@@ -524,7 +544,7 @@ mod tests {
             ("A3", Address::from_short_hex("0xA3").unwrap()),
         ];
         for kp in test_keypairs() {
-            let pubkey = flagged(&kp.public());
+            let pubkey = flagged(&PublicKey::from(&kp));
             println!(
                 "// scheme flag {}: x\"{}\"",
                 pubkey[0],

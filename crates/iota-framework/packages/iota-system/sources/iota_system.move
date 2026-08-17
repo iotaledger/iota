@@ -261,8 +261,9 @@ public entry fun register_attestor(
 
 /// Deregister the sender. A pending registration is refunded immediately;
 /// an active attestor is removed and refunded at the next epoch boundary.
+/// Deliberately not feature-gated: escrow exit must survive a feature
+/// disable.
 public entry fun deregister_attestor(wrapper: &mut IotaSystemState, ctx: &mut TxContext) {
-    attestor_registry::assert_feature_enabled();
     let sender = ctx.sender();
     let epoch = ctx.epoch();
     let mut refund = load_attestor_registry_mut(wrapper).deregister(sender, epoch);
@@ -694,17 +695,24 @@ fun advance_epoch(
 
     // Registry lives on the wrapper UID, so process it before borrowing the
     // inner state; evicted bonds are burned inside the inner advance_epoch.
-    // Gating on the feature flag also creates the empty registry on the first
-    // boundary once the feature is enabled.
-    let attestor_evicted_bonds = if (attestor_registry::is_feature_enabled()) {
+    // The registry outlives the feature flag: whenever it exists, voluntary
+    // removals and refunds are still processed, so disabling the feature
+    // cannot freeze escrowed bonds. The flag gates everything else
+    // (eviction, inactivity, rebalance, activations) and creates the empty
+    // registry on the first boundary once enabled.
+    let feature_enabled = attestor_registry::is_feature_enabled();
+    let has_registry = dynamic_field::exists_(&wrapper.id, attestor_registry::registry_key());
+    let attestor_evicted_bonds = if (feature_enabled || has_registry) {
         let registry = load_attestor_registry_mut(wrapper);
-        // The per-attestor activity feed is not threaded into this
-        // transaction yet; until it is, report every attestor as active so
-        // none are dropped for inactivity.
-        let mut all_indices = vector[];
-        registry.active_count().do!(|i| all_indices.push_back(i));
-        registry.refresh_activity(all_indices, new_epoch - 1);
-        let (evicted_bonds, departed) = registry.advance_epoch(new_epoch, ctx);
+        if (feature_enabled) {
+            // The per-attestor activity feed is not threaded into this
+            // transaction yet; until it is, report every attestor as active
+            // so none are dropped for inactivity.
+            let mut all_indices = vector[];
+            registry.active_count().do!(|i| all_indices.push_back(i));
+            registry.refresh_activity(all_indices, new_epoch - 1);
+        };
+        let (evicted_bonds, departed) = registry.advance_epoch(new_epoch, feature_enabled, ctx);
         attestor_registry::remove_departed_metadata(departed, &mut wrapper.id);
         evicted_bonds
     } else {
