@@ -405,7 +405,7 @@ mod tests {
             ServiceConfig::test_defaults(),
         )
         .await;
-        let digest = TransactionDigest::generate(StdRng::from_seed([12; 32])).to_string();
+        let digest = TransactionDigest::random_with(StdRng::from_seed([12; 32])).to_string();
 
         assert!(
             !query_is_transaction_indexed_on_node(&cluster.graphql_client, digest.as_str()).await

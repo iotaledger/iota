@@ -10,7 +10,7 @@ use super::*;
 
 #[test]
 fn serde_keypair() {
-    let ikp = SimpleKeypair::from(Ed25519PrivateKey::generate(StdRng::from_seed([0; 32])));
+    let ikp = SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed([0; 32])));
     let encoded = ikp.to_bech32().unwrap();
     assert_eq!(
         encoded,

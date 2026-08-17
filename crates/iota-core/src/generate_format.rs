@@ -175,9 +175,9 @@ fn get_registry() -> Result<Registry> {
     let sig: AuthoritySignature = Signer::sign(&kp, b"hello world");
     tracer.trace_value(&mut samples, &sig).unwrap();
 
-    let kp1 = Ed25519PrivateKey::generate(StdRng::from_seed([0; 32]));
-    let kp2 = Secp256k1PrivateKey::generate(StdRng::from_seed([0; 32]));
-    let kp3 = Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32]));
+    let kp1 = Ed25519PrivateKey::random_with(StdRng::from_seed([0; 32]));
+    let kp2 = Secp256k1PrivateKey::random_with(StdRng::from_seed([0; 32]));
+    let kp3 = Secp256r1PrivateKey::random_with(StdRng::from_seed([0; 32]));
 
     // ... and the user signature which does
     let sig: SimpleSignature = kp1.sign(b"hello world");
