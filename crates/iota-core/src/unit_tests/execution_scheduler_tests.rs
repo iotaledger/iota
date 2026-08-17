@@ -716,10 +716,11 @@ fn randomness_assigned_versions(epoch_store: &AuthorityPerEpochStore) -> Vec<Ver
     )]
 }
 
-/// Keyed schedulables wait for their key's digest and each must be released
-/// with ITS OWN env: two rounds enqueued together must not have their envs
-/// cross-wired when `notify_read_tx_key_to_digest` resolves them, since the
-/// digests are zipped positionally with the pending envs.
+/// A schedulable that has no transaction yet, only its `TransactionKey`, waits
+/// for that key's digest. Two rounds enqueued together must each be released
+/// with the env parked for it: the digests come back from
+/// `notify_read_tx_key_to_digest` and are zipped positionally with the envs, so
+/// a swapped pairing would execute a round on another round's versions.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn execution_scheduler_resolves_keyed_schedulables_with_matching_envs() {
     let state = init_state_with_objects(vec![]).await;
@@ -764,6 +765,9 @@ async fn execution_scheduler_resolves_keyed_schedulables_with_matching_envs() {
 
     let first = rx_ready_transactions.recv().await.unwrap();
     let second = rx_ready_transactions.recv().await.unwrap();
+    // Without this, one round arriving twice while the other is lost would pass
+    // the loop below.
+    assert_ne!(first.transaction.digest(), second.transaction.digest());
     for pending in [first, second] {
         let expected = if pending.transaction.digest() == transaction_1.digest() {
             expected_1
@@ -774,7 +778,7 @@ async fn execution_scheduler_resolves_keyed_schedulables_with_matching_envs() {
         assert_eq!(
             pending.execution_env.expected_effects_digest,
             Some(expected),
-            "keyed schedulable released with another schedulable's env"
+            "schedulable released with another round's env"
         );
     }
 }
@@ -813,9 +817,9 @@ async fn execution_scheduler_schedules_already_resolved_randomness_key() {
     assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
 }
 
-/// A mixed batch must not couple plain transactions to keyed schedulables: the
-/// plain transaction (inputs available) is dispatched immediately, while the
-/// keyed schedulable stays parked until its key resolves. This pins the
+/// A mixed batch must not couple plain transactions to the ones that only have
+/// a key: the plain transaction (inputs available) is dispatched immediately,
+/// while the other stays parked until its key resolves. This pins the
 /// partition in `enqueue` — a real consensus commit mixes user transactions
 /// and the round's `RandomnessStateUpdate` in one call, and funneling the
 /// whole batch through the key-resolution task would stall every user
@@ -849,7 +853,7 @@ async fn execution_scheduler_mixed_batch_dispatches_plain_transaction_immediatel
     let ready = rx_ready_transactions.recv().await.unwrap();
     assert_eq!(ready.transaction.digest(), transaction.digest());
 
-    // ...while the keyed schedulable stays parked on its unresolved key.
+    // ...while the schedulable stays parked on its unresolved key.
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
 
@@ -866,17 +870,15 @@ async fn execution_scheduler_mixed_batch_dispatches_plain_transaction_immediatel
     assert_eq!(ready.transaction.digest(), randomness_tx.digest());
 }
 
-/// KNOWN failure-mode asymmetry, pinned deliberately: a shared-object
-/// transaction enqueued without its shared version assignment (what the
-/// consensus handler produces via `unwrap_or_default` when a key is missing
-/// from the commit's assignments) panics in `get_input_object_keys` — the
-/// safety check against executing on unassigned versions. Under the
-/// `ExecutionScheduler` that panic happens inside the detached
-/// per-transaction task, where the runtime swallows it: the transaction is
-/// silently dropped, nothing is dispatched and nothing stays pending. The
-/// `TransactionManager` counterpart
-/// (`transaction_manager_missing_shared_version_assignment_panics`) crashes
-/// loudly in the caller instead. If the scheduler ever learns to surface this
+/// The two schedulers fail differently on a missing shared version assignment,
+/// and both halves are pinned deliberately. Such a transaction panics in
+/// `get_input_object_keys`, the check that stops execution on unassigned
+/// versions. Here that panic happens inside the detached per-transaction task,
+/// where the runtime swallows it and the transaction is dropped; the
+/// `TransactionManager` panics in the caller instead
+/// (`transaction_manager_missing_shared_version_assignment_panics`). This test
+/// cannot tell a dropped transaction from one parked forever — it observes only
+/// that nothing was dispatched. If the scheduler ever learns to report this
 /// error, this test must change with it.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn execution_scheduler_missing_shared_version_assignment_drops_transaction() {
@@ -886,11 +888,10 @@ async fn execution_scheduler_missing_shared_version_assignment_drops_transaction
     let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
     let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
 
-    // The shared object IS available in the cache at the version declared in
-    // the call arg; only the version assignment is missing. If a future
-    // refactor stops panicking and falls back to the declared version, the
-    // transaction becomes dispatchable and the try_recv assertion below fails,
-    // making the behavior change visible.
+    // The shared object is available at the version the call arg declares; only
+    // the assignment is missing. So if the panic ever became a fallback to the
+    // declared version, the transaction would dispatch and the assertion below
+    // would fail.
     let shared_arg = CallArg::Shared(SharedObjectReference::new(
         shared_object.id(),
         shared_object.version(),
@@ -902,15 +903,13 @@ async fn execution_scheduler_missing_shared_version_assignment_drops_transaction
         &state.epoch_store_for_testing(),
     );
 
-    // The per-transaction task panics (a backtrace in the test output is
-    // expected) and the transaction vanishes without a trace. Nothing is
-    // dispatched — the pending gauge is not asserted here, since the panic
-    // happens before the guard that would raise it.
+    // The per-transaction task panics; a backtrace in the test output is
+    // expected. Nothing is dispatched.
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
 }
 
-/// The task waiting on a keyed schedulable runs under `within_alive_epoch`:
+/// The task waiting on a key runs under `within_alive_epoch`:
 /// terminating the epoch must cancel it, so a key resolved after the epoch
 /// ended dispatches nothing.
 #[tokio::test(flavor = "current_thread", start_paused = true)]

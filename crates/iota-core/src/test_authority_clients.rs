@@ -238,10 +238,10 @@ impl LocalAuthorityClient {
         }
     }
 
-    // One difference between this implementation and actual certificate execution,
-    // is that this assumes shared object locks have already been acquired and
-    // tries to execute shared object transactions as well as owned object
-    // transactions.
+    // Executes owned-object certificates. Shared-object certificates must go
+    // through consensus (`send_consensus`), which is what assigns their versions:
+    // without an assignment the TransactionManager panics here, and the
+    // ExecutionScheduler drops the transaction and waits forever.
     async fn handle_certificate(
         state: Arc<AuthorityState>,
         request: HandleCertificateRequestV1,

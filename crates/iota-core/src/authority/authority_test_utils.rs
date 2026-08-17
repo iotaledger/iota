@@ -442,10 +442,8 @@ pub async fn send_consensus(
         .unwrap();
 
     let assigned_versions = assigned_versions
-        .0
-        .into_iter()
-        .next()
-        .map(|(_, v)| v)
+        .into_map()
+        .remove(&cert.key())
         .unwrap_or_default();
 
     let certs = vec![(

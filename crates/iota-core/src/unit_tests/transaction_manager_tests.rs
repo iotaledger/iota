@@ -107,8 +107,7 @@ async fn transaction_manager_reconfigure_drops_all_pending_and_executing_state()
     );
     sleep(Duration::from_secs(1)).await;
 
-    // A keyed schedulable whose transaction does not exist yet parks in
-    // `pending_transaction_keys`.
+    // A schedulable whose transaction does not exist yet parks under its key.
     let round = RandomnessRound::new(1);
     transaction_manager.enqueue(
         vec![(
@@ -968,13 +967,10 @@ async fn transaction_manager_parks_randomness_schedulable_until_key_resolves() {
     assert!(rx_ready_transactions.try_recv().is_err());
 }
 
-/// Two keyed schedulables parked at once must be released selectively:
-/// resolving one round's key dispatches only that round's transaction, with
-/// the env parked under that key, leaving the other round parked. The manager
-/// parks envs in a per-key map (`pending_transaction_keys`) and
-/// `notify_transaction_key` removes exactly one entry — this pins that
-/// removal and the key→env pairing (distinct expected effects digests would
-/// expose cross-wiring).
+/// Two rounds parked at once must be released one at a time: resolving one
+/// round's key dispatches only that round's transaction, with the env parked
+/// for it, and leaves the other parked. The two envs carry different expected
+/// effects digests, so a swapped key→env pairing would show up.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn transaction_manager_releases_each_parked_key_with_its_own_env() {
     let state = init_state_with_objects(vec![]).await;
@@ -1051,12 +1047,11 @@ async fn transaction_manager_releases_each_parked_key_with_its_own_env() {
     );
 }
 
-/// The loud half of the failure-mode asymmetry pinned by
-/// `execution_scheduler_missing_shared_version_assignment_drops_transaction`
-/// (execution_scheduler_tests.rs): enqueueing a shared-object transaction
-/// without its shared version assignment panics synchronously in the caller,
-/// via the safety check in `get_input_object_keys` that prevents executing a
-/// shared-object transaction on unassigned versions (a fork risk).
+/// Enqueueing a shared-object transaction without its shared version
+/// assignment panics in the caller, through the check in
+/// `get_input_object_keys` that stops execution on unassigned versions. The
+/// `ExecutionScheduler` loses the same transaction quietly instead — see
+/// `execution_scheduler_missing_shared_version_assignment_drops_transaction`.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 #[should_panic(expected = "Shared object version should have been assigned")]
 async fn transaction_manager_missing_shared_version_assignment_panics() {

@@ -367,9 +367,7 @@ impl TransactionManager {
                     .clone();
                 let transaction =
                     VerifiedExecutableTransaction::new_system(transaction, epoch_store.epoch());
-                // The parked env holds the only copy of that key's assigned
-                // versions, so a mismatched pair would execute on another
-                // round's versions undetected.
+                // The parked env holds the only copy of that key's assigned versions.
                 debug_assert_eq!(
                     transaction.key(),
                     key,
@@ -938,7 +936,7 @@ impl ExecutionSchedulerAPI for TransactionManager {
         self.enqueue_transactions(txns, epoch_store);
 
         // Every consensus commit and every owned-only certificate reaches this
-        // point, and almost none of them carry a keyed schedulable.
+        // point, and almost none of them carry a schedulable without a transaction.
         if rest.is_empty() {
             return;
         }

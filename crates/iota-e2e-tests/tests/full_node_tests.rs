@@ -93,13 +93,10 @@ async fn test_full_node_shared_objects() -> Result<(), anyhow::Error> {
     run_full_node_shared_objects(&test_cluster.wallet, &handle.iota_node).await
 }
 
-// The same scenario with every node on the ExecutionScheduler: a mutable
-// shared-object user transaction reaches finality through live consensus,
-// where the consensus handler builds the transaction's ExecutionEnv from the
-// commit's version assignments and the scheduler waits for the assigned
-// shared input. The cold-sync variant below only covers the
-// checkpoint-executor path (envs derived from certified effects), so this
-// live path would otherwise run under the default TransactionManager only.
+// The same scenario with every node on the ExecutionScheduler. The cold-sync
+// variant below only covers the checkpoint-executor path, where envs come from
+// certified effects, so without this the live consensus path would run under
+// the default TransactionManager only.
 #[sim_test]
 async fn test_full_node_shared_objects_execution_scheduler() -> Result<(), anyhow::Error> {
     // Selected at node construction; set before the cluster and fullnode are

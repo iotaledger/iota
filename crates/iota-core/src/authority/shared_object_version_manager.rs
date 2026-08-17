@@ -30,7 +30,6 @@ use crate::{
 
 pub struct SharedObjVerManager {}
 
-/// The assigned version of each shared object of a single transaction.
 pub type AssignedVersions = Vec<VersionAssignment>;
 
 #[derive(Default, Debug)]
@@ -683,13 +682,13 @@ mod tests {
         );
     }
 
-    /// The virtual `Schedulable::RandomnessStateUpdate` (no transaction exists
-    /// yet) must be assigned the current randomness object version under its
+    /// A `Schedulable::RandomnessStateUpdate`, for which no transaction exists
+    /// yet, must be assigned the current randomness object version under its
     /// `TransactionKey::RandomnessRound`, and — because its shared input is
     /// mutable — bump the version that subsequent randomness-using
     /// transactions are assigned.
     #[tokio::test]
-    async fn test_assign_versions_from_consensus_with_virtual_randomness_schedulable() {
+    async fn test_assign_versions_from_consensus_with_randomness_schedulable() {
         let authority = TestAuthorityBuilder::new().build().await;
         let epoch_store = authority.epoch_store_for_testing();
         let randomness_obj_version = epoch_store
@@ -760,7 +759,7 @@ mod tests {
     /// Cancellation is looked up by digest, but a randomness state update
     /// transaction is keyed by `TransactionKey::RandomnessRound`, whose
     /// `as_digest()` is `None` — so an entry in `cancelled_txns` holding the
-    /// update's REAL digest must be ignored: the update is assigned the
+    /// update's own digest must be ignored: the update is assigned the
     /// current randomness object version (not `RANDOMNESS_UNAVAILABLE`) and
     /// still bumps it for subsequent readers. A refactor that reverts to a raw
     /// digest lookup would start silently cancelling randomness state updates.
@@ -1009,17 +1008,16 @@ mod tests {
         );
     }
 
-    /// A virtual `Schedulable::RandomnessStateUpdate` and a
-    /// congestion-cancelled transaction in the same batch — the shape of a
-    /// real commit — must not disturb each other's version accounting: the
-    /// virtual schedulable takes the current randomness object version and
-    /// bumps it once; the cancelled transaction gets its special versions
-    /// without bumping anything (neither the congested object nor the
-    /// randomness object it reads); a trailing reader sees the bumped
-    /// randomness version. The existing tests cover each half only in
-    /// isolation.
+    /// A `Schedulable::RandomnessStateUpdate` and a congestion-cancelled
+    /// transaction in the same batch — the shape of a real commit — must not
+    /// disturb each other's version accounting: the update takes the current
+    /// randomness object version and bumps it once; the cancelled transaction
+    /// gets its special versions without bumping anything (neither the
+    /// congested object nor the randomness object it reads); a trailing reader
+    /// sees the bumped randomness version. The existing tests cover each half
+    /// only in isolation.
     #[tokio::test]
-    async fn test_assign_versions_from_consensus_with_virtual_schedulable_and_cancellation() {
+    async fn test_assign_versions_from_consensus_with_randomness_schedulable_and_cancellation() {
         let shared_object = Object::shared_for_testing();
         let id = shared_object.id();
         let init_shared_version = shared_object

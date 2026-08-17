@@ -63,14 +63,10 @@ async fn build_cluster_with_scheduler(use_execution_scheduler: bool) -> TestClus
     test_cluster
 }
 
-/// A user transaction reading the `Random` object travels the whole
-/// randomness pipeline: it is deferred until a randomness round opens for its
-/// commit, the round's `RandomnessStateUpdate` — enqueued as a keyed
-/// schedulable before the transaction exists — executes with its assigned
-/// version, and the user transaction then executes on the bumped version and
-/// reaches finality. A break anywhere in that chain (the key never resolving,
-/// the round's update losing its version assignment) leaves the user
-/// transaction waiting forever, so the wait is bounded to fail loudly.
+/// A user transaction reading the `Random` object reaches finality: it is
+/// deferred until a round opens, the round's update executes, and it then runs
+/// on the bumped version. A break anywhere in that chain leaves it waiting
+/// forever, so the wait is bounded.
 ///
 /// The delay injected into local randomness generation lets checkpoint
 /// execution win the race against it on some node, which is the state in which

@@ -1094,11 +1094,8 @@ mod tests {
             num_transactions as u64
         );
 
-        // AND the certificates execute. The consensus handler built each
-        // transaction's `ExecutionEnv` from the commit's version assignments;
-        // a missing or mismatched assignment would leave the transaction
-        // waiting forever (or executing on the wrong versions), so bound the
-        // wait to fail clearly instead of hanging.
+        // AND the certificates execute. Bounded: a lost or mismatched assignment
+        // leaves the transaction waiting forever.
         let digests: Vec<_> = transactions.iter().map(|tx| *tx.digest()).collect();
         tokio::time::timeout(
             Duration::from_secs(60),
@@ -1121,14 +1118,10 @@ mod tests {
     }
 
     /// A commit mixing a shared-object certificate with an owned-object-only
-    /// certificate: the shared one gets its versions from the commit's
-    /// assignments, while the owned one has no entry there (version assignment
-    /// skips transactions without shared inputs) and must fall back to an
-    /// empty `ExecutionEnv` — the `unwrap_or_default()` in
-    /// `AsyncTransactionScheduler::run`. Both must execute: replacing the
-    /// fallback with a panic would lose every owned-only transaction of a
-    /// commit, and pairing envs positionally instead of by key would leave the
-    /// shared certificate without its versions (see the ordering note below).
+    /// one. Version assignment emits no entry for the owned certificate, so it
+    /// must fall back to an empty `ExecutionEnv` — the `unwrap_or_default()` in
+    /// `AsyncTransactionScheduler::run`. Both must execute: a panic there would
+    /// lose every owned-only transaction of a commit.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_mixed_owned_and_shared_commit() {
         // GIVEN
@@ -1206,14 +1199,10 @@ mod tests {
         )
         .unwrap();
 
-        // AND a consensus output committing both, with the owned-only
-        // certificate FIRST. Order matters for what this test can catch: version
-        // assignment emits no entry for the owned-only certificate, so with the
-        // owned one last a positional pairing would coincidentally hand every
-        // transaction the same env a keyed lookup does. Putting it first shifts
-        // the shared certificate onto the empty tail of the assignment list, so
-        // a positional pairing leaves it unschedulable and the bounded wait
-        // below fails.
+        // The owned-only certificate goes first: with it last, a positional
+        // pairing would coincidentally hand every transaction the env a lookup
+        // by key does. First, it shifts the shared certificate onto the empty
+        // tail of the assignment list, and the bounded wait below fails.
         let certificates = [owned_certificate.clone(), shared_certificate.clone()];
         let mut headers = Vec::new();
         let mut subdag_transactions = Vec::new();
@@ -1252,8 +1241,7 @@ mod tests {
             .handle_consensus_output_for_test(committed_sub_dag)
             .await;
 
-        // THEN both certificates execute. Bounded so a lost or mispaired env
-        // fails clearly instead of hanging.
+        // THEN both certificates execute. Bounded, as above.
         let digests = [*shared_certificate.digest(), *owned_certificate.digest()];
         let effects = tokio::time::timeout(
             Duration::from_secs(60),
@@ -1276,10 +1264,8 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec![(shared_object.id(), shared_object.version())]
         );
-        // Not a check on the env it received: effects list the transaction's own
-        // shared inputs, of which an owned-only transfer has none whatever env it
-        // carries. It pins that the transaction under test really is owned-only,
-        // so the empty-env fallback above is the branch being exercised.
+        // Pins that the transaction is owned-only — effects cannot show which env
+        // it received.
         assert!(
             owned_effects.input_shared_objects().is_empty(),
             "the transaction paired with the empty env must be owned-only"
