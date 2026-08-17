@@ -8085,7 +8085,7 @@ dependencies = [
 
 [[package]]
 name = "iota-traffic-controller"
-version = "1.30.0-alpha"
+version = "1.31.0-alpha"
 dependencies = [
  "axum 0.8.8",
  "count-min-sketch",
