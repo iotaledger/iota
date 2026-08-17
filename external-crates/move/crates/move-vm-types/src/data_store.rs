@@ -20,7 +20,7 @@ pub trait DataStore {
     /// `ModuleId`s in storage that they are loaded from as returned by
     /// `relocate`.  Implementors of `DataStore` are required to keep the
     /// link context stable for the duration of `Interpreter::execute_main`.
-    fn link_context(&self) -> AccountAddress;
+    fn link_context(&self) -> PartialVMResult<AccountAddress>;
 
     /// Translate the runtime `module_id` to the on-chain `ModuleId` that it
     /// should be loaded from.
