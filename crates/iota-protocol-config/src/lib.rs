@@ -629,6 +629,10 @@ struct FeatureFlags {
     // (swap-in) pool; when false, the fixed stake cut by rank is used.
     #[serde(skip_serializing_if = "is_false")]
     consensus_enable_absolute_score_leader_schedule: bool,
+
+    // If true, enables better errors and bounds for max ptb values
+    #[serde(skip_serializing_if = "is_false")]
+    max_ptb_value_size_v2: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2000,6 +2004,10 @@ impl ProtocolConfig {
             .consensus_enable_absolute_score_leader_schedule
     }
 
+    pub fn max_ptb_value_size_v2(&self) -> bool {
+        self.feature_flags.max_ptb_value_size_v2
+    }
+
     pub fn deny_rule_governance(&self) -> bool {
         self.feature_flags.deny_rule_governance
     }
@@ -3367,8 +3375,8 @@ impl ProtocolConfig {
                 }
                 35 => {
                     // Rebuild the framework binaries to add the Move stdlib
-                    // `bool` module and vector sorting functions. The change is
-                    // additive to the framework and needs no config flags.
+                    // `bool` module and vector sorting functions.
+                    cfg.feature_flags.max_ptb_value_size_v2 = true;
                 }
                 // Use this template when making changes:
                 //
