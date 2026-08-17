@@ -85,8 +85,8 @@ pub struct SimulateTransactionResult {
     pub events: Option<TransactionEvents>,
     /// Every object the transaction ran with as input — including immutable
     /// and read-only shared inputs, the packages it calls, and the gas coins
-    /// (the mock one included) — keyed by id. Inputs that leave no trace in
-    /// the effects are covered too.
+    /// (the mock one included) — plus the runtime-loaded objects (e.g. dynamic
+    /// fields) it modified, at their pre-state versions, keyed by id.
     pub input_objects: BTreeMap<ObjectId, Object>,
     /// The objects written by the transaction, keyed by id.
     pub output_objects: BTreeMap<ObjectId, Object>,
