@@ -4,10 +4,11 @@
 //! Per-peer responsiveness tracking and ranking for synchronizer peer
 //! selection.
 //!
-//! The transactions synchronizer and the commit syncer pick peers to fetch
-//! from. On a node with slow or asymmetric inbound links a uniform choice
-//! regularly draws slow-but-not-failing peers, adding avoidable latency to
-//! payload and commit retrieval. Each fetch source in
+//! The transactions synchronizer, the commit syncer and the header
+//! synchronizer pick peers to fetch from. On a node with slow or asymmetric
+//! inbound links a uniform choice regularly draws slow-but-not-failing peers,
+//! adding avoidable latency to payload, commit and header retrieval. Each fetch
+//! source in
 //! [`DataSource::RESPONSIVENESS_SOURCES`] is tracked separately, so a peer's
 //! record on one kind of fetch does not decide its rank on another. Until a
 //! source has a sample of its own for a peer, it places that peer by what the
@@ -48,33 +49,35 @@ use crate::{dag_state::DataSource, metrics::Metrics};
 impl DataSource {
     /// Fetch sources ranked by peer responsiveness. Sources not listed here are
     /// not ranked, and every [`PeerResponsiveness`] call for them is a no-op.
-    pub(crate) const RESPONSIVENESS_SOURCES: [DataSource; 3] = [
+    pub(crate) const RESPONSIVENESS_SOURCES: [DataSource; 4] = [
         DataSource::TransactionSynchronizer,
         DataSource::CommitSyncer,
         DataSource::FastCommitSyncer,
+        DataSource::HeaderSynchronizerRequested,
     ];
 
     /// Sources whose measurements order the peers this source has no sample
     /// for yet, tried in this order until one of them has measured the peer.
     ///
-    /// The other commit syncer comes first: it fetches the same commits and
-    /// headers over the same links, so what it measured is already on this
-    /// source's scale, and at the handoff between the two flavors it has just
-    /// measured the very peers this one is about to choose between. The
-    /// transactions synchronizer comes last because it fetches continuously and
-    /// so has a reading even when both commit-sync tracks are empty - the state
-    /// of a node that is only starting to recover - but it measures much
-    /// lighter fetches, making it the coarser of the two.
+    /// A commit syncer reads the other flavor first (same fetches, same
+    /// scale), then the header synchronizer (same endpoint, and seeded for
+    /// every peer by the startup probe), then the transactions synchronizer
+    /// (always populated, but its fetches are the lightest). The transactions
+    /// and header synchronizers read each other, the closest scale either has.
     fn responsiveness_fallbacks(self) -> &'static [DataSource] {
         match self {
             DataSource::CommitSyncer => &[
                 DataSource::FastCommitSyncer,
+                DataSource::HeaderSynchronizerRequested,
                 DataSource::TransactionSynchronizer,
             ],
             DataSource::FastCommitSyncer => &[
                 DataSource::CommitSyncer,
+                DataSource::HeaderSynchronizerRequested,
                 DataSource::TransactionSynchronizer,
             ],
+            DataSource::TransactionSynchronizer => &[DataSource::HeaderSynchronizerRequested],
+            DataSource::HeaderSynchronizerRequested => &[DataSource::TransactionSynchronizer],
             _ => &[],
         }
     }
@@ -86,6 +89,7 @@ impl DataSource {
         match self {
             DataSource::CommitSyncer => COMMIT_SYNC_NEUTRAL_LATENCY_MS,
             DataSource::FastCommitSyncer => FAST_COMMIT_SYNC_NEUTRAL_LATENCY_MS,
+            DataSource::HeaderSynchronizerRequested => HEADER_SYNC_NEUTRAL_LATENCY_MS,
             _ => TRANSACTIONS_SYNC_NEUTRAL_LATENCY_MS,
         }
     }
@@ -129,6 +133,11 @@ const COMMIT_SYNC_NEUTRAL_LATENCY_MS: f64 = 4_000.0;
 /// Neutral prior for fast commit sync, which serves a range in one request
 /// and so measures quicker than regular sync on the same networks.
 const FAST_COMMIT_SYNC_NEUTRAL_LATENCY_MS: f64 = 2_000.0;
+
+/// Neutral prior for the header synchronizer, rarely reached: the startup
+/// probe seeds this track for every reachable peer before the first header
+/// goes missing.
+const HEADER_SYNC_NEUTRAL_LATENCY_MS: f64 = 500.0;
 
 /// EWMA weight for a successful sample. Small, so the score is "slow to
 /// trust".
@@ -731,6 +740,59 @@ mod tests {
             assert!(
                 leads > 0.9,
                 "{source:?} should rank by what {other:?} measured, got {counts:?}"
+            );
+        }
+    }
+
+    /// A transactions-synchronizer track that is still empty orders peers by
+    /// what the header synchronizer saw.
+    #[test]
+    fn transactions_cold_start_follows_header_synchronizer_order() {
+        let pr = responsiveness(5);
+        for (peer, latency) in [(1, 400), (2, 300), (3, 200), (4, 100)] {
+            pr.record_success(
+                DataSource::HeaderSynchronizerRequested,
+                idx(peer),
+                ms(latency),
+            );
+        }
+
+        let candidates = vec![idx(1), idx(2), idx(3), idx(4)];
+        let counts = lead_counts(
+            &pr,
+            DataSource::TransactionSynchronizer,
+            &candidates,
+            10_000,
+            7,
+        );
+
+        let lead = |peer| *counts.get(&idx(peer)).unwrap_or(&0);
+        assert!(
+            lead(4) > lead(3) && lead(3) > lead(2) && lead(2) > lead(1),
+            "lead counts should follow the header-synchronizer order, got {counts:?}"
+        );
+    }
+
+    /// Both commit syncers read the header synchronizer before the
+    /// transactions synchronizer.
+    #[test]
+    fn commit_sync_reads_the_header_synchronizer_before_transactions() {
+        for source in [DataSource::CommitSyncer, DataSource::FastCommitSyncer] {
+            let pr = responsiveness(4);
+            // Peer 1 is slow on header fetches but quick on transaction
+            // fetches; peer 2 is only known to the latter.
+            pr.record_success(DataSource::HeaderSynchronizerRequested, idx(1), ms(5_000));
+            pr.record_success(DataSource::TransactionSynchronizer, idx(1), ms(10));
+            pr.record_success(DataSource::TransactionSynchronizer, idx(2), ms(10));
+
+            let counts = lead_counts(&pr, source, &[idx(1), idx(2)], 10_000, 5);
+
+            // Reading the transactions synchronizer first would place both peers
+            // at 10ms and split the lead evenly between them.
+            let leads = *counts.get(&idx(2)).unwrap_or(&0) as f64 / 10_000.0;
+            assert!(
+                leads > 0.9,
+                "{source:?} should rank by what the header synchronizer measured, got {counts:?}"
             );
         }
     }
