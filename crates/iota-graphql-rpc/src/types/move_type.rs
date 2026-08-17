@@ -144,7 +144,6 @@ impl MoveType {
     }
 
     /// Structured representation of the "shape" of values that match this type.
-    /// May return MoveTypeLayout::InvalidType for malformed types.
     async fn layout(&self, ctx: &Context<'_>) -> Result<MoveTypeLayout> {
         let resolver: &PackageResolver = ctx
             .data()
@@ -156,8 +155,7 @@ impl MoveType {
         MoveTypeLayout::try_from(layout).extend()
     }
 
-    /// The abilities this concrete type has. Returns no abilities if the type
-    /// is invalid.
+    /// The abilities this concrete type has.
     async fn abilities(&self, ctx: &Context<'_>) -> Result<Vec<MoveAbility>> {
         let resolver: &PackageResolver = ctx
             .data()
