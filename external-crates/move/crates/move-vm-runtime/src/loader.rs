@@ -191,7 +191,12 @@ impl ModuleCache {
         module: &CompiledModule,
     ) -> VMResult<Arc<LoadedModule>> {
         let runtime_id = module.self_id();
-        if let Some(cached) = self.loaded_module_at(data_store.link_context(), &runtime_id) {
+        if let Some(cached) = self.loaded_module_at(
+            data_store
+                .link_context()
+                .map_err(|e| e.finish(Location::Undefined))?,
+            &runtime_id,
+        ) {
             return Ok(cached);
         }
 
@@ -231,7 +236,7 @@ impl ModuleCache {
         storage_id: ModuleId,
         module: &CompiledModule,
     ) -> PartialVMResult<&Arc<LoadedModule>> {
-        let link_context = data_store.link_context();
+        let link_context = data_store.link_context()?;
         let runtime_id = module.self_id();
 
         // Add new structs and collect their field signatures
@@ -868,7 +873,9 @@ impl Loader {
         Arc<Function>,
         LoadedFunctionInstantiation,
     )> {
-        let link_context = data_store.link_context();
+        let link_context = data_store
+            .link_context()
+            .map_err(|e| e.finish(Location::Undefined))?;
         let (compiled, loaded) = self.load_module(runtime_id, data_store)?;
         let idx = self
             .module_cache
@@ -1111,7 +1118,9 @@ impl Loader {
         bundle_verified: &BTreeMap<ModuleId, &CompiledModule>,
         data_store: &impl DataStore,
     ) -> VMResult<(Arc<CompiledModule>, Arc<LoadedModule>)> {
-        let link_context = data_store.link_context();
+        let link_context = data_store
+            .link_context()
+            .map_err(|e| e.finish(Location::Undefined))?;
 
         {
             let locked_cache = self.module_cache.read();
@@ -1279,7 +1288,12 @@ impl Loader {
             // (previously verified module) or in the package being processed
             // (`bundle_verified`)
             let self_id = entry.module.module.self_id();
-            let cache_key = (data_store.link_context(), self_id.clone());
+            let cache_key = (
+                data_store
+                    .link_context()
+                    .map_err(|e| e.finish(Location::Undefined))?,
+                self_id.clone(),
+            );
             if !bundle_verified.contains_key(&self_id)
                 && !self
                     .module_cache
