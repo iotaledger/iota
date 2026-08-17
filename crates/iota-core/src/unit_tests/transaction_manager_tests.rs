@@ -28,7 +28,8 @@ use crate::{
         shared_object_version_manager::Schedulable,
     },
     execution_scheduler::{
-        ExecutionSchedulerAPI, PendingTransaction, transaction_manager::TransactionManager,
+        ExecutionSchedulerAPI, ExecutionSchedulerWrapper, PendingTransaction,
+        transaction_manager::TransactionManager,
     },
 };
 
@@ -1170,4 +1171,52 @@ async fn transaction_manager_propagates_execution_env() {
         pending.execution_env.expected_effects_digest,
         Some(parked_digest)
     );
+}
+
+/// A randomness state update can also execute from a synced checkpoint, in
+/// which case local randomness generation never runs for that round and
+/// `commit_transaction` is the only place left that can resolve the key its
+/// schedulable is parked under. This test drives the authority's own scheduler,
+/// since that is the one `commit_transaction` notifies.
+#[tokio::test]
+async fn commit_transaction_resolves_the_key_of_a_locally_executed_update() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+
+    // The randomness state has never been updated, so the first update must be
+    // for round 0.
+    let round = RandomnessRound::new(0);
+    let key = TransactionKey::RandomnessRound(epoch_store.epoch(), round);
+    let assigned_versions = randomness_assigned_versions(&epoch_store);
+    state.execution_scheduler().enqueue(
+        vec![(
+            Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
+            ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+        )],
+        &epoch_store,
+    );
+
+    let transaction = make_randomness_state_update(&epoch_store, 0);
+    let (_, execution_error) = state
+        .try_execute_immediately(
+            &transaction,
+            ExecutionEnv::new().with_assigned_versions(assigned_versions),
+            &epoch_store,
+        )
+        .unwrap();
+    assert!(execution_error.is_none(), "{execution_error:?}");
+
+    assert_eq!(
+        epoch_store.tx_key_to_digest(&key).unwrap(),
+        Some(*transaction.digest())
+    );
+    match state.execution_scheduler().as_ref() {
+        // The env is released and the enqueue it triggers is filtered out as
+        // already executed.
+        ExecutionSchedulerWrapper::TransactionManager(tm) => {
+            assert_eq!(tm.num_pending_transaction_keys_for_testing(), 0)
+        }
+        // The scheduler waits on the key in the table asserted above.
+        ExecutionSchedulerWrapper::ExecutionScheduler(_) => {}
+    }
 }
