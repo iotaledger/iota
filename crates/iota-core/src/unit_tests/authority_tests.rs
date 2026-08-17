@@ -74,6 +74,8 @@ use rand::{
 use serde_json::json;
 
 pub use crate::authority::authority_test_utils::*;
+#[cfg(msim)]
+use crate::authority::shared_object_version_manager::Schedulable;
 use crate::{
     authority::{
         AuthorityState, AuthorityStore, ExecutionEnv,
