@@ -268,12 +268,17 @@ mod checked {
             *epoch_id,
         );
 
-        (
-            inner,
-            gas_charger.into_gas_status(),
-            effects,
-            execution_result,
-        )
+        let gas_status = gas_charger.into_gas_status();
+
+        #[skip_checked_arithmetic]
+        trace!(
+            target: "resource_profile",
+            tx_digest = ?transaction_digest,
+            profile = ?gas_status.resource_profile(),
+            "Per-transaction resource profile"
+        );
+
+        (inner, gas_status, effects, execution_result)
     }
 
     /// This function produces transaction effects for a transaction that

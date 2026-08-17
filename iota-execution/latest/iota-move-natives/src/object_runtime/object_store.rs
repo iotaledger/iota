@@ -10,8 +10,11 @@ use std::{
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
 use iota_sdk_types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, Version};
 use iota_types::{
-    committee::EpochId, error::VMMemoryLimitExceededSubStatusCode,
-    execution::DynamicallyLoadedObjectMetadata, metrics::LimitsMetrics, object::Object,
+    committee::EpochId,
+    error::VMMemoryLimitExceededSubStatusCode,
+    execution::DynamicallyLoadedObjectMetadata,
+    metrics::LimitsMetrics,
+    object::{MoveStructExt, Object},
     storage::ChildObjectResolver,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -94,6 +97,18 @@ struct Inner<'a> {
     metrics: Arc<LimitsMetrics>,
     // Epoch ID for the current transaction. Used for receiving objects.
     current_epoch_id: EpochId,
+    // Counters feeding the per-transaction resource profile: child-object
+    // loads issued to the resolver, the serialized bytes they fetched, and the
+    // serialized bytes retained in `cached_objects`. Updating them does not
+    // change the gas charged or the existing limit checks.
+    child_object_reads: u64,
+    child_object_read_bytes: u64,
+    cached_objects_bytes: u64,
+    // Abstract sizes (the VM value model's units, not serialized bytes) of
+    // child objects added during execution via `add_object`. Added children
+    // were never serialized, so their abstract size is the only size
+    // available; the profile documents the mixed units.
+    child_objects_added_abstract_bytes: u64,
 }
 
 // maintains the runtime GlobalValues for child objects and manages the fetching
@@ -266,6 +281,14 @@ impl Inner<'_> {
                 had_parent_root_version
             );
 
+            self.child_object_reads = self.child_object_reads.saturating_add(1);
+            if let Some(obj) = &obj_opt {
+                let object_bytes = obj.object_size_for_gas_metering() as u64;
+                self.child_object_read_bytes =
+                    self.child_object_read_bytes.saturating_add(object_bytes);
+                self.cached_objects_bytes = self.cached_objects_bytes.saturating_add(object_bytes);
+            }
+
             if let LimitThresholdCrossed::Hard(_, lim) = check_limit_by_meter!(
                 self.is_metered,
                 cached_objects_count,
@@ -431,11 +454,29 @@ impl<'a> ChildObjectStore<'a> {
                 protocol_config,
                 metrics,
                 current_epoch_id,
+                child_object_reads: 0,
+                child_object_read_bytes: 0,
+                cached_objects_bytes: 0,
+                child_objects_added_abstract_bytes: 0,
             },
             store: BTreeMap::new(),
             config_setting_cache: BTreeMap::new(),
             is_metered,
         }
+    }
+
+    /// Counters for the resource profile: number of child-object loads issued
+    /// to the resolver, the serialized bytes they fetched, and the bytes
+    /// retained by the object runtime (serialized bytes of cached loads plus
+    /// abstract sizes of children added during execution).
+    pub(super) fn read_counters(&self) -> (u64, u64, u64) {
+        (
+            self.inner.child_object_reads,
+            self.inner.child_object_read_bytes,
+            self.inner
+                .cached_objects_bytes
+                .saturating_add(self.inner.child_objects_added_abstract_bytes),
+        )
     }
 
     pub(super) fn receive_object(
@@ -448,12 +489,17 @@ impl<'a> ChildObjectStore<'a> {
         child_fully_annotated_layout: &A::MoveTypeLayout,
         child_struct_tag: StructTag,
     ) -> PartialVMResult<LoadedWithMetadataResult<ObjectResult<Value>>> {
-        let Some((obj, obj_meta)) =
-            self.inner
-                .receive_object_from_store(parent, child, child_version)?
-        else {
+        let received = self
+            .inner
+            .receive_object_from_store(parent, child, child_version)?;
+        self.inner.child_object_reads = self.inner.child_object_reads.saturating_add(1);
+        let Some((obj, obj_meta)) = received else {
             return Ok(None);
         };
+        self.inner.child_object_read_bytes = self
+            .inner
+            .child_object_read_bytes
+            .saturating_add(obj.object_size_for_gas_metering() as u64);
 
         Ok(Some(
             match deserialize_move_struct(&obj, child_ty, child_layout, child_struct_tag)? {
@@ -627,6 +673,14 @@ impl<'a> ChildObjectStore<'a> {
             let fingerprint = ObjectFingerprint::none(self.inner.protocol_config);
             (GlobalValue::none(), fingerprint)
         };
+        // Record the added child's abstract size for the resource profile:
+        // it is retained by the runtime for the rest of the transaction just
+        // like a cached load, but was never serialized, so its abstract size
+        // is the only size available.
+        self.inner.child_objects_added_abstract_bytes = self
+            .inner
+            .child_objects_added_abstract_bytes
+            .saturating_add(u64::from(child_value.legacy_size()));
         if let Err((e, _)) = value.move_to(child_value) {
             return Err(
                 PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(

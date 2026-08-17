@@ -102,7 +102,13 @@ impl GasMeter for IotaGasMeter<'_> {
             })
             .unwrap_or_else(AbstractMemorySize::zero);
         self.0.record_native_call();
-        if native_function_threshold_exceeded(self.0.gas_model_version, self.0.num_native_calls) {
+        // Capture gas before the native's charges so the resource profile can
+        // attribute the gas actually deducted (tiering-correct) to this native
+        // rather than the pre-tiering declared amount.
+        let gas_before = self.0.gas_left;
+        let threshold_exceeded =
+            native_function_threshold_exceeded(self.0.gas_model_version, self.0.num_native_calls);
+        let result = if threshold_exceeded {
             // Charge for the stack operations. We don't count this as an "instruction"
             // since we already accounted for the `Call` instruction in the
             // `charge_native_function_before_execution` call.
@@ -116,10 +122,19 @@ impl GasMeter for IotaGasMeter<'_> {
             // Charge for the stack operations. We don't count this as an "instruction"
             // since we already accounted for the `Call` instruction in the
             // `charge_native_function_before_execution` call.
-            self.0.charge(0, pushes, 0, size_increase.into(), 0)?;
-            // Now charge the gas that the native function told us to charge.
-            self.0.deduct_gas(amount)
-        }
+            self.0
+                .charge(0, pushes, 0, size_increase.into(), 0)
+                // Now charge the gas that the native function told us to charge.
+                .and_then(|()| self.0.deduct_gas(amount))
+        };
+        self.0.record_native_gas_deducted(gas_before);
+        // The native's charges routed through `charge`, which added to the
+        // interpreter component flows; subtract that share so those flows stay
+        // interpreter-only. `num_instructions` matches the branch above.
+        let native_instructions = if threshold_exceeded { amount.into() } else { 0 };
+        self.0
+            .discount_native_flows(native_instructions, pushes, size_increase.into());
+        result
     }
 
     fn charge_native_function_before_execution(
@@ -140,6 +155,15 @@ impl GasMeter for IotaGasMeter<'_> {
         self.0.charge(1, 0, pops, 0, stack_reduction_size.into())
     }
 
+    fn record_native_function_identity(&mut self, module_id: &ModuleId, function_name: &str) {
+        // Key by the full module id (`0x2::hash`), not the bare name: same-
+        // named modules in different packages must stay distinct for
+        // calibration. The function name is included because per-call cost
+        // varies more within a module than the charged gas reflects.
+        self.0
+            .set_pending_native_function(&module_id.short_str_lossless(), function_name);
+    }
+
     fn charge_call(
         &mut self,
         _module_id: &ModuleId,
@@ -155,6 +179,7 @@ impl GasMeter for IotaGasMeter<'_> {
         let stack_reduction_size = args.fold(AbstractMemorySize::new(0), |acc, elem| {
             acc + abstract_memory_size(elem)
         });
+        self.0.record_call_frame(stack_reduction_size.into());
         self.0.charge(1, 0, pops, 0, stack_reduction_size.into())
     }
 
@@ -173,6 +198,7 @@ impl GasMeter for IotaGasMeter<'_> {
         let stack_reduction_size = args.fold(AbstractMemorySize::new(0), |acc, elem| {
             acc + abstract_memory_size(elem)
         });
+        self.0.record_call_frame(stack_reduction_size.into());
         // Charge for the pops, no pushes, and account for the stack size decrease. Also
         // track the `CallGeneric` instruction we must have encountered for
         // this.
@@ -199,17 +225,24 @@ impl GasMeter for IotaGasMeter<'_> {
     }
 
     fn charge_move_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
-        // Charge for the move of the local on to the stack. Note that we charge here
-        // since we aren't tracking the local size (at least not yet). If we
-        // were, this should be a net-zero operation in terms of memory usage.
-        self.0.charge(1, 1, 0, abstract_memory_size(val).into(), 0)
+        // Charge for the move of the local on to the stack. Charging is unchanged
+        // (locals are not part of the charged size), but the locals size is
+        // recorded for the resource profile, where this move is net-zero
+        // memory-wise.
+        let size = abstract_memory_size(val);
+        self.0.record_move_loc(size.into());
+        self.0.charge(1, 1, 0, size.into(), 0)
     }
 
     fn charge_store_loc(&mut self, val: impl ValueView) -> PartialVMResult<()> {
-        // Charge for the storing of the value on the stack into a local. Note here that
-        // if we were also accounting for the size of the locals that this would
-        // be a net-zero operation in terms of memory.
-        self.0.charge(1, 0, 1, 0, abstract_memory_size(val).into())
+        // Charge for the storing of the value on the stack into a local. Charging is
+        // unchanged (locals are not part of the charged size), but the locals
+        // size is recorded for the resource profile. Storing over an occupied
+        // local over-counts (the displaced value is not visible here), which
+        // is conservative for a high-water mark.
+        let size = abstract_memory_size(val);
+        self.0.record_store_loc(size.into());
+        self.0.charge(1, 0, 1, 0, size.into())
     }
 
     fn charge_pack(
@@ -356,8 +389,16 @@ impl GasMeter for IotaGasMeter<'_> {
 
     fn charge_drop_frame(
         &mut self,
-        _locals: impl Iterator<Item = impl ValueView>,
+        locals: impl Iterator<Item = impl ValueView>,
     ) -> PartialVMResult<()> {
+        // No charge; the values dropped with the frame are removed from the
+        // locals size tracked for the resource profile. Any excess over the
+        // frame's tracked additions is in-place growth through references,
+        // recorded late so the high-water mark includes it.
+        let dropped = locals.fold(AbstractMemorySize::zero(), |acc, val| {
+            acc + abstract_memory_size(val)
+        });
+        self.0.record_drop_frame(dropped.into());
         Ok(())
     }
 

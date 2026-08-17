@@ -13,6 +13,7 @@ use iota_sdk_types::{
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
+    SYSTEM_PACKAGE_ADDRESSES,
     error::{ExecutionError, IotaError, IotaResult},
     move_package::MovePackageExt,
     storage::{BackingPackageStore, PackageObject, get_module},
@@ -49,6 +50,16 @@ pub struct LinkageView<'state> {
     /// package is in this set, then we will not try to load its type origin
     /// table when setting it as a context (again).
     past_contexts: RefCell<HashSet<ObjectId>>,
+    /// Distinct non-system packages fetched through this view, and their
+    /// total serialized bytes, for the read-I/O component of the resource
+    /// profile. Counted at the store fetch, which happens for the same set of
+    /// packages on every validator regardless of node-local cache state (the
+    /// link context is set per call target), so the counts are deterministic.
+    /// Module loads driven by the VM's own loader cache are deliberately not
+    /// counted here — see `ResourceProfile::packages_loaded`.
+    counted_packages: RefCell<HashSet<ObjectId>>,
+    packages_loaded: RefCell<u64>,
+    package_bytes_loaded: RefCell<u64>,
 }
 
 #[derive(Debug)]
@@ -71,7 +82,19 @@ impl<'state> LinkageView<'state> {
             linkage_info: None,
             type_origin_cache: RefCell::new(HashMap::new()),
             past_contexts: RefCell::new(HashSet::new()),
+            counted_packages: RefCell::new(HashSet::new()),
+            packages_loaded: RefCell::new(0),
+            package_bytes_loaded: RefCell::new(0),
         }
+    }
+
+    /// The distinct non-system packages fetched through this view and their
+    /// total serialized bytes, for the resource profile.
+    pub fn package_load_counters(&self) -> (u64, u64) {
+        (
+            *self.packages_loaded.borrow(),
+            *self.package_bytes_loaded.borrow(),
+        )
     }
 
     /// Reset the `LinkageInfo`.
@@ -353,6 +376,17 @@ impl ModuleResolver for LinkageView<'_> {
 
 impl BackingPackageStore for LinkageView<'_> {
     fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
-        self.resolver.get_package_object(package_id)
+        let result = self.resolver.get_package_object(package_id)?;
+        if let Some(package) = &result {
+            let is_system = SYSTEM_PACKAGE_ADDRESSES
+                .iter()
+                .any(|addr| addr.as_bytes() == package_id.as_bytes());
+            if !is_system && self.counted_packages.borrow_mut().insert(*package_id) {
+                *self.packages_loaded.borrow_mut() += 1;
+                *self.package_bytes_loaded.borrow_mut() +=
+                    package.object().object_size_for_gas_metering() as u64;
+            }
+        }
+        Ok(result)
     }
 }

@@ -19,6 +19,7 @@ pub mod checked {
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
         gas_model::{
             gas_v1::{IotaGasStatus as IotaGasStatusV1, min_transaction_cost},
+            resource_profile::ResourceProfile,
             tables::GasStatus,
         },
         object::{MoveStructExt, Object},
@@ -80,6 +81,15 @@ pub mod checked {
             // Always return V1 as unmetered gas status is identical from V1 to V2.
             // This is only used for system transactions which do not pay gas.
             Self::V1(IotaGasStatusV1::new_unmetered())
+        }
+
+        /// The per-transaction [`ResourceProfile`].
+        /// Complete only after execution and storage collection have
+        /// finished.
+        pub fn resource_profile(&self) -> ResourceProfile {
+            match self {
+                Self::V1(status) => status.resource_profile(),
+            }
         }
 
         // This is the only public API on IotaGasStatus, all other gas related

@@ -83,6 +83,19 @@ pub struct RuntimeResults {
     pub deleted_object_ids: Set<ObjectId>,
 }
 
+/// Child-object load counters for the per-transaction resource profile.
+/// Reading them does not change the gas charged or limit checks.
+pub struct ObjectRuntimeReadStats {
+    /// Number of loads issued to the store, including loads that found no
+    /// object and received objects.
+    pub reads: u64,
+    /// Serialized bytes of the objects those loads fetched.
+    pub read_bytes: u64,
+    /// Serialized bytes retained in the child-object cache (monotonic within
+    /// a transaction).
+    pub cached_bytes: u64,
+}
+
 #[derive(Default)]
 pub(crate) struct ObjectRuntimeState {
     pub(crate) input_objects: BTreeMap<ObjectId, Owner>,
@@ -96,6 +109,8 @@ pub(crate) struct ObjectRuntimeState {
     events: Vec<(Type, MoveStructTag, Value)>,
     // total size of events emitted so far
     total_events_size: u64,
+    // total number of events emitted so far; unlike `events`, never drained
+    total_events_count: u64,
     received: IndexMap<ObjectId, DynamicallyLoadedObjectMetadata>,
 }
 
@@ -179,6 +194,7 @@ impl<'a> ObjectRuntime<'a> {
                 transfers: IndexMap::new(),
                 events: vec![],
                 total_events_size: 0,
+                total_events_count: 0,
                 received: IndexMap::new(),
             },
             is_metered,
@@ -319,11 +335,36 @@ impl<'a> ObjectRuntime<'a> {
             return Err(max_event_error(self.protocol_config.max_num_event_emit()));
         }
         self.state.events.push((ty, tag, event));
+        self.state.total_events_count = self.state.total_events_count.saturating_add(1);
         Ok(())
     }
 
     pub fn take_user_events(&mut self) -> Vec<(Type, MoveStructTag, Value)> {
         std::mem::take(&mut self.state.events)
+    }
+
+    /// Counters for the per-transaction resource profile: child-object loads
+    /// issued to the store, the serialized bytes they fetched, and the
+    /// serialized bytes retained in the object cache.
+    pub fn read_stats(&self) -> ObjectRuntimeReadStats {
+        let (reads, read_bytes, cached_bytes) = self.child_object_store.read_counters();
+        ObjectRuntimeReadStats {
+            reads,
+            read_bytes,
+            cached_bytes,
+        }
+    }
+
+    /// Total serialized size of all events emitted so far, including events
+    /// already taken via [`Self::take_user_events`].
+    pub fn total_events_size(&self) -> u64 {
+        self.state.total_events_size
+    }
+
+    /// Total number of events emitted so far, including events already taken
+    /// via [`Self::take_user_events`].
+    pub fn total_events_count(&self) -> u64 {
+        self.state.total_events_count
     }
 
     pub(crate) fn child_object_exists(
@@ -565,6 +606,7 @@ impl ObjectRuntimeState {
             transfers,
             events: user_events,
             total_events_size: _,
+            total_events_count: _,
             received,
         } = self;
 
