@@ -15,6 +15,7 @@ use axum::{
 use hyper::{HeaderMap, header::HeaderValue};
 use iota_json_rpc_api::{
     CLIENT_TARGET_API_VERSION_HEADER, TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
+    TRANSACTION_NOT_FOUND_ERROR_CODE,
 };
 use iota_traffic_controller::{TrafficController, parse_ip, policies::TrafficTally};
 use iota_types::traffic_control::{ClientIdSource, PolicyConfig, Weight};
@@ -272,9 +273,40 @@ fn handle_traffic_resp(
 fn normalize(err: ErrorCode) -> Weight {
     match err {
         ErrorCode::InvalidRequest | ErrorCode::InvalidParams => Weight::one(),
+        ErrorCode::ServerError(i) if i == TRANSACTION_NOT_FOUND_ERROR_CODE => Weight::zero(),
         // e.g. invalid client signature
         ErrorCode::ServerError(i) if i == TRANSACTION_EXECUTION_CLIENT_ERROR_CODE => Weight::one(),
         _ => Weight::zero(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_json_rpc_api::{
+        TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSACTION_NOT_FOUND_ERROR_CODE,
+    };
+    use iota_types::traffic_control::Weight;
+    use jsonrpsee::types::ErrorCode;
+
+    use super::normalize;
+
+    #[test]
+    fn transaction_not_found_has_zero_error_weight() {
+        assert_eq!(
+            normalize(ErrorCode::ServerError(TRANSACTION_NOT_FOUND_ERROR_CODE)),
+            Weight::zero()
+        );
+    }
+
+    #[test]
+    fn client_errors_have_full_error_weight() {
+        assert_eq!(normalize(ErrorCode::InvalidParams), Weight::one());
+        assert_eq!(
+            normalize(ErrorCode::ServerError(
+                TRANSACTION_EXECUTION_CLIENT_ERROR_CODE
+            )),
+            Weight::one()
+        );
     }
 }
 

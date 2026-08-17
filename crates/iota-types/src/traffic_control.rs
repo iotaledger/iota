@@ -108,8 +108,29 @@ impl Weight {
 
     pub fn is_sampled(&self) -> bool {
         let mut rng = rand::thread_rng();
+        // `Uniform::new` excludes the upper bound, so a weight of 1.0 accepts every
+        // sample.
         let sample = rand::distributions::Uniform::new(0.0, 1.0).sample(&mut rng);
-        sample <= self.value()
+        self.accepts(sample)
+    }
+
+    fn accepts(&self, sample: f32) -> bool {
+        sample < self.value()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Weight;
+
+    #[test]
+    fn zero_weight_rejects_the_lowest_sample() {
+        assert!(!Weight::zero().accepts(0.0));
+    }
+
+    #[test]
+    fn full_weight_accepts_the_highest_sample() {
+        assert!(Weight::one().accepts(1.0 - f32::EPSILON));
     }
 }
 

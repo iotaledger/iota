@@ -13,13 +13,14 @@ use fastcrypto::encoding::Base64;
 use iota_core::authority_client::{
     make_network_authority_clients_with_network_config, validator::ValidatorAPI,
 };
+use iota_json_rpc_api::TRANSACTION_NOT_FOUND_ERROR_CODE;
 use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
 use iota_macros::sim_test;
 use iota_network::default_iota_network_config;
-use iota_sdk_types::UserSignature;
+use iota_sdk_types::{TransactionDigest, UserSignature};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_traffic_controller::{
@@ -511,6 +512,39 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
         tokio::task::yield_now().await;
     }
     panic!("Expected spam policy to trigger within {txn_count} requests");
+}
+
+#[tokio::test]
+async fn unknown_transaction_does_not_trigger_fullnode_error_policy() {
+    telemetry_subscribers::init_for_testing();
+    let policy_config = PolicyConfig {
+        connection_blocklist_ttl_sec: 3,
+        error_policy_type: PolicyType::TestNConnIP(1),
+        dry_run: false,
+        ..Default::default()
+    };
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_policy_config(Some(policy_config))
+        .build()
+        .await;
+
+    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+    let digest = TransactionDigest::from([42; 32]);
+
+    for request_number in 1..=2 {
+        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
+            .request("iota_getTransactionBlock", rpc_params![digest])
+            .await;
+        let error = response.expect_err("an unknown transaction should return an error");
+        let jsonrpsee::core::ClientError::Call(error) = error else {
+            panic!("request {request_number} returned a non-JSON-RPC error: {error}");
+        };
+        assert_eq!(error.code(), TRANSACTION_NOT_FOUND_ERROR_CODE);
+
+        if request_number == 1 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    }
 }
 
 #[tokio::test]
