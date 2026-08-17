@@ -3639,7 +3639,10 @@ impl AuthorityState {
     /// The object at an exact version: the live table first, the buckets after
     /// a miss there. See [`HistoricObjects::fill_missing`] for when a read may
     /// do this.
-    fn get_object_with_historic_fallback(&self, key: &ObjectKey) -> IotaResult<Option<Object>> {
+    pub(crate) fn get_object_with_historic_fallback(
+        &self,
+        key: &ObjectKey,
+    ) -> IotaResult<Option<Object>> {
         match self
             .get_object_cache_reader()
             .try_get_object_by_key(&key.0, key.1)?
