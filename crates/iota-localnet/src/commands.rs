@@ -1006,7 +1006,7 @@ async fn genesis(
         .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
         .with_admin_interface_address(admin_interface_address_with_port)
-        .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
+        .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
 
     fullnode_config.save(iota_config_dir.join(IOTA_FULLNODE_CONFIG))?;
     let mut ssfn_nodes = vec![];
@@ -1027,20 +1027,29 @@ async fn genesis(
                 .with_admin_interface_address(admin_interface_address_with_port)
                 .with_json_rpc_address(([0, 0, 0, 0], 9000))
                 .with_genesis(genesis.clone())
-                .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
+                .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
             ssfn_nodes.push(ssfn_config.clone());
             ssfn_config.save(path)?;
         }
 
-        let ssfn_seed_peers: Vec<SeedPeer> = ssfn_nodes
+        let ssfn_seed_peers = ssfn_nodes
             .iter()
-            .map(|config| SeedPeer {
-                peer_id: Some(anemo::PeerId(
-                    config.network_key_pair().public().0.to_bytes(),
-                )),
-                address: config.p2p_config.external_address.clone().unwrap(),
+            .enumerate()
+            .map(|(index, config)| {
+                let address = config.p2p_config.external_address.clone().ok_or_else(|| {
+                    anyhow!(
+                        "state sync fullnode {index} has no `p2p-config.external-address`, which \
+                         the validators need to derive their seed peers"
+                    )
+                })?;
+                Ok(SeedPeer {
+                    peer_id: Some(anemo::PeerId(
+                        config.network_key_pair().public().0.to_bytes(),
+                    )),
+                    address,
+                })
             })
-            .collect();
+            .collect::<Result<Vec<SeedPeer>, anyhow::Error>>()?;
 
         for (i, mut validator) in network_config
             .into_validator_configs()
