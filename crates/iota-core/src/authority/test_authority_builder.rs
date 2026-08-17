@@ -49,6 +49,7 @@ use crate::{
 #[derive(Default, Clone)]
 pub struct TestAuthorityBuilder<'a> {
     store_base_path: Option<PathBuf>,
+    enable_write_stall: bool,
     store: Option<Arc<AuthorityStore>>,
     transaction_deny_config: Option<TransactionDenyConfig>,
     certificate_deny_config: Option<CertificateDenyConfig>,
@@ -76,6 +77,14 @@ impl<'a> TestAuthorityBuilder<'a> {
 
     pub fn with_store_base_path(mut self, path: PathBuf) -> Self {
         assert!(self.store_base_path.replace(path).is_none());
+        self
+    }
+
+    /// Enable RocksDB write stalls, which the test store disables by
+    /// default. Write-side calibration measures the stall onset, so it needs
+    /// the production throttling behavior.
+    pub fn with_write_stalls_enabled(mut self) -> Self {
+        self.enable_write_stall = true;
         self
     }
 
@@ -239,6 +248,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             None => {
                 let perpetual_tables_options = AuthorityPerpetualTablesOptions {
                     compaction_filter,
+                    enable_write_stall: self.enable_write_stall,
                     ..Default::default()
                 };
                 let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
