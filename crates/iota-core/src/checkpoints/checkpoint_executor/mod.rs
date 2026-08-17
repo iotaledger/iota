@@ -596,11 +596,11 @@ impl CheckpointExecutor {
             // environment — so the expected digest passed above may never have
             // reached execution. Compare here, where the checkpoint's digests are
             // known, so a fork is caught regardless of which enqueue won.
-            for ((tx_digest, expected), actual) in unexecuted_tx_digests
-                .iter()
-                .zip(unexecuted_expected_fx_digests.iter())
-                .zip(actual_fx_digests.iter())
-            {
+            for (tx_digest, expected, actual) in itertools::izip!(
+                unexecuted_tx_digests.iter(),
+                unexecuted_expected_fx_digests.iter(),
+                actual_fx_digests.iter()
+            ) {
                 assert_not_forked(
                     &ckpt_state.data.checkpoint,
                     tx_digest,
@@ -873,11 +873,10 @@ impl CheckpointExecutor {
         }
     }
 
-    // Schedule all unexecuted transactions in the checkpoint for execution
-    #[instrument(level = "info", skip_all)]
     /// Enqueues the checkpoint's not-yet-executed transactions, and returns
     /// their digests together with the effects digest the checkpoint expects
     /// for each, so the caller can check for a fork once they execute.
+    #[instrument(level = "info", skip_all)]
     fn schedule_transaction_execution(
         &self,
         ckpt_state: &CheckpointExecutionState,

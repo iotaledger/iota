@@ -1179,7 +1179,7 @@ async fn transaction_manager_propagates_execution_env() {
 /// schedulable is parked under. This test drives the authority's own scheduler,
 /// since that is the one `commit_transaction` notifies.
 #[tokio::test]
-async fn commit_transaction_resolves_the_parked_key_without_local_generation() {
+async fn transaction_manager_resolves_the_parked_key_from_commit_transaction() {
     let state = init_state_with_objects(vec![]).await;
     let epoch_store = state.epoch_store_for_testing();
 
@@ -1219,4 +1219,38 @@ async fn commit_transaction_resolves_the_parked_key_without_local_generation() {
         // The scheduler waits on the key in the table asserted above.
         ExecutionSchedulerWrapper::ExecutionScheduler(_) => {}
     }
+}
+
+/// Both writers of a transaction key store the transaction before the key, so a
+/// resolved key naming a transaction that is neither stored nor executed means
+/// that order broke — and skipping it silently would drop the env holding the
+/// key's assigned versions and leave the checkpoint builder waiting on that
+/// root forever. `debug_fatal!` panics here because `crash_on_debug()` holds in
+/// any debug build. The `ExecutionScheduler` half reaches the same branch
+/// inside its detached per-batch task, where the panic never reaches the
+/// caller, so only this half can be pinned.
+#[tokio::test]
+#[should_panic(expected = "is neither stored nor executed")]
+async fn transaction_manager_reports_a_resolved_key_naming_nothing() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (transaction_manager, _rx_ready_transactions) = make_transaction_manager(&state);
+
+    let round = RandomnessRound::new(1);
+    // The key resolves, but the transaction it names was never stored.
+    let transaction = make_randomness_state_update(&epoch_store, 1);
+    epoch_store
+        .insert_tx_key(
+            TransactionKey::RandomnessRound(epoch_store.epoch(), round),
+            *transaction.digest(),
+        )
+        .unwrap();
+
+    transaction_manager.enqueue(
+        vec![(
+            Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
+            ExecutionEnv::new().with_assigned_versions(randomness_assigned_versions(&epoch_store)),
+        )],
+        &epoch_store,
+    );
 }

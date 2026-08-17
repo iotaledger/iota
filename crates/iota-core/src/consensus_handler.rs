@@ -1199,10 +1199,11 @@ mod tests {
         )
         .unwrap();
 
-        // The owned-only certificate goes first: with it last, a positional
-        // pairing would coincidentally hand every transaction the env a lookup
-        // by key does. First, it shifts the shared certificate onto the empty
-        // tail of the assignment list, and the bounded wait below fails.
+        // The owned-only certificate goes first so that a positional pairing
+        // would shift the shared certificate onto the empty tail of the
+        // assignment list, failing the bounded wait below. With it last, such a
+        // pairing would coincidentally hand every transaction the same env a
+        // lookup by key does, and the test would pass either way.
         let certificates = [owned_certificate.clone(), shared_certificate.clone()];
         let mut headers = Vec::new();
         let mut subdag_transactions = Vec::new();

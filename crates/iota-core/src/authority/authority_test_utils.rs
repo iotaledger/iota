@@ -482,7 +482,10 @@ pub async fn send_consensus_no_execution(
         .await
         .unwrap();
     assert_eq!(assigned_versions.0.len(), 1);
-    assigned_versions.0.into_iter().next().unwrap().1
+    assigned_versions
+        .into_map()
+        .remove(&cert.key())
+        .expect("the commit must have assigned versions for this certificate")
 }
 
 pub async fn send_batch_consensus_no_execution(

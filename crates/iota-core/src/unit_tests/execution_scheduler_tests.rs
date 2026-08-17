@@ -866,7 +866,7 @@ async fn execution_scheduler_mixed_batch_dispatches_plain_transaction_immediatel
 }
 
 /// The two schedulers fail differently on a missing shared version assignment,
-/// and both halves are pinned deliberately. Such a transaction panics in
+/// and there is a test for each of them. Such a transaction panics in
 /// `get_input_object_keys`, the check that stops execution on unassigned
 /// versions. Here that panic happens inside the detached per-transaction task,
 /// where the runtime swallows it and the transaction is dropped; the
