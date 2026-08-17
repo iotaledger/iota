@@ -3626,15 +3626,27 @@ impl AuthorityState {
         object_id: &ObjectId,
         version: Version,
     ) -> IotaResult<Option<(Object, Option<MoveStructLayout>)>> {
-        let Some(object) = self
-            .get_object_cache_reader()
-            .try_get_object_by_key(object_id, version)?
+        let Some(object) =
+            self.get_object_with_historic_fallback(&ObjectKey(*object_id, version))?
         else {
             return Ok(None);
         };
 
         let layout = self.get_object_layout(&object)?;
         Ok(Some((object, layout)))
+    }
+
+    /// The object at an exact version: the live table first, the buckets after
+    /// a miss there. See [`HistoricObjects::fill_missing`] for when a read may
+    /// do this.
+    fn get_object_with_historic_fallback(&self, key: &ObjectKey) -> IotaResult<Option<Object>> {
+        match self
+            .get_object_cache_reader()
+            .try_get_object_by_key(&key.0, key.1)?
+        {
+            Some(object) => Ok(Some(object)),
+            None => self.historic_objects.get(key),
+        }
     }
 
     fn get_object_layout(&self, object: &Object) -> IotaResult<Option<MoveStructLayout>> {
@@ -3882,20 +3894,34 @@ impl AuthorityState {
             .ok_or(IotaError::TransactionEventsNotFound { digest: *digest })
     }
 
+    /// The transaction's input objects, reaching the historic buckets for
+    /// versions the live table no longer holds. Use for assembling responses
+    /// only — see [`HistoricObjects::fill_missing`].
     pub fn get_transaction_input_objects(
         &self,
         effects: &TransactionEffects,
     ) -> anyhow::Result<Vec<Object>> {
-        iota_types::storage::get_transaction_input_objects(self.get_object_store(), effects)
-            .map_err(Into::into)
+        historic_objects::get_transaction_input_objects(
+            self.get_object_store().as_ref(),
+            &self.historic_objects,
+            effects,
+        )
+        .map_err(Into::into)
     }
 
+    /// The transaction's output objects, reaching the historic buckets for
+    /// versions the live table no longer holds. Use for assembling responses
+    /// only — see [`HistoricObjects::fill_missing`].
     pub fn get_transaction_output_objects(
         &self,
         effects: &TransactionEffects,
     ) -> anyhow::Result<Vec<Object>> {
-        iota_types::storage::get_transaction_output_objects(self.get_object_store(), effects)
-            .map_err(Into::into)
+        historic_objects::get_transaction_output_objects(
+            self.get_object_store().as_ref(),
+            &self.historic_objects,
+            effects,
+        )
+        .map_err(Into::into)
     }
 
     fn get_indexes(&self) -> IotaResult<Arc<RpcIndexesStore>> {
@@ -5822,8 +5848,7 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         object_id: ObjectId,
         version: VersionNumber,
     ) -> IotaResult<Option<Object>> {
-        self.get_object_cache_reader()
-            .try_get_object_by_key(&object_id, version)
+        self.get_object_with_historic_fallback(&ObjectKey(object_id, version))
     }
 
     #[instrument(skip_all)]
@@ -5831,9 +5856,12 @@ impl TransactionKeyValueStoreTrait for AuthorityState {
         &self,
         object_keys: &[ObjectKey],
     ) -> IotaResult<Vec<Option<Object>>> {
-        Ok(self
+        let mut objects = self
             .get_object_cache_reader()
-            .multi_get_objects_by_key(object_keys))
+            .multi_get_objects_by_key(object_keys);
+        self.historic_objects
+            .fill_missing(object_keys, &mut objects)?;
+        Ok(objects)
     }
 
     async fn multi_get_transactions_perpetual_checkpoints(
