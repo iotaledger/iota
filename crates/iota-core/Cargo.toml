@@ -134,10 +134,6 @@ name = "verified_cert_cache_bench"
 harness = false
 
 [[bench]]
-name = "traffic_controller_bench"
-harness = false
-
-[[bench]]
 name = "batch_verification_bench"
 harness = false
 
