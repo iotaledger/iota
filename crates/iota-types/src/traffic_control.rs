@@ -172,7 +172,7 @@ fn default_drain_timeout() -> u64 {
 #[serde(rename_all = "kebab-case")]
 pub struct FreqThresholdConfig {
     /// Sustained tallies per second allowed from a single direct client. Zero
-    /// blocks every client.
+    /// blocks every client; values above 10^9 are clamped.
     #[serde(default = "default_client_threshold")]
     pub client_threshold: u64,
     /// Sustained tallies per second allowed from a single proxied client.
@@ -180,7 +180,7 @@ pub struct FreqThresholdConfig {
     pub proxied_client_threshold: u64,
     /// Burst allowance, expressed in seconds of the sustained rate: a client
     /// may send up to `threshold * window_size_secs` tallies back to back
-    /// before being blocked.
+    /// before being blocked, with the total burst clamped at `u32::MAX`.
     #[serde(default = "default_window_size_secs")]
     pub window_size_secs: u64,
 }

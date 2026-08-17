@@ -15,6 +15,7 @@ dashmap.workspace = true
 futures.workspace = true
 governor.workspace = true
 http.workspace = true
+lru.workspace = true
 parking_lot.workspace = true
 rand.workspace = true
 reqwest.workspace = true

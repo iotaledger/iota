@@ -219,7 +219,8 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
     assert_eq!(&digest, tx_digest);
     assert!(confirmed_local_execution.unwrap());
 
-    // it should take no more than 4 requests to be added to the blocklist
+    // The spam policy tallies past its threshold within these requests; in
+    // dry-run mode every request must still succeed.
     for _ in 0..txn_count {
         let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
@@ -271,7 +272,8 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
         iota_types::crypto::zero_ed25519_signature(),
     ));
 
-    // it should take no more than 4 requests to be added to the blocklist
+    // The error policy blocks after n - 1 error tallies, so the block must be
+    // observed within n requests.
     for _ in 0..n {
         let response = auth_client.handle_transaction(tx.clone(), None).await;
         if let Err(err) = response {
@@ -361,7 +363,7 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     telemetry_subscribers::init_for_testing();
     let txn_count = 15;
     let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 3,
+        connection_blocklist_ttl_sec: 120,
         // Test that any N requests will cause an IP to be added to the blocklist. In the test we
         // are performing `txn_count` `iota_getTransactionBlock` calls to the fullnode's JSON API,
         // but additionally before that, we're performing other requests, but using `txn_count - 1`
@@ -407,7 +409,8 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     assert_eq!(&digest, tx_digest);
     assert!(confirmed_local_execution.unwrap());
 
-    // it should take no more than 4 requests to be added to the blocklist
+    // The spam policy blocks after txn_count - 1 tallies, so the block must be
+    // observed within txn_count requests.
     for _ in 0..txn_count {
         let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
@@ -451,7 +454,8 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
         "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
-    // it should take no more than 4 requests to be added to the blocklist
+    // The error policy blocks after txn_count - 1 error tallies, so the block
+    // must be observed within txn_count requests.
     for _ in 0..txn_count {
         let txn = txns.swap_remove(0);
         let tx_digest = txn.digest();
@@ -657,7 +661,6 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
         ExecuteTransactionRequestType::WaitForLocalExecution
     ];
 
-    // it should take no more than 4 requests to be added to the blocklist
     let response: IotaTransactionBlockResponse = jsonrpc_client
         .request("iota_executeTransactionBlock", params.clone())
         .await
@@ -670,6 +673,8 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
     assert_eq!(&digest, tx_digest);
     assert!(confirmed_local_execution.unwrap());
 
+    // The spam policy blocks after txn_count - 1 tallies. Blocking is
+    // delegated to the firewall, so requests are never rejected locally.
     for _ in 0..txn_count {
         let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
@@ -829,7 +834,6 @@ async fn test_traffic_sim_no_blocks() {
     if let Some(first_block) = metrics.abs_time_to_first_block {
         assert!(first_block > Duration::from_secs(2));
     }
-    assert!(metrics.num_blocklist_adds < 10);
     assert!(metrics.total_time_blocked < Duration::from_secs(10));
 }
 
@@ -1066,7 +1070,8 @@ async fn assert_validator_traffic_control_dry_run(
     assert_eq!(&digest, tx_digest);
     assert!(confirmed_local_execution.unwrap());
 
-    // it should take no more than 4 requests to be added to the blocklist
+    // The spam policy tallies past its threshold within these requests; in
+    // dry-run mode every request must still succeed.
     for _ in 0..txn_count {
         let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])

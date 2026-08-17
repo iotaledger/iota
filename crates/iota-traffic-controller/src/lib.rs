@@ -13,6 +13,7 @@ pub mod nodefw_test_server;
 pub mod policies;
 
 use std::{
+    collections::HashSet,
     fmt::Debug,
     fs,
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -35,6 +36,7 @@ use iota_types::{
         TrafficControlReconfigParams, Weight,
     },
 };
+use parking_lot::Mutex;
 use prometheus_filtered::IntGauge;
 use rand::Rng;
 use tokio::{
@@ -47,7 +49,7 @@ use tracing::{debug, error, info, warn};
 use self::metrics::TrafficControllerMetrics;
 use crate::{
     nodefw_client::{BlockAddress, BlockAddresses, NodeFWClient},
-    policies::{PolicyResponse, TrafficControlPolicy, TrafficTally},
+    policies::{MAX_CLIENT_THRESHOLD, PolicyResponse, TrafficControlPolicy, TrafficTally},
 };
 
 /// How often expired blocklist entries are dropped.
@@ -84,15 +86,33 @@ struct TallyState {
     spam_policy: Arc<TrafficControlPolicy>,
     error_policy: Arc<TrafficControlPolicy>,
     blocklists: Blocklists,
-    /// Queue of blocks handed to the remote firewall, so that the request
-    /// thread never waits on the delegation request.
-    firewall_delegation: Option<mpsc::Sender<Vec<BlockAddress>>>,
+    firewall_delegation: Option<FirewallDelegation>,
     /// Whether the firewall drain file is present, refreshed by the dead man's
     /// switch. Delegation pauses while it is.
     drainfile_present: Arc<AtomicBool>,
     /// Stops the background loops once the last controller holding this state
     /// is dropped.
     shutdown: CancellationToken,
+}
+
+/// Queue of blocks handed to the remote firewall, so that the request thread
+/// never waits on the delegation request.
+struct FirewallDelegation {
+    sender: mpsc::Sender<Vec<(IpAddr, BlockAddress)>>,
+    /// Clients whose block is queued or in flight, so that a client breaching
+    /// on every request enqueues at most one block per firewall roundtrip.
+    pending: Arc<Mutex<HashSet<IpAddr>>>,
+}
+
+impl FirewallDelegation {
+    /// Releases clients whose block never reached the delegation loop, which
+    /// would otherwise never enqueue a block again.
+    fn release_pending(&self, dropped: &[(IpAddr, BlockAddress)]) {
+        let mut pending = self.pending.lock();
+        for (client, _) in dropped {
+            pending.remove(client);
+        }
+    }
 }
 
 impl Drop for TallyState {
@@ -134,7 +154,9 @@ impl Debug for TrafficController {
 }
 
 impl TrafficController {
-    /// Must be called from within a tokio runtime, as it spawns the background
+    /// # Panics
+    ///
+    /// Panics when called outside a tokio runtime: it spawns the background
     /// tasks that expire blocklist entries and drive firewall delegation.
     pub fn init(
         policy_config: PolicyConfig,
@@ -143,15 +165,18 @@ impl TrafficController {
     ) -> Self {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
         let dry_run = Arc::new(AtomicBool::new(policy_config.dry_run));
-        set_policy_config_metrics(&policy_config, &metrics);
 
+        // Allowlist mode has no policies, so its threshold gauges stay unset.
         let acl = match &policy_config.allow_list {
             Some(allow_list) => Acl::Allowlist(parse_allowlist(allow_list)),
-            None => Acl::Blocklists(Arc::new(spawn_tally_state(
-                &policy_config,
-                &metrics,
-                fw_config.as_ref(),
-            ))),
+            None => {
+                set_policy_config_metrics(&policy_config, &metrics);
+                Acl::Blocklists(Arc::new(spawn_tally_state(
+                    &policy_config,
+                    &metrics,
+                    fw_config.as_ref(),
+                )))
+            }
         };
         Self {
             acl,
@@ -204,27 +229,34 @@ impl TrafficController {
             spam_threshold,
             dry_run,
         } = params;
+        // Validate the whole request first, so a rejected one applies nothing.
         if let Some(error_threshold) = error_threshold {
-            let state = self.tally_state().ok_or_else(|| {
-                IotaError::InvalidAdminRequest(
-                    "Cannot reconfigure error policy threshold in allowlist mode".to_string(),
-                )
-            })?;
-            update_policy_threshold(&state.error_policy, error_threshold)?;
-            self.metrics
-                .error_client_threshold
-                .set(error_threshold as i64);
+            validate_threshold(
+                self.tally_state().map(|state| state.error_policy.as_ref()),
+                error_threshold,
+                "error",
+            )?;
         }
         if let Some(spam_threshold) = spam_threshold {
-            let state = self.tally_state().ok_or_else(|| {
-                IotaError::InvalidAdminRequest(
-                    "Cannot reconfigure spam policy threshold in allowlist mode".to_string(),
-                )
-            })?;
-            update_policy_threshold(&state.spam_policy, spam_threshold)?;
-            self.metrics
-                .spam_client_threshold
-                .set(spam_threshold as i64);
+            validate_threshold(
+                self.tally_state().map(|state| state.spam_policy.as_ref()),
+                spam_threshold,
+                "spam",
+            )?;
+        }
+        if let Some(state) = self.tally_state() {
+            if let Some(error_threshold) = error_threshold {
+                state.error_policy.set_client_threshold(error_threshold);
+                self.metrics
+                    .error_client_threshold
+                    .set(error_threshold as i64);
+            }
+            if let Some(spam_threshold) = spam_threshold {
+                state.spam_policy.set_client_threshold(spam_threshold);
+                self.metrics
+                    .spam_client_threshold
+                    .set(spam_threshold as i64);
+            }
         }
         if let Some(dry_run) = dry_run {
             self.metrics.dry_run_enabled.set(dry_run as i64);
@@ -291,18 +323,29 @@ impl TrafficController {
     }
 
     fn delegate_policy_response(&self, response: PolicyResponse, state: &TallyState) {
-        let (Some(fw_config), Some(sender)) = (&self.fw_config, state.firewall_delegation.as_ref())
+        let (Some(fw_config), Some(delegation)) =
+            (&self.fw_config, state.firewall_delegation.as_ref())
         else {
             return;
         };
-        let addresses = block_addresses(response, &self.policy_config, fw_config.destination_port);
-        match sender.try_send(addresses) {
-            Err(TrySendError::Full(_)) => {
-                warn!("Firewall delegation queue full, dropping block");
+        let addresses: Vec<_> =
+            block_addresses(response, &self.policy_config, fw_config.destination_port)
+                .into_iter()
+                .filter(|(client, _)| delegation.pending.lock().insert(*client))
+                .collect();
+        if addresses.is_empty() {
+            return;
+        }
+        match delegation.sender.try_send(addresses) {
+            // Not logged: overflow recurs on every request of a sustained
+            // breach, and the metric already carries the signal.
+            Err(TrySendError::Full(dropped)) => {
                 self.metrics.firewall_delegation_overflow.inc();
+                delegation.release_pending(&dropped);
             }
-            Err(TrySendError::Closed(_)) => {
+            Err(TrySendError::Closed(dropped)) => {
                 warn!("Firewall delegation queue closed unexpectedly");
+                delegation.release_pending(&dropped);
             }
             Ok(()) => {}
         }
@@ -376,11 +419,16 @@ fn spawn_tally_state(
         metrics.deadmans_switch_enabled.set(present as i64);
 
         let (sender, receiver) = mpsc::channel(FIREWALL_DELEGATION_QUEUE_SIZE);
-        firewall_delegation = Some(sender);
+        let pending = Arc::new(Mutex::new(HashSet::new()));
+        firewall_delegation = Some(FirewallDelegation {
+            sender,
+            pending: pending.clone(),
+        });
         let nodefw_client = NodeFWClient::new(fw_config.remote_fw_url.clone());
         let delegation_metrics = metrics.clone();
         spawn_monitored_task!(run_firewall_delegation_loop(
             receiver,
+            pending,
             nodefw_client,
             delegation_metrics
         ));
@@ -427,31 +475,49 @@ fn spawn_tally_state(
     }
 }
 
-fn update_policy_threshold(policy: &TrafficControlPolicy, threshold: u64) -> Result<(), IotaError> {
-    policy
-        .set_client_threshold(threshold)
-        .then_some(())
-        .ok_or(IotaError::InvalidAdminRequest(
+/// Checks that `threshold` can be applied to `policy`, which is absent in
+/// allowlist mode.
+fn validate_threshold(
+    policy: Option<&TrafficControlPolicy>,
+    threshold: u64,
+    kind: &str,
+) -> Result<(), IotaError> {
+    let Some(policy) = policy else {
+        return Err(IotaError::InvalidAdminRequest(format!(
+            "Cannot reconfigure {kind} policy threshold in allowlist mode"
+        )));
+    };
+    if threshold > MAX_CLIENT_THRESHOLD {
+        return Err(IotaError::InvalidAdminRequest(format!(
+            "Threshold {threshold} exceeds the maximum of {MAX_CLIENT_THRESHOLD}"
+        )));
+    }
+    if policy.client_threshold().is_none() {
+        return Err(IotaError::InvalidAdminRequest(
             "Unsupported prior policy type during traffic control reconfiguration".to_string(),
-        ))
+        ));
+    }
+    Ok(())
 }
 
+/// Reports the enforced thresholds, which the policies clamp at
+/// [`MAX_CLIENT_THRESHOLD`].
 fn set_policy_config_metrics(policy_config: &PolicyConfig, metrics: &TrafficControllerMetrics) {
     if let PolicyType::FreqThreshold(config) = &policy_config.spam_policy_type {
         metrics
             .spam_client_threshold
-            .set(config.client_threshold as i64);
+            .set(config.client_threshold.min(MAX_CLIENT_THRESHOLD) as i64);
         metrics
             .spam_proxied_client_threshold
-            .set(config.proxied_client_threshold as i64);
+            .set(config.proxied_client_threshold.min(MAX_CLIENT_THRESHOLD) as i64);
     }
     if let PolicyType::FreqThreshold(config) = &policy_config.error_policy_type {
         metrics
             .error_client_threshold
-            .set(config.client_threshold as i64);
+            .set(config.client_threshold.min(MAX_CLIENT_THRESHOLD) as i64);
         metrics
             .error_proxied_client_threshold
-            .set(config.proxied_client_threshold as i64);
+            .set(config.proxied_client_threshold.min(MAX_CLIENT_THRESHOLD) as i64);
     }
 }
 
@@ -549,7 +615,7 @@ fn block_addresses(
     response: PolicyResponse,
     policy_config: &PolicyConfig,
     destination_port: u16,
-) -> Vec<BlockAddress> {
+) -> Vec<(IpAddr, BlockAddress)> {
     let PolicyResponse {
         block_client,
         block_proxied_client,
@@ -562,19 +628,25 @@ fn block_addresses(
     let mut addresses = vec![];
     if let Some(client) = block_client {
         debug!("Delegating client blocking to firewall");
-        addresses.push(BlockAddress {
-            source_address: client.to_string(),
-            destination_port,
-            ttl: *connection_blocklist_ttl_sec,
-        });
+        addresses.push((
+            client,
+            BlockAddress {
+                source_address: client.to_string(),
+                destination_port,
+                ttl: *connection_blocklist_ttl_sec,
+            },
+        ));
     }
     if let Some(client) = block_proxied_client {
         debug!("Delegating proxied client blocking to firewall");
-        addresses.push(BlockAddress {
-            source_address: client.to_string(),
-            destination_port,
-            ttl: *proxy_blocklist_ttl_sec,
-        });
+        addresses.push((
+            client,
+            BlockAddress {
+                source_address: client.to_string(),
+                destination_port,
+                ttl: *proxy_blocklist_ttl_sec,
+            },
+        ));
     }
     addresses
 }
@@ -614,10 +686,9 @@ async fn run_clear_blocklists_loop(
     }
 }
 
-/// The policies hold one rate limiter cell per client IP, so under client churn
-/// they would grow without bound. This function runs periodically to drop the
-/// cells that have fully replenished and are therefore indistinguishable from
-/// those of a client that has not been seen at all.
+/// The policies hold one rate limiter cell per client IP in a bounded cache.
+/// This function runs periodically to drop cells that have fully replenished,
+/// so memory also shrinks back once clients go quiet.
 async fn run_evict_idle_clients_loop(
     spam_policy: Arc<TrafficControlPolicy>,
     error_policy: Arc<TrafficControlPolicy>,
@@ -628,21 +699,20 @@ async fn run_evict_idle_clients_loop(
         spam_policy.evict_idle();
         error_policy.evict_idle();
         metrics
-            .rate_limited_clients
+            .rate_limiter_tracked_clients
             .set((spam_policy.tracked_clients() + error_policy.tracked_clients()) as i64);
     }
 }
 
 /// Posts delegated blocks to the remote firewall, off the request path.
 async fn run_firewall_delegation_loop(
-    mut receiver: mpsc::Receiver<Vec<BlockAddress>>,
+    mut receiver: mpsc::Receiver<Vec<(IpAddr, BlockAddress)>>,
+    pending: Arc<Mutex<HashSet<IpAddr>>>,
     node_fw_client: NodeFWClient,
     metrics: Arc<TrafficControllerMetrics>,
 ) {
-    while let Some(addresses) = receiver.recv().await {
-        if addresses.is_empty() {
-            continue;
-        }
+    while let Some(batch) = receiver.recv().await {
+        let (clients, addresses): (Vec<_>, Vec<_>) = batch.into_iter().unzip();
         metrics
             .blocks_delegated_to_firewall
             .inc_by(addresses.len() as u64);
@@ -652,6 +722,10 @@ async fn run_firewall_delegation_loop(
         {
             metrics.firewall_delegation_request_fail.inc();
             warn!("Failed to delegate blocklist to firewall: {err}");
+        }
+        let mut pending = pending.lock();
+        for client in clients {
+            pending.remove(&client);
         }
     }
     info!("TrafficController firewall delegation queue closed by all senders");

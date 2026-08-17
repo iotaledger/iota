@@ -38,8 +38,8 @@ This structure defines the traffic control policies:
 # The struct provides configuration for both direct client connections and proxied
 # connections through load balancers.
 policy-config:
-  # How to identify client IPs (SocketAddr or XForwardedFor)
-  client-id-source: SocketAddr  # or XForwardedFor(n) where n is the number of hops
+  # How to identify client IPs (socket-addr or x-forwarded-for)
+  client-id-source: socket-addr  # or x-forwarded-for: <hops>, where hops is the number of proxy hops
   
   # How long to block direct client IPs (in seconds)
   connection-blocklist-ttl-sec: 60
@@ -48,17 +48,14 @@ policy-config:
   proxy-blocklist-ttl-sec: 60
   
   # Policy for handling spam traffic
-  spam-policy-type: FreqThreshold
-    client-threshold: 1000  # Requests per second threshold for direct clients
-    proxied-client-threshold: 10  # Requests per second threshold for proxied clients
-    window-size-secs: 30  # Time window for rate calculation
-    update-interval-secs: 5  # Update interval for rate calculation
+  spam-policy-type:
+    freq-threshold:
+      client-threshold: 1000  # Sustained tallies per second per direct client; requests are sampled by spam-sample-rate, so the tolerated request rate is proportionally higher
+      proxied-client-threshold: 10  # Sustained tallies per second per proxied client, sampled the same way
+      window-size-secs: 30  # Burst allowance: client-threshold * window-size-secs requests back to back
   
   # Policy for handling error traffic
-  error-policy-type: NoOp  # Can be NoOp or FreqThreshold
-  
-  # Channel capacity for internal message passing
-  channel-capacity: 100
+  error-policy-type: NoOp  # NoOp, or a freq-threshold map like the spam policy above
   
   # Sampling rate for spam detection (0.0 to 1.0)
   spam-sample-rate: 0.2
@@ -105,17 +102,15 @@ If your validator node receives traffic directly from clients (no proxy or load 
 
 ```yaml
 policy-config:
-  client-id-source: SocketAddr
+  client-id-source: socket-addr
   connection-blocklist-ttl-sec: 60
   proxy-blocklist-ttl-sec: 0
   spam-policy-type:
     freq-threshold:
-      client-threshold: 100  # Adjust based on your expected legitimate traffic
-      proxied-client-threshold: 0  # Not used in non-proxy mode
+      client-threshold: 100  # Sustained tallies per second; requests are sampled by spam-sample-rate, so the tolerated request rate is proportionally higher
+      proxied-client-threshold: 10  # Currently ignored, as proxied client tallies are not reported; 0 would block every proxied client
       window-size-secs: 30
-      update-interval-secs: 5
   error-policy-type: NoOp
-  channel-capacity: 100
   spam-sample-rate: 0.2
   dry-run: false  # Set to true initially to monitor without blocking
 ```
@@ -135,12 +130,10 @@ policy-config:
   proxy-blocklist-ttl-sec: 60
   spam-policy-type:
     freq-threshold:
-      client-threshold: 1000  # Higher threshold for proxies that aggregate traffic
+      client-threshold: 1000  # Higher threshold for proxies that aggregate traffic; sampled by spam-sample-rate, so the tolerated request rate is proportionally higher
       proxied-client-threshold: 10  # Threshold for individual clients behind proxies
       window-size-secs: 30
-      update-interval-secs: 5
   error-policy-type: NoOp
-  channel-capacity: 100
   spam-sample-rate: 0.2
   dry-run: false
 ```
@@ -196,8 +189,8 @@ For production validator nodes, we recommend:
 
 ```yaml
 policy-config:
-  # Use SocketAddr for direct connections or x-forwarded-for for proxied setups
-  client-id-source: SocketAddr  # Adjust based on your setup
+  # Use socket-addr for direct connections or x-forwarded-for for proxied setups
+  client-id-source: socket-addr  # Adjust based on your setup
   
   connection-blocklist-ttl-sec: 300  # Block for 5 minutes
   proxy-blocklist-ttl-sec: 300  # Block for 5 minutes
@@ -205,10 +198,9 @@ policy-config:
   spam-policy-type:
     freq-threshold:
       # Adjust these thresholds based on your expected legitimate traffic
-      client-threshold: 50  # Requests per second
-      proxied-client-threshold: 10  # Requests per second per client behind proxy
+      client-threshold: 50  # Sustained tallies per second; with spam-sample-rate 0.5 below, that is roughly 100 requests per second per client
+      proxied-client-threshold: 10  # Sustained tallies per second per client behind proxy, sampled the same way
       window-size-secs: 30
-      update-interval-secs: 5
   
   # Consider enabling error policy for production
   error-policy-type:
@@ -216,9 +208,7 @@ policy-config:
       client-threshold: 20  # Error requests per second
       proxied-client-threshold: 5
       window-size-secs: 30
-      update-interval-secs: 5
   
-  channel-capacity: 100
   spam-sample-rate: 0.5  # Sample half of all requests
   dry-run: false  # Ensure this is false for actual protection
 ```
@@ -233,6 +223,8 @@ After enabling the `TrafficController`, monitor your node's metrics to ensure le
 - `requests_blocked_at_protocol`
 - `blocks_delegated_to_firewall`
 - `traffic_control_num_dry_run_blocked_requests`
+- `rate_limiter_tracked_clients`
+- `firewall_delegation_overflow`
 
 Start with `dry-run: true` to observe what would be blocked without actually blocking traffic, then adjust thresholds as needed before setting `dry-run: false`.
 
@@ -242,7 +234,7 @@ If legitimate traffic is being blocked:
 
 1. Increase the `client-threshold` and `proxied-client-threshold` values.
 2. Decrease the `connection-blocklist-ttl-sec` and `proxy-blocklist-ttl-sec` values.
-3. Adjust the `window-size-secs` to be longer for more forgiving rate calculation.
+3. Increase `window-size-secs` to tolerate larger bursts.
 
 If you're still experiencing DoS attacks:
 

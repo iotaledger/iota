@@ -677,7 +677,7 @@
         "y": 16
       },
       "id": 102,
-      "title": "Spam & Error Rates vs Thresholds",
+      "title": "Rate Limiter",
       "type": "row"
     },
     {
@@ -766,17 +766,27 @@
       },
       "targets": [
         {
-          "expr": "highest_direct_spam_rate{host=~\"$host\"}",
-          "legendFormat": "spam rate - {{host}}",
+          "expr": "spam_client_threshold{host=~\"$host\"}",
+          "legendFormat": "spam client threshold {{host}}",
           "refId": "A"
         },
         {
-          "expr": "spam_client_threshold{host=~\"$host\"}",
-          "legendFormat": "threshold - {{host}}",
+          "expr": "spam_proxied_client_threshold{host=~\"$host\"}",
+          "legendFormat": "spam proxied client threshold {{host}}",
           "refId": "B"
+        },
+        {
+          "expr": "error_client_threshold{host=~\"$host\"}",
+          "legendFormat": "error client threshold {{host}}",
+          "refId": "C"
+        },
+        {
+          "expr": "error_proxied_client_threshold{host=~\"$host\"}",
+          "legendFormat": "error proxied client threshold {{host}}",
+          "refId": "D"
         }
       ],
-      "title": "Direct Spam vs Threshold",
+      "title": "Configured Thresholds",
       "type": "timeseries"
     },
     {
@@ -865,18 +875,14 @@
       },
       "targets": [
         {
-          "expr": "highest_proxied_spam_rate{host=~\"$host\"}",
-          "legendFormat": "spam rate - {{host}}",
+          "expr": "rate_limiter_tracked_clients{host=~\"$host\"}",
+          "legendFormat": "tracked clients {{host}}",
           "refId": "A"
-        },
-        {
-          "expr": "spam_proxied_client_threshold{host=~\"$host\"}",
-          "legendFormat": "threshold - {{host}}",
-          "refId": "B"
         }
       ],
-      "title": "Proxied Spam vs Threshold",
-      "type": "timeseries"
+      "title": "Tracked Clients",
+      "type": "timeseries",
+      "description": "Client IPs currently holding rate limiter state, refreshed on each eviction sweep."
     },
     {
       "datasource": {
@@ -964,17 +970,12 @@
       },
       "targets": [
         {
-          "expr": "highest_direct_error_rate{host=~\"$host\"}",
-          "legendFormat": "error rate - {{host}}",
+          "expr": "dry_run_enabled{host=~\"$host\"}",
+          "legendFormat": "dry run {{host}}",
           "refId": "A"
-        },
-        {
-          "expr": "error_client_threshold{host=~\"$host\"}",
-          "legendFormat": "threshold - {{host}}",
-          "refId": "B"
         }
       ],
-      "title": "Direct Error vs Threshold",
+      "title": "Dry Run Enabled",
       "type": "timeseries"
     },
     {
@@ -1034,7 +1035,7 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "ops"
         },
         "overrides": []
       },
@@ -1063,17 +1064,12 @@
       },
       "targets": [
         {
-          "expr": "highest_proxied_error_rate{host=~\"$host\"}",
-          "legendFormat": "error rate - {{host}}",
+          "expr": "rate(requests_blocked_at_protocol{host=~\"$host\"}[$__rate_interval])",
+          "legendFormat": "blocked/s {{host}}",
           "refId": "A"
-        },
-        {
-          "expr": "error_proxied_client_threshold{host=~\"$host\"}",
-          "legendFormat": "threshold - {{host}}",
-          "refId": "B"
         }
       ],
-      "title": "Proxied Error vs Threshold",
+      "title": "Requests Blocked",
       "type": "timeseries"
     },
     {
@@ -1461,12 +1457,12 @@
       },
       "targets": [
         {
-          "expr": "rate(tally_channel_overflow{host=~\"$host\"}[$__rate_interval])",
-          "legendFormat": "{{host}}",
+          "expr": "rate(firewall_delegation_overflow{host=~\"$host\"}[$__rate_interval])",
+          "legendFormat": "dropped blocks/s {{host}}",
           "refId": "A"
         }
       ],
-      "title": "Tally Channel Overflow",
+      "title": "Firewall Delegation Overflow",
       "type": "timeseries"
     }
   ],
