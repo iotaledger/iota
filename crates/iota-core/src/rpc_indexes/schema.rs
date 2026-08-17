@@ -98,12 +98,12 @@ pub const DB_PREFIX_HISTORIC_EVENT_BY_TIME: u8 = 12;
 
 /// The column-family name of `epoch`'s history bucket.
 pub fn history_cf_name(epoch: EpochId) -> String {
-    crate::rpc_index_history::bucket_cf_name(HISTORY_CF_PREFIX, epoch)
+    crate::epoch_buckets::bucket_cf_name(HISTORY_CF_PREFIX, epoch)
 }
 
 /// The epoch of a history column family, `None` for other names.
 pub fn history_cf_epoch(cf_name: &str) -> Option<EpochId> {
-    crate::rpc_index_history::bucket_cf_epoch(HISTORY_CF_PREFIX, cf_name)
+    crate::epoch_buckets::bucket_cf_epoch(HISTORY_CF_PREFIX, cf_name)
 }
 
 #[derive(Default, Copy, Clone, Debug, Eq, PartialEq)]
