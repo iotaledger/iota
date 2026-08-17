@@ -3,7 +3,7 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectId, ObjectVersion};
+use iota_sdk_types::{Address, ObjectId, ObjectVersion};
 use iota_types::{
     object::{Object, ObjectSet},
     storage::ObjectKey,
@@ -22,12 +22,35 @@ fn test_superseded_captures_runtime_loaded_objects() {
 
     // The tracked set holds it; the declared inputs do not.
     let input_objects = BTreeMap::new();
-    let read_objects = ObjectSet::from_iter([child.clone()]);
+    let mut read_objects = ObjectSet::default();
+    read_objects.insert(child.clone());
     let modified_at = vec![ObjectVersion::new(child.id(), child.version())];
 
     let superseded = build_superseded(&modified_at, &input_objects, &read_objects);
 
     assert_eq!(superseded, vec![(child_key, child)]);
+}
+
+/// When a key is present in both sources, the pre-image comes from
+/// `input_objects` rather than `read_objects` — the declared input is
+/// checked first, and the tracked read objects are only a fallback for
+/// what the inputs don't cover.
+#[test]
+fn test_superseded_prefers_input_objects_over_read_objects() {
+    let id = ObjectId::random();
+    let from_input = Object::with_id_owner_gas_for_testing(id, Address::ZERO, 1);
+    let from_read = Object::with_id_owner_gas_for_testing(id, Address::ZERO, 2);
+    let key = ObjectKey(id, from_input.version());
+
+    let mut input_objects = BTreeMap::new();
+    input_objects.insert(id, from_input.clone());
+    let mut read_objects = ObjectSet::default();
+    read_objects.insert(from_read);
+    let modified_at = vec![ObjectVersion::new(id, from_input.version())];
+
+    let superseded = build_superseded(&modified_at, &input_objects, &read_objects);
+
+    assert_eq!(superseded, vec![(key, from_input)]);
 }
 
 /// A modified version present in neither source is dropped rather than
