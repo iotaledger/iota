@@ -11,13 +11,15 @@ use crate::{mock_account::Account, tx_generator::TxGenerator};
 pub struct RootObjectCreateTxGenerator {
     move_package: ObjectId,
     child_per_root: u64,
+    child_payload_size: u64,
 }
 
 impl RootObjectCreateTxGenerator {
-    pub fn new(move_package: ObjectId, child_per_root: u64) -> Self {
+    pub fn new(move_package: ObjectId, child_per_root: u64, child_payload_size: u64) -> Self {
         Self {
             move_package,
             child_per_root,
+            child_payload_size,
         }
     }
 }
@@ -33,7 +35,10 @@ impl TxGenerator for RootObjectCreateTxGenerator {
             self.move_package,
             "benchmark",
             "generate_dynamic_fields",
-            vec![CallArg::pure(&self.child_per_root)],
+            vec![
+                CallArg::pure(&self.child_per_root),
+                CallArg::pure(&self.child_payload_size),
+            ],
         )
         .build_and_sign(account.private_key.as_ref())
     }

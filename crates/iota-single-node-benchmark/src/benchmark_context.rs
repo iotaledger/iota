@@ -26,11 +26,14 @@ use iota_types::{
 use tracing::info;
 
 use crate::{
-    command::Component,
+    command::{BenchmarkConfig, Component},
     mock_account::{Account, batch_create_account_and_gas},
     mock_storage::InMemoryObjectStore,
     single_node::SingleValidator,
-    tx_generator::{RootObjectCreateTxGenerator, SharedObjectCreateTxGenerator, TxGenerator},
+    tx_generator::{
+        OwnedObjectCreateTxGenerator, RootObjectCreateTxGenerator, SharedObjectCreateTxGenerator,
+        TxGenerator,
+    },
     workload::Workload,
 };
 
@@ -39,17 +42,38 @@ pub struct BenchmarkContext {
     user_accounts: BTreeMap<Address, Account>,
     admin_account: Account,
     benchmark_component: Component,
+    /// Execute transactions one at a time instead of concurrently, so
+    /// per-transaction wall-clock measurements are not contaminated by
+    /// contention.
+    sequential: bool,
+}
+
+/// Total size of all files under `path`, for tracking store growth.
+fn dir_size_bytes(path: &std::path::Path) -> u64 {
+    let mut total = 0;
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            if let Ok(meta) = entry.metadata() {
+                if meta.is_dir() {
+                    total += dir_size_bytes(&entry.path());
+                } else {
+                    total += meta.len();
+                }
+            }
+        }
+    }
+    total
 }
 
 impl BenchmarkContext {
     pub(crate) async fn new(
         workload: Workload,
         benchmark_component: Component,
-        print_sample_tx: bool,
+        config: &BenchmarkConfig,
     ) -> Self {
         // Reserve 1 account for package publishing.
         let mut num_accounts = workload.num_accounts() + 1;
-        if print_sample_tx {
+        if config.print_sample_tx {
             // Reserver another one to generate a sample transaction.
             num_accounts += 1;
         }
@@ -66,14 +90,132 @@ impl BenchmarkContext {
         let (_, admin_account) = user_accounts.pop_last().unwrap();
 
         info!("Initializing validator");
-        let validator = SingleValidator::new(&genesis_gas_objects[..], benchmark_component).await;
+        let validator = SingleValidator::new(
+            &genesis_gas_objects[..],
+            benchmark_component,
+            config.db_path.as_deref(),
+            config.enable_write_stall,
+        )
+        .await;
 
         Self {
             validator,
             user_accounts,
             admin_account,
             benchmark_component,
+            sequential: config.sequential,
         }
+    }
+
+    /// Sustained mode: run rounds of the workload until the deadline,
+    /// committing every round's outputs through the real store and reusing
+    /// the accounts (gas and mutated objects are refreshed from effects).
+    /// Emits one JSON line of round statistics to `stats_output`.
+    pub(crate) async fn benchmark_sustained_execution(
+        &mut self,
+        tx_generator: Arc<dyn TxGenerator>,
+        config: &BenchmarkConfig,
+    ) {
+        assert!(
+            matches!(self.benchmark_component, Component::Baseline),
+            "sustained mode supports the baseline component only"
+        );
+        let db_path = config
+            .db_path
+            .as_ref()
+            .expect("sustained mode requires --db-path");
+        let mut stats_out = config
+            .stats_output
+            .as_ref()
+            .map(|p| std::fs::File::create(p).expect("failed to create --stats-output"));
+        let start = std::time::Instant::now();
+        let deadline = start + std::time::Duration::from_secs(config.duration_secs);
+        let cache_commit = self.validator.get_validator().get_cache_commit().clone();
+        let mut round = 0u64;
+        let mut total_txs = 0u64;
+        info!(
+            "Sustained mode: {} txs per round for {}s",
+            self.user_accounts.len(),
+            config.duration_secs
+        );
+        while std::time::Instant::now() < deadline {
+            let generate_start = std::time::Instant::now();
+            let transactions = self.generate_transactions(tx_generator.clone()).await;
+            let transactions = self.certify_transactions(transactions, true).await;
+            let generate_ms = generate_start.elapsed().as_millis() as u64;
+
+            let execute_start = std::time::Instant::now();
+            let tasks: FuturesUnordered<_> = transactions
+                .into_iter()
+                .map(|tx| {
+                    let validator = self.validator();
+                    tokio::spawn(async move {
+                        validator.execute_certificate(tx, Component::Baseline).await
+                    })
+                })
+                .collect();
+            let results: Vec<_> = tasks.collect().await;
+            let effects: Vec<TransactionEffects> =
+                results.into_iter().map(|r| r.unwrap()).collect();
+            let execute_ms = execute_start.elapsed().as_millis() as u64;
+            let Some(first) = effects.first() else { break };
+            let epoch = first.epoch();
+
+            // Commit each transaction's outputs to the store, in order — the
+            // same serial writer semantics as the checkpoint executor.
+            let commit_start = std::time::Instant::now();
+            for effect in &effects {
+                let digest = *effect.transaction_digest();
+                let batch = cache_commit.build_db_batch(epoch, 0, std::slice::from_ref(&digest));
+                cache_commit.commit_transaction_outputs(
+                    epoch,
+                    batch,
+                    std::slice::from_ref(&digest),
+                );
+            }
+            let commit_ms = commit_start.elapsed().as_millis() as u64;
+
+            let mut new_refs = HashMap::new();
+            let (mut created, mut mutated, mut deleted) = (0u64, 0u64, 0u64);
+            for effect in &effects {
+                created += effect.created().len() as u64;
+                deleted += effect.deleted().len() as u64;
+                for OwnedObjectReference { reference: oref, .. } in effect.mutated() {
+                    new_refs.insert(oref.object_id, oref);
+                    mutated += 1;
+                }
+            }
+            let txs = effects.len() as u64;
+            total_txs += txs;
+            self.refresh_gas_objects(new_refs);
+
+            let db_bytes = dir_size_bytes(db_path);
+            let line = serde_json::json!({
+                "round": round,
+                "elapsed_secs": start.elapsed().as_secs(),
+                "txs": txs,
+                "generate_ms": generate_ms,
+                "execute_ms": execute_ms,
+                "commit_ms": commit_ms,
+                "created": created,
+                "mutated": mutated,
+                "deleted": deleted,
+                "db_bytes": db_bytes,
+            });
+            if let Some(out) = stats_out.as_mut() {
+                use std::io::Write;
+                writeln!(out, "{line}").expect("failed to write --stats-output");
+            }
+            info!(
+                "round {round}: {txs} txs, execute {execute_ms}ms, commit {commit_ms}ms, db {} MiB",
+                db_bytes >> 20
+            );
+            round += 1;
+        }
+        info!(
+            "Sustained mode finished: {round} rounds, {total_txs} txs in {:.0}s",
+            start.elapsed().as_secs_f64()
+        );
     }
 
     pub(crate) fn validator(&self) -> SingleValidator {
@@ -96,6 +238,54 @@ impl BenchmarkContext {
         package
     }
 
+    /// Mint per-account owned-object fixtures for the mutate-in-place and
+    /// burn workloads.
+    pub(crate) async fn preparing_owned_objects(
+        &mut self,
+        move_package: ObjectId,
+        objects_per_account: u64,
+        object_size: u16,
+    ) -> HashMap<Address, Vec<ObjectReference>> {
+        let mut owned_objects: HashMap<Address, Vec<ObjectReference>> = HashMap::new();
+        if objects_per_account == 0 {
+            return owned_objects;
+        }
+        info!("Preparing owned-object fixtures");
+        let transactions = self
+            .generate_transactions(Arc::new(OwnedObjectCreateTxGenerator::new(
+                move_package,
+                objects_per_account,
+                object_size,
+            )))
+            .await;
+        let results = self.execute_raw_transactions(transactions).await;
+        let mut new_gas_objects = HashMap::new();
+        let cache_commit = self.validator().get_validator().get_cache_commit().clone();
+        for effects in results {
+            let batch =
+                cache_commit.build_db_batch(effects.epoch(), 0, &[*effects.transaction_digest()]);
+            cache_commit.commit_transaction_outputs(
+                effects.epoch(),
+                batch,
+                &[*effects.transaction_digest()],
+            );
+            for OwnedObjectReference {
+                reference: oref,
+                owner,
+            } in effects.created()
+            {
+                if let Some(owner) = owner.as_opt_address() {
+                    owned_objects.entry(*owner).or_default().push(oref);
+                }
+            }
+            let gas_object = effects.gas_object().reference;
+            new_gas_objects.insert(gas_object.object_id, gas_object);
+        }
+        self.refresh_gas_objects(new_gas_objects);
+        info!("Finished preparing owned-object fixtures");
+        owned_objects
+    }
+
     /// In order to benchmark transactions that can read dynamic fields, we must
     /// first create a root object with dynamic fields for each account
     /// address.
@@ -103,6 +293,7 @@ impl BenchmarkContext {
         &mut self,
         move_package: ObjectId,
         num_dynamic_fields: u64,
+        payload_size: u64,
     ) -> HashMap<Address, ObjectReference> {
         let mut root_objects = HashMap::new();
 
@@ -115,6 +306,7 @@ impl BenchmarkContext {
             .generate_transactions(Arc::new(RootObjectCreateTxGenerator::new(
                 move_package,
                 num_dynamic_fields,
+                payload_size,
             )))
             .await;
         let results = self
@@ -296,7 +488,7 @@ impl BenchmarkContext {
         );
 
         let has_shared_object = transactions.iter().any(|tx| tx.contains_shared_object());
-        if has_shared_object {
+        if has_shared_object || self.sequential {
             // With shared objects, we must execute each transaction in order.
             for transaction in transactions {
                 self.validator
@@ -472,7 +664,7 @@ impl BenchmarkContext {
         transactions: Vec<CertifiedTransaction>,
     ) -> Vec<TransactionEffects> {
         let has_shared_object = transactions.iter().any(|tx| tx.contains_shared_object());
-        if has_shared_object {
+        if has_shared_object || self.sequential {
             // With shared objects, we must execute each transaction in order.
             let mut effects = Vec::new();
             for transaction in transactions {

@@ -1,5 +1,6 @@
 [package]
 name = "iota-single-node-benchmark"
+default-run = "iota-single-node-benchmark"
 version.workspace = true
 edition = "2021"
 license = "Apache-2.0"
@@ -8,14 +9,19 @@ publish = false
 [dependencies]
 # external dependencies
 async-trait.workspace = true
+bcs.workspace = true
 clap.workspace = true
 futures.workspace = true
 once_cell.workspace = true
 serde.workspace = true
+fastcrypto.workspace = true
+libc = "0.2"
+rand.workspace = true
 serde_json.workspace = true
 strum.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time"] }
 tracing.workspace = true
+tracing-subscriber.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
@@ -27,6 +33,7 @@ iota-storage.workspace = true
 iota-test-transaction-builder.workspace = true
 iota-transaction-checks.workspace = true
 iota-types.workspace = true
+iota-framework.workspace = true
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true

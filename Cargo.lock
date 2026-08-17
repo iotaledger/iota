@@ -7751,10 +7751,13 @@ name = "iota-single-node-benchmark"
 version = "1.32.0-alpha"
 dependencies = [
  "async-trait",
+ "bcs",
  "clap",
+ "fastcrypto",
  "futures",
  "iota-config",
  "iota-core",
+ "iota-framework",
  "iota-macros",
  "iota-metrics",
  "iota-move-build",
@@ -7765,6 +7768,7 @@ dependencies = [
  "iota-test-transaction-builder",
  "iota-transaction-checks",
  "iota-types",
+ "libc",
  "move-binary-format",
  "move-bytecode-utils",
  "move-core-types",
@@ -7772,12 +7776,14 @@ dependencies = [
  "move-symbol-pool",
  "once_cell",
  "prometheus-filtered",
+ "rand 0.8.6",
  "serde",
  "serde_json",
  "strum 0.27.2",
  "telemetry-subscribers",
  "tokio",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

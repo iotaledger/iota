@@ -49,21 +49,31 @@ pub struct SingleValidator {
 }
 
 impl SingleValidator {
-    pub(crate) async fn new(genesis_objects: &[Object], component: Component) -> Self {
+    pub(crate) async fn new(
+        genesis_objects: &[Object],
+        component: Component,
+        db_path: Option<&std::path::Path>,
+        enable_write_stall: bool,
+    ) -> Self {
         // Every component certifies its transactions first, and the validator
         // entry points measured here (`handle_transaction`,
         // `handle_certificate_v1`) reject requests once the P-COOL flow is on,
         // so the benchmark runs the certified flow.
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
         protocol_config.set_enable_pcool_flow_for_testing(false);
-        let validator = TestAuthorityBuilder::new()
+        let mut builder = TestAuthorityBuilder::new()
             .with_protocol_config(protocol_config)
             .disable_indexer()
             .with_starting_objects(genesis_objects)
             // This is needed to properly run checkpoint executor.
-            .insert_genesis_checkpoint()
-            .build()
-            .await;
+            .insert_genesis_checkpoint();
+        if let Some(path) = db_path {
+            builder = builder.with_store_base_path(path.to_path_buf());
+        }
+        if enable_write_stall {
+            builder = builder.with_write_stalls_enabled();
+        }
+        let validator = builder.build().await;
         let epoch_store = validator.epoch_store_for_testing().clone();
         let consensus_mode = match component {
             Component::ValidatorWithFakeConsensus => ConsensusMode::DirectSequencing,
@@ -210,6 +220,9 @@ impl SingleValidator {
         store: InMemoryObjectStore,
         transaction: CertifiedTransaction,
     ) -> TransactionEffects {
+        // Same measured window as `AuthorityState::execute_transaction`:
+        // opens before input-object loading, since input reads are lane work.
+        let execution_wall_clock_start = std::time::Instant::now();
         let input_objects = transaction.transaction().input_objects().unwrap();
         let objects = store
             .read_objects_for_execution(&self.epoch_store, &transaction.key(), &input_objects)
@@ -226,7 +239,7 @@ impl SingleValidator {
         )
         .unwrap();
         let (kind, signer, gas_data) = executable.transaction().execution_parts();
-        let (inner_temp_store, _, effects, _) =
+        let (inner_temp_store, gas_status, effects, _) =
             self.epoch_store.executor().execute_transaction_to_effects(
                 &store,
                 self.epoch_store.protocol_config(),
@@ -244,6 +257,18 @@ impl SingleValidator {
                 &mut None,
             );
         assert!(effects.status().is_success());
+        // This path bypasses `AuthorityState::execute_transaction`, so it
+        // must emit the per-transaction profile event itself for
+        // --profile-output to capture.
+        let measured_ns = execution_wall_clock_start.elapsed().as_nanos() as u64;
+        tracing::trace!(
+            target: "resource_profile",
+            tx_digest = ?executable.digest(),
+            measured_ns,
+            profile_json = %serde_json::to_string(&gas_status.resource_profile())
+                .expect("ResourceProfile contains only integers, strings, and maps"),
+            "transaction execution wall-clock"
+        );
         store.commit_objects(inner_temp_store);
         effects
     }
