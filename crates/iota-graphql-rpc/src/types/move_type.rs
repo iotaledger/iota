@@ -151,9 +151,7 @@ impl MoveType {
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
 
-        let Some(layout) = self.layout_impl(resolver).await.extend()? else {
-            return Ok(MoveTypeLayout::InvalidType);
-        };
+        let layout = self.layout_impl(resolver).await.extend()?;
 
         MoveTypeLayout::try_from(layout).extend()
     }
@@ -166,9 +164,7 @@ impl MoveType {
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
 
-        let Some(abilities) = self.abilities_impl(resolver).await.extend()? else {
-            return Ok(vec![]);
-        };
+        let abilities = self.abilities_impl(resolver).await.extend()?;
 
         Ok(abilities.into_iter().map(MoveAbility::from).collect())
     }
@@ -182,32 +178,28 @@ impl MoveType {
     pub(crate) async fn layout_impl(
         &self,
         resolver: &PackageResolver,
-    ) -> Result<Option<A::MoveTypeLayout>, Error> {
-        Ok(Some(
-            resolver
-                .type_layout(self.native.clone())
-                .await
-                .map_err(|e| {
-                    Error::Internal(format!(
-                        "Error calculating layout for {}: {e}",
-                        self.native.to_canonical_string(/* with_prefix */ true),
-                    ))
-                })?,
-        ))
+    ) -> Result<A::MoveTypeLayout, Error> {
+        Ok(resolver
+            .type_layout(self.native.clone())
+            .await
+            .map_err(|e| {
+                Error::Internal(format!(
+                    "Error calculating layout for {}: {e}",
+                    self.native.to_canonical_string(/* with_prefix */ true),
+                ))
+            })?)
     }
 
     pub(crate) async fn abilities_impl(
         &self,
         resolver: &PackageResolver,
-    ) -> Result<Option<AbilitySet>, Error> {
-        Ok(Some(
-            resolver.abilities(self.native.clone()).await.map_err(|e| {
-                Error::Internal(format!(
-                    "Error calculating abilities for {}: {e}",
-                    self.native.to_canonical_string(/* with_prefix */ true),
-                ))
-            })?,
-        ))
+    ) -> Result<AbilitySet, Error> {
+        Ok(resolver.abilities(self.native.clone()).await.map_err(|e| {
+            Error::Internal(format!(
+                "Error calculating abilities for {}: {e}",
+                self.native.to_canonical_string(/* with_prefix */ true),
+            ))
+        })?)
     }
 }
 
