@@ -7,7 +7,7 @@ use std::{
     fmt,
 };
 
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag, Version};
+use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag, Version};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
@@ -125,16 +125,22 @@ pub fn check_coin_deny_list_v1(
 }
 
 /// Checks `sender` against the deny list of every non-gas coin type among
-/// `objects` while returning an [`ExecutionError`] that folds into
-/// `ExecutionStatus::Failure`.
+/// `objects` and the declared `receiving_objects`, while returning an
+/// [`ExecutionError`] that folds into `ExecutionStatus::Failure`.
 ///
 /// The read is epoch-gated, so the verdict is the same on every validator.
 pub fn check_coin_deny_list_v1_for_sender_during_execution(
     sender: Address,
     objects: &BTreeMap<ObjectId, Object>,
+    receiving_objects: &[ObjectReference],
     cur_epoch: EpochId,
     object_store: &dyn ObjectStore,
 ) -> DenyListResult {
+    // A receiving object absent from the store cannot be received (`receive`
+    // aborts), so it is skipped rather than failing the check.
+    let receiving = receiving_objects
+        .iter()
+        .filter_map(|objref| object_store.get_object(&objref.object_id));
     let coin_types = objects
         .values()
         .filter(|obj| !obj.is_gas_coin())
@@ -142,6 +148,13 @@ pub fn check_coin_deny_list_v1_for_sender_during_execution(
             obj.coin_type_opt()
                 .map(|coin_type| coin_type.to_canonical_string(false))
         })
+        .chain(receiving.filter_map(|obj| {
+            if obj.is_gas_coin() {
+                return None;
+            }
+            obj.coin_type_opt()
+                .map(|coin_type| coin_type.to_canonical_string(false))
+        }))
         .collect::<BTreeSet<_>>();
     let num_non_gas_coin_owners = coin_types.len() as u64;
     DenyListResult {

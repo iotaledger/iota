@@ -857,7 +857,8 @@ mod checked {
             // If the pre-execution (Move authentication) succeeded, proceed with
             // the main execution loop; else propagate the pre-execution error.
             let mut execution_result = pre_execution_result_opt.unwrap_or(Ok(())).and_then(|_| {
-                // Coin deny-list check over the input objects for attested transactions. Runs
+                // Coin deny-list check over the input and declared receiving
+                // objects for attested transactions. Runs
                 // only after Move authentication has succeeded, so an authentication failure —
                 // which is not attributable to the issuer — is never masked by a coin-deny
                 // failure that would charge the issuer. Enforced here so a stale-attestation

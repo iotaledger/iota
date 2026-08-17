@@ -850,13 +850,14 @@ type ModifiedObjectInfo<'a> = (
 );
 
 impl TemporaryStore<'_> {
-    /// Coin deny-list check over the transaction's input objects, run during
-    /// execution of attested transactions. Checks `sender` against every
-    /// non-gas input coin type.
+    /// Coin deny-list check over the transaction's input and declared
+    /// receiving objects, run during execution of attested transactions.
+    /// Checks `sender` against every non-gas coin type among them.
     pub(crate) fn check_input_coin_deny_list(&self, sender: Address) -> DenyListResult {
         let result = check_coin_deny_list_v1_for_sender_during_execution(
             sender,
             &self.input_objects,
+            &self.receiving_objects,
             self.cur_epoch,
             self.store.as_object_store(),
         );
