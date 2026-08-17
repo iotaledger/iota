@@ -3623,12 +3623,17 @@ type Query {
 	transactionBlock(digest: String!): TransactionBlock
 	"""
 	Fetch multiple transaction blocks by their digests.
+	This includes all transactions, even if they are not checkpointed yet.
+	"""
+	transactionBlocksByDigests(digests: [String!]!): [TransactionBlock]! @deprecated(reason: "Use `transactionsByDigests` instead. Will be removed in v1.39.")
+	"""
+	Fetch multiple transaction blocks by their digests.
 	
 	Unlike `transactionBlocks(filter: { transactionIds })`, this includes
 	all transactions, even if they are not checkpointed yet.
 	The connection is ordered by transaction digest.
 	"""
-	transactionBlocksByDigests(first: Int, after: String, last: Int, before: String, digests: [String!]!): TransactionBlockConnection!
+	transactionsByDigests(first: Int, after: String, last: Int, before: String, digests: [String!]!): TransactionBlockConnection!
 	"""
 	The coin objects that exist in the network.
 	

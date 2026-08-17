@@ -366,11 +366,41 @@ impl Query {
     }
 
     /// Fetch multiple transaction blocks by their digests.
+    /// This includes all transactions, even if they are not checkpointed yet.
+    #[graphql(deprecation = "Use `transactionsByDigests` instead. Will be removed in v1.39.")]
+    async fn transaction_blocks_by_digests(
+        &self,
+        ctx: &Context<'_>,
+        digests: Vec<Digest>,
+    ) -> Result<Vec<Option<TransactionBlock>>> {
+        let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
+        if digests.len() > limits.max_transaction_ids as usize {
+            return Err(Error::Client(format!(
+                "Transaction IDs exceed max limit of '{}'",
+                limits.max_transaction_ids
+            ))
+            .into());
+        }
+
+        let Watermark { checkpoint, .. } = *ctx.data()?;
+        let mut result = TransactionBlock::multi_query(ctx, digests.clone(), checkpoint)
+            .await
+            .extend()?;
+
+        // Map each input digest to Some(transaction) if found, None otherwise
+        // This maintains the same order and length as the input vector
+        Ok(digests
+            .into_iter()
+            .map(|digest| result.remove(&digest))
+            .collect())
+    }
+
+    /// Fetch multiple transaction blocks by their digests.
     ///
     /// Unlike `transactionBlocks(filter: { transactionIds })`, this includes
     /// all transactions, even if they are not checkpointed yet.
     /// The connection is ordered by transaction digest.
-    async fn transaction_blocks_by_digests(
+    async fn transactions_by_digests(
         &self,
         ctx: &Context<'_>,
         first: Option<u64>,

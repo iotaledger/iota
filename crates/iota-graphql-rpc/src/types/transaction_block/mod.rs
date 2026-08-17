@@ -154,7 +154,7 @@ impl DigestKey {
     }
 }
 
-/// Cursor for the paginated `transactionBlocksByDigests`.
+/// Cursor for the paginated `transactionsByDigests`.
 ///
 /// Pages are ordered by transaction digest, which works for both
 /// checkpointed and optimistic transactions.

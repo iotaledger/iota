@@ -601,6 +601,88 @@ mod tests {
             r#"
                 {{
                     transactionBlocksByDigests(digests: ["{digest1}", "{digest2}", "{fake_digest}"]){{
+                        digest
+                        sender {{
+                            address
+                        }}
+                    }}
+                }}
+            "#,
+        );
+
+        let response_body = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, vec![], vec![])
+            .await
+            .unwrap()
+            .response_body_json();
+        let transactions = response_body["data"]["transactionBlocksByDigests"]
+            .as_array()
+            .unwrap();
+
+        assert_eq!(
+            transactions.len(),
+            3,
+            "3 results should be present in the response (2 real transactions and 1 null for fake digest)"
+        );
+
+        assert_eq!(
+            transactions[0]["digest"].as_str().unwrap(),
+            digest1.to_string(),
+            "First transaction should match digest1 (preserve input order)"
+        );
+        assert_eq!(
+            transactions[1]["digest"].as_str().unwrap(),
+            digest2.to_string(),
+            "Second transaction should match digest2 (preserve input order)"
+        );
+        assert!(
+            transactions[2].is_null(),
+            "Third transaction should be null for the fake digest"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_transactions_by_digests() {
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
+        let sender1 = addresses[0];
+        let sender2 = addresses[1];
+        let recipient = addresses[2];
+
+        let tx1 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender1)
+            .await
+            .transfer_iota(Some(1_000), recipient)
+            .build();
+        let signed_tx1 = cluster.sign_transaction(&tx1);
+        let digest1 = signed_tx1.digest();
+
+        let tx2 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender2)
+            .await
+            .transfer_iota(Some(2_000), recipient)
+            .build();
+        let signed_tx2 = cluster.sign_transaction(&tx2);
+        let digest2 = signed_tx2.digest();
+
+        let response_fields = "effects { transactionBlock { digest } } errors";
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx1, response_fields).await;
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx2, response_fields).await;
+
+        let fake_digest = TransactionDigest::random().to_string();
+        let query = format!(
+            r#"
+                {{
+                    transactionsByDigests(digests: ["{digest1}", "{digest2}", "{fake_digest}"]){{
                         nodes {{
                             digest
                             sender {{
@@ -618,7 +700,7 @@ mod tests {
             .await
             .unwrap()
             .response_body_json();
-        let transactions = response_body["data"]["transactionBlocksByDigests"]["nodes"]
+        let transactions = response_body["data"]["transactionsByDigests"]["nodes"]
             .as_array()
             .unwrap();
         let returned_digests: Vec<&str> = transactions
@@ -643,83 +725,6 @@ mod tests {
             !returned_digests.contains(&fake_digest.as_str()),
             "the fake digest should not be present"
         );
-    }
-
-    #[tokio::test]
-    #[serial]
-    async fn test_transaction_blocks_by_digests_includes_optimistic() {
-        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
-            ConnectionConfig::default(),
-            None,
-            ServiceConfig::test_defaults(),
-        )
-        .await;
-        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
-        let sender = addresses[0];
-        let recipient = addresses[1];
-
-        let tx = cluster
-            .validator_fullnode_handle
-            .test_transaction_builder_with_sender(sender)
-            .await
-            .transfer_iota(Some(1_000), recipient)
-            .build();
-        let signed_tx = cluster.sign_transaction(&tx);
-        let digest = signed_tx.digest();
-
-        let response_fields = "effects { transactionBlock { digest } } errors";
-        let raw_response =
-            mutation_execute_transaction(&cluster.graphql_client, &signed_tx, response_fields)
-                .await
-                .response_body_json();
-        let execute_res = &raw_response["data"]["executeTransactionBlock"];
-        assert!(execute_res["errors"].is_null());
-
-        let query = format!(
-            r#"
-                {{
-                    transactionBlocksByDigests(digests: ["{digest}"]) {{
-                        nodes {{ digest }}
-                    }}
-                }}
-            "#,
-        );
-
-        // Immediately fetch the transaction by digest, while it may still be
-        // optimistic (not yet checkpointed). The query must return it.
-        let immediate = cluster
-            .graphql_client
-            .execute_to_graphql(query.clone(), true, vec![], vec![])
-            .await
-            .unwrap()
-            .response_body_json();
-        let nodes = immediate["data"]["transactionBlocksByDigests"]["nodes"]
-            .as_array()
-            .unwrap();
-        assert_eq!(
-            nodes.len(),
-            1,
-            "the transaction should be returned by the query right after execution"
-        );
-        assert_eq!(nodes[0]["digest"].as_str().unwrap(), digest.to_string());
-
-        // After the transaction is checkpointed, the query still returns it.
-        sleep(Duration::from_secs(3)).await;
-        let checkpointed = cluster
-            .graphql_client
-            .execute_to_graphql(query, true, vec![], vec![])
-            .await
-            .unwrap()
-            .response_body_json();
-        let nodes = checkpointed["data"]["transactionBlocksByDigests"]["nodes"]
-            .as_array()
-            .unwrap();
-        assert_eq!(
-            nodes.len(),
-            1,
-            "the transaction should still be returned after checkpointing"
-        );
-        assert_eq!(nodes[0]["digest"].as_str().unwrap(), digest.to_string());
     }
 
     // TODO: add more test cases for transaction execution/dry run in transactional
