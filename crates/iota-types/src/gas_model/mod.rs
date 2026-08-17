@@ -4,5 +4,6 @@
 
 pub mod gas_predicates;
 pub mod gas_v1;
+pub mod resource_profile;
 pub mod tables;
 pub mod units_types;
