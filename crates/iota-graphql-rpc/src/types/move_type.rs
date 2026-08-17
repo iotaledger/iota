@@ -179,7 +179,7 @@ impl MoveType {
         &self,
         resolver: &PackageResolver,
     ) -> Result<A::MoveTypeLayout, Error> {
-        Ok(resolver
+        resolver
             .type_layout(self.native.clone())
             .await
             .map_err(|e| {
@@ -187,19 +187,19 @@ impl MoveType {
                     "Error calculating layout for {}: {e}",
                     self.native.to_canonical_string(/* with_prefix */ true),
                 ))
-            })?)
+            })
     }
 
     pub(crate) async fn abilities_impl(
         &self,
         resolver: &PackageResolver,
     ) -> Result<AbilitySet, Error> {
-        Ok(resolver.abilities(self.native.clone()).await.map_err(|e| {
+        resolver.abilities(self.native.clone()).await.map_err(|e| {
             Error::Internal(format!(
                 "Error calculating abilities for {}: {e}",
                 self.native.to_canonical_string(/* with_prefix */ true),
             ))
-        })?)
+        })
     }
 }
 
