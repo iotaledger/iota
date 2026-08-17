@@ -963,7 +963,13 @@ impl ExecutionSchedulerAPI for TransactionManager {
                     let Some(transaction) =
                         self.transaction_cache_read.get_transaction_block(&digest)
                     else {
-                        debug_assert!(self.transaction_cache_read.is_tx_already_executed(&digest));
+                        // The pruner drops a transaction and its executed effects in
+                        // one batch, so there is nothing left to tell this case from
+                        // a transaction that never executed.
+                        warn!(
+                            "transaction {digest} named by a resolved key is missing, \
+                             assuming it was executed and pruned"
+                        );
                         continue;
                     };
                     let transaction = transaction.as_ref().clone();

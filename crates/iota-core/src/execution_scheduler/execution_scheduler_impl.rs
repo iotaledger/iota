@@ -285,11 +285,12 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
                 .zip(rest_digests.iter())
                 .filter_map(|((tx, env), digest)| {
                     let Some(tx) = tx else {
-                        debug_assert!(
-                            scheduler
-                                .transaction_cache_read
-                                .is_tx_already_executed(digest),
-                            "transaction {digest} is missing but was never executed"
+                        // The pruner drops a transaction and its executed effects in
+                        // one batch, so there is nothing left to tell this case from
+                        // a transaction that never executed.
+                        warn!(
+                            "transaction {digest} named by a resolved key is missing, \
+                             assuming it was executed and pruned"
                         );
                         return None;
                     };
@@ -314,6 +315,9 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
             .into_iter()
             .filter_map(|txn| {
                 if txn.0.epoch() == epoch_store.epoch() {
+                    #[cfg(debug_assertions)]
+                    self.assert_not_executed_previous_epochs(&txn.0);
+
                     Some(txn)
                 } else {
                     warn!(
@@ -342,8 +346,6 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
         );
 
         for (txn, execution_env) in pending {
-            #[cfg(debug_assertions)]
-            self.assert_not_executed_previous_epochs(&txn);
             let scheduler = self.clone();
             let epoch_store = epoch_store.clone();
             spawn_monitored_task!(
