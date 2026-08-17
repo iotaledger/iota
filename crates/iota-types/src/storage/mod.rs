@@ -628,3 +628,23 @@ pub fn get_transaction_output_objects(
         .collect::<Result<Vec<_>, _>>()?;
     Ok(output_objects)
 }
+
+/// Extend a simulation's input objects with the runtime-loaded objects the
+/// effects record as modified, read from `object_store` at their pre-state
+/// versions.
+pub fn extend_input_objects_with_loaded_runtime_objects(
+    input_objects: &mut BTreeMap<ObjectId, Object>,
+    effects: &TransactionEffects,
+    loaded_runtime_objects: &BTreeMap<ObjectId, DynamicallyLoadedObjectMetadata>,
+    object_store: &dyn ObjectStore,
+) {
+    let modified_at: BTreeMap<_, _> = effects.modified_at_versions().into_iter().collect();
+    for (id, metadata) in loaded_runtime_objects {
+        if input_objects.contains_key(id) || modified_at.get(id) != Some(&metadata.version) {
+            continue;
+        }
+        if let Some(object) = object_store.get_object_by_key(id, metadata.version) {
+            input_objects.insert(*id, object);
+        }
+    }
+}

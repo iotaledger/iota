@@ -282,6 +282,7 @@ pub(super) fn execute_prepared(
     );
 
     Ok(simulation_result(
+        store,
         inner_temp_store,
         effects,
         execution_result,
@@ -292,14 +293,23 @@ pub(super) fn execute_prepared(
 
 /// Assemble the engine's raw outputs into a [`SimulateTransactionResult`].
 fn simulation_result(
+    store: &dyn BackingStore,
     inner_temp_store: InnerTemporaryStore,
     effects: TransactionEffects,
     execution_result: Result<Vec<CommandResult>, iota_types::error::ExecutionError>,
     mock_gas_id: Option<ObjectId>,
     gas_data: GasPayment,
 ) -> SimulateTransactionResult {
+    let mut input_objects = inner_temp_store.input_objects;
+    iota_types::storage::extend_input_objects_with_loaded_runtime_objects(
+        &mut input_objects,
+        &effects,
+        &inner_temp_store.loaded_runtime_objects,
+        store.as_object_store(),
+    );
+
     SimulateTransactionResult {
-        input_objects: inner_temp_store.input_objects,
+        input_objects,
         output_objects: inner_temp_store.written,
         events: effects.events_digest().map(|_| inner_temp_store.events),
         effects,
@@ -456,6 +466,7 @@ pub(super) fn execute_with_move_authenticators(
     // results, so a signed `MoveAuthenticator` run carries none.
     Ok((
         simulation_result(
+            store,
             inner_temp_store,
             effects,
             execution_result.map(|_| Vec::new()),
