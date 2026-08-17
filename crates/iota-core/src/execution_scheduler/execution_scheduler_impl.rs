@@ -246,15 +246,32 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
                 .notify_read_tx_key_to_digest(&rest_keys)
                 .await
                 .expect("db error");
+            // The keys resolve from a table that outlives pruning, so on a node far
+            // enough behind in consensus a transaction one names can already be
+            // executed and pruned away. Nothing is left to schedule then, and
+            // demanding the block would crash the replay.
             let rest_transactions = scheduler
                 .transaction_cache_read
                 .multi_get_transaction_blocks(&rest_digests)
                 .into_iter()
-                .map(|tx| {
-                    let tx = tx.expect("tx must exist").as_ref().clone();
-                    VerifiedExecutableTransaction::new_system(tx, epoch_store.epoch())
-                })
                 .zip(rest.into_iter().map(|(_, env)| env))
+                .zip(rest_digests.iter())
+                .filter_map(|((tx, env), digest)| {
+                    let Some(tx) = tx else {
+                        debug_assert!(
+                            scheduler
+                                .transaction_cache_read
+                                .is_tx_already_executed(digest),
+                            "transaction {digest} is missing but was never executed"
+                        );
+                        return None;
+                    };
+                    let tx = tx.as_ref().clone();
+                    Some((
+                        VerifiedExecutableTransaction::new_system(tx, epoch_store.epoch()),
+                        env,
+                    ))
+                })
                 .collect::<Vec<_>>();
             scheduler.enqueue_transactions(rest_transactions, &epoch_store);
         }));

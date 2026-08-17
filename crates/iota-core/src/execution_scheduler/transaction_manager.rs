@@ -937,6 +937,12 @@ impl ExecutionSchedulerAPI for TransactionManager {
 
         self.enqueue_transactions(txns, epoch_store);
 
+        // Every consensus commit and every owned-only certificate reaches this
+        // point, and almost none of them carry a keyed schedulable.
+        if rest.is_empty() {
+            return;
+        }
+
         let executable = {
             let reconfig_lock = self.inner.read();
 
@@ -952,12 +958,17 @@ impl ExecutionSchedulerAPI for TransactionManager {
                 };
 
                 if let Some(digest) = digest {
-                    let transaction = self
-                        .transaction_cache_read
-                        .get_transaction_block(&digest)
-                        .expect("tx must exist")
-                        .as_ref()
-                        .clone();
+                    // The key resolves from a table that outlives pruning, so on a
+                    // node far enough behind in consensus the transaction it names
+                    // can already be executed and pruned away. Nothing is left to
+                    // schedule then, and demanding the block would crash the replay.
+                    let Some(transaction) =
+                        self.transaction_cache_read.get_transaction_block(&digest)
+                    else {
+                        debug_assert!(self.transaction_cache_read.is_tx_already_executed(&digest));
+                        continue;
+                    };
+                    let transaction = transaction.as_ref().clone();
                     executable.push((
                         VerifiedExecutableTransaction::new_system(transaction, epoch_store.epoch()),
                         env,

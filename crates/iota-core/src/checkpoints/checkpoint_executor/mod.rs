@@ -575,7 +575,7 @@ impl CheckpointExecutor {
     ) -> CheckpointExecutionState {
         let sequence_number = ckpt_state.data.checkpoint.sequence_number;
 
-        let unexecuted_tx_digests = {
+        let (unexecuted_tx_digests, unexecuted_expected_fx_digests) = {
             let _scope = iota_metrics::monitored_scope("CheckpointExecutor::execute_transactions");
             self.schedule_transaction_execution(&ckpt_state, &tx_data)
         };
@@ -583,12 +583,32 @@ impl CheckpointExecutor {
         finish_stage!(pipeline_handle, ExecuteTransactions);
 
         {
-            self.transaction_cache_reader
+            let actual_fx_digests = self
+                .transaction_cache_reader
                 .notify_read_executed_effects_digests(
                     "CheckpointExecutor::notify_read_executed_effects_digests",
                     &unexecuted_tx_digests,
                 )
                 .await;
+
+            // A transaction scheduled here can also be scheduled from consensus,
+            // and whichever enqueue arrives second is dropped along with its
+            // environment — so the expected digest passed above may never have
+            // reached execution. Compare here, where the checkpoint's digests are
+            // known, so a fork is caught regardless of which enqueue won.
+            for ((tx_digest, expected), actual) in unexecuted_tx_digests
+                .iter()
+                .zip(unexecuted_expected_fx_digests.iter())
+                .zip(actual_fx_digests.iter())
+            {
+                assert_not_forked(
+                    &ckpt_state.data.checkpoint,
+                    tx_digest,
+                    expected,
+                    actual,
+                    &*self.transaction_cache_reader,
+                );
+            }
         }
 
         finish_stage!(pipeline_handle, WaitForTransactions);
@@ -855,11 +875,14 @@ impl CheckpointExecutor {
 
     // Schedule all unexecuted transactions in the checkpoint for execution
     #[instrument(level = "info", skip_all)]
+    /// Enqueues the checkpoint's not-yet-executed transactions, and returns
+    /// their digests together with the effects digest the checkpoint expects
+    /// for each, so the caller can check for a fork once they execute.
     fn schedule_transaction_execution(
         &self,
         ckpt_state: &CheckpointExecutionState,
         tx_data: &CheckpointTransactionData,
-    ) -> Vec<TransactionDigest> {
+    ) -> (Vec<TransactionDigest>, Vec<TransactionEffectsDigest>) {
         // Which transactions have already been executed must be read here, in
         // the ordered pipeline stage, and not when the checkpoint data is
         // loaded: execution progresses in between, and a stale answer would
@@ -869,7 +892,11 @@ impl CheckpointExecutor {
             .multi_get_executed_effects_digests(&ckpt_state.data.tx_digests);
 
         // Find unexecuted transactions and their expected effects digests
-        let (unexecuted_tx_digests, unexecuted_txns): (Vec<_>, Vec<_>) = itertools::multiunzip(
+        let (unexecuted_tx_digests, unexecuted_expected_fx_digests, unexecuted_txns): (
+            Vec<_>,
+            Vec<_>,
+            Vec<_>,
+        ) = itertools::multiunzip(
             itertools::izip!(
                 tx_data.transactions.iter(),
                 ckpt_state.data.tx_digests.iter(),
@@ -913,7 +940,7 @@ impl CheckpointExecutor {
                             .with_assigned_versions(assigned_versions)
                             .with_expected_effects_digest(*expected_fx_digest);
 
-                        Some((tx_digest, (txn.clone(), env)))
+                        Some((tx_digest, *expected_fx_digest, (txn.clone(), env)))
                     }
                 },
             ),
@@ -923,7 +950,7 @@ impl CheckpointExecutor {
         self.execution_scheduler
             .enqueue_transactions(unexecuted_txns, &self.epoch_store);
 
-        unexecuted_tx_digests
+        (unexecuted_tx_digests, unexecuted_expected_fx_digests)
     }
 
     // Execute the change epoch txn
