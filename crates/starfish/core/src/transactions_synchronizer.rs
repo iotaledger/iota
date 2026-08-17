@@ -1252,8 +1252,8 @@ mod tests {
     use crate::{
         Round, TestBlockHeader, Transaction,
         block_header::{
-            BlockHeaderDigest, BlockRef, TransactionsCommitment, VerifiedBlock,
-            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
+            BlockRef, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
+            VerifiedTransactions,
         },
         block_verifier::{NoopBlockVerifier, SignedBlockVerifier, test::TxnSizeVerifier},
         commit::{CertifiedCommits, CommitRange},
@@ -1610,7 +1610,7 @@ mod tests {
             verified_transactions.push(verified_transaction);
         }
 
-        // Create a map of block refs to authorities that have them
+        // Create a map of transaction refs to authorities that have them
         let mut missing_transactions = Vec::new();
         for (index, header) in block_headers.iter().enumerate() {
             let mut authorities = BTreeSet::new();
@@ -1618,7 +1618,10 @@ mod tests {
             authorities.insert(from_whom);
             network_client.set_timeout_peer(from_whom).await;
             let mut missing_txs = BTreeMap::new();
-            missing_txs.insert(GenericTransactionRef::from(header.reference()), authorities);
+            missing_txs.insert(
+                GenericTransactionRef::from(header.transaction_ref()),
+                authorities,
+            );
             missing_transactions.push(missing_txs)
         }
 
@@ -2443,14 +2446,16 @@ mod tests {
             block_headers.push(header);
         }
 
-        // Create a map of block refs to authorities that have them
+        // Create a map of transaction refs to authorities that have them
         let mut missing_transactions = BTreeMap::new();
         for header in &block_headers {
             let mut authorities = BTreeSet::new();
             authorities.insert(AuthorityIndex::new_for_test(1)); // This peer will timeout
             authorities.insert(AuthorityIndex::new_for_test(2)); // This peer will return an error
-            missing_transactions
-                .insert(GenericTransactionRef::from(header.reference()), authorities);
+            missing_transactions.insert(
+                GenericTransactionRef::from(header.transaction_ref()),
+                authorities,
+            );
         }
 
         // Set peer 1 to timeout
@@ -2606,18 +2611,20 @@ mod tests {
         let active_requests = InflightActiveRequests::new();
         let sync_method = SyncMethod::Periodic;
 
-        let some_block_refs = [
-            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-            BlockRef::new(12, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-            BlockRef::new(15, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-        ];
         let context = Context::new_for_test(10).0;
-        let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
-        let missing_transactions_refs = missing_block_refs
-            .iter()
-            .map(|&br| GenericTransactionRef::from(br))
-            .collect::<BTreeSet<_>>();
+        let missing_transactions_refs = [
+            (1, AuthorityIndex::new_for_test(0)),
+            (10, AuthorityIndex::new_for_test(0)),
+            (12, AuthorityIndex::new_for_test(3)),
+            (15, AuthorityIndex::new_for_test(2)),
+        ]
+        .into_iter()
+        .map(|(round, author)| TransactionRef {
+            round,
+            author,
+            transactions_commitment: TransactionsCommitment::MIN,
+        })
+        .collect::<BTreeSet<_>>();
         // We keep both guards so that drops happen at the end
         let mut all_guards: Vec<(TransactionsGuard, ActiveRequestGuard)> = Vec::new();
 
@@ -2754,7 +2761,7 @@ mod tests {
     }
 
     struct MockNetworkClient {
-        transactions: Arc<Mutex<HashMap<(AuthorityIndex, GenericTransactionRef), Bytes>>>,
+        transactions: Arc<Mutex<HashMap<(AuthorityIndex, TransactionRef), Bytes>>>,
         error_peers: Arc<Mutex<HashMap<AuthorityIndex, ConsensusError>>>,
         timeout_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
         empty_peers: Arc<Mutex<BTreeSet<AuthorityIndex>>>,
@@ -2790,9 +2797,8 @@ mod tests {
                     transaction_ref,
                     serialized_transactions: transaction.serialized().clone(),
                 };
-                let tx_ref = GenericTransactionRef::TransactionRef(transaction_ref);
                 let serialized = bcs::to_bytes(&serialized_transactions).unwrap();
-                transactions_map.insert((peer, tx_ref), serialized.into());
+                transactions_map.insert((peer, transaction_ref), serialized.into());
             }
         }
 
@@ -3026,7 +3032,7 @@ mod tests {
         async fn fetch_transactions(
             &self,
             peer: AuthorityIndex,
-            block_refs: Vec<GenericTransactionRef>,
+            block_refs: Vec<TransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             // Check if this peer is set to timeout

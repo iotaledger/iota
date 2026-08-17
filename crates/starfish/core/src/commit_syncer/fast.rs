@@ -1535,17 +1535,13 @@ mod tests {
             context::Context,
             error::ConsensusError,
             network::SerializedTransactionsV2,
-            transaction_ref::{GenericTransactionRef, TransactionRef},
+            transaction_ref::TransactionRef,
         };
-
-        fn transaction_ref(round: Round) -> GenericTransactionRef {
-            GenericTransactionRef::TransactionRef(plain_ref(round))
-        }
 
         fn commit(
             context: &Arc<Context>,
             index: u32,
-            transactions: &[GenericTransactionRef],
+            transactions: &[TransactionRef],
         ) -> TrustedCommit {
             let leader = BlockRef::new(
                 index,
@@ -1559,11 +1555,11 @@ mod tests {
                 0,
                 leader,
                 vec![leader],
-                transactions.to_vec(),
+                transactions.iter().copied().map(Into::into).collect(),
             )
         }
 
-        fn fetched(refs: &[GenericTransactionRef]) -> BTreeMap<GenericTransactionRef, Bytes> {
+        fn fetched(refs: &[TransactionRef]) -> BTreeMap<TransactionRef, Bytes> {
             refs.iter().map(|r| (*r, Bytes::new())).collect()
         }
 
@@ -1571,16 +1567,18 @@ mod tests {
         async fn keeps_all_commits_when_all_transactions_fetched() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
-            let (tx_a, tx_b, tx_c) = (transaction_ref(1), transaction_ref(2), transaction_ref(3));
+            let (tx_a, tx_b, tx_c) = (plain_ref(1), plain_ref(2), plain_ref(3));
             let mut commits = vec![
                 commit(&context, 1, &[tx_a]),
                 commit(&context, 2, &[tx_b, tx_c]),
             ];
+            let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b, tx_c]];
             let mut transactions = fetched(&[tx_a, tx_b, tx_c]);
 
             truncate_to_fully_fetched_prefix(
                 AuthorityIndex::new_for_test(1),
                 &mut commits,
+                &mut commits_tx_refs,
                 &mut transactions,
             )
             .unwrap();
@@ -1593,12 +1591,7 @@ mod tests {
         async fn truncates_to_prefix_and_drops_unreferenced_transactions() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
-            let (tx_a, tx_b, tx_c, tx_d) = (
-                transaction_ref(1),
-                transaction_ref(2),
-                transaction_ref(3),
-                transaction_ref(4),
-            );
+            let (tx_a, tx_b, tx_c, tx_d) = (plain_ref(1), plain_ref(2), plain_ref(3), plain_ref(4));
             let first = commit(&context, 1, &[tx_a]);
             let mut commits = vec![
                 first.clone(),
@@ -1606,16 +1599,19 @@ mod tests {
                 commit(&context, 2, &[tx_b, tx_c]),
                 commit(&context, 3, &[tx_d]),
             ];
+            let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b, tx_c], vec![tx_d]];
             let mut transactions = fetched(&[tx_a, tx_c, tx_d]);
 
             truncate_to_fully_fetched_prefix(
                 AuthorityIndex::new_for_test(1),
                 &mut commits,
+                &mut commits_tx_refs,
                 &mut transactions,
             )
             .unwrap();
 
             assert_eq!(commits, vec![first]);
+            assert_eq!(commits_tx_refs, vec![vec![tx_a]]);
             assert_eq!(transactions.into_keys().collect::<Vec<_>>(), vec![tx_a]);
         }
 
@@ -1623,12 +1619,18 @@ mod tests {
         async fn errors_when_first_commit_transactions_missing() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
-            let (tx_a, tx_b) = (transaction_ref(1), transaction_ref(2));
+            let (tx_a, tx_b) = (plain_ref(1), plain_ref(2));
             let peer = AuthorityIndex::new_for_test(1);
             let mut commits = vec![commit(&context, 1, &[tx_a]), commit(&context, 2, &[tx_b])];
+            let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b]];
             let mut transactions = fetched(&[tx_b]);
 
-            let result = truncate_to_fully_fetched_prefix(peer, &mut commits, &mut transactions);
+            let result = truncate_to_fully_fetched_prefix(
+                peer,
+                &mut commits,
+                &mut commits_tx_refs,
+                &mut transactions,
+            );
 
             assert!(matches!(
                 result,
@@ -1644,14 +1646,16 @@ mod tests {
         async fn commit_without_transactions_counts_toward_prefix() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
-            let tx_a = transaction_ref(1);
+            let tx_a = plain_ref(1);
             let empty = commit(&context, 1, &[]);
             let mut commits = vec![empty.clone(), commit(&context, 2, &[tx_a])];
+            let mut commits_tx_refs = vec![vec![], vec![tx_a]];
             let mut transactions = fetched(&[]);
 
             truncate_to_fully_fetched_prefix(
                 AuthorityIndex::new_for_test(1),
                 &mut commits,
+                &mut commits_tx_refs,
                 &mut transactions,
             )
             .unwrap();
@@ -1723,7 +1727,7 @@ mod tests {
                 result,
                 Err(ConsensusError::UnexpectedTransactionForCommit {
                     peer: error_peer,
-                    received: GenericTransactionRef::TransactionRef(received),
+                    received,
                 }) if error_peer == peer && received == tx_b
             ));
         }

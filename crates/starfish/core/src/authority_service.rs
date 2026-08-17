@@ -1816,7 +1816,7 @@ mod tests {
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
-        transaction_ref::GenericTransactionRef,
+        transaction_ref::{GenericTransactionRef, TransactionRef},
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -1875,7 +1875,7 @@ mod tests {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<GenericTransactionRef>,
+            _block_refs: Vec<TransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -4062,20 +4062,19 @@ mod tests {
             all_block_headers.push(dag_builder.block_headers(round..=round));
         }
 
-        let mut block_refs_to_request_first_batch: Vec<GenericTransactionRef> = (1..=rounds)
+        let mut block_refs_to_request_first_batch: Vec<TransactionRef> = (1..=rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
-                    .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+                    .map(|bh| bh.transaction_ref())
             })
             .collect();
 
-        let mut block_refs_to_request_second_batch: Vec<GenericTransactionRef> = (rounds + 1
-            ..=2 * rounds)
+        let mut block_refs_to_request_second_batch: Vec<TransactionRef> = (rounds + 1..=2 * rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
-                    .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+                    .map(|bh| bh.transaction_ref())
             })
             .collect();
 
@@ -4110,10 +4109,7 @@ mod tests {
             let transaction_ref = deserialized.transaction_ref;
 
             // Verify it matches the expected ref
-            assert_eq!(
-                GenericTransactionRef::TransactionRef(transaction_ref),
-                block_refs_to_request_first_batch[i]
-            );
+            assert_eq!(transaction_ref, block_refs_to_request_first_batch[i]);
 
             let serialized_transactions = deserialized.serialized_transactions;
             // Verify the transaction commitment matches

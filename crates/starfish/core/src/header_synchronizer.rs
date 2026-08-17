@@ -1868,7 +1868,7 @@ mod tests {
         misbehavior_store::MisbehaviorStore,
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
-        transaction_ref::GenericTransactionRef,
+        transaction_ref::{GenericTransactionRef, TransactionRef},
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -1940,7 +1940,7 @@ mod tests {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<GenericTransactionRef>,
+            _block_refs: Vec<TransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")

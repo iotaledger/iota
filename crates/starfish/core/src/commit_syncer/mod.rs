@@ -957,7 +957,7 @@ pub(crate) mod tests {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<GenericTransactionRef>,
+            _block_refs: Vec<TransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -1109,10 +1109,8 @@ pub(crate) mod tests {
             author: AuthorityIndex::new_for_test(0),
             transactions_commitment: TransactionsCommitment::MIN,
         };
-        let serialized_transactions = BTreeMap::from([(
-            GenericTransactionRef::TransactionRef(transaction_ref),
-            Bytes::from(vec![0u8; size_limit + 1]),
-        )]);
+        let serialized_transactions =
+            BTreeMap::from([(transaction_ref, Bytes::from(vec![0u8; size_limit + 1]))]);
 
         let result =
             verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
@@ -1144,10 +1142,8 @@ pub(crate) mod tests {
             author: out_of_range_author,
             transactions_commitment,
         };
-        let serialized_transactions = BTreeMap::from([(
-            GenericTransactionRef::TransactionRef(transaction_ref),
-            inner_serialized_transactions,
-        )]);
+        let serialized_transactions =
+            BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
         let result =
             verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
@@ -1181,10 +1177,8 @@ pub(crate) mod tests {
             author: AuthorityIndex::new_for_test(0),
             transactions_commitment,
         };
-        let serialized_transactions = BTreeMap::from([(
-            GenericTransactionRef::TransactionRef(transaction_ref),
-            inner_serialized_transactions,
-        )]);
+        let serialized_transactions =
+            BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
         let result =
             verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
