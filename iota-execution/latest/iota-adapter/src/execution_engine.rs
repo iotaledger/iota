@@ -1081,7 +1081,7 @@ mod checked {
             match reason {
                 version if version.is_congested() => Err(ExecutionError::new(
                     if protocol_config.congestion_control_gas_price_feedback_mechanism() {
-                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                        ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 {
                             congested_objects: cancelled_objects,
                             suggested_gas_price: version
                                 .get_congested_version_suggested_gas_price()
@@ -1092,14 +1092,14 @@ mod checked {
                         // `congestion_control_gas_price_feedback_mechanism` is enabled
                         // on the mainnet. It must be kept to be able to replay old
                         // transaction data.
-                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
+                        ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion {
                             congested_objects: cancelled_objects,
                         }
                     },
                     None,
                 )),
                 Version::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
-                    ExecutionErrorKind::ExecutionCancelledDueToRandomnessUnavailable,
+                    ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
                     None,
                 )),
                 _ => panic!("invalid cancellation reason Version: {reason}"),

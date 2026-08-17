@@ -5,7 +5,6 @@
 use std::{path::Path, sync::Arc};
 
 use anyhow::Result;
-use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_package_resolver::Resolver;
@@ -202,7 +201,7 @@ impl ObjectHandler {
             initial_shared_version: initial_shared_version(object),
             previous_transaction: object.previous_transaction.to_base58(),
             storage_rebate: Some(object.storage_rebate),
-            bcs: Some(Base64::encode(bcs::to_bytes(object).unwrap())),
+            bcs: Some(object.to_base64()),
             coin_type: object.coin_type_opt().map(|t| t.to_string()),
             coin_balance: if object.coin_type_opt().is_some() {
                 Some(object.get_coin_value_unchecked())

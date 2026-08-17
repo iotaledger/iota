@@ -214,6 +214,14 @@ impl ValidatorService {
 
         let build_executed = |effects: TransactionEffects| -> TxStatusUpdate {
             let effects_digest = effects.digest();
+            if let Err(error) = state.check_effects_against_previously_signed(
+                epoch_store,
+                &tx_digest,
+                &effects_digest,
+                "submit_tx",
+            ) {
+                return TxStatusUpdate::Rejected { error };
+            }
             TxStatusUpdate::Executed {
                 effects_digest,
                 details: Some(Self::build_executed_data(state, &effects)),
@@ -467,7 +475,7 @@ impl ValidatorService {
         match cache.try_get_executed_effects(&tx_digest) {
             Ok(Some(effects)) => {
                 return (
-                    Self::build_executed_update(state, effects, include_details),
+                    Self::build_executed_update(state, epoch_store, effects, include_details),
                     Weight::one(),
                 );
             }
@@ -515,6 +523,14 @@ impl ValidatorService {
                         Weight::zero(),
                     );
                 };
+                if let Err(error) = state.check_effects_against_previously_signed(
+                    epoch_store,
+                    &tx_digest,
+                    &effects_digest,
+                    "get_tx_status",
+                ) {
+                    return (TxStatusUpdate::Rejected { error }, Weight::zero());
+                }
                 let details = if include_details {
                     match cache.try_get_executed_effects(&tx_digest) {
                         Ok(Some(effects)) => Some(Self::build_executed_data(state, &effects)),
@@ -556,10 +572,19 @@ impl ValidatorService {
     /// including full details.
     fn build_executed_update(
         state: &Arc<AuthorityState>,
+        epoch_store: &AuthorityPerEpochStore,
         effects: TransactionEffects,
         include_details: bool,
     ) -> TxStatusUpdate {
         let effects_digest = effects.digest();
+        if let Err(error) = state.check_effects_against_previously_signed(
+            epoch_store,
+            effects.transaction_digest(),
+            &effects_digest,
+            "get_tx_status",
+        ) {
+            return TxStatusUpdate::Rejected { error };
+        }
         let details = if include_details {
             Some(Self::build_executed_data(state, &effects))
         } else {

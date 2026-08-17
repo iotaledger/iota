@@ -25,7 +25,7 @@ use iota_sdk_ext::{
     },
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::AccountKeyPair,
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
@@ -493,7 +493,7 @@ pub async fn batch_make_transfer_transactions(
     context: &WalletContext,
     max_txn_num: usize,
 ) -> Vec<TransactionEnvelope> {
-    let recipient = get_key_pair::<AccountKeyPair>().0;
+    let recipient = Address::random();
     let result = context.get_all_accounts_and_gas_objects().await;
     let accounts_and_objs = result.unwrap();
     let mut res = Vec::with_capacity(max_txn_num);
@@ -898,7 +898,7 @@ pub async fn split_coin_equal_tx(
     // Split off the new coin and transfer it back to the sender; an untransferred
     // `Coin` would be an unused PTB value (coins have no `drop`) and the
     // transaction would be rejected.
-    let new_coin = builder.split_coins(coin_to_split, split_amounts).arg();
+    let new_coin = builder.split_coins(coin_to_split, split_amounts).result();
     builder.transfer_objects(sender, [new_coin]);
 
     if let Some(gas) = gas_coin {

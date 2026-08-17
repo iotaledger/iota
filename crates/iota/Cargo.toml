@@ -59,6 +59,7 @@ iota-ledger.workspace = true
 iota-ledger-signer.workspace = true
 iota-move.workspace = true
 iota-move-build.workspace = true
+iota-multiaddr.workspace = true
 iota-names = { workspace = true, optional = true }
 iota-package-management.workspace = true
 iota-protocol-config.workspace = true

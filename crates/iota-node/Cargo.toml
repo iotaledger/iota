@@ -48,6 +48,7 @@ iota-json-rpc-api.workspace = true
 iota-macros.workspace = true
 iota-metrics.workspace = true
 iota-metrics-push-client.workspace = true
+iota-multiaddr.workspace = true
 iota-names.workspace = true
 iota-network.workspace = true
 iota-network-stack.workspace = true

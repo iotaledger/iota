@@ -10,6 +10,7 @@ use std::{
 };
 
 use fastcrypto::traits::KeyPair;
+use iota_multiaddr::Multiaddr;
 pub use iota_protocol_config::ProtocolVersion;
 use iota_sdk_ext::types::{TransactionDigest, validator::ValidatorCommitteeMember};
 use once_cell::sync::OnceCell;
@@ -27,7 +28,6 @@ use crate::{
     },
     error::{IotaError, IotaResult},
     messages_checkpoint::{CertifiedCheckpointSummary, VerifiedCheckpoint},
-    multiaddr::Multiaddr,
 };
 
 pub type EpochId = u64;

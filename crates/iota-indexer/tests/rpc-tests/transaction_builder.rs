@@ -50,7 +50,7 @@ fn transfer_object() {
 
     runtime.block_on(async move {
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let receiver = Address::random();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
         let gas = sender_coins[0];
@@ -88,7 +88,7 @@ fn transfer_iota() {
 
     runtime.block_on(async move {
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let receiver = Address::random();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 1).await;
         let gas = sender_coins[0];
@@ -123,8 +123,8 @@ fn pay() {
 
     runtime.block_on(async move {
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver_1, _): (_, AccountKeyPair) = get_key_pair();
-        let (receiver_2, _): (_, AccountKeyPair) = get_key_pair();
+        let receiver_1 = Address::random();
+        let receiver_2 = Address::random();
 
         let input_coins: u64 = 3;
         let sender_coins =
@@ -166,8 +166,8 @@ fn pay_iota() {
 
     runtime.block_on(async move {
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver_1, _): (_, AccountKeyPair) = get_key_pair();
-        let (receiver_2, _): (_, AccountKeyPair) = get_key_pair();
+        let receiver_1 = Address::random();
+        let receiver_2 = Address::random();
 
         let input_coins: u64 = 3;
         let sender_coins =
@@ -209,7 +209,7 @@ fn pay_all_iota() {
 
     runtime.block_on(async move {
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let receiver = Address::random();
 
         let input_coins: u64 = 3;
         let sender_coins =
@@ -394,7 +394,7 @@ fn batch_transaction() {
     runtime
         .block_on(async move {
             let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
-            let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+            let receiver = Address::random();
 
             let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 3).await;
             let gas = sender_coins[0];

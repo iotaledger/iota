@@ -11,7 +11,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use iota_types::multiaddr::Multiaddr;
+use iota_multiaddr::Multiaddr;
 use serde::{Serialize, de::DeserializeOwned};
 use tracing::trace;
 

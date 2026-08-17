@@ -5,7 +5,6 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use anyhow::Result;
-use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_sdk_ext::types::{Command, TransactionEffects, TransactionKind};
 use iota_types::{
@@ -189,7 +188,7 @@ impl TransactionHandler {
 
             gas_price: tx.gas_price(),
 
-            raw_transaction: Base64::encode(bcs::to_bytes(&tx).unwrap()),
+            raw_transaction: tx.to_base64(),
 
             has_zklogin_sig: false,
             has_upgraded_multisig: transaction.has_multisig(),
@@ -205,7 +204,6 @@ impl TransactionHandler {
 mod tests {
     use std::sync::Arc;
 
-    use fastcrypto::encoding::{Base64, Encoding};
     use iota_data_ingestion_core::Worker;
     use iota_sdk_ext::types::Address;
     use iota_types::storage::ReadStore;
@@ -243,7 +241,7 @@ mod tests {
         assert_eq!(db_txn.transaction_digest, transaction.digest().to_string());
         assert_eq!(
             db_txn.raw_transaction,
-            Base64::encode(bcs::to_bytes(&transaction.transaction()).unwrap())
+            transaction.transaction().to_base64()
         );
         assert_eq!(db_txn.epoch, checkpoint.epoch);
         assert_eq!(db_txn.timestamp_ms, checkpoint.timestamp_ms);

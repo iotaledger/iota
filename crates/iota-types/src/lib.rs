@@ -9,13 +9,7 @@
     rust_2021_compatibility
 )]
 
-#[cfg(not(target_arch = "wasm32"))]
-pub use iota_network_stack::multiaddr;
-use iota_sdk_ext::types::Version;
-#[cfg(target_arch = "wasm32")]
-#[path = "wasm_multiaddr.rs"]
-pub mod multiaddr;
-use iota_sdk_ext::types::{Address, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, ObjectId, StructTag, TypeTag, Version};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},
@@ -46,7 +40,6 @@ pub mod config;
 pub mod crypto;
 pub mod deny_list_v1;
 pub mod deny_rule_governance;
-pub mod derived_object;
 pub mod digests;
 pub mod display;
 pub mod dynamic_field;

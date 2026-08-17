@@ -91,7 +91,7 @@ impl InputSharedObject {
                 ObjectReference::new(*id, *version, ObjectDigest::OBJECT_DELETED)
             }
             InputSharedObject::Cancelled(id, version) => {
-                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_CANCELLED)
+                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_CANCELED)
             }
         }
     }

@@ -14,12 +14,11 @@ use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc, monitored_scope, spawn_monitored_task};
 use iota_sdk_ext::types::{
-    CancelledTransaction, ConsensusCommitDigest, SenderSignedTransaction, TransactionDigest,
+    CanceledTransaction, ConsensusCommitDigest, SenderSignedTransaction, TransactionDigest,
 };
 use iota_types::{
     base_types::AuthorityName,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
     transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
 };
@@ -43,6 +42,7 @@ use crate::{
         AuthorityIndex,
         consensus_output_api::{ConsensusOutputAPI, ConsensusOutputTransactions},
     },
+    epoch_start_consensus_committee::get_consensus_committee,
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     scoring_decision::update_low_scoring_authorities,
@@ -89,7 +89,7 @@ impl ConsensusHandlerInitializer {
 
     pub fn new_consensus_handler(&self) -> ConsensusHandler<CheckpointService> {
         let new_epoch_start_state = self.epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
 
         ConsensusHandler::new(
             self.epoch_store.clone(),
@@ -893,7 +893,7 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
-        cancelled_transactions: Vec<CancelledTransaction>,
+        cancelled_transactions: Vec<CanceledTransaction>,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
@@ -908,7 +908,7 @@ impl ConsensusCommitInfo {
     pub fn create_consensus_commit_prologue_transaction(
         &self,
         epoch: u64,
-        cancelled_transactions: Vec<CancelledTransaction>,
+        cancelled_transactions: Vec<CanceledTransaction>,
     ) -> VerifiedExecutableTransaction {
         self.consensus_commit_prologue_v1_transaction(epoch, cancelled_transactions)
     }
@@ -972,7 +972,7 @@ mod tests {
 
         let epoch_store = state.epoch_store_for_testing().clone();
         let new_epoch_start_state = epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
 
@@ -1123,7 +1123,7 @@ mod tests {
 
         let epoch_store = state.epoch_store_for_testing().clone();
         let new_epoch_start_state = epoch_store.epoch_start_state();
-        let consensus_committee = new_epoch_start_state.get_consensus_committee();
+        let consensus_committee = get_consensus_committee(new_epoch_start_state);
         let rgp = epoch_store.reference_gas_price();
 
         let metrics = Arc::new(AuthorityMetrics::new(&Registry::new()));
@@ -1143,7 +1143,7 @@ mod tests {
         );
 
         // AND build one block per UserTransactionV1 transaction
-        let (recipient, _): (Address, AccountKeyPair) = get_key_pair();
+        let recipient = Address::random();
         let mut headers = Vec::new();
         let mut subdag_transactions = Vec::new();
 

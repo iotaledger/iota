@@ -102,7 +102,7 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
                     UnchangedSharedKind::ReadDeleted { version } => {
                         Some(InputSharedObject::ReadDeleted(unchanged.object_id, version))
                     }
-                    UnchangedSharedKind::Cancelled { version } => {
+                    UnchangedSharedKind::Canceled { version } => {
                         Some(InputSharedObject::Cancelled(unchanged.object_id, version))
                     }
                     // We can not expose the per epoch config object as input shared object,
@@ -390,7 +390,7 @@ impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
             InputSharedObject::Cancelled(object_id, version) => {
                 self.unchanged_shared_objects.push(UnchangedSharedObject {
                     object_id,
-                    kind: UnchangedSharedKind::Cancelled { version },
+                    kind: UnchangedSharedKind::Canceled { version },
                 })
             }
         }
@@ -465,7 +465,7 @@ pub(crate) fn new_from_execution(
             }
             SharedInput::Cancelled((id, version)) => {
                 debug_assert!(!changed_objects.contains_key(&id));
-                Some((id, UnchangedSharedKind::Cancelled { version }))
+                Some((id, UnchangedSharedKind::Canceled { version }))
             }
         })
         .chain(

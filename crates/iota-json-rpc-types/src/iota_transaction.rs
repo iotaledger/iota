@@ -8,10 +8,9 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
-use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_ext::types::{
-    Address, Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
+    Address, Argument, CanceledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
     ChangeEpochV4, Command, ConsensusCommitDigest, ConsensusDeterminedVersionAssignments,
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
     GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
@@ -1888,10 +1887,10 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
         consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
     ) -> Self {
         match consensus_determined_version_assignments {
-            ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                cancelled_transactions,
+            ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                canceled_transactions,
             } => IotaConsensusDeterminedVersionAssignments::CancelledTransactions(
-                cancelled_transactions
+                canceled_transactions
                     .into_iter()
                     .map(|cancelled| {
                         (
@@ -1918,10 +1917,10 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
     ) -> Self {
         match iota_consensus_determined_version_assignments {
             IotaConsensusDeterminedVersionAssignments::CancelledTransactions(assignments) => {
-                ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                    cancelled_transactions: assignments
+                ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                    canceled_transactions: assignments
                         .into_iter()
-                        .map(|(digest, version_assignments)| CancelledTransaction {
+                        .map(|(digest, version_assignments)| CanceledTransaction {
                             digest,
                             version_assignments: version_assignments
                                 .into_iter()
@@ -2481,7 +2480,7 @@ pub struct TransactionBlockBytes {
 impl TransactionBlockBytes {
     pub fn from_data(tx: Transaction) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            tx_bytes: Base64::from_bytes(bcs::to_bytes(&tx)?.as_slice()),
+            tx_bytes: Base64::from_bytes(&tx.to_bcs()),
             gas: tx.gas().to_vec(),
             input_objects: tx
                 .input_objects()?
@@ -2757,7 +2756,6 @@ impl TransactionFilter {
 
 impl Filter<EffectsWithInput> for TransactionFilter {
     fn matches(&self, item: &EffectsWithInput) -> bool {
-        let _scope = monitored_scope("TransactionFilter::matches");
         match self {
             TransactionFilter::InputObject(o) => {
                 let Ok(input_objects) = item.input.input_objects() else {
@@ -2918,7 +2916,6 @@ impl TransactionFilterV2 {
 
 impl Filter<EffectsWithInput> for TransactionFilterV2 {
     fn matches(&self, item: &EffectsWithInput) -> bool {
-        let _scope = monitored_scope("TransactionFilterV2::matches");
         if let Some(v1) = self.as_v1() {
             return v1.matches(item);
         }

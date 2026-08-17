@@ -23,7 +23,7 @@ use iota_sdk_ext::{
     },
 };
 use iota_types::{
-    crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair, get_key_pair_from_rng},
+    crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair_from_rng},
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
@@ -49,10 +49,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
     // Add another 3 Secp256k1 KeyPairs
     for _ in 0..3 {
-        keystore.add_key(
-            None,
-            SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1),
-        )?;
+        keystore.add_key(None, SimpleKeypair::from(Secp256k1PrivateKey::random()))?;
     }
 
     // List all addresses with flag
@@ -69,14 +66,8 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
-    keystore.add_key(
-        None,
-        SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1),
-    )?;
-    keystore.add_key(
-        None,
-        SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1),
-    )?;
+    keystore.add_key(None, SimpleKeypair::from(Secp256k1PrivateKey::random()))?;
+    keystore.add_key(None, SimpleKeypair::from(Ed25519PrivateKey::random()))?;
 
     for key in keystore
         .keys()
@@ -125,7 +116,7 @@ async fn test_read_write_keystore_with_flag() {
     let dir = tempfile::TempDir::new().unwrap();
 
     // create Secp256k1 keypair
-    let kp_secp = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
+    let kp_secp = SimpleKeypair::from(Secp256k1PrivateKey::random());
     let addr_secp: Address = kp_secp.public_key().derive_address();
     let fp_secp = dir.path().join(format!("{addr_secp}.key"));
     let fp_secp_2 = fp_secp.clone();
@@ -146,7 +137,7 @@ async fn test_read_write_keystore_with_flag() {
     assert!(kp_secp_read.is_err());
 
     // create Ed25519 keypair
-    let kp_ed = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let kp_ed = SimpleKeypair::from(Ed25519PrivateKey::random());
     let addr_ed: Address = kp_ed.public_key().derive_address();
     let fp_ed = dir.path().join(format!("{addr_ed}.key"));
     let fp_ed_2 = fp_ed.clone();
@@ -573,7 +564,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // scope as PersonalMessage.
     KeyToolCommand::Sign {
         address: KeyIdentity::Address(*sender),
-        data: Base64::encode(bcs::to_bytes(&tx)?),
+        data: tx.to_base64(),
         intent: Some(Intent::iota_app(IntentScope::PersonalMessage)),
     }
     .execute(&mut keystore)
@@ -583,7 +574,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // default is used.
     KeyToolCommand::Sign {
         address: KeyIdentity::Address(*sender),
-        data: Base64::encode(bcs::to_bytes(&tx)?),
+        data: tx.to_base64(),
         intent: None,
     }
     .execute(&mut keystore)
@@ -593,7 +584,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // default is used. Use alias for signing instead of the address
     KeyToolCommand::Sign {
         address: KeyIdentity::Alias(alias),
-        data: Base64::encode(bcs::to_bytes(&tx)?),
+        data: tx.to_base64(),
         intent: None,
     }
     .execute(&mut keystore)

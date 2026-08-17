@@ -6,7 +6,7 @@ use std::{str::FromStr, time::Duration};
 
 use anyhow::Ok;
 use iota_json::IotaJsonValue;
-use iota_types::multiaddr::Multiaddr;
+use iota_multiaddr::Multiaddr;
 use tempfile::TempDir;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;

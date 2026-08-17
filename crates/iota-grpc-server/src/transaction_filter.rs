@@ -838,7 +838,7 @@ mod tests {
         // Cancelled due to congestion
         assert!(filter.matches_status(&ExecutionStatus::Failure {
             error:
-                iota_sdk_ext::types::ExecutionError::ExecutionCancelledDueToSharedObjectCongestion {
+                iota_sdk_ext::types::ExecutionError::ExecutionCanceledDueToSharedObjectCongestion {
                     congested_objects: vec![],
                 },
             command: None,
@@ -846,8 +846,7 @@ mod tests {
 
         // Cancelled due to randomness
         assert!(filter.matches_status(&ExecutionStatus::Failure {
-            error:
-                iota_sdk_ext::types::ExecutionError::ExecutionCancelledDueToRandomnessUnavailable,
+            error: iota_sdk_ext::types::ExecutionError::ExecutionCanceledDueToRandomnessUnavailable,
             command: None,
         }));
     }

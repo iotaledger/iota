@@ -414,7 +414,7 @@ impl WriteApiServer for WriteApi {
             )
             .await
             .map_err(IndexerError::from)?;
-        let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&tx_kind).map_err(IndexerError::from)?);
+        let tx_bytes = Base64::from_bytes(&tx_kind.to_bcs());
         let dev_inspect_results = self
             .dev_inspect_transaction_block(sender, tx_bytes, None, None, None)
             .await?;

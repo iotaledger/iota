@@ -40,6 +40,7 @@ serde_yaml.workspace = true
 # internal dependencies
 iota-keys.workspace = true
 iota-metrics.workspace = true
+iota-multiaddr.workspace = true
 iota-names.workspace = true
 prometheus-filtered.workspace = true
 starfish-config.workspace = true

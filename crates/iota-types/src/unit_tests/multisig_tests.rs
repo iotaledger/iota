@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_ext::{
-    crypto::Signer,
+    crypto::{Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey},
     types::{
         Address,
         crypto::{
@@ -16,7 +16,6 @@ use iota_sdk_ext::{
 use crate::{
     error::IotaError,
     signature::{AuthenticatorTrait, VerifyParams},
-    utils::multisig_keys,
 };
 
 #[test]
@@ -25,7 +24,8 @@ fn verify_rejects_signature_pubkey_scheme_mismatch() {
     // key, but whose accompanying member signature is Secp256k1. The committee
     // and bitmap are otherwise well-formed, so `validate()` passes and the
     // mismatch is only observable inside `verify_claims`.
-    let (kp1, kp2, _) = multisig_keys();
+    let kp1 = Ed25519PrivateKey::random();
+    let kp2 = Secp256k1PrivateKey::random();
 
     let multisig_pk =
         MultisigCommittee::new(vec![MultisigMember::new(kp1.public_key(), 1)], 1).unwrap();

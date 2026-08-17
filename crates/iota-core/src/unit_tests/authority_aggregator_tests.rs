@@ -297,7 +297,7 @@ async fn execute_transaction_with_fault_configs(
     configs_before_process_certificate: &[(usize, LocalAuthorityClientFaultConfig)],
 ) -> bool {
     let (addr1, key1): (_, AccountKeyPair) = get_key_pair();
-    let (addr2, _): (_, AccountKeyPair) = get_key_pair();
+    let addr2 = Address::random();
     let gas_object1 = Object::with_owner_for_testing(addr1);
     let gas_object2 = Object::with_owner_for_testing(addr1);
     let (mut authorities, _, genesis, _) =

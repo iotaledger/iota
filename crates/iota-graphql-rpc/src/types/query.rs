@@ -194,11 +194,7 @@ impl Query {
             skip_checks: Some(skip_checks),
         };
 
-        let tx_bytes = Base64::from_bytes(
-            &bcs::to_bytes(&tx_kind)
-                .map_err(|e| Error::Internal(e.to_string()))
-                .extend()?,
-        );
+        let tx_bytes = Base64::from_bytes(&tx_kind.to_bcs());
         let res = write_api
             .dev_inspect_transaction_block(
                 sender_address,

@@ -30,6 +30,7 @@ use iota_keys::{
     },
     keystore::{AccountKeystore, StoredKey},
 };
+use iota_multiaddr::Multiaddr;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_sdk_ext::{
     crypto::simple::SimpleKeypair,
@@ -51,7 +52,6 @@ use iota_types::{
         iota_system_state_inner_v1::{UnverifiedValidatorOperationCap, ValidatorV1},
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
     },
-    multiaddr::Multiaddr,
     transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 use serde::Serialize;

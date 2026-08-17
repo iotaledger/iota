@@ -288,9 +288,9 @@ fn get_registry() -> Result<Registry> {
     // the SDK's MovePackage uses BTreeMap<Identifier, Vec<u8>> with serde_with,
     // and Identifier's custom serde (DisplayFromStr) is incompatible with
     // serde_reflection's tracing deserializer for map keys.
-    let sample_move_obj = MoveStruct::new_gas_coin(1u64.into(), ObjectId::ZERO, 0);
+    let sample_move_struct = MoveStruct::new_gas_coin(1u64.into(), ObjectId::ZERO, 0);
     tracer
-        .trace_value(&mut samples, &ObjectData::Struct(sample_move_obj))
+        .trace_value(&mut samples, &ObjectData::Struct(sample_move_struct))
         .unwrap();
     let sample_upgrade_info = UpgradeInfo {
         upgraded_id: ObjectId::ZERO,
@@ -422,8 +422,8 @@ fn get_registry() -> Result<Registry> {
                 commit_timestamp_ms: 0,
                 consensus_commit_digest: ConsensusCommitDigest::default(),
                 consensus_determined_version_assignments:
-                    ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                        cancelled_transactions: vec![],
+                    ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                        canceled_transactions: vec![],
                     },
             }),
         )

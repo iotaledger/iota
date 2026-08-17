@@ -101,7 +101,7 @@ mod checked {
             bcs::to_bytes(&self).unwrap()
         }
 
-        pub fn to_object(&self, version: Version) -> MoveStruct {
+        pub fn to_move_struct(&self, version: Version) -> MoveStruct {
             MoveStruct::new_gas_coin(version, *self.id(), self.value())
         }
 

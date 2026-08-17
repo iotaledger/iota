@@ -33,7 +33,7 @@ use crate::{
     committee::{Committee, EpochId},
     crypto::{
         AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
-        AuthorityStrongQuorumSignInfo, default_hash, get_key_pair,
+        AuthorityStrongQuorumSignInfo, VerificationObligation, default_hash, get_key_pair,
     },
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::{IotaError, IotaResult},
@@ -258,6 +258,31 @@ impl CertifiedCheckpointSummary {
             Intent::iota_app(IntentScope::CheckpointSummary),
             committee,
         )
+    }
+
+    /// Verifies the authority signatures of `summaries`, all certified by
+    /// `committee`, in a single batched signature verification. Cheaper than
+    /// verifying each summary on its own, at the cost of not saying which
+    /// summary failed; callers that need that can fall back to
+    /// [`Self::verify_authority_signatures`] per summary.
+    #[instrument(level = "trace", skip_all)]
+    pub fn batch_verify_authority_signatures(
+        summaries: &[Self],
+        committee: &Committee,
+    ) -> IotaResult {
+        let mut obligation = VerificationObligation::default();
+        for summary in summaries {
+            summary.data().verify_epoch(summary.auth_sig().epoch)?;
+            let idx = obligation.add_message(
+                summary.data(),
+                summary.auth_sig().epoch,
+                Intent::iota_app(IntentScope::CheckpointSummary),
+            );
+            summary
+                .auth_sig()
+                .add_to_verification_obligation(committee, &mut obligation, idx)?;
+        }
+        obligation.verify_all()
     }
 
     pub fn try_into_verified(self, committee: &Committee) -> IotaResult<VerifiedCheckpoint> {
@@ -841,6 +866,70 @@ mod tests {
                 .verify_authority_signatures(&committee)
                 .is_err()
         )
+    }
+
+    #[test]
+    fn test_batch_verify_certified_checkpoints() {
+        let mut rng = StdRng::from_seed(RNG_SEED);
+        let (keys, committee) = make_committee_key(&mut rng);
+
+        let summary_for_sequence_number = |sequence_number| {
+            let set =
+                CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::random()]);
+            CheckpointSummary::new_with_protocol_config(
+                &ProtocolConfig::get_for_max_version_UNSAFE(),
+                committee.epoch,
+                sequence_number,
+                0,
+                &set,
+                None,
+                GasCostSummary::default(),
+                None,
+                0,
+                Vec::new(),
+            )
+        };
+        let certify = |summary: CheckpointSummary| {
+            let sign_infos = keys
+                .iter()
+                .map(|k| {
+                    SignedCheckpointSummary::sign(committee.epoch, &summary, k, k.public().into())
+                })
+                .collect();
+            CertifiedCheckpointSummary::new(summary, sign_infos, &committee).expect("cert is OK")
+        };
+
+        let summaries: Vec<_> = (1..=3)
+            .map(|seq| certify(summary_for_sequence_number(seq)))
+            .collect();
+        CertifiedCheckpointSummary::batch_verify_authority_signatures(&summaries, &committee)
+            .expect("signatures ok");
+
+        // A certificate whose signatures were made over a different summary
+        // fails the batch.
+        let mismatched = {
+            let summary = summary_for_sequence_number(4);
+            let sign_infos = keys
+                .iter()
+                .map(|k| {
+                    SignedCheckpointSummary::sign(
+                        committee.epoch,
+                        &summary_for_sequence_number(4),
+                        k,
+                        k.public().into(),
+                    )
+                })
+                .collect();
+            CertifiedCheckpointSummary::new(summary, sign_infos, &committee).expect("cert is OK")
+        };
+        let with_mismatched: Vec<_> = summaries.into_iter().chain([mismatched]).collect();
+        assert!(
+            CertifiedCheckpointSummary::batch_verify_authority_signatures(
+                &with_mismatched,
+                &committee
+            )
+            .is_err()
+        );
     }
 
     // Generate a CheckpointSummary from the input transaction digest. All the other

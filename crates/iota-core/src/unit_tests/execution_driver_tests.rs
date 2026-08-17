@@ -11,7 +11,7 @@ use std::{
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_ext::types::{Owner, TransactionDigest, TransactionEffects};
+use iota_sdk_ext::types::{Address, Owner, TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     committee::Committee,
@@ -761,8 +761,8 @@ async fn test_authority_txn_signing_pushback() {
 
     // Create one sender, two recipients addresses, and 2 gas objects.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (recipient1, _): (_, AccountKeyPair) = get_key_pair();
-    let (recipient2, _): (_, AccountKeyPair) = get_key_pair();
+    let recipient1 = Address::random();
+    let recipient2 = Address::random();
     let gas_object1 = Object::with_owner_for_testing(sender);
     let gas_object2 = Object::with_owner_for_testing(sender);
 
@@ -888,7 +888,7 @@ async fn test_authority_txn_execution_pushback() {
 
     // Create one sender, one recipient addresses, and 2 gas objects.
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (recipient, _): (_, AccountKeyPair) = get_key_pair();
+    let recipient = Address::random();
     let gas_object1 = Object::with_owner_for_testing(sender);
     let gas_object2 = Object::with_owner_for_testing(sender);
 

@@ -176,7 +176,7 @@ async fn test_gas_wrong_owner_matches_sender() {
         1,
         |tx| {
             let gas_data = tx.gas_data_mut();
-            let (new_addr, _): (_, AccountKeyPair) = get_key_pair();
+            let new_addr = Address::random();
             gas_data.owner = new_addr;
             *tx.sender_mut_for_testing() = new_addr;
         },
@@ -194,7 +194,7 @@ async fn test_gas_wrong_owner() {
         1,
         |tx| {
             let gas_data = tx.gas_data_mut();
-            let (new_addr, _): (_, AccountKeyPair) = get_key_pair();
+            let new_addr = Address::random();
             gas_data.owner = new_addr;
         },
         |_| {},
@@ -230,8 +230,8 @@ async fn test_user_sends_consensus_commit_prologue_v1() {
             commit_timestamp_ms: 42,
             consensus_commit_digest: ConsensusCommitDigest::default(),
             consensus_determined_version_assignments:
-                ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                    cancelled_transactions: Vec::new(),
+                ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                    canceled_transactions: Vec::new(),
                 },
         },
     ))

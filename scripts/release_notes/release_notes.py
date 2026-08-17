@@ -13,9 +13,29 @@ import subprocess
 import sys
 from typing import NamedTuple
 import urllib.error
+import urllib.parse
 import urllib.request
 
 GH_TOKEN = os.environ.get("GH_TOKEN")
+
+GH_REPO = "iotaledger/iota"
+GH_API = f"https://api.github.com/repos/{GH_REPO}"
+
+# Pull request payloads, keyed by PR number as a string. The same PR is looked
+# up from several commits, and expanding a feature branch needs its payload a
+# second time to find the branch the intermediate PRs were merged into.
+PR_CACHE = {}
+
+# Upper bound on pages of intermediate PRs read for one feature branch, so a
+# mistaken branch name can't turn into an unbounded walk of the repository's
+# pull requests.
+SUB_PR_PAGE_LIMIT = 10
+
+# The default branch, network branches, and release branches. A merged PR whose
+# head is one of these is a sync or back-merge (e.g. "merge develop into the
+# feature branch"), not a feature branch: expanding it would claim every PR
+# merged into that branch as part of the feature.
+RE_LONG_LIVED_BRANCH = re.compile(r"^(develop|devnet|testnet|mainnet)$|^releases?[-/]")
 
 RE_NUM = re.compile("[0-9_]+")
 
@@ -279,39 +299,144 @@ def git(*args):
     """Run a git command and return the output as a string."""
     return subprocess.check_output(["git"] + list(args)).decode().strip()
 
+def github_api(path, params=None):
+    """GET `path` under this repository on the GitHub API, as parsed JSON."""
+    url = f"{GH_API}{path}"
+    if params:
+        url = f"{url}?{urllib.parse.urlencode(params)}"
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+    }
+    if GH_TOKEN is not None:
+        headers["Authorization"] = f"token {GH_TOKEN}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req) as response:
+        return json.load(response)
+
+
+def fetch_pr(pr_number):
+    """Fetch a PR payload, reusing an earlier fetch of the same PR."""
+    key = str(pr_number)
+    if key not in PR_CACHE:
+        PR_CACHE[key] = github_api(f"/pulls/{key}")
+    return PR_CACHE[key]
+
+
 def extract_notes_from_commit(commit):
     # we'll need to go one level deeper to find the PR number
-    url = f"https://api.github.com/repos/iotaledger/iota/commits/{commit}/pulls"
-    headers = {
-        "Accept": "application/vnd.github.v3+json",
-    }
-    if GH_TOKEN is not None:
-        headers["Authorization"] = f"token {GH_TOKEN}"
-    req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req) as response:
-        data = json.load(response)
-        if len(data) == 0:
-            return None, ""
-        pr_number = data[0]["number"]
-        pr_notes = data[0]["body"] if data[0]["body"] else ""
-        return pr_number, pr_notes
+    data = github_api(f"/commits/{commit}/pulls")
+    if len(data) == 0:
+        return None, ""
+    pr = data[0]
+    number = str(pr["number"])
+    PR_CACHE.setdefault(number, pr)
+    pr_notes = pr["body"] if pr["body"] else ""
+    # A string, like the number parsed out of a commit message, so that a PR
+    # reached either way counts as the same PR.
+    return number, pr_notes
 
 def extract_notes_from_pr(pr_number):
-    url = f"https://api.github.com/repos/iotaledger/iota/pulls/{pr_number}"
-    headers = {
-        "Accept": "application/vnd.github.v3+json",
-    }
-    if GH_TOKEN is not None:
-        headers["Authorization"] = f"token {GH_TOKEN}"
-    req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req) as response:
-        data = json.load(response)
-        pr_notes = data["body"] if data["body"] else ""
-        return pr_notes
+    pr = fetch_pr(pr_number)
+    pr_notes = pr["body"] if pr["body"] else ""
+    return pr_notes
 
 def extract_notes_from_local_commit(commit):
     message = git("show", "-s", "--format=%B", commit)
     return message
+
+
+def merged_prs_into(branch):
+    """Every merged PR that targeted `branch`."""
+    prs = []
+    for page in range(1, SUB_PR_PAGE_LIMIT + 1):
+        batch = github_api(
+            "/pulls",
+            {"state": "closed", "base": branch, "per_page": 100, "page": page},
+        )
+        prs.extend(pr for pr in batch if pr["merged_at"])
+        if len(batch) < 100:
+            break
+    return prs
+
+
+def branch_start(pr_number):
+    """Earliest time work landed on a PR's branch, as an ISO 8601 string.
+
+    Both the author and the committer date of the branch's first commit are
+    considered: a rebase rewrites committer dates to the time of the rebase but
+    leaves author dates alone, so the earlier of the two is the safer bound.
+
+    Returns `None` if the PR has no commits to read.
+
+    """
+    commits = github_api(f"/pulls/{pr_number}/commits", {"per_page": 100})
+    if not commits:
+        return None
+
+    # The first page starts at the base of the branch, so its first entry is the
+    # earliest commit even when the PR has more commits than the API will list.
+    first = commits[0]["commit"]
+    return min(first["author"]["date"], first["committer"]["date"])
+
+
+def find_sub_prs(pr_number, visited=None):
+    """PR numbers merged into `pr_number`'s own branch, and so on recursively.
+
+    A feature branch collects its work through PRs that target the branch itself
+    rather than `develop`. The merge queue squashes the whole branch into one
+    commit, so those PRs leave no trace in `develop`'s history and their release
+    notes have to be looked up here instead.
+
+    Only branches of this repository are followed: PRs are matched by base
+    branch name, and a fork's branch name says nothing about a branch of the
+    same name here. Long-lived branches are never followed: a PR merging one
+    into another branch is a sync or back-merge, and the PRs merged into it
+    are not part of the feature being expanded.
+
+    """
+    if visited is None:
+        visited = set()
+
+    pr = fetch_pr(pr_number)
+    head = pr.get("head") or {}
+    branch = head.get("ref")
+    if not branch or (head.get("repo") or {}).get("full_name") != GH_REPO:
+        return []
+    if RE_LONG_LIVED_BRANCH.match(branch):
+        return []
+    if not pr.get("merged_at"):
+        return []
+
+    visited.add(str(pr_number))
+
+    # Branch names are reused over time, so only count PRs merged during this
+    # branch's life: at or after the first commit landed on it, and no later
+    # than the branch itself was merged. GitHub reports all timestamps as UTC
+    # in the same format, so they can be compared as strings.
+    candidates = [
+        sub
+        for sub in merged_prs_into(branch)
+        if str(sub["number"]) not in visited and sub["merged_at"] <= pr["merged_at"]
+    ]
+
+    if not candidates:
+        return []
+
+    start = branch_start(pr_number)
+    if start:
+        candidates = [sub for sub in candidates if sub["merged_at"] >= start]
+
+    sub_prs = []
+    for sub in candidates:
+        number = str(sub["number"])
+        if number in visited:
+            continue
+        visited.add(number)
+        PR_CACHE.setdefault(number, sub)
+        sub_prs.append(number)
+        sub_prs.extend(find_sub_prs(number, visited))
+
+    return sub_prs
 
 def extract_rollout(notes, crate_names):
     """Extract rollout entries under the Breaking Changes Rollout section."""
@@ -698,15 +823,7 @@ def do_generate(from_, to, is_dry_run, network=None):
     if not commits:
         return
 
-    seen_prs = set()
-    for commit in commits.split("\n"):
-        try:
-            pr, notes, rollout = extract_notes(commit, seen_prs, False, crate_names, is_dry_run)
-        except ValueError as exc:
-            print(f"Error while processing release notes in commit {commit}: {exc}")
-            sys.exit(1)
-        if pr:
-            seen_prs.add(pr)
+    def collect(pr, commit, notes, rollout):
         for impacted, note in notes:
             if note.checked:
                 results[impacted].append((pr, note.note))
@@ -714,6 +831,37 @@ def do_generate(from_, to, is_dry_run, network=None):
             for network, entry in networks.items():
                 if entry.checked:
                     rollout_entries[crate][network].append((pr, commit, entry.note))
+
+    seen_prs = set()
+    for commit in commits.split("\n"):
+        try:
+            pr, notes, rollout = extract_notes(commit, seen_prs, False, crate_names, is_dry_run)
+        except ValueError as exc:
+            print(f"Error while processing release notes in commit {commit}: {exc}")
+            sys.exit(1)
+        # Several commits can belong to one PR, which only needs expanding once.
+        expand = bool(pr) and pr not in seen_prs
+        if pr:
+            seen_prs.add(pr)
+        collect(pr, commit, notes, rollout)
+
+        if is_dry_run or not expand:
+            continue
+
+        # A commit can be a squashed feature branch, whose own PR carries no
+        # notes: they belong to the PRs that were merged into the branch.
+        for sub_pr in find_sub_prs(pr):
+            if sub_pr in seen_prs:
+                continue
+            try:
+                _, sub_notes, sub_rollout = extract_notes(
+                    sub_pr, seen_prs, True, crate_names, False
+                )
+            except ValueError as exc:
+                print(f"Error while processing release notes in PR #{sub_pr}: {exc}")
+                sys.exit(1)
+            seen_prs.add(sub_pr)
+            collect(sub_pr, commit, sub_notes, sub_rollout)
 
     # Print the impact areas we know about first
     for impacted in NOTE_ORDER:
@@ -733,7 +881,9 @@ def do_generate(from_, to, is_dry_run, network=None):
                     next_epoch, when = upgrade
                     print(
                         f"\nOn `{network}`, this protocol version can be enabled no "
-                        f"earlier than `{when}` (start of epoch {next_epoch})."
+                        f"earlier than `{when}` (start of epoch {next_epoch}). "
+                        f"Please ensure that you update your validators before this epoch change. "
+                        f"Otherwise, if the upgrade threshold is reached, the protocol will remove you from the committee, and both you and your delegators will lose rewards."
                     )
         print()
 
@@ -765,12 +915,17 @@ def do_generate(from_, to, is_dry_run, network=None):
                     print_changelog(pr, note, commit, is_dry_run=is_dry_run)
 
 
-args = parse_args()
-if args["command"] == "generate":
-    do_generate(args["from"], args["to"], False, args["network"])
-if args["command"] == "dry-run":
-    do_generate(args["from"], args["to"], True, args["network"])
-elif args["command"] == "check":
-    do_check(args["commit"], False)
-elif args["command"] == "check-pr":
-    do_check(args["pr-number"], True)
+def main():
+    args = parse_args()
+    if args["command"] == "generate":
+        do_generate(args["from"], args["to"], False, args["network"])
+    if args["command"] == "dry-run":
+        do_generate(args["from"], args["to"], True, args["network"])
+    elif args["command"] == "check":
+        do_check(args["commit"], False)
+    elif args["command"] == "check-pr":
+        do_check(args["pr-number"], True)
+
+
+if __name__ == "__main__":
+    main()

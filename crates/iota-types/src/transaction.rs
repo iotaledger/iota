@@ -17,7 +17,7 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::types::{
-    Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
+    Address, Argument, CanceledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
     MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
@@ -2370,7 +2370,7 @@ impl TransactionEnvelope {
     /// and a list of Base64 encoded [`UserSignature`].
     pub fn to_tx_bytes_and_signatures(&self) -> (Base64, Vec<Base64>) {
         (
-            Base64::from_bytes(&bcs::to_bytes(self.data().transaction()).unwrap()),
+            Base64::from_bytes(&self.data().transaction().to_bcs()),
             self.data()
                 .signatures()
                 .iter()
@@ -2392,7 +2392,7 @@ impl VerifiedTransaction {
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
-        cancelled_transactions: Vec<CancelledTransaction>,
+        canceled_transactions: Vec<CanceledTransaction>,
     ) -> Self {
         ConsensusCommitPrologueV1 {
             epoch,
@@ -2402,8 +2402,8 @@ impl VerifiedTransaction {
             commit_timestamp_ms,
             consensus_commit_digest,
             consensus_determined_version_assignments:
-                ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                    cancelled_transactions,
+                ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                    canceled_transactions,
                 },
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV1)

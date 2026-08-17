@@ -286,7 +286,7 @@ fn parse_transaction_proto(
 ///   transaction this contains only the gas charge.
 /// - `object_changes` - structured object changes (created, mutated, deleted,
 ///   wrapped, unwrapped, published)
-#[tracing::instrument(skip(reader, executor))]
+#[tracing::instrument(skip_all, fields(batch_size = request.transactions.len()))]
 pub async fn execute_transactions(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,

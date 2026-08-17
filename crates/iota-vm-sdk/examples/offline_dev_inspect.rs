@@ -12,7 +12,6 @@
 //!   cargo run -p iota-vm-sdk --example offline_dev_inspect
 
 use anyhow::Result;
-use fastcrypto::encoding::{Base64, Encoding};
 use iota_sdk_ext::types::Transaction;
 use iota_types::{effects::TransactionEffectsAPI, transaction::TransactionAPI};
 use iota_vm_sdk::{Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion};
@@ -27,8 +26,7 @@ fn main() -> Result<()> {
 
     // Base64-encoded BCS for: 0x2::hash::blake2b256([0, 1, 2]).
     let tx_b64 = "AAABAAQDAAECAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgRoYXNoCmJsYWtlMmIyNTYAAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6AMAAAAAAAAAypo7AAAAAAA=";
-    let tx_bytes = Base64::decode(tx_b64)?;
-    let tx: Transaction = bcs::from_bytes(&tx_bytes)?;
+    let tx = Transaction::from_base64(tx_b64)?;
     println!("Sender:    {}", tx.sender());
 
     let result = vm.execute(tx, ExecuteOptions::dev_inspect())?;

@@ -383,7 +383,7 @@ impl Inner<'_> {
     }
 }
 
-fn deserialize_move_object(
+fn deserialize_move_struct(
     obj: &MoveStruct,
     child_ty: &Type,
     child_ty_layout: &R::MoveTypeLayout,
@@ -456,7 +456,7 @@ impl<'a> ChildObjectStore<'a> {
         };
 
         Ok(Some(
-            match deserialize_move_object(&obj, child_ty, child_layout, child_struct_tag)? {
+            match deserialize_move_struct(&obj, child_ty, child_layout, child_struct_tag)? {
                 ObjectResult::MismatchedType => (ObjectResult::MismatchedType, obj_meta),
                 ObjectResult::Loaded((_, _, v)) => {
                     // Find all UIDs inside of the value and update the object parent maps with the

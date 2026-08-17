@@ -255,6 +255,10 @@ pub struct AuthorityMetrics {
     execute_certificate_latency_shared_object: Histogram,
 
     internal_execution_latency: Histogram,
+    /// Number of times the validator refused to report effects (signed or
+    /// unsigned, labeled by RPC surface) because it had previously signed
+    /// different effects for the same transaction.
+    signed_effects_equivocation_prevented: IntCounterVec,
     execution_load_input_objects_latency: Histogram,
     prepare_certificate_latency: Histogram,
     commit_certificate_latency: Histogram,
@@ -487,6 +491,13 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
+            signed_effects_equivocation_prevented: register_int_counter_vec_with_registry!(
+                "authority_state_signed_effects_equivocation_prevented",
+                "Number of times the validator refused to report effects that differ from previously signed effects for the same transaction, by RPC surface",
+                &["surface"],
+                registry,
+            )
+            .unwrap(),
             execution_load_input_objects_latency: register_histogram_with_registry!(
                 "authority_state_execution_load_input_objects_latency",
                 "Latency of loading input objects for execution",
@@ -1473,14 +1484,6 @@ impl AuthorityState {
 
         let (tx_input_objects, per_authenticator_inputs) =
             self.read_objects_for_execution(tx_guard.as_lock_guard(), transaction, epoch_store)?;
-
-        // If no expected_effects_digest was provided, try to get it from storage.
-        // We could be re-executing a previously executed but uncommitted transaction,
-        // perhaps after restarting with a new binary. In this situation, if
-        // we have published an effects signature, we must be sure not to
-        // equivocate.
-        let expected_effects_digest =
-            expected_effects_digest.or(epoch_store.get_signed_effects_digest(tx_digest)?);
 
         self.process_transaction(
             tx_guard,
@@ -2561,7 +2564,12 @@ impl AuthorityState {
                     let Some(df_info) = self
                         .try_create_dynamic_field_info(new_object, written, layout_resolver.as_mut())
                         .unwrap_or_else(|e| {
-                            error!("try_create_dynamic_field_info should not fail, {}, new_object={:?}", e, new_object);
+                            error!(
+                                "try_create_dynamic_field_info should not fail, {}, new_object={}, new_object_type={}",
+                                e,
+                                new_object.id(),
+                                ObjectType::from(new_object)
+                            );
                             None
                         }
                         )
@@ -4503,6 +4511,47 @@ impl AuthorityState {
         }
     }
 
+    /// A client aggregating effects signatures towards a quorum assumes
+    /// finality once it collects 2f+1 of them, so within an epoch this
+    /// validator must never assert two different effects for the same
+    /// transaction on any RPC surface, signed or unsigned. Executed effects
+    /// can change across a restart if an uncommitted transaction is
+    /// re-executed with divergent results (e.g. by a new binary), so every
+    /// effects-reporting path calls this before returning effects, and
+    /// refuses to contradict a signature that may already be in a client's
+    /// hands.
+    pub fn check_effects_against_previously_signed(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        tx_digest: &TransactionDigest,
+        effects_digest: &TransactionEffectsDigest,
+        surface: &'static str,
+    ) -> IotaResult<()> {
+        if let Some(previously_signed_digest) = epoch_store.get_signed_effects_digest(tx_digest)? {
+            if previously_signed_digest != *effects_digest {
+                self.metrics
+                    .signed_effects_equivocation_prevented
+                    .with_label_values(&[surface])
+                    .inc();
+                error!(
+                    ?tx_digest,
+                    ?previously_signed_digest,
+                    executed_digest = ?effects_digest,
+                    surface,
+                    "refusing to report effects that differ from previously signed effects"
+                );
+                return Err(IotaError::GenericAuthority {
+                    error: format!(
+                        "Refusing to report effects for transaction {tx_digest}: effects digest \
+                         {effects_digest} differs from previously signed effects digest \
+                         {previously_signed_digest}"
+                    ),
+                });
+            }
+        }
+        Ok(())
+    }
+
     #[instrument(level = "trace", skip_all)]
     pub(crate) fn sign_effects(
         &self,
@@ -4510,6 +4559,14 @@ impl AuthorityState {
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<VerifiedSignedTransactionEffects> {
         let tx_digest = *effects.transaction_digest();
+
+        self.check_effects_against_previously_signed(
+            epoch_store,
+            &tx_digest,
+            &effects.digest(),
+            "sign_effects",
+        )?;
+
         let signed_effects = match epoch_store.get_effects_signature(&tx_digest)? {
             Some(sig) => {
                 debug_assert!(sig.epoch == epoch_store.epoch());
@@ -4758,35 +4815,60 @@ impl AuthorityState {
     ///   authority can satisfy that upgrade, in which case the contents are
     ///   included in the output.
     ///
-    /// If the current version of the framework can't be loaded, the binary does
+    /// If a needed version of the framework can't be loaded, the binary does
     /// not contain the bytes for that framework ID, or the resulting
     /// package fails the digest check, `None` is returned indicating that
     /// this authority cannot run the upgrade that the network voted on.
+    ///
+    /// All object lookups are pinned to the versions in `system_packages`
+    /// instead of using the latest versions, so that the result is
+    /// deterministic even if the change epoch transaction that performs the
+    /// upgrade has already been executed locally (e.g. via state sync). In
+    /// that case the reconstructed change epoch transaction is byte-identical
+    /// to the executed one, and the caller detects it as already executed.
     async fn get_system_package_bytes(
         &self,
         system_packages: Vec<ObjectReference>,
         binary_config: &BinaryConfig,
     ) -> Option<Vec<SystemPackage>> {
-        let ids: Vec<_> = system_packages
-            .iter()
-            .map(|object_ref| object_ref.object_id)
-            .collect();
-        let objects = self.get_objects(&ids);
+        let object_store = self.get_object_cache_reader();
 
         let mut res = Vec::with_capacity(system_packages.len());
-        for (system_package_ref, object) in system_packages.into_iter().zip(objects.iter()) {
-            let prev_transaction = match object {
-                Some(cur_object) if cur_object.object_ref() == system_package_ref => {
-                    // Skip this one because it doesn't need to be upgraded.
-                    info!(
-                        "Framework {} does not need updating",
+        for system_package_ref in system_packages {
+            if object_store
+                .get_object_by_key(&system_package_ref.object_id, system_package_ref.version)
+                .is_some_and(|object| object.object_ref() == system_package_ref)
+            {
+                // Skip this one because it doesn't need to be upgraded.
+                info!(
+                    "Framework {} does not need updating",
+                    system_package_ref.object_id
+                );
+                continue;
+            }
+
+            // The digest in `system_package_ref` commits to a package built on top of the
+            // predecessor version's `previous_transaction` (see `compare_system_package`),
+            // so it must be re-derived from that version. A ref at
+            // `Version::OBJECT_START` is a freshly created package with no predecessor.
+            let prev_transaction = if system_package_ref.version == Version::OBJECT_START {
+                TransactionDigest::GENESIS_MARKER
+            } else {
+                let prev_version = system_package_ref
+                    .version
+                    .previous()
+                    .expect("version is greater than Version::OBJECT_START");
+                let Some(prev_object) =
+                    object_store.get_object_by_key(&system_package_ref.object_id, prev_version)
+                else {
+                    error!(
+                        "Framework {} not available locally at version {prev_version:?}, cannot \
+                         derive upgrade to {system_package_ref:?}",
                         system_package_ref.object_id
                     );
-                    continue;
-                }
-
-                Some(cur_object) => cur_object.previous_transaction,
-                None => TransactionDigest::GENESIS_MARKER,
+                    return None;
+                };
+                prev_object.previous_transaction
             };
 
             #[cfg(msim)]

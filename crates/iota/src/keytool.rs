@@ -464,9 +464,8 @@ impl KeyToolCommand {
                 }
 
                 if let Some(tx_bytes) = tx_bytes {
-                    let tx_bytes = Base64::decode(&tx_bytes)
-                        .map_err(|e| anyhow!("Invalid base64 tx bytes: {e}"))?;
-                    let tx: Transaction = bcs::from_bytes(&tx_bytes)?;
+                    let tx = Transaction::from_base64(&tx_bytes)
+                        .map_err(|e| anyhow!("Invalid tx bytes: {e}"))?;
                     let s = UserSignature::Multisig(multisig);
                     let res =
                         s.verify_claims(&tx.intent_message(), address, &VerifyParams::default());
@@ -486,12 +485,9 @@ impl KeyToolCommand {
                     Ok(sig) => sig,
                     Err(_) => {
                         // Try decoding as SenderSignedTransaction
-                        let tx_bytes = Base64::decode(&sig)
-                            .map_err(|e| anyhow!("Invalid base64 encoding: {e}"))?;
-                        let tx =
-                            bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes).map_err(|e| {
-                                anyhow!("Failed to decode as signature or transaction: {e}")
-                            })?;
+                        let tx = SenderSignedTransaction::from_base64(&sig).map_err(|e| {
+                            anyhow!("Failed to decode as signature or transaction: {e}")
+                        })?;
                         tx.0.signatures
                             .into_iter()
                             .next()
@@ -567,9 +563,8 @@ impl KeyToolCommand {
                 CommandOutput::DecodeSig(decoded)
             }
             KeyToolCommand::DecodeOrVerifyTx { tx_bytes, sig } => {
-                let tx_bytes = Base64::decode(&tx_bytes)
-                    .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
-                let tx: Transaction = bcs::from_bytes(&tx_bytes)?;
+                let tx = Transaction::from_base64(&tx_bytes)
+                    .map_err(|e| anyhow!("Invalid tx bytes: {e:?}"))?;
                 match sig {
                     None => {
                         CommandOutput::DecodeOrVerifyTx(DecodeOrVerifyTxOutput { tx, result: None })
@@ -812,10 +807,8 @@ impl KeyToolCommand {
             } => {
                 let address = get_identity_address_from_keystore(address, keystore)?;
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
-                let msg: Transaction = bcs::from_bytes(
-                    &Base64::decode(&data)
-                        .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?,
-                )?;
+                let msg = Transaction::from_base64(&data)
+                    .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?;
                 let intent_msg = IntentMessage::new(intent, msg);
                 let raw_intent_msg: String = Base64::encode(bcs::to_bytes(&intent_msg)?);
                 let mut hasher = DefaultHash::default();
@@ -871,10 +864,8 @@ impl KeyToolCommand {
                 info!("Raw tx_bytes to execute: {}", data);
                 let intent = intent.unwrap_or_else(Intent::iota_transaction);
                 info!("Intent: {:?}", intent);
-                let msg: Transaction = bcs::from_bytes(
-                    &Base64::decode(&data)
-                        .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?,
-                )?;
+                let msg = Transaction::from_base64(&data)
+                    .map_err(|e| anyhow!("Cannot deserialize data as Transaction {e:?}"))?;
                 let intent_msg = IntentMessage::new(intent, msg);
                 info!(
                     "Raw intent message: {:?}",
@@ -924,14 +915,12 @@ impl KeyToolCommand {
                 })
             }
             KeyToolCommand::TxDigest { tx_bytes } => {
-                let tx_bytes = Base64::decode(&tx_bytes)
-                    .map_err(|e| anyhow!("Invalid base64 tx bytes: {e:?}"))?;
-                let tx = match bcs::from_bytes::<Transaction>(&tx_bytes) {
+                let tx = match Transaction::from_base64(&tx_bytes) {
                     Ok(tx) => tx,
                     Err(_) => {
-                        let deserialized_tx =
-                            bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes)?;
-                        deserialized_tx.0.transaction
+                        SenderSignedTransaction::from_base64(&tx_bytes)?
+                            .0
+                            .transaction
                     }
                 };
                 CommandOutput::TxDigest(TxDigestOutput {

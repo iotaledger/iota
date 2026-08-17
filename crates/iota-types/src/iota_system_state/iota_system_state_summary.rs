@@ -4,6 +4,7 @@
 
 use either::Either;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
+use iota_multiaddr::Multiaddr;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_ext::types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
@@ -19,7 +20,6 @@ use crate::{
     id::ID,
     iota_serde::{BigInt, Readable},
     iota_system_state::get_validator_from_table,
-    multiaddr::Multiaddr,
     storage::ObjectStore,
 };
 

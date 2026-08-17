@@ -892,7 +892,7 @@ pub async fn upgrade_package_with_wallet(
 
         let receipt = builder
             .upgrade(package_id, package_data, assigned("ticket"))
-            .arg();
+            .result();
 
         builder
             .move_call(IOTA_FRAMEWORK_PACKAGE_ID, "package", "commit_upgrade")

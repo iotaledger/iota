@@ -9,11 +9,14 @@ use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk_ext::types::{
     ObjectReference, Owner as SdkOwner, SenderSignedTransaction, Transaction, UserSignature,
 };
-use iota_types::{effects::TransactionEffectsAPI, object::Object};
+use iota_types::{
+    effects::TransactionEffectsAPI,
+    object::{Object, ObjectInner},
+};
 use wasm_bindgen::prelude::*;
 
 use super::{
-    b64_decode, err_to_js,
+    err_to_js,
     store::CallbackStore,
     types::{
         ChangedObject, CommandResultOut, DeletedObject, EventOut, MoveCallValue, Owner,
@@ -37,17 +40,16 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
     let req: SimulateRequest =
         serde_wasm_bindgen::from_value(req).map_err(|e| JsError::new(&e.to_string()))?;
 
-    let tx_bytes = b64_decode(&req.tx_b64)?;
-    let tx: Transaction =
-        bcs::from_bytes(&tx_bytes).map_err(|e| JsError::new(&format!("bcs decode tx: {e}")))?;
+    let tx = Transaction::from_base64(&req.tx_b64)
+        .map_err(|e| JsError::new(&format!("decode tx: {e}")))?;
 
     let store = CallbackStore::new(fetch_object);
     let mut seed = Vec::with_capacity(req.objects.len());
     for (i, o) in req.objects.iter().enumerate() {
-        let bytes =
-            b64_decode(&o.bcs_b64).map_err(|_| JsError::new(&format!("object[{i}] base64")))?;
-        let obj: Object =
-            bcs::from_bytes(&bytes).map_err(|e| JsError::new(&format!("object[{i}] bcs: {e}")))?;
+        let obj = Object::from(
+            ObjectInner::from_base64(&o.bcs_b64)
+                .map_err(|e| JsError::new(&format!("object[{i}]: {e}")))?,
+        );
         seed.push(obj);
     }
     store.seed(seed);
@@ -81,9 +83,7 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
     let result = if signed {
         let mut sigs: Vec<UserSignature> = Vec::with_capacity(req.signatures.len());
         for (i, s) in req.signatures.iter().enumerate() {
-            let bytes =
-                b64_decode(s).map_err(|_| JsError::new(&format!("signature[{i}] base64")))?;
-            let sig = UserSignature::from_bytes(&bytes)
+            let sig = UserSignature::from_base64(s)
                 .map_err(|e| JsError::new(&format!("signature[{i}] decode: {e}")))?;
             sigs.push(sig);
         }

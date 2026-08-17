@@ -8,7 +8,10 @@ use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::{
-    crypto::{secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair},
+    crypto::{
+        ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+        simple::SimpleKeypair,
+    },
     types::{
         Address, UserSignature,
         crypto::{
@@ -22,7 +25,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     error::{IotaError, IotaResult},
     transaction::TransactionEnvelope,
-    utils::{make_upgraded_multisig_tx, multisig_keys},
+    utils::make_upgraded_multisig_tx,
 };
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
@@ -120,7 +123,9 @@ async fn create_credential_and_sign_test_tx_with_passkey_multisig(
 
     // Construct a multisig with 4 pks (ed25519, secp256k1, secp256r1, passkey) with
     // threshold = 1.
-    let (kp1, kp2, kp3) = multisig_keys();
+    let kp1 = Ed25519PrivateKey::random();
+    let kp2 = Secp256k1PrivateKey::random();
+    let kp3 = Secp256r1PrivateKey::random();
     let pk0 = kp1.public_key(); // ed25519
     let pk1 = kp2.public_key(); // secp256k1
     let pk2 = kp3.public_key(); // secp256r1
@@ -253,7 +258,9 @@ async fn test_multisig_e2e() {
     let context = &test_cluster.wallet;
     let rgp = test_cluster.get_reference_gas_price().await;
 
-    let (kp1, kp2, kp3) = multisig_keys();
+    let kp1 = Ed25519PrivateKey::random();
+    let kp2 = Secp256k1PrivateKey::random();
+    let kp3 = Secp256r1PrivateKey::random();
     let pk0 = kp1.public_key(); // ed25519
     let pk1: PublicKey = kp2.public_key().into(); // secp256k1
     let pk2 = kp3.public_key(); // secp256r1
@@ -349,9 +356,7 @@ async fn test_multisig_e2e() {
     );
 
     // 7. mismatch pks in sig with multisig address fails to execute.
-    let pk3: PublicKey = Secp256r1PrivateKey::generate(rand::thread_rng())
-        .public_key()
-        .into();
+    let pk3: PublicKey = Secp256r1PrivateKey::random().public_key().into();
     let wrong_multisig_pk = MultisigCommittee::new_unchecked(
         vec![
             MultisigMember::new(pk0, 1),

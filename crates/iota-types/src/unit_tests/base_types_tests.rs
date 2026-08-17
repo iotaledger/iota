@@ -15,7 +15,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_ext::{
     crypto::ToFromBytes as _,
     types::{
-        Digest, Owner, TransactionDigest,
+        Address, Digest, Owner, TransactionDigest,
         crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
     },
 };
@@ -51,7 +51,7 @@ fn test_bcs_enum() {
 #[test]
 fn test_signatures() {
     let (addr1, sec1): (_, AccountKeyPair) = get_key_pair();
-    let (addr2, _sec2): (_, AccountKeyPair) = get_key_pair();
+    let addr2 = Address::random();
 
     let foo = IntentMessage::new(Intent::iota_transaction(), Foo("hello".into()));
     let foox = IntentMessage::new(Intent::iota_transaction(), Foo("hellox".into()));
@@ -78,7 +78,7 @@ fn test_signatures() {
 
 #[test]
 fn test_signatures_serde() {
-    let (_, sec1): (_, AccountKeyPair) = get_key_pair();
+    let sec1 = AccountKeyPair::random();
     let foo = Foo("hello".into());
     let s =
         SimpleSignature::new_secure(&IntentMessage::new(Intent::iota_transaction(), foo), &sec1);

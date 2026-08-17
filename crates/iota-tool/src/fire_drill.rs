@@ -28,6 +28,7 @@ use iota_config::{
 };
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockResponseOptions};
 use iota_keys::keypair_file::read_keypair_from_file;
+use iota_multiaddr::{Multiaddr, Protocol};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockEffectsAPI};
 use iota_sdk_ext::{
     crypto::simple::SimpleKeypair,
@@ -39,7 +40,6 @@ use iota_types::{
         generate_proof_of_possession, get_authority_key_pair, get_key_pair,
         network_to_simple_keypair,
     },
-    multiaddr::{Multiaddr, Protocol},
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionAPI, TransactionEnvelope},
 };
 use tracing::info;

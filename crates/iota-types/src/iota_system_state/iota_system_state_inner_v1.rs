@@ -4,6 +4,7 @@
 
 use anyhow::Result;
 use fastcrypto::traits::ToFromBytes;
+use iota_multiaddr::Multiaddr;
 use iota_protocol_config::PROTOCOL_VERSION_IIP8;
 use iota_sdk_ext::types::{Address, ObjectId};
 use once_cell::sync::OnceCell;
@@ -30,7 +31,6 @@ use crate::{
     error::IotaError,
     gas_coin::IotaTreasuryCap,
     id::ID,
-    multiaddr::Multiaddr,
     storage::ObjectStore,
     system_admin_cap::IotaSystemAdminCap,
 };

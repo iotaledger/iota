@@ -157,22 +157,10 @@ pub fn to_sender_signed_transaction_with_multi_signers(
     TransactionEnvelope::from_data_and_signer(tx, signers)
 }
 
-pub fn keys() -> Vec<SimpleKeypair> {
-    let (kp1, kp2, kp3) = multisig_keys();
-    vec![kp1.into(), kp2.into(), kp3.into()]
-}
-
-pub fn multisig_keys() -> (Ed25519PrivateKey, Secp256k1PrivateKey, Secp256r1PrivateKey) {
-    let mut seed = StdRng::from_seed([0; 32]);
-    let kp1 = Ed25519PrivateKey::generate(&mut seed);
-    let kp2 = Secp256k1PrivateKey::generate(&mut seed);
-    let kp3 = Secp256r1PrivateKey::generate(&mut seed);
-
-    (kp1, kp2, kp3)
-}
-
 pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
-    let (kp1, kp2, kp3) = multisig_keys();
+    let kp1 = Ed25519PrivateKey::random();
+    let kp2 = Secp256k1PrivateKey::random();
+    let kp3 = Secp256r1PrivateKey::random();
     let pk1 = kp1.public_key();
     let pk2 = kp2.public_key();
     let pk3 = kp3.public_key();
@@ -308,7 +296,7 @@ mod passkey {
     /// padding, satisfying the length requirement without needing a real
     /// WebAuthn round-trip.
     pub fn make_passkey_authenticator_sig() -> UserSignature {
-        let r1_kp = Secp256r1PrivateKey::generate(rand::thread_rng());
+        let r1_kp = Secp256r1PrivateKey::random();
         let user_sig: SimpleSignature = r1_kp.sign(&[0u8; 32]);
         let client_data_json = r#"{"type":"webauthn.get","challenge":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","origin":"https://test.iota.org"}"#;
         let passkey =

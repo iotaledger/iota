@@ -85,21 +85,21 @@ impl IotaSystemStateWrapper {
         let old_field_object = get_dynamic_field_object_from_store(object_store, id, &self.version)
             .expect("Dynamic field object of wrapper should always be present in the object store");
         let mut new_field_object = old_field_object.clone();
-        let move_object = new_field_object
+        let move_struct = new_field_object
             .data
             .as_opt_mut_struct()
             .expect("Dynamic field object must be a Move object");
         match self.version {
             1 => {
                 Self::advance_epoch_safe_mode_impl::<IotaSystemStateV1>(
-                    move_object,
+                    move_struct,
                     params,
                     protocol_config,
                 );
             }
             2 => {
                 Self::advance_epoch_safe_mode_impl::<IotaSystemStateV2>(
-                    move_object,
+                    move_struct,
                     params,
                     protocol_config,
                 );
@@ -107,7 +107,7 @@ impl IotaSystemStateWrapper {
             #[cfg(msim)]
             IOTA_SYSTEM_STATE_SIM_TEST_V1 => {
                 Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateV1>(
-                    move_object,
+                    move_struct,
                     params,
                     protocol_config,
                 );
@@ -115,7 +115,7 @@ impl IotaSystemStateWrapper {
             #[cfg(msim)]
             IOTA_SYSTEM_STATE_SIM_TEST_SHALLOW_V1 => {
                 Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateShallowV1>(
-                    move_object,
+                    move_struct,
                     params,
                     protocol_config,
                 );
@@ -123,7 +123,7 @@ impl IotaSystemStateWrapper {
             #[cfg(msim)]
             IOTA_SYSTEM_STATE_SIM_TEST_DEEP_V1 => {
                 Self::advance_epoch_safe_mode_impl::<SimTestIotaSystemStateDeepV1>(
-                    move_object,
+                    move_struct,
                     params,
                     protocol_config,
                 );
@@ -134,14 +134,14 @@ impl IotaSystemStateWrapper {
     }
 
     fn advance_epoch_safe_mode_impl<T>(
-        move_object: &mut MoveStruct,
+        move_struct: &mut MoveStruct,
         params: &AdvanceEpochParams,
         protocol_config: &ProtocolConfig,
     ) where
         T: Serialize + DeserializeOwned + IotaSystemStateTrait,
     {
         let mut field: Field<u64, T> =
-            bcs::from_bytes(move_object.contents()).expect("bcs deserialization should never fail");
+            bcs::from_bytes(move_struct.contents()).expect("bcs deserialization should never fail");
         tracing::info!(
             "Advance epoch safe mode: current epoch: {}, protocol_version: {}, system_state_version: {}",
             field.value.epoch(),
@@ -156,7 +156,7 @@ impl IotaSystemStateWrapper {
             field.value.system_state_version()
         );
         let new_contents = bcs::to_bytes(&field).expect("bcs serialization should never fail");
-        move_object
+        move_struct
             .update_contents(new_contents, protocol_config)
             .expect("Update iota system object content cannot fail since it should be small");
     }

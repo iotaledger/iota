@@ -12,7 +12,7 @@ description = "Move stackless bytecode"
 codespan.workspace = true
 codespan-reporting = { workspace = true, features = ["serde", "serialization"] }
 ethnum.workspace = true
-im.workspace = true
+imbl.workspace = true
 itertools.workspace = true
 log.workspace = true
 num.workspace = true

@@ -49,7 +49,7 @@ fn test_signed_values() {
     let (_a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
     let (_a3, sec3): (_, AuthorityKeyPair) = get_key_pair();
     let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
-    let (_a_sender2, sender_sec2): (_, AccountKeyPair) = get_key_pair();
+    let sender_sec2 = AccountKeyPair::random();
 
     authorities.insert(
         // address
@@ -498,7 +498,7 @@ fn test_digest_caching() {
     let (_a1, sec1): (_, AuthorityKeyPair) = get_key_pair();
     let (_a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
 
-    let (sa1, _ssec1): (_, AccountKeyPair) = get_key_pair();
+    let sa1 = Address::random();
     let (sa2, ssec2): (_, AccountKeyPair) = get_key_pair();
 
     authorities.insert(sec1.public().into(), 1);
@@ -724,9 +724,9 @@ fn signature_from_signer(
 
 #[test]
 fn test_sponsored_transaction_message() {
-    let sender_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sender_kp = SimpleKeypair::from(Ed25519PrivateKey::random());
     let sender = (&PublicKey::from(&sender_kp)).into();
-    let sponsor_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sponsor_kp = SimpleKeypair::from(Ed25519PrivateKey::random());
     let sponsor = (&PublicKey::from(&sponsor_kp)).into();
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -788,7 +788,7 @@ fn test_sponsored_transaction_message() {
     ));
 
     // Test incomplete signature lists (more sigs than expected)
-    let third_party_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let third_party_kp = SimpleKeypair::from(Ed25519PrivateKey::random());
     let third_party_sig: UserSignature =
         signature_from_signer(tx.clone(), intent, &third_party_kp).into();
     assert!(matches!(
@@ -818,9 +818,9 @@ fn test_sponsored_transaction_message() {
 
 #[test]
 fn test_sponsored_transaction_validity_check() {
-    let sender_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sender_kp = SimpleKeypair::from(Ed25519PrivateKey::random());
     let sender = (&PublicKey::from(&sender_kp)).into();
-    let sponsor_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sponsor_kp = SimpleKeypair::from(Ed25519PrivateKey::random());
     let sponsor = (&PublicKey::from(&sponsor_kp)).into();
 
     // This is a sponsored transaction
@@ -935,11 +935,11 @@ fn verify_sender_signature_correctly_with_flag() {
     let committee = Committee::new_for_testing_with_normalized_voting_power(0, authorities);
 
     // create a receiver keypair with Secp256k1
-    let receiver_kp = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
+    let receiver_kp = SimpleKeypair::from(Secp256k1PrivateKey::random());
     let receiver_address = (&PublicKey::from(&receiver_kp)).into();
 
     // create a sender keypair with Secp256k1
-    let sender_kp = SimpleKeypair::from(get_key_pair::<Secp256k1PrivateKey>().1);
+    let sender_kp = SimpleKeypair::from(Secp256k1PrivateKey::random());
     // and creates a corresponding transaction
     let gas_price = 10;
     let tx = Transaction::new_transfer(
@@ -952,13 +952,13 @@ fn verify_sender_signature_correctly_with_flag() {
     );
 
     // create a sender keypair with Ed25519
-    let sender_kp_2 = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sender_kp_2 = SimpleKeypair::from(Ed25519PrivateKey::random());
     let mut tx_data_2 = tx.clone();
     *tx_data_2.sender_mut_for_testing() = (&PublicKey::from(&sender_kp_2)).into();
     tx_data_2.gas_data_mut().owner = tx_data_2.sender();
 
     // create a sender keypair with Secp256r1
-    let sender_kp_3 = SimpleKeypair::from(get_key_pair::<Secp256r1PrivateKey>().1);
+    let sender_kp_3 = SimpleKeypair::from(Secp256r1PrivateKey::random());
     let mut tx_data_3 = tx.clone();
     *tx_data_3.sender_mut_for_testing() = (&PublicKey::from(&sender_kp_3)).into();
     tx_data_3.gas_data_mut().owner = tx_data_3.sender();
@@ -1217,7 +1217,7 @@ fn test_unique_input_objects() {
             .unwrap(),
     ];
 
-    let sender_kp = SimpleKeypair::from(get_key_pair::<Ed25519PrivateKey>().1);
+    let sender_kp = SimpleKeypair::from(Ed25519PrivateKey::random());
     let sender = (&PublicKey::from(&sender_kp)).into();
     let gas_price = 10;
     let gas_object_ref = random_object_ref();
@@ -1259,7 +1259,7 @@ fn test_unique_input_objects() {
 fn test_certificate_digest() {
     let (committee, key_pairs) = Committee::new_simple_test_committee();
 
-    let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+    let receiver = Address::random();
     let (sender1, sender1_sec): (_, AccountKeyPair) = get_key_pair();
     let (sender2, sender2_sec): (_, AccountKeyPair) = get_key_pair();
 
@@ -1377,14 +1377,14 @@ fn check_approx_effects_components_size() {
 
 #[test]
 fn auth_digest_for_move_authenticator_equals_authenticator_digest() {
-    let (sender, _): (_, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
     let (sig, authenticator) = make_move_authenticator_sig(sender);
     assert_eq!(sig.auth_digest(), authenticator.digest());
 }
 
 #[test]
 fn auth_digest_for_regular_signature_is_hash_of_sig_bytes() {
-    let kp = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random());
     let sender = kp.public_key().derive_address();
     let tx = make_transaction(sender, &kp);
     let sig = tx.signatures().first().unwrap();
@@ -1416,7 +1416,7 @@ fn compute_auth_digests_non_sponsored_move_authenticator() {
 
 #[test]
 fn compute_auth_digests_non_sponsored_regular_signature() {
-    let kp = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random());
     let sender = kp.public_key().derive_address();
     let tx = make_transaction(sender, &kp);
     let sig = tx.signatures().first().unwrap();

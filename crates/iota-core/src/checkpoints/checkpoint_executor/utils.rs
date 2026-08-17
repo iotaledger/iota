@@ -20,7 +20,10 @@ use tokio::sync::watch;
 use tracing::{debug, error, instrument, warn};
 
 use super::metrics::CheckpointExecutorMetrics;
-use crate::{checkpoints::CheckpointStore, execution_cache::TransactionCacheRead};
+use crate::{
+    checkpoint_progress_tracker::CheckpointProgressTracker, checkpoints::CheckpointStore,
+    execution_cache::TransactionCacheRead,
+};
 
 #[instrument(level = "debug", skip_all)]
 pub(super) fn stream_synced_checkpoints(
@@ -369,7 +372,7 @@ impl PipelineStage {
         Self::from_repr((self as usize) + 1).unwrap()
     }
 
-    fn as_str(self) -> &'static str {
+    pub(crate) fn as_str(self) -> &'static str {
         Self::VARIANTS[self as usize]
     }
 }
@@ -408,6 +411,9 @@ impl PipelineHandle {
             .stage_active_duration_ns
             .with_label_values(&[self.cur_stage.as_str()])
             .inc_by(duration.as_nanos() as u64);
+        if let Some(tracker) = &self.stages.tracker {
+            tracker.add_stage_time(self.cur_stage, duration);
+        }
         assert_eq!(finished, self.cur_stage, "cannot skip stages");
 
         self.stages.end(self.cur_stage, self.seq);
@@ -416,6 +422,10 @@ impl PipelineHandle {
         if self.cur_stage != PipelineStage::End {
             self.stages.begin(self.cur_stage, self.seq).await;
         }
+        // Restart the timer only after being admitted to the next stage, so
+        // each stage's reported time covers its own work, not the wait for
+        // the previous checkpoint to clear the stage.
+        self.timer = Instant::now();
     }
 
     /// Skip to a given stage.
@@ -432,16 +442,19 @@ impl PipelineHandle {
 pub(super) struct PipelineStages {
     stages: [SequenceWatch; PipelineStage::End as usize],
     metrics: Arc<CheckpointExecutorMetrics>,
+    tracker: Option<Arc<CheckpointProgressTracker>>,
 }
 
 impl PipelineStages {
     pub fn new(
         starting_seq: CheckpointSequenceNumber,
         metrics: Arc<CheckpointExecutorMetrics>,
+        tracker: Option<Arc<CheckpointProgressTracker>>,
     ) -> Arc<Self> {
         Arc::new(Self {
             stages: std::array::from_fn(|_| SequenceWatch::new(starting_seq)),
             metrics,
+            tracker,
         })
     }
 
@@ -509,7 +522,7 @@ mod test {
     #[tokio::test]
     #[should_panic(expected = "cannot skip stages")]
     async fn test_skip_pipeline_stages() {
-        let stages = PipelineStages::new(0, CheckpointExecutorMetrics::new_for_tests());
+        let stages = PipelineStages::new(0, CheckpointExecutorMetrics::new_for_tests(), None);
         let mut handle = stages.handle(0).await;
         handle
             .finish_stage(PipelineStage::WaitForTransactions)
@@ -518,7 +531,7 @@ mod test {
 
     #[sim_test]
     async fn test_pipeline_stages() {
-        let stages = PipelineStages::new(0, CheckpointExecutorMetrics::new_for_tests());
+        let stages = PipelineStages::new(0, CheckpointExecutorMetrics::new_for_tests(), None);
 
         let output_by_stage = Arc::new(Mutex::new(HashMap::new()));
         let output_by_order = Arc::new(Mutex::new(Vec::new()));

@@ -1013,13 +1013,13 @@ mod tests {
                 get_test_coin(Some("0xAAA"), CoinType::Gas),
             ];
             let coins_clone = coins.clone();
-            let coin_move_object = MoveStruct::new_gas_coin(
+            let coin_move_struct = MoveStruct::new_gas_coin(
                 coins[0].version,
                 coins[0].coin_object_id,
                 coins[0].balance,
             );
             let coin_object = Object::new_move(
-                coin_move_object,
+                coin_move_struct,
                 Owner::Immutable,
                 coins[0].previous_transaction,
             );

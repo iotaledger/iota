@@ -163,12 +163,14 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_enable_starfish_speed_adaptive_acknowledgments")]
     pub enable_starfish_speed_adaptive_acknowledgments: bool,
 
-    /// Prefer more responsive peers when the transactions synchronizer selects
-    /// peers to fetch from. Ranking is a preference within the already-eligible
-    /// candidate set, not a change of eligibility, so it cannot affect safety.
-    /// Enabled by default; disabling it restores the previous selection: a
-    /// uniform random order that excludes the most recently failed peers (up
-    /// to less than f+1 by stake).
+    /// Prefer more responsive peers when the transactions synchronizer, the
+    /// commit syncer and the header synchronizer select peers to fetch from.
+    /// Responses are verified the same way regardless, so it cannot affect
+    /// safety. Enabled by default; disabling it restores the previous
+    /// selection: for the transactions synchronizer a uniform random order
+    /// that excludes the most recently failed peers (up to less than f+1 by
+    /// stake), and for the commit syncer and the header synchronizer a uniform
+    /// random order.
     #[serde(default = "Parameters::default_enable_peer_responsiveness_ranking")]
     pub enable_peer_responsiveness_ranking: bool,
 
@@ -525,15 +527,17 @@ pub struct TonicParameters {
     /// Maximum number of concurrent HTTP/2 streams a peer may open on a single
     /// connection. Bounds per-connection request fan-out.
     ///
-    /// `0` (the default) disables the limit, leaving the transport default.
-    #[serde(default)]
+    /// If unspecified, this will default to 64. `0` disables the limit, leaving
+    /// the transport default.
+    #[serde(default = "TonicParameters::default_max_concurrent_streams")]
     pub max_concurrent_streams: u32,
 
     /// Server-side fallback deadline for requests that omit a `grpc-timeout`
     /// header. The long-lived block-subscription stream is always exempt.
     ///
-    /// A zero duration (the default) disables the fallback deadline.
-    #[serde(default)]
+    /// If unspecified, this will default to 120s. A zero duration disables the
+    /// fallback deadline.
+    #[serde(default = "TonicParameters::default_request_timeout")]
     pub request_timeout: Duration,
 
     /// Hard size limit for inbound (decoded) requests. Consensus requests are
@@ -541,8 +545,9 @@ pub struct TonicParameters {
     /// `message_size_limit`. A smaller inbound bound shrinks the memory a
     /// single in-flight request can pin before its handler runs.
     ///
-    /// `0` (the default) falls back to `message_size_limit`.
-    #[serde(default)]
+    /// If unspecified, this will default to 1MiB. `0` falls back to
+    /// `message_size_limit`.
+    #[serde(default = "TonicParameters::default_max_inbound_message_size")]
     pub max_inbound_message_size: usize,
 
     /// Per-peer, per-RPC admission caps for the inbound consensus server.
@@ -554,8 +559,9 @@ pub struct TonicParameters {
     /// request is disconnected once it expires; the stream itself stays exempt
     /// from `request_timeout`.
     ///
-    /// A zero duration (the default) disables the deadline.
-    #[serde(default)]
+    /// If unspecified, this will default to 30s. A zero duration disables the
+    /// deadline.
+    #[serde(default = "TonicParameters::default_subscribe_request_timeout")]
     pub subscribe_request_timeout: Duration,
 }
 
@@ -576,36 +582,20 @@ impl TonicParameters {
         64 << 20
     }
 
-    /// Fills the inbound resource bounds that are still at their inert
-    /// defaults with the protective preset (sized for ~100-validator
-    /// committees). Bounds an operator configured explicitly are kept, as are
-    /// the transport settings the preset does not cover (keepalive, buffers,
-    /// `message_size_limit`). A bound explicitly configured to its inert value
-    /// still receives the preset; running without a bound requires disabling
-    /// the preset itself (`CONSENSUS_GRPC_PROTECTIVE_LIMITS=0`).
-    pub fn apply_protective(&mut self) {
-        if self.max_concurrent_streams == 0 {
-            self.max_concurrent_streams = 64;
-        }
-        if self.request_timeout.is_zero() {
-            self.request_timeout = Duration::from_secs(120);
-        }
-        if self.max_inbound_message_size == 0 {
-            self.max_inbound_message_size = 1 << 20;
-        }
-        if self.admission.is_inert() {
-            self.admission = AdmissionParameters::protective();
-        }
-        if self.subscribe_request_timeout.is_zero() {
-            self.subscribe_request_timeout = Duration::from_secs(30);
-        }
+    fn default_max_concurrent_streams() -> u32 {
+        64
     }
 
-    /// The inert defaults with the protective bounds applied.
-    pub fn protective() -> Self {
-        let mut params = Self::default();
-        params.apply_protective();
-        params
+    fn default_request_timeout() -> Duration {
+        Duration::from_secs(120)
+    }
+
+    fn default_max_inbound_message_size() -> usize {
+        1 << 20
+    }
+
+    fn default_subscribe_request_timeout() -> Duration {
+        Duration::from_secs(30)
     }
 }
 
@@ -616,11 +606,11 @@ impl Default for TonicParameters {
             connection_buffer_size: TonicParameters::default_connection_buffer_size(),
             excessive_message_size: TonicParameters::default_excessive_message_size(),
             message_size_limit: TonicParameters::default_message_size_limit(),
-            max_concurrent_streams: 0,
-            request_timeout: Duration::ZERO,
-            max_inbound_message_size: 0,
+            max_concurrent_streams: TonicParameters::default_max_concurrent_streams(),
+            request_timeout: TonicParameters::default_request_timeout(),
+            max_inbound_message_size: TonicParameters::default_max_inbound_message_size(),
             admission: AdmissionParameters::default(),
-            subscribe_request_timeout: Duration::ZERO,
+            subscribe_request_timeout: TonicParameters::default_subscribe_request_timeout(),
         }
     }
 }
@@ -633,51 +623,64 @@ impl Default for TonicParameters {
 /// non-protocol parameters — heterogeneous values across authorities are safe,
 /// so they can be rolled out and tuned per node.
 ///
-/// `0` (the default for every cap) disables admission for that group. At node
-/// start the protective preset fills the caps when all of them are left at
-/// `0`; a caps block with any explicitly configured value is kept as-is, and
-/// `CONSENSUS_GRPC_PROTECTIVE_LIMITS=0` disables the preset entirely. Preset
-/// values, sized for ~100-validator committees and the local synchronizer
-/// fan-out toward one server: subscriptions 2, header fetches 32, transaction
-/// fetches 16, commit fetches `commit_sync_parallel_fetches` (8).
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+/// The defaults are sized for ~100-validator committees and the local
+/// synchronizer fan-out toward one server. `0` disables admission for that
+/// group.
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AdmissionParameters {
     /// Max concurrent block-subscription streams per peer.
-    #[serde(default)]
+    ///
+    /// If unspecified, this will default to 2.
+    #[serde(default = "AdmissionParameters::default_max_subscriptions_per_peer")]
     pub max_subscriptions_per_peer: u32,
 
     /// Max concurrent header fetches per peer
     /// (`fetch_block_headers` + `fetch_latest_block_headers`).
-    #[serde(default)]
+    ///
+    /// If unspecified, this will default to 32.
+    #[serde(default = "AdmissionParameters::default_max_header_fetches_per_peer")]
     pub max_header_fetches_per_peer: u32,
 
     /// Max concurrent transaction fetches per peer (`fetch_transactions`).
-    #[serde(default)]
+    ///
+    /// If unspecified, this will default to 16.
+    #[serde(default = "AdmissionParameters::default_max_transaction_fetches_per_peer")]
     pub max_transaction_fetches_per_peer: u32,
 
     /// Max concurrent commit fetches per peer
     /// (`fetch_commits` + `fetch_commits_and_transactions`).
-    #[serde(default)]
+    ///
+    /// If unspecified, this will default to 8.
+    #[serde(default = "AdmissionParameters::default_max_commit_fetches_per_peer")]
     pub max_commit_fetches_per_peer: u32,
 }
 
 impl AdmissionParameters {
-    /// Preset sized for ~100-validator committees and the local synchronizer
-    /// fan-out toward one server.
-    pub fn protective() -> Self {
-        Self {
-            max_subscriptions_per_peer: 2,
-            max_header_fetches_per_peer: 32,
-            max_transaction_fetches_per_peer: 16,
-            max_commit_fetches_per_peer: Parameters::default_commit_sync_parallel_fetches() as u32,
-        }
+    fn default_max_subscriptions_per_peer() -> u32 {
+        2
     }
 
-    /// True when every cap is `0`, i.e. admission control is disabled.
-    pub fn is_inert(&self) -> bool {
-        self.max_subscriptions_per_peer == 0
-            && self.max_header_fetches_per_peer == 0
-            && self.max_transaction_fetches_per_peer == 0
-            && self.max_commit_fetches_per_peer == 0
+    fn default_max_header_fetches_per_peer() -> u32 {
+        32
+    }
+
+    fn default_max_transaction_fetches_per_peer() -> u32 {
+        16
+    }
+
+    fn default_max_commit_fetches_per_peer() -> u32 {
+        Parameters::default_commit_sync_parallel_fetches() as u32
+    }
+}
+
+impl Default for AdmissionParameters {
+    fn default() -> Self {
+        Self {
+            max_subscriptions_per_peer: AdmissionParameters::default_max_subscriptions_per_peer(),
+            max_header_fetches_per_peer: AdmissionParameters::default_max_header_fetches_per_peer(),
+            max_transaction_fetches_per_peer:
+                AdmissionParameters::default_max_transaction_fetches_per_peer(),
+            max_commit_fetches_per_peer: AdmissionParameters::default_max_commit_fetches_per_peer(),
+        }
     }
 }
