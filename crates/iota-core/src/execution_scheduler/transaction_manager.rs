@@ -34,7 +34,10 @@ use crate::{
         shared_object_version_manager::Schedulable,
     },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
-    execution_scheduler::{ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats},
+    execution_scheduler::{
+        ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
+        executed_in_current_epoch,
+    },
 };
 
 #[cfg(test)]
@@ -359,6 +362,10 @@ impl TransactionManager {
             let mut inner = reconfig_lock.write();
             if let Some(env) = inner.pending_transaction_keys.remove(&key) {
                 // we were waiting on the key, so load the transaction
+                // Unlike the enqueue path above, both callers here hand over a
+                // digest whose transaction they have just written: local randomness
+                // generation persists it before inserting the key, and
+                // `commit_transaction` writes the outputs before notifying.
                 let transaction = self
                     .transaction_cache_read
                     .get_transaction_block(&digest)
@@ -936,7 +943,9 @@ impl ExecutionSchedulerAPI for TransactionManager {
         self.enqueue_transactions(txns, epoch_store);
 
         // Every consensus commit and every owned-only certificate reaches this
-        // point, and almost none of them carry a schedulable without a transaction.
+        // point, and almost none of them carry a schedulable without a
+        // transaction; returning here spares them three uncontended lock
+        // acquisitions for an empty batch.
         if rest.is_empty() {
             return;
         }
@@ -956,20 +965,25 @@ impl ExecutionSchedulerAPI for TransactionManager {
                 };
 
                 if let Some(digest) = digest {
-                    // The key resolves from a table that outlives pruning, so on a
-                    // node far enough behind in consensus the transaction it names
-                    // can already be executed and pruned away. Nothing is left to
-                    // schedule then, and demanding the block would crash the replay.
+                    // Both writers of the key store the transaction before the key, so
+                    // a resolved key naming a transaction that is neither in the store
+                    // nor executed means that order broke. Skipping keeps the node
+                    // running, but it drops the env holding the key's assigned
+                    // versions, and the checkpoint builder then waits on that root
+                    // forever.
                     let Some(transaction) =
                         self.transaction_cache_read.get_transaction_block(&digest)
                     else {
-                        // The pruner drops a transaction and its executed effects in
-                        // one batch, so there is nothing left to tell this case from
-                        // a transaction that never executed.
-                        warn!(
-                            "transaction {digest} named by a resolved key is missing, \
-                             assuming it was executed and pruned"
-                        );
+                        if !executed_in_current_epoch(
+                            self.transaction_cache_read.as_ref(),
+                            epoch_store,
+                            &digest,
+                        ) {
+                            debug_fatal!(
+                                "transaction {digest} named by a resolved key is neither \
+                                 stored nor executed"
+                            );
+                        }
                         continue;
                     };
                     let transaction = transaction.as_ref().clone();

@@ -7,11 +7,11 @@ use std::{
     sync::Arc,
 };
 
+use iota_common::debug_fatal;
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk_types::SenderSignedTransaction;
 use iota_types::{
-    effects::TransactionEffectsAPI,
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::InputKey,
@@ -28,7 +28,7 @@ use crate::{
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     execution_scheduler::{
         ExecutingGuard, ExecutionSchedulerAPI, PendingTransaction, PendingTransactionStats,
-        overload_tracker::OverloadTracker,
+        executed_in_current_epoch, overload_tracker::OverloadTracker,
     },
 };
 
@@ -211,9 +211,21 @@ impl ExecutionScheduler {
     }
 
     /// When we schedule a transaction, it should be impossible for it to have
-    /// been executed in a previous epoch.
+    /// been executed in a previous epoch. This does not hold for a
+    /// `CertificateProof::ConsensusOrdered` transaction, whose epoch is the one
+    /// that ordered it rather than one it carries: post-consensus validation
+    /// keeps an already-executed transaction in the sequence on purpose, so
+    /// that every validator builds the same checkpoint roots (issue
+    /// #11649), and relies on the already-executed filter below to suppress
+    /// the execution.
     #[cfg(debug_assertions)]
     fn assert_not_executed_previous_epochs(&self, tx: &VerifiedExecutableTransaction) {
+        use iota_types::executable_transaction::CertificateProof;
+
+        if matches!(tx.auth_sig(), CertificateProof::ConsensusOrdered(_)) {
+            return;
+        }
+
         let epoch = tx.epoch();
         let digest = *tx.digest();
         let digests = [digest];
@@ -225,6 +237,8 @@ impl ExecutionScheduler {
         // Due to pruning, we may not always have executed effects for the
         // transaction even if it was executed. So this is a best-effort check.
         if let Some(executed) = executed {
+            use iota_types::effects::TransactionEffectsAPI;
+
             assert_eq!(
                 executed.epoch(),
                 epoch,
@@ -273,10 +287,11 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
                 .notify_read_tx_key_to_digest(&rest_keys)
                 .await
                 .expect("db error");
-            // The keys resolve from a table that outlives pruning, so on a node far
-            // enough behind in consensus a transaction one names can already be
-            // executed and pruned away. Nothing is left to schedule then, and
-            // demanding the block would crash the replay.
+            // Both writers of the key store the transaction before the key, so a
+            // resolved key naming a transaction that is neither in the store nor
+            // executed means that order broke. Skipping keeps the node running,
+            // but it drops the env holding the key's assigned versions, and the
+            // checkpoint builder then waits on that root forever.
             let rest_transactions = scheduler
                 .transaction_cache_read
                 .multi_get_transaction_blocks(&rest_digests)
@@ -285,13 +300,16 @@ impl ExecutionSchedulerAPI for ExecutionScheduler {
                 .zip(rest_digests.iter())
                 .filter_map(|((tx, env), digest)| {
                     let Some(tx) = tx else {
-                        // The pruner drops a transaction and its executed effects in
-                        // one batch, so there is nothing left to tell this case from
-                        // a transaction that never executed.
-                        warn!(
-                            "transaction {digest} named by a resolved key is missing, \
-                             assuming it was executed and pruned"
-                        );
+                        if !executed_in_current_epoch(
+                            scheduler.transaction_cache_read.as_ref(),
+                            &epoch_store,
+                            digest,
+                        ) {
+                            debug_fatal!(
+                                "transaction {digest} named by a resolved key is neither \
+                                 stored nor executed"
+                            );
+                        }
                         return None;
                     };
                     let tx = tx.as_ref().clone();

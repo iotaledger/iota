@@ -7,7 +7,7 @@ use std::{collections::BTreeSet, sync::Arc};
 use enum_dispatch::enum_dispatch;
 use execution_scheduler_impl::ExecutionScheduler;
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::SenderSignedTransaction;
+use iota_sdk_types::{SenderSignedTransaction, TransactionDigest};
 use iota_types::{
     error::IotaResult, executable_transaction::VerifiedExecutableTransaction, storage::InputKey,
 };
@@ -22,6 +22,24 @@ use crate::{
     },
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
 };
+
+/// Whether the transaction executed in the current epoch, by any record the
+/// node still keeps: its executed effects, the in-memory marker set at commit,
+/// or the checkpoint it was executed in. Both schedulers use it to tell a
+/// transaction that is simply already done from a broken store-before-key
+/// order.
+pub(crate) fn executed_in_current_epoch(
+    transaction_cache_read: &dyn TransactionCacheRead,
+    epoch_store: &AuthorityPerEpochStore,
+    digest: &TransactionDigest,
+) -> bool {
+    transaction_cache_read.is_tx_already_executed(digest)
+        || epoch_store
+            .transactions_executed_in_cur_epoch(&[*digest])
+            .map(|executed| executed[0])
+            // The epoch ended, so nothing is scheduled from it any more.
+            .unwrap_or(true)
+}
 
 pub(crate) mod execution_scheduler_impl;
 mod overload_tracker;

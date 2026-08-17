@@ -1871,9 +1871,9 @@ impl AuthorityState {
                 tm.notify_commit(tx_digest, output_keys, epoch_store);
                 // A transaction with a non-digest key can execute from a synced
                 // checkpoint, in which case local randomness generation — the only
-                // other caller — never runs for that round and would leave the env
-                // parked under its key forever. The enqueue this triggers is
-                // filtered out as already executed.
+                // other caller of `notify_transaction_key` — never runs for that
+                // round and would leave the env parked under its key forever. The
+                // enqueue this triggers is filtered out as already executed.
                 if let Some(key) = transaction.non_digest_key() {
                     tm.notify_transaction_key(epoch_store, key, *tx_digest);
                 }
