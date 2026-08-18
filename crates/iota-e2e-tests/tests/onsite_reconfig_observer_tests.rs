@@ -27,6 +27,7 @@ async fn test_onsite_reconfig_observer_basic() {
         node.transaction_orchestrator()
             .unwrap()
             .clone_quorum_driver()
+            .expect("quorum driver exists on a flag-off boot")
     });
     assert_eq!(qd.current_epoch(), 0);
     let rx = fullnode.with(|node| node.subscribe_to_epoch_change());
@@ -51,6 +52,7 @@ async fn test_onsite_reconfig_observer_basic() {
         node.transaction_orchestrator()
             .unwrap()
             .clone_quorum_driver()
+            .expect("quorum driver exists on a flag-off boot")
     });
     assert_eq!(qd.current_epoch(), 1);
     assert_eq!(

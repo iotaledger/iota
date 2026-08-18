@@ -12,7 +12,7 @@ use std::{
     net::SocketAddr,
     ops::Deref,
     path::Path,
-    sync::{Arc, OnceLock},
+    sync::Arc,
     time::Duration,
 };
 
@@ -99,19 +99,18 @@ enum Driver<A: Clone> {
 /// finality. It adds inflight deduplication, waiting for local execution,
 /// recovery, and epoch change handling.
 ///
-/// Both drivers exist for the node's lifetime; the epoch's P-COOL flag
-/// selects which one serves a request. QuorumDriver WAL recovery runs
-/// exactly once: at construction when the flag is off, else on the first
-/// flag-off selection.
+/// The epoch's P-COOL flag selects the flow serving a request. The
+/// TransactionDriver always exists, so it tracks epochs before the flag
+/// enables it. The QuorumDriver exists only when the node booted with
+/// P-COOL disabled and ran WAL recovery then; after a rollback a node
+/// booted under P-COOL must be restarted.
 pub struct TransactionOrchestrator<A: Clone> {
-    quorum_driver: Arc<QuorumDriverHandler<A>>,
+    quorum_driver: Option<Arc<QuorumDriverHandler<A>>>,
     transaction_driver: Arc<TransactionDriver<A>>,
-    /// Set once QuorumDriver WAL recovery has started. The receiver reports
-    /// completion.
-    qd_recovery: OnceLock<watch::Receiver<bool>>,
     validator_state: Arc<AuthorityState>,
-    /// Keeps the pending-tx-log cleanup loop alive.
-    _local_executor_handle: JoinHandle<()>,
+    /// Handle to the pending-tx-log cleanup loop; present only with the
+    /// quorum driver.
+    _local_executor_handle: Option<JoinHandle<()>>,
     pending_tx_log: Arc<WritePathPendingTransactionLog>,
     /// Digests currently being driven to finality by the TransactionDriver;
     /// used to deduplicate concurrent submissions of the same transaction,
@@ -185,27 +184,33 @@ where
             parent_path.join("fullnode_pending_transactions"),
         ));
 
-        // Registered up front for both flows: registration panics on
-        // duplicates.
+        // Registered for both flows even when the quorum driver is not
+        // built, so metric presence does not depend on the boot mode.
         let quorum_driver_metrics = Arc::new(QuorumDriverMetrics::new(prometheus_registry));
         let transaction_driver_metrics =
             Arc::new(TransactionDriverMetrics::new(prometheus_registry));
         let client_metrics = Arc::new(ValidatorClientMetrics::new(prometheus_registry));
 
-        let quorum_driver = Arc::new(
-            QuorumDriverHandlerBuilder::new(validators.clone(), quorum_driver_metrics)
-                .with_notifier(notifier.clone())
-                .with_reconfig_observer(Arc::new(reconfig_observer))
-                .start(),
-        );
-
-        // The cleanup loop must exist before any WAL recovery runs, so a
-        // recovered transaction cannot complete before its receiver exists.
-        let effects_receiver = quorum_driver.subscribe_to_effects();
-        let pending_tx_log_clone = pending_tx_log.clone();
-        let _local_executor_handle = spawn_monitored_task!(async move {
-            Self::loop_pending_transaction_log(effects_receiver, pending_tx_log_clone).await;
-        });
+        let (quorum_driver, _local_executor_handle) = if use_transaction_driver {
+            (None, None)
+        } else {
+            let quorum_driver = Arc::new(
+                QuorumDriverHandlerBuilder::new(validators.clone(), quorum_driver_metrics)
+                    .with_notifier(notifier.clone())
+                    .with_reconfig_observer(Arc::new(reconfig_observer))
+                    .start(),
+            );
+            // The cleanup loop must exist before WAL recovery runs, so a
+            // recovered transaction cannot complete before its receiver
+            // exists.
+            let effects_receiver = quorum_driver.subscribe_to_effects();
+            let pending_tx_log_clone = pending_tx_log.clone();
+            let local_executor_handle = spawn_monitored_task!(async move {
+                Self::loop_pending_transaction_log(effects_receiver, pending_tx_log_clone).await;
+            });
+            Self::schedule_txes_in_log(pending_tx_log.clone(), quorum_driver.clone());
+            (Some(quorum_driver), Some(local_executor_handle))
+        };
 
         // `Weak` so detached driver tasks cannot pin the authority state.
         let pcool_flow_enabled: Arc<dyn Fn() -> bool + Send + Sync> = {
@@ -228,27 +233,16 @@ where
             pcool_flow_enabled,
         );
 
-        let this = Self {
+        Self {
             quorum_driver,
             transaction_driver,
-            qd_recovery: OnceLock::new(),
             validator_state,
             _local_executor_handle,
             pending_tx_log,
             in_flight_transactions: Default::default(),
             notifier,
             metrics,
-        };
-        // WAL recovery is a startup duty when the quorum driver serves from
-        // boot; under P-COOL it is deferred to the first flag-off selection.
-        if !use_transaction_driver {
-            Self::schedule_txes_in_log(this.pending_tx_log.clone(), this.quorum_driver.clone());
-            let (_complete_tx, complete_rx) = watch::channel(true);
-            this.qd_recovery
-                .set(complete_rx)
-                .expect("recovery cell is empty at construction");
         }
-        this
     }
 }
 
@@ -258,42 +252,30 @@ where
 {
     /// Returns the flow selected by `epoch_store`'s P-COOL flag. Call with
     /// the request's own epoch store snapshot so the flag and the submission
-    /// see the same epoch.
-    async fn select_driver(&self, epoch_store: &AuthorityPerEpochStore) -> Driver<A> {
+    /// see the same epoch. Errors when the quorum driver is selected on a
+    /// node that booted under P-COOL: such a node never ran WAL recovery and
+    /// must be restarted.
+    fn select_driver(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> Result<Driver<A>, QuorumDriverError> {
         if epoch_store.protocol_config().enable_pcool_flow() {
-            Driver::Transaction(self.transaction_driver.clone())
-        } else {
-            self.ensure_qd_recovery().await;
-            Driver::Quorum(self.quorum_driver.clone())
+            return Ok(Driver::Transaction(self.transaction_driver.clone()));
         }
-    }
-
-    /// Runs QuorumDriver WAL recovery exactly once, snapshotting before the
-    /// caller can submit. The receiver is stored synchronously and the scan
-    /// runs in a detached task, so a cancelled waiter cannot discard the
-    /// one-time state.
-    async fn ensure_qd_recovery(&self) {
-        let mut complete_rx = self
-            .qd_recovery
-            .get_or_init(|| {
-                let pending_tx_log = self.pending_tx_log.clone();
-                let quorum_driver = self.quorum_driver.clone();
-                let (complete_tx, complete_rx) = watch::channel(false);
-                spawn_monitored_task!(async move {
-                    tokio::task::spawn_blocking(move || {
-                        Self::schedule_txes_in_log(pending_tx_log, quorum_driver)
-                    })
-                    .await
-                    .expect("WAL recovery must not panic");
-                    let _ = complete_tx.send(true);
-                });
-                complete_rx
+        self.quorum_driver
+            .clone()
+            .map(Driver::Quorum)
+            .ok_or_else(|| {
+                error!(
+                    "This fullnode started while P-COOL was enabled and must be restarted to \
+                     serve the certificate-based flow"
+                );
+                QuorumDriverError::QuorumDriverInternal(IotaError::UnsupportedFeature {
+                    error: "this fullnode started while P-COOL was enabled and must be \
+                            restarted to serve the certificate-based flow"
+                        .to_string(),
+                })
             })
-            .clone();
-        complete_rx
-            .wait_for(|complete| *complete)
-            .await
-            .expect("the WAL recovery task must not panic");
     }
 
     #[instrument(name = "tx_orchestrator_execute_transaction_block", level = "trace", skip_all,
@@ -356,58 +338,56 @@ where
             request_type,
             ExecuteTransactionRequestType::WaitForLocalExecution
         );
-        let (mut response, seq) = match (
-            self.select_driver(&epoch_store).await,
-            wait_for_local_execution,
-        ) {
-            (Driver::Transaction(td), true) => {
-                let in_flight_transactions = self.in_flight_transactions.clone();
-                let validator_state = self.validator_state.clone();
-                let metrics = self.metrics.clone();
-                // Detached so a client disconnect (this future dropped) does
-                // not cancel a submission that may already be in consensus;
-                // the task drives the transaction to finality on its own.
-                join_submission_task(spawn_monitored_task!(Self::submit_with_checkpoint_race(
-                    td,
-                    in_flight_transactions,
-                    validator_state,
-                    metrics,
-                    request,
-                    client_addr,
-                    tx_digest,
-                )))
-                .await?
-            }
-            (Driver::Transaction(td), false) => {
-                let in_flight_transactions = self.in_flight_transactions.clone();
-                let validator_state = self.validator_state.clone();
-                // Detached for the same reason as above.
-                let result = join_submission_task(spawn_monitored_task!(
-                    Self::submit_with_transaction_driver(
+        let (mut response, seq) =
+            match (self.select_driver(&epoch_store)?, wait_for_local_execution) {
+                (Driver::Transaction(td), true) => {
+                    let in_flight_transactions = self.in_flight_transactions.clone();
+                    let validator_state = self.validator_state.clone();
+                    let metrics = self.metrics.clone();
+                    // Detached so a client disconnect (this future dropped) does
+                    // not cancel a submission that may already be in consensus;
+                    // the task drives the transaction to finality on its own.
+                    join_submission_task(spawn_monitored_task!(Self::submit_with_checkpoint_race(
                         td,
                         in_flight_transactions,
                         validator_state,
+                        metrics,
                         request,
                         client_addr,
-                        false,
-                    )
-                ))
-                .await?;
-                (Some(result), None)
-            }
-            (Driver::Quorum(qd), _) => {
-                let qd_resp = self
-                    .execute_transaction_impl(
-                        &qd,
-                        &epoch_store,
-                        request,
-                        transaction.clone(),
-                        client_addr,
-                    )
+                        tx_digest,
+                    )))
+                    .await?
+                }
+                (Driver::Transaction(td), false) => {
+                    let in_flight_transactions = self.in_flight_transactions.clone();
+                    let validator_state = self.validator_state.clone();
+                    // Detached for the same reason as above.
+                    let result = join_submission_task(spawn_monitored_task!(
+                        Self::submit_with_transaction_driver(
+                            td,
+                            in_flight_transactions,
+                            validator_state,
+                            request,
+                            client_addr,
+                            false,
+                        )
+                    ))
                     .await?;
-                (Some(quorum_driver_response_to_v1(qd_resp)), None)
-            }
-        };
+                    (Some(result), None)
+                }
+                (Driver::Quorum(qd), _) => {
+                    let qd_resp = self
+                        .execute_transaction_impl(
+                            &qd,
+                            &epoch_store,
+                            request,
+                            transaction.clone(),
+                            client_addr,
+                        )
+                        .await?;
+                    (Some(quorum_driver_response_to_v1(qd_resp)), None)
+                }
+            };
 
         // `needs_cache_rebuild` is derived from finality, not caller intent:
         // the QD fallback path returns `Certified` and a duplicate
@@ -711,7 +691,7 @@ where
             .validity_check(&epoch_store.tx_validity_check_context())
             .map_err(QuorumDriverError::InvalidTransaction)?;
 
-        match self.select_driver(&epoch_store).await {
+        match self.select_driver(&epoch_store)? {
             Driver::Transaction(td) => {
                 let in_flight_transactions = self.in_flight_transactions.clone();
                 let validator_state = self.validator_state.clone();
@@ -1287,45 +1267,46 @@ where
         }
     }
 
-    pub fn quorum_driver(&self) -> &Arc<QuorumDriverHandler<A>> {
-        &self.quorum_driver
+    /// Returns the quorum driver, or `None` when the node booted under
+    /// P-COOL. Test-only: submissions must go through the per-request
+    /// driver selection.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn quorum_driver(&self) -> Option<&Arc<QuorumDriverHandler<A>>> {
+        self.quorum_driver.as_ref()
     }
 
-    pub fn clone_quorum_driver(&self) -> Arc<QuorumDriverHandler<A>> {
+    /// Owned variant of [`Self::quorum_driver`].
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn clone_quorum_driver(&self) -> Option<Arc<QuorumDriverHandler<A>>> {
         self.quorum_driver.clone()
     }
 
-    pub fn transaction_driver(&self) -> &Arc<TransactionDriver<A>> {
-        &self.transaction_driver
-    }
-
-    /// Returns the quorum driver's aggregator; both drivers keep theirs
-    /// current, so either is authoritative.
+    /// Returns the transaction driver's aggregator; it always exists and its
+    /// reconfig observer keeps it current.
     pub fn clone_authority_aggregator(&self) -> Arc<AuthorityAggregator<A>> {
-        self.quorum_driver.authority_aggregator().load_full()
+        self.transaction_driver.authority_aggregator().load_full()
     }
 
     /// Returns an effects receiver only while the quorum driver is the
-    /// currently selected flow; the P-COOL flow has no effects broadcast.
+    /// currently selected flow and this node can serve it; the P-COOL flow
+    /// has no effects broadcast.
     pub fn subscribe_to_effects_queue(&self) -> Option<Receiver<QuorumDriverEffectsQueueResult>> {
         let epoch_store = self.validator_state.load_epoch_store_one_call_per_task();
         if epoch_store.protocol_config().enable_pcool_flow() {
             return None;
         }
-        Some(self.quorum_driver.subscribe_to_effects())
+        self.quorum_driver
+            .as_ref()
+            .map(|quorum_driver| quorum_driver.subscribe_to_effects())
     }
 
-    /// Runs driver selection for `epoch_store`, with its recovery side
-    /// effect.
+    /// Runs driver selection for `epoch_store` and reports its outcome.
     #[cfg(any(test, feature = "test-utils"))]
-    pub async fn select_driver_for_testing(&self, epoch_store: &AuthorityPerEpochStore) {
-        self.select_driver(epoch_store).await;
-    }
-
-    /// Reports whether QuorumDriver WAL recovery has been started.
-    #[cfg(any(test, feature = "test-utils"))]
-    pub fn qd_recovery_started_for_testing(&self) -> bool {
-        self.qd_recovery.get().is_some()
+    pub fn select_driver_for_testing(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> Result<(), QuorumDriverError> {
+        self.select_driver(epoch_store).map(|_| ())
     }
 
     fn update_metrics(
@@ -1362,20 +1343,14 @@ where
             info!("Skipping loading pending transactions from pending_tx_log.");
             return;
         }
-        // Snapshot before the driver is handed out, so a submission that
-        // triggered deferred recovery cannot land in the log and be
-        // double-driven. Bounded: only the quorum-driver path writes this
-        // log, so it holds at most what was pending when that flow was last
-        // active.
-        let pending_txes = pending_tx_log
-            .load_all_pending_transactions()
-            // Failing to read the WAL means the store is broken.
-            .expect("failed to load all pending transactions");
-        info!(
-            "Recovering {} pending transactions from pending_tx_log.",
-            pending_txes.len()
-        );
         spawn_logged_monitored_task!(async move {
+            let pending_txes = pending_tx_log
+                .load_all_pending_transactions()
+                .expect("failed to load all pending transactions");
+            info!(
+                "Recovering {} pending transactions from pending_tx_log.",
+                pending_txes.len()
+            );
             for (i, tx) in pending_txes.into_iter().enumerate() {
                 // TODO: ideally pending_tx_log would not contain VerifiedTransaction, but that
                 // requires a migration.
@@ -2104,31 +2079,39 @@ mod tests {
         (state, orchestrator, tempdir, reconfig_tx)
     }
 
-    /// A flag-off boot runs QuorumDriver WAL recovery at construction.
+    /// A flag-off boot builds the quorum driver and runs WAL recovery at
+    /// construction.
     #[tokio::test(flavor = "multi_thread")]
     async fn qd_recovery_eager_on_flag_off_boot() {
-        let (_state, orchestrator, _tempdir, _reconfig_tx) =
+        let (state, orchestrator, _tempdir, _reconfig_tx) =
             build_orchestrator_with_pcool(false).await;
-        assert!(orchestrator.qd_recovery_started_for_testing());
+        assert!(orchestrator.quorum_driver().is_some());
+        assert!(
+            orchestrator
+                .select_driver_for_testing(&state.epoch_store_for_testing())
+                .is_ok()
+        );
     }
 
-    /// A flag-on boot leaves QuorumDriver WAL recovery uninitialized; the
-    /// first flag-off selection runs it, before the request path can submit.
+    /// A node booted under P-COOL has no quorum driver. After a rollback it
+    /// must reject quorum-driver selection until restarted.
     #[tokio::test(flavor = "multi_thread")]
-    async fn qd_recovery_deferred_until_first_flag_off_selection() {
+    async fn flag_on_boot_rejects_selection_after_rollback() {
         use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 
         let (state, orchestrator, _tempdir, _reconfig_tx) =
             build_orchestrator_with_pcool(true).await;
-        assert!(!orchestrator.qd_recovery_started_for_testing());
+        assert!(orchestrator.quorum_driver().is_none());
 
-        // Selection under the flag keeps recovery uninitialized.
-        orchestrator
-            .select_driver_for_testing(&state.epoch_store_for_testing())
-            .await;
-        assert!(!orchestrator.qd_recovery_started_for_testing());
+        // Selection under the flag serves the P-COOL flow.
+        assert!(
+            orchestrator
+                .select_driver_for_testing(&state.epoch_store_for_testing())
+                .is_ok()
+        );
 
-        // Epoch 1 with P-COOL off: the first selection runs recovery.
+        // Epoch 1 with P-COOL off: selection and the effects queue must both
+        // report the missing quorum driver.
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown);
         protocol_config.set_enable_pcool_flow_for_testing(false);
@@ -2138,41 +2121,10 @@ mod tests {
         let epoch_store = state.epoch_store_for_testing();
         assert_eq!(epoch_store.epoch(), 1);
 
-        orchestrator.select_driver_for_testing(&epoch_store).await;
-        assert!(orchestrator.qd_recovery_started_for_testing());
-        // Repeated selections keep the one-shot state.
-        orchestrator.select_driver_for_testing(&epoch_store).await;
-        assert!(orchestrator.qd_recovery_started_for_testing());
-    }
-
-    /// A cancelled first waiter must not discard the one-time recovery
-    /// state. A later selection completes against the same state.
-    #[tokio::test(flavor = "multi_thread")]
-    async fn qd_recovery_survives_cancelled_first_selection() {
-        use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-
-        let (state, orchestrator, _tempdir, _reconfig_tx) =
-            build_orchestrator_with_pcool(true).await;
-        assert!(!orchestrator.qd_recovery_started_for_testing());
-
-        let mut protocol_config =
-            ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown);
-        protocol_config.set_enable_pcool_flow_for_testing(false);
-        state
-            .reconfigure_for_testing_with_protocol_config(protocol_config)
-            .await;
-        let epoch_store = state.epoch_store_for_testing();
-
-        // One poll runs the synchronous init. Dropping the future then
-        // cancels the wait mid-recovery.
-        {
-            let selection = orchestrator.select_driver_for_testing(&epoch_store);
-            tokio::pin!(selection);
-            let _ = futures::poll!(selection.as_mut());
-        }
-        assert!(orchestrator.qd_recovery_started_for_testing());
-
-        orchestrator.select_driver_for_testing(&epoch_store).await;
-        assert!(orchestrator.qd_recovery_started_for_testing());
+        assert!(matches!(
+            orchestrator.select_driver_for_testing(&epoch_store),
+            Err(QuorumDriverError::QuorumDriverInternal(_))
+        ));
+        assert!(orchestrator.subscribe_to_effects_queue().is_none());
     }
 }

@@ -1749,7 +1749,7 @@ impl IotaNode {
     }
 
     /// Subscribe to the quorum driver's effects stream; errors while the
-    /// P-COOL flow is selected.
+    /// quorum driver is not the currently served flow on this node.
     pub fn subscribe_to_transaction_orchestrator_effects(
         &self,
     ) -> Result<tokio::sync::broadcast::Receiver<QuorumDriverEffectsQueueResult>> {
@@ -1759,7 +1759,12 @@ impl IotaNode {
                 anyhow::anyhow!("Transaction Orchestrator is not enabled in this node.")
             })?
             .subscribe_to_effects_queue()
-            .ok_or_else(|| anyhow::anyhow!("Effects queue is not available under the P-COOL flow."))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Effects queue is not available: the quorum driver is not the currently \
+                     served flow on this node."
+                )
+            })
     }
 
     /// This function awaits the completion of checkpoint execution of the
