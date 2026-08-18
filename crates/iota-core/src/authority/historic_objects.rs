@@ -357,11 +357,12 @@ impl HistoricObjects {
     /// relocated in increasing version order, so the first bucket holding
     /// anything within the bound holds the newest such version.
     ///
-    /// This answers from the buckets alone and knows nothing of tombstones,
-    /// so a caller must read the live `objects` table first and only fall
-    /// through to here once that read comes back with nothing in range — both
-    /// because a tombstone in range means the object is gone, and for the
-    /// ordering `Self::readable_buckets` requires.
+    /// A caller must read the live `objects` table before calling this, for
+    /// the ordering [`Self::readable_buckets`] requires, and must then take
+    /// whichever of the two answers is the newer one. This one knows nothing
+    /// of tombstones, and a live tombstone below a relocated version is not
+    /// the object's end: an unwrap leaves one there for good. Only a live
+    /// tombstone newer than what this returns means the object is gone.
     pub fn find_lt_or_eq_version(
         &self,
         id: ObjectId,
