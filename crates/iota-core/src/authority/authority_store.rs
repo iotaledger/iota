@@ -929,6 +929,13 @@ impl AuthorityStore {
                 .iter()
                 .map(|(key, object)| (*key, object.clone())),
         )?;
+        // The tombstones written above stay in the live table; recording them
+        // here is what lets the bucket's expiry delete them, once every
+        // version they sit above has expired with it.
+        write_batch.insert_batch_tagged(
+            &historic_bucket.tombstones,
+            deleted.iter().chain(wrapped.iter()).map(|key| (*key, ())),
+        )?;
         write_batch.delete_batch(
             &self.perpetual_tables.objects,
             superseded.iter().map(|(key, _)| *key),

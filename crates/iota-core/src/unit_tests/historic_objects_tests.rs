@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use iota_sdk_types::ObjectId;
 use iota_types::{object::Object, storage::ObjectKey};
-use typed_store::database::wait_for_database_close;
+use typed_store::{database::wait_for_database_close, traits::Map};
 
 use super::HistoricObjects;
 use crate::authority::authority_store_tables::AuthorityPerpetualTables;
@@ -94,12 +94,11 @@ async fn test_relocated_version_survives_a_reopen() {
     assert_eq!(historic.get(&key).unwrap().as_ref(), Some(&object));
 }
 
-/// `iota-tool`'s table dump reaches a bucket and the retention floor through
-/// [`HistoricObjects::dump_column_family`], since neither is a field of
-/// `AuthorityPerpetualTables`, and gets nothing for a name that belongs to
-/// neither.
+/// A tombstone head recorded alongside a relocated version survives a
+/// restart the same way the version itself does, and the bucket has no
+/// expiring marker until something sets one.
 #[tokio::test]
-async fn test_dump_reads_a_bucket_and_the_retention_floor() {
+async fn test_tombstone_heads_survive_a_reopen() {
     let dir = iota_common::tempdir();
     let (perpetual, historic) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
@@ -110,7 +109,49 @@ async fn test_dump_reads_a_bucket_and_the_retention_floor() {
     let bucket = historic.ensure(3).unwrap();
     let mut batch = perpetual.objects.batch();
     batch
+        .insert_batch_tagged(&bucket.tombstones, [(key, ())])
+        .unwrap();
+    batch.write().unwrap();
+
+    let weak_db = Arc::downgrade(&perpetual.objects.db);
+    drop(bucket);
+    drop(historic);
+    drop(perpetual);
+    assert!(wait_for_database_close(weak_db).await);
+
+    let (_perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    let bucket = historic.ensure(3).unwrap();
+    assert!(bucket.tombstones.get(&key).unwrap().is_some());
+    assert!(bucket.expiring.get(&()).unwrap().is_none());
+}
+
+/// `iota-tool`'s table dump reaches a bucket and the retention floor through
+/// [`HistoricObjects::dump_column_family`], since neither is a field of
+/// `AuthorityPerpetualTables`, and gets nothing for a name that belongs to
+/// neither. A bucket's dump covers its relocated versions, its tombstone
+/// heads and its expiring marker alike, since all three share the bucket's
+/// column family.
+#[tokio::test]
+async fn test_dump_reads_a_bucket_and_the_retention_floor() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let key = ObjectKey(object.id(), object.version());
+    let tombstone_key = ObjectKey(ObjectId::random(), object.version());
+
+    let bucket = historic.ensure(3).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
         .insert_batch_tagged(&bucket.objects, [(key, object)])
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, [(tombstone_key, ())])
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.expiring, [((), ())])
         .unwrap();
     batch.write().unwrap();
     // The dump reads through a secondary handle, which only sees what the
@@ -123,8 +164,10 @@ async fn test_dump_reads_a_bucket_and_the_retention_floor() {
     let rows = HistoricObjects::dump_column_family(db, "hist_obj_e3", 100, 0)
         .unwrap()
         .expect("a bucket's column family is dumpable");
-    assert_eq!(rows.len(), 1);
+    assert_eq!(rows.len(), 3);
     assert!(rows.contains_key(&format!("{key:?}")));
+    assert!(rows.contains_key(&format!("tombstone:{tombstone_key:?}")));
+    assert!(rows.contains_key("expiring:()"));
 
     assert_eq!(
         HistoricObjects::dump_column_family(db, "hist_obj_retention", 100, 0).unwrap(),
