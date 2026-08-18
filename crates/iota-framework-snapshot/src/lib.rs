@@ -9,7 +9,7 @@ use std::{
     path::PathBuf,
 };
 
-use iota_framework::{SystemPackage, SystemPackageMetadata};
+use iota_framework::SystemPackage;
 pub use iota_framework_snapshot_manifest::*;
 use iota_sdk_types::ObjectId;
 
