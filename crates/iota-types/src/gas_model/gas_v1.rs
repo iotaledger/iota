@@ -329,18 +329,11 @@ mod checked {
             }
 
             // 2. Gas budget is between min and max budget allowed
-            if gas_budget > self.cost_table.max_gas_budget {
-                return Err(UserInputError::GasBudgetTooHigh {
-                    gas_budget,
-                    max_budget: self.cost_table.max_gas_budget,
-                });
-            }
-            if gas_budget < self.cost_table.min_transaction_cost {
-                return Err(UserInputError::GasBudgetTooLow {
-                    gas_budget,
-                    min_budget: self.cost_table.min_transaction_cost,
-                });
-            }
+            gas::check_gas_budget_bounds(
+                gas_budget,
+                self.cost_table.min_transaction_cost,
+                self.cost_table.max_gas_budget,
+            )?;
 
             // 3. Gas balance (all gas coins together) is bigger or equal to budget
             let mut gas_balance = 0u128;
