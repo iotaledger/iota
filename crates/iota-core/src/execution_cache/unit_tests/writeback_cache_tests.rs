@@ -894,9 +894,11 @@ async fn test_write_transaction_outputs_is_sync() {
     .await;
 }
 
-/// Committing a transaction that supersedes a version moves that version
-/// out of the live table and into the current epoch's bucket. Both halves
-/// go in one batch, so a reader can never observe it in neither.
+/// Committing a transaction that supersedes a version leaves that version
+/// out of the live table and in the current epoch's bucket, which is the
+/// post-state asserted here. That the two halves can only land together is
+/// enforced elsewhere: both join one `DBBatch`, and a `DBBatch` refuses a
+/// map belonging to another database.
 #[tokio::test]
 async fn test_commit_relocates_superseded_versions() {
     telemetry_subscribers::init_for_testing();
