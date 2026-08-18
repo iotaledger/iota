@@ -3,8 +3,10 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Owner, Version};
 use iota_types::{committee::EpochId, object::Object, storage::ObjectKey};
+use prometheus_filtered::Registry;
+use tempfile::TempDir;
 use typed_store::{
     database::wait_for_database_close,
     rocks::{DBMap, ReadWriteOptions, TaggedDBMap, default_db_options},
@@ -16,9 +18,38 @@ use super::{
     TOMBSTONE_DELETE_BATCH_SIZE,
 };
 use crate::authority::{
+    AuthorityStore,
     authority_store_tables::AuthorityPerpetualTables,
-    authority_store_types::{StoreObject, StoreObjectWrapper},
+    authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
 };
+
+/// A perpetual store, its historic buckets, and an [`AuthorityStore`] over
+/// both, for the reads that consult the live `objects` table and the buckets
+/// together. The directory is returned so it outlives the databases.
+fn test_store() -> (
+    Arc<AuthorityPerpetualTables>,
+    Arc<HistoricObjects>,
+    Arc<AuthorityStore>,
+    TempDir,
+) {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    let perpetual = Arc::new(perpetual);
+    let historic = Arc::new(historic);
+    let store = AuthorityStore::open_no_genesis(
+        perpetual.clone(),
+        historic.clone(),
+        false,
+        &Registry::new(),
+    )
+    .unwrap();
+    (perpetual, historic, store, dir)
+}
+
+fn object_at(id: ObjectId, version: u64) -> Object {
+    Object::with_id_owner_version_for_testing(id, version.into(), Owner::Immutable)
+}
 
 /// A relocated version is readable from the bucket of the epoch it was
 /// relocated into, and a version never relocated is absent.
@@ -452,4 +483,162 @@ async fn test_interrupted_expiries_are_resumed_oldest_first() {
         .is_err()
     );
     assert!(perpetual.objects.get(&newer_tombstone).unwrap().is_some());
+}
+
+/// A tombstone at or below the bound and nothing at or below the bound are
+/// different answers. The version-bounded scan keeps them apart, so a version
+/// relocated under a tombstone is never served in the deleted object's place.
+#[tokio::test]
+async fn test_a_deleted_object_stays_deleted_across_the_buckets() {
+    let (perpetual, historic, store, _dir) = test_store();
+    let id = ObjectId::random();
+
+    // Version 5 relocated into epoch 1's bucket, with the object deleted at
+    // version 9 and its tombstone still in the live table.
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(
+            &bucket.objects,
+            [(ObjectKey(id, 5.into()), object_at(id, 5))],
+        )
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [(
+                ObjectKey(id, 9.into()),
+                StoreObjectWrapper::from(StoreObject::Deleted),
+            )],
+        )
+        .unwrap();
+    batch.write().unwrap();
+
+    // Bounded above the tombstone: the object is gone, and the relocated
+    // version beneath it must not be served in its place.
+    let (key, row) = perpetual
+        .find_object_lt_or_eq_version(id, 12.into())
+        .unwrap()
+        .expect("the tombstone is in range");
+    assert_eq!(key, ObjectKey(id, 9.into()));
+    assert!(matches!(row.into_inner(), StoreObject::Deleted));
+    assert_eq!(
+        store
+            .find_object_lt_or_eq_version_with_historic_fallback(id, 12.into())
+            .unwrap(),
+        None
+    );
+
+    // Bounded below the tombstone: the relocated version is the answer.
+    assert!(
+        perpetual
+            .find_object_lt_or_eq_version(id, 6.into())
+            .unwrap()
+            .is_none()
+    );
+    assert_eq!(
+        historic
+            .find_lt_or_eq_version(id, 6.into())
+            .unwrap()
+            .map(|object| object.version()),
+        Some(Version::from(5))
+    );
+    assert_eq!(
+        store
+            .find_object_lt_or_eq_version_with_historic_fallback(id, 6.into())
+            .unwrap()
+            .map(|object| object.version()),
+        Some(Version::from(5))
+    );
+}
+
+/// The bucket walk answers with the newest relocated version within the
+/// bound, whichever bucket holds it, and the live table still answers for a
+/// version that never left it.
+#[tokio::test]
+async fn test_the_newest_relocated_version_in_range_is_served() {
+    let (perpetual, historic, store, _dir) = test_store();
+    let id = ObjectId::random();
+
+    // Versions 3 and 4 relocated in epoch 1, version 7 in epoch 2, version 11
+    // still live.
+    for (epoch, versions) in [(1, vec![3, 4]), (2, vec![7])] {
+        let bucket = historic.ensure(epoch).unwrap();
+        let mut batch = perpetual.objects.batch();
+        batch
+            .insert_batch_tagged(
+                &bucket.objects,
+                versions
+                    .into_iter()
+                    .map(|version| (ObjectKey(id, version.into()), object_at(id, version))),
+            )
+            .unwrap();
+        batch.write().unwrap();
+    }
+    let live = object_at(id, 11);
+    perpetual
+        .objects
+        .insert(&ObjectKey(id, 11.into()), &get_store_object(live, None))
+        .unwrap();
+
+    for (bound, expected) in [
+        (11, Some(11)),
+        (9, Some(7)),
+        (7, Some(7)),
+        (6, Some(4)),
+        (3, Some(3)),
+        (2, None),
+    ] {
+        assert_eq!(
+            store
+                .find_object_lt_or_eq_version_with_historic_fallback(id, bound.into())
+                .unwrap()
+                .map(|object| object.version()),
+            expected.map(Version::from),
+            "bound {bound}"
+        );
+    }
+
+    // The walk on its own, without the live table in front of it.
+    assert_eq!(
+        historic
+            .find_lt_or_eq_version(id, 9.into())
+            .unwrap()
+            .map(|object| object.version()),
+        Some(Version::from(7))
+    );
+}
+
+/// A bucket marked expiring is left out of the walk as it is left out of an
+/// exact-key probe: its tombstone heads may already be gone from the live
+/// table, and a version served from under a deleted tombstone would resurrect
+/// a deleted object.
+#[tokio::test]
+async fn test_a_bucket_marked_expiring_is_left_out_of_the_walk() {
+    let (perpetual, historic, _store, _dir) = test_store();
+    let id = ObjectId::random();
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(
+            &bucket.objects,
+            [(ObjectKey(id, 5.into()), object_at(id, 5))],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    assert!(
+        historic
+            .find_lt_or_eq_version(id, 6.into())
+            .unwrap()
+            .is_some()
+    );
+
+    bucket.mark_expiring().unwrap();
+    assert!(
+        historic
+            .find_lt_or_eq_version(id, 6.into())
+            .unwrap()
+            .is_none()
+    );
 }

@@ -1692,7 +1692,10 @@ impl ObjectCacheRead for WritebackCache {
                         // But we already know there is no dirty entry within the bound,
                         // so we go to the db.
                         self.record_db_get("object_lt_or_eq_version_scan")
-                            .find_object_lt_or_eq_version(object_id, version_bound)
+                            .find_object_lt_or_eq_version_with_historic_fallback(
+                                object_id,
+                                version_bound,
+                            )
                     }
 
                 // no object found in dirty set or db, object does not exist
