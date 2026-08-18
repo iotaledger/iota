@@ -3,9 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Protocol level traffic control. Tallies are charged to the spam and error
-//! policies inline, so a client that breaches its quota is blocked by the time
-//! [`TrafficController::tally`] returns and is rejected by the next
-//! [`TrafficController::check`].
+//! policies inline, so a breaching client is blocked before
+//! [`TrafficController::tally`] returns.
 
 pub mod metrics;
 pub mod nodefw_client;
@@ -52,12 +51,9 @@ use crate::{
     policies::{MAX_CLIENT_THRESHOLD, PolicyResponse, TrafficControlPolicy, TrafficTally},
 };
 
-/// How often expired blocklist entries are dropped.
 const CLEAR_BLOCKLIST_INTERVAL: Duration = Duration::from_secs(3);
-/// How often fully replenished per-client rate limiter cells are dropped, which
-/// also bounds how long the cells of a client that never returns are held.
+/// Also bounds how long the cells of a client that never returns are held.
 const EVICT_IDLE_CLIENTS_INTERVAL: Duration = Duration::from_secs(10);
-/// How often the dead man's switch checks whether tallies are still arriving.
 const DEADMANS_SWITCH_POLL_INTERVAL: Duration = Duration::from_secs(1);
 /// Number of pending firewall delegations held before further ones are dropped.
 const FIREWALL_DELEGATION_QUEUE_SIZE: usize = 256;
@@ -90,8 +86,6 @@ struct TallyState {
     /// Whether the firewall drain file is present, refreshed by the dead man's
     /// switch. Delegation pauses while it is.
     drainfile_present: Arc<AtomicBool>,
-    /// Stops the background loops once the last controller holding this state
-    /// is dropped.
     shutdown: CancellationToken,
 }
 
@@ -156,8 +150,8 @@ impl Debug for TrafficController {
 impl TrafficController {
     /// # Panics
     ///
-    /// Panics when called outside a tokio runtime: it spawns the background
-    /// tasks that expire blocklist entries and drive firewall delegation.
+    /// Panics when called outside a tokio runtime, as it spawns background
+    /// tasks.
     pub fn init(
         policy_config: PolicyConfig,
         metrics: Arc<TrafficControllerMetrics>,
@@ -166,16 +160,12 @@ impl TrafficController {
         metrics.dry_run_enabled.set(policy_config.dry_run as i64);
         let dry_run = Arc::new(AtomicBool::new(policy_config.dry_run));
 
-        // Allowlist mode has no policies, so its threshold gauges stay unset.
         let acl = match &policy_config.allow_list {
             Some(allow_list) => Acl::Allowlist(parse_allowlist(allow_list)),
             None => {
-                set_policy_config_metrics(&policy_config, &metrics);
-                Acl::Blocklists(Arc::new(spawn_tally_state(
-                    &policy_config,
-                    &metrics,
-                    fw_config.as_ref(),
-                )))
+                let state = spawn_tally_state(&policy_config, &metrics, fw_config.as_ref());
+                set_policy_config_metrics(&state, &policy_config, &metrics);
+                Acl::Blocklists(Arc::new(state))
             }
         };
         Self {
@@ -198,7 +188,6 @@ impl TrafficController {
         )
     }
 
-    /// The tallying state, absent in allowlist mode.
     fn tally_state(&self) -> Option<&TallyState> {
         match &self.acl {
             Acl::Blocklists(state) => Some(state),
@@ -229,33 +218,30 @@ impl TrafficController {
             spam_threshold,
             dry_run,
         } = params;
-        // Validate the whole request first, so a rejected one applies nothing.
-        if let Some(error_threshold) = error_threshold {
-            validate_threshold(
-                self.tally_state().map(|state| state.error_policy.as_ref()),
+        let updates = [
+            (
                 error_threshold,
+                self.tally_state().map(|state| state.error_policy.as_ref()),
+                &self.metrics.error_client_threshold,
                 "error",
-            )?;
-        }
-        if let Some(spam_threshold) = spam_threshold {
-            validate_threshold(
-                self.tally_state().map(|state| state.spam_policy.as_ref()),
+            ),
+            (
                 spam_threshold,
+                self.tally_state().map(|state| state.spam_policy.as_ref()),
+                &self.metrics.spam_client_threshold,
                 "spam",
-            )?;
-        }
-        if let Some(state) = self.tally_state() {
-            if let Some(error_threshold) = error_threshold {
-                state.error_policy.set_client_threshold(error_threshold);
-                self.metrics
-                    .error_client_threshold
-                    .set(error_threshold as i64);
+            ),
+        ];
+        // Validate the whole request first, so a rejected one applies nothing.
+        for (threshold, policy, _, kind) in updates {
+            if let Some(threshold) = threshold {
+                validate_threshold(policy, threshold, kind)?;
             }
-            if let Some(spam_threshold) = spam_threshold {
-                state.spam_policy.set_client_threshold(spam_threshold);
-                self.metrics
-                    .spam_client_threshold
-                    .set(spam_threshold as i64);
+        }
+        for (threshold, policy, gauge, _) in updates {
+            if let (Some(threshold), Some(policy)) = (threshold, policy) {
+                policy.set_client_threshold(threshold);
+                gauge.set(threshold as i64);
             }
         }
         if let Some(dry_run) = dry_run {
@@ -361,15 +347,12 @@ impl TrafficController {
             }
         };
         match (allowed, dry_run) {
-            // request allowed
             (true, _) => true,
-            // request blocked while in dry-run mode
             (false, true) => {
                 debug!("Dry run mode: Blocked request from client {:?}", client);
                 self.metrics.num_dry_run_blocked_requests.inc();
                 true
             }
-            // request blocked
             (false, false) => {
                 debug!("Blocked request from client {:?}", client);
                 self.metrics.requests_blocked_at_protocol.inc();
@@ -389,10 +372,8 @@ fn parse_allowlist(allow_list: &[String]) -> Vec<IpAddr> {
         .collect()
 }
 
-/// Builds the tallying state and spawns the background tasks that expire
-/// blocklist entries, evict idle rate limiter cells, and post delegated blocks
-/// to the remote firewall. The tasks stop when the returned state is dropped,
-/// so this must be called from within a tokio runtime.
+/// Builds the tallying state and spawns its background tasks. Must be called
+/// from within a tokio runtime.
 fn spawn_tally_state(
     policy_config: &PolicyConfig,
     metrics: &Arc<TrafficControllerMetrics>,
@@ -409,11 +390,8 @@ fn spawn_tally_state(
     let mut firewall_delegation = None;
 
     if let Some(fw_config) = fw_config {
-        // Memoized drainfile existence state. This prevents delegation from
-        // continuing to populate the remote blocklist if drain is set, as
-        // otherwise it will grow without bounds without the firewall running to
-        // periodically clear it. An unreadable path counts as a drain, so the
-        // node does not delegate while it cannot tell.
+        // An unreadable path counts as a drain, so the node does not delegate
+        // while it cannot tell.
         let present = fw_config.drain_path.try_exists().unwrap_or(true);
         drainfile_present.store(present, Ordering::Relaxed);
         metrics.deadmans_switch_enabled.set(present as i64);
@@ -475,8 +453,7 @@ fn spawn_tally_state(
     }
 }
 
-/// Checks that `threshold` can be applied to `policy`, which is absent in
-/// allowlist mode.
+/// Checks that `threshold` can be applied to `policy`.
 fn validate_threshold(
     policy: Option<&TrafficControlPolicy>,
     threshold: u64,
@@ -500,28 +477,31 @@ fn validate_threshold(
     Ok(())
 }
 
-/// Reports the enforced thresholds, which the policies clamp at
-/// [`MAX_CLIENT_THRESHOLD`].
-fn set_policy_config_metrics(policy_config: &PolicyConfig, metrics: &TrafficControllerMetrics) {
+/// Reports the thresholds the policies enforce.
+fn set_policy_config_metrics(
+    state: &TallyState,
+    policy_config: &PolicyConfig,
+    metrics: &TrafficControllerMetrics,
+) {
+    if let Some(threshold) = state.spam_policy.client_threshold() {
+        metrics.spam_client_threshold.set(threshold as i64);
+    }
+    if let Some(threshold) = state.error_policy.client_threshold() {
+        metrics.error_client_threshold.set(threshold as i64);
+    }
     if let PolicyType::FreqThreshold(config) = &policy_config.spam_policy_type {
-        metrics
-            .spam_client_threshold
-            .set(config.client_threshold.min(MAX_CLIENT_THRESHOLD) as i64);
         metrics
             .spam_proxied_client_threshold
             .set(config.proxied_client_threshold.min(MAX_CLIENT_THRESHOLD) as i64);
     }
     if let PolicyType::FreqThreshold(config) = &policy_config.error_policy_type {
         metrics
-            .error_client_threshold
-            .set(config.client_threshold.min(MAX_CLIENT_THRESHOLD) as i64);
-        metrics
             .error_proxied_client_threshold
             .set(config.proxied_client_threshold.min(MAX_CLIENT_THRESHOLD) as i64);
     }
 }
 
-/// Returns true if neither client is in a blocklist, false otherwise
+/// Returns true if neither client is blocked.
 fn check_blocklists(
     blocklists: &Blocklists,
     client: &Option<IpAddr>,
@@ -660,12 +640,8 @@ async fn tick(interval: Duration, shutdown: &CancellationToken) -> bool {
     }
 }
 
-/// Although we clear IPs from the blocklist lazily when they are checked,
-/// it's possible that over time we may accumulate a large number of stale
-/// IPs in the blocklist for clients that are added, then once blocked,
-/// never checked again. This function runs periodically to clear out any
-/// such stale IPs. This also ensures that the blocklist length metric
-/// accurately reflects TTL.
+/// Drops expired blocklist entries that were never checked again, and keeps the
+/// length gauges honest.
 async fn run_clear_blocklists_loop(
     blocklists: Blocklists,
     metrics: Arc<TrafficControllerMetrics>,
@@ -686,9 +662,6 @@ async fn run_clear_blocklists_loop(
     }
 }
 
-/// The policies hold one rate limiter cell per client IP in a bounded cache.
-/// This function runs periodically to drop cells that have fully replenished,
-/// so memory also shrinks back once clients go quiet.
 async fn run_evict_idle_clients_loop(
     spam_policy: Arc<TrafficControlPolicy>,
     error_policy: Arc<TrafficControlPolicy>,
@@ -731,8 +704,8 @@ async fn run_firewall_delegation_loop(
     info!("TrafficController firewall delegation queue closed by all senders");
 }
 
-/// Dead man's switch: if we suspect something is sinking all traffic to the
-/// node, disable nodefw so that the firewall stops blocking on stale state.
+/// Drains the firewall if no tallies arrive for the configured timeout, so it
+/// stops blocking on stale state.
 async fn run_deadmans_switch_loop(
     fw_config: RemoteFirewallConfig,
     drainfile_present: Arc<AtomicBool>,
@@ -776,27 +749,13 @@ async fn run_deadmans_switch_loop(
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TrafficSimMetrics {
     pub num_requests: u64,
     pub num_blocked: u64,
-    pub time_to_first_block: Option<Duration>,
     pub abs_time_to_first_block: Option<Duration>,
     pub total_time_blocked: Duration,
     pub num_blocklist_adds: u64,
-}
-
-impl Default for TrafficSimMetrics {
-    fn default() -> Self {
-        Self {
-            num_requests: 0,
-            num_blocked: 0,
-            time_to_first_block: None,
-            abs_time_to_first_block: None,
-            total_time_blocked: Duration::from_micros(0),
-            num_blocklist_adds: 0,
-        }
-    }
 }
 
 impl Add for TrafficSimMetrics {
@@ -806,12 +765,6 @@ impl Add for TrafficSimMetrics {
         Self {
             num_requests: self.num_requests + other.num_requests,
             num_blocked: self.num_blocked + other.num_blocked,
-            time_to_first_block: match (self.time_to_first_block, other.time_to_first_block) {
-                (Some(a), Some(b)) => Some(a + b),
-                (Some(a), None) => Some(a),
-                (None, Some(b)) => Some(b),
-                (None, None) => None,
-            },
             abs_time_to_first_block: match (
                 self.abs_time_to_first_block,
                 other.abs_time_to_first_block,
@@ -837,18 +790,17 @@ impl TrafficSim {
         num_clients: u8,
         per_client_tps: usize,
         duration: Duration,
-        report: bool,
     ) -> TrafficSimMetrics {
         assert!(
             per_client_tps <= 10_000,
             "per_client_tps must be less than 10,000. For higher values, increase num_clients"
         );
-        assert!(num_clients < 20, "num_clients must be greater than 0");
+        assert!(num_clients < 20, "num_clients must be less than 20");
         assert!(num_clients > 0);
         assert!(per_client_tps > 0);
         assert!(duration.as_secs() > 0);
 
-        let controller = TrafficController::init_for_test(policy.clone(), None);
+        let controller = TrafficController::init_for_test(policy, None);
         let tasks = (0..num_clients).map(|task_num| {
             tokio::spawn(Self::run_single_client(
                 controller.clone(),
@@ -858,31 +810,7 @@ impl TrafficSim {
             ))
         });
 
-        let status_task = if report {
-            Some(tokio::spawn(async move {
-                println!(
-                    "Running naive traffic simulation for {} seconds",
-                    duration.as_secs()
-                );
-                println!("Policy: {policy:#?}");
-                println!("Num clients: {num_clients}");
-                println!("TPS per client: {per_client_tps}");
-                println!(
-                    "Target total TPS: {}",
-                    per_client_tps * num_clients as usize
-                );
-                println!("\n");
-                for _ in 0..duration.as_secs() {
-                    print!(".");
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                }
-                println!();
-            }))
-        } else {
-            None
-        };
-
-        let metrics = futures::future::join_all(tasks).await.into_iter().fold(
+        futures::future::join_all(tasks).await.into_iter().fold(
             TrafficSimMetrics::default(),
             |acc, run_client_ret| match run_client_ret {
                 Ok(metrics) => acc + metrics,
@@ -891,13 +819,7 @@ impl TrafficSim {
                     acc
                 }
             },
-        );
-
-        if report {
-            status_task.unwrap().await.unwrap();
-            Self::report_metrics(metrics.clone(), duration, per_client_tps, num_clients);
-        }
-        metrics
+        )
     }
 
     async fn run_single_client(
@@ -961,61 +883,10 @@ impl TrafficSim {
         TrafficSimMetrics {
             num_requests,
             num_blocked,
-            time_to_first_block,
             abs_time_to_first_block: time_to_first_block,
             total_time_blocked,
             num_blocklist_adds,
         }
-    }
-
-    fn report_metrics(
-        metrics: TrafficSimMetrics,
-        duration: Duration,
-        per_client_tps: usize,
-        num_clients: u8,
-    ) {
-        println!("TrafficSim metrics:");
-        println!("-------------------");
-        // The below two should be near equal
-        println!(
-            "Num expected requests: {}",
-            per_client_tps * (num_clients as usize) * duration.as_secs() as usize
-        );
-        println!("Num actual requests: {}", metrics.num_requests);
-        // This reflects the number of requests that were blocked, but note that once a
-        // client is added to the blocklist, all subsequent requests from that
-        // client are blocked until ttl is expired.
-        println!("Num blocked requests: {}", metrics.num_blocked);
-        // This metric on the other hand reflects the number of times a client was added
-        // to the blocklist and thus can be compared an the expectation based on
-        // the policy block threshold and ttl
-        println!(
-            "Num times added to blocklist: {}",
-            metrics.num_blocklist_adds
-        );
-        // This averages the duration for the first request to be blocked across all
-        // clients, which is useful for understanding if the policy is rate
-        // limiting based on expectation
-        let avg_first_block_time = metrics
-            .time_to_first_block
-            .map(|ttf| ttf / num_clients as u32);
-        println!("Average time to first block: {avg_first_block_time:?}");
-        // This is the time it took for the first request to be blocked across all
-        // clients, and is instead more useful for understanding false positives
-        // in terms of rate and magnitude.
-        println!(
-            "Absolute time to first block (across all clients): {:?}",
-            metrics.abs_time_to_first_block
-        );
-        // Useful for ensuring that TTL is respected
-        let avg_time_blocked = (metrics.total_time_blocked.as_millis() as u64)
-            .checked_div(metrics.num_blocklist_adds)
-            .unwrap_or_default();
-
-        println!(
-            "Average time blocked (ttl): {:?}",
-            Duration::from_millis(avg_time_blocked)
-        );
     }
 }
 

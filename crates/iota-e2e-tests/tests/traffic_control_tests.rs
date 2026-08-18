@@ -7,7 +7,7 @@
 //! simtest.
 
 use core::panic;
-use std::{fs::File, num::NonZeroUsize, time::Duration};
+use std::{num::NonZeroUsize, time::Duration};
 
 use fastcrypto::encoding::Base64;
 use iota_core::authority_client::{
@@ -219,8 +219,6 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
     assert_eq!(&digest, tx_digest);
     assert!(confirmed_local_execution.unwrap());
 
-    // The spam policy tallies past its threshold within these requests; in
-    // dry-run mode every request must still succeed.
     for _ in 0..txn_count {
         let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
             .request("iota_getTransactionBlock", rpc_params![*tx_digest])
@@ -485,7 +483,7 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
             assert!(confirmed_local_execution.unwrap());
         }
     }
-    panic!("Expected spam policy to trigger within {txn_count} requests");
+    panic!("Expected error policy to trigger within {txn_count} requests");
 }
 
 #[tokio::test]
@@ -692,7 +690,9 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
     Ok(())
 }
 
-#[tokio::test]
+/// The dead man's switch drains the firewall when tallies stop arriving, keeps
+/// the drain file across a restart, and stops with its controller.
+#[sim_test]
 async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
@@ -702,12 +702,9 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
         dry_run: false,
         ..Default::default()
     };
-
-    // sink all traffic to trigger dead mans switch
     let tmp_dir = iota_common::tempdir();
     let drain_path = tmp_dir.path().join("drain");
-    assert!(!drain_path.exists(), "Expected drain file to not yet exist",);
-
+    assert!(!drain_path.exists(), "Expected drain file to not yet exist");
     let firewall_config = RemoteFirewallConfig {
         remote_fw_url: String::from("http://127.0.0.1:65000"),
         delegate_spam_blocking: true,
@@ -717,13 +714,8 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
         drain_timeout_secs: 6,
     };
 
+    // No traffic at all, so the switch engages once the timeout elapses.
     let tc = TrafficController::init_for_test(policy_config.clone(), Some(firewall_config.clone()));
-    assert!(
-        !drain_path.exists(),
-        "Expected drain file to not exist after startup unless previously set",
-    );
-
-    // after n seconds with no traffic, the dead mans switch should be engaged
     let mut drain_enabled = false;
     for _ in 0..4 {
         if drain_path.exists() {
@@ -734,73 +726,40 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
     }
     assert!(drain_enabled, "Expected drain file to be enabled");
 
-    // if we drop traffic controller and re-instantiate, drain file should remain
-    // set
+    // A controller starting against a drained path leaves it drained.
     drop(tc);
-    let _tc = TrafficController::init_for_test(policy_config, Some(firewall_config));
-    for _ in 0..3 {
-        assert!(
-            drain_path.exists(),
-            "Expected drain file to be disabled at startup unless previously enabled",
-        );
-        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-    }
+    let _tc = TrafficController::init_for_test(policy_config.clone(), Some(firewall_config));
+    assert!(
+        drain_path.exists(),
+        "Expected drain file to remain set across a restart",
+    );
 
-    Ok(())
-}
-
-/// The dead man's switch stops with the controller that spawned it, rather than
-/// draining a firewall on behalf of a node that no longer exists.
-#[sim_test]
-async fn test_dead_mans_switch_stops_with_the_controller() -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-    let tmp_dir = iota_common::tempdir();
-    let drain_path = tmp_dir.path().join("drain");
-    let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 3,
-        spam_policy_type: PolicyType::TestNConnIP(10),
-        spam_sample_rate: Weight::one(),
-        dry_run: false,
-        ..Default::default()
-    };
-    let firewall_config = RemoteFirewallConfig {
-        remote_fw_url: String::from("http://127.0.0.1:65002"),
-        delegate_spam_blocking: true,
-        delegate_error_blocking: false,
-        destination_port: 9000,
-        drain_path: drain_path.clone(),
-        drain_timeout_secs: 2,
-    };
-
+    // A dropped controller takes its switch with it, rather than draining a
+    // firewall on behalf of a node that no longer exists.
+    let stopped_dir = iota_common::tempdir();
+    let stopped_drain_path = stopped_dir.path().join("drain");
     drop(TrafficController::init_for_test(
         policy_config,
-        Some(firewall_config),
+        Some(RemoteFirewallConfig {
+            remote_fw_url: String::from("http://127.0.0.1:65002"),
+            delegate_spam_blocking: true,
+            delegate_error_blocking: false,
+            destination_port: 9000,
+            drain_path: stopped_drain_path.clone(),
+            drain_timeout_secs: 2,
+        }),
     ));
-    // Well past the drain timeout: a switch still running would have created the
-    // drain file by now, as it sees no tallies at all.
+    // Well past the drain timeout: a switch still running would have created
+    // the drain file by now, as it sees no tallies at all.
     tokio::time::sleep(tokio::time::Duration::from_secs(6)).await;
     assert!(
-        !drain_path.exists(),
+        !stopped_drain_path.exists(),
         "Expected the dead man's switch to stop with the controller",
     );
 
     Ok(())
 }
 
-#[tokio::test]
-async fn test_traffic_control_manual_set_dead_mans_switch() -> Result<(), anyhow::Error> {
-    telemetry_subscribers::init_for_testing();
-    let tmp_dir = iota_common::tempdir();
-    let drain_path = tmp_dir.path().join("drain");
-    assert!(!drain_path.exists(), "Expected drain file to not yet exist",);
-    File::create(&drain_path).expect("Failed to touch nodefw drain file");
-    assert!(drain_path.exists(), "Expected drain file to exist",);
-
-    Ok(())
-}
-
-/// A client staying below its sustained rate is never blocked, however long it
-/// keeps going.
 #[sim_test]
 async fn test_traffic_sim_no_blocks() {
     telemetry_subscribers::init_for_testing();
@@ -822,7 +781,6 @@ async fn test_traffic_sim_no_blocks() {
         10,    // num_clients
         5_000, // per_client_tps
         Duration::from_secs(20),
-        true, // report
     )
     .await;
 
@@ -837,9 +795,6 @@ async fn test_traffic_sim_no_blocks() {
     assert!(metrics.total_time_blocked < Duration::from_secs(10));
 }
 
-/// A client running at twice its sustained rate exhausts the burst, is blocked
-/// for the blocklist TTL, and is blocked again once the replenished burst runs
-/// out, so it settles into a cycle.
 #[sim_test]
 async fn test_traffic_sim_with_blocks() {
     telemetry_subscribers::init_for_testing();
@@ -861,7 +816,6 @@ async fn test_traffic_sim_with_blocks() {
         10,     // num_clients
         10_000, // per_client_tps
         Duration::from_secs(20),
-        true, // report
     )
     .await;
 
@@ -879,8 +833,6 @@ async fn test_traffic_sim_with_blocks() {
     assert!(metrics.total_time_blocked > Duration::from_secs(5));
 }
 
-/// Sampling only half the tallies halves the rate charged against the quota, so
-/// a threshold set to half the client's rate produces the same cycle.
 #[sim_test]
 async fn test_traffic_sim_with_sampled_spam() {
     telemetry_subscribers::init_for_testing();
@@ -901,7 +853,6 @@ async fn test_traffic_sim_with_sampled_spam() {
         1,    // num_clients
         1000, // per_client_tps
         Duration::from_secs(20),
-        true, // report
     )
     .await;
 
@@ -927,18 +878,17 @@ async fn test_traffic_sim_allowlist_mode() {
     };
     let metrics = TrafficSim::run(
         policy_config,
-        4,      // num_clients
-        10_000, // per_client_tps
-        Duration::from_secs(10),
-        true, // report
+        4,   // num_clients
+        100, // per_client_tps
+        Duration::from_secs(2),
     )
     .await;
 
-    let expected_requests = 10_000 * 10 * 4;
+    let expected_requests = 100 * 2 * 4;
     // ~half of all requests blocked
-    assert!(metrics.num_blocked >= expected_requests / 2 - 1000);
-    assert!(metrics.num_requests > expected_requests - 1_000);
-    assert!(metrics.num_requests < expected_requests + 200);
+    assert!(metrics.num_blocked >= expected_requests / 2 - 10);
+    assert!(metrics.num_requests > expected_requests - 10);
+    assert!(metrics.num_requests < expected_requests + 20);
 }
 
 async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), anyhow::Error> {

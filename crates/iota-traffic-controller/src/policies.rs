@@ -3,11 +3,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Per-client rate limiting for the traffic controller, backed by one GCRA
-//! cell per client IP (`governor`). A tally is charged to the client's cell
-//! inline, so a breached quota is visible to the next `check` as soon as
-//! `charge` returns. Cells live in a capacity-bounded LRU cache per limiter,
-//! so memory stays bounded no matter how many client IPs appear.
+//! Per-client rate limiting for the traffic controller: one GCRA cell
+//! (`governor`) per client IP, held in a capacity-bounded LRU cache.
 
 use std::{
     net::IpAddr,
@@ -36,11 +33,9 @@ const EXACT_COUNT_FALLBACK_RESET_PERIOD: Duration = Duration::from_secs(60 * 60)
 /// Largest usable client threshold: a sustained rate above one tally per
 /// nanosecond produces a zero replenish interval, which would silently disable
 /// the limiter. Clamped to this at startup, and rejected by the admin API.
-pub const MAX_CLIENT_THRESHOLD: u64 = 1_000_000_000;
+pub(super) const MAX_CLIENT_THRESHOLD: u64 = 1_000_000_000;
 
-/// Upper bound on client IPs tracked per limiter, in the low tens of MB of
-/// memory. When full, a new client evicts the least recently charged one,
-/// resetting only that client's state.
+/// Upper bound on client IPs tracked per limiter.
 const MAX_TRACKED_CLIENTS: usize = 100_000;
 
 /// Cells dropped per eviction pass: the sweep holds the lock the request path
@@ -58,17 +53,14 @@ fn client_rate_limiter(quota: Quota) -> ClientRateLimiter {
 }
 
 /// Sustained `threshold` tallies per second, tolerating `threshold *
-/// window_size_secs` back to back (the burst clamps at `u32::MAX` cells).
-/// Callers validate `threshold` to be in `1..=MAX_CLIENT_THRESHOLD` and
-/// `window_size_secs` to be non-zero.
+/// window_size_secs` back to back.
 fn sustained_quota(threshold: u64, window_size_secs: u64) -> Quota {
     Quota::per_second(clamp_to_cells(threshold))
         .allow_burst(clamp_to_cells(threshold.saturating_mul(window_size_secs)))
 }
 
 /// The `threshold`-th tally in a row breaches and earlier ones pass, with the
-/// full count recovering over `reset_period`. Thresholds below 2 cannot be
-/// expressed as a burst and use [`Limiter::BlockAll`] instead.
+/// full count recovering over `reset_period`.
 fn exact_count_quota(threshold: u64, reset_period: Duration) -> Quota {
     let burst = clamp_to_cells(threshold.saturating_sub(1));
     Quota::with_period((reset_period / burst.get()).max(Duration::from_nanos(1)))
@@ -76,8 +68,7 @@ fn exact_count_quota(threshold: u64, reset_period: Duration) -> Quota {
         .allow_burst(burst)
 }
 
-/// Counts recover over twice the blocklist TTL, matching the periodic reset the
-/// exact-count policy had before it moved to a rate limiter.
+/// Counts recover over twice the blocklist TTL.
 fn exact_count_reset_period(connection_blocklist_ttl_sec: u64) -> Duration {
     match connection_blocklist_ttl_sec.saturating_mul(2) {
         0 => EXACT_COUNT_FALLBACK_RESET_PERIOD,
@@ -85,8 +76,6 @@ fn exact_count_reset_period(connection_blocklist_ttl_sec: u64) -> Duration {
     }
 }
 
-/// Caps a configured threshold at [`MAX_CLIENT_THRESHOLD`], the largest value
-/// the limiter can still enforce.
 fn clamp_threshold(threshold: u64, name: &str) -> u64 {
     if threshold > MAX_CLIENT_THRESHOLD {
         warn!("freq-threshold {name} {threshold} exceeds {MAX_CLIENT_THRESHOLD}, clamping");
@@ -99,7 +88,7 @@ fn clamp_to_cells(value: u64) -> NonZeroU32 {
     NonZeroU32::new(value.clamp(1, u32::MAX as u64) as u32).expect("clamped value is non-zero")
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct TrafficTally {
     pub direct: Option<IpAddr>,
     pub through_fullnode: Option<IpAddr>,
@@ -123,14 +112,13 @@ impl TrafficTally {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Debug, Default)]
 pub struct PolicyResponse {
     pub block_client: Option<IpAddr>,
     pub block_proxied_client: Option<IpAddr>,
 }
 
-/// How the direct-client threshold maps to a quota, so that the limiter can be
-/// rebuilt when an operator reconfigures the threshold at runtime.
+/// How a threshold maps to a quota.
 #[derive(Clone, Copy)]
 enum QuotaKind {
     Sustained { window_size_secs: u64 },
@@ -146,8 +134,7 @@ impl QuotaKind {
             Self::ExactCount { reset_period } if threshold >= 2 => {
                 exact_count_quota(threshold, *reset_period)
             }
-            // A threshold this low blocks on the first tally, which no burst
-            // quota can express.
+            // Too low for any burst quota: block on the first tally.
             _ => return Limiter::BlockAll,
         };
         Limiter::Cells(ClientCells::new(quota))
@@ -156,8 +143,7 @@ impl QuotaKind {
 
 /// Rate limiter for one client dimension (direct or proxied).
 enum Limiter {
-    /// A threshold too low for a burst quota to express: every tally blocks
-    /// its client. Used as a killswitch by operators.
+    /// Every tally blocks its client; the operator killswitch.
     BlockAll,
     Cells(ClientCells),
 }
@@ -185,13 +171,9 @@ impl Limiter {
 }
 
 /// Per-client GCRA cells in an LRU cache bounded at [`MAX_TRACKED_CLIENTS`].
-/// Each client IP owns an independent cell, so evicting one client never
-/// affects another.
 struct ClientCells {
     quota: Quota,
-    /// A cell whose last charge is at least this old is fully replenished, so
-    /// dropping it is indistinguishable from keeping it. The stamp is taken an
-    /// instant before the charge it records, which the sweep cadence dwarfs.
+    /// A cell whose last charge is at least this old is fully replenished.
     idle_after: Duration,
     cells: Mutex<LruCache<IpAddr, ClientCell>>,
 }
@@ -245,9 +227,8 @@ impl ClientCells {
     }
 }
 
-/// The direct-client threshold and the limiter built from it, swapped as one
-/// unit on reconfiguration so the reported threshold always matches the
-/// enforced one.
+/// The direct-client threshold and its limiter, swapped as one unit on
+/// reconfiguration.
 struct DirectLimiter {
     threshold: u64,
     limiter: Limiter,
@@ -266,8 +247,6 @@ impl DirectLimiter {
 /// separate threshold for them.
 struct RateLimitPolicy {
     quota_kind: QuotaKind,
-    /// Swapped wholesale when the threshold is reconfigured, which resets the
-    /// rate limiter state of every tracked client.
     direct: ArcSwap<DirectLimiter>,
     proxied: Option<Limiter>,
 }
@@ -316,8 +295,6 @@ impl RateLimitPolicy {
 enum Policy {
     NoOp,
     Limit(RateLimitPolicy),
-    /// Test policy that never permits a tally, to verify that a policy is not
-    /// reached in tests that expect no matching traffic.
     PanicOnInvocation,
 }
 
@@ -325,21 +302,24 @@ enum Policy {
 pub struct TrafficControlPolicy(Policy);
 
 impl TrafficControlPolicy {
-    pub fn from_spam_config(policy_config: &PolicyConfig) -> Self {
+    pub(super) fn from_spam_config(policy_config: &PolicyConfig) -> Self {
         Self::from_policy_type(
             &policy_config.spam_policy_type,
             policy_config.connection_blocklist_ttl_sec,
         )
     }
 
-    pub fn from_error_config(policy_config: &PolicyConfig) -> Self {
+    pub(super) fn from_error_config(policy_config: &PolicyConfig) -> Self {
         Self::from_policy_type(
             &policy_config.error_policy_type,
             policy_config.connection_blocklist_ttl_sec,
         )
     }
 
-    pub fn from_policy_type(policy_type: &PolicyType, connection_blocklist_ttl_sec: u64) -> Self {
+    pub(super) fn from_policy_type(
+        policy_type: &PolicyType,
+        connection_blocklist_ttl_sec: u64,
+    ) -> Self {
         Self(match policy_type {
             PolicyType::NoOp => Policy::NoOp,
             PolicyType::FreqThreshold(FreqThresholdConfig {
@@ -375,7 +355,7 @@ impl TrafficControlPolicy {
 
     /// Charges the tally against the policy, returning which clients breached
     /// their quota.
-    pub fn charge(&self, tally: &TrafficTally) -> PolicyResponse {
+    pub(super) fn charge(&self, tally: &TrafficTally) -> PolicyResponse {
         match &self.0 {
             Policy::NoOp => PolicyResponse::default(),
             Policy::Limit(policy) => policy.charge(tally),
@@ -384,33 +364,30 @@ impl TrafficControlPolicy {
     }
 
     /// Direct-client threshold, or `None` for policies that do not rate limit.
-    pub fn client_threshold(&self) -> Option<u64> {
+    pub(super) fn client_threshold(&self) -> Option<u64> {
         match &self.0 {
             Policy::Limit(policy) => Some(policy.direct.load().threshold),
             _ => None,
         }
     }
 
-    /// Replaces the direct-client threshold, discarding the rate limiter state
-    /// of every tracked client. Policies that do not rate limit ignore it, and
-    /// the admin path validates `threshold` against [`MAX_CLIENT_THRESHOLD`]
-    /// before calling.
+    /// Replaces the direct-client threshold, discarding every tracked client's
+    /// limiter state.
     pub(super) fn set_client_threshold(&self, threshold: u64) {
         if let Policy::Limit(policy) = &self.0 {
             policy.set_direct_threshold(threshold);
         }
     }
 
-    /// Drops per-client cells that have fully replenished. Must run
-    /// periodically to keep memory bounded under client churn.
-    pub fn evict_idle(&self) {
+    /// Drops per-client cells that have fully replenished.
+    pub(super) fn evict_idle(&self) {
         if let Policy::Limit(policy) = &self.0 {
             policy.evict_idle();
         }
     }
 
     /// Number of per-client cells currently held.
-    pub fn tracked_clients(&self) -> usize {
+    pub(super) fn tracked_clients(&self) -> usize {
         match &self.0 {
             Policy::Limit(policy) => policy.tracked_clients(),
             _ => 0,
@@ -499,8 +476,7 @@ mod tests {
         assert_eq!(policy.charge(&direct_tally(client)).block_client, None);
     }
 
-    // The breach must be observable on the threshold-crossing tally itself,
-    // with no waiting, in every round.
+    // The breach must be observable with no waiting.
     #[test]
     fn test_exact_count_blocks_on_nth_tally() {
         let threshold = 5;
