@@ -1215,6 +1215,10 @@ pub trait StateSyncAPI: Send + Sync {
 
 pub trait TestingAPI: Send + Sync {
     fn database_for_testing(&self) -> Arc<AuthorityStore>;
+
+    /// Drops the cached copies of committed data, so that reads issued
+    /// afterwards answer from the store.
+    fn clear_caches_for_testing(&self);
 }
 
 pub trait ExecutionCacheAPI:
