@@ -6184,15 +6184,23 @@ dependencies = [
  "bin-version",
  "iota-common",
  "iota-framework",
+ "iota-framework-snapshot-manifest",
  "iota-move-build",
  "iota-protocol-config",
  "iota-sdk-types",
  "iota-types",
  "move-package",
- "serde",
- "serde_json",
  "tempfile",
  "tokio",
+]
+
+[[package]]
+name = "iota-framework-snapshot-manifest"
+version = "1.31.0-alpha"
+dependencies = [
+ "iota-sdk-types",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -7281,7 +7289,7 @@ name = "iota-package-management"
 version = "1.31.0-alpha"
 dependencies = [
  "anyhow",
- "iota-framework-snapshot",
+ "iota-framework-snapshot-manifest",
  "iota-protocol-config",
  "iota-sdk-types",
  "move-package",

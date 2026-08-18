@@ -32,6 +32,8 @@ iota-framework:
   - "crates/iota-framework/**"
 iota-framework-snapshot:
   - "crates/iota-framework-snapshot/**"
+iota-framework-snapshot-manifest:
+  - "crates/iota-framework-snapshot-manifest/**"
 iota-framework-tests:
   - "crates/iota-framework-tests/**"
 iota-genesis-builder:
