@@ -2826,7 +2826,7 @@ async fn test_concurrent_prune_and_queries_never_panic() {
     });
 
     for retained in (1..EPOCHS).rev() {
-        index_store.history.prune(retained).unwrap();
+        index_store.history.prune(retained, |_, _| Ok(())).unwrap();
     }
     stop.store(true, Ordering::Relaxed);
     for worker in workers {
