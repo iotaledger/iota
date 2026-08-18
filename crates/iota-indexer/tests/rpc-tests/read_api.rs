@@ -2529,7 +2529,7 @@ fn is_transaction_not_present() {
 
     runtime.block_on(async {
         let rng = StdRng::from_seed([1; 32]);
-        let digest = TransactionDigest::generate(rng);
+        let digest = TransactionDigest::random_with(rng);
 
         indexer_wait_for_checkpoint(store, 1).await;
 

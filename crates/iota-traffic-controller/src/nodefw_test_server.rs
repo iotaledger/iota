@@ -21,7 +21,7 @@ use tokio::{
     task::JoinHandle,
 };
 
-use crate::traffic_controller::nodefw_client::{BlockAddress, BlockAddresses};
+use crate::nodefw_client::{BlockAddress, BlockAddresses};
 
 #[derive(Clone)]
 struct AppState {

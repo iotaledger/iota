@@ -17,8 +17,8 @@
 //! its response stream is consumed, calling [`TallyHandle::mark_accounted`] up
 //! front so the layer still skips its default per-request tally.
 //!
-//! [check]: iota_core::traffic_controller::TrafficController::check
-//! [tally]: iota_core::traffic_controller::TrafficController::tally
+//! [check]: iota_traffic_controller::TrafficController::check
+//! [tally]: iota_traffic_controller::TrafficController::tally
 
 use std::{
     future::Future,
@@ -32,7 +32,7 @@ use std::{
     time::SystemTime,
 };
 
-use iota_core::traffic_controller::{
+use iota_traffic_controller::{
     ClientIpStatus, TrafficController, get_client_ip, policies::TrafficTally,
 };
 use iota_types::traffic_control::{ClientIdSource, Weight};

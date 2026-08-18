@@ -160,6 +160,8 @@ iota-tls:
   - "crates/iota-tls/**"
 iota-tool:
   - "crates/iota-tool/**"
+iota-traffic-controller:
+  - "crates/iota-traffic-controller/**"
 iota-transaction-builder:
   - "crates/iota-transaction-builder/**"
 iota-transaction-checks:

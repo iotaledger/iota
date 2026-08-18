@@ -492,7 +492,7 @@ impl GenesisConfig {
     pub fn benchmark_gas_keys(n: usize) -> Vec<SimpleKeypair> {
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
         (0..n)
-            .map(|_| SimpleKeypair::from(AccountKeyPair::generate(&mut rng)))
+            .map(|_| SimpleKeypair::from(AccountKeyPair::random_with(&mut rng)))
             .collect()
     }
 
