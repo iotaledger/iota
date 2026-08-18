@@ -228,6 +228,7 @@ pub mod authority_store_tables;
 pub mod authority_store_types;
 pub mod epoch_start_configuration;
 pub mod historic_objects;
+pub mod object_backlog_sweep;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;
 pub mod suggested_gas_price_calculator;
@@ -2837,6 +2838,10 @@ impl AuthorityState {
             rx_ready_transactions,
             rx_execution_shutdown,
         ));
+
+        // Drain the object versions a build without the historic buckets
+        // superseded and left in the live table.
+        object_backlog_sweep::spawn(Arc::downgrade(&state), Arc::downgrade(&store));
 
         state
     }

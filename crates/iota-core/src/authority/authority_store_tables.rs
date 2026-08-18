@@ -27,6 +27,7 @@ use crate::authority::{
     },
     epoch_start_configuration::EpochStartConfiguration,
     historic_objects::HistoricObjects,
+    object_backlog_sweep::ObjectBacklogSweepProgress,
 };
 
 const ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE: &str = "OBJECTS_BLOCK_CACHE_MB";
@@ -175,6 +176,11 @@ pub struct AuthorityPerpetualTables {
     /// per-epoch, and all previous epochs other than the current epoch may
     /// be pruned safely.
     pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
+
+    /// How far the one-time sweep of the object versions superseded before
+    /// this build has got through `objects`, and whether it has reached the
+    /// end. Empty until the sweep first writes a slice.
+    pub(crate) object_backlog_sweep_progress: DBMap<(), ObjectBacklogSweepProgress>,
 }
 
 #[derive(DBMapUtils)]
