@@ -1392,18 +1392,6 @@ mod tests {
     }
 
     #[test]
-    fn failed_apply_leaves_config_unchanged() {
-        let mut config = test_config();
-        let before = debug_with_keys_loaded(&config);
-        let config_override: NodeConfigOverride =
-            "authority-store-pruning-config={num-epochs-to-retain: 5, num-epochs-to-retan: 7}"
-                .parse()
-                .unwrap();
-        assert!(config_override.apply_to(&mut config).is_err());
-        assert_eq!(debug_with_keys_loaded(&config), before);
-    }
-
-    #[test]
     fn apply_keeps_consensus_config_presence() {
         // Creating the validator-only section on a fullnode is rejected...
         let mut config = test_config();

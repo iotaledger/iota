@@ -439,8 +439,6 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     /// - A `validator-<N>` override names a validator the network does not
     ///   have.
     /// - An override fails to apply to a built config.
-    /// - A supplied validator config has no `consensus-config`.
-    /// - A built config fails [`NodeConfig::validate`].
     /// - The network has a fullnode and a validator config has no
     ///   `p2p-config.external-address`.
     ///
