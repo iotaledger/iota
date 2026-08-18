@@ -1311,6 +1311,18 @@ impl AuthorityStore {
     /// before the expiry deletes the tombstone head and finds the tombstone,
     /// or the bucket is out of the map by the time the buckets are asked.
     ///
+    /// Execution reads this way too, and its answer does not depend on
+    /// `num_epochs_to_retain`. Reaching the buckets at all means a transaction
+    /// that superseded the version being asked for has already executed and is
+    /// ordered after this reader — consensus assignment for a shared root, the
+    /// owned-object lock for an owned one — so that relocation is in the
+    /// current epoch's bucket. Buckets are expired only at reconfiguration,
+    /// with execution halted, and the newest bucket is retained at every
+    /// retention setting, so the current epoch's bucket is present on every
+    /// node. Keep both halves true: an expiry that could run while
+    /// transactions execute, or a retention that could drop the newest bucket,
+    /// would make execution's answer differ between nodes.
+    ///
     /// This is used to find the correct version of a dynamic field child
     /// object. We do not store the version of the child object, but because of
     /// lamport timestamp, we know the child must have version number less then
