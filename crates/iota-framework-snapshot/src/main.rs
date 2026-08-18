@@ -5,7 +5,7 @@
 use std::{env, fs, path::PathBuf};
 
 use iota_framework::{BuiltInFramework, SystemPackage};
-use iota_framework_snapshot::{snapshot_package, update_bytecode_snapshot_manifest};
+use iota_framework_snapshot::{SnapshotPackage, update_bytecode_snapshot_manifest};
 use iota_protocol_config::ProtocolVersion;
 
 // Define the `GIT_REVISION` const
@@ -17,7 +17,11 @@ fn main() {
     let mut files = Vec::new();
     for package in BuiltInFramework::iter_system_package_metadata() {
         write_package_to_file(version, &package.compiled);
-        files.push(snapshot_package(package));
+        files.push(SnapshotPackage {
+            name: package.name.clone(),
+            path: package.path.clone(),
+            id: package.compiled.id,
+        });
     }
     update_bytecode_snapshot_manifest(GIT_REVISION, version, files);
 }

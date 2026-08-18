@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, fs, path::PathBuf};
@@ -26,7 +26,6 @@ pub type SnapshotManifest = BTreeMap<u64, Snapshot>;
 pub struct Snapshot {
     /// Git revision that this snapshot is taken on.
     pub git_revision: String,
-
     /// List of system packages in this version.
     pub packages: Vec<SnapshotPackage>,
 }

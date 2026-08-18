@@ -20,15 +20,6 @@ const SYSTEM_PACKAGE_PUBLISH_ORDER: &[ObjectId] = &[
     ObjectId::STARDUST,
 ];
 
-/// Returns the manifest entry describing `metadata`.
-pub fn snapshot_package(metadata: &SystemPackageMetadata) -> SnapshotPackage {
-    SnapshotPackage {
-        name: metadata.name.clone(),
-        path: metadata.path.clone(),
-        id: metadata.compiled.id,
-    }
-}
-
 /// Returns the list of system packages in the order they should be published.
 /// If the protocol version is < 9 then include also the bridge package.
 pub fn get_system_package_publish_order(protocol_version: u64) -> Vec<ObjectId> {
