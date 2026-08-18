@@ -7,6 +7,7 @@ use std::{
     sync::Arc,
 };
 
+use iota_common::debug_fatal;
 use iota_sdk_types::{
     ObjectId, ObjectReference, ObjectVersion, TransactionEffects, TransactionEvents,
 };
@@ -149,6 +150,16 @@ impl TransactionOutputs {
             &read_objects,
             &mut capture_misses,
         );
+        if capture_misses > 0 {
+            // A miss loses no data — the same set drives both the bucket
+            // insert and the live delete, so the version simply stays in the
+            // live table — but relocation then stops for that shape of
+            // object, which only a crash in a test build makes visible.
+            debug_fatal!(
+                "{capture_misses} of the versions {tx_digest} superseded have no pre-image among \
+                 its input objects or the objects it read"
+            );
+        }
         metrics
             .superseded_capture_misses
             .inc_by(capture_misses as u64);

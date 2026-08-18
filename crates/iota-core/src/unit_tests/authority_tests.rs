@@ -3542,7 +3542,7 @@ async fn test_response_reads_resolve_relocated_versions() {
     use iota_types::storage::{ObjectKey, ObjectStore};
     use typed_store::Map;
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
