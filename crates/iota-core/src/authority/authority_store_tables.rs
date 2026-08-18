@@ -67,8 +67,8 @@ pub struct AuthorityPerpetualTables {
     /// and which must be retried. But, they cannot be retried unless their
     /// input objects are still accessible!
     ///
-    /// Non-latest versions prune with their own knob rather than the
-    /// ledger's; see [`AuthorityStorePruner::prune_checkpoints`].
+    /// Superseded versions are moved into the [`HistoricObjects`] buckets
+    /// and expire with them; see [`HistoricObjects::prune`].
     pub(crate) objects: DBMap<ObjectKey, StoreObjectWrapper>,
 
     /// Object references of currently active objects that can be mutated.
@@ -188,7 +188,11 @@ impl AuthorityPerpetualTables {
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
     ) -> Result<(Self, HistoricObjects), TypedStoreError> {
         let (tables, db_options) = Self::open_with_db_options(parent_path, db_options_override);
-        let historic_objects = HistoricObjects::open(tables.objects.db.clone(), &db_options)?;
+        let historic_objects = HistoricObjects::open(
+            tables.objects.db.clone(),
+            &db_options,
+            tables.objects.clone(),
+        )?;
         Ok((tables, historic_objects))
     }
 
