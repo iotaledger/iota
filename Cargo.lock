@@ -6198,7 +6198,7 @@ dependencies = [
 
 [[package]]
 name = "iota-framework-snapshot-manifest"
-version = "1.30.0-alpha"
+version = "1.31.0-alpha"
 dependencies = [
  "iota-sdk-types",
  "serde",
