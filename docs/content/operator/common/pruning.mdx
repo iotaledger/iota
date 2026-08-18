@@ -86,11 +86,6 @@ authority-store-pruning-config:
   # Reclaims disk space and avoids fragmentation. Default: 1 (when read from
   # config). Set to "null" to disable periodic compaction entirely.
   periodic-compaction-threshold-days: 1
-
-  # Use the RocksDB compaction filter for object-table pruning. When disabled,
-  # a range-deletion approach is used. Do not toggle frequently — switching
-  # back to range deletion may leave some old versions unpruned. Default: false.
-  # enable-compaction-filter: false
 ```
 
 Transaction and index pruning are driven by checkpoint execution: after each
