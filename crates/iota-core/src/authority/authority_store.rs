@@ -8,7 +8,7 @@ use either::Either;
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::stream::FuturesUnordered;
 use iota_common::sync::notify_read::NotifyRead;
-use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePruningConfig};
+use iota_config::migration_tx_data::MigrationTxData;
 use iota_genesis_common::MigrationTxDataExt;
 use iota_macros::fail_point_arg;
 use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
@@ -45,9 +45,7 @@ use super::{
 use crate::{
     authority::{
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
-        authority_store_pruner::{
-            AuthorityStorePruner, AuthorityStorePruningMetrics, EPOCH_DURATION_MS_FOR_TESTING,
-        },
+        authority_store_pruner::AuthorityStorePruner,
         authority_store_tables::TotalIotaSupplyCheck,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
@@ -1661,25 +1659,17 @@ impl AuthorityStore {
         Ok(())
     }
 
-    pub async fn prune_objects_and_compact_for_testing(
-        &self,
-        checkpoint_store: &Arc<CheckpointStore>,
-    ) {
-        let pruning_config = AuthorityStorePruningConfig {
-            num_epochs_to_retain: 0,
-            ..Default::default()
-        };
-        let _ = AuthorityStorePruner::prune_objects_for_eligible_epochs(
-            &self.perpetual_tables,
-            checkpoint_store,
-            None,
-            pruning_config,
-            AuthorityStorePruningMetrics::new_for_test(),
-            EPOCH_DURATION_MS_FOR_TESTING,
-            None,
-        )
-        .await;
-        let _ = AuthorityStorePruner::compact(&self.perpetual_tables);
+    /// Expires every historic bucket but the newest, deleting the tombstone
+    /// heads those epochs recorded, and compacts the live `objects` table.
+    /// This is what a node reaches on its own once its object retention has
+    /// caught up; a test that wants the versions of a given epoch gone has to
+    /// have started a later epoch first.
+    pub fn expire_historic_objects_and_compact_for_testing(&self) {
+        self.historic_objects
+            .prune(1)
+            .expect("expiring the historic buckets should not fail");
+        AuthorityStorePruner::compact(&self.perpetual_tables)
+            .expect("compacting the live objects table should not fail");
     }
 
     #[cfg(test)]

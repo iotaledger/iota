@@ -19,15 +19,15 @@ mod sim_only_tests {
     use tokio::time::timeout;
 
     // Tests that relocation moves superseded object versions into the historic
-    // bucket, and that the still-unchanged pruner goes on to remove the
-    // lineages' tombstones the same way it always did. Specifically, we first
-    // wrap a child object into a root object (tests wrap tombstone), then
-    // unwrap and delete the child object (tests unwrap and delete), and last
-    // delete the root object (tests object deletion).
+    // bucket, and that expiring that bucket removes the lineages' tombstones
+    // from the live table. Specifically, we first wrap a child object into a
+    // root object (tests wrap tombstone), then unwrap and delete the child
+    // object (tests unwrap and delete), and last delete the root object (tests
+    // object deletion).
     //
     // Pruning is disabled on this node's own schedule so it cannot race the
-    // relocation checks below; the pruner is instead driven once, explicitly,
-    // at the end.
+    // relocation checks below; expiry is instead driven once, explicitly, at
+    // the end.
     #[sim_test]
     async fn object_pruning_test() {
         let test_cluster = TestClusterBuilder::new()
@@ -83,14 +83,14 @@ mod sim_only_tests {
         // Unwrapping takes only the root as an explicit input; the wrapped child
         // never appears in this transaction's `modified_at_versions`, so relocation
         // has nothing to move for it here. Its wrap tombstone stays live until the
-        // pruner's tombstone sweep catches it at the end of this test.
+        // bucket that recorded it expires at the end of this test.
         let object_pre_unwrap_version = superseded_version(&unwrap_delete_effects, object_id);
 
         let delete_root_effects = delete_object(&test_cluster, package_id, object_id).await;
         let delete_root_obj_txn_digest = *delete_root_effects.transaction_digest();
         let object_pre_delete_version = superseded_version(&delete_root_effects, object_id);
 
-        let delete_root_checkpoint = fullnode
+        fullnode
             .with_async(|node| async {
                 // Wait for both transactions' checkpoints to execute and relocate the
                 // versions they superseded.
@@ -100,7 +100,7 @@ mod sim_only_tests {
                 )
                 .await
                 .unwrap();
-                let delete_root_checkpoint = timeout(
+                timeout(
                     Duration::from_secs(60),
                     wait_until_txn_in_checkpoint(node, &delete_root_obj_txn_digest),
                 )
@@ -114,43 +114,24 @@ mod sim_only_tests {
                 // historic bucket as each transaction's checkpoint executed.
                 assert_relocated(&state, object_id, object_pre_unwrap_version);
                 assert_relocated(&state, object_id, object_pre_delete_version);
-
-                delete_root_checkpoint
             })
             .await;
+
+        // Both lineages' tombstone heads are recorded in the bucket of the epoch
+        // that wrote them, so that epoch has to end before its bucket can fall
+        // out of the retention.
+        test_cluster.force_new_epoch().await;
 
         fullnode
             .with_async(|node| async {
                 let state = node.state();
-                let checkpoint_store = state.get_checkpoint_store();
 
-                // The pruner's eligibility window leaves the newest executed
-                // checkpoint alone, so wait for at least one checkpoint past the
-                // final delete's before driving it — otherwise the root's last
-                // tombstone would not be eligible yet.
-                timeout(Duration::from_secs(60), async {
-                    loop {
-                        if checkpoint_store
-                            .get_highest_executed_checkpoint()
-                            .unwrap()
-                            .is_some_and(|c| c.sequence_number() > delete_root_checkpoint)
-                        {
-                            return;
-                        }
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                    }
-                })
-                .await
-                .unwrap();
-
-                // The historic buckets are never pruned and the pruner itself is
-                // unchanged: manually driving it here still finds and removes both
-                // lineages' tombstone heads from the live table, exactly as it did
-                // before relocation existed.
+                // Expiring the earlier epoch's bucket deletes the tombstone heads
+                // it recorded from the live table, so both lineages leave the
+                // objects table entirely.
                 state
                     .database_for_testing()
-                    .prune_objects_and_compact_for_testing(checkpoint_store)
-                    .await;
+                    .expire_historic_objects_and_compact_for_testing();
 
                 // Check that both root and child objects are gone from object store.
                 assert_eq!(
