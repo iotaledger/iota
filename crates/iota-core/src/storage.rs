@@ -610,13 +610,10 @@ impl GrpcStateReader for GrpcReadStore {
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
-        // Superseded object versions are retained per epoch, so the oldest
-        // checkpoint they still cover is the first one of the earliest
-        // retained epoch.
         self.rocks
             .checkpoint_store
-            .get_epoch_first_checkpoint_seq_number(
-                self.state.get_historic_objects().earliest_retained_epoch(),
+            .lowest_checkpoint_with_retained_objects(
+                self.state.get_historic_objects().earliest_bucket_epoch(),
             )
             .map_err(StorageError::custom)
     }
