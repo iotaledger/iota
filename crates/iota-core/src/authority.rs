@@ -2902,6 +2902,14 @@ impl AuthorityState {
             .database_for_testing()
     }
 
+    /// Drops the execution cache's copies of committed data, so that reads
+    /// issued afterwards answer from the store.
+    pub fn clear_execution_caches_for_testing(&self) {
+        self.execution_cache_trait_pointers
+            .testing_api
+            .clear_caches_for_testing()
+    }
+
     pub async fn prune_checkpoints_for_eligible_epochs_for_testing(
         &self,
         config: NodeConfig,
