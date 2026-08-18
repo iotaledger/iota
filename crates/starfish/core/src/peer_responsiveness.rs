@@ -179,8 +179,9 @@ struct Tracks {
     per_kind: HashMap<DataSource, Vec<PeerStat>>,
     /// Latency of headers delivered through subscription bundles, indexed
     /// `[peer][author]`: how fast a peer delivers an author's headers depends
-    /// on the pair, not on the peer alone. A cell is sampled when the peer's
-    /// bundle is the first to deliver a fresh header of that author.
+    /// on the pair, not on the peer alone. A cell is sampled once per bundle
+    /// that first delivers a header of that author, from the newest such
+    /// header, so the reading is how current the peer is on that author.
     streaming_headers: Vec<Vec<PeerStat>>,
 }
 
@@ -242,22 +243,26 @@ impl PeerResponsiveness {
     }
 
     /// Records the end-to-end deliveries of one bundle's headers through
-    /// `peer`'s subscription stream, as `(author, latency)` samples, under a
-    /// single lock acquisition.
+    /// `peer`'s subscription stream. The caller computes the `(author,
+    /// latency)` samples up front so that only the writes happen under the
+    /// lock, taken once for the whole bundle.
     ///
-    /// Callers must only report deliveries that were genuinely first — a
-    /// duplicate of a header another peer already delivered must not be
-    /// sampled, so a peer cannot look fast by re-sending what is already known.
+    /// Callers must pass at most one sample per author, taken from the newest
+    /// header of that author in the bundle, so that a peer pushing a whole
+    /// chain of one author's headers is not weighted by how much it sent. Only
+    /// genuinely first deliveries may be reported — a duplicate of a header
+    /// another peer already delivered must not be sampled, so a peer cannot
+    /// look fast by re-sending what is already known.
     pub(crate) fn record_streaming_header_deliveries(
         &self,
         peer: AuthorityIndex,
-        deliveries: impl IntoIterator<Item = (AuthorityIndex, Duration)>,
+        deliveries: &[(AuthorityIndex, Duration)],
     ) {
         let mut tracks = self.inner.lock();
         let Some(row) = tracks.streaming_headers.get_mut(peer.value()) else {
             return;
         };
-        for (author, latency) in deliveries {
+        for &(author, latency) in deliveries {
             let Some(stat) = row.get_mut(author.value()) else {
                 continue;
             };
@@ -658,10 +663,10 @@ mod tests {
     #[test]
     fn streaming_delivery_seeds_then_smooths_ewma() {
         let pr = responsiveness(4);
-        pr.record_streaming_header_deliveries(idx(1), [(idx(2), ms(100))]);
+        pr.record_streaming_header_deliveries(idx(1), &[(idx(2), ms(100))]);
         assert_eq!(pr.streaming_header_latency_ms(idx(1), idx(2)), Some(100.0));
         // Second sample blends with ALPHA_SUCCESS: 0.7*100 + 0.3*200 = 130.
-        pr.record_streaming_header_deliveries(idx(1), [(idx(2), ms(200))]);
+        pr.record_streaming_header_deliveries(idx(1), &[(idx(2), ms(200))]);
         let v = pr.streaming_header_latency_ms(idx(1), idx(2)).unwrap();
         assert!((v - 130.0).abs() < 1e-6, "got {v}");
     }
@@ -671,8 +676,8 @@ mod tests {
         let pr = responsiveness(4);
         // One batch spreads over the peer's row; another peer's cell for the
         // same author is a separate measurement.
-        pr.record_streaming_header_deliveries(idx(1), [(idx(2), ms(300)), (idx(3), ms(50))]);
-        pr.record_streaming_header_deliveries(idx(3), [(idx(2), ms(700))]);
+        pr.record_streaming_header_deliveries(idx(1), &[(idx(2), ms(300)), (idx(3), ms(50))]);
+        pr.record_streaming_header_deliveries(idx(3), &[(idx(2), ms(700))]);
 
         assert_eq!(pr.streaming_header_latency_ms(idx(1), idx(2)), Some(300.0));
         assert_eq!(pr.streaming_header_latency_ms(idx(1), idx(3)), Some(50.0));
@@ -688,8 +693,8 @@ mod tests {
     #[test]
     fn streaming_delivery_out_of_range_is_noop() {
         let pr = responsiveness(4);
-        pr.record_streaming_header_deliveries(idx(200), [(idx(1), ms(50))]);
-        pr.record_streaming_header_deliveries(idx(1), [(idx(200), ms(50))]);
+        pr.record_streaming_header_deliveries(idx(200), &[(idx(1), ms(50))]);
+        pr.record_streaming_header_deliveries(idx(1), &[(idx(200), ms(50))]);
         assert_eq!(pr.streaming_header_latency_ms(idx(1), idx(1)), None);
     }
 

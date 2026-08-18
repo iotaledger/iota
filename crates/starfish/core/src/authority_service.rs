@@ -33,7 +33,7 @@ use crate::{
     commit_syncer::CommitSyncType,
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
-    cordial_knowledge::{CordialKnowledgeHandle, MAX_ROUND_GAP_FOR_USEFUL_PARTS},
+    cordial_knowledge::CordialKnowledgeHandle,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
     encoder::ShardEncoder,
@@ -894,29 +894,32 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         self.add_digests_to_filter(peer_hostname, &mut additional_block_headers, block_ref)
             .await;
 
-        // The headers that survived the filter are first deliveries; sample
-        // the streaming responsiveness table with them in one batch. Catch-up
-        // headers carry old timestamps, so only headers close to the bundle's
-        // round are measured.
+        // The headers that survived the filter are first deliveries. Sample the
+        // streaming responsiveness table once per author, from the newest
+        // header of that author in this bundle: a bundle is one delivery event,
+        // and how old that newest header is says how current the peer is on
+        // that author.
+        let mut newest_per_author: Vec<Option<&VerifiedBlockHeader>> =
+            vec![None; self.context.committee.size()];
+        for header in &additional_block_headers {
+            let newest = &mut newest_per_author[header.author()];
+            if newest.is_none_or(|current| current.round() < header.round()) {
+                *newest = Some(header);
+            }
+        }
+        let deliveries = newest_per_author
+            .into_iter()
+            .flatten()
+            .map(|header| {
+                (
+                    header.author(),
+                    Duration::from_millis(now.saturating_sub(header.timestamp_ms())),
+                )
+            })
+            .collect::<Vec<_>>();
         self.context
             .peer_responsiveness
-            .record_streaming_header_deliveries(
-                peer,
-                additional_block_headers
-                    .iter()
-                    .filter(|header| {
-                        header
-                            .round()
-                            .saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
-                            >= block_ref.round
-                    })
-                    .map(|header| {
-                        (
-                            header.author(),
-                            Duration::from_millis(now.saturating_sub(header.timestamp_ms())),
-                        )
-                    }),
-            );
+            .record_streaming_header_deliveries(peer, &deliveries);
 
         // 9. Prepare transaction messages for shard reconstructor and send them.
         // Skipped for a dropped primary block (no shards were collected).
@@ -2911,10 +2914,9 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn test_streaming_responsiveness_samples_first_fresh_deliveries() {
-        // GIVEN a DAG deep enough that a round-1 header is stale relative to a
-        // bundle's block round (more than MAX_ROUND_GAP_FOR_USEFUL_PARTS
-        // behind).
+    async fn test_streaming_responsiveness_samples_newest_first_delivery_per_author() {
+        // GIVEN a DAG deep enough that a round-1 header is far behind the
+        // bundle's block round.
         let rounds: u32 = MAX_ROUND_GAP_FOR_USEFUL_PARTS + 4;
         let validators = 4;
         // Test headers are V1, which flag-on verification rejects; run with
@@ -3051,16 +3053,20 @@ mod tests {
             .unwrap()
         };
 
-        // WHEN peer 1's bundle delivers a stale first copy (author 2, round 1)
-        // and a fresh first copy (author 3, top round - 1).
+        // WHEN peer 1's bundle delivers two first copies of author 3, an old one
+        // (round 1) and the newest one (top round - 1), plus one of author 2.
+        let newest_of_author_3 = all_headers[rounds as usize - 1][3].clone();
+        let oldest_of_author_3 = all_headers[1][3].clone();
+        let header_of_author_2 = all_headers[1][2].clone();
         authority_service
             .handle_subscribed_block_bundle(
                 peer_1,
                 send_bundle(
                     1,
                     vec![
-                        all_headers[1][2].clone(),
-                        all_headers[rounds as usize - 1][3].clone(),
+                        oldest_of_author_3.clone(),
+                        newest_of_author_3.clone(),
+                        header_of_author_2.clone(),
                     ],
                 ),
                 &mut encoder,
@@ -3068,24 +3074,36 @@ mod tests {
             .await
             .expect("bundle is expected to be processed successfully");
 
-        // THEN only the fresh first delivery is sampled.
+        // THEN author 3 is sampled once, from its newest header, and author 2
+        // is sampled from the only header of it in the bundle - old headers are
+        // measured too, since how old the newest one is says how current the
+        // peer is on that author.
         let responsiveness = &context.peer_responsiveness;
-        assert!(
+        let expected = |header: &VerifiedBlockHeader| {
+            (context.clock.timestamp_utc_ms() - header.timestamp_ms()) as f64
+        };
+        let sampled = |author| {
             responsiveness
-                .streaming_header_latency_ms(peer_1, author_3)
-                .is_some()
-        );
+                .streaming_header_latency_ms(peer_1, author)
+                .expect("the delivery is sampled")
+        };
+        // The clock advances between the recording and this read, so allow a
+        // small margin; the two candidate headers are seconds apart.
+        const MARGIN_MS: f64 = 1_000.0;
         assert!(
-            responsiveness
-                .streaming_header_latency_ms(peer_1, peer_2)
-                .is_none()
+            (sampled(author_3) - expected(&newest_of_author_3)).abs() < MARGIN_MS,
+            "author 3 should be measured from its newest header: got {}, newest {}, oldest {}",
+            sampled(author_3),
+            expected(&newest_of_author_3),
+            expected(&oldest_of_author_3)
         );
+        assert!((sampled(peer_2) - expected(&header_of_author_2)).abs() < MARGIN_MS);
 
         // AND WHEN peer 2 re-delivers the header peer 1 already delivered.
         authority_service
             .handle_subscribed_block_bundle(
                 peer_2,
-                send_bundle(2, vec![all_headers[rounds as usize - 1][3].clone()]),
+                send_bundle(2, vec![newest_of_author_3]),
                 &mut encoder,
             )
             .await
