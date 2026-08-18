@@ -151,6 +151,17 @@ impl<B> EpochBuckets<B> {
             .map(|(&epoch, _)| epoch)
     }
 
+    /// The oldest epoch holding a bucket, `None` when there is none. Unlike
+    /// [`Self::earliest_retained`] this is what the store actually holds: a
+    /// node that never wrote the epochs above the retention floor — one
+    /// restored from a formal snapshot, say — has no bucket for them.
+    pub(crate) fn earliest_epoch(&self) -> Option<EpochId> {
+        self.buckets
+            .read()
+            .first_key_value()
+            .map(|(&epoch, _)| epoch)
+    }
+
     /// The earliest epoch [`Self::prune`] retains; buckets below it are gone
     /// and are never recreated.
     pub(crate) fn earliest_retained(&self) -> EpochId {
