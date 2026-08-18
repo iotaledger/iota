@@ -11,7 +11,10 @@ use typed_store::{
     traits::Map,
 };
 
-use super::{DB_PREFIX_HISTORIC_TOMBSTONES, EARLIEST_RETAINED_CF, HistoricObjects};
+use super::{
+    DB_PREFIX_HISTORIC_TOMBSTONES, EARLIEST_RETAINED_CF, HistoricObjects,
+    TOMBSTONE_DELETE_BATCH_SIZE,
+};
 use crate::authority::{
     authority_store_tables::AuthorityPerpetualTables,
     authority_store_types::{StoreObject, StoreObjectWrapper},
@@ -224,6 +227,44 @@ async fn test_expiry_deletes_the_epochs_tombstone_heads() {
     assert_eq!(historic.prune(1).unwrap(), Some(2));
 }
 
+/// An epoch holding more tombstone heads than fit in one write batch has all
+/// of them deleted, the remainder past the last full batch included.
+#[tokio::test]
+async fn test_expiry_deletes_heads_past_the_batch_boundary() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let deleted: Vec<ObjectKey> = (0..TOMBSTONE_DELETE_BATCH_SIZE + 1)
+        .map(|version| ObjectKey(ObjectId::random(), (version as u64 + 1).into()))
+        .collect();
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, deleted.iter().map(|key| (*key, ())))
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            deleted
+                .iter()
+                .map(|key| (*key, StoreObjectWrapper::from(StoreObject::Deleted))),
+        )
+        .unwrap();
+    batch.write().unwrap();
+    drop(bucket);
+
+    historic.ensure(2).unwrap();
+    assert_eq!(historic.prune(1).unwrap(), Some(2));
+    for key in &deleted {
+        assert!(
+            perpetual.objects.get(key).unwrap().is_none(),
+            "{key:?} was left in the live table"
+        );
+    }
+}
+
 /// A bucket already marked expiring is skipped by reads before its column
 /// family is dropped: its tombstone heads may be gone from the live table by
 /// then, and a version served from under a deleted tombstone would resurrect
@@ -351,7 +392,7 @@ async fn test_a_bucket_below_the_retention_floor_is_expired_at_open() {
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     assert!(perpetual.objects.get(&deleted).unwrap().is_none());
     assert_eq!(historic.get(&relocated).unwrap(), None);
-    assert_eq!(historic.earliest_retained_epoch(), 2);
+    assert_eq!(historic.earliest_bucket_epoch(), Some(2));
 }
 
 /// Recovery at open goes oldest bucket first and stops at the first bucket it
