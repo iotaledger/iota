@@ -8,7 +8,15 @@
 //! version out of the live `objects` table and in here is one atomic
 //! [`typed_store::rocks::DBBatch`] instead of a cross-database move.
 
-use std::{collections::BTreeMap, fmt::Debug, path::Path, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    fmt::Debug,
+    path::Path,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use iota_sdk_types::{TransactionDigest, TransactionEffects};
 use iota_types::{
@@ -18,14 +26,18 @@ use iota_types::{
     object::Object,
     storage::{ObjectKey, ObjectStore},
 };
+use tracing::{info, warn};
 use typed_store::{
     DbIterator, TypedStoreError,
     database::Database,
-    rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables},
+    rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables, synced_write_options},
     traits::Map,
 };
 
-use crate::epoch_buckets::{EpochBuckets, bucket_cf_epoch};
+use crate::{
+    authority::authority_store_types::StoreObjectWrapper,
+    epoch_buckets::{EpochBuckets, bucket_cf_epoch, bucket_cf_name},
+};
 
 /// Column-family prefix of the historic object buckets; a bucket's family
 /// is `{prefix}{epoch}`.
@@ -66,11 +78,25 @@ pub struct HistoricObjectsBucket {
 
     /// Present once this bucket has been scheduled for expiry. A bucket
     /// carrying it is skipped by reads and its expiry is resumed at open.
+    /// Write it through [`Self::mark_expiring`], which also stops the reads.
     pub(crate) expiring: TaggedDBMap<(), ()>,
+
+    /// Mirrors the `expiring` row, read once when the bucket is opened and
+    /// set again when the marker is written, so a query does not pay a
+    /// lookup to find out whether the bucket may still be read.
+    expiring_marked: AtomicBool,
 }
 
 impl HistoricObjectsBucket {
     fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
+        let expiring: TaggedDBMap<(), ()> = TaggedDBMap::reopen(
+            db,
+            cf_name,
+            DB_PREFIX_HISTORIC_EXPIRING,
+            &ReadWriteOptions::default(),
+            true,
+        )?;
+        let expiring_marked = AtomicBool::new(expiring.get(&())?.is_some());
         Ok(Self {
             objects: TaggedDBMap::reopen(
                 db,
@@ -86,14 +112,31 @@ impl HistoricObjectsBucket {
                 &ReadWriteOptions::default(),
                 true,
             )?,
-            expiring: TaggedDBMap::reopen(
-                db,
-                cf_name,
-                DB_PREFIX_HISTORIC_EXPIRING,
-                &ReadWriteOptions::default(),
-                true,
-            )?,
+            expiring,
+            expiring_marked,
         })
+    }
+
+    /// Whether this bucket has been marked expiring, in which case its rows
+    /// must no longer be served: the tombstone heads it recorded may already
+    /// be deleted from the live `objects` table, and a version served from
+    /// under a deleted tombstone resurrects a deleted object.
+    fn is_expiring(&self) -> bool {
+        self.expiring_marked.load(Ordering::Relaxed)
+    }
+
+    /// Marks this bucket expiring and makes the marker durable, then stops
+    /// serving its rows.
+    ///
+    /// Synced, because a column-family drop is durable at once while a
+    /// default write may still be lost, which would leave a bucket whose
+    /// tombstone heads are gone readable again after a crash.
+    fn mark_expiring(&self) -> Result<(), TypedStoreError> {
+        let mut batch = self.expiring.batch();
+        batch.insert_batch_tagged(&self.expiring, [((), ())])?;
+        batch.write_opt(&synced_write_options())?;
+        self.expiring_marked.store(true, Ordering::Relaxed);
+        Ok(())
     }
 }
 
@@ -104,6 +147,9 @@ impl HistoricObjectsBucket {
 /// one atomic batch.
 pub struct HistoricObjects {
     buckets: EpochBuckets<HistoricObjectsBucket>,
+    /// The live objects table of the same database, holding the tombstones a
+    /// bucket's heads point at until that bucket expires.
+    objects: DBMap<ObjectKey, StoreObjectWrapper>,
 }
 
 impl HistoricObjects {
@@ -158,8 +204,17 @@ impl HistoricObjects {
     /// Opens the historic-object buckets already present among `db`'s
     /// column families. `db` is the perpetual database's own handle: the
     /// buckets are its column families, not a database of their own, and
-    /// `db_options` are the options its tables were opened with.
-    pub fn open(db: Arc<Database>, db_options: &DBOptions) -> Result<Self, TypedStoreError> {
+    /// `db_options` are the options its tables were opened with. `objects` is
+    /// that database's live objects table, which holds the tombstones the
+    /// buckets' heads point at.
+    ///
+    /// A bucket left marked expiring by an interrupted prune is finished
+    /// here, oldest first, before any query can reach it.
+    pub fn open(
+        db: Arc<Database>,
+        db_options: &DBOptions,
+        objects: DBMap<ObjectKey, StoreObjectWrapper>,
+    ) -> Result<Self, TypedStoreError> {
         let existing_cfs = list_tables(db.path_for_pruning().to_path_buf())
             .map_err(|e| TypedStoreError::RocksDB(format!("failed to list buckets: {e}")))?;
 
@@ -169,6 +224,31 @@ impl HistoricObjects {
                 buckets.insert(
                     epoch,
                     Arc::new(HistoricObjectsBucket::reopen(&db, cf_name)?),
+                );
+            }
+        }
+
+        // Ascending, as `BTreeMap` iterates: an expiring bucket's tombstone
+        // heads are already deleted while its versions still exist, so a scan
+        // bounded at one of those tombstones falls through to the buckets
+        // below it, and is only answered correctly because every one of them
+        // is gone by then.
+        let interrupted: Vec<(EpochId, Arc<HistoricObjectsBucket>)> = buckets
+            .iter()
+            .filter(|(_, bucket)| bucket.is_expiring())
+            .map(|(&epoch, bucket)| (epoch, bucket.clone()))
+            .collect();
+        for (epoch, bucket) in interrupted {
+            Self::expire_bucket(&objects, epoch, &bucket)?;
+            buckets.remove(&epoch);
+            info!(
+                epoch,
+                "dropping the bucket of an interrupted expiry at open"
+            );
+            if let Err(e) = db.drop_cf(&bucket_cf_name(HISTORIC_OBJECTS_CF_PREFIX, epoch)) {
+                warn!(
+                    epoch,
+                    "failed to drop an expiring bucket column family: {e}"
                 );
             }
         }
@@ -193,7 +273,7 @@ impl HistoricObjects {
             buckets,
             HistoricObjectsBucket::reopen,
         )?;
-        Ok(Self { buckets })
+        Ok(Self { buckets, objects })
     }
 
     /// The bucket holding `epoch`'s relocated versions, created if absent.
@@ -207,7 +287,7 @@ impl HistoricObjects {
     /// `None` if it was never relocated (or its bucket has since been
     /// dropped).
     pub fn get(&self, key: &ObjectKey) -> IotaResult<Option<Object>> {
-        for bucket in self.buckets.iter(true) {
+        for bucket in self.readable_buckets(true) {
             if let Some(object) = bucket
                 .objects
                 .get(key)
@@ -239,6 +319,73 @@ impl HistoricObjects {
                 *object = self.get(key)?;
             }
         }
+        Ok(())
+    }
+
+    /// The buckets a query may read, in scan order: ascending epochs for
+    /// forward scans, descending for reverse scans.
+    ///
+    /// A bucket marked expiring is left out. Its rows are dropped with its
+    /// column family a moment later, but the marker is what a reader has to
+    /// go by: an expiry that failed after the marker leaves the bucket in the
+    /// map until the caller retries, and its tombstone heads may already be
+    /// gone from the live `objects` table by then.
+    fn readable_buckets(&self, reverse: bool) -> Vec<Arc<HistoricObjectsBucket>> {
+        self.buckets
+            .iter(reverse)
+            .into_iter()
+            .filter(|bucket| !bucket.is_expiring())
+            .collect()
+    }
+
+    /// Drops the buckets outside `epochs_to_retain` — the newest bucket and
+    /// the `epochs_to_retain - 1` below it — and deletes the tombstone heads
+    /// each dropped epoch recorded. Returns the earliest epoch still
+    /// retained, `None` when there is no bucket at all.
+    ///
+    /// Blocks queries for the duration, so an async caller must use
+    /// `spawn_blocking`.
+    pub fn prune(&self, epochs_to_retain: u64) -> IotaResult<Option<EpochId>> {
+        self.buckets
+            .prune(epochs_to_retain, |epoch, bucket| {
+                Self::expire_bucket(&self.objects, epoch, bucket)
+            })
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// Marks `bucket` expiring, then deletes the tombstone heads it recorded
+    /// from the live `objects` table.
+    ///
+    /// The marker is written and made durable first. A tombstone head may
+    /// only be deleted once the versions beneath it can no longer be read,
+    /// and the versions in this bucket stop being readable the moment the
+    /// marker is there: [`EpochBuckets::prune`] holds the write lock, so no
+    /// query can observe the bucket between the marker and the drop, and a
+    /// crash in between is resumed at open.
+    ///
+    /// Safe to run again on the same bucket: the marker is rewritten as it
+    /// was and a tombstone head already deleted is deleted again.
+    fn expire_bucket(
+        objects: &DBMap<ObjectKey, StoreObjectWrapper>,
+        epoch: EpochId,
+        bucket: &Arc<HistoricObjectsBucket>,
+    ) -> Result<(), TypedStoreError> {
+        bucket.mark_expiring()?;
+
+        let heads: Vec<ObjectKey> = bucket
+            .tombstones
+            .safe_iter()
+            .map(|row| row.map(|(key, ())| key))
+            .collect::<Result<_, _>>()?;
+        info!(
+            epoch,
+            tombstones = heads.len(),
+            "expiring a historic bucket"
+        );
+
+        let mut batch = objects.batch();
+        batch.delete_batch(objects, heads)?;
+        batch.write()?;
         Ok(())
     }
 
