@@ -43,7 +43,6 @@ impl Error {
                 | METHOD_NOT_FOUND_CODE
                 | BATCHES_NOT_SUPPORTED_CODE
                 | TRANSACTION_EXECUTION_CLIENT_ERROR_CODE
-                | TRANSACTION_NOT_FOUND_ERROR_CODE
         )
     }
 
@@ -80,14 +79,15 @@ mod tests {
     use super::{Error, TRANSACTION_NOT_FOUND_ERROR_CODE};
 
     #[test]
-    fn transaction_not_found_is_classified_as_a_client_error() {
+    fn transaction_not_found_has_dedicated_classification() {
         let error = Error {
             code: TRANSACTION_NOT_FOUND_ERROR_CODE,
             message: "Transaction not found".to_string(),
             data: None,
         };
 
-        assert!(error.is_client_error());
+        assert!(error.is_call_error());
+        assert!(!error.is_client_error());
         assert!(error.is_transaction_not_found());
         assert!(!error.is_execution_error());
         assert!(!error.is_transient_error());
