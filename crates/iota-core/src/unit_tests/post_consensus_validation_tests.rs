@@ -2008,6 +2008,108 @@ async fn test_v2_cost_out_of_bounds() {
     }
 }
 
+/// A `UserTransactionV2` whose declared gas price or budget is out of the
+/// protocol bounds is dropped post-consensus by the payload-only gas-bounds
+/// check, before version assignment. The balance check still runs at execution.
+/// Two representative cases: gas price below the reference gas price, and gas
+/// budget above the protocol maximum.
+#[sim_test]
+async fn test_v2_gas_bounds_out_of_range_dropped() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+    let recipient = get_key_pair::<AccountPrivateKey>().0;
+
+    let object_id = ObjectId::random();
+    let gas_id = ObjectId::random();
+
+    let (authority, _) = init_state_with_objects_and_object_basics(vec![
+        Object::with_id_owner_for_testing(object_id, sender),
+        Object::with_id_owner_for_testing(gas_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    assert!(rgp > 0, "test requires a non-zero reference gas price");
+
+    let protocol_config = epoch_store.protocol_config();
+    let min_units = protocol_config
+        .base_tx_cost_fixed()
+        .min(protocol_config.gas_rounding_step());
+    let max_tx_gas = protocol_config.max_tx_gas();
+
+    let object_ref = authority.get_object(&object_id).unwrap().object_ref();
+    let gas_ref = authority.get_object(&gas_id).unwrap().object_ref();
+
+    // Gas price below the reference gas price → `GasPriceUnderRGP`.
+    let price_under_rgp = make_transfer_object_transaction(
+        object_ref,
+        gas_ref,
+        sender,
+        &sender_key,
+        recipient,
+        rgp - 1,
+    );
+    // Gas budget above the protocol maximum → `GasBudgetTooHigh`.
+    let budget_too_high = to_sender_signed_transaction(
+        Transaction::new_transfer(recipient, object_ref, sender, gas_ref, max_tx_gas + 1, rgp),
+        &sender_key,
+    );
+
+    // Each transaction is paired with the error it must be dropped for; a matcher
+    // accepting either would pass even if both tripped the same bound.
+    for (tx, expected_error) in [
+        (
+            price_under_rgp,
+            UserInputError::GasPriceUnderRGP {
+                gas_price: rgp - 1,
+                reference_gas_price: rgp,
+            },
+        ),
+        (
+            budget_too_high,
+            UserInputError::GasBudgetTooHigh {
+                gas_budget: max_tx_gas + 1,
+                max_budget: max_tx_gas,
+            },
+        ),
+    ] {
+        let digest = *tx.digest();
+        let mut transactions = vec![make_user_tx_v2(tx, 0, min_units)];
+
+        let (dropped, locks, user_tx_digests) =
+            post_consensus_validation::validate_and_resolve_conflicts(
+                &authority,
+                &epoch_store,
+                &mut transactions,
+            )
+            .await
+            .unwrap();
+
+        assert!(
+            transactions.is_empty(),
+            "out-of-bounds-gas V2 should be dropped"
+        );
+        assert_eq!(dropped.len(), 1, "one dropped entry expected");
+        assert_eq!(
+            dropped[0].1,
+            IotaError::UserInput {
+                error: expected_error
+            },
+            "unexpected drop reason",
+        );
+        assert!(
+            locks.is_empty(),
+            "no locks should be acquired for a dropped transaction"
+        );
+        assert_eq!(user_tx_digests, vec![digest]);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Governance deny rule tests
 // ---------------------------------------------------------------------------
