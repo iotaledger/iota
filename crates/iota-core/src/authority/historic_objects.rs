@@ -39,7 +39,11 @@ const DB_PREFIX_HISTORIC_OBJECTS: u8 = 0;
 /// Column family holding the earliest-retained-epoch marker `EpochBuckets`
 /// would persist on a prune. Nothing prunes yet, so this column family stays
 /// empty and every bucket is retained.
-const EARLIEST_RETAINED_CF: &str = "hist_obj_earliest_retained";
+///
+/// The name must not begin with [`HISTORIC_OBJECTS_CF_PREFIX`], since that is
+/// how a bucket's column family is told from every other one in this
+/// database.
+const EARLIEST_RETAINED_CF: &str = "hist_obj_retention";
 
 /// One epoch's relocated object versions.
 pub struct HistoricObjectsBucket {
@@ -150,6 +154,7 @@ impl HistoricObjects {
 
         let buckets = EpochBuckets::open(
             db,
+            "historic objects",
             HISTORIC_OBJECTS_CF_PREFIX,
             cf_options,
             earliest_retained_table,

@@ -184,7 +184,7 @@ mod sim_only_tests {
 
     /// Asserts that `version` of `id` has left the live `objects` table and
     /// arrived in the historic bucket — the two halves relocation must keep
-    /// true together, since a version can never be observed in neither table.
+    /// true together, since a version is always readable from one of the two.
     fn assert_relocated(state: &Arc<AuthorityState>, id: ObjectId, version: Version) {
         assert!(
             !state

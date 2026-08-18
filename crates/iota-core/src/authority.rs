@@ -898,7 +898,7 @@ impl ExecutionEnv {
 /// during execution (by value) — where a mutated object's pre-image is found
 /// when it isn't among the transaction's declared inputs, as with a
 /// runtime-loaded dynamic field.
-type ExecutedTransaction = (
+type TransactionExecutionResult = (
     InnerTemporaryStore,
     TransactionEffects,
     Option<ExecutionError>,
@@ -1967,7 +1967,7 @@ impl AuthorityState {
         tx_input_objects: InputObjects,
         per_authenticator_inputs: Vec<(InputObjects, ObjectReadResult)>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<ExecutedTransaction> {
+    ) -> IotaResult<TransactionExecutionResult> {
         let _scope = monitored_scope("Execution::execute_certificate");
         let _metrics_guard = self.metrics.prepare_certificate_latency.start_timer();
         let prepare_transaction_start_time = tokio::time::Instant::now();
