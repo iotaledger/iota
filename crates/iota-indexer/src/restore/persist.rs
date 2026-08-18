@@ -240,8 +240,8 @@ const EPOCH_PARTITIONED_TABLES: [&str; 2] = ["transactions", "events"];
 /// The migrations create a single `<table>_partition_0` that eludes the pruner,
 /// and grows indefinitely.
 ///
-/// Herein, the partition is renamed and the lower bound of its range is reset
-/// according to the restore epoch.
+/// Herein, that partition is dropped, and the partition of the restore epoch
+/// is created instead with the respective lower bound.
 ///
 /// # Errors
 ///
@@ -261,9 +261,8 @@ async fn restore_partitions(
                         .iter()
                         .map(|table| {
                             format!(
-                                "ALTER TABLE {table}_partition_0 RENAME TO {table}_partition_{epoch};
-                                 ALTER TABLE {table} DETACH PARTITION {table}_partition_{epoch};
-                                 ALTER TABLE {table} ATTACH PARTITION {table}_partition_{epoch}
+                                "DROP TABLE {table}_partition_0;
+                                 CREATE TABLE {table}_partition_{epoch} PARTITION OF {table}
                                      FOR VALUES FROM ({epoch_start_tx}) TO (MAXVALUE);"
                             )
                         })
