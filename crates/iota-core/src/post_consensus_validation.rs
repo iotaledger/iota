@@ -8,7 +8,9 @@
 //!
 //! 1. **Semantic validation** — deduplication, already-executed check,
 //!    structural validity, attestor verification, and deny checks (deny lists,
-//!    gas, ownership, coin deny list, Move authenticator).
+//!    gas, ownership, coin deny list, Move authenticator) — the full set for
+//!    `UserTransactionV1`, a payload-only subset for `UserTransactionV2`; see
+//!    Check #6.
 //! 2. **Owned-object conflict resolution** (white-flag) — three-tier lock check
 //!    and lock acquisition.
 //!
@@ -35,11 +37,11 @@
 //!   tx's own prior-round lock), which is exempt. Cheap; performed before
 //!   expensive checks.
 //! - Check #6: `handle_transaction_validation_checks()` for
-//!   `UserTransactionV1`, or the deny-list and coin deny-list re-checks for
-//!   attested `UserTransactionV2`
-//!   (`check_transaction_deny_list_for_attested_tx()` then
-//!   `check_coin_deny_list_for_attested_tx()`). Drop with error. Only reached
-//!   when all locks are free.
+//!   `UserTransactionV1`, or for attested `UserTransactionV2` a payload-only
+//!   gas-bounds check (`check_gas_bounds()`) followed by the
+//!   `TransactionDenyConfig` re-check
+//!   (`check_transaction_deny_list_for_attested_tx()`). Drop with error. Only
+//!   reached when all locks are free.
 //! - All passed — acquire locks in the local tracking map, keep transaction.
 
 use std::{
@@ -51,7 +53,8 @@ use iota_common::fatal;
 use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
     attestation::Attestation,
-    error::{IotaError, IotaResult, UserInputError},
+    error::{IotaError, IotaResult},
+    gas::check_gas_bounds,
     transaction::{
         InputObjectKind, SenderSignedTransactionAPI, TransactionDataAPI, VerifiedTransaction,
     },
@@ -75,7 +78,9 @@ use crate::{
 /// For each `UserTransactionV1` or `UserTransactionV2` in consensus order:
 /// - Runs deduplication, already-executed check, structural validity, attestor
 ///   verification (V2 only), lock conflict check, and deny checks (deny list,
-///   gas, ownership, coin deny list, Move authenticator).
+///   gas, ownership, coin deny list, Move authenticator) — the last group in
+///   full for `UserTransactionV1`, as a payload-only subset for
+///   `UserTransactionV2`.
 /// - If all checks pass, acquires owned-object locks in a local tracking map.
 /// - Drops the transaction (with an error) on any failure.
 /// - An already-executed transaction is **retained** (not dropped): it
@@ -274,10 +279,12 @@ pub async fn validate_and_resolve_conflicts(
         // expensive deny checks so conflicting transactions are filtered first.
         //
         // Locks are keyed by full ObjectReference (id + version + digest), not just
-        // ObjectID. Two transactions referencing the same object at different
-        // versions will NOT conflict here — version freshness is validated
-        // later in Check #6 (deny checks load objects from DB and verify
-        // that the transaction's input refs match the current state).
+        // ObjectID, so two transactions referencing the same object at different
+        // versions do NOT conflict here. Version freshness is validated elsewhere:
+        // in Check #6 for `UserTransactionV1`, whose deny checks load objects from
+        // DB and verify the input refs against current state, and at execution
+        // (`check_certificate_input`) for `UserTransactionV2`, whose Check #6 is
+        // payload-only.
         //
         // Tier 1: Local HashMap (current commit).
         // Tier 2: Consensus quarantine (previous uncommitted commits).
@@ -320,27 +327,31 @@ pub async fn validate_and_resolve_conflicts(
             continue;
         }
 
-        // Check #6: Deny list, gas, ownership, coin deny list, Move
-        // authenticator. Only reached if all locks are free — skips the
-        // expensive object loading for transactions that would be dropped
-        // by the lock conflict check.
+        // Check #6: Validation and deny checks. Only reached when all locks are
+        // free, so the expensive object loading is skipped for transactions the
+        // lock conflict check would drop. The `UserTransactionV1` and attested
+        // `UserTransactionV2` paths diverge; the detail follows.
         //
         // `UserTransactionV1` runs the full
-        // `handle_transaction_validation_checks` (which includes the
-        // `TransactionDenyConfig` deny-list check). For `UserTransactionV2`
-        // (attested transactions) two checks are re-run individually — the
-        // deny-list check and the coin deny-list check (see below). The rest
-        // of `handle_transaction_validation_checks` is skipped for V2 because
-        // it is either re-applied during execution or is not safety-critical
-        // to run post-consensus:
+        // `handle_transaction_validation_checks`. For `UserTransactionV2`
+        // (attested transactions) a payload-only gas-bounds check and the
+        // `TransactionDenyConfig` deny-list check are run individually (see
+        // below). The rest of `handle_transaction_validation_checks`
+        // is skipped for V2 because it is either re-applied during execution or
+        // is not safety-critical to run post-consensus:
         //   - Receiving-object validity: the Move runtime fails the `receive()` call
         //     when the ref doesn't match current state.
         //   - Move bytecode verifier on publish: the Move VM re-verifies every newly
         //     published package; the signing-time variant only adds a stricter meter as
         //     a DoS gate.
-        //   - Gas, ownership, `MoveAuthenticator` execution: re-applied in the
+        //   - Gas balance, ownership, `MoveAuthenticator` execution: re-applied in the
         //     execution pipeline (`check_certificate_input` and
-        //     `authenticate_then_execute_transaction_to_effects`).
+        //     `authenticate_then_execute_transaction_to_effects`). Only the balance is
+        //     left to execution; the payload-only gas bounds are checked below.
+        //   - Coin deny list: enforced during execution
+        //     (`TemporaryStore::check_input_coin_deny_list`), so a stale attestation
+        //     view resolves to a failed effect charged to the issuer instead of a free
+        //     drop.
         //
         // The user signature is verified pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`) for both `UserTransactionV1`
@@ -350,11 +361,6 @@ pub async fn validate_and_resolve_conflicts(
         // lists, feature kill-switches): this is a LOCAL check, sourced from
         // each validator's `NodeConfig`. TODO: source the deny config from
         // consensus-agreed state instead of the local `NodeConfig`.
-        //
-        // Coin deny list v1 MUST be re-checked here for attested
-        // transactions: the attestor's view may be stale if a deny-list
-        // update tx was sequenced between attestation and consensus, and
-        // running this check at execution time would crash the validator.
         if attestation.is_none() {
             let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
             if let Err(e) = authority_state
@@ -381,6 +387,29 @@ pub async fn validate_and_resolve_conflicts(
                 continue;
             }
         } else {
+            // Payload-only gas bounds/price: a pure function of the transaction and
+            // epoch constants, so the drop is deterministic before version assignment.
+            // The balance is checked at execution instead — it depends on the gas coins'
+            // values at the versions this commit assigns, which are not applied yet, so
+            // a read here would follow this validator's execution progress rather than
+            // the state the transaction executes against.
+            let txn = transaction.data().transaction();
+            if let Err(e) = check_gas_bounds(
+                epoch_store.protocol_config(),
+                epoch_store.reference_gas_price(),
+                txn.gas_price(),
+                txn.gas_budget(),
+            ) {
+                let e: IotaError = e.into();
+                warn!(
+                    ?digest,
+                    error = ?e,
+                    "UserTransactionV2 failed post-consensus gas bounds check, dropping"
+                );
+                dropped.push((digest, e));
+                keep[i] = false;
+                continue;
+            }
             let verified_tx = VerifiedTransaction::new_from_verified(transaction.clone());
             // Deny-list check (placeholder using the local deny config — see
             // the `TransactionDenyConfig` note in the Check #6 doc above).
@@ -394,32 +423,6 @@ pub async fn validate_and_resolve_conflicts(
                     ?digest,
                     error = ?e,
                     "UserTransactionV2 failed post-consensus deny-list check, dropping"
-                );
-                dropped.push((digest, e));
-                keep[i] = false;
-                continue;
-            }
-            if let Err(e) = authority_state
-                .check_coin_deny_list_for_attested_tx(&verified_tx, epoch_store.epoch())
-            {
-                if e.is_storage_or_epoch_error() {
-                    return Err(e);
-                }
-                // The helper performs two distinct steps; surface which one
-                // failed so triage doesn't mistake a stale-attestation input
-                // for an actual deny-list violation.
-                let reason = match &e {
-                    IotaError::UserInput {
-                        error:
-                            UserInputError::CoinTypeGlobalPause { .. }
-                            | UserInputError::AddressDeniedForCoin { .. },
-                    } => "coin deny-list re-check",
-                    _ => "input load (likely stale attestation)",
-                };
-                warn!(
-                    ?digest,
-                    error = ?e,
-                    "UserTransactionV2 failed post-consensus {reason}, dropping"
                 );
                 dropped.push((digest, e));
                 keep[i] = false;

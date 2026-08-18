@@ -6145,34 +6145,6 @@ impl AuthorityState {
         })
     }
 
-    /// Re-runs the sender-side coin deny-list check for an attested
-    /// (`UserTransactionV2`) transaction in the post-consensus phase.
-    ///
-    /// An honest attestor performs this check at attestation time, but the deny
-    /// list is a Move object whose state may change between attestation and
-    /// execution. Running the check at execution time would crash the
-    /// validator, so we run it during post-consensus validation where the
-    /// transaction can still be dropped.
-    pub(crate) fn check_coin_deny_list_for_attested_tx(
-        &self,
-        transaction: &VerifiedTransaction,
-        epoch: EpochId,
-    ) -> IotaResult<()> {
-        let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
-            self.read_objects_for_validation(transaction, epoch)?;
-        let per_authenticator_input_objects: Vec<&InputObjects> =
-            per_authenticator_inputs.iter().map(|(io, _)| io).collect();
-        check_coin_deny_list_v1(
-            transaction.data().transaction().sender(),
-            &tx_input_objects,
-            &tx_receiving_objects,
-            &per_authenticator_input_objects,
-            &self.get_object_store(),
-            Some(epoch),
-        )?;
-        Ok(())
-    }
-
     /// Re-runs the `TransactionDenyConfig` deny checks (disabled features,
     /// denied signers, denied input/receiving objects, denied package
     /// dependencies) for an attested (`UserTransactionV2`) transaction in the
