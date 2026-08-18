@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 34;
+pub const MAX_PROTOCOL_VERSION: u64 = 35;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -212,6 +212,11 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             activates).
 //             Stop locking immutable objects in post-consensus conflict
 //             resolution.
+// Version 35: Add the attestor registry framework module and its protocol
+//             parameters (joining bond rate, low-bond threshold rate, max
+//             attestor count, max inactivity epochs, inactivity penalty) on
+//             devnet. The registry itself stays inert until
+//             `enable_external_attestation` is set.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2099,22 +2104,15 @@ impl ProtocolConfig {
         res
     }
 
+    /// Effective only with its prerequisite `enable_pcool_flow`: a config
+    /// missing the prerequisite reads as disabled.
     pub fn enable_validator_attestation(&self) -> bool {
-        let res = self.feature_flags.enable_validator_attestation;
-        assert!(
-            !res || self.enable_pcool_flow(),
-            "enable_validator_attestation requires enable_pcool_flow to be set"
-        );
-        res
+        self.feature_flags.enable_validator_attestation && self.enable_pcool_flow()
     }
 
+    /// Effective only with its prerequisite `enable_validator_attestation`.
     pub fn enable_external_attestation(&self) -> bool {
-        let res = self.feature_flags.enable_external_attestation;
-        assert!(
-            !res || self.enable_validator_attestation(),
-            "enable_external_attestation requires enable_validator_attestation to be set"
-        );
-        res
+        self.feature_flags.enable_external_attestation && self.enable_validator_attestation()
     }
 }
 
@@ -3422,7 +3420,8 @@ impl ProtocolConfig {
                     // resolution. Set on all chains; inert where the P-COOL flow
                     // is off.
                     cfg.feature_flags.pcool_skip_immutable_object_locks = true;
-
+                }
+                35 => {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Attestor registry parameters (devnet only for now),
                         // read from Move via get_attr.

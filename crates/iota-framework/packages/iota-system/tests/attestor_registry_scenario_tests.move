@@ -17,6 +17,13 @@ const ATTESTOR: address = @0x42;
 fun min_joining_bond(): u64 { attestor_registry::min_joining_bond() }
 const ENABLE_EXTERNAL_ATTESTATION_FLAG: vector<u8> = b"enable_external_attestation";
 
+/// Toggle the external flag; its prerequisites stay on.
+fun set_feature_for_testing(enabled: bool) {
+    protocol_config::set_feature_enabled_for_testing(b"enable_pcool_flow", true);
+    protocol_config::set_feature_enabled_for_testing(b"enable_validator_attestation", true);
+    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, enabled);
+}
+
 // Seed-derived key + proof of possession for @0x42; regenerate with:
 // cargo nextest run -p iota-types --lib print_attestor_move_fixtures --no-capture
 fun ed25519_pubkey(): vector<u8> {
@@ -37,7 +44,7 @@ fun secp256k1_pop(): vector<u8> {
 
 #[test, expected_failure(abort_code = attestor_registry::EFeatureNotEnabled)]
 fun test_register_attestor_requires_feature_flag() {
-    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, false);
+    set_feature_for_testing(false);
     set_up_iota_system_state(vector[@0x1, @0x2]);
     let mut scenario_val = test_scenario::begin(ATTESTOR);
     let scenario = &mut scenario_val;
@@ -62,7 +69,7 @@ fun test_register_attestor_requires_feature_flag() {
 
 #[test]
 fun test_advance_epoch_without_feature_does_not_create_registry() {
-    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, false);
+    set_feature_for_testing(false);
     set_up_iota_system_state(vector[@0x1, @0x2]);
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -79,7 +86,7 @@ fun test_advance_epoch_without_feature_does_not_create_registry() {
 
 #[test]
 fun test_advance_epoch_with_feature_creates_registry() {
-    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, true);
+    set_feature_for_testing(true);
     set_up_iota_system_state(vector[@0x1, @0x2]);
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -95,7 +102,7 @@ fun test_advance_epoch_with_feature_creates_registry() {
 
 #[test]
 fun test_register_activate_deregister_refund_through_system() {
-    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, true);
+    set_feature_for_testing(true);
     set_up_iota_system_state(vector[@0x1, @0x2]);
     let mut scenario_val = test_scenario::begin(ATTESTOR);
     let scenario = &mut scenario_val;
@@ -153,7 +160,7 @@ fun test_register_activate_deregister_refund_through_system() {
 
 #[test]
 fun test_rotate_attestor_key_through_system() {
-    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, true);
+    set_feature_for_testing(true);
     set_up_iota_system_state(vector[@0x1, @0x2]);
     let mut scenario_val = test_scenario::begin(ATTESTOR);
     let scenario = &mut scenario_val;
@@ -203,7 +210,7 @@ fun test_rotate_attestor_key_through_system() {
 
 #[test]
 fun test_low_bond_eviction_through_system() {
-    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, true);
+    set_feature_for_testing(true);
     set_up_iota_system_state(vector[@0x1, @0x2]);
     let mut scenario_val = test_scenario::begin(ATTESTOR);
     let scenario = &mut scenario_val;
@@ -252,7 +259,7 @@ fun test_low_bond_eviction_through_system() {
 
 #[test]
 fun test_metadata_lifecycle_through_system() {
-    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, true);
+    set_feature_for_testing(true);
     set_up_iota_system_state(vector[@0x1, @0x2]);
     let mut scenario_val = test_scenario::begin(ATTESTOR);
     let scenario = &mut scenario_val;
@@ -290,7 +297,7 @@ fun test_metadata_lifecycle_through_system() {
 
 #[test]
 fun test_metadata_removed_at_boundary_exit() {
-    protocol_config::set_feature_enabled_for_testing(ENABLE_EXTERNAL_ATTESTATION_FLAG, true);
+    set_feature_for_testing(true);
     set_up_iota_system_state(vector[@0x1, @0x2]);
     let mut scenario_val = test_scenario::begin(ATTESTOR);
     let scenario = &mut scenario_val;

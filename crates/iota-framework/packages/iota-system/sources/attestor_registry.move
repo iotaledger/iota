@@ -185,10 +185,12 @@ public struct AttestorsExitedEvent has copy, drop {
     exited: vector<AttestorExitInfo>,
 }
 
-/// Whether the external-attestation protocol feature is enabled on this
-/// chain.
+/// Whether external attestation is effectively enabled: the flag plus its
+/// prerequisites, mirroring the Rust `enable_external_attestation` getter.
 public(package) fun is_feature_enabled(): bool {
     protocol_config::is_feature_enabled(b"enable_external_attestation")
+        && protocol_config::is_feature_enabled(b"enable_validator_attestation")
+        && protocol_config::is_feature_enabled(b"enable_pcool_flow")
 }
 
 /// Aborts unless the feature is enabled. Gates all user-facing registry entry
