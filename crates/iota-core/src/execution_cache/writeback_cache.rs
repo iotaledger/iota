@@ -382,7 +382,7 @@ impl CachedCommittedData {
         }
     }
 
-    fn clear_and_assert_empty(&self) {
+    fn clear(&self) {
         self.object_cache.invalidate_all();
         self.marker_cache.invalidate_all();
         self.transactions.invalidate_all();
@@ -390,6 +390,10 @@ impl CachedCommittedData {
         self.transaction_events.invalidate_all();
         self.executed_effects_digests.invalidate_all();
         self._transaction_objects.invalidate_all();
+    }
+
+    fn clear_and_assert_empty(&self) {
+        self.clear();
 
         assert_empty(&self.object_cache);
         assert_empty(&self.marker_cache);
@@ -1322,6 +1326,21 @@ impl WritebackCache {
         self.object_by_id_cache.invalidate(&object.id());
         self.cached.object_cache.invalidate(&object.id());
         self.store.insert_genesis_object(object)
+    }
+
+    /// Drops everything held for committed data, leaving the uncommitted
+    /// `dirty` set alone.
+    ///
+    /// Only what the store already holds is dropped, so reads answer from the
+    /// store afterwards instead of from memory — the state a node comes up in
+    /// after a restart. Unlike `clear_caches_and_assert_empty` nothing is
+    /// asserted, so this is safe to call while the node keeps executing and
+    /// warming the caches again.
+    pub fn clear_caches(&self) {
+        info!("clearing caches");
+        self.cached.clear();
+        self.object_by_id_cache.invalidate_all();
+        self.packages.invalidate_all();
     }
 
     pub fn clear_caches_and_assert_empty(&self) {
@@ -2270,6 +2289,10 @@ impl ExecutionCacheReconfigAPI for WritebackCache {
 impl TestingAPI for WritebackCache {
     fn database_for_testing(&self) -> Arc<AuthorityStore> {
         self.store.clone()
+    }
+
+    fn clear_caches_for_testing(&self) {
+        self.clear_caches();
     }
 }
 

@@ -20,10 +20,6 @@ mod sim_only_tests {
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tokio::time::timeout;
 
-    /// How many versions of an object the execution cache keeps once they are
-    /// committed, mirroring `WritebackCache`'s own limit.
-    const CACHED_OBJECT_VERSIONS: usize = 3;
-
     // Tests that relocation moves superseded object versions into the historic
     // bucket, and that expiring that bucket removes the lineages' tombstones
     // from the live table. Specifically, we first wrap a child object into a
@@ -155,8 +151,10 @@ mod sim_only_tests {
     }
 
     // `iota_tryGetObjectBeforeVersion` bounded below an object's live version
-    // has to answer from the historic bucket: relocation took every earlier
-    // version out of the live table as each mutation's checkpoint executed.
+    // has to answer from the historic bucket: relocation took the earlier
+    // version out of the live table when the mutation's checkpoint executed,
+    // and the caches are dropped before the read so it cannot come from memory
+    // either.
     //
     // Pruning is disabled so that no bucket expiry can run between the
     // relocation checked below and the read that follows it.
@@ -171,27 +169,21 @@ mod sim_only_tests {
         let (package_id, object_id) = publish_package_and_create_parent_object(&test_cluster).await;
         let created_version = test_cluster.get_latest_object_ref(&object_id).await.version;
 
-        // The execution cache keeps the most recent versions of an object and
-        // answers a bounded read from them. Mutate often enough that the
-        // created version has left that window and the read has to go to
-        // storage, where relocation has moved it.
-        let mut last_effects = None;
-        for _ in 0..CACHED_OBJECT_VERSIONS {
-            last_effects = Some(create_and_wrap_child(&test_cluster, package_id, object_id).await);
-        }
-        let last_effects = last_effects.unwrap();
-        let last_txn_digest = *last_effects.transaction_digest();
+        let mutate_effects = create_and_wrap_child(&test_cluster, package_id, object_id).await;
+        let mutate_txn_digest = *mutate_effects.transaction_digest();
 
         fullnode
             .with_async(|node| async {
                 timeout(
                     Duration::from_secs(60),
-                    wait_until_txn_in_checkpoint(node, &last_txn_digest),
+                    wait_until_txn_in_checkpoint(node, &mutate_txn_digest),
                 )
                 .await
                 .unwrap();
 
-                assert_relocated(&node.state(), object_id, created_version);
+                let state = node.state();
+                assert_relocated(&state, object_id, created_version);
+                clear_caches_so_the_read_reaches_storage(&state);
             })
             .await;
 
@@ -211,7 +203,8 @@ mod sim_only_tests {
     // has to read the version underneath the tombstone to report the stake at
     // all: it reaches the withdrawal's tombstone head in the live table and
     // then the version below it, which relocation moved into the historic
-    // bucket when the withdrawal's checkpoint executed.
+    // bucket when the withdrawal's checkpoint executed. The caches are dropped
+    // before the read so that it cannot come from memory instead.
     //
     // Pruning is disabled so that no bucket expiry can run between the
     // relocation checked below and the read that follows it.
@@ -237,7 +230,9 @@ mod sim_only_tests {
                 .await
                 .unwrap();
 
-                assert_relocated(&node.state(), staked_iota_id, version_before_withdrawal);
+                let state = node.state();
+                assert_relocated(&state, staked_iota_id, version_before_withdrawal);
+                clear_caches_so_the_read_reaches_storage(&state);
             })
             .await;
 
@@ -268,6 +263,15 @@ mod sim_only_tests {
                     effects.transaction_digest()
                 )
             })
+    }
+
+    /// Drops the execution cache's copies of committed data.
+    ///
+    /// The cache keeps the most recent versions of an object and answers a
+    /// bounded read from them, which would leave the read under test never
+    /// reaching the store the relocated version now lives in.
+    fn clear_caches_so_the_read_reaches_storage(state: &Arc<AuthorityState>) {
+        state.clear_execution_caches_for_testing();
     }
 
     /// Asserts that `version` of `id` has left the live `objects` table and
