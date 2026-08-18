@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Exercises the paginated `transactionsByDigests` query. Covers:
-// - ordering by digest regardless of the input digest order
-// - forward (`first`) and backward (`last`) pages and their page-info flags
-// - resuming from a cursor (`after` / `before`)
+// - nodes keep the order of the `digests` argument
+// - a digest that is not found keeps its (null) entry in the page
+// - forward (`limit`) pages and the `hasNextPage` flag
+// - resuming from a cursor (`cursor`)
 // - an empty digest list
 
 // Only checkpointed transactions are exercised here, the e2e suite does not support testing optimistic transactions.
@@ -35,65 +36,75 @@ module Test::M {
 //# create-checkpoint
 
 //# run-graphql
-# A: all five digests, requested out of order. They are returned in digest order (ascending), and both boundary cursors are set.
+# A: all five digests, in the order of the input, and the end cursor is set.
 {
   transactionsByDigests(digests: ["@{digest_4}", "@{digest_7}", "@{digest_2}", "@{digest_6}", "@{digest_3}"]) {
-    pageInfo { hasPreviousPage hasNextPage startCursor endCursor }
+    hasNextPage endCursor
     nodes { digest }
   }
 }
 
 //# run-graphql
-# B: forward page limited to the first two, in digest order.
+# B: forward page limited to the first two entries of the input.
 {
-  transactionsByDigests(first: 2, digests: ["@{digest_4}", "@{digest_7}", "@{digest_2}", "@{digest_6}", "@{digest_3}"]) {
-    pageInfo { hasPreviousPage hasNextPage }
+  transactionsByDigests(limit: 2, digests: ["@{digest_4}", "@{digest_7}", "@{digest_2}", "@{digest_6}", "@{digest_3}"]) {
+    hasNextPage
     nodes { digest }
   }
 }
 
 //# run-graphql
-# C: backward page limited to the last two, in digest order.
+# C: a digest that does not exist keeps its (null) entry in the page.
 {
-  transactionsByDigests(last: 2, digests: ["@{digest_4}", "@{digest_7}", "@{digest_2}", "@{digest_6}", "@{digest_3}"]) {
-    pageInfo { hasPreviousPage hasNextPage }
+  transactionsByDigests(digests: ["@{digest_4}", "11111111111111111111111111111111", "@{digest_2}"]) {
+    hasNextPage
     nodes { digest }
   }
 }
 
 //# run-graphql
-# D: an empty digest list returns no nodes and null boundary cursors.
+# D: an empty digest list returns no nodes and a null end cursor.
 {
   transactionsByDigests(digests: []) {
-    pageInfo { hasPreviousPage hasNextPage startCursor endCursor }
+    hasNextPage endCursor
     nodes { digest }
   }
 }
 
-//# run-graphql --cursors {"c":2,"d":"@{digest_3}"}
-# E: resume after the first digest's cursor returns the remaining four, in
-# digest order.
+//# run-graphql --cursors {"c":2,"i":1}
+# E: resume after the second entry's cursor returns the remaining three, in
+# input order.
 {
-  transactionsByDigests(after: "@{cursor_0}", digests: ["@{digest_4}", "@{digest_7}", "@{digest_2}", "@{digest_6}", "@{digest_3}"]) {
-    pageInfo { hasPreviousPage hasNextPage }
+  transactionsByDigests(cursor: "@{cursor_0}", digests: ["@{digest_4}", "@{digest_7}", "@{digest_2}", "@{digest_6}", "@{digest_3}"]) {
+    hasNextPage
     nodes { digest }
   }
 }
 
-//# run-graphql --cursors {"c":2,"d":"@{digest_3}"}
-# F: a forward page of two after the first digest's cursor.
+//# run-graphql --cursors {"c":2,"i":1}
+# F: a forward page of two after the second entry's cursor.
 {
-  transactionsByDigests(after: "@{cursor_0}", first: 2, digests: ["@{digest_4}", "@{digest_7}", "@{digest_2}", "@{digest_6}", "@{digest_3}"]) {
-    pageInfo { hasPreviousPage hasNextPage }
+  transactionsByDigests(cursor: "@{cursor_0}", limit: 2, digests: ["@{digest_4}", "@{digest_7}", "@{digest_2}", "@{digest_6}", "@{digest_3}"]) {
+    hasNextPage
     nodes { digest }
   }
 }
 
-//# run-graphql --cursors {"c":2,"d":"@{digest_2}"}
-# G: resume before the last digest's cursor returns the first four.
+//# run-graphql
+# G: a full page of nulls. The two nonexistent digests keep their entries,
+# and `hasNextPage` still points at the next page.
 {
-  transactionsByDigests(before: "@{cursor_0}", digests: ["@{digest_4}", "@{digest_7}", "@{digest_2}", "@{digest_6}", "@{digest_3}"]) {
-    pageInfo { hasPreviousPage hasNextPage }
+  transactionsByDigests(limit: 2, digests: ["11111111111111111111111111111111", "11111111111111111111111111111112", "@{digest_2}"]) {
+    hasNextPage endCursor
+    nodes { digest }
+  }
+}
+
+//# run-graphql --cursors {"c":2,"i":1}
+# H: resuming after the second null entry returns the real transaction.
+{
+  transactionsByDigests(cursor: "@{cursor_0}", digests: ["11111111111111111111111111111111", "11111111111111111111111111111112", "@{digest_2}"]) {
+    hasNextPage
     nodes { digest }
   }
 }

@@ -703,27 +703,25 @@ mod tests {
         let transactions = response_body["data"]["transactionsByDigests"]["nodes"]
             .as_array()
             .unwrap();
-        let returned_digests: Vec<&str> = transactions
-            .iter()
-            .map(|tx| tx["digest"].as_str().unwrap())
-            .collect();
 
         assert_eq!(
-            returned_digests.len(),
-            2,
-            "only the 2 real transactions should be returned (the fake digest is absent)"
+            transactions.len(),
+            3,
+            "3 nodes should be present in the response (2 real transactions and 1 null for the fake digest)"
+        );
+        assert_eq!(
+            transactions[0]["digest"].as_str().unwrap(),
+            digest1.to_string(),
+            "first node should match digest1 (preserve input order)"
+        );
+        assert_eq!(
+            transactions[1]["digest"].as_str().unwrap(),
+            digest2.to_string(),
+            "second node should match digest2 (preserve input order)"
         );
         assert!(
-            returned_digests.contains(&digest1.to_string().as_str()),
-            "digest1 should be present"
-        );
-        assert!(
-            returned_digests.contains(&digest2.to_string().as_str()),
-            "digest2 should be present"
-        );
-        assert!(
-            !returned_digests.contains(&fake_digest.as_str()),
-            "the fake digest should not be present"
+            transactions[2].is_null(),
+            "third node should be null for the fake digest"
         );
     }
 

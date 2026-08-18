@@ -30,14 +30,14 @@ use serde::{Deserialize, Serialize};
 use crate::{
     config::ServiceConfig,
     connection::ScanConnection,
-    consistency::{Checkpointed, UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER},
+    consistency::UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
     data::{self, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
     server::watermark_task::Watermark,
     types::{
         address::Address,
         base64::Base64,
-        cursor::{JsonCursor, Page, ScanLimited, Target},
+        cursor::{JsonCursor, Page, Target},
         digest::Digest,
         epoch::Epoch,
         gas::GasInput,
@@ -154,10 +154,9 @@ impl DigestKey {
     }
 }
 
-/// Cursor for the paginated `transactionsByDigests`.
+/// Cursor for the paginated `transactionsByDigests`: a position in the
+/// `digests` argument.
 ///
-/// Pages are ordered by transaction digest, which works for both
-/// checkpointed and optimistic transactions.
 /// `checkpoint_viewed_at` keeps later pages at the same consistent view as the
 /// first one.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -165,35 +164,24 @@ pub(crate) struct TransactionBlockByDigestCursor {
     /// The checkpoint sequence number this page was viewed at.
     #[serde(rename = "c")]
     pub checkpoint_viewed_at: u64,
-    /// The transaction digest (Base58).
-    #[serde(rename = "d")]
-    pub digest: String,
+    /// Position in the `digests` argument.
+    #[serde(rename = "i")]
+    pub index: u64,
 }
 
 pub(crate) type ByDigestCursor = JsonCursor<TransactionBlockByDigestCursor>;
 
-impl Checkpointed for ByDigestCursor {
-    fn checkpoint_viewed_at(&self) -> u64 {
-        self.checkpoint_viewed_at
-    }
-}
-
-impl ScanLimited for ByDigestCursor {}
-
-/// One resolved transaction block, ordered and paged by its digest.
-struct ByDigestRow {
-    /// Base58 digest of the block.
-    digest: String,
-    block: TransactionBlock,
-}
-
-impl Target<ByDigestCursor> for ByDigestRow {
-    fn cursor(&self, checkpoint_viewed_at: u64) -> ByDigestCursor {
-        ByDigestCursor::new(TransactionBlockByDigestCursor {
-            checkpoint_viewed_at,
-            digest: self.digest.clone(),
-        })
-    }
+/// A page of the `transactionsByDigests` query.
+#[derive(SimpleObject)]
+pub(crate) struct TransactionsByDigestsPage {
+    /// One entry per digest of the page, in the order of the `digests`
+    /// argument, null when the transaction was not found.
+    nodes: Vec<Option<TransactionBlock>>,
+    /// Whether there are more entries after this page.
+    has_next_page: bool,
+    /// Cursor of the last entry of this page; pass it as `cursor` to get the
+    /// next page.
+    end_cursor: Option<String>,
 }
 
 #[Object]
@@ -771,57 +759,54 @@ impl TransactionBlock {
         Ok(conn)
     }
 
-    /// Paginates transactions selected by digest, ordered by digest, with
-    /// fallback support. Keeps optimistic transactions (not yet in a
-    /// checkpoint).
+    /// Paginates transactions selected by digest, with fallback support.
+    /// Keeps optimistic transactions (not yet in a checkpoint).
+    ///
+    /// Pages keep the order of `digests` and hold one entry per digest, null
+    /// when the transaction was not found. The page starts right after the
+    /// entry `cursor` points at, and `limit` caps the page size (defaults to
+    /// `default_page_size`, capped by `max_page_size`).
     pub(crate) async fn paginate_by_digests(
         ctx: &Context<'_>,
-        page: Page<ByDigestCursor>,
+        limit: Option<u64>,
+        cursor: Option<ByDigestCursor>,
         digests: &[Digest],
         checkpoint_viewed_at: u64,
-    ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
-        // Use `checkpoint_viewed_at` from the cursors if specified.
-        let checkpoint_viewed_at = page
-            .validate_cursor_consistency()?
-            .unwrap_or(checkpoint_viewed_at);
-
-        // Only fetch digests inside the cursor range, so that later pages skip
-        // the fetches (including fallback lookups) for transactions outside
-        // the page. The range is inclusive, to satisfy requirements of
-        // `page.paginate_results`.
-        let digests: Vec<Digest> = digests
-            .iter()
-            .filter(|d| {
-                let digest = d.to_string();
-                page.after().is_none_or(|c| c.digest <= digest)
-                    && page.before().is_none_or(|c| digest <= c.digest)
-            })
-            .copied()
-            .collect();
-
-        let mut rows: Vec<ByDigestRow> = Self::multi_query(ctx, digests, checkpoint_viewed_at)
-            .await?
-            .into_iter()
-            .map(|(digest, block)| ByDigestRow {
-                digest: digest.to_string(),
-                block,
-            })
-            .collect();
-
-        rows.sort_by(|a, b| a.digest.cmp(&b.digest));
-
-        let (prev, next, rows) = page.paginate_results(
-            rows.first().map(|f| f.cursor(checkpoint_viewed_at)),
-            rows.last().map(|l| l.cursor(checkpoint_viewed_at)),
-            rows,
-        );
-
-        let mut conn = ScanConnection::new(prev, next);
-        for row in rows {
-            let cursor = row.cursor(checkpoint_viewed_at).encode_cursor();
-            conn.edges.push(Edge::new(cursor, row.block));
+    ) -> Result<TransactionsByDigestsPage, Error> {
+        let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
+        let limit = limit.unwrap_or(limits.default_page_size as u64);
+        if limit > limits.max_page_size as u64 {
+            return Err(Error::PageTooLarge(limit, limits.max_page_size));
         }
-        Ok(conn)
+
+        // Use `checkpoint_viewed_at` from the cursor if specified
+        let checkpoint_viewed_at = cursor
+            .as_ref()
+            .map_or(checkpoint_viewed_at, |c| c.checkpoint_viewed_at);
+
+        let start = cursor
+            .map_or(0, |c| c.index as usize + 1)
+            .min(digests.len());
+        let end = (start + limit as usize).min(digests.len());
+        let has_next_page = end < digests.len();
+
+        let chunk = &digests[start..end];
+        let mut found = Self::multi_query(ctx, chunk.to_vec(), checkpoint_viewed_at).await?;
+        let nodes: Vec<_> = chunk.iter().map(|digest| found.remove(digest)).collect();
+
+        let end_cursor = (!nodes.is_empty()).then(|| {
+            ByDigestCursor::new(TransactionBlockByDigestCursor {
+                checkpoint_viewed_at,
+                index: (end - 1) as u64,
+            })
+            .encode_cursor()
+        });
+
+        Ok(TransactionsByDigestsPage {
+            nodes,
+            has_next_page,
+            end_cursor,
+        })
     }
 }
 

@@ -399,16 +399,18 @@ impl Query {
     ///
     /// Unlike `transactionBlocks(filter: { transactionIds })`, this includes
     /// all transactions, even if they are not checkpointed yet.
-    /// The connection is ordered by transaction digest.
+    ///
+    /// Pages keep the order of the `digests` argument and hold one node per
+    /// digest, null when the transaction was not found. Only forward
+    /// pagination is supported: `limit` caps the page size and `cursor`
+    /// resumes after an entry of a previous page.
     async fn transactions_by_digests(
         &self,
         ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<transaction_block::ByDigestCursor>,
-        last: Option<u64>,
-        before: Option<transaction_block::ByDigestCursor>,
+        limit: Option<u64>,
+        cursor: Option<transaction_block::ByDigestCursor>,
         digests: Vec<Digest>,
-    ) -> Result<ScanConnection<String, TransactionBlock>> {
+    ) -> Result<transaction_block::TransactionsByDigestsPage> {
         let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
         if digests.len() > limits.max_transaction_ids as usize {
             return Err(Error::Client(format!(
@@ -419,8 +421,7 @@ impl Query {
         }
 
         let Watermark { checkpoint, .. } = *ctx.data()?;
-        let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        TransactionBlock::paginate_by_digests(ctx, page, &digests, checkpoint)
+        TransactionBlock::paginate_by_digests(ctx, limit, cursor, &digests, checkpoint)
             .await
             .extend()
     }

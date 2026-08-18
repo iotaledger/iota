@@ -3627,9 +3627,13 @@ type Query {
 	
 	Unlike `transactionBlocks(filter: { transactionIds })`, this includes
 	all transactions, even if they are not checkpointed yet.
-	The connection is ordered by transaction digest.
+	
+	Pages keep the order of the `digests` argument and hold one node per
+	digest, null when the transaction was not found. Only forward
+	pagination is supported: `limit` caps the page size and `cursor`
+	resumes after an entry of a previous page.
 	"""
-	transactionsByDigests(first: Int, after: String, last: Int, before: String, digests: [String!]!): TransactionBlockConnection!
+	transactionsByDigests(limit: Int, cursor: String, digests: [String!]!): TransactionsByDigestsPage!
 	"""
 	The coin objects that exist in the network.
 	
@@ -4692,6 +4696,26 @@ input TransactionMetadata {
 	gasObjects: [ObjectRef!]
 	gasBudget: UInt53
 	gasSponsor: IotaAddress
+}
+
+"""
+A page of the `transactionsByDigests` query.
+"""
+type TransactionsByDigestsPage {
+	"""
+	One entry per digest of the page, in the order of the `digests`
+	argument, null when the transaction was not found.
+	"""
+	nodes: [TransactionBlock]!
+	"""
+	Whether there are more entries after this page.
+	"""
+	hasNextPage: Boolean!
+	"""
+	Cursor of the last entry of this page; pass it as `cursor` to get the
+	next page.
+	"""
+	endCursor: String
 }
 
 """
