@@ -12,7 +12,7 @@ use diesel::{
     sql_types::{BigInt, VarChar},
 };
 use downcast::Any;
-use tracing::{error, info};
+use tracing::info;
 
 use crate::{
     db::ConnectionPool, errors::IndexerError, ingestion::primary::persist::EpochToCommit,
