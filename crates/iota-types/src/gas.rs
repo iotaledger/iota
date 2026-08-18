@@ -17,7 +17,10 @@ pub mod checked {
     use crate::{
         ObjectId,
         error::{ExecutionError, IotaResult, UserInputError, UserInputResult},
-        gas_model::{gas_v1::IotaGasStatus as IotaGasStatusV1, tables::GasStatus},
+        gas_model::{
+            gas_v1::{IotaGasStatus as IotaGasStatusV1, min_transaction_cost},
+            tables::GasStatus,
+        },
         object::{MoveStructExt, Object},
         transaction::{InputObjects, ObjectReadResult, TransactionAPI},
     };
@@ -116,6 +119,48 @@ pub mod checked {
 
             Ok(())
         }
+    }
+
+    /// Validates the transaction's declared gas price and budget against the
+    /// epoch reference gas price and the protocol config bounds.
+    ///
+    /// Payload-only: reads no objects and no frontier state, so it is safe to
+    /// run post-consensus before version assignment. Mirrors the price checks
+    /// in `IotaGasStatus::check_gas_preconditions` and the budget-bound
+    /// checks in `IotaGasStatusV1::check_gas_balance`, without touching gas
+    /// coins.
+    pub fn check_gas_bounds(
+        config: &ProtocolConfig,
+        reference_gas_price: u64,
+        gas_price: u64,
+        gas_budget: u64,
+    ) -> UserInputResult<()> {
+        if gas_price < reference_gas_price {
+            return Err(UserInputError::GasPriceUnderRGP {
+                gas_price,
+                reference_gas_price,
+            });
+        }
+        if gas_price > config.max_gas_price() {
+            return Err(UserInputError::GasPriceTooHigh {
+                max_gas_price: config.max_gas_price(),
+            });
+        }
+        let max_gas_budget = config.max_tx_gas();
+        let min_transaction_cost = min_transaction_cost(config, gas_price);
+        if gas_budget > max_gas_budget {
+            return Err(UserInputError::GasBudgetTooHigh {
+                gas_budget,
+                max_budget: max_gas_budget,
+            });
+        }
+        if gas_budget < min_transaction_cost {
+            return Err(UserInputError::GasBudgetTooLow {
+                gas_budget,
+                min_budget: min_transaction_cost,
+            });
+        }
+        Ok(())
     }
 
     // Helper functions to deal with gas coins operations.

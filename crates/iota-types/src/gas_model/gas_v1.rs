@@ -119,13 +119,15 @@ mod checked {
         }
     }
 
+    /// The flat fee charged for every transaction.
+    pub(crate) fn min_transaction_cost(config: &ProtocolConfig, gas_price: u64) -> u64 {
+        config.base_tx_cost_fixed() * gas_price
+    }
+
     impl IotaCostTable {
         pub(crate) fn new(c: &ProtocolConfig, gas_price: u64) -> Self {
-            // gas_price here is the Reference Gas Price, however we may decide
-            // to change it to be the price passed in the transaction
-            let min_transaction_cost = c.base_tx_cost_fixed() * gas_price;
             Self {
-                min_transaction_cost,
+                min_transaction_cost: min_transaction_cost(c, gas_price),
                 max_gas_budget: c.max_tx_gas(),
                 package_publish_per_byte_cost: c.package_publish_cost_per_byte(),
                 object_read_per_byte_cost: c.obj_access_cost_read_per_byte(),
