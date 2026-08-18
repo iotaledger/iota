@@ -21,7 +21,6 @@ pub struct TrafficControllerMetrics {
     pub error_tally_handled: IntCounter,
     pub tally_error_types: IntCounterVec,
     pub deadmans_switch_enabled: IntGauge,
-    pub rate_limiter_tracked_clients: IntGauge,
     pub spam_client_threshold: IntGauge,
     pub error_client_threshold: IntGauge,
     pub spam_proxied_client_threshold: IntGauge,
@@ -105,13 +104,6 @@ impl TrafficControllerMetrics {
                 "deadmans_switch_enabled",
                 "If 1, the deadman's switch is enabled and all traffic control
                 should be getting bypassed",
-                registry
-            )
-            .unwrap(),
-            rate_limiter_tracked_clients: register_int_gauge_with_registry!(
-                "rate_limiter_tracked_clients",
-                "Number of client IP addresses currently tracked by the spam and \
-                    error rate limiters",
                 registry
             )
             .unwrap(),

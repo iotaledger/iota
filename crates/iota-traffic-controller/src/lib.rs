@@ -36,7 +36,6 @@ use iota_types::{
     },
 };
 use parking_lot::Mutex;
-use prometheus_filtered::IntGauge;
 use rand::Rng;
 use tokio::{
     sync::{mpsc, mpsc::error::TrySendError},
@@ -52,8 +51,6 @@ use crate::{
 };
 
 const CLEAR_BLOCKLIST_INTERVAL: Duration = Duration::from_secs(3);
-/// Also bounds how long the cells of a client that never returns are held.
-const EVICT_IDLE_CLIENTS_INTERVAL: Duration = Duration::from_secs(10);
 const DEADMANS_SWITCH_POLL_INTERVAL: Duration = Duration::from_secs(1);
 /// Number of pending firewall delegations held before further ones are dropped.
 const FIREWALL_DELEGATION_QUEUE_SIZE: usize = 256;
@@ -68,7 +65,7 @@ struct Blocklists {
 
 #[derive(Clone)]
 enum Acl {
-    Blocklists(Arc<TallyState>),
+    Tally(Arc<TallyState>),
     /// If this variant is set, then we do no tallying or running
     /// of background tasks, and instead simply block all IPs not
     /// in the allowlist on calls to `check`. The allowlist should
@@ -96,17 +93,9 @@ struct FirewallDelegation {
     /// Clients whose block is queued or in flight, so that a client breaching
     /// on every request enqueues at most one block per firewall roundtrip.
     pending: Arc<Mutex<HashSet<IpAddr>>>,
-}
-
-impl FirewallDelegation {
-    /// Releases clients whose block never reached the delegation loop, which
-    /// would otherwise never enqueue a block again.
-    fn release_pending(&self, dropped: &[(IpAddr, BlockAddress)]) {
-        let mut pending = self.pending.lock();
-        for (client, _) in dropped {
-            pending.remove(client);
-        }
-    }
+    destination_port: u16,
+    delegate_spam_blocking: bool,
+    delegate_error_blocking: bool,
 }
 
 impl Drop for TallyState {
@@ -120,11 +109,8 @@ pub struct TrafficController {
     acl: Acl,
     policy_config: Arc<PolicyConfig>,
     metrics: Arc<TrafficControllerMetrics>,
-    // Lifted out of `policy_config` so the request hot path in `check`
-    // can read it with a relaxed atomic load instead of acquiring a lock
-    // and cloning the entire config.
+    // Read on the request path in `check` and toggled by the admin API.
     dry_run: Arc<AtomicBool>,
-    fw_config: Option<RemoteFirewallConfig>,
 }
 
 impl Debug for TrafficController {
@@ -165,7 +151,7 @@ impl TrafficController {
             None => {
                 let state = spawn_tally_state(&policy_config, &metrics, fw_config.as_ref());
                 set_policy_config_metrics(&state, &policy_config, &metrics);
-                Acl::Blocklists(Arc::new(state))
+                Acl::Tally(Arc::new(state))
             }
         };
         Self {
@@ -173,7 +159,6 @@ impl TrafficController {
             policy_config: Arc::new(policy_config),
             metrics,
             dry_run,
-            fw_config,
         }
     }
 
@@ -190,7 +175,7 @@ impl TrafficController {
 
     fn tally_state(&self) -> Option<&TallyState> {
         match &self.acl {
-            Acl::Blocklists(state) => Some(state),
+            Acl::Tally(state) => Some(state),
             Acl::Allowlist(_) => None,
         }
     }
@@ -262,8 +247,8 @@ impl TrafficController {
         if tally.spam_weight.is_sampled() && self.policy_config.spam_sample_rate.is_sampled() {
             let response = state.spam_policy.charge(&tally);
             self.metrics.tally_handled.inc();
-            self.apply_policy_response(response, state, |fw_config| {
-                fw_config.delegate_spam_blocking
+            self.apply_policy_response(response, state, |delegation| {
+                delegation.delegate_spam_blocking
             });
         }
         if let Some((error_weight, error_type)) = &tally.error_info {
@@ -274,8 +259,8 @@ impl TrafficController {
                     .inc();
                 let response = state.error_policy.charge(&tally);
                 self.metrics.error_tally_handled.inc();
-                self.apply_policy_response(response, state, |fw_config| {
-                    fw_config.delegate_error_blocking
+                self.apply_policy_response(response, state, |delegation| {
+                    delegation.delegate_error_blocking
                 });
             }
         }
@@ -287,54 +272,63 @@ impl TrafficController {
         &self,
         response: PolicyResponse,
         state: &TallyState,
-        delegates: impl FnOnce(&RemoteFirewallConfig) -> bool,
+        delegates: impl FnOnce(&FirewallDelegation) -> bool,
     ) {
         if response.block_client.is_none() && response.block_proxied_client.is_none() {
             return;
         }
         // The firewall must receive no blocks during a drain or a dry run.
-        let delegate = self.fw_config.as_ref().is_some_and(delegates)
-            && !state.drainfile_present.load(Ordering::Relaxed)
-            && !self.dry_run.load(Ordering::Relaxed);
-        if delegate {
-            self.delegate_policy_response(response, state);
-        } else {
-            block_locally(
-                response,
+        match state.firewall_delegation.as_ref().filter(|delegation| {
+            delegates(delegation)
+                && !state.drainfile_present.load(Ordering::Relaxed)
+                && !self.dry_run.load(Ordering::Relaxed)
+        }) {
+            Some(delegation) => self.delegate_policy_response(&response, state, delegation),
+            None => block_locally(
+                &response,
                 &self.policy_config,
                 &state.blocklists,
                 &self.metrics,
-            );
+            ),
         }
     }
 
-    fn delegate_policy_response(&self, response: PolicyResponse, state: &TallyState) {
-        let (Some(fw_config), Some(delegation)) =
-            (&self.fw_config, state.firewall_delegation.as_ref())
-        else {
-            return;
-        };
+    fn delegate_policy_response(
+        &self,
+        response: &PolicyResponse,
+        state: &TallyState,
+        delegation: &FirewallDelegation,
+    ) {
         let addresses: Vec<_> =
-            block_addresses(response, &self.policy_config, fw_config.destination_port)
+            block_addresses(response, &self.policy_config, delegation.destination_port)
                 .into_iter()
                 .filter(|(client, _)| delegation.pending.lock().insert(*client))
                 .collect();
         if addresses.is_empty() {
             return;
         }
-        match delegation.sender.try_send(addresses) {
-            // Not logged: overflow recurs on every request of a sustained
-            // breach, and the metric already carries the signal.
+        let dropped = match delegation.sender.try_send(addresses) {
+            Ok(()) => return,
             Err(TrySendError::Full(dropped)) => {
+                // Not logged: it recurs on every request of a sustained breach.
                 self.metrics.firewall_delegation_overflow.inc();
-                delegation.release_pending(&dropped);
+                dropped
             }
             Err(TrySendError::Closed(dropped)) => {
                 warn!("Firewall delegation queue closed unexpectedly");
-                delegation.release_pending(&dropped);
+                dropped
             }
-            Ok(()) => {}
-        }
+        };
+        release_pending(
+            &delegation.pending,
+            dropped.into_iter().map(|(client, _)| client),
+        );
+        block_locally(
+            response,
+            &self.policy_config,
+            &state.blocklists,
+            &self.metrics,
+        );
     }
 
     /// Handle check with dry-run mode considered
@@ -342,9 +336,7 @@ impl TrafficController {
         let dry_run = self.dry_run.load(Ordering::Relaxed);
         let allowed = match &self.acl {
             Acl::Allowlist(allowlist) => client.is_none_or(|client| allowlist.contains(&client)),
-            Acl::Blocklists(state) => {
-                check_blocklists(&state.blocklists, client, proxied_client, &self.metrics)
-            }
+            Acl::Tally(state) => check_blocklists(&state.blocklists, client, proxied_client),
         };
         match (allowed, dry_run) {
             (true, _) => true,
@@ -383,8 +375,14 @@ fn spawn_tally_state(
         clients: Arc::new(DashMap::new()),
         proxied_clients: Arc::new(DashMap::new()),
     };
-    let spam_policy = Arc::new(TrafficControlPolicy::from_spam_config(policy_config));
-    let error_policy = Arc::new(TrafficControlPolicy::from_error_config(policy_config));
+    let spam_policy = Arc::new(TrafficControlPolicy::from_policy_type(
+        &policy_config.spam_policy_type,
+        policy_config.connection_blocklist_ttl_sec,
+    ));
+    let error_policy = Arc::new(TrafficControlPolicy::from_policy_type(
+        &policy_config.error_policy_type,
+        policy_config.connection_blocklist_ttl_sec,
+    ));
     let drainfile_present = Arc::new(AtomicBool::new(false));
     let shutdown = CancellationToken::new();
     let mut firewall_delegation = None;
@@ -401,6 +399,9 @@ fn spawn_tally_state(
         firewall_delegation = Some(FirewallDelegation {
             sender,
             pending: pending.clone(),
+            destination_port: fw_config.destination_port,
+            delegate_spam_blocking: fw_config.delegate_spam_blocking,
+            delegate_error_blocking: fw_config.delegate_error_blocking,
         });
         let nodefw_client = NodeFWClient::new(fw_config.remote_fw_url.clone());
         let delegation_metrics = metrics.clone();
@@ -432,17 +433,6 @@ fn spawn_tally_state(
         clear_loop_shutdown
     ));
 
-    let evict_loop_spam_policy = spam_policy.clone();
-    let evict_loop_error_policy = error_policy.clone();
-    let evict_loop_metrics = metrics.clone();
-    let evict_loop_shutdown = shutdown.clone();
-    spawn_monitored_task!(run_evict_idle_clients_loop(
-        evict_loop_spam_policy,
-        evict_loop_error_policy,
-        evict_loop_metrics,
-        evict_loop_shutdown
-    ));
-
     TallyState {
         spam_policy,
         error_policy,
@@ -453,7 +443,6 @@ fn spawn_tally_state(
     }
 }
 
-/// Checks that `threshold` can be applied to `policy`.
 fn validate_threshold(
     policy: Option<&TrafficControlPolicy>,
     threshold: u64,
@@ -506,129 +495,86 @@ fn check_blocklists(
     blocklists: &Blocklists,
     client: &Option<IpAddr>,
     proxied_client: &Option<IpAddr>,
-    metrics: &TrafficControllerMetrics,
 ) -> bool {
-    let client_check = check_and_clear_blocklist(
-        client,
-        &blocklists.clients,
-        &metrics.connection_ip_blocklist_len,
-    );
-    let proxied_client_check = check_and_clear_blocklist(
-        proxied_client,
-        &blocklists.proxied_clients,
-        &metrics.proxy_ip_blocklist_len,
-    );
-    client_check && proxied_client_check
+    !blocked(client, &blocklists.clients) && !blocked(proxied_client, &blocklists.proxied_clients)
 }
 
-fn check_and_clear_blocklist(
-    client: &Option<IpAddr>,
-    blocklist: &Blocklist,
-    blocklist_len_gauge: &IntGauge,
-) -> bool {
-    let client = match client {
-        Some(client) => client,
-        None => return true,
-    };
-    let now = SystemTime::now();
-    // the below two blocks cannot be nested, otherwise we will deadlock
-    // due to acquiring the lock on get, then holding across the remove
-    let (should_block, should_remove) = {
-        match blocklist.get(client) {
-            Some(expiration) if now >= *expiration => (false, true),
-            None => (false, false),
-            _ => (true, false),
-        }
-    };
-    if should_remove && blocklist.remove(client).is_some() {
-        blocklist_len_gauge.dec();
-    }
-    !should_block
+fn blocked(client: &Option<IpAddr>, blocklist: &Blocklist) -> bool {
+    client.is_some_and(|client| {
+        blocklist
+            .get(&client)
+            .is_some_and(|expiration| SystemTime::now() < *expiration)
+    })
+}
+
+/// The client to block and the TTL of that block, for the direct and the
+/// proxied dimension in that order.
+fn blocks(response: &PolicyResponse, policy_config: &PolicyConfig) -> [(Option<IpAddr>, u64); 2] {
+    [
+        (
+            response.block_client,
+            policy_config.connection_blocklist_ttl_sec,
+        ),
+        (
+            response.block_proxied_client,
+            policy_config.proxy_blocklist_ttl_sec,
+        ),
+    ]
 }
 
 fn block_locally(
-    response: PolicyResponse,
+    response: &PolicyResponse,
     policy_config: &PolicyConfig,
     blocklists: &Blocklists,
     metrics: &TrafficControllerMetrics,
 ) {
-    let PolicyResponse {
-        block_client,
-        block_proxied_client,
-    } = response;
-    let PolicyConfig {
-        connection_blocklist_ttl_sec,
-        proxy_blocklist_ttl_sec,
-        ..
-    } = policy_config;
-    if let Some(client) = block_client {
-        if blocklists
-            .clients
-            .insert(
-                client,
-                SystemTime::now() + Duration::from_secs(*connection_blocklist_ttl_sec),
-            )
+    let targets = [
+        (&blocklists.clients, &metrics.connection_ip_blocklist_len),
+        (&blocklists.proxied_clients, &metrics.proxy_ip_blocklist_len),
+    ];
+    for ((client, ttl_secs), (blocklist, len_gauge)) in
+        blocks(response, policy_config).into_iter().zip(targets)
+    {
+        let Some(client) = client else { continue };
+        if blocklist
+            .insert(client, SystemTime::now() + Duration::from_secs(ttl_secs))
             .is_none()
         {
-            // Only increment the metric if the client was not already blocked
-            debug!("Adding client {:?} to blocklist", client);
-            metrics.connection_ip_blocklist_len.inc();
-        }
-    }
-    if let Some(client) = block_proxied_client {
-        if blocklists
-            .proxied_clients
-            .insert(
-                client,
-                SystemTime::now() + Duration::from_secs(*proxy_blocklist_ttl_sec),
-            )
-            .is_none()
-        {
-            // Only increment the metric if the client was not already blocked
-            debug!("Adding proxied client {:?} to blocklist", client);
-            metrics.proxy_ip_blocklist_len.inc();
+            debug!("Adding client {client:?} to blocklist");
+            len_gauge.inc();
         }
     }
 }
 
 fn block_addresses(
-    response: PolicyResponse,
+    response: &PolicyResponse,
     policy_config: &PolicyConfig,
     destination_port: u16,
 ) -> Vec<(IpAddr, BlockAddress)> {
-    let PolicyResponse {
-        block_client,
-        block_proxied_client,
-    } = response;
-    let PolicyConfig {
-        connection_blocklist_ttl_sec,
-        proxy_blocklist_ttl_sec,
-        ..
-    } = policy_config;
-    let mut addresses = vec![];
-    if let Some(client) = block_client {
-        debug!("Delegating client blocking to firewall");
-        addresses.push((
-            client,
-            BlockAddress {
-                source_address: client.to_string(),
-                destination_port,
-                ttl: *connection_blocklist_ttl_sec,
-            },
-        ));
+    blocks(response, policy_config)
+        .into_iter()
+        .filter_map(|(client, ttl)| {
+            let client = client?;
+            debug!("Delegating blocking of client {client:?} to firewall");
+            Some((
+                client,
+                BlockAddress {
+                    source_address: client.to_string(),
+                    destination_port,
+                    ttl,
+                },
+            ))
+        })
+        .collect()
+}
+
+/// Releases clients whose block never reached the firewall, which would
+/// otherwise never enqueue a block again.
+fn release_pending(pending: &Mutex<HashSet<IpAddr>>, clients: impl IntoIterator<Item = IpAddr>) {
+    let mut pending = pending.lock();
+    for client in clients {
+        pending.remove(&client);
     }
-    if let Some(client) = block_proxied_client {
-        debug!("Delegating proxied client blocking to firewall");
-        addresses.push((
-            client,
-            BlockAddress {
-                source_address: client.to_string(),
-                destination_port,
-                ttl: *proxy_blocklist_ttl_sec,
-            },
-        ));
-    }
-    addresses
 }
 
 /// Waits for the next tick of a background loop, returning false once the last
@@ -640,8 +586,7 @@ async fn tick(interval: Duration, shutdown: &CancellationToken) -> bool {
     }
 }
 
-/// Drops expired blocklist entries that were never checked again, and keeps the
-/// length gauges honest.
+/// Drops expired blocklist entries and refreshes the length gauges.
 async fn run_clear_blocklists_loop(
     blocklists: Blocklists,
     metrics: Arc<TrafficControllerMetrics>,
@@ -659,21 +604,6 @@ async fn run_clear_blocklists_loop(
         metrics
             .proxy_ip_blocklist_len
             .set(blocklists.proxied_clients.len() as i64);
-    }
-}
-
-async fn run_evict_idle_clients_loop(
-    spam_policy: Arc<TrafficControlPolicy>,
-    error_policy: Arc<TrafficControlPolicy>,
-    metrics: Arc<TrafficControllerMetrics>,
-    shutdown: CancellationToken,
-) {
-    while tick(EVICT_IDLE_CLIENTS_INTERVAL, &shutdown).await {
-        spam_policy.evict_idle();
-        error_policy.evict_idle();
-        metrics
-            .rate_limiter_tracked_clients
-            .set((spam_policy.tracked_clients() + error_policy.tracked_clients()) as i64);
     }
 }
 
@@ -696,10 +626,7 @@ async fn run_firewall_delegation_loop(
             metrics.firewall_delegation_request_fail.inc();
             warn!("Failed to delegate blocklist to firewall: {err}");
         }
-        let mut pending = pending.lock();
-        for client in clients {
-            pending.remove(&client);
-        }
+        release_pending(&pending, clients);
     }
     info!("TrafficController firewall delegation queue closed by all senders");
 }
@@ -754,7 +681,6 @@ pub struct TrafficSimMetrics {
     pub num_requests: u64,
     pub num_blocked: u64,
     pub abs_time_to_first_block: Option<Duration>,
-    pub total_time_blocked: Duration,
     pub num_blocklist_adds: u64,
 }
 
@@ -774,7 +700,6 @@ impl Add for TrafficSimMetrics {
                 (None, Some(b)) => Some(b),
                 (None, None) => None,
             },
-            total_time_blocked: self.total_time_blocked + other.total_time_blocked,
             num_blocklist_adds: self.num_blocklist_adds + other.num_blocklist_adds,
         }
     }
@@ -838,11 +763,9 @@ impl TrafficSim {
         let mut num_requests = 0;
         let mut num_blocked = 0;
         let mut time_to_first_block = None;
-        let mut total_time_blocked = Duration::from_micros(0);
         let mut num_blocklist_adds = 0;
         // state variables
         let mut currently_blocked = false;
-        let mut time_blocked_start = Instant::now();
         let start = Instant::now();
 
         // we use ticker instead of sleep to be as close to the target TPS as possible,
@@ -853,10 +776,7 @@ impl TrafficSim {
             let client = Some(IpAddr::V4(Ipv4Addr::new(127, 0, 0, task_num)));
             let allowed = controller.check(&client, &None);
             if allowed {
-                if currently_blocked {
-                    total_time_blocked += time_blocked_start.elapsed();
-                    currently_blocked = false;
-                }
+                currently_blocked = false;
                 controller.tally(TrafficTally::new(
                     client,
                     // TODO add proxy IP for testing
@@ -867,7 +787,6 @@ impl TrafficSim {
                 ));
             } else {
                 if !currently_blocked {
-                    time_blocked_start = Instant::now();
                     currently_blocked = true;
                     num_blocklist_adds += 1;
                     if time_to_first_block.is_none() {
@@ -884,7 +803,6 @@ impl TrafficSim {
             num_requests,
             num_blocked,
             abs_time_to_first_block: time_to_first_block,
-            total_time_blocked,
             num_blocklist_adds,
         }
     }

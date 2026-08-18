@@ -363,7 +363,7 @@ macro_rules! handle_with_decoration {
             return $self.$func_name($request).await.map(|(result, _)| result);
         }
 
-        let client = $self.get_client_ip_addr(&$request, $self.client_id_source.as_ref().unwrap());
+        let client = $self.extract_client_ip(&$request);
 
         // check if either IP is blocked, in which case return early
         $self.check_traffic(client.clone())?;

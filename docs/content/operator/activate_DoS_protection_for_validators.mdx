@@ -51,7 +51,7 @@ policy-config:
   spam-policy-type:
     freq-threshold:
       client-threshold: 1000  # Sustained tallies per second per direct client; requests are sampled by spam-sample-rate, so the tolerated request rate is proportionally higher
-      proxied-client-threshold: 10  # Sustained tallies per second per proxied client, sampled the same way
+      proxied-client-threshold: 10  # Sustained tallies per second per proxied client
       window-size-secs: 30  # Burst allowance: client-threshold * window-size-secs requests back to back
   
   # Policy for handling error traffic
@@ -107,7 +107,7 @@ policy-config:
   proxy-blocklist-ttl-sec: 0
   spam-policy-type:
     freq-threshold:
-      client-threshold: 100  # Sustained tallies per second; requests are sampled by spam-sample-rate, so the tolerated request rate is proportionally higher
+      client-threshold: 100  # Sustained tallies per second
       proxied-client-threshold: 10  # Currently ignored, as proxied client tallies are not reported; 0 would block every proxied client
       window-size-secs: 30
   error-policy-type: NoOp
@@ -130,7 +130,7 @@ policy-config:
   proxy-blocklist-ttl-sec: 60
   spam-policy-type:
     freq-threshold:
-      client-threshold: 1000  # Higher threshold for proxies that aggregate traffic; sampled by spam-sample-rate, so the tolerated request rate is proportionally higher
+      client-threshold: 1000  # Higher threshold for proxies that aggregate traffic
       proxied-client-threshold: 10  # Threshold for individual clients behind proxies
       window-size-secs: 30
   error-policy-type: NoOp
@@ -198,8 +198,8 @@ policy-config:
   spam-policy-type:
     freq-threshold:
       # Adjust these thresholds based on your expected legitimate traffic
-      client-threshold: 50  # Sustained tallies per second; with spam-sample-rate 0.5 below, that is roughly 100 requests per second per client
-      proxied-client-threshold: 10  # Sustained tallies per second per client behind proxy, sampled the same way
+      client-threshold: 50  # Sustained tallies per second
+      proxied-client-threshold: 10  # Sustained tallies per second per client behind proxy
       window-size-secs: 30
   
   # Consider enabling error policy for production
@@ -223,7 +223,6 @@ After enabling the `TrafficController`, monitor your node's metrics to ensure le
 - `requests_blocked_at_protocol`
 - `blocks_delegated_to_firewall`
 - `traffic_control_num_dry_run_blocked_requests`
-- `rate_limiter_tracked_clients`
 - `firewall_delegation_overflow`
 
 Start with `dry-run: true` to observe what would be blocked without actually blocking traffic, then adjust thresholds as needed before setting `dry-run: false`.

@@ -21,7 +21,7 @@ use governor::{
     state::{InMemoryState, direct::NotKeyed},
 };
 use iota_common::fatal;
-use iota_types::traffic_control::{FreqThresholdConfig, PolicyConfig, PolicyType, Weight};
+use iota_types::traffic_control::{FreqThresholdConfig, PolicyType, Weight};
 use lru::LruCache;
 use parking_lot::Mutex;
 use tracing::warn;
@@ -38,19 +38,11 @@ pub(super) const MAX_CLIENT_THRESHOLD: u64 = 1_000_000_000;
 /// Upper bound on client IPs tracked per limiter.
 const MAX_TRACKED_CLIENTS: usize = 100_000;
 
-/// Cells dropped per eviction pass: the sweep holds the lock the request path
-/// needs, and the next pass resumes where this one stopped.
-const MAX_EVICTIONS_PER_PASS: usize = 4_096;
-
 /// GCRA cell for a single client IP. Uses `std::time::Instant` rather than
 /// `governor`'s default TSC-backed clock so that the deterministic simulator,
 /// which virtualizes `clock_gettime`, also controls rate limiter time.
 type ClientRateLimiter =
     RateLimiter<NotKeyed, InMemoryState, MonotonicClock, NoOpMiddleware<Instant>>;
-
-fn client_rate_limiter(quota: Quota) -> ClientRateLimiter {
-    RateLimiter::direct_with_clock(quota, &MonotonicClock)
-}
 
 /// Sustained `threshold` tallies per second, tolerating `threshold *
 /// window_size_secs` back to back.
@@ -113,7 +105,7 @@ impl TrafficTally {
 }
 
 #[derive(Debug, Default)]
-pub struct PolicyResponse {
+pub(super) struct PolicyResponse {
     pub block_client: Option<IpAddr>,
     pub block_proxied_client: Option<IpAddr>,
 }
@@ -155,43 +147,17 @@ impl Limiter {
             Self::Cells(cells) => cells.breaches(client),
         }
     }
-
-    fn evict_idle(&self) {
-        if let Self::Cells(cells) = self {
-            cells.evict_idle();
-        }
-    }
-
-    fn tracked_clients(&self) -> usize {
-        match self {
-            Self::BlockAll => 0,
-            Self::Cells(cells) => cells.tracked_clients(),
-        }
-    }
 }
 
 /// Per-client GCRA cells in an LRU cache bounded at [`MAX_TRACKED_CLIENTS`].
 struct ClientCells {
     quota: Quota,
-    /// A cell whose last charge is at least this old is fully replenished.
-    idle_after: Duration,
-    cells: Mutex<LruCache<IpAddr, ClientCell>>,
-}
-
-struct ClientCell {
-    limiter: ClientRateLimiter,
-    last_charge: Instant,
+    cells: Mutex<LruCache<IpAddr, ClientRateLimiter>>,
 }
 
 impl ClientCells {
     fn new(quota: Quota) -> Self {
-        let interval = quota.replenish_interval();
         Self {
-            // A fully drained burst replenishes in burst * interval, plus one
-            // interval for the cell the draining charge itself consumed.
-            idle_after: interval
-                .saturating_mul(quota.burst_size().get())
-                .saturating_add(interval),
             quota,
             cells: Mutex::new(LruCache::new(
                 NonZeroUsize::new(MAX_TRACKED_CLIENTS).expect("capacity is non-zero"),
@@ -200,30 +166,13 @@ impl ClientCells {
     }
 
     fn breaches(&self, client: IpAddr) -> bool {
-        let now = Instant::now();
         let mut cells = self.cells.lock();
-        let cell = cells.get_or_insert_mut(client, || ClientCell {
-            limiter: client_rate_limiter(self.quota),
-            last_charge: now,
-        });
-        cell.last_charge = now;
-        cell.limiter.check().is_err()
-    }
-
-    fn evict_idle(&self) {
-        let mut cells = self.cells.lock();
-        for _ in 0..MAX_EVICTIONS_PER_PASS {
-            match cells.peek_lru() {
-                Some((_, cell)) if cell.last_charge.elapsed() >= self.idle_after => {
-                    cells.pop_lru();
-                }
-                _ => break,
-            }
-        }
-    }
-
-    fn tracked_clients(&self) -> usize {
-        self.cells.lock().len()
+        cells
+            .get_or_insert_mut(client, || {
+                RateLimiter::direct_with_clock(self.quota, &MonotonicClock)
+            })
+            .check()
+            .is_err()
     }
 }
 
@@ -278,18 +227,6 @@ impl RateLimitPolicy {
         self.direct
             .store(Arc::new(DirectLimiter::new(self.quota_kind, threshold)));
     }
-
-    fn evict_idle(&self) {
-        self.direct.load().limiter.evict_idle();
-        if let Some(proxied) = &self.proxied {
-            proxied.evict_idle();
-        }
-    }
-
-    fn tracked_clients(&self) -> usize {
-        self.direct.load().limiter.tracked_clients()
-            + self.proxied.as_ref().map_or(0, Limiter::tracked_clients)
-    }
 }
 
 enum Policy {
@@ -299,23 +236,9 @@ enum Policy {
 }
 
 /// The spam or error policy a traffic controller charges its tallies against.
-pub struct TrafficControlPolicy(Policy);
+pub(super) struct TrafficControlPolicy(Policy);
 
 impl TrafficControlPolicy {
-    pub(super) fn from_spam_config(policy_config: &PolicyConfig) -> Self {
-        Self::from_policy_type(
-            &policy_config.spam_policy_type,
-            policy_config.connection_blocklist_ttl_sec,
-        )
-    }
-
-    pub(super) fn from_error_config(policy_config: &PolicyConfig) -> Self {
-        Self::from_policy_type(
-            &policy_config.error_policy_type,
-            policy_config.connection_blocklist_ttl_sec,
-        )
-    }
-
     pub(super) fn from_policy_type(
         policy_type: &PolicyType,
         connection_blocklist_ttl_sec: u64,
@@ -378,21 +301,6 @@ impl TrafficControlPolicy {
             policy.set_direct_threshold(threshold);
         }
     }
-
-    /// Drops per-client cells that have fully replenished.
-    pub(super) fn evict_idle(&self) {
-        if let Policy::Limit(policy) = &self.0 {
-            policy.evict_idle();
-        }
-    }
-
-    /// Number of per-client cells currently held.
-    pub(super) fn tracked_clients(&self) -> usize {
-        match &self.0 {
-            Policy::Limit(policy) => policy.tracked_clients(),
-            _ => 0,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -437,21 +345,6 @@ mod tests {
             exact_count_reset_period(0),
             EXACT_COUNT_FALLBACK_RESET_PERIOD
         );
-        assert_eq!(exact_count_reset_period(30), Duration::from_secs(60));
-    }
-
-    #[test]
-    fn test_threshold_of_one_blocks_on_the_first_tally() {
-        let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
-        for threshold in [0, 1] {
-            assert_eq!(
-                exact_count(threshold, 60)
-                    .charge(&direct_tally(client))
-                    .block_client,
-                Some(client),
-                "threshold {threshold} did not block on the first tally"
-            );
-        }
     }
 
     #[sim_test]
@@ -481,21 +374,19 @@ mod tests {
     fn test_exact_count_blocks_on_nth_tally() {
         let threshold = 5;
         let policy = exact_count(threshold, 60);
-        for round in 0..3u32 {
-            let client = IpAddr::V4(Ipv4Addr::from(0x0A00_0000 + round));
-            for i in 1..threshold {
-                assert_eq!(
-                    policy.charge(&direct_tally(client)).block_client,
-                    None,
-                    "round {round}: blocked early after {i} tallies"
-                );
-            }
+        let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        for i in 1..threshold {
             assert_eq!(
                 policy.charge(&direct_tally(client)).block_client,
-                Some(client),
-                "round {round}: tally {threshold} did not block"
+                None,
+                "blocked early after {i} tallies"
             );
         }
+        assert_eq!(
+            policy.charge(&direct_tally(client)).block_client,
+            Some(client),
+            "tally {threshold} did not block"
+        );
     }
 
     #[test]
@@ -524,12 +415,8 @@ mod tests {
         let policy = freq_threshold(2, 2, 5);
         let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
         for _ in 0..10 {
-            assert_eq!(policy.charge(&direct_tally(client)).block_client, None);
+            policy.charge(&direct_tally(client));
         }
-        assert_eq!(
-            policy.charge(&direct_tally(client)).block_client,
-            Some(client)
-        );
 
         tokio::time::sleep(Duration::from_secs(1)).await;
         // Two cells have replenished, so two more tallies pass.
@@ -566,9 +453,7 @@ mod tests {
         let policy = freq_threshold(1_000, 1_000, 5);
         assert_eq!(policy.client_threshold(), Some(1_000));
 
-        // Accumulate state under the old threshold, so the assertions below
-        // can only pass if reconfiguration discarded it along with the old
-        // limiter.
+        // Accumulate state under the old threshold.
         let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
         for _ in 0..10 {
             assert_eq!(policy.charge(&direct_tally(client)).block_client, None);
@@ -577,7 +462,8 @@ mod tests {
         policy.set_client_threshold(2);
         assert_eq!(policy.client_threshold(), Some(2));
 
-        // The new quota tolerates a fresh burst of 2 * 5.
+        // The new quota tolerates a fresh burst of 2 * 5, so the old state is
+        // gone along with the old limiter.
         for i in 1..=10 {
             assert_eq!(
                 policy.charge(&direct_tally(client)).block_client,
@@ -589,34 +475,35 @@ mod tests {
             policy.charge(&direct_tally(client)).block_client,
             Some(client)
         );
-    }
 
-    #[test]
-    fn test_reconfiguring_to_a_zero_threshold_blocks_every_client() {
-        let policy = freq_threshold(1_000, 1_000, 5);
-        let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
-        assert_eq!(policy.charge(&direct_tally(client)).block_client, None);
-
-        // Zero means block on the first tally (killswitch), same as when it is
-        // configured at startup.
+        // Zero blocks every client, and a permissive threshold restores
+        // service.
         policy.set_client_threshold(0);
         assert_eq!(
             policy.charge(&direct_tally(client)).block_client,
             Some(client)
         );
-
-        // And back to a permissive threshold.
         policy.set_client_threshold(1_000);
         assert_eq!(policy.charge(&direct_tally(client)).block_client, None);
 
-        // The same reconfiguration on an exact-count policy blocks on the
-        // first tally rather than the second.
-        let policy = exact_count(5, 60);
-        policy.set_client_threshold(1);
-        assert_eq!(
-            policy.charge(&direct_tally(client)).block_client,
-            Some(client)
-        );
+        // An exact-count policy below a threshold of two blocks on the first
+        // tally, whether configured at startup or afterwards.
+        for threshold in [0, 1] {
+            assert_eq!(
+                exact_count(threshold, 60)
+                    .charge(&direct_tally(client))
+                    .block_client,
+                Some(client),
+                "threshold {threshold} did not block on the first tally"
+            );
+            let policy = exact_count(5, 60);
+            policy.set_client_threshold(threshold);
+            assert_eq!(
+                policy.charge(&direct_tally(client)).block_client,
+                Some(client),
+                "threshold {threshold} did not block on the first tally after reconfiguration"
+            );
+        }
     }
 
     #[test]
@@ -633,22 +520,6 @@ mod tests {
         assert_eq!(policy.client_threshold(), None);
     }
 
-    #[sim_test]
-    async fn test_idle_cells_are_evicted() {
-        // Sustained 1000/s with a 1 second burst: a cell is guaranteed fully
-        // replenished 1.001 seconds after its last charge, whatever that
-        // charge consumed.
-        let policy = freq_threshold(1_000, 1_000, 1);
-        for i in 0..100u32 {
-            policy.charge(&direct_tally(IpAddr::V4(Ipv4Addr::from(0x0A00_0000 + i))));
-        }
-        assert_eq!(policy.tracked_clients(), 100);
-
-        tokio::time::sleep(Duration::from_millis(1_200)).await;
-        policy.evict_idle();
-        assert_eq!(policy.tracked_clients(), 0);
-    }
-
     #[test]
     fn test_cell_cache_is_bounded() {
         let policy = exact_count(2, 60);
@@ -660,7 +531,6 @@ mod tests {
         for i in 1..=MAX_TRACKED_CLIENTS as u32 {
             policy.charge(&direct_tally(IpAddr::V4(Ipv4Addr::from(0x0A00_0000 + i))));
         }
-        assert_eq!(policy.tracked_clients(), MAX_TRACKED_CLIENTS);
 
         // The evicted client's count was reset along with its cell, so its
         // next tally counts as its first again; a still-cached client keeps
