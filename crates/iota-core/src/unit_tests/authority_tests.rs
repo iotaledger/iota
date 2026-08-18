@@ -29,18 +29,19 @@ use iota_sdk_types::{
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, StructTag, Transaction, TransactionDigest,
-    TransactionEffects, TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version,
-    VersionAssignment, crypto::SimpleSignature,
+    TransactionEffects, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
+    TransactionV1, TypeTag, Version, VersionAssignment,
+    crypto::{Intent, IntentScope, SimpleSignature},
 };
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, IotaSignature, get_key_pair,
-        random_committee_key_pairs_of_size,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, AuthoritySignInfo, IotaSignature,
+        get_key_pair, random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
-    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExt},
     epoch_data::EpochData,
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
@@ -4878,9 +4879,9 @@ async fn prepare_authority_and_shared_object_cert()
 
     let shared_object_id = ObjectId::random();
     let shared_object = {
-        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-        let owner = Owner::Shared(obj.version());
-        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let owner = Owner::Shared(move_struct.version());
+        Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
 
@@ -4978,9 +4979,9 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
     let gas_objects = create_gas_objects(2, sender);
     let shared_object_id = ObjectId::random();
     let shared_object = {
-        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-        let owner = Owner::Shared(obj.version());
-        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let owner = Owner::Shared(move_struct.version());
+        Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
     let (authority_state, package_object_ref) = init_state_with_objects_and_object_basics(
@@ -5114,9 +5115,9 @@ async fn test_consensus_message_processed() {
 
     let shared_object_id = ObjectId::random();
     let shared_object = {
-        let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-        let owner = Owner::Shared(obj.version());
-        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+        let owner = Owner::Shared(move_struct.version());
+        Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
     };
     let initial_shared_version = shared_object.version();
 
@@ -6477,9 +6478,9 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
     for _ in 0..num {
         let shared_object_id = ObjectId::random();
         let shared_object = {
-            let obj = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
-            let owner = Owner::Shared(obj.version());
-            Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
+            let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, shared_object_id, 10);
+            let owner = Owner::Shared(move_struct.version());
+            Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
         };
         objects.push(shared_object);
     }
@@ -8195,4 +8196,93 @@ fn rules_denying(
         denied_addresses: [address].into(),
         ..Default::default()
     }
+}
+
+#[tokio::test]
+async fn test_effects_equivocation_prevented_at_signing_not_execution() {
+    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let recipient = dbg_addr(2);
+    let object_id = ObjectId::random();
+    let gas_object_id = ObjectId::random();
+    let authority_state =
+        init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
+    let rgp = authority_state.reference_gas_price_for_testing().unwrap();
+    let object = authority_state.get_object(&object_id).unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
+
+    let transfer_transaction = init_transfer_transaction(
+        &authority_state,
+        sender,
+        &sender_key,
+        recipient,
+        object.object_ref(),
+        gas_object.object_ref(),
+        rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        rgp,
+    );
+
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+        transfer_transaction,
+        epoch_store.epoch(),
+        1,
+    );
+    let tx_digest = *executable.digest();
+
+    // Simulate having previously signed different effects for this transaction, as
+    // could happen if a divergent re-execution occurs after signed effects were
+    // returned to a client but before the transaction was committed to a
+    // checkpoint.
+    let previously_signed_digest = TransactionEffectsDigest::random();
+    let previously_signed_sig = AuthoritySignInfo::new(
+        epoch_store.epoch(),
+        &TestEffectsBuilder::new(executable.data()).build(),
+        Intent::iota_app(IntentScope::TransactionEffects),
+        authority_state.name,
+        &*authority_state.secret,
+    );
+    epoch_store
+        .insert_effects_digest_and_signature(
+            &tx_digest,
+            &previously_signed_digest,
+            &previously_signed_sig,
+        )
+        .unwrap();
+
+    // Execution must not consult previously signed effects: it succeeds even
+    // though the resulting effects differ from the previously signed digest.
+    let (effects, execution_error) = authority_state
+        .try_execute_immediately(&executable, None, &epoch_store)
+        .unwrap();
+    assert!(execution_error.is_none());
+    assert_ne!(effects.digest(), previously_signed_digest);
+
+    // Signing must refuse to contradict the previously signed effects.
+    let err = authority_state
+        .get_signed_effects_and_maybe_resign(&tx_digest, &epoch_store)
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        IotaError::GenericAuthority { ref error }
+            if error.contains("differs from previously signed effects digest")
+    ));
+
+    // Recording a conflicting digest for the same transaction is rejected.
+    let err = epoch_store
+        .insert_effects_digest_and_signature(&tx_digest, &effects.digest(), &previously_signed_sig)
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        IotaError::GenericAuthority { ref error }
+            if error.contains("differs from previously signed effects digest")
+    ));
+
+    // Re-recording the same digest remains idempotent.
+    epoch_store
+        .insert_effects_digest_and_signature(
+            &tx_digest,
+            &previously_signed_digest,
+            &previously_signed_sig,
+        )
+        .unwrap();
 }

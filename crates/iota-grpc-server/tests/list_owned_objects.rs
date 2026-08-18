@@ -40,7 +40,7 @@ use tonic::transport::Channel;
 /// Create a gas-coin `Object` owned by `owner` with the given `object_id`.
 fn make_gas_coin(owner: Address, object_id: ObjectId, balance: u64) -> Object {
     let contents = GasCoin::new(object_id, balance).to_bcs_bytes();
-    let move_obj = MoveStruct::new_from_execution_with_limit(
+    let move_struct = MoveStruct::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
@@ -48,7 +48,7 @@ fn make_gas_coin(owner: Address, object_id: ObjectId, balance: u64) -> Object {
     )
     .unwrap();
     Object::new_move(
-        move_obj,
+        move_struct,
         Owner::Address(owner),
         TransactionDigest::GENESIS_MARKER,
     )
@@ -63,7 +63,7 @@ fn make_large_gas_coin(
 ) -> Object {
     let mut contents = GasCoin::new(object_id, balance).to_bcs_bytes();
     contents.extend(vec![0u8; padding]);
-    let move_obj = MoveStruct::new_from_execution_with_limit(
+    let move_struct = MoveStruct::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
@@ -71,7 +71,7 @@ fn make_large_gas_coin(
     )
     .unwrap();
     Object::new_move(
-        move_obj,
+        move_struct,
         Owner::Address(owner),
         TransactionDigest::GENESIS_MARKER,
     )

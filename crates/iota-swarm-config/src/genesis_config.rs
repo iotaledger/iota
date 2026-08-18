@@ -13,6 +13,7 @@ use iota_config::{
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
 use iota_genesis_builder::validator_info::{GenesisValidatorInfo, ValidatorInfo};
+use iota_multiaddr::Multiaddr;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
@@ -22,7 +23,6 @@ use iota_types::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
         NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
     },
-    multiaddr::Multiaddr,
 };
 use rand::{SeedableRng, rngs::StdRng};
 use serde::{Deserialize, Serialize};
@@ -112,6 +112,7 @@ pub struct ValidatorGenesisConfigBuilder {
     /// Whether to use a specific p2p listen ip address. This is useful for
     /// testing on AWS.
     p2p_listen_ip_address: Option<IpAddr>,
+    metrics_ip_address: Option<IpAddr>,
 }
 
 impl ValidatorGenesisConfigBuilder {
@@ -149,6 +150,14 @@ impl ValidatorGenesisConfigBuilder {
         self
     }
 
+    /// Bind the metrics endpoint to `metrics_ip_address`. Without this, it
+    /// binds all interfaces when the ports are deterministic, so that a
+    /// testbed can scrape it, and localhost otherwise.
+    pub fn with_metrics_ip_address(mut self, metrics_ip_address: IpAddr) -> Self {
+        self.metrics_ip_address = Some(metrics_ip_address);
+        self
+    }
+
     pub fn build<R: rand::RngCore + rand::CryptoRng>(self, rng: &mut R) -> ValidatorGenesisConfig {
         let ip = self.ip.unwrap_or_else(local_ip_utils::get_new_ip);
         let localhost = local_ip_utils::localhost_for_testing();
@@ -164,6 +173,8 @@ impl ValidatorGenesisConfigBuilder {
         let (protocol_key_pair, network_key_pair): (NetworkKeyPair, NetworkKeyPair) =
             (get_key_pair_from_rng(rng).1, get_key_pair_from_rng(rng).1);
 
+        let metrics_ip = self.metrics_ip_address.map(|ip| ip.to_string());
+
         let (
             network_address,
             p2p_address,
@@ -174,8 +185,16 @@ impl ValidatorGenesisConfigBuilder {
             (
                 local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset),
                 local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 1),
-                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 2)
-                    .with_zero_ip(),
+                match &metrics_ip {
+                    Some(metrics_ip) => local_ip_utils::new_deterministic_tcp_address_for_testing(
+                        metrics_ip,
+                        offset + 2,
+                    ),
+                    None => {
+                        local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 2)
+                            .with_zero_ip()
+                    }
+                },
                 local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 3),
                 local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 4),
             )
@@ -183,7 +202,9 @@ impl ValidatorGenesisConfigBuilder {
             (
                 local_ip_utils::new_tcp_address_for_testing(&ip),
                 local_ip_utils::new_udp_address_for_testing(&ip),
-                local_ip_utils::new_tcp_address_for_testing(&localhost),
+                local_ip_utils::new_tcp_address_for_testing(
+                    metrics_ip.as_deref().unwrap_or(&localhost),
+                ),
                 local_ip_utils::new_udp_address_for_testing(&ip),
                 local_ip_utils::new_tcp_address_for_testing(&localhost),
             )
@@ -481,5 +502,48 @@ impl GenesisConfig {
             gas_amounts: vec![DEFAULT_GAS_AMOUNT; DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT],
         });
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::Ipv4Addr;
+
+    use rand::rngs::OsRng;
+
+    use super::ValidatorGenesisConfigBuilder;
+
+    #[test]
+    fn deterministic_ports_fill_the_five_slots_of_a_validator() {
+        let config = ValidatorGenesisConfigBuilder::new()
+            .with_ip("127.0.0.1".to_owned())
+            .with_deterministic_ports(9200)
+            .with_metrics_ip_address(Ipv4Addr::LOCALHOST.into())
+            .build(&mut OsRng);
+
+        assert_eq!(
+            config.network_address.to_string(),
+            "/ip4/127.0.0.1/tcp/9200/http"
+        );
+        assert_eq!(
+            config.p2p_address.to_string(),
+            "/ip4/127.0.0.1/udp/9201/http"
+        );
+        assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9202");
+        assert_eq!(
+            config.primary_address.to_string(),
+            "/ip4/127.0.0.1/udp/9203/http"
+        );
+        assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:9204");
+    }
+
+    #[test]
+    fn the_metrics_endpoint_binds_all_interfaces_unless_an_ip_is_given() {
+        let config = ValidatorGenesisConfigBuilder::new()
+            .with_ip("127.0.0.1".to_owned())
+            .with_deterministic_ports(9200)
+            .build(&mut OsRng);
+
+        assert_eq!(config.metrics_address.to_string(), "0.0.0.0:9202");
     }
 }

@@ -1,17 +1,19 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Minimal wasm-compatible stand-in for `iota_network_stack::multiaddr`.
+//! Minimal wasm-compatible stand-in for the native `Multiaddr`.
 //!
-//! On wasm32 the real `iota-network-stack` crate doesn't compile (it pulls in
-//! the full networking stack — tonic, anemo, axum). For execution we don't
-//! need any of the network functionality on `Multiaddr`; we only need:
+//! The native implementation doesn't compile for wasm32: it needs `anemo` for
+//! `to_anemo_address`, and the address parsing helpers are only useful to a
+//! node. For execution we don't need any of that on `Multiaddr`; we only need:
 //!
 //! - struct fields on validator metadata types to type-check
 //! - BCS / serde round-trip compatible with the wire format
 //!
-//! The on-chain serialization is just a UTF-8 string (see
-//! `iota-network-stack/src/multiaddr.rs`), so this stub matches that.
+//! The on-chain serialization is just a UTF-8 string (see `native.rs`), so this
+//! stand-in matches that. It does not validate the string on deserialization,
+//! where the native implementation parses it; on wasm we are inspecting
+//! already-on-chain state, which the Move verifier gated at validator creation.
 
 use std::fmt;
 

@@ -4,6 +4,7 @@
 use std::{collections::BTreeMap, net::SocketAddr, time::Duration};
 
 use anyhow::anyhow;
+use iota_multiaddr::Multiaddr;
 use iota_network::api::{ValidatorClient, ValidatorPeerClient, ValidatorV2Client};
 use iota_network_stack::config::Config;
 use iota_types::{
@@ -11,7 +12,6 @@ use iota_types::{
     committee::CommitteeWithNetworkMetadata,
     crypto::NetworkPublicKey,
     error::{IotaError, IotaResult},
-    multiaddr::Multiaddr,
 };
 use tap::TapFallible;
 

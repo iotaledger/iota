@@ -9,10 +9,11 @@ use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
 use iota_metrics::hardware_metrics::register_hardware_metrics;
+use iota_multiaddr::Multiaddr;
 use iota_node::{IotaNode, ServerVersion};
 use iota_types::{
     committee::EpochId, crypto::KeypairTraits, messages_checkpoint::CheckpointSequenceNumber,
-    multiaddr::Multiaddr, supported_protocol_versions::SupportedProtocolVersions,
+    supported_protocol_versions::SupportedProtocolVersions,
 };
 #[cfg(all(feature = "flamegraph-alloc", nightly))]
 use telemetry_subscribers::flamegraph::CounterAlloc;
