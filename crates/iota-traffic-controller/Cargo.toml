@@ -29,6 +29,8 @@ prometheus-filtered.workspace = true
 
 [dev-dependencies]
 iota-macros.workspace = true
+
+[target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true
 
 [lints]
