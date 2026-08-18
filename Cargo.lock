@@ -5812,7 +5812,6 @@ dependencies = [
  "arc-swap",
  "async-trait",
  "bcs",
- "bincode",
  "bytes",
  "clap",
  "criterion",
