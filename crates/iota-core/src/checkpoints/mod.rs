@@ -1005,18 +1005,35 @@ impl CheckpointStore {
         self.tables.epoch_last_checkpoint_map.get(&epoch_id)
     }
 
-    /// Sequence number of `epoch_id`'s first checkpoint: one past the last
-    /// checkpoint of the epoch before it. `0` for epoch `0`, and for an epoch
-    /// whose predecessor has no recorded last checkpoint.
-    pub fn get_epoch_first_checkpoint_seq_number(
+    /// The lowest checkpoint whose superseded object versions this node still
+    /// holds, given the epoch of the oldest historic-object bucket it holds
+    /// (`None` when it holds no bucket at all).
+    ///
+    /// Those versions are retained per epoch, so the answer is that epoch's
+    /// first checkpoint — one past the last checkpoint of the epoch before it.
+    ///
+    /// When that cannot be placed, the answer is one past the highest executed
+    /// checkpoint, claiming nothing rather than the full history. Two cases
+    /// reach it: no bucket at all, and an epoch whose predecessor has no
+    /// recorded last checkpoint. `epoch_last_checkpoint_map` is written by the
+    /// checkpoint executor as it executes an epoch's last checkpoint, so a node
+    /// restored from a formal snapshot has no entry for any epoch before its
+    /// restore point, and reports availability only from the first epoch
+    /// boundary it executes itself.
+    pub fn lowest_checkpoint_with_retained_objects(
         &self,
-        epoch_id: EpochId,
+        earliest_bucket_epoch: Option<EpochId>,
     ) -> Result<CheckpointSequenceNumber, TypedStoreError> {
-        let Some(previous_epoch) = epoch_id.checked_sub(1) else {
-            return Ok(0);
-        };
+        if let Some(epoch) = earliest_bucket_epoch {
+            let Some(previous_epoch) = epoch.checked_sub(1) else {
+                return Ok(0);
+            };
+            if let Some(seq) = self.get_epoch_last_checkpoint_seq_number(previous_epoch)? {
+                return Ok(seq + 1);
+            }
+        }
         Ok(self
-            .get_epoch_last_checkpoint_seq_number(previous_epoch)?
+            .get_highest_executed_checkpoint_seq_number()?
             .map(|seq| seq + 1)
             .unwrap_or(0))
     }

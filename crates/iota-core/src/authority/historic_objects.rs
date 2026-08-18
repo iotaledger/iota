@@ -49,10 +49,16 @@ const HISTORIC_OBJECTS_CF_PREFIX: &str = "hist_obj_e";
 const DB_PREFIX_HISTORIC_OBJECTS: u8 = 0;
 
 /// Tag of the tombstone-head table inside a bucket's column family.
-const DB_PREFIX_HISTORIC_TOMBSTONES: u8 = 1;
+pub(super) const DB_PREFIX_HISTORIC_TOMBSTONES: u8 = 1;
 
 /// Tag of the expiring marker inside a bucket's column family.
 const DB_PREFIX_HISTORIC_EXPIRING: u8 = 2;
+
+/// Tombstone heads deleted from the live `objects` table per write batch when
+/// a bucket expires. An epoch can hold millions of them, so they are streamed
+/// out in batches of this size rather than gathered into one; the whole epoch
+/// is still deleted before the bucket's column family is dropped.
+const TOMBSTONE_DELETE_BATCH_SIZE: usize = 10_000;
 
 /// Column family holding the earliest-retained-epoch marker
 /// [`EpochBuckets`] persists on a prune. It is empty until the first prune,
@@ -286,11 +292,15 @@ impl HistoricObjects {
         Ok(Self { buckets, objects })
     }
 
-    /// The earliest epoch whose relocated versions are still retained.
-    /// Buckets below it are gone and are never recreated, so an object
-    /// version superseded before this epoch is no longer readable anywhere.
-    pub fn earliest_retained_epoch(&self) -> EpochId {
-        self.buckets.earliest_retained()
+    /// The oldest epoch this store still holds a bucket for, `None` when it
+    /// holds none at all. No object version superseded before this epoch is
+    /// readable any more.
+    ///
+    /// This is what the store holds, not what its retention would keep: a node
+    /// restored from a formal snapshot starts with no bucket at all, whatever
+    /// the retention says.
+    pub fn earliest_bucket_epoch(&self) -> Option<EpochId> {
+        self.buckets.earliest_epoch()
     }
 
     /// The bucket holding `epoch`'s relocated versions, created if absent.
@@ -394,7 +404,9 @@ impl HistoricObjects {
     /// [`Self::readable_buckets`] tells its callers how to close.
     ///
     /// Safe to run again on the same bucket: the marker is rewritten as it
-    /// was and a tombstone head already deleted is deleted again.
+    /// was and a tombstone head already deleted is deleted again. That also
+    /// covers a run that failed part-way through the deletion, since the heads
+    /// stay in the bucket and are read again from there.
     fn expire_bucket(
         objects: &DBMap<ObjectKey, StoreObjectWrapper>,
         epoch: EpochId,
@@ -402,20 +414,29 @@ impl HistoricObjects {
     ) -> Result<(), TypedStoreError> {
         bucket.mark_expiring()?;
 
-        let heads: Vec<ObjectKey> = bucket
-            .tombstones
-            .safe_iter()
-            .map(|row| row.map(|(key, ())| key))
-            .collect::<Result<_, _>>()?;
-        info!(
-            epoch,
-            tombstones = heads.len(),
-            "expiring a historic bucket"
-        );
+        let delete = |heads: Vec<ObjectKey>| -> Result<(), TypedStoreError> {
+            let mut batch = objects.batch();
+            batch.delete_batch(objects, heads)?;
+            batch.write()
+        };
 
-        let mut batch = objects.batch();
-        batch.delete_batch(objects, heads)?;
-        batch.write()?;
+        let mut deleted = 0;
+        let mut heads = Vec::with_capacity(TOMBSTONE_DELETE_BATCH_SIZE);
+        for row in bucket.tombstones.safe_iter() {
+            let (key, ()) = row?;
+            heads.push(key);
+            if heads.len() == TOMBSTONE_DELETE_BATCH_SIZE {
+                deleted += heads.len();
+                delete(std::mem::replace(
+                    &mut heads,
+                    Vec::with_capacity(TOMBSTONE_DELETE_BATCH_SIZE),
+                ))?;
+            }
+        }
+        deleted += heads.len();
+        delete(heads)?;
+
+        info!(epoch, tombstones = deleted, "expired a historic bucket");
         Ok(())
     }
 

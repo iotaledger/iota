@@ -99,12 +99,9 @@ impl CheckpointProgressTracker {
                     .ok()
                     .flatten()
                     .unwrap_or(0);
-                // Superseded object versions are retained per epoch, so the
-                // oldest checkpoint they still cover is the first one of the
-                // earliest retained epoch.
                 let objects_retained_from = checkpoint_store
-                    .get_epoch_first_checkpoint_seq_number(
-                        historic_objects.earliest_retained_epoch(),
+                    .lowest_checkpoint_with_retained_objects(
+                        historic_objects.earliest_bucket_epoch(),
                     )
                     .unwrap_or(0);
                 let checkpoint_pruned_seq_number = checkpoint_store
