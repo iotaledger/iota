@@ -1296,17 +1296,25 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// The newest version of `object_id` at or below `version`: the live
-    /// `objects` table first, the historic buckets after a miss there.
+    /// The newest version of `object_id` at or below `version`, taken from the
+    /// live `objects` table and the historic buckets together: whichever of
+    /// the two answers is the newer one wins.
+    ///
+    /// Both are asked every time, because either can hold the newer row. A
+    /// version superseded before this build was written still sits in the live
+    /// table below versions that have since been relocated, and a tombstone
+    /// left below a newer version by an unwrap stays there for good. Taking
+    /// the live answer whenever there is one would return those rows in place
+    /// of a newer relocated version.
     ///
     /// `None` covers both an object deleted or wrapped at or below the bound
-    /// and an object with no version in range at all. The two are told apart
-    /// on the way, and only the second one reaches the buckets: a tombstone in
-    /// range is the answer, and serving a relocated version from underneath it
-    /// would hand back a deleted object.
+    /// and an object with no version in range at all. A live tombstone newer
+    /// than anything the buckets hold in range is still the answer, and a
+    /// relocated version from underneath it is never served in its place, so a
+    /// deleted object stays deleted.
     ///
-    /// Reading the live table first is also what keeps a concurrent bucket
-    /// expiry from being observed out of order, as
+    /// Reading the live table first is required, and is what keeps a
+    /// concurrent bucket expiry from being observed out of order, as
     /// `HistoricObjects::readable_buckets` explains: either the live read runs
     /// before the expiry deletes the tombstone head and finds the tombstone,
     /// or the bucket is out of the map by the time the buckets are asked.
@@ -1332,14 +1340,18 @@ impl AuthorityStore {
         object_id: ObjectId,
         version: Version,
     ) -> IotaResult<Option<Object>> {
-        match self
+        let live = self
             .perpetual_tables
-            .find_object_lt_or_eq_version(object_id, version)?
-        {
-            Some((key, row)) => self.perpetual_tables.object(&key, row),
-            None => self
-                .historic_objects
-                .find_lt_or_eq_version(object_id, version),
+            .find_object_lt_or_eq_version(object_id, version)?;
+        let relocated = self
+            .historic_objects
+            .find_lt_or_eq_version(object_id, version)?;
+        match live {
+            Some((key, row)) => match relocated {
+                Some(object) if key.1 < object.version() => Ok(Some(object)),
+                _ => self.perpetual_tables.object(&key, row),
+            },
+            None => Ok(relocated),
         }
     }
 
