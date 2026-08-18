@@ -16,7 +16,6 @@ anyhow = { workspace = true, features = ["backtrace"] }
 arc-swap.workspace = true
 async-trait.workspace = true
 bcs.workspace = true
-bincode.workspace = true
 bytes.workspace = true
 dashmap.workspace = true
 diffy = "0.3"
