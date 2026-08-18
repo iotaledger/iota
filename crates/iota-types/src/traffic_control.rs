@@ -296,6 +296,7 @@ impl PolicyConfig {
                 window_size_secs: 5,
                 ..FreqThresholdConfig::default()
             }),
+            connection_blocklist_ttl_sec: default_connection_blocklist_ttl_sec(),
             spam_sample_rate: Weight::new(1.0).unwrap(),
             dry_run: true,
             ..Self::default()

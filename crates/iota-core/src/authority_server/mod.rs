@@ -175,24 +175,10 @@ impl ValidatorService {
         }
     }
 
-    fn extract_client_ip_and_request<DomainReq, ProtoReq>(
-        &self,
-        request: tonic::Request<ProtoReq>,
-    ) -> Result<(DomainReq, Option<IpAddr>), tonic::Status>
-    where
-        ProtoReq: TryInto<DomainReq>,
-        ProtoReq::Error: std::fmt::Display,
-    {
-        let ip = self
-            .client_id_source
+    fn extract_client_ip<ProtoReq>(&self, request: &tonic::Request<ProtoReq>) -> Option<IpAddr> {
+        self.client_id_source
             .as_ref()
-            .and_then(|source| self.get_client_ip_addr(&request, source));
-        // TODO(#11095): move deserialization off the critical path (spawn_blocking).
-        let domain_req = request
-            .into_inner()
-            .try_into()
-            .map_err(|e| tonic::Status::internal(format!("request conversion failed: {e}")))?;
-        Ok((domain_req, ip))
+            .and_then(|source| self.get_client_ip_addr(request, source))
     }
 
     fn tally_traffic<T>(
@@ -223,8 +209,13 @@ impl ValidatorService {
         ProtoReq: TryInto<DomainReq>,
         ProtoReq::Error: std::fmt::Display,
     {
-        let (domain_req, ip) = self.extract_client_ip_and_request(request)?;
+        let ip = self.extract_client_ip(&request);
         self.check_traffic(ip)?;
+        // TODO(#11095): move deserialization off the critical path (spawn_blocking).
+        let domain_req = request
+            .into_inner()
+            .try_into()
+            .map_err(|e| tonic::Status::internal(format!("request conversion failed: {e}")))?;
         Ok((domain_req, ip))
     }
 
