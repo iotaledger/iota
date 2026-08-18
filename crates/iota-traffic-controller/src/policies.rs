@@ -230,6 +230,10 @@ impl RateLimitPolicy {
     }
 
     fn set_direct_threshold(&self, threshold: u64) {
+        // Re-asserting the current threshold keeps every client's state.
+        if self.direct.load().threshold == threshold {
+            return;
+        }
         self.direct
             .store(Arc::new(DirectLimiter::new(self.quota_kind, threshold)));
     }
@@ -301,7 +305,7 @@ impl TrafficControlPolicy {
     }
 
     /// Replaces the direct-client threshold, discarding every tracked client's
-    /// limiter state.
+    /// limiter state; re-asserting the current threshold keeps it.
     pub(super) fn set_client_threshold(&self, threshold: u64) {
         if let Policy::Limit(policy) = &self.0 {
             policy.set_direct_threshold(threshold);
@@ -477,6 +481,13 @@ mod tests {
                 "blocked early after {i} tallies"
             );
         }
+        assert_eq!(
+            policy.charge(&direct_tally(client)).block_client,
+            Some(client)
+        );
+
+        // Re-asserting the same threshold keeps the exhausted state.
+        policy.set_client_threshold(2);
         assert_eq!(
             policy.charge(&direct_tally(client)).block_client,
             Some(client)
