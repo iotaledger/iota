@@ -16,6 +16,7 @@ pub struct TrafficControllerMetrics {
     pub blocks_delegated_to_firewall: IntCounter,
     pub firewall_delegation_request_fail: IntCounter,
     pub firewall_delegation_overflow: IntCounter,
+    pub rate_limiter_evictions: IntCounter,
     pub num_dry_run_blocked_requests: IntCounter,
     pub tally_handled: IntCounter,
     pub error_tally_handled: IntCounter,
@@ -72,6 +73,13 @@ impl TrafficControllerMetrics {
             firewall_delegation_overflow: register_int_counter_with_registry!(
                 "firewall_delegation_overflow",
                 "Number of blocks applied locally because the firewall delegation queue was full",
+                registry
+            )
+            .unwrap(),
+            rate_limiter_evictions: register_int_counter_with_registry!(
+                "rate_limiter_evictions",
+                "Number of per-client rate-limiter states evicted because an LRU \
+                    cache reached its capacity",
                 registry
             )
             .unwrap(),

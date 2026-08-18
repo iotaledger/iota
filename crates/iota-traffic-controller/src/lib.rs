@@ -385,10 +385,12 @@ fn spawn_tally_state(
     let spam_policy = Arc::new(TrafficControlPolicy::from_policy_type(
         &policy_config.spam_policy_type,
         policy_config.connection_blocklist_ttl_sec,
+        metrics.rate_limiter_evictions.clone(),
     ));
     let error_policy = Arc::new(TrafficControlPolicy::from_policy_type(
         &policy_config.error_policy_type,
         policy_config.connection_blocklist_ttl_sec,
+        metrics.rate_limiter_evictions.clone(),
     ));
     let drainfile_present = Arc::new(AtomicBool::new(false));
     let shutdown = CancellationToken::new();

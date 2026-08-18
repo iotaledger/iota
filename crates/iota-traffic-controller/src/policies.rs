@@ -24,6 +24,7 @@ use iota_common::fatal;
 use iota_types::traffic_control::{FreqThresholdConfig, PolicyType, Weight};
 use lru::LruCache;
 use parking_lot::Mutex;
+use prometheus_filtered::IntCounter;
 use tracing::warn;
 
 /// Reset period for the exact-count test policies when the blocklist TTL is
@@ -124,7 +125,7 @@ enum QuotaKind {
 }
 
 impl QuotaKind {
-    fn limiter(&self, threshold: u64) -> Limiter {
+    fn limiter(&self, threshold: u64, evictions: &IntCounter) -> Limiter {
         let quota = match self {
             Self::Sustained { window_size_secs } if threshold >= 1 => {
                 sustained_quota(threshold, *window_size_secs)
@@ -135,7 +136,7 @@ impl QuotaKind {
             // Too low for any burst quota: block on the first tally.
             _ => return Limiter::BlockAll,
         };
-        Limiter::Cells(ClientCells::new(quota))
+        Limiter::Cells(ClientCells::new(quota, evictions.clone()))
     }
 }
 
@@ -159,26 +160,34 @@ impl Limiter {
 struct ClientCells {
     quota: Quota,
     cells: Mutex<LruCache<IpAddr, ClientRateLimiter>>,
+    evictions: IntCounter,
 }
 
 impl ClientCells {
-    fn new(quota: Quota) -> Self {
+    fn new(quota: Quota, evictions: IntCounter) -> Self {
         Self {
             quota,
             cells: Mutex::new(LruCache::new(
                 NonZeroUsize::new(MAX_TRACKED_CLIENTS).expect("capacity is non-zero"),
             )),
+            evictions,
         }
     }
 
     fn breaches(&self, client: IpAddr) -> bool {
         let mut cells = self.cells.lock();
-        cells
-            .get_or_insert_mut(client, || {
-                RateLimiter::direct_with_clock(self.quota, &MonotonicClock)
-            })
-            .check()
-            .is_err()
+        if let Some(cell) = cells.get_mut(&client) {
+            return cell.check().is_err();
+        }
+        let cell = RateLimiter::direct_with_clock(self.quota, &MonotonicClock);
+        let breached = cell.check().is_err();
+        // `push` returns the entry it displaced; at capacity that is another
+        // client's state, which counts as an eviction.
+        if let Some((evicted, _)) = cells.push(client, cell) {
+            debug_assert_ne!(evicted, client);
+            self.evictions.inc();
+        }
+        breached
     }
 }
 
@@ -190,10 +199,10 @@ struct DirectLimiter {
 }
 
 impl DirectLimiter {
-    fn new(quota_kind: QuotaKind, threshold: u64) -> Self {
+    fn new(quota_kind: QuotaKind, threshold: u64, evictions: &IntCounter) -> Self {
         Self {
             threshold,
-            limiter: quota_kind.limiter(threshold),
+            limiter: quota_kind.limiter(threshold, evictions),
         }
     }
 }
@@ -204,14 +213,25 @@ struct RateLimitPolicy {
     quota_kind: QuotaKind,
     direct: ArcSwap<DirectLimiter>,
     proxied: Option<Limiter>,
+    evictions: IntCounter,
 }
 
 impl RateLimitPolicy {
-    fn new(quota_kind: QuotaKind, direct_threshold: u64, proxied_threshold: Option<u64>) -> Self {
+    fn new(
+        quota_kind: QuotaKind,
+        direct_threshold: u64,
+        proxied_threshold: Option<u64>,
+        evictions: IntCounter,
+    ) -> Self {
         Self {
-            direct: ArcSwap::from_pointee(DirectLimiter::new(quota_kind, direct_threshold)),
-            proxied: proxied_threshold.map(|threshold| quota_kind.limiter(threshold)),
+            direct: ArcSwap::from_pointee(DirectLimiter::new(
+                quota_kind,
+                direct_threshold,
+                &evictions,
+            )),
+            proxied: proxied_threshold.map(|threshold| quota_kind.limiter(threshold, &evictions)),
             quota_kind,
+            evictions,
         }
     }
 
@@ -234,8 +254,11 @@ impl RateLimitPolicy {
         if self.direct.load().threshold == threshold {
             return;
         }
-        self.direct
-            .store(Arc::new(DirectLimiter::new(self.quota_kind, threshold)));
+        self.direct.store(Arc::new(DirectLimiter::new(
+            self.quota_kind,
+            threshold,
+            &self.evictions,
+        )));
     }
 }
 
@@ -252,6 +275,7 @@ impl TrafficControlPolicy {
     pub(super) fn from_policy_type(
         policy_type: &PolicyType,
         connection_blocklist_ttl_sec: u64,
+        evictions: IntCounter,
     ) -> Self {
         Self(match policy_type {
             PolicyType::NoOp => Policy::NoOp,
@@ -272,6 +296,7 @@ impl TrafficControlPolicy {
                         *proxied_client_threshold,
                         "proxied-client-threshold",
                     )),
+                    evictions,
                 ))
             }
             // The exact-count test policy only ever blocks the direct client.
@@ -281,6 +306,7 @@ impl TrafficControlPolicy {
                 },
                 *threshold,
                 None,
+                evictions,
             )),
             PolicyType::TestPanicOnInvocation => Policy::PanicOnInvocation,
         })
@@ -325,6 +351,11 @@ mod tests {
         TrafficTally::new(Some(client), None, None, Weight::one())
     }
 
+    fn evictions() -> IntCounter {
+        IntCounter::new("rate_limiter_evictions", "Number of evicted client states")
+            .expect("valid metric")
+    }
+
     fn freq_threshold(
         client_threshold: u64,
         proxied_client_threshold: u64,
@@ -337,6 +368,7 @@ mod tests {
                 window_size_secs,
             }),
             0,
+            evictions(),
         )
     }
 
@@ -344,6 +376,7 @@ mod tests {
         TrafficControlPolicy::from_policy_type(
             &PolicyType::TestNConnIP(threshold),
             connection_blocklist_ttl_sec,
+            evictions(),
         )
     }
 
@@ -531,7 +564,7 @@ mod tests {
 
     #[test]
     fn test_non_limiting_policies_ignore_threshold_updates() {
-        let policy = TrafficControlPolicy::from_policy_type(&PolicyType::NoOp, 0);
+        let policy = TrafficControlPolicy::from_policy_type(&PolicyType::NoOp, 0, evictions());
         assert_eq!(policy.client_threshold(), None);
         policy.set_client_threshold(10);
         assert_eq!(policy.client_threshold(), None);
@@ -539,24 +572,40 @@ mod tests {
 
     #[test]
     fn test_cell_cache_is_bounded() {
-        let policy = exact_count(2, 60);
+        let evictions = evictions();
+        let policy = TrafficControlPolicy::from_policy_type(
+            &PolicyType::TestNConnIP(2),
+            60,
+            evictions.clone(),
+        );
         let evicted = IpAddr::V4(Ipv4Addr::from(0x0A00_0000));
         assert_eq!(policy.charge(&direct_tally(evicted)).block_client, None);
 
-        // Flood enough distinct clients to fill the cache and push the first
-        // one out.
-        for i in 1..=MAX_TRACKED_CLIENTS as u32 {
+        // Flood enough distinct clients to fill the cache exactly.
+        for i in 1..MAX_TRACKED_CLIENTS as u32 {
             policy.charge(&direct_tally(IpAddr::V4(Ipv4Addr::from(0x0A00_0000 + i))));
         }
+        assert_eq!(evictions.get(), 0);
+
+        // One client past capacity pushes the first one out.
+        let cached = IpAddr::V4(Ipv4Addr::from(0x0A00_0000 + MAX_TRACKED_CLIENTS as u32));
+        policy.charge(&direct_tally(cached));
+        assert_eq!(evictions.get(), 1);
 
         // The evicted client's count was reset along with its cell, so its
         // next tally counts as its first again; a still-cached client keeps
         // its count and blocks on its second.
         assert_eq!(policy.charge(&direct_tally(evicted)).block_client, None);
-        let cached = IpAddr::V4(Ipv4Addr::from(0x0A00_0000 + MAX_TRACKED_CLIENTS as u32));
         assert_eq!(
             policy.charge(&direct_tally(cached)).block_client,
             Some(cached)
         );
+        // Re-admitting the evicted client displaced another; the cached one
+        // displaced nothing.
+        assert_eq!(evictions.get(), 2);
+
+        // The counter outlives the limiter that a threshold change rebuilds.
+        policy.set_client_threshold(3);
+        assert_eq!(evictions.get(), 2);
     }
 }
