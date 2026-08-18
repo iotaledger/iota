@@ -230,12 +230,11 @@ impl PgPartitionManager {
                 table, last_partition, data.next_epoch, next_epoch_start
             );
         } else if last_partition != data.next_epoch {
-            // skip when the partition is already advanced once, which is possible when
-            // indexer crashes and restarts; error otherwise.
-            error!(
-                "Epoch partition for table {table} is not in sync with the last epoch {}.",
+            let emsg = format!(
+                "Advancing to epoch {} failed. Corrupted partitions for table {table}",
                 data.last_epoch
             );
+            return Err(IndexerError::PostgresWrite(emsg));
         } else {
             info!(
                 "Epoch has been advanced to {} already, skipping.",
