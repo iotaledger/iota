@@ -30,10 +30,7 @@ use iota_core::{
     authority::{
         AuthorityState, AuthorityStore, ExecutionEnv, RandomnessRoundReceiver,
         authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_pruner::ObjectsCompactionFilter,
-        authority_store_tables::{
-            AuthorityPerpetualTables, AuthorityPerpetualTablesOptions, AuthorityPrunerTables,
-        },
+        authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
         shared_object_version_manager::Schedulable,
@@ -451,21 +448,9 @@ impl IotaNode {
             None,
         ));
 
-        let compaction_filter = config
-            .authority_store_pruning_config
-            .enable_compaction_filter
-            .then(|| {
-                let pruner_db =
-                    Arc::new(AuthorityPrunerTables::open(&config.db_path().join("store")));
-                ObjectsCompactionFilter::new(pruner_db, &prometheus_registry)
-            });
-
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
-        let perpetual_tables_options = AuthorityPerpetualTablesOptions {
-            enable_write_stall,
-            compaction_filter,
-        };
+        let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
         let (perpetual_tables, historic_objects) =
             AuthorityPerpetualTables::open_with_historic_objects(
                 &config.db_path().join("store"),
