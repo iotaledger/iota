@@ -220,6 +220,28 @@ impl AuthorityPerpetualTables {
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
     ) -> Self {
+        Self::open_with_db_options(parent_path, db_options_override).0
+    }
+
+    /// The perpetual tables together with the historic object buckets. The
+    /// buckets are column families of this same database, so they are opened
+    /// from its handle, with options cloned from the ones its own tables use.
+    pub fn open_with_historic_objects(
+        parent_path: &Path,
+        db_options_override: Option<AuthorityPerpetualTablesOptions>,
+    ) -> Result<(Self, HistoricObjects), TypedStoreError> {
+        let (tables, db_options) = Self::open_with_db_options(parent_path, db_options_override);
+        let historic_objects = HistoricObjects::open(tables.objects.db.clone(), &db_options)?;
+        Ok((tables, historic_objects))
+    }
+
+    /// The perpetual tables and the options their column families were
+    /// opened with, which the historic buckets clone so that every column
+    /// family of this database shares one block cache.
+    fn open_with_db_options(
+        parent_path: &Path,
+        db_options_override: Option<AuthorityPerpetualTablesOptions>,
+    ) -> (Self, DBOptions) {
         let db_options_override = db_options_override.unwrap_or_default();
         let db_options =
             db_options_override.apply_to(default_db_options().optimize_db_for_write_throughput(4));
@@ -244,15 +266,19 @@ impl AuthorityPerpetualTables {
         ]);
         // The historic object buckets are column families of this database, so
         // they are opened here together with the tables declared above.
-        table_options.extend(HistoricObjects::extra_column_family_options(&path));
+        table_options.extend(HistoricObjects::extra_column_family_options(
+            &path,
+            &db_options,
+        ));
         let table_options = DBMapTableConfigMap::new(table_options);
-        Self::open_tables_read_write(
+        let tables = Self::open_tables_read_write(
             path,
             MetricConf::new("perpetual")
                 .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
-            Some(db_options.options),
+            Some(db_options.options.clone()),
             Some(table_options),
-        )
+        );
+        (tables, db_options)
     }
 
     pub fn open_readonly(parent_path: &Path) -> AuthorityPerpetualTablesReadOnly {

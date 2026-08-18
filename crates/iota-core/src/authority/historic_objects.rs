@@ -21,7 +21,7 @@ use iota_types::{
 use typed_store::{
     TypedStoreError,
     database::Database,
-    rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, default_db_options, list_tables},
+    rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables},
     traits::Map,
 };
 
@@ -75,36 +75,55 @@ impl HistoricObjects {
     /// Options for a historic-object bucket's column family: written once,
     /// while the epoch that relocated its rows is current, then only ever
     /// read back by exact-key lookup.
-    fn cf_options() -> DBOptions {
-        default_db_options().optimize_for_write_throughput_no_deletion()
+    ///
+    /// `db_options` are the ones the perpetual database's own tables are
+    /// opened with. Clones of a single value share one block cache, so every
+    /// column family opened from here shares the perpetual store's; building
+    /// a fresh value per bucket would give each one a block cache of its own.
+    fn cf_options(db_options: &DBOptions) -> DBOptions {
+        db_options
+            .clone()
+            .optimize_for_write_throughput_no_deletion()
     }
 
-    /// The `(name, options)` pairs of every historic-object bucket already on
-    /// disk under `perpetual_path`, for the perpetual store's open path to
-    /// list alongside its own tables: a column family left for
-    /// auto-discovery would otherwise be reopened with default options
-    /// instead of these. Empty for a path with no database yet, or one
-    /// whose column families cannot be listed — the perpetual store's own
-    /// open then either creates it fresh or fails on the same listing
-    /// problem.
-    pub fn extra_column_family_options(perpetual_path: &Path) -> Vec<(String, DBOptions)> {
+    /// The `(name, options)` pairs of the column families this store needs,
+    /// for the perpetual store's open path to list alongside its own tables:
+    /// a column family left for auto-discovery would otherwise be reopened
+    /// with default options and a block cache of its own. The buckets already
+    /// on disk under `perpetual_path` are listed together with the
+    /// retention-floor column family, which the open path creates when it is
+    /// missing.
+    ///
+    /// A path with no database yet, or one whose column families cannot be
+    /// listed, yields the retention floor alone — the perpetual store's own
+    /// open then either creates the database fresh or fails on the same
+    /// listing problem.
+    pub fn extra_column_family_options(
+        perpetual_path: &Path,
+        db_options: &DBOptions,
+    ) -> Vec<(String, DBOptions)> {
+        let cf_options = Self::cf_options(db_options);
+        let mut options = vec![(EARLIEST_RETAINED_CF.to_string(), cf_options.clone())];
         if !perpetual_path.join("CURRENT").exists() {
-            return Vec::new();
+            return options;
         }
         let Ok(existing_cfs) = list_tables(perpetual_path.to_path_buf()) else {
-            return Vec::new();
+            return options;
         };
-        existing_cfs
-            .into_iter()
-            .filter(|name| bucket_cf_epoch(HISTORIC_OBJECTS_CF_PREFIX, name).is_some())
-            .map(|name| (name, Self::cf_options()))
-            .collect()
+        options.extend(
+            existing_cfs
+                .into_iter()
+                .filter(|name| bucket_cf_epoch(HISTORIC_OBJECTS_CF_PREFIX, name).is_some())
+                .map(|name| (name, cf_options.clone())),
+        );
+        options
     }
 
     /// Opens the historic-object buckets already present among `db`'s
     /// column families. `db` is the perpetual database's own handle: the
-    /// buckets are its column families, not a database of their own.
-    pub fn open(db: Arc<Database>) -> Result<Self, TypedStoreError> {
+    /// buckets are its column families, not a database of their own, and
+    /// `db_options` are the options its tables were opened with.
+    pub fn open(db: Arc<Database>, db_options: &DBOptions) -> Result<Self, TypedStoreError> {
         let existing_cfs = list_tables(db.path_for_pruning().to_path_buf())
             .map_err(|e| TypedStoreError::RocksDB(format!("failed to list buckets: {e}")))?;
 
@@ -118,8 +137,9 @@ impl HistoricObjects {
             }
         }
 
+        let cf_options = Self::cf_options(db_options).options;
         if db.cf_handle(EARLIEST_RETAINED_CF).is_none() {
-            db.create_cf(EARLIEST_RETAINED_CF, &Self::cf_options().options)?;
+            db.create_cf(EARLIEST_RETAINED_CF, &cf_options)?;
         }
         let earliest_retained_table: DBMap<(), EpochId> = DBMap::reopen(
             &db,
@@ -128,7 +148,6 @@ impl HistoricObjects {
             true,
         )?;
 
-        let cf_options = Self::cf_options().options;
         let buckets = EpochBuckets::open(
             db,
             HISTORIC_OBJECTS_CF_PREFIX,

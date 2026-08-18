@@ -612,13 +612,16 @@ pub(crate) async fn backfill_checkpoint_summaries(
     // Open the stopped node's existing stores in place. The committee store
     // already holds the genesis committee (from restore/sync), so it is opened
     // without re-supplying one.
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(
-        &node_db_path.join("store"),
-        None,
-    ));
+    let (perpetual_db, historic_objects) =
+        AuthorityPerpetualTables::open_with_historic_objects(&node_db_path.join("store"), None)?;
     let committee_store = Arc::new(CommitteeStore::open(node_db_path.join("epochs"), None)?);
     let checkpoint_store = CheckpointStore::new(&node_db_path.join("checkpoints"));
-    let store = AuthorityStore::open_no_genesis(perpetual_db, false, &Registry::default())?;
+    let store = AuthorityStore::open_no_genesis(
+        Arc::new(perpetual_db),
+        Arc::new(historic_objects),
+        false,
+        &Registry::default(),
+    )?;
     let cache_traits = build_execution_cache_from_env(&Registry::default(), &store);
     let state_sync_store =
         &RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
@@ -834,7 +837,10 @@ pub async fn download_formal_snapshot(
         )?;
         fs::remove_dir_all(path.clone())?;
     }
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&path.join("store"), None));
+    let (perpetual_db, historic_objects) =
+        AuthorityPerpetualTables::open_with_historic_objects(&path.join("store"), None)?;
+    let perpetual_db = Arc::new(perpetual_db);
+    let historic_objects = Arc::new(historic_objects);
     println_or_log(&m, format!("Loading genesis from {}", genesis.display()))?;
     let genesis = Genesis::load(genesis).unwrap();
     let genesis_committee = genesis.committee()?;
@@ -1057,8 +1063,12 @@ pub async fn download_formal_snapshot(
         .restore_epoch_info(&*checkpoint_store)
         .await?;
 
-    let authority_store =
-        AuthorityStore::open_no_genesis(perpetual_db.clone(), false, &Registry::default())?;
+    let authority_store = AuthorityStore::open_no_genesis(
+        perpetual_db.clone(),
+        historic_objects,
+        false,
+        &Registry::default(),
+    )?;
     checkpoint_store.ensure_current_epoch_info(&authority_store)?;
 
     // Finalize the RPC index store so the node opens it in place instead of

@@ -3072,12 +3072,17 @@ async fn test_authority_persist() {
     let tmp_dir = iota_common::tempdir();
     let path = tmp_dir.path().to_path_buf();
 
-    let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
+    let (perpetual_tables, historic_objects) =
+        AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
     // Create an authority
-    let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
-            .await
-            .unwrap();
+    let store = AuthorityStore::open_with_committee_for_testing(
+        Arc::new(perpetual_tables),
+        Arc::new(historic_objects),
+        &committee,
+        &genesis,
+    )
+    .await
+    .unwrap();
     let authority = init_state(&genesis, authority_key, store).await;
 
     // Create an object
@@ -3100,11 +3105,16 @@ async fn test_authority_persist() {
     let seed = [1u8; 32];
     let (genesis, authority_key) = init_state_parameters_from_rng(&mut StdRng::from_seed(seed));
     let committee = genesis.committee().unwrap();
-    let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
-    let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
-            .await
-            .unwrap();
+    let (perpetual_tables, historic_objects) =
+        AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
+    let store = AuthorityStore::open_with_committee_for_testing(
+        Arc::new(perpetual_tables),
+        Arc::new(historic_objects),
+        &committee,
+        &genesis,
+    )
+    .await
+    .unwrap();
     let authority2 = init_state(&genesis, authority_key, store).await;
     let obj2 = authority2.get_object(&object_id).unwrap();
 
