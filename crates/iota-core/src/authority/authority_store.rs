@@ -808,7 +808,7 @@ impl AuthorityStore {
     ///
     /// The versions these transactions superseded leave the live `objects`
     /// table in this same batch and arrive in `epoch_id`'s historic bucket, so
-    /// no reader can observe them in neither table.
+    /// a reader always finds them in one of the two.
     ///
     /// **Invariant** Every `TransactionOutputs` in `tx_outputs` must belong to
     /// the checkpoint identified by `checkpoint_sequence_number`.
@@ -913,10 +913,16 @@ impl AuthorityStore {
 
         // Relocate the versions this transaction superseded into the epoch's
         // historic bucket. The insert and the delete join the batch that
-        // carries the transaction's own outputs, so a crash can leave a
-        // version in the live table or in the bucket, never in neither.
-        // The deletes follow the inserts above because an earlier transaction
-        // of the same batch may have written the very version superseded here.
+        // carries the transaction's own outputs, so a crash leaves each
+        // version in the live table or in the bucket, always in one of the
+        // two.
+        //
+        // A batch applies its operations in order, so a delete survives only
+        // if nothing behind it writes the same key again. Nothing does: a
+        // transaction never supersedes a version it writes, and
+        // `build_db_batch` appends transactions in checkpoint order, so
+        // whichever transaction wrote a superseded version is already ahead
+        // of this one in the batch.
         write_batch.insert_batch_tagged(
             &historic_bucket.objects,
             superseded
