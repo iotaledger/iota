@@ -10,11 +10,8 @@ use core::panic;
 use std::{fs::File, num::NonZeroUsize, time::Duration};
 
 use fastcrypto::encoding::Base64;
-use iota_core::{
-    authority_client::{
-        make_network_authority_clients_with_network_config, validator::ValidatorAPI,
-    },
-    traffic_controller::{TrafficController, TrafficSim, nodefw_test_server::NodeFwTestServer},
+use iota_core::authority_client::{
+    make_network_authority_clients_with_network_config, validator::ValidatorAPI,
 };
 use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
@@ -25,6 +22,9 @@ use iota_network::default_iota_network_config;
 use iota_sdk_types::UserSignature;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
+use iota_traffic_controller::{
+    TrafficController, TrafficSim, nodefw_test_server::NodeFwTestServer,
+};
 use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     traffic_control::{
