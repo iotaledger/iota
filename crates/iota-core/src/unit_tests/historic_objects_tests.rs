@@ -1,12 +1,13 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use iota_sdk_types::ObjectId;
 use iota_types::{object::Object, storage::ObjectKey};
 use typed_store::database::wait_for_database_close;
 
+use super::HistoricObjects;
 use crate::authority::authority_store_tables::AuthorityPerpetualTables;
 
 /// A relocated version is readable from the bucket of the epoch it was
@@ -91,4 +92,46 @@ async fn test_relocated_version_survives_a_reopen() {
     let (_perpetual, historic) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     assert_eq!(historic.get(&key).unwrap().as_ref(), Some(&object));
+}
+
+/// `iota-tool`'s table dump reaches a bucket and the retention floor through
+/// [`HistoricObjects::dump_column_family`], since neither is a field of
+/// `AuthorityPerpetualTables`, and gets nothing for a name that belongs to
+/// neither.
+#[tokio::test]
+async fn test_dump_reads_a_bucket_and_the_retention_floor() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let key = ObjectKey(object.id(), object.version());
+
+    let bucket = historic.ensure(3).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.objects, [(key, object)])
+        .unwrap();
+    batch.write().unwrap();
+    // The dump reads through a secondary handle, which only sees what the
+    // primary has written out.
+    perpetual.objects.db.flush_all().unwrap();
+
+    let read_only = AuthorityPerpetualTables::open_readonly(dir.path());
+    let db = &read_only.objects.db;
+
+    let rows = HistoricObjects::dump_column_family(db, "hist_obj_e3", 100, 0)
+        .unwrap()
+        .expect("a bucket's column family is dumpable");
+    assert_eq!(rows.len(), 1);
+    assert!(rows.contains_key(&format!("{key:?}")));
+
+    assert_eq!(
+        HistoricObjects::dump_column_family(db, "hist_obj_retention", 100, 0).unwrap(),
+        Some(BTreeMap::new())
+    );
+    assert_eq!(
+        HistoricObjects::dump_column_family(db, "objects", 100, 0).unwrap(),
+        None
+    );
 }
