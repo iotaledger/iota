@@ -235,9 +235,11 @@ impl AuthorityPerpetualTables {
         Ok((tables, historic_objects))
     }
 
-    /// The perpetual tables and the options their column families were
-    /// opened with, which the historic buckets clone so that every column
-    /// family of this database shares one block cache.
+    /// The perpetual tables and the base options their column families were
+    /// opened with. The historic buckets clone these, so they share the base
+    /// options' block cache with each other and with every column family that
+    /// takes those options unchanged; `objects`, `live_owned_object_markers`,
+    /// `transactions` and `effects` install caches of their own.
     fn open_with_db_options(
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,

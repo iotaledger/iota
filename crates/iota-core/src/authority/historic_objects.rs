@@ -8,7 +8,7 @@
 //! version out of the live `objects` table and in here is one atomic
 //! [`typed_store::rocks::DBBatch`] instead of a cross-database move.
 
-use std::{collections::BTreeMap, path::Path, sync::Arc};
+use std::{collections::BTreeMap, fmt::Debug, path::Path, sync::Arc};
 
 use iota_sdk_types::{TransactionDigest, TransactionEffects};
 use iota_types::{
@@ -19,7 +19,7 @@ use iota_types::{
     storage::{ObjectKey, ObjectStore},
 };
 use typed_store::{
-    TypedStoreError,
+    DbIterator, TypedStoreError,
     database::Database,
     rocks::{DBMap, DBOptions, ReadWriteOptions, TaggedDBMap, list_tables},
     traits::Map,
@@ -80,10 +80,11 @@ impl HistoricObjects {
     /// while the epoch that relocated its rows is current, then only ever
     /// read back by exact-key lookup.
     ///
-    /// `db_options` are the ones the perpetual database's own tables are
-    /// opened with. Clones of a single value share one block cache, so every
-    /// column family opened from here shares the perpetual store's; building
-    /// a fresh value per bucket would give each one a block cache of its own.
+    /// `db_options` are the perpetual database's base options. Build this
+    /// once and clone it per column family: the clones share the base
+    /// options' block cache, the same one every column family that takes
+    /// those options unchanged uses, whereas a fresh value per bucket would
+    /// allocate a cache each.
     fn cf_options(db_options: &DBOptions) -> DBOptions {
         db_options
             .clone()
@@ -208,6 +209,47 @@ impl HistoricObjects {
             }
         }
         Ok(())
+    }
+
+    /// One page of the rows `cf_name` holds, if it is one of this store's
+    /// column families: a bucket of relocated versions, or the
+    /// retention-floor family. `None` for any other name, leaving the caller
+    /// to report it as unknown.
+    ///
+    /// For the table dump of `iota-tool`, which walks the perpetual
+    /// database's column families by name: these are not fields of
+    /// `AuthorityPerpetualTables`, so the dump derived from it cannot read
+    /// them. `db` may be a read-only or secondary handle — nothing here
+    /// writes, and no column family is created.
+    pub fn dump_column_family(
+        db: &Arc<Database>,
+        cf_name: &str,
+        page_size: u16,
+        page_number: usize,
+    ) -> Result<Option<BTreeMap<String, String>>, TypedStoreError> {
+        fn page<K: Debug, V: Debug>(
+            rows: DbIterator<'_, (K, V)>,
+            page_size: u16,
+            page_number: usize,
+        ) -> Result<BTreeMap<String, String>, TypedStoreError> {
+            rows.skip(page_number * page_size as usize)
+                .take(page_size as usize)
+                .map(|row| row.map(|(key, value)| (format!("{key:?}"), format!("{value:?}"))))
+                .collect()
+        }
+
+        if bucket_cf_epoch(HISTORIC_OBJECTS_CF_PREFIX, cf_name).is_some() {
+            let bucket = HistoricObjectsBucket::reopen(db, cf_name)?;
+            bucket.objects.try_catch_up_with_primary()?;
+            return page(bucket.objects.safe_iter(), page_size, page_number).map(Some);
+        }
+        if cf_name == EARLIEST_RETAINED_CF {
+            let earliest_retained_table: DBMap<(), EpochId> =
+                DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)?;
+            earliest_retained_table.try_catch_up_with_primary()?;
+            return page(earliest_retained_table.safe_iter(), page_size, page_number).map(Some);
+        }
+        Ok(None)
     }
 }
 
