@@ -29,6 +29,7 @@ prometheus-filtered.workspace = true
 
 [dev-dependencies]
 iota-macros.workspace = true
+iota-simulator.workspace = true
 
 [lints]
 workspace = true
