@@ -1,9 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, time::Duration};
 
 use bytes::Bytes;
+use diesel::connection::SimpleConnection;
+use downcast::Any;
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use iota_core::authority::authority_store_tables::LiveObject as SnapshotObject;
 use iota_snapshot::{FileMetadata, VerifiedEpochInfo, reader::LiveObjectIter, restore::Restore};
@@ -30,7 +32,7 @@ use crate::{
         packages::StoredPackage,
     },
     pruning::pruner::PrunableTable,
-    store::{IndexerStore, PgIndexerStore},
+    store::{IndexerStore, PgIndexerStore, diesel_macro::*},
     types::{IndexedCheckpoint, IndexedPackage},
 };
 
@@ -231,11 +233,60 @@ async fn populate_epochs(
         .await
 }
 
+const EPOCH_PARTITIONED_TABLES: [&str; 2] = ["transactions", "events"];
+
+/// Moves the initial partition of `transactions`, and `events` to `epoch`.
+///
+/// The migrations create a single `<table>_partition_0` that eludes the pruner,
+/// and grows indefinitely.
+///
+/// Herein, the partition is renamed and the lower bound of its range is reset
+/// according to the restore epoch.
+///
+/// # Errors
+///
+/// Returns an error if the database rejects the partition restore.
+async fn restore_partitions(
+    store: &PgIndexerStore,
+    epoch: u64,
+    epoch_start_tx: u64,
+) -> IndexerResult<()> {
+    store
+        .execute_in_blocking_worker(move |this| {
+            let pool = this.blocking_cp();
+            transactional_blocking_with_retry!(
+                &pool,
+                |conn| {
+                    let query = EPOCH_PARTITIONED_TABLES
+                        .iter()
+                        .map(|table| {
+                            format!(
+                                "ALTER TABLE {table}_partition_0 RENAME TO {table}_partition_{epoch};
+                                 ALTER TABLE {table} DETACH PARTITION {table}_partition_{epoch};
+                                 ALTER TABLE {table} ATTACH PARTITION {table}_partition_{epoch}
+                                     FOR VALUES FROM ({epoch_start_tx}) TO (MAXVALUE);"
+                            )
+                        })
+                        .join("\n");
+                    conn.batch_execute(&query)?;
+                    Ok::<(), IndexerError>(())
+                },
+                Duration::from_secs(10)
+            )?;
+            tracing::info!("Moved the initial epoch partitions to epoch {epoch}");
+            Ok(())
+        })
+        .await
+}
+
 /// We populate the remaining tables after the objects.
 ///
 /// This includes `epochs`, `chain_identifier` which we populate in parallel
 /// with setting the checkpoint watermark to the last checkpoint of the snapshot
 /// epoch.
+///
+/// We also move the initial partition of `transactions`, and `events` to the
+/// epoch that follows the snapshot.
 ///
 /// Finally we populate `protocol_configs`, `feature_flags` up to the
 /// protocol version that the snapshot epoch corresponds to, and the
@@ -256,6 +307,7 @@ pub(crate) async fn populate_remaining_tables(
         Default::default(), // We don't store this as part of the checkpoint so it's ok to set to 0
     );
     let next_epoch = sync_watermark.epoch + 1;
+    let next_epoch_start_tx = sync_watermark.network_total_transactions;
     let pruning_watermarks: Vec<_> = PrunableTable::iter()
         .map(|table| (table, next_epoch))
         .collect();
@@ -263,6 +315,7 @@ pub(crate) async fn populate_remaining_tables(
         populate_epochs(store, verified_epoch_info),
         populate_chain_id(store, snapshot_chain_id),
         store.persist_checkpoints(vec![sync_watermark]),
+        restore_partitions(store, next_epoch, next_epoch_start_tx),
     )?;
     tokio::try_join!(
         populate_protocol_and_feature_flags(store, snapshot_chain_id),
