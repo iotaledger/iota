@@ -203,38 +203,6 @@ pub fn compact(db_path: PathBuf) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
-    let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
-    let checkpoint_store = CheckpointStore::new(&db_path.join("checkpoints"));
-    let highest_pruned_checkpoint = checkpoint_store
-        .get_highest_pruned_checkpoint_seq_number()?
-        .unwrap_or(0);
-    let latest_checkpoint = checkpoint_store.get_highest_executed_checkpoint()?;
-    info!(
-        "Latest executed checkpoint sequence num: {}",
-        latest_checkpoint.map(|x| x.sequence_number).unwrap_or(0)
-    );
-    info!("Highest pruned checkpoint: {}", highest_pruned_checkpoint);
-    let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
-    info!("Pruning setup for db at path: {:?}", db_path.display());
-    let pruning_config = AuthorityStorePruningConfig {
-        num_epochs_to_retain: 0,
-        ..Default::default()
-    };
-    info!("Starting object pruning");
-    AuthorityStorePruner::prune_objects_for_eligible_epochs(
-        &perpetual_db,
-        &checkpoint_store,
-        None,
-        pruning_config,
-        metrics,
-        EPOCH_DURATION_MS_FOR_TESTING,
-        None,
-    )
-    .await?;
-    Ok(())
-}
-
 /// Prunes checkpoints and their transactions/effects down to one epoch of
 /// retention.
 ///
@@ -255,7 +223,6 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
     AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
         &perpetual_db,
         &checkpoint_store,
-        None,
         pruning_config,
         metrics,
         EPOCH_DURATION_MS_FOR_TESTING,

@@ -1005,6 +1005,22 @@ impl CheckpointStore {
         self.tables.epoch_last_checkpoint_map.get(&epoch_id)
     }
 
+    /// Sequence number of `epoch_id`'s first checkpoint: one past the last
+    /// checkpoint of the epoch before it. `0` for epoch `0`, and for an epoch
+    /// whose predecessor has no recorded last checkpoint.
+    pub fn get_epoch_first_checkpoint_seq_number(
+        &self,
+        epoch_id: EpochId,
+    ) -> Result<CheckpointSequenceNumber, TypedStoreError> {
+        let Some(previous_epoch) = epoch_id.checked_sub(1) else {
+            return Ok(0);
+        };
+        Ok(self
+            .get_epoch_last_checkpoint_seq_number(previous_epoch)?
+            .map(|seq| seq + 1)
+            .unwrap_or(0))
+    }
+
     pub fn insert_epoch_last_checkpoint(
         &self,
         epoch_id: EpochId,
