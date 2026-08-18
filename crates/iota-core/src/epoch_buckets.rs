@@ -214,7 +214,17 @@ impl<B> EpochBuckets<B> {
     /// rows; a retry no longer sees the bucket. Queries block for the
     /// duration of the drops, so callers on an async runtime must use
     /// `spawn_blocking`.
-    pub(crate) fn prune(&self, epochs_to_retain: u64) -> Result<Option<EpochId>, TypedStoreError> {
+    ///
+    /// `before_drop` runs for each expiring epoch, in ascending epoch order,
+    /// while the write lock is held and before the column family is dropped.
+    /// A store whose buckets have no side effects passes a closure that does
+    /// nothing. An error from it leaves that epoch's bucket in place and
+    /// stops the prune.
+    pub(crate) fn prune(
+        &self,
+        epochs_to_retain: u64,
+        mut before_drop: impl FnMut(EpochId, &Arc<B>) -> Result<(), TypedStoreError>,
+    ) -> Result<Option<EpochId>, TypedStoreError> {
         // Runs once per executed checkpoint, where there is usually nothing
         // to drop and nothing to persist; that case must not take the write
         // lock queries block on.
@@ -254,13 +264,14 @@ impl<B> EpochBuckets<B> {
             self.earliest_retained_epoch
                 .store(earliest_retained, Ordering::Relaxed);
         }
-        let expired: Vec<EpochId> = buckets
+        let expired: Vec<(EpochId, Arc<B>)> = buckets
             .range(..earliest_retained)
-            .map(|(&e, _)| e)
+            .map(|(&e, bucket)| (e, bucket.clone()))
             .collect();
         // One column-family drop per epoch: constant time, no per-row
         // deletes and no compaction churn.
-        for epoch in expired {
+        for (epoch, bucket) in expired {
+            before_drop(epoch, &bucket)?;
             info!(
                 store = self.name,
                 epoch, "dropping the bucket of an expired epoch"
@@ -300,7 +311,16 @@ impl<B> EpochBuckets<B> {
 
 #[cfg(test)]
 mod tests {
-    use super::{bucket_cf_epoch, bucket_cf_name};
+    use std::sync::Mutex;
+
+    use typed_store::rocks::{
+        DBMap, MetricConf, ReadWriteOptions, default_db_options, open_cf_opts,
+    };
+
+    use super::{
+        Arc, BTreeMap, Database, EpochBuckets, EpochId, TypedStoreError, bucket_cf_epoch,
+        bucket_cf_name, rocksdb,
+    };
 
     /// The name mapping must round-trip and reject other stores' prefixes:
     /// a shared database relies on it to tell bucket column families apart.
@@ -312,5 +332,84 @@ mod tests {
         assert_eq!(bucket_cf_epoch("hist_e", "hist_e4x"), None);
         assert_eq!(bucket_cf_epoch("hist_e", "owner_index"), None);
         assert_eq!(bucket_cf_epoch("other_", "hist_e42"), None);
+    }
+
+    const TEST_CF_PREFIX: &str = "test_e";
+    const RETENTION_CF: &str = "test_retention";
+
+    /// A bucket holding none of a store's own data, for exercising
+    /// `EpochBuckets` on its own.
+    struct TestBucket;
+
+    impl TestBucket {
+        fn reopen(_db: &Arc<Database>, _cf_name: &str) -> Result<Self, TypedStoreError> {
+            Ok(Self)
+        }
+    }
+
+    /// An `EpochBuckets` with one bucket per epoch in `epochs`, backed by a
+    /// fresh temporary database. The returned guard must outlive the
+    /// buckets, or the directory is removed while they still hold it open.
+    fn test_buckets(
+        epochs: &[EpochId],
+    ) -> (EpochBuckets<TestBucket>, iota_common::random_util::TempDir) {
+        let dir = iota_common::tempdir();
+        let db_options = default_db_options().options;
+        let cf_names: Vec<String> = epochs
+            .iter()
+            .map(|&epoch| bucket_cf_name(TEST_CF_PREFIX, epoch))
+            .chain([RETENTION_CF.to_string()])
+            .collect();
+        let opt_cfs: Vec<(&str, rocksdb::Options)> = cf_names
+            .iter()
+            .map(|name| (name.as_str(), db_options.clone()))
+            .collect();
+        let db = open_cf_opts(dir.path(), None, MetricConf::new("test"), &opt_cfs).unwrap();
+
+        let earliest_retained_table: DBMap<(), EpochId> =
+            DBMap::reopen(&db, Some(RETENTION_CF), &ReadWriteOptions::default(), true).unwrap();
+        let buckets: BTreeMap<EpochId, Arc<TestBucket>> = epochs
+            .iter()
+            .map(|&epoch| (epoch, Arc::new(TestBucket)))
+            .collect();
+
+        let buckets = EpochBuckets::open(
+            db,
+            "test buckets",
+            TEST_CF_PREFIX,
+            db_options,
+            earliest_retained_table,
+            buckets,
+            TestBucket::reopen,
+        )
+        .unwrap();
+        (buckets, dir)
+    }
+
+    /// `before_drop` must see every expiring epoch, oldest first: a later
+    /// consumer relies on this order to carry state forward from one
+    /// dropped epoch to the next.
+    #[tokio::test]
+    async fn prune_calls_back_in_ascending_epoch_order() {
+        let (buckets, _dir) = test_buckets(&[3, 4, 5, 6]);
+        let seen = Mutex::new(Vec::new());
+        let earliest = buckets
+            .prune(2, |epoch, _| {
+                seen.lock().unwrap().push(epoch);
+                Ok(())
+            })
+            .unwrap();
+        assert_eq!(earliest, Some(5));
+        assert_eq!(*seen.lock().unwrap(), vec![3, 4]);
+    }
+
+    /// A callback error must abort that epoch's drop instead of leaving the
+    /// bucket dropped with the store none the wiser.
+    #[tokio::test]
+    async fn a_callback_error_keeps_the_bucket() {
+        let (buckets, _dir) = test_buckets(&[3, 4]);
+        let result = buckets.prune(1, |_, _| Err(TypedStoreError::RocksDB("no".to_string())));
+        assert!(result.is_err());
+        assert_eq!(buckets.iter(false).len(), 2);
     }
 }
