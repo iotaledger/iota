@@ -245,13 +245,16 @@ impl<'a> TestAuthorityBuilder<'a> {
                     compaction_filter,
                     ..Default::default()
                 };
-                let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
-                    &storage_dir.join("store"),
-                    Some(perpetual_tables_options),
-                ));
                 // unwrap ok - for testing only.
+                let (perpetual_tables, historic_objects) =
+                    AuthorityPerpetualTables::open_with_historic_objects(
+                        &storage_dir.join("store"),
+                        Some(perpetual_tables_options),
+                    )
+                    .unwrap();
                 AuthorityStore::open_with_committee_for_testing(
-                    perpetual_tables,
+                    Arc::new(perpetual_tables),
+                    Arc::new(historic_objects),
                     &genesis_committee,
                     genesis,
                 )

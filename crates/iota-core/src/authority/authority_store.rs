@@ -154,6 +154,7 @@ impl AuthorityStore {
     /// If the store is empty, initialize it using genesis.
     pub async fn open(
         perpetual_tables: Arc<AuthorityPerpetualTables>,
+        historic_objects: Arc<HistoricObjects>,
         genesis: &Genesis,
         config: &NodeConfig,
         registry: &Registry,
@@ -194,6 +195,7 @@ impl AuthorityStore {
         let this = Self::open_inner(
             genesis,
             perpetual_tables,
+            historic_objects,
             enable_epoch_iota_conservation_check,
             registry,
             migration_tx_data,
@@ -237,24 +239,32 @@ impl AuthorityStore {
 
     pub async fn open_with_committee_for_testing(
         perpetual_tables: Arc<AuthorityPerpetualTables>,
+        historic_objects: Arc<HistoricObjects>,
         committee: &Committee,
         genesis: &Genesis,
     ) -> IotaResult<Arc<Self>> {
         // TODO: Since we always start at genesis, the committee should be technically
         // the same as the genesis committee.
         assert_eq!(committee.epoch, 0);
-        Self::open_inner(genesis, perpetual_tables, true, &Registry::new(), None).await
+        Self::open_inner(
+            genesis,
+            perpetual_tables,
+            historic_objects,
+            true,
+            &Registry::new(),
+            None,
+        )
+        .await
     }
 
     async fn open_inner(
         genesis: &Genesis,
         perpetual_tables: Arc<AuthorityPerpetualTables>,
+        historic_objects: Arc<HistoricObjects>,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
         migration_tx_data: Option<&MigrationTxData>,
     ) -> IotaResult<Arc<Self>> {
-        let historic_objects =
-            Arc::new(HistoricObjects::open(perpetual_tables.objects.db.clone())?);
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
             perpetual_tables,
@@ -362,11 +372,10 @@ impl AuthorityStore {
     /// or inserting genesis objects.
     pub fn open_no_genesis(
         perpetual_tables: Arc<AuthorityPerpetualTables>,
+        historic_objects: Arc<HistoricObjects>,
         enable_epoch_iota_conservation_check: bool,
         registry: &Registry,
     ) -> IotaResult<Arc<Self>> {
-        let historic_objects =
-            Arc::new(HistoricObjects::open(perpetual_tables.objects.db.clone())?);
         let store = Arc::new(Self {
             mutex_table: MutexTable::new(NUM_SHARDS),
             perpetual_tables,
