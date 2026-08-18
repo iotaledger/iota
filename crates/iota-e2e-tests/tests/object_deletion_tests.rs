@@ -7,16 +7,22 @@ mod sim_only_tests {
     use std::{path::PathBuf, sync::Arc, time::Duration};
 
     use iota_core::authority::AuthorityState;
+    use iota_json_rpc_api::{GovernanceReadApiClient, ReadApiClient};
+    use iota_json_rpc_types::{IotaPastObjectResponse, StakeStatus};
     use iota_macros::sim_test;
     use iota_node::IotaNode;
-    use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects, Version};
+    use iota_sdk_types::{Identifier, ObjectId, TransactionDigest, TransactionEffects, Version};
     use iota_test_transaction_builder::publish_package;
     use iota_types::{
-        effects::TransactionEffectsAPI, messages_checkpoint::CheckpointSequenceNumber,
-        storage::ObjectKey, transaction::CallArg,
+        effects::TransactionEffectsAPI, governance::StakedIota,
+        messages_checkpoint::CheckpointSequenceNumber, storage::ObjectKey, transaction::CallArg,
     };
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tokio::time::timeout;
+
+    /// How many versions of an object the execution cache keeps once they are
+    /// committed, mirroring `WritebackCache`'s own limit.
+    const CACHED_OBJECT_VERSIONS: usize = 3;
 
     // Tests that relocation moves superseded object versions into the historic
     // bucket, and that expiring that bucket removes the lineages' tombstones
@@ -148,6 +154,107 @@ mod sim_only_tests {
             .await;
     }
 
+    // `iota_tryGetObjectBeforeVersion` bounded below an object's live version
+    // has to answer from the historic bucket: relocation took every earlier
+    // version out of the live table as each mutation's checkpoint executed.
+    //
+    // Pruning is disabled so that no bucket expiry can run between the
+    // relocation checked below and the read that follows it.
+    #[sim_test]
+    async fn try_get_object_before_version_reads_a_relocated_version() {
+        let test_cluster = TestClusterBuilder::new()
+            .disable_fullnode_pruning()
+            .build()
+            .await;
+        let fullnode = &test_cluster.fullnode_handle.iota_node;
+
+        let (package_id, object_id) = publish_package_and_create_parent_object(&test_cluster).await;
+        let created_version = test_cluster.get_latest_object_ref(&object_id).await.version;
+
+        // The execution cache keeps the most recent versions of an object and
+        // answers a bounded read from them. Mutate often enough that the
+        // created version has left that window and the read has to go to
+        // storage, where relocation has moved it.
+        let mut last_effects = None;
+        for _ in 0..CACHED_OBJECT_VERSIONS {
+            last_effects = Some(create_and_wrap_child(&test_cluster, package_id, object_id).await);
+        }
+        let last_effects = last_effects.unwrap();
+        let last_txn_digest = *last_effects.transaction_digest();
+
+        fullnode
+            .with_async(|node| async {
+                timeout(
+                    Duration::from_secs(60),
+                    wait_until_txn_in_checkpoint(node, &last_txn_digest),
+                )
+                .await
+                .unwrap();
+
+                assert_relocated(&node.state(), object_id, created_version);
+            })
+            .await;
+
+        let response = test_cluster
+            .rpc_client()
+            .try_get_object_before_version(object_id, created_version)
+            .await
+            .unwrap();
+
+        let IotaPastObjectResponse::VersionFound(object_data) = response else {
+            panic!("expected version {created_version} of {object_id}, got {response:?}");
+        };
+        assert_eq!(object_data.version, created_version);
+    }
+
+    // Withdrawing a stake deletes the `StakedIota`, so `iotax_getStakesByIds`
+    // has to read the version underneath the tombstone to report the stake at
+    // all: it reaches the withdrawal's tombstone head in the live table and
+    // then the version below it, which relocation moved into the historic
+    // bucket when the withdrawal's checkpoint executed.
+    //
+    // Pruning is disabled so that no bucket expiry can run between the
+    // relocation checked below and the read that follows it.
+    #[sim_test]
+    async fn a_withdrawn_stake_still_reports_its_status() {
+        let test_cluster = TestClusterBuilder::new()
+            .disable_fullnode_pruning()
+            .build()
+            .await;
+        let fullnode = &test_cluster.fullnode_handle.iota_node;
+
+        let staked_iota_id = add_stake(&test_cluster).await;
+        let withdraw_effects = withdraw_stake(&test_cluster, staked_iota_id).await;
+        let withdraw_txn_digest = *withdraw_effects.transaction_digest();
+        let version_before_withdrawal = superseded_version(&withdraw_effects, staked_iota_id);
+
+        fullnode
+            .with_async(|node| async {
+                timeout(
+                    Duration::from_secs(60),
+                    wait_until_txn_in_checkpoint(node, &withdraw_txn_digest),
+                )
+                .await
+                .unwrap();
+
+                assert_relocated(&node.state(), staked_iota_id, version_before_withdrawal);
+            })
+            .await;
+
+        let stakes = test_cluster
+            .rpc_client()
+            .get_stakes_by_ids(vec![staked_iota_id])
+            .await
+            .unwrap()
+            .into_iter()
+            .flat_map(|delegated| delegated.stakes)
+            .collect::<Vec<_>>();
+
+        assert_eq!(stakes.len(), 1);
+        assert_eq!(stakes[0].staked_iota_id, staked_iota_id);
+        assert!(matches!(stakes[0].status, StakeStatus::Unstaked));
+    }
+
     /// The version of `id` that `effects`' transaction superseded — its
     /// pre-image is what relocation must have moved into the historic bucket.
     fn superseded_version(effects: &TransactionEffects, id: ObjectId) -> Version {
@@ -223,6 +330,102 @@ mod sim_only_tests {
             .created()[0]
             .reference
             .object_id
+    }
+
+    async fn create_and_wrap_child(
+        test_cluster: &TestCluster,
+        package_id: ObjectId,
+        object_id: ObjectId,
+    ) -> TransactionEffects {
+        let object = test_cluster.wallet.get_object_ref(object_id).await.unwrap();
+        test_cluster
+            .sign_and_execute_transaction(
+                &test_cluster
+                    .test_transaction_builder()
+                    .await
+                    .move_call(
+                        package_id,
+                        "objects",
+                        "create_and_wrap_child",
+                        vec![CallArg::ImmutableOrOwned(object), CallArg::pure(&false)],
+                    )
+                    .build(),
+            )
+            .await
+    }
+
+    /// Stakes a whole gas coin with the first active validator and returns the
+    /// `StakedIota` it created.
+    async fn add_stake(test_cluster: &TestCluster) -> ObjectId {
+        let sender = test_cluster.get_address_0();
+        let mut coins = test_cluster
+            .wallet
+            .get_gas_objects_owned_by_address(sender, 2)
+            .await
+            .unwrap();
+        let stake_coin = coins.pop().expect("the sender needs two gas coins");
+        let gas = coins.pop().expect("the sender needs two gas coins");
+
+        let validator_address = test_cluster
+            .swarm
+            .active_validators()
+            .next()
+            .unwrap()
+            .config()
+            .iota_address();
+
+        let effects = test_cluster
+            .sign_and_execute_transaction(
+                &test_cluster
+                    .test_transaction_builder_with_gas_object(sender, gas)
+                    .await
+                    .call_staking(stake_coin, validator_address)
+                    .build(),
+            )
+            .await;
+
+        let mut staked_iota_ids = vec![];
+        for created in effects.created() {
+            let object = test_cluster
+                .get_object_from_fullnode_store(&created.reference.object_id)
+                .await
+                .unwrap();
+            if StakedIota::try_from(&object).is_ok() {
+                staked_iota_ids.push(created.reference.object_id);
+            }
+        }
+        assert_eq!(staked_iota_ids.len(), 1);
+        staked_iota_ids[0]
+    }
+
+    async fn withdraw_stake(
+        test_cluster: &TestCluster,
+        staked_iota_id: ObjectId,
+    ) -> TransactionEffects {
+        let staked_iota = test_cluster
+            .wallet
+            .get_object_ref(staked_iota_id)
+            .await
+            .unwrap();
+        let effects = test_cluster
+            .sign_and_execute_transaction(
+                &test_cluster
+                    .test_transaction_builder()
+                    .await
+                    .move_call(
+                        ObjectId::SYSTEM,
+                        Identifier::IOTA_SYSTEM_MODULE.as_str(),
+                        "request_withdraw_stake",
+                        vec![
+                            CallArg::IOTA_SYSTEM_MUTABLE,
+                            CallArg::ImmutableOrOwned(staked_iota),
+                        ],
+                    )
+                    .build(),
+            )
+            .await;
+        assert_eq!(effects.deleted().len(), 1);
+        effects
     }
 
     async fn wrap_child(
