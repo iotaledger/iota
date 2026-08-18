@@ -9202,15 +9202,14 @@ async fn reconfiguration_retains_every_bucket_when_expiry_is_disabled() {
 }
 
 /// The gRPC read store advertises object availability from the oldest bucket
-/// it actually holds. A node restored from a formal snapshot has no bucket for
-/// any epoch before its restore point and no recorded last checkpoint for them
-/// either, so it must claim nothing rather than the full history.
+/// it actually holds, not from the retention floor, which says nothing about
+/// what a node was given. Where that bucket's epoch cannot be placed, it must
+/// claim nothing rather than the full history.
 #[tokio::test]
 async fn object_availability_follows_the_oldest_bucket_held() {
     use iota_node_storage::GrpcStateReader;
 
-    // No genesis execution, so no bucket is written for epoch 0 — the state a
-    // restored node comes up in.
+    // No genesis execution, so no bucket is written for epoch 0.
     let authority = TestAuthorityBuilder::new()
         .insert_genesis_checkpoint()
         .disable_execute_genesis_transactions()
@@ -9249,9 +9248,9 @@ async fn object_availability_follows_the_oldest_bucket_held() {
         1
     );
 
-    // The oldest bucket a node restored at epoch 6 would hold. Nothing records
-    // where epoch 7 started, so the answer must stay at the watermark rather
-    // than fall back to claiming the whole history.
+    // A bucket whose epoch cannot be placed: nothing records where epoch 7
+    // started. The answer must stay at the watermark rather than fall back to
+    // claiming the whole history.
     historic.ensure(7).unwrap();
     assert_eq!(
         grpc_read_store
@@ -9278,10 +9277,7 @@ async fn object_availability_follows_the_oldest_bucket_held() {
 /// finishes the job.
 #[tokio::test]
 async fn a_failed_expiry_does_not_fail_reconfiguration() {
-    use iota_types::storage::ObjectKey;
-    use typed_store::rocks::{ReadWriteOptions, TaggedDBMap};
-
-    use crate::authority::historic_objects::DB_PREFIX_HISTORIC_TOMBSTONES;
+    use crate::authority::historic_objects::HistoricObjects;
 
     let authority = TestAuthorityBuilder::new()
         .with_num_epochs_to_retain(1)
@@ -9292,25 +9288,9 @@ async fn a_failed_expiry_does_not_fail_reconfiguration() {
         historic.ensure(epoch).unwrap();
     }
 
-    // A value of another type under epoch 0's tombstone tag, so reading that
-    // bucket's heads back fails and its expiry cannot finish.
     let store = authority.database_for_testing();
-    let unreadable: TaggedDBMap<ObjectKey, u64> = TaggedDBMap::reopen(
-        &store.perpetual_tables.objects.db,
-        "hist_obj_e0",
-        DB_PREFIX_HISTORIC_TOMBSTONES,
-        &ReadWriteOptions::default(),
-        true,
-    )
-    .unwrap();
-    let mut batch = unreadable.batch();
-    batch
-        .insert_batch_tagged(
-            &unreadable,
-            [(ObjectKey(ObjectId::random(), 1.into()), 7u64)],
-        )
+    HistoricObjects::corrupt_tombstone_heads_for_testing(&store.perpetual_tables.objects.db, 0)
         .unwrap();
-    batch.write().unwrap();
 
     authority
         .advance_historic_objects(3)

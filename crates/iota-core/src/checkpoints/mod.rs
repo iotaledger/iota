@@ -1012,14 +1012,10 @@ impl CheckpointStore {
     /// Those versions are retained per epoch, so the answer is that epoch's
     /// first checkpoint — one past the last checkpoint of the epoch before it.
     ///
-    /// When that cannot be placed, the answer is one past the highest executed
-    /// checkpoint, claiming nothing rather than the full history. Two cases
-    /// reach it: no bucket at all, and an epoch whose predecessor has no
-    /// recorded last checkpoint. `epoch_last_checkpoint_map` is written by the
-    /// checkpoint executor as it executes an epoch's last checkpoint, so a node
-    /// restored from a formal snapshot has no entry for any epoch before its
-    /// restore point, and reports availability only from the first epoch
-    /// boundary it executes itself.
+    /// When that cannot be placed — there is no bucket at all, or the epoch
+    /// before the oldest one has no recorded last checkpoint — the answer is
+    /// one past the highest executed checkpoint, claiming nothing rather than
+    /// the full history.
     pub fn lowest_checkpoint_with_retained_objects(
         &self,
         earliest_bucket_epoch: Option<EpochId>,

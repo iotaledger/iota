@@ -2777,8 +2777,9 @@ impl AuthorityState {
         {
             warn!(
                 num_epochs_to_retain,
-                "this validator keeps that many epochs of superseded object versions, growing \
-                 the database with history it does not serve; 0 keeps the current epoch's only"
+                "this validator retains superseded object versions it does not serve, which \
+                 grows its database; lowering the retention later expires every epoch they \
+                 span in one epoch boundary. Set 0 to retain none beyond the current epoch."
             );
         }
         let pruner = AuthorityStorePruner::new(

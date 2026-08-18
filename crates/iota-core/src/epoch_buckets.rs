@@ -47,6 +47,11 @@ pub(crate) fn history_cf_options(
         .options
 }
 
+/// Stands for "no bucket at all" in [`EpochBuckets::earliest_bucket_epoch`],
+/// which holds a plain `EpochId` so it can be read without a lock. No real
+/// epoch reaches it.
+const NO_BUCKET: EpochId = EpochId::MAX;
+
 /// The column-family name of `epoch`'s bucket: `"{cf_prefix}{epoch}"`.
 pub(crate) fn bucket_cf_name(cf_prefix: &str, epoch: EpochId) -> String {
     format!("{cf_prefix}{epoch}")
@@ -82,6 +87,14 @@ pub(crate) struct EpochBuckets<B> {
     /// call, mirroring the persisted row; never moves backwards.
     earliest_retained_epoch: AtomicU64,
     earliest_retained_table: DBMap<(), EpochId>,
+    /// Mirrors the oldest epoch in `buckets`, republished on every change to
+    /// the map while its write lock is held, and [`NO_BUCKET`] when the map is
+    /// empty.
+    ///
+    /// Read on the gRPC request path, which is why it is not read off the map:
+    /// [`Self::prune`] holds the write lock for as long as its whole expiry
+    /// takes, so a reader taking the read lock there would block on it.
+    earliest_bucket_epoch: AtomicU64,
 }
 
 impl<B> EpochBuckets<B> {
@@ -118,6 +131,7 @@ impl<B> EpochBuckets<B> {
                 warn!(epoch, "failed to drop a pruned bucket column family: {e}");
             }
         }
+        let earliest_bucket_epoch = Self::earliest_epoch_of(&buckets);
         Ok(Self {
             db,
             name,
@@ -127,7 +141,23 @@ impl<B> EpochBuckets<B> {
             buckets: RwLock::new(buckets),
             earliest_retained_epoch: AtomicU64::new(earliest_retained_epoch),
             earliest_retained_table,
+            earliest_bucket_epoch: AtomicU64::new(earliest_bucket_epoch),
         })
+    }
+
+    /// The oldest epoch in `buckets`, [`NO_BUCKET`] when there is none.
+    fn earliest_epoch_of(buckets: &BTreeMap<EpochId, Arc<B>>) -> EpochId {
+        buckets
+            .first_key_value()
+            .map_or(NO_BUCKET, |(&epoch, _)| epoch)
+    }
+
+    /// Republishes the mirror of the oldest epoch in `buckets`. The caller
+    /// holds the write lock, which is what keeps the mirror in step with the
+    /// map.
+    fn publish_earliest_epoch(&self, buckets: &BTreeMap<EpochId, Arc<B>>) {
+        self.earliest_bucket_epoch
+            .store(Self::earliest_epoch_of(buckets), Ordering::Relaxed);
     }
 
     /// The retained buckets in scan order: ascending epochs for forward
@@ -155,11 +185,13 @@ impl<B> EpochBuckets<B> {
     /// [`Self::earliest_retained`] this is what the store actually holds: a
     /// node that never wrote the epochs above the retention floor — one
     /// restored from a formal snapshot, say — has no bucket for them.
+    ///
+    /// Takes no lock, so it is safe to call on a request path.
     pub(crate) fn earliest_epoch(&self) -> Option<EpochId> {
-        self.buckets
-            .read()
-            .first_key_value()
-            .map(|(&epoch, _)| epoch)
+        match self.earliest_bucket_epoch.load(Ordering::Relaxed) {
+            NO_BUCKET => None,
+            epoch => Some(epoch),
+        }
     }
 
     /// The earliest epoch [`Self::prune`] retains; buckets below it are gone
@@ -203,6 +235,7 @@ impl<B> EpochBuckets<B> {
         }
         let bucket = Arc::new((self.reopen)(&self.db, &cf_name)?);
         buckets.insert(epoch, bucket.clone());
+        self.publish_earliest_epoch(&buckets);
         Ok(bucket)
     }
 
@@ -299,6 +332,10 @@ impl<B> EpochBuckets<B> {
             // nor dropped again; keeping it in the map would only break every
             // query that walks it.
             buckets.remove(&epoch);
+            // Republished per epoch rather than once at the end, so that a
+            // `before_drop` error returning early still leaves the mirror
+            // matching the map.
+            self.publish_earliest_epoch(&buckets);
         }
         Ok(Some(earliest_retained))
     }

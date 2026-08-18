@@ -49,7 +49,7 @@ const HISTORIC_OBJECTS_CF_PREFIX: &str = "hist_obj_e";
 const DB_PREFIX_HISTORIC_OBJECTS: u8 = 0;
 
 /// Tag of the tombstone-head table inside a bucket's column family.
-pub(super) const DB_PREFIX_HISTORIC_TOMBSTONES: u8 = 1;
+const DB_PREFIX_HISTORIC_TOMBSTONES: u8 = 1;
 
 /// Tag of the expiring marker inside a bucket's column family.
 const DB_PREFIX_HISTORIC_EXPIRING: u8 = 2;
@@ -438,6 +438,30 @@ impl HistoricObjects {
 
         info!(epoch, tombstones = deleted, "expired a historic bucket");
         Ok(())
+    }
+
+    /// Writes a row of the wrong type into `epoch`'s tombstone-head table, so
+    /// that reading its heads back fails and that bucket's expiry cannot
+    /// finish. For exercising what a node does when a bucket cannot be
+    /// expired; there is no production hook that makes one fail.
+    #[cfg(test)]
+    pub(super) fn corrupt_tombstone_heads_for_testing(
+        db: &Arc<Database>,
+        epoch: EpochId,
+    ) -> Result<(), TypedStoreError> {
+        let unreadable: TaggedDBMap<ObjectKey, u64> = TaggedDBMap::reopen(
+            db,
+            &bucket_cf_name(HISTORIC_OBJECTS_CF_PREFIX, epoch),
+            DB_PREFIX_HISTORIC_TOMBSTONES,
+            &ReadWriteOptions::default(),
+            true,
+        )?;
+        let mut batch = unreadable.batch();
+        batch.insert_batch_tagged(
+            &unreadable,
+            [(ObjectKey(iota_sdk_types::ObjectId::ZERO, 1.into()), epoch)],
+        )?;
+        batch.write()
     }
 
     /// One page of the rows `cf_name` holds, if it is one of this store's
