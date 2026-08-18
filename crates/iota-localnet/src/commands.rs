@@ -42,6 +42,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
+use iota_types::traffic_control::PolicyConfig;
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{info, warn};
@@ -57,6 +58,12 @@ const DEFAULT_GRPC_PORT: u16 = 50051;
 const DEFAULT_GRAPHQL_PORT: u16 = 9125;
 #[cfg(feature = "indexer")]
 const DEFAULT_INDEXER_PORT: u16 = 9124;
+/// Port base of the fullnode layout, see
+/// [`FullnodeConfigBuilder::with_deterministic_ports`].
+const FULLNODE_PORT_BASE: u16 = 9184;
+/// Port base of the validator layout, see
+/// [`ConfigBuilder::with_deterministic_ports`].
+const VALIDATOR_PORT_BASE: u16 = 9200;
 
 #[cfg(feature = "indexer")]
 #[derive(Args)]
@@ -442,7 +449,9 @@ async fn start(
         let committee_size = NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE))
             .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
 
-        swarm_builder = swarm_builder.committee_size(committee_size);
+        swarm_builder = swarm_builder
+            .committee_size(committee_size)
+            .with_deterministic_validator_ports(VALIDATOR_PORT_BASE);
         let genesis_config = GenesisConfig::custom_genesis(1, 100);
         swarm_builder = swarm_builder.with_genesis_config(genesis_config);
         let epoch_duration_ms = epoch_duration_ms.unwrap_or(DEFAULT_EPOCH_DURATION_MS);
@@ -615,7 +624,8 @@ async fn start(
     } else {
         swarm_builder = swarm_builder
             .with_fullnode_count(1)
-            .with_fullnode_rpc_addr(fullnode_url);
+            .with_fullnode_rpc_addr(fullnode_url)
+            .with_deterministic_fullnode_ports(FULLNODE_PORT_BASE);
     }
 
     let mut swarm = tokio::task::spawn_blocking(move || swarm_builder.build()).await?;
@@ -969,7 +979,9 @@ async fn genesis(
     builder = if let Some(validators) = validator_info {
         builder.with_validators(validators)
     } else {
-        builder.committee_size(NonZeroUsize::new(committee_size).unwrap())
+        builder
+            .committee_size(NonZeroUsize::new(committee_size).unwrap())
+            .with_deterministic_ports(VALIDATOR_PORT_BASE)
     };
 
     if let Some(address) = admin_interface_address_with_port {
@@ -993,6 +1005,10 @@ async fn genesis(
     let genesis = iota_config::node::Genesis::new_from_file(&genesis_path);
     for validator in &mut network_config.validator_configs {
         validator.genesis = genesis.clone();
+        // A written config starts a real node, which should get the safe
+        // default; the builders leave `policy-config` unset because in-memory
+        // swarm nodes run without a traffic controller.
+        validator.policy_config = Some(PolicyConfig::default_dos_protection_policy());
     }
 
     info!("Network genesis completed.");
@@ -1006,7 +1022,9 @@ async fn genesis(
         .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
         .with_admin_interface_address(admin_interface_address_with_port)
-        .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
+        .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
+        .with_deterministic_ports(FULLNODE_PORT_BASE)
+        .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
 
     fullnode_config.save(iota_config_dir.join(IOTA_FULLNODE_CONFIG))?;
     let mut ssfn_nodes = vec![];
@@ -1027,20 +1045,30 @@ async fn genesis(
                 .with_admin_interface_address(admin_interface_address_with_port)
                 .with_json_rpc_address(([0, 0, 0, 0], 9000))
                 .with_genesis(genesis.clone())
-                .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
+                .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
+                .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
             ssfn_nodes.push(ssfn_config.clone());
             ssfn_config.save(path)?;
         }
 
-        let ssfn_seed_peers: Vec<SeedPeer> = ssfn_nodes
+        let ssfn_seed_peers = ssfn_nodes
             .iter()
-            .map(|config| SeedPeer {
-                peer_id: Some(anemo::PeerId(
-                    config.network_key_pair().public().0.to_bytes(),
-                )),
-                address: config.p2p_config.external_address.clone().unwrap(),
+            .enumerate()
+            .map(|(index, config)| {
+                let address = config.p2p_config.external_address.clone().ok_or_else(|| {
+                    anyhow!(
+                        "state sync fullnode {index} has no `p2p-config.external-address`, which \
+                         the validators need to derive their seed peers"
+                    )
+                })?;
+                Ok(SeedPeer {
+                    peer_id: Some(anemo::PeerId(
+                        config.network_key_pair().public().0.to_bytes(),
+                    )),
+                    address,
+                })
             })
-            .collect();
+            .collect::<Result<Vec<SeedPeer>, anyhow::Error>>()?;
 
         for (i, mut validator) in network_config
             .into_validator_configs()

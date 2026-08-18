@@ -1,0 +1,12 @@
+[package]
+name = "publish_with_event"
+version = "0.0.1"
+edition = "2024"
+
+# Pinned to the framework in this repo rather than relying on the implicit
+# dependency, which resolves over the network to a different revision.
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+publish_with_event = "0x0"

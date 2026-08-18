@@ -221,9 +221,13 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub run_with_range: Option<RunWithRange>,
 
-    // For killswitch use None
+    /// Traffic control policy. For killswitch use None.
+    ///
+    /// With the key absent the default denial-of-service protection policy
+    /// applies, an explicit `null` turns traffic control off, and a value
+    /// configures it.
     #[serde(
-        skip_serializing_if = "Option::is_none",
+        skip_serializing_if = "is_default_traffic_controller_policy_config",
         default = "default_traffic_controller_policy_config"
     )]
     pub policy_config: Option<PolicyConfig>,
@@ -273,9 +277,14 @@ pub struct NodeConfig {
     /// Flag to enable the gRPC API.
     #[serde(default)]
     pub enable_grpc_api: bool,
+    /// Configuration of the gRPC API, read when `enable_grpc_api` is set.
+    ///
+    /// With the key absent the default configuration applies, an explicit
+    /// `null` leaves the API unconfigured — a node with `enable-grpc-api` set
+    /// then fails to start — and a value configures it.
     #[serde(
         default = "default_grpc_api_config",
-        skip_serializing_if = "Option::is_none"
+        skip_serializing_if = "is_default_grpc_api_config"
     )]
     pub grpc_api_config: Option<GrpcApiConfig>,
 
@@ -708,6 +717,22 @@ pub fn default_grpc_api_config() -> Option<GrpcApiConfig> {
     Some(GrpcApiConfig::default())
 }
 
+fn is_default_grpc_api_config(grpc_api_config: &Option<GrpcApiConfig>) -> bool {
+    serializes_like(grpc_api_config, &default_grpc_api_config())
+}
+
+/// Returns whether `value` and `default` serialize to the same YAML.
+///
+/// Meant for `skip_serializing_if` predicates, which cannot report an error: a
+/// value that fails to serialize is reported as unlike the default, so the
+/// field is kept and the failure surfaces when serializing the field itself.
+fn serializes_like<T: Serialize>(value: &T, default: &T) -> bool {
+    match (serde_yaml::to_string(value), serde_yaml::to_string(default)) {
+        (Ok(value), Ok(default)) => value == default,
+        _ => false,
+    }
+}
+
 pub fn default_grpc_concurrency_limit_per_core() -> NonZeroUsize {
     NonZeroUsize::new(1000).unwrap()
 }
@@ -1035,9 +1060,13 @@ pub struct AuthorityStorePruningConfig {
     /// modified time is older than `periodic_compaction_threshold_days`
     /// days. That ensures that all sst files eventually go through the
     /// compaction process
+    ///
+    /// With the key absent files older than a day are compacted, an explicit
+    /// `null` turns periodic compaction off, and a value sets the threshold in
+    /// days.
     #[serde(
         default = "default_periodic_compaction_threshold_days",
-        skip_serializing_if = "Option::is_none"
+        skip_serializing_if = "is_default_periodic_compaction_threshold_days"
     )]
     pub periodic_compaction_threshold_days: Option<usize>,
     /// number of epochs to keep the latest version of transactions and effects
@@ -1063,12 +1092,16 @@ fn default_periodic_compaction_threshold_days() -> Option<usize> {
     Some(1)
 }
 
+fn is_default_periodic_compaction_threshold_days(days: &Option<usize>) -> bool {
+    *days == default_periodic_compaction_threshold_days()
+}
+
 impl Default for AuthorityStorePruningConfig {
     fn default() -> Self {
         Self {
             num_latest_epoch_dbs_to_retain: default_num_latest_epoch_dbs_to_retain(),
             num_epochs_to_retain: 0,
-            periodic_compaction_threshold_days: None,
+            periodic_compaction_threshold_days: default_periodic_compaction_threshold_days(),
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             enable_compaction_filter: cfg!(test) || cfg!(msim),
             num_epochs_to_retain_for_indexes: None,
@@ -1110,8 +1143,16 @@ pub struct MetricsConfig {
     pub groups: Option<MetricGroups>,
 }
 
-fn default_checkpoint_archive_download_concurrency() -> usize {
-    10
+fn default_checkpoint_archive_download_concurrency() -> NonZeroUsize {
+    NonZeroUsize::new(10).unwrap()
+}
+
+fn default_checkpoint_archive_verify_concurrency() -> NonZeroUsize {
+    std::thread::available_parallelism().unwrap_or(NonZeroUsize::new(4).unwrap())
+}
+
+fn default_checkpoint_archive_max_checkpoints_ahead_of_execution() -> NonZeroUsize {
+    NonZeroUsize::new(100_000).unwrap()
 }
 
 /// Configuration for backfilling checkpoint contents from the
@@ -1123,7 +1164,18 @@ pub struct CheckpointArchiveConfig {
     pub url: String,
     /// Non-zero number of checkpoints to download in parallel.
     #[serde(default = "default_checkpoint_archive_download_concurrency")]
-    pub download_concurrency: usize,
+    pub download_concurrency: NonZeroUsize,
+    /// Non-zero number of downloaded checkpoints to verify in parallel.
+    /// Defaults to the number of CPU cores.
+    #[serde(default = "default_checkpoint_archive_verify_concurrency")]
+    pub verify_concurrency: NonZeroUsize,
+    /// Pause downloading from the archive while the synced watermark is this
+    /// many checkpoints ahead of the executed watermark, and resume once
+    /// execution catches up. Bounds the disk space held by checkpoints that
+    /// are synced but not yet executed, since only executed checkpoints can
+    /// be pruned.
+    #[serde(default = "default_checkpoint_archive_max_checkpoints_ahead_of_execution")]
+    pub max_checkpoints_ahead_of_execution: NonZeroUsize,
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.
@@ -1301,6 +1353,10 @@ fn default_authority_overload_config() -> AuthorityOverloadConfig {
 
 fn default_traffic_controller_policy_config() -> Option<PolicyConfig> {
     Some(PolicyConfig::default_dos_protection_policy())
+}
+
+fn is_default_traffic_controller_policy_config(policy_config: &Option<PolicyConfig>) -> bool {
+    serializes_like(policy_config, &default_traffic_controller_policy_config())
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
@@ -1556,13 +1612,61 @@ mod tests {
 
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
-    use iota_types::crypto::{
-        AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng, network_to_simple_keypair,
+    use iota_types::{
+        crypto::{
+            AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng, network_to_simple_keypair,
+        },
+        traffic_control::PolicyConfig,
     };
     use rand::{SeedableRng, rngs::StdRng};
+    use serde::Serialize;
+    use serde_yaml::Value;
 
-    use super::Genesis;
+    use super::{
+        Genesis, GrpcApiConfig, default_grpc_api_config,
+        default_periodic_compaction_threshold_days, default_traffic_controller_policy_config,
+    };
     use crate::NodeConfig;
+
+    const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+    const POLICY_CONFIG: &[&str] = &["policy-config"];
+    const GRPC_API_CONFIG: &[&str] = &["grpc-api-config"];
+    const COMPACTION_THRESHOLD: &[&str] = &[
+        "authority-store-pruning-config",
+        "periodic-compaction-threshold-days",
+    ];
+
+    fn template_config() -> NodeConfig {
+        serde_yaml::from_str(TEMPLATE).unwrap()
+    }
+
+    fn round_trip(config: &NodeConfig) -> NodeConfig {
+        serde_yaml::from_str(&serde_yaml::to_string(config).unwrap()).unwrap()
+    }
+
+    fn as_yaml<T: Serialize>(value: &T) -> String {
+        serde_yaml::to_string(value).unwrap()
+    }
+
+    /// Reads `path` out of a serialized value, returning `None` when the last
+    /// key is absent.
+    fn written_at(value: &Value, path: &[&str]) -> Option<Value> {
+        let (last, parents) = path.split_last().unwrap();
+        let mut current = value;
+        for name in parents {
+            current = current
+                .as_mapping()
+                .unwrap()
+                .get(&Value::String((*name).to_owned()))
+                .unwrap();
+        }
+        current
+            .as_mapping()
+            .unwrap()
+            .get(&Value::String((*last).to_owned()))
+            .cloned()
+    }
 
     #[test]
     fn serialize_genesis_from_file() {
@@ -1626,6 +1730,108 @@ mod tests {
         assert_eq!(
             template.protocol_key_pair().public(),
             protocol_key_pair.public()
+        );
+    }
+
+    #[test]
+    fn a_policy_config_survives_a_round_trip_in_all_three_states() {
+        let mut config = template_config();
+
+        config.policy_config = None;
+        assert!(round_trip(&config).policy_config.is_none());
+
+        config.policy_config = default_traffic_controller_policy_config();
+        assert_eq!(
+            as_yaml(&round_trip(&config).policy_config),
+            as_yaml(&default_traffic_controller_policy_config())
+        );
+
+        let configured = PolicyConfig {
+            dry_run: !PolicyConfig::default_dos_protection_policy().dry_run,
+            ..PolicyConfig::default_dos_protection_policy()
+        };
+        config.policy_config = Some(configured.clone());
+        assert_eq!(
+            as_yaml(&round_trip(&config).policy_config),
+            as_yaml(&Some(configured))
+        );
+    }
+
+    #[test]
+    fn a_grpc_api_config_survives_a_round_trip_in_all_three_states() {
+        let mut config = template_config();
+
+        config.grpc_api_config = None;
+        assert!(round_trip(&config).grpc_api_config.is_none());
+
+        config.grpc_api_config = default_grpc_api_config();
+        assert_eq!(
+            as_yaml(&round_trip(&config).grpc_api_config),
+            as_yaml(&default_grpc_api_config())
+        );
+
+        let configured = GrpcApiConfig {
+            max_message_size_bytes: 1234,
+            ..GrpcApiConfig::default()
+        };
+        config.grpc_api_config = Some(configured.clone());
+        assert_eq!(
+            as_yaml(&round_trip(&config).grpc_api_config),
+            as_yaml(&Some(configured))
+        );
+    }
+
+    #[test]
+    fn the_default_pruning_config_agrees_with_the_serde_default() {
+        assert_eq!(
+            super::AuthorityStorePruningConfig::default().periodic_compaction_threshold_days,
+            default_periodic_compaction_threshold_days()
+        );
+    }
+
+    #[test]
+    fn a_compaction_threshold_survives_a_round_trip_in_all_three_states() {
+        let mut config = template_config();
+
+        for state in [None, default_periodic_compaction_threshold_days(), Some(7)] {
+            config
+                .authority_store_pruning_config
+                .periodic_compaction_threshold_days = state;
+            assert_eq!(
+                round_trip(&config)
+                    .authority_store_pruning_config
+                    .periodic_compaction_threshold_days,
+                state
+            );
+        }
+    }
+
+    #[test]
+    fn a_default_value_is_omitted_and_a_disabled_one_is_written_as_null() {
+        let mut config = template_config();
+        config.policy_config = default_traffic_controller_policy_config();
+        config.grpc_api_config = default_grpc_api_config();
+        config
+            .authority_store_pruning_config
+            .periodic_compaction_threshold_days = default_periodic_compaction_threshold_days();
+
+        let written = serde_yaml::to_value(&config).unwrap();
+        assert_eq!(written_at(&written, POLICY_CONFIG), None);
+        assert_eq!(written_at(&written, GRPC_API_CONFIG), None);
+        assert_eq!(written_at(&written, COMPACTION_THRESHOLD), None);
+
+        config.policy_config = None;
+        config.grpc_api_config = None;
+        config
+            .authority_store_pruning_config
+            .periodic_compaction_threshold_days = None;
+
+        let written = serde_yaml::to_value(&config).unwrap();
+        assert_eq!(written_at(&written, POLICY_CONFIG), Some(Value::Null));
+        assert_eq!(written_at(&written, GRPC_API_CONFIG), Some(Value::Null));
+        assert_eq!(
+            written_at(&written, COMPACTION_THRESHOLD),
+            Some(Value::Null)
         );
     }
 }

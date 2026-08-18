@@ -135,7 +135,7 @@ mod compatibility_tests {
 
         let changed_files = String::from_utf8_lossy(&output.stdout);
 
-        changed_files.contains("iota-framework-snapshot/manifest.json")
+        changed_files.contains("iota-framework-snapshot-manifest/manifest.json")
     }
 
     fn checkout_revision(repo_path: &Path, rev: &str) {
