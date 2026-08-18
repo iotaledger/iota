@@ -357,7 +357,7 @@ fn dry_run_publish_resolves_events_of_the_published_package() {
             response.events.data
         );
         let event = &response.events.data[0];
-        assert_eq!(event.type_.name().to_string(), "PublishEvent");
+        assert_eq!(event.tag.name().to_string(), "PublishEvent");
         // An unresolved type would leave the payload undecoded.
         assert_eq!(event.parsed_json, serde_json::json!({ "foo": "bar" }));
     });
