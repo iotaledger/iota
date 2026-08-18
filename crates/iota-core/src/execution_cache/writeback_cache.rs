@@ -1838,13 +1838,6 @@ impl ObjectCacheRead for WritebackCache {
         Ok(())
     }
 
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        self.store
-            .perpetual_tables
-            .get_highest_pruned_checkpoint()
-            .map_err(IotaError::from)
-    }
-
     fn notify_read_input_objects<'a>(
         &'a self,
         input_and_receiving_keys: &'a [InputKey],

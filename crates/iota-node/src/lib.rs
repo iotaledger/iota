@@ -451,18 +451,14 @@ impl IotaNode {
             None,
         ));
 
-        let mut pruner_db = None;
-        if config
+        let compaction_filter = config
             .authority_store_pruning_config
             .enable_compaction_filter
-        {
-            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
-                &config.db_path().join("store"),
-            )));
-        }
-        let compaction_filter = pruner_db
-            .clone()
-            .map(|db| ObjectsCompactionFilter::new(db, &prometheus_registry));
+            .then(|| {
+                let pruner_db =
+                    Arc::new(AuthorityPrunerTables::open(&config.db_path().join("store")));
+                ObjectsCompactionFilter::new(pruner_db, &prometheus_registry)
+            });
 
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
@@ -492,7 +488,7 @@ impl IotaNode {
         let backpressure_manager =
             BackpressureManager::new_from_checkpoint_store(&checkpoint_store);
 
-        let perpetual_tables_for_progress = perpetual_tables.clone();
+        let historic_objects_for_progress = historic_objects.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
             historic_objects,
@@ -730,7 +726,6 @@ impl IotaNode {
             config.clone(),
             validator_tx_finalizer,
             chain_identifier,
-            pruner_db,
             Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
             config.firewall_config.clone(),
@@ -966,7 +961,7 @@ impl IotaNode {
         });
 
         node.checkpoint_progress_tracker
-            .spawn_logging_task(node.checkpoint_store.clone(), perpetual_tables_for_progress);
+            .spawn_logging_task(node.checkpoint_store.clone(), historic_objects_for_progress);
 
         Ok(node)
     }

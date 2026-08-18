@@ -704,16 +704,6 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
-    /// Return the watermark for the highest checkpoint for which we've pruned
-    /// objects.
-    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>>;
-
-    /// Non-fallible version of `try_get_highest_pruned_checkpoint`.
-    fn get_highest_pruned_checkpoint(&self) -> Option<CheckpointSequenceNumber> {
-        self.try_get_highest_pruned_checkpoint()
-            .expect("storage access failed")
-    }
-
     /// Given a list of input and receiving objects for a transaction,
     /// wait until all of them become available, so that the transaction
     /// can start execution.

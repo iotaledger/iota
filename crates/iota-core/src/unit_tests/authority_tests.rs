@@ -3969,8 +3969,8 @@ async fn test_rpc_index_rebuild_on_open() {
 }
 
 /// History replay only writes the history tables, so it needs no input or
-/// output objects: it must cover checkpoints the object pruner has advanced
-/// past, even when the objects themselves are gone from the store.
+/// output objects: it must cover checkpoints whose object versions have been
+/// expired, even when the objects themselves are gone from the store.
 #[tokio::test]
 async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
     use typed_store::Map;
@@ -3993,16 +3993,8 @@ async fn test_rpc_index_rebuild_replays_object_pruned_checkpoints() {
         .update_highest_executed_checkpoint(&genesis_checkpoint)
         .unwrap();
 
-    // The object pruner has advanced past the genesis checkpoint; the
-    // checkpoint-contents watermark is untouched.
-    authority_state
-        .database_for_testing()
-        .perpetual_tables
-        .set_highest_pruned_checkpoint_without_wb(0)
-        .unwrap();
-
-    // Delete one of the genesis transaction's output objects, as the object
-    // pruner would: replay must succeed without it.
+    // Delete one of the genesis transaction's output objects, as an expired
+    // bucket would: replay must succeed without it.
     let genesis_contents = checkpoint_store
         .get_checkpoint_contents(&genesis_checkpoint.contents_digest)
         .unwrap()
@@ -9139,4 +9131,72 @@ async fn test_effects_equivocation_prevented_at_signing_not_execution() {
             &previously_signed_sig,
         )
         .unwrap();
+}
+
+/// The epoch boundary expires the historic-object buckets that have fallen
+/// outside the configured retention, which counts the epochs kept beyond the
+/// current one.
+#[tokio::test]
+async fn reconfiguration_expires_buckets_beyond_the_retention() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(1)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+
+    // One relocated version per epoch, so an expired bucket is observable by
+    // the version it no longer serves.
+    let relocated: Vec<ObjectKey> = (0..=3)
+        .map(|epoch| {
+            let object = Object::immutable_with_id_for_testing(ObjectId::random());
+            let key = ObjectKey(object.id(), object.version());
+            let bucket = historic.ensure(epoch).unwrap();
+            let objects = &authority.database_for_testing().perpetual_tables.objects;
+            let mut batch = objects.batch();
+            batch
+                .insert_batch_tagged(&bucket.objects, [(key, object)])
+                .unwrap();
+            batch.write().unwrap();
+            key
+        })
+        .collect();
+
+    // Retaining one epoch beyond epoch 3 keeps the buckets of 3 and 2.
+    authority.advance_historic_objects(3).unwrap();
+    assert_eq!(historic.earliest_retained_epoch(), 2);
+    assert_eq!(historic.get(&relocated[0]).unwrap(), None);
+    assert_eq!(historic.get(&relocated[1]).unwrap(), None);
+    assert!(historic.get(&relocated[2]).unwrap().is_some());
+    assert!(historic.get(&relocated[3]).unwrap().is_some());
+}
+
+/// A retention of `u64::MAX` turns object expiry off: the epoch boundary opens
+/// the new epoch's bucket and leaves every older one in place.
+#[tokio::test]
+async fn reconfiguration_retains_every_bucket_when_expiry_is_disabled() {
+    use iota_types::storage::ObjectKey;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain(u64::MAX)
+        .build()
+        .await;
+    let historic = authority.get_historic_objects();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let relocated = ObjectKey(object.id(), object.version());
+    let bucket = historic.ensure(0).unwrap();
+    let objects = &authority.database_for_testing().perpetual_tables.objects;
+    let mut batch = objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.objects, [(relocated, object)])
+        .unwrap();
+    batch.write().unwrap();
+
+    for epoch in 1..=3 {
+        authority.advance_historic_objects(epoch).unwrap();
+    }
+    assert_eq!(historic.earliest_retained_epoch(), 0);
+    assert!(historic.get(&relocated).unwrap().is_some());
 }

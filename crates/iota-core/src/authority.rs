@@ -148,7 +148,6 @@ use crate::{
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
         authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
-        authority_store_tables::AuthorityPrunerTables,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
         historic_objects::HistoricObjects,
         shared_object_version_manager::{AssignedVersions, Schedulable},
@@ -2745,7 +2744,6 @@ impl AuthorityState {
         config: NodeConfig,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
-        pruner_db: Option<Arc<AuthorityPrunerTables>>,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
@@ -2777,10 +2775,8 @@ impl AuthorityState {
             checkpoint_store.clone(),
             rpc_indexes_store.clone(),
             config.authority_store_pruning_config.clone(),
-            epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
-            pruner_db,
             checkpoint_progress_tracker.clone(),
         );
         let input_loader =
@@ -2902,7 +2898,6 @@ impl AuthorityState {
         AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
-            None,
             config.authority_store_pruning_config,
             metrics,
             EPOCH_DURATION_MS_FOR_TESTING,
@@ -3137,11 +3132,7 @@ impl AuthorityState {
         }
 
         let new_epoch = new_committee.epoch;
-        // Create the new epoch's historic-object bucket while execution is
-        // stopped: creating a column family is a blocking RocksDB operation,
-        // and the first checkpoint commit of the epoch would otherwise wait
-        // for it.
-        self.historic_objects.ensure(new_epoch)?;
+        self.advance_historic_objects(new_epoch)?;
         let new_epoch_store = self
             .reopen_epoch_db(
                 cur_epoch_store,
@@ -3163,6 +3154,28 @@ impl AuthorityState {
         // see also assert in AuthorityState::process_transaction
         // on the epoch store and execution lock epoch match
         Ok(new_epoch_store)
+    }
+
+    /// Opens `new_epoch`'s historic-object bucket and expires the buckets that
+    /// have fallen outside the configured object retention.
+    ///
+    /// Both are blocking RocksDB operations — creating and dropping column
+    /// families — and both belong at the epoch boundary, where execution is
+    /// stopped: the first checkpoint commit of the new epoch would otherwise
+    /// wait for the bucket to be created, and a drop taken on the runtime
+    /// would block queries on the buckets lock.
+    fn advance_historic_objects(&self, new_epoch: EpochId) -> IotaResult<()> {
+        self.historic_objects.ensure(new_epoch)?;
+        // `num_epochs_to_retain` counts the historic epochs kept beyond the
+        // current one, while `prune` counts buckets including the newest.
+        let num_epochs_to_retain = self
+            .config
+            .authority_store_pruning_config
+            .num_epochs_to_retain;
+        if num_epochs_to_retain != u64::MAX {
+            self.historic_objects.prune(num_epochs_to_retain + 1)?;
+        }
+        Ok(())
     }
 
     /// Advance the epoch store to the next epoch for testing only.

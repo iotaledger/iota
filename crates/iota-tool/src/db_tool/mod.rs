@@ -24,7 +24,7 @@ use self::{
     db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
     index_search::{SearchRange, search_index},
 };
-use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints, prune_objects};
+use crate::db_tool::db_dump::{compact, print_table_metadata, prune_checkpoints};
 pub mod db_dump;
 mod index_search;
 
@@ -44,7 +44,6 @@ pub enum DbToolCommand {
     PrintCheckpointContent(PrintCheckpointContentOptions),
     RewindCheckpointExecution(RewindCheckpointExecutionOptions),
     Compact,
-    PruneObjects,
     PruneCheckpoints,
     SetCheckpointWatermark(SetCheckpointWatermarkOptions),
 }
@@ -192,7 +191,6 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
             rewind_checkpoint_execution(&db_path, d.epoch, d.checkpoint_sequence_number)
         }
         DbToolCommand::Compact => compact(db_path),
-        DbToolCommand::PruneObjects => prune_objects(db_path).await,
         DbToolCommand::PruneCheckpoints => prune_checkpoints(db_path).await,
         DbToolCommand::IndexSearchKeyRange(rg) => {
             let res = search_index(
