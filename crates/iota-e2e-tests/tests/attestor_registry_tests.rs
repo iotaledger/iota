@@ -7,11 +7,11 @@
 //! `enable_validator_attestation` and `enable_pcool_flow`).
 //! Own binary so the process-wide env override does not race others.
 
-use fastcrypto::ed25519::Ed25519KeyPair;
 use iota_macros::sim_test;
+use iota_sdk_crypto::{ed25519::Ed25519PrivateKey, simple::SimpleKeypair};
 use iota_types::{
     IOTA_SYSTEM_PACKAGE_ID,
-    crypto::{IotaKeyPair, get_key_pair_from_rng},
+    crypto::{PublicKey, get_key_pair_from_rng},
     iota_system_state::attestor_registry::{
         generate_attestor_proof_of_possession, get_attestor_metadata,
     },
@@ -90,10 +90,10 @@ async fn test_attestor_registry_lifecycle() {
 
     // A dedicated attestor signing key with a proof of possession bound to
     // the registering account.
-    let attestor_keypair = IotaKeyPair::Ed25519(
-        get_key_pair_from_rng::<Ed25519KeyPair, _>(&mut StdRng::from_seed([7; 32])).1,
+    let attestor_keypair = SimpleKeypair::from(
+        get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut StdRng::from_seed([7; 32])).1,
     );
-    let pk = attestor_keypair.public();
+    let pk = PublicKey::from(&attestor_keypair);
     let mut attestor_pubkey = vec![pk.flag()];
     attestor_pubkey.extend_from_slice(pk.as_ref());
     let proof_of_possession = generate_attestor_proof_of_possession(&attestor_keypair, sender);
@@ -127,7 +127,10 @@ async fn test_attestor_registry_lifecycle() {
             .attestor_set()
             .is_empty()
     });
-    assert!(empty, "attestor must not be active before the epoch boundary");
+    assert!(
+        empty,
+        "attestor must not be active before the epoch boundary"
+    );
 
     // Cross the boundary; the snapshot must now contain the attestor at index 0.
     test_cluster.force_new_epoch().await;
@@ -185,7 +188,10 @@ async fn test_attestor_registry_lifecycle() {
         let set = epoch_store.attestor_set();
         set.is_empty() && set.by_address(&sender).is_none()
     });
-    assert!(removed, "attestor must be removed after the deregistration boundary");
+    assert!(
+        removed,
+        "attestor must be removed after the deregistration boundary"
+    );
 
     let metadata_gone = test_cluster.fullnode_handle.iota_node.with(|node| {
         get_attestor_metadata(node.state().get_object_store().as_ref(), sender)
