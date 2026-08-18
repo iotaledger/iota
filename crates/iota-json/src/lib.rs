@@ -18,14 +18,19 @@ use iota_types::{
         RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext, TxContextKind,
         is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
     },
+    error::IotaError,
     id::{self, RESOLVED_IOTA_ID},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
-    move_package::MovePackageExt,
+    move_package::{
+        IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper,
+    },
     object::bounded_visitor::BoundedVisitor,
     transfer::RESOLVED_RECEIVING_STRUCT,
 };
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
+    file_format_common::IOTA_METADATA_KEY,
 };
 use move_bytecode_utils::resolve_struct;
 pub use move_core_types::annotated_value::MoveTypeLayout;
@@ -337,6 +342,26 @@ impl IotaJsonValue {
 impl Debug for IotaJsonValue {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
+    }
+}
+
+/// Input argument to a Move function call.
+#[derive(Clone, Debug)]
+pub enum IotaMoveCallInputValue {
+    /// JSON, resolved with respect to argument type
+    Json(IotaJsonValue),
+    /// BCS bytes, resolved directly as [`ResolvedCallArg::Pure`]
+    Bcs(Vec<u8>),
+}
+
+impl From<IotaJsonValue> for IotaMoveCallInputValue {
+    fn from(json: IotaJsonValue) -> Self {
+        Self::Json(json)
+    }
+}
+impl From<Vec<u8>> for IotaMoveCallInputValue {
+    fn from(bcs: Vec<u8>) -> Self {
+        Self::Bcs(bcs)
     }
 }
 
@@ -715,11 +740,19 @@ fn resolve_call_arg(
     view: &CompiledModule,
     type_args: &[TypeTag],
     idx: usize,
-    arg: &IotaJsonValue,
+    arg: &IotaMoveCallInputValue,
     param: &SignatureToken,
 ) -> Result<ResolvedCallArg, anyhow::Error> {
+    let json = match arg {
+        IotaMoveCallInputValue::Bcs(bcs) => {
+            // let Move VM verify the type
+            return Ok(ResolvedCallArg::Pure(bcs.clone()));
+        }
+        IotaMoveCallInputValue::Json(json) => json,
+    };
+
     if let Some(layout) = primitive_type(view, type_args, param) {
-        return Ok(ResolvedCallArg::Pure(arg.to_bcs_bytes(&layout).map_err(
+        return Ok(ResolvedCallArg::Pure(json.to_bcs_bytes(&layout).map_err(
             |e| {
                 anyhow!(
                     "Could not serialize argument of type {param:?} at {idx} into {layout}. Got error: {e:?}"
@@ -737,7 +770,7 @@ fn resolve_call_arg(
         }
         SignatureToken::Vector(inner) => match &**inner {
             SignatureToken::Datatype(_) | SignatureToken::DatatypeInstantiation(_) => {
-                Ok(ResolvedCallArg::ObjVec(resolve_object_vec_arg(idx, arg)?))
+                Ok(ResolvedCallArg::ObjVec(resolve_object_vec_arg(idx, json)?))
             }
             _ => {
                 bail!("Unexpected non-primitive vector arg {param:?} at {idx} with value {arg:?}");
@@ -747,7 +780,7 @@ fn resolve_call_arg(
         | SignatureToken::DatatypeInstantiation(_)
         | SignatureToken::TypeParameter(_) => Ok(ResolvedCallArg::Object(resolve_object_arg(
             idx,
-            &arg.to_json_value(),
+            &json.to_json_value(),
         )?)),
         _ => bail!("Unexpected non-primitive arg {param:?} at {idx} with value {arg:?}"),
     }
@@ -772,60 +805,123 @@ pub fn is_receiving_argument(view: &CompiledModule, arg_type: &SignatureToken) -
 pub fn resolve_call_args(
     view: &CompiledModule,
     type_args: &[TypeTag],
-    json_args: &[IotaJsonValue],
+    args: &[IotaMoveCallInputValue],
     parameter_types: &[SignatureToken],
 ) -> Result<Vec<ResolvedCallArg>, anyhow::Error> {
-    json_args
-        .iter()
+    args.iter()
         .zip(parameter_types)
         .enumerate()
         .map(|(idx, (arg, param))| resolve_call_arg(view, type_args, idx, arg, param))
         .collect()
 }
 
+/// Checks whether `function_name` is recorded as a `#[view]` function in the
+/// module's runtime metadata.
+///
+/// Returns `false` for modules without version 2 runtime metadata (compiled
+/// before view functions were introduced, or carrying no function
+/// attributes), which therefore record no view function information.
+fn is_view_function_from_module_metadata(
+    module: &CompiledModule,
+    function_name: &str,
+) -> Result<bool, IotaError> {
+    let Some(metadata) = module
+        .metadata
+        .iter()
+        .find(|metadata| metadata.key == IOTA_METADATA_KEY)
+    else {
+        return Ok(false);
+    };
+    let metadata_wrapper: RuntimeModuleMetadataWrapper =
+        bcs::from_bytes(&metadata.value).map_err(|error| {
+            IotaError::RuntimeModuleMetadataDeserialization {
+                error: error.to_string(),
+            }
+        })?;
+    // Module metadata stored on chain passed the verifier at publish time, so
+    // decoding may assume view function support.
+    let metadata = metadata_wrapper.try_into_runtime_module_metadata(&ProtocolBuildConfig {
+        allow_view_function: true,
+        max_move_package_size: None,
+    })?;
+    Ok(match metadata {
+        RuntimeModuleMetadata::V1(_) => false,
+        RuntimeModuleMetadata::V2(metadata_v2) => metadata_v2
+            .fun_attributes
+            .get(function_name)
+            .is_some_and(|attributes| {
+                attributes
+                    .iter()
+                    .any(|attribute| matches!(attribute, IotaAttributeV2::View))
+            }),
+    })
+}
+
 /// Resolve the JSON args of a function into the expected formats to make them
 /// usable by Move call This is because we have special types which we need to
 /// specify in other formats
-pub fn resolve_move_function_args(
+pub fn resolve_move_function_json_args(
     package: &MovePackage,
     module_ident: Identifier,
     function: Identifier,
     type_args: &[TypeTag],
     combined_args_json: Vec<IotaJsonValue>,
 ) -> Result<Vec<(ResolvedCallArg, SignatureToken)>, anyhow::Error> {
-    // Extract the expected function signature
     let module = package.deserialize_module(&module_ident, &BinaryConfig::standard())?;
+    let args = combined_args_json.into_iter().map(Into::into).collect();
+    resolve_move_function_args(&module, function.clone(), type_args, args, None).map_err(|e| {
+        anyhow::anyhow!("failed to resolve {module_ident}::{function} move function: {e}")
+    })
+}
+
+/// Resolve the JSON args of a function into the expected formats to make them
+/// usable by Move call. This is because we have special types which we need to
+/// specify in other formats. Additionally, it checks for `#[view]` attribute
+/// presence in function metadata if a view/non-view function is expected.
+pub fn resolve_move_function_args(
+    module: &CompiledModule,
+    function: Identifier,
+    type_args: &[TypeTag],
+    args: Vec<IotaMoveCallInputValue>,
+    is_view_function: Option<bool>,
+) -> Result<Vec<(ResolvedCallArg, SignatureToken)>, anyhow::Error> {
+    // Extract the expected function signature
     let fdef = module
-        .function_defs
-        .iter()
-        .find(|fdef| {
-            module
-                .identifier_at(module.function_handle_at(fdef.function).name)
-                .as_str()
-                == function.as_str()
-        })
-        .ok_or_else(|| anyhow!("Could not resolve function {function} in module {module_ident}"))?;
+        .find_function_def_by_name(function.as_str())
+        .map(|(_, fdef)| fdef)
+        .ok_or_else(|| anyhow!("Could not resolve function {function}"))?;
+
+    if let Some(is_view_expected) = is_view_function {
+        let has_view_attribute = is_view_function_from_module_metadata(module, function.as_str())?;
+        if is_view_expected != has_view_attribute {
+            bail!(
+                "expected {} function, but it {} #[view] attribute",
+                if is_view_expected { "view" } else { "non-view" },
+                if has_view_attribute {
+                    "has"
+                } else {
+                    "doesn't have"
+                },
+            );
+        }
+    }
     let function_signature = module.function_handle_at(fdef.function);
     let parameters = &module.signature_at(function_signature.parameters).0;
 
     // Lengths have to match, less one, due to TxContext
     let expected_len = match parameters.last() {
-        Some(param) if TxContext::kind(&module, param) != TxContextKind::None => {
+        Some(param) if TxContext::kind(module, param) != TxContextKind::None => {
             parameters.len() - 1
         }
         _ => parameters.len(),
     };
-    if combined_args_json.len() != expected_len {
-        bail!(
-            "Expected {} args, found {}",
-            expected_len,
-            combined_args_json.len()
-        );
+    if args.len() != expected_len {
+        bail!("Expected {} args, found {}", expected_len, args.len());
     }
 
     // Check that the args are valid and convert to the correct format
-    let call_args = resolve_call_args(&module, type_args, &combined_args_json, parameters)?;
-    let tupled_call_args = call_args
+    let resolved_args = resolve_call_args(module, type_args, &args, parameters)?;
+    let tupled_call_args = resolved_args
         .into_iter()
         .zip(parameters.iter())
         .map(|(arg, expected_type)| (arg, expected_type.clone()))

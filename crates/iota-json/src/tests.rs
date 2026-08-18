@@ -23,7 +23,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 use test_fuzz::runtime::num_traits::ToPrimitive;
 
-use super::{HEX_PREFIX, IotaJsonValue, check_valid_homogeneous, resolve_move_function_args};
+use super::{HEX_PREFIX, IotaJsonValue, check_valid_homogeneous, resolve_move_function_json_args};
 use crate::{ResolvedCallArg, resolve_call_args};
 
 // Negative test cases
@@ -478,7 +478,7 @@ fn test_basic_args_linter_top_level() {
     .collect();
 
     let json_args: Vec<_> =
-        resolve_move_function_args(package, module.clone(), function.clone(), &[], args)
+        resolve_move_function_json_args(package, module.clone(), function.clone(), &[], args)
             .unwrap()
             .into_iter()
             .map(|(arg, _)| arg)
@@ -507,7 +507,7 @@ fn test_basic_args_linter_top_level() {
         .map(|q| IotaJsonValue::new(q).unwrap())
         .collect();
 
-    assert!(resolve_move_function_args(package, module, function, &[], args,).is_err());
+    assert!(resolve_move_function_json_args(package, module, function, &[], args).is_err());
 }
 
 #[test]
@@ -795,8 +795,8 @@ fn test_resolve_call_args_reference() {
     ))));
     let compiled_module = CompiledModule::default();
     let args = [
-        IotaJsonValue::new(Value::from([0, 1, 2])).unwrap(),
-        IotaJsonValue::new(Value::from("0x000102")).unwrap(),
+        IotaJsonValue::new(Value::from([0, 1, 2])).unwrap().into(),
+        IotaJsonValue::new(Value::from("0x000102")).unwrap().into(),
     ];
     let arg_types = [signature_token.clone(), signature_token];
     let type_args = [];

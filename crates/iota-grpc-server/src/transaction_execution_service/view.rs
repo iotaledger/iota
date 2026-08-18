@@ -20,28 +20,21 @@ use iota_grpc_types::{
         types::TypeTag as ProtoTypeTag,
     },
 };
-use iota_json::{IotaJsonValue, ResolvedCallArg, resolve_call_args};
+use iota_json::{
+    IotaJsonValue, IotaMoveCallInputValue, ResolvedCallArg, resolve_move_function_args,
+};
 use iota_node_transaction_builder::NodeTransactionBuilderResolveClient;
 use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::{
     Address, GasPayment, Identifier, ObjectId, TransactionExpiration, TypeTag,
-    move_package::MovePackage, transaction::TransactionV1,
+    transaction::TransactionV1,
 };
 use iota_types::{
-    base_types::{TxContext, TxContextKind},
-    error::{IotaError, UserInputError},
-    fp_ensure,
-    move_package::{
-        IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
-        RuntimeModuleMetadataWrapper,
-    },
+    move_package::MovePackageExt,
     parse_iota_fq_name,
     transaction_executor::{TransactionExecutor, VmChecks},
 };
-use move_binary_format::{
-    CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
-    file_format_common::IOTA_METADATA_KEY,
-};
+use move_binary_format::binary_config::BinaryConfig;
 use tonic::Code;
 
 use super::CommandOutputsReadSource;
@@ -241,7 +234,7 @@ fn add_view_function_call(
     let view_args_vec = item
         .inputs
         .iter()
-        .map(proto_arg_to_view_arg)
+        .map(proto_arg_to_call_arg)
         .collect::<Result<Vec<_>, _>>()?;
 
     let object = reader
@@ -255,12 +248,25 @@ fn add_view_function_call(
         )
     })?;
 
-    let resolved =
-        resolve_view_function_args(package, &module, &function, &type_args, view_args_vec)
-            .map_err(|e| RpcError::new(Code::InvalidArgument, format!("{e}")))?;
+    let compiled_module = package
+        .deserialize_module(&module, &BinaryConfig::standard())
+        .map_err(|e| {
+            RpcError::new(
+                Code::InvalidArgument,
+                format!("failed to deserialize module {module}: {e}"),
+            )
+        })?;
+    let resolved = resolve_move_function_args(
+        &compiled_module,
+        function.clone(),
+        &type_args,
+        view_args_vec,
+        Some(true),
+    )
+    .map_err(|e| RpcError::new(Code::InvalidArgument, format!("{e}")))?;
 
     let mut args = Vec::with_capacity(resolved.len());
-    for resolved_arg in resolved {
+    for (resolved_arg, _) in resolved {
         let arg = match resolved_arg {
             ResolvedCallArg::Pure(bytes) => {
                 builder.apply_argument(iota_sdk_types::Input::Pure(bytes))
@@ -314,170 +320,19 @@ fn convert_type_args(type_args: &[ProtoTypeTag]) -> Result<Vec<TypeTag>, RpcErro
 
 /// Convert one request argument into a [`ViewArg`]. Exactly one of `bcs` /
 /// `json` must be set.
-fn proto_arg_to_view_arg(arg: &InputArgument) -> Result<ViewArg, RpcError> {
+fn proto_arg_to_call_arg(arg: &InputArgument) -> Result<IotaMoveCallInputValue, RpcError> {
     match &arg.input {
-        Some(input_argument::Input::Bcs(bcs)) => Ok(ViewArg::Bcs(bcs.data.to_vec())),
-        Some(input_argument::Input::Json(value)) => {
-            let json = IotaJsonValue::new(prost_to_json(value)).map_err(|e| {
+        Some(input_argument::Input::Bcs(bcs)) => Ok(IotaMoveCallInputValue::Bcs(bcs.data.to_vec())),
+        Some(input_argument::Input::Json(value)) => IotaJsonValue::new(prost_to_json(value))
+            .map(IotaMoveCallInputValue::Json)
+            .map_err(|e| {
                 RpcError::new(Code::InvalidArgument, format!("invalid json argument: {e}"))
-            })?;
-            Ok(ViewArg::Json(json))
-        }
+            }),
         Some(_) => Err(RpcError::new(
             Code::InvalidArgument,
             "argument is neither bcs nor json",
         )),
         None => Err(RpcError::new(Code::InvalidArgument, "argument is not set")),
-    }
-}
-
-/// A single argument to a view function call: either a JSON value (resolved
-/// against the parameter's Move type) or pre-encoded pure BCS bytes.
-///
-/// Object arguments must be provided as [`ViewArg::Json`] (the object ID as a
-/// string); [`ViewArg::Bcs`] is always treated as a pure value.
-enum ViewArg {
-    Json(IotaJsonValue),
-    Bcs(Vec<u8>),
-}
-
-/// Resolve the arguments of a `#[view]` function call against its on-chain
-/// signature, without fetching any objects (object arguments are returned as
-/// their [`ResolvedCallArg::Object`] IDs for the caller to resolve).
-///
-/// Errors if the function is missing, is not declared `#[view]`, the argument
-/// count does not match, or a JSON argument cannot be coerced to its parameter
-/// type.
-fn resolve_view_function_args(
-    package: &MovePackage,
-    module_ident: &Identifier,
-    function_ident: &Identifier,
-    type_args: &[TypeTag],
-    args: Vec<ViewArg>,
-) -> Result<Vec<ResolvedCallArg>, IotaError> {
-    let module = package.deserialize_module(module_ident, &BinaryConfig::standard())?;
-
-    fp_ensure!(
-        module
-            .find_function_def_by_name(function_ident.as_str())
-            .is_some(),
-        UserInputError::InvalidMoveViewFunction {
-            error: format!(
-                "function {function_ident} not found in module {module_ident} of package {}",
-                package.id()
-            ),
-        }
-        .into()
-    );
-
-    fp_ensure!(
-        is_view_function(&module, function_ident.as_str())?,
-        UserInputError::InvalidMoveViewFunction {
-            error: format!(
-                "function {function_ident} in module {module_ident} is not declared as a #[view] function"
-            ),
-        }
-        .into()
-    );
-
-    let parameters = get_function_parameters(&module, function_ident)?;
-    let expected_len = expected_arg_count(&module, parameters);
-    fp_ensure!(
-        args.len() == expected_len,
-        UserInputError::InvalidMoveViewFunction {
-            error: format!("expected {expected_len} arguments, found {}", args.len()),
-        }
-        .into()
-    );
-
-    let mut resolved = Vec::with_capacity(args.len());
-    for (arg, param) in args.into_iter().zip(parameters.iter().take(expected_len)) {
-        match arg {
-            ViewArg::Bcs(bytes) => resolved.push(ResolvedCallArg::Pure(bytes)),
-            ViewArg::Json(value) => {
-                let mut one = resolve_call_args(
-                    &module,
-                    type_args,
-                    std::slice::from_ref(&value),
-                    std::slice::from_ref(param),
-                )
-                .map_err(|e| UserInputError::InvalidMoveViewFunction {
-                    error: format!("failed to resolve call argument: {e}"),
-                })?;
-                resolved.push(one.pop().expect("resolve_call_args returns one per input"));
-            }
-        }
-    }
-    Ok(resolved)
-}
-
-/// Checks whether `function_name` is recorded as a `#[view]` function in the
-/// module's runtime metadata.
-///
-/// Returns `false` for modules without version 2 runtime metadata (compiled
-/// before view functions were introduced, or carrying no function
-/// attributes), which therefore record no view function information.
-fn is_view_function(module: &CompiledModule, function_name: &str) -> Result<bool, IotaError> {
-    let Some(metadata) = module
-        .metadata
-        .iter()
-        .find(|metadata| metadata.key == IOTA_METADATA_KEY)
-    else {
-        return Ok(false);
-    };
-    let metadata_wrapper: RuntimeModuleMetadataWrapper =
-        bcs::from_bytes(&metadata.value).map_err(|error| {
-            IotaError::RuntimeModuleMetadataDeserialization {
-                error: error.to_string(),
-            }
-        })?;
-    // Module metadata stored on chain passed the verifier at publish time, so
-    // decoding may assume view function support.
-    let metadata = metadata_wrapper.try_into_runtime_module_metadata(&ProtocolBuildConfig {
-        allow_view_function: true,
-        max_move_package_size: None,
-    })?;
-    Ok(match metadata {
-        RuntimeModuleMetadata::V1(_) => false,
-        RuntimeModuleMetadata::V2(metadata_v2) => metadata_v2
-            .fun_attributes
-            .get(function_name)
-            .is_some_and(|attributes| {
-                attributes
-                    .iter()
-                    .any(|attribute| matches!(attribute, IotaAttributeV2::View))
-            }),
-    })
-}
-
-/// Get function parameters from a compiled module, excluding TxContext.
-fn get_function_parameters<'a>(
-    module: &'a CompiledModule,
-    function: &Identifier,
-) -> Result<&'a [SignatureToken], IotaError> {
-    Ok(module
-        .function_defs
-        .iter()
-        .find_map(|function_def| {
-            let function_handle = module.function_handle_at(function_def.function);
-            (function == module.identifier_at(function_handle.name).as_str())
-                .then(|| &module.signature_at(function_handle.parameters).0)
-        })
-        .ok_or_else(|| UserInputError::InvalidMoveViewFunction {
-            error: format!(
-                "Could not resolve function {function} in module {}",
-                module.self_id()
-            ),
-        })?)
-}
-
-/// Calculate expected argument count, excluding TxContext if present.
-fn expected_arg_count(module: &CompiledModule, parameters: &[SignatureToken]) -> usize {
-    match parameters.last() {
-        Some(param) if TxContext::kind(module, param) != TxContextKind::None => {
-            parameters.len() - 1
-        }
-        _ => parameters.len(),
     }
 }
 
@@ -495,16 +350,16 @@ mod tests {
             kind: Some(Kind::StringValue("42".into())),
         });
         assert!(matches!(
-            proto_arg_to_view_arg(&arg).unwrap(),
-            ViewArg::Json(_)
+            proto_arg_to_call_arg(&arg).unwrap(),
+            IotaMoveCallInputValue::Json(_)
         ));
     }
 
     #[test]
     fn bcs_arg_becomes_bcs_view_arg() {
         let arg = InputArgument::default().with_bcs(BcsData::default().with_data(vec![1, 2, 3]));
-        match proto_arg_to_view_arg(&arg).unwrap() {
-            ViewArg::Bcs(bytes) => assert_eq!(bytes, vec![1, 2, 3]),
+        match proto_arg_to_call_arg(&arg).unwrap() {
+            IotaMoveCallInputValue::Bcs(bytes) => assert_eq!(bytes, vec![1, 2, 3]),
             _ => panic!("expected bcs"),
         }
     }
@@ -512,7 +367,7 @@ mod tests {
     #[test]
     fn arg_with_neither_field_is_rejected() {
         let arg = InputArgument::default();
-        assert!(proto_arg_to_view_arg(&arg).is_err());
+        assert!(proto_arg_to_call_arg(&arg).is_err());
     }
 
     #[test]
