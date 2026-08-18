@@ -161,17 +161,17 @@ impl<'a> Resolver<'a> for ToObject {
 
 /// A resolver that resolves object IDs that it encounters to pure PTB values.
 struct ToPure {
-    type_: TypeTag,
+    tag: TypeTag,
 }
 
 impl ToPure {
-    pub fn new(type_: TypeTag) -> Self {
-        Self { type_ }
+    pub fn new(tag: TypeTag) -> Self {
+        Self { tag }
     }
 
     pub fn new_from_layout(layout: MoveTypeLayout) -> Self {
         Self {
-            type_: type_tag_core_to_sdk(&(&layout).into()),
+            tag: type_tag_core_to_sdk(&(&layout).into()),
         }
     }
 }
@@ -184,7 +184,7 @@ impl<'a> Resolver<'a> for ToPure {
         loc: Span,
         argument: PTBArg,
     ) -> PTBResult<Argument> {
-        let value = argument.checked_to_pure_move_value(loc, &self.type_)?;
+        let value = argument.checked_to_pure_move_value(loc, &self.tag)?;
         builder.ptb.pure(value).map_err(|e| err!(loc, "{e}"))
     }
 

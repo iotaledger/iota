@@ -26,7 +26,7 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
         let version = changed_object.version;
         let digest = changed_object.digest;
         let o = object_provider.get_object(&object_id, &version).await?;
-        if let Some(move_object_type) = o.type_() {
+        if let Some(move_object_type) = o.data.opt_object_type() {
             let object_type: StructTag = move_object_type.clone().into();
 
             match kind {
@@ -83,7 +83,7 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
             .find_object_lt_or_eq_version(&id, &version)
             .await?;
         if let Some(o) = o {
-            if let Some(type_) = o.type_() {
+            if let Some(type_) = o.data.opt_object_type() {
                 let object_type: StructTag = type_.clone().into();
                 match kind {
                     ObjectRemoveKind::Delete => object_changes.push(ObjectChange::Deleted {

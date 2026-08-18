@@ -1180,7 +1180,7 @@ pub fn get_object_type_and_struct(
     o: &Object,
     layout: &Option<MoveStructLayout>,
 ) -> Result<Option<(StructTag, MoveStruct)>, ObjectDisplayError> {
-    if let Some(object_type) = o.type_() {
+    if let Some(object_type) = o.data.opt_object_type() {
         let move_struct = get_move_struct(o, layout)?;
         Ok(Some((object_type.clone().into(), move_struct)))
     } else {
@@ -1287,7 +1287,7 @@ fn get_value_from_move_struct(
     for part in parts {
         match current_value {
             IotaMoveValue::Struct(move_struct) => {
-                if let IotaMoveStruct::WithTypes { type_: _, fields }
+                if let IotaMoveStruct::WithTypes { tag: _, fields }
                 | IotaMoveStruct::WithFields(fields) = move_struct
                 {
                     if let Some(value) = fields.get(part) {

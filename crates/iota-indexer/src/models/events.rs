@@ -99,9 +99,9 @@ impl StoredEvent {
             }
         };
 
-        let type_ = parse_iota_struct_tag(&self.event_type)?;
+        let tag = parse_iota_struct_tag(&self.event_type)?;
         let move_type_layout = package_resolver
-            .type_layout(type_.clone().into())
+            .type_layout(tag.clone().into())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(
@@ -126,7 +126,7 @@ impl StoredEvent {
             package_id,
             transaction_module: Identifier::from_str(&self.module)?,
             sender,
-            type_,
+            tag,
             bcs: BcsEvent::new(self.bcs),
             parsed_json,
             timestamp_ms: Some(self.timestamp_ms as u64),

@@ -70,8 +70,9 @@ pub struct DynamicFieldInfo {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DynamicFieldName {
+    #[serde(rename = "type")]
     #[serde_as(as = "Readable<IotaTypeTag, _>")]
-    pub type_: TypeTag,
+    pub tag: TypeTag,
     // Bincode does not like serde_json::Value, rocksdb will not insert the value without
     // serializing value as string. TODO: investigate if this can be removed after switch to
     // BCS.
@@ -81,7 +82,7 @@ pub struct DynamicFieldName {
 
 impl Display for DynamicFieldName {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.type_, self.value)
+        write!(f, "{}: {}", self.tag, self.value)
     }
 }
 

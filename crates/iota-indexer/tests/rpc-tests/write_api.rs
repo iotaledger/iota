@@ -1612,10 +1612,10 @@ fn move_view_function_call() {
         let return_values = view_results.into_return_values();
         assert_eq!(return_values.len(), 1);
         let wat = &return_values[0];
-        let IotaMoveValue::Struct(IotaMoveStruct::WithTypes { type_, fields }) = wat else {
+        let IotaMoveValue::Struct(IotaMoveStruct::WithTypes { tag, fields }) = wat else {
             panic!("return value should have been a struct");
         };
-        assert_eq!(type_.name().to_string(), "Wat");
+        assert_eq!(tag.name().to_string(), "Wat");
         assert!(fields.contains_key(&"counter".to_string()));
 
         // Test mixed object, bool and address arguments.

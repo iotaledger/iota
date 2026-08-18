@@ -235,7 +235,7 @@ fn coin_owner_type_value(
             version,
         });
     };
-    let Some(move_object_type) = object.type_() else {
+    let Some(move_object_type) = object.data.opt_object_type() else {
         return Ok(None);
     };
     if !move_object_type.is_coin() {
@@ -297,7 +297,7 @@ pub fn derive_object_changes(
         let Some(object) = outputs.get(&(object_id, version)) else {
             return Err(DeriveChangesError::MissingObject { object_id, version });
         };
-        if let Some(move_object_type) = object.type_() {
+        if let Some(move_object_type) = object.data.opt_object_type() {
             let object_type: StructTag = move_object_type.clone().into();
 
             match kind {
@@ -362,7 +362,7 @@ pub fn derive_object_changes(
             });
         };
         // Packages cannot be removed; skip non-Move objects
-        if let Some(move_object_type) = object.type_() {
+        if let Some(move_object_type) = object.data.opt_object_type() {
             let object_type: StructTag = move_object_type.clone().into();
             match kind {
                 ObjectRemoveKind::Delete => object_changes.push(DerivedObjectChange::Deleted {

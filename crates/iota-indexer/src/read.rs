@@ -2205,7 +2205,7 @@ impl IndexerReader {
             .tap_err(|e| tracing::warn!("{e}"))?;
 
         let name = DynamicFieldName {
-            type_: name_type,
+            tag: name_type,
             value: IotaMoveValue::from(name_value).to_json_value(),
         };
 
@@ -2256,12 +2256,12 @@ impl IndexerReader {
     ) -> Result<Vec<u8>, IndexerError> {
         let move_type_layout = self
             .package_resolver()
-            .type_layout(name.type_.clone())
+            .type_layout(name.tag.clone())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(
                     "Failed to get type layout for type {}: {}",
-                    name.type_, e
+                    name.tag, e
                 ))
             })?;
         let iota_json_value = iota_json::IotaJsonValue::new(name.value.clone())?;

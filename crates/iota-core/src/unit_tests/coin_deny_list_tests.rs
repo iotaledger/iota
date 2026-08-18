@@ -55,7 +55,7 @@ async fn test_regulated_coin_v1_types() {
             package_id = Some(object.id());
             continue;
         }
-        let t = object.type_().unwrap();
+        let t = object.data.opt_object_type().unwrap();
         if t.is_deny_cap_v1() {
             assert!(deny_cap_object.is_none());
             deny_cap_object = Some(object);
@@ -443,7 +443,7 @@ impl RegulatedCoinEnv {
                 package_id = Some(object.id());
                 continue;
             }
-            if object.type_().unwrap().is_deny_cap_v1() {
+            if object.data.opt_object_type().unwrap().is_deny_cap_v1() {
                 deny_cap_id = Some(object.id());
             } else if !object.is_gas_coin() && object.coin_type_opt().is_some() {
                 coin_id = Some(object.id());

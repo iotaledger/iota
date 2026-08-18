@@ -354,7 +354,7 @@ async fn find_package_object_id(
         for (created, _) in effect.created() {
             if let Ok(object_read) = state.get_object_read(&created.object_id) {
                 if let Ok(object) = object_read.into_object() {
-                    if matches!(object.type_(), Some(struct_tag) if struct_tag == &object_struct_tag) {
+                    if matches!(object.data.opt_object_type(), Some(struct_tag) if struct_tag == &object_struct_tag) {
                         return Ok(created.object_id);
                     }
                 }

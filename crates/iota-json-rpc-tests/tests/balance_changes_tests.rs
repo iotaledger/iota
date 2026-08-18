@@ -89,7 +89,7 @@ async fn test_dry_run_resolves_events_of_newly_published_package() -> Result<(),
 
     assert_eq!(response.events.data.len(), 1);
     let event = &response.events.data[0];
-    assert_eq!(event.type_.name().to_string(), "PublishEvent");
+    assert_eq!(event.tag.name().to_string(), "PublishEvent");
     // An unresolved type would leave the payload undecoded.
     assert_eq!(event.parsed_json, serde_json::json!({ "foo": "bar" }));
 

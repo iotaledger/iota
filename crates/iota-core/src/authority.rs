@@ -2530,9 +2530,10 @@ impl AuthorityState {
                         oref.version
                     );
 
-                    let type_ = new_object
-                        .type_()
-                        .map(|type_| ObjectType::Struct(type_.clone()))
+                    let tag = new_object
+                        .data
+                        .opt_object_type()
+                        .map(|tag| ObjectType::Struct(tag.clone()))
                         .unwrap_or(ObjectType::Package);
 
                     new_owners.push((
@@ -2541,7 +2542,7 @@ impl AuthorityState {
                             object_id: *id,
                             version: oref.version,
                             digest: oref.digest,
-                            type_,
+                            tag,
                             owner,
                             previous_transaction: *effects.transaction_digest(),
                         },
@@ -2638,7 +2639,7 @@ impl AuthorityState {
             })?;
 
         let name = DynamicFieldName {
-            type_: name_type,
+            tag: name_type,
             value: IotaMoveValue::from(name_value).to_json_value(),
         };
 
@@ -3921,7 +3922,7 @@ impl AuthorityState {
     {
         let object_ids = self
             .get_owner_objects_iterator(owner, None, None)?
-            .filter(|o| match &o.type_ {
+            .filter(|o| match &o.tag {
                 ObjectType::Struct(s) => *s == tag,
                 ObjectType::Package => false,
             })

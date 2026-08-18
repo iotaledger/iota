@@ -336,7 +336,7 @@ impl RpcExampleProvider {
                     object_id,
                     version: Version::from_u64(1),
                     digest: ObjectDigest::new(self.rng.gen()),
-                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+                    tag: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
                     display: None,
                 })
@@ -378,7 +378,7 @@ impl RpcExampleProvider {
             object_id,
             version: Version::from_u64(4),
             digest: ObjectDigest::new(self.rng.gen()),
-            type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+            tag: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
             bcs: None,
             display: None,
         });
@@ -469,7 +469,7 @@ impl RpcExampleProvider {
                 object_id: ObjectId::new(self.rng.gen()),
                 version: Default::default(),
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+                tag: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 owner: Some(Owner::Address(owner)),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: None,
@@ -785,7 +785,7 @@ impl RpcExampleProvider {
             package_id: ObjectId::new(self.rng.gen()),
             transaction_module: Identifier::from_static("test_module"),
             sender: Address::from(ObjectId::new(self.rng.gen())),
-            type_: parse_iota_struct_tag("0x9::test::TestEvent").unwrap(),
+            tag: parse_iota_struct_tag("0x9::test::TestEvent").unwrap(),
             parsed_json: json!({"test": "example value"}),
             bcs: BcsEvent::new(vec![]),
             timestamp_ms: None,
@@ -1151,7 +1151,7 @@ impl RpcExampleProvider {
         let dynamic_fields = (0..3)
             .map(|_| DynamicFieldInfo {
                 name: DynamicFieldName {
-                    type_: TypeTag::from_str("0x9::test::TestField").unwrap(),
+                    tag: TypeTag::from_str("0x9::test::TestField").unwrap(),
                     value: serde_json::Value::String("some_value".to_string()),
                 },
                 bcs_name: bcs::to_bytes("0x9::test::TestField").unwrap(),
@@ -1190,7 +1190,7 @@ impl RpcExampleProvider {
     fn iotax_get_dynamic_field_object(&mut self) -> Examples {
         let parent_object_id = ObjectId::new(self.rng.gen());
         let field_name = DynamicFieldName {
-            type_: TypeTag::from_str("0x9::test::TestField").unwrap(),
+            tag: TypeTag::from_str("0x9::test::TestField").unwrap(),
             value: serde_json::Value::String("some_value".to_string()),
         };
 
@@ -1224,7 +1224,7 @@ impl RpcExampleProvider {
             object_id: parent_object_id,
             version: Version::from_u64(1),
             digest: ObjectDigest::new(self.rng.gen()),
-            type_: Some(ObjectType::Struct(
+            tag: Some(ObjectType::Struct(
                 parse_iota_struct_tag("0x9::test::TestField")
                     .unwrap()
                     .into(),
@@ -1274,7 +1274,7 @@ impl RpcExampleProvider {
                     object_id: ObjectId::new(self.rng.gen()),
                     version: Version::from_u64(version),
                     digest: ObjectDigest::new(self.rng.gen()),
-                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+                    tag: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
                     display: None,
                 })
@@ -1322,7 +1322,7 @@ impl RpcExampleProvider {
                 package_id,
                 transaction_module: identifier.clone(),
                 sender: Address::from(ObjectId::new(self.rng.gen())),
-                type_: StructTag::from_str("0x3::test::Test<0x3::test::Test>").unwrap(),
+                tag: StructTag::from_str("0x3::test::Test<0x3::test::Test>").unwrap(),
                 parsed_json: serde_json::Value::String("some_value".to_string()),
                 bcs: BcsEvent::new(vec![]),
                 timestamp_ms: None,
@@ -1493,7 +1493,7 @@ impl RpcExampleProvider {
                 object_id,
                 version: Version::from_u64(4),
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+                tag: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 bcs: None,
                 display: None,
             }),
@@ -1511,7 +1511,7 @@ impl RpcExampleProvider {
                 object_id: object_id2,
                 version: version2,
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+                tag: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 bcs: None,
                 display: None,
             }),

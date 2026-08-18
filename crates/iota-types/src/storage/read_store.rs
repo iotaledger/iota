@@ -935,7 +935,7 @@ pub struct AccountOwnedObjectInfo {
     pub owner: Address,
     pub object_id: ObjectId,
     pub version: Version,
-    pub type_: MoveObjectType,
+    pub tag: MoveObjectType,
 }
 
 /// Opaque cursor for seeking in the `owner` index.

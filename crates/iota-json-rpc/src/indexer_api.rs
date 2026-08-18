@@ -137,7 +137,7 @@ impl<R: ReadApiServer> IndexerApi<R> {
         name: DynamicFieldName,
     ) -> Result<(TypeTag, Vec<u8>), IotaRpcInputError> {
         let DynamicFieldName {
-            type_: name_type,
+            tag: name_type,
             value,
         } = name;
         let epoch_store = self.state.load_epoch_store_one_call_per_task();

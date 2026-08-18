@@ -12,7 +12,7 @@ use std::{
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::Object as ObjectInner;
 use iota_sdk_types::{
-    Address, MoveObjectType, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
+    Address, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
     TransactionDigest, TypeTag, Version, move_package::MovePackage,
 };
 use move_binary_format::CompiledModule;
@@ -487,10 +487,6 @@ impl std::ops::DerefMut for Object {
 }
 
 impl Object {
-    pub fn type_(&self) -> Option<&MoveObjectType> {
-        self.data.opt_object_type()
-    }
-
     pub fn is_coin(&self) -> bool {
         if let Some(move_object) = self.data.as_opt_struct() {
             move_object.struct_tag().is_coin()
