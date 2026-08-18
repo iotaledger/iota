@@ -1270,10 +1270,12 @@ async fn test_access_old_object_pruned() {
             .unwrap()
             .with_async(|node| async {
                 let state = node.state();
+                // The transfer above ran in the previous epoch, so that epoch's
+                // bucket holds the gas object's old version and falls out of the
+                // retention here.
                 state
                     .database_for_testing()
-                    .prune_objects_and_compact_for_testing(state.get_checkpoint_store())
-                    .await;
+                    .expire_historic_objects_and_compact_for_testing();
                 // Make sure the old version of the object is already pruned.
                 assert!(
                     state

@@ -73,6 +73,7 @@ pub struct TestAuthorityBuilder<'a> {
     cache_config: Option<ExecutionCacheConfig>,
     disable_execute_genesis_transactions: bool,
     chain_override: Option<Chain>,
+    num_epochs_to_retain: Option<u64>,
 }
 
 impl<'a> TestAuthorityBuilder<'a> {
@@ -186,6 +187,17 @@ impl<'a> TestAuthorityBuilder<'a> {
         self
     }
 
+    /// The number of historic epochs whose superseded object versions are
+    /// retained beyond the current one. `u64::MAX` retains all of them.
+    pub fn with_num_epochs_to_retain(mut self, num_epochs_to_retain: u64) -> Self {
+        assert!(
+            self.num_epochs_to_retain
+                .replace(num_epochs_to_retain)
+                .is_none()
+        );
+        self
+    }
+
     pub fn with_chain_override(mut self, chain: Chain) -> Self {
         self.chain_override = Some(chain);
         self
@@ -232,18 +244,13 @@ impl<'a> TestAuthorityBuilder<'a> {
             .unwrap_or_else(|| iota_common::tempdir().keep());
         let mut config = local_network_config.validator_configs()[0].clone();
         let registry = Registry::new();
-        let mut pruner_db = None;
-        if config
+        let compaction_filter = config
             .authority_store_pruning_config
             .enable_compaction_filter
-        {
-            pruner_db = Some(Arc::new(AuthorityPrunerTables::open(
-                &storage_dir.join("store"),
-            )));
-        }
-        let compaction_filter = pruner_db
-            .clone()
-            .map(|db| ObjectsCompactionFilter::new(db, &registry));
+            .then(|| {
+                let pruner_db = Arc::new(AuthorityPrunerTables::open(&storage_dir.join("store")));
+                ObjectsCompactionFilter::new(pruner_db, &registry)
+            });
 
         let authority_store = match self.store {
             Some(store) => store,
@@ -366,7 +373,10 @@ impl<'a> TestAuthorityBuilder<'a> {
         let certificate_deny_config = self.certificate_deny_config.unwrap_or_default();
         let verifier_signing_config = self.verifier_signing_config.unwrap_or_default();
         let authority_overload_config = self.authority_overload_config.unwrap_or_default();
-        let pruning_config = AuthorityStorePruningConfig::default();
+        let mut pruning_config = AuthorityStorePruningConfig::default();
+        if let Some(num_epochs_to_retain) = self.num_epochs_to_retain {
+            pruning_config.set_num_epochs_to_retain(num_epochs_to_retain);
+        }
 
         config.transaction_deny_config = transaction_deny_config;
         config.certificate_deny_config = certificate_deny_config;
@@ -392,7 +402,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             config.clone(),
             None,
             chain_identifier,
-            pruner_db,
             None,
             policy_config,
             firewall_config,
