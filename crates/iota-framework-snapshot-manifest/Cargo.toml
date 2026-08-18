@@ -1,0 +1,19 @@
+[package]
+name = "iota-framework-snapshot-manifest"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+description = "Manifest of the iota-framework bytecode snapshots"
+
+[dependencies]
+# external dependencies
+serde.workspace = true
+serde_json.workspace = true
+
+# internal dependencies
+iota-sdk-types = { workspace = true, features = ["serde"] }
+
+[lints]
+workspace = true

@@ -12,7 +12,7 @@ use diesel::{
     sql_types::{BigInt, VarChar},
 };
 use downcast::Any;
-use tracing::{error, info};
+use tracing::info;
 
 use crate::{
     db::ConnectionPool, errors::IndexerError, ingestion::primary::persist::EpochToCommit,
@@ -167,47 +167,74 @@ impl PgPartitionManager {
         }
     }
 
+    fn advance_partition(
+        &self,
+        table: &str,
+        last_partition: u64,
+        next_partition: u64,
+        last_partition_start: u64,
+        next_partition_start: u64,
+    ) -> Result<(), IndexerError> {
+        transactional_blocking_with_retry!(
+            &self.cp,
+            |conn| {
+                RunQueryDsl::execute(
+                    diesel::sql_query("CALL advance_partition($1, $2, $3, $4, $5)")
+                        .bind::<diesel::sql_types::Text, _>(table)
+                        .bind::<diesel::sql_types::BigInt, _>(last_partition as i64)
+                        .bind::<diesel::sql_types::BigInt, _>(next_partition as i64)
+                        .bind::<diesel::sql_types::BigInt, _>(last_partition_start as i64)
+                        .bind::<diesel::sql_types::BigInt, _>(next_partition_start as i64),
+                    conn,
+                )
+            },
+            Duration::from_secs(10)
+        )?;
+        Ok(())
+    }
+
     pub fn advance_epoch(
         &self,
         table: String,
         last_partition: u64,
         data: &EpochPartitionData,
     ) -> Result<(), IndexerError> {
-        let Some(partition_range) = self.determine_epoch_partition_range(&table, data) else {
+        let Some((last_epoch_start, next_epoch_start)) =
+            self.determine_epoch_partition_range(&table, data)
+        else {
             return Ok(());
         };
         if data.next_epoch == 0 {
-            tracing::info!("Epoch 0 partition has been created in the initial setup.");
+            info!("Epoch 0 partition has been created in the initial setup.");
             return Ok(());
         }
         if last_partition == data.last_epoch {
-            transactional_blocking_with_retry!(
-                &self.cp,
-                |conn| {
-                    RunQueryDsl::execute(
-                        diesel::sql_query("CALL advance_partition($1, $2, $3, $4, $5)")
-                            .bind::<diesel::sql_types::Text, _>(table.clone())
-                            .bind::<diesel::sql_types::BigInt, _>(data.last_epoch as i64)
-                            .bind::<diesel::sql_types::BigInt, _>(data.next_epoch as i64)
-                            .bind::<diesel::sql_types::BigInt, _>(partition_range.0 as i64)
-                            .bind::<diesel::sql_types::BigInt, _>(partition_range.1 as i64),
-                        conn,
-                    )
-                },
-                Duration::from_secs(10)
+            self.advance_partition(
+                &table,
+                data.last_epoch,
+                data.next_epoch,
+                last_epoch_start,
+                next_epoch_start,
             )?;
-
             info!(
                 "Advanced epoch partition for table {} from {} to {}, prev partition upper bound {}",
-                table, last_partition, data.next_epoch, partition_range.0
+                table, last_partition, data.next_epoch, next_epoch_start
+            );
+        } else if last_partition == 0 {
+            // this applies to instances that were restored from a formal snapshot before
+            // v1.31
+            info!("Healing epoch-based partitions. This might take some time.");
+            self.advance_partition(&table, last_partition, data.next_epoch, 0, next_epoch_start)?;
+            info!(
+                "Healed epoch partition for table {} from {} to {}, prev partition upper bound {}",
+                table, last_partition, data.next_epoch, next_epoch_start
             );
         } else if last_partition != data.next_epoch {
-            // skip when the partition is already advanced once, which is possible when
-            // indexer crashes and restarts; error otherwise.
-            error!(
-                "epoch partition for table {table} is not in sync with the last epoch {}.",
+            let emsg = format!(
+                "Advancing to epoch {} failed. Corrupted partitions for table {table}",
                 data.last_epoch
             );
+            return Err(IndexerError::PostgresWrite(emsg));
         } else {
             info!(
                 "Epoch has been advanced to {} already, skipping.",

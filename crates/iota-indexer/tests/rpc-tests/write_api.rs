@@ -1,7 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::Path, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use diesel::{BoolExpressionMethods, ExpressionMethods, QueryDsl, RunQueryDsl};
 use fastcrypto::encoding::Base64;
@@ -17,13 +20,15 @@ use iota_json_rpc_api::{
 };
 use iota_json_rpc_types::{
     IotaData, IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
-    IotaSystemStateSummary, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
+    IotaSystemStateSummary, IotaTransactionBlockDataAPI, IotaTransactionBlockEffectsAPI,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionKind, TypeTag,
+    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, StructTag, Transaction,
+    TransactionExpiration, TransactionKind, TransactionV1, TypeTag,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -206,6 +211,155 @@ fn dry_run_transaction_block() {
             indexer_tx_response.transaction.unwrap().data,
             dry_run_tx_block_resp.input
         );
+    });
+}
+
+/// A transaction carrying no gas payment is simulated against a mock gas coin
+/// the node mints, and the response reports the transaction that ran rather
+/// than the one that was sent: the mock coin in the payment, the epoch's
+/// reference gas price, and the gas charged in place of the zero budget.
+///
+/// The mock coin is not the caller's, so no balance change is attributed to it
+/// — the same way the node's own JSON-RPC reports it.
+#[test]
+fn dry_run_transaction_block_without_gas_payment() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let sender = Address::random();
+        let receiver = Address::random();
+
+        let mut builder = ProgrammableTransactionBuilder::new();
+        builder.transfer_iota(receiver, Some(1_000));
+        let pt = builder.finish();
+
+        // No gas payment, no price and no budget: the node resolves all of it.
+        let tx_data = Transaction::V1(TransactionV1 {
+            kind: TransactionKind::new_programmable(pt),
+            sender,
+            gas_payment: GasPayment {
+                objects: vec![],
+                owner: sender,
+                price: 0,
+                budget: 0,
+            },
+            expiration: TransactionExpiration::None,
+        });
+        let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&tx_data).unwrap());
+
+        let response = client.dry_run_transaction_block(tx_bytes).await.unwrap();
+        assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+
+        // The gas the simulation resolved comes back in place of the zeros.
+        let reported_gas = response.input.gas_data();
+        assert_eq!(
+            reported_gas.payment.len(),
+            1,
+            "the mock gas coin should be reported in the gas payment"
+        );
+        assert_eq!(
+            reported_gas.price,
+            cluster.get_reference_gas_price().await,
+            "the reported price should be the one the simulation charged at"
+        );
+        let gas_used = response.effects.gas_cost_summary().gas_used();
+        assert_ne!(gas_used, 0, "a successful transfer has to cost something");
+        assert_eq!(
+            reported_gas.budget, gas_used,
+            "a zero budget should come back as the gas the simulation charged"
+        );
+
+        // The mock coin pays the gas, but it is not the caller's coin, so its
+        // balance change is not reported.
+        let mock_coin = reported_gas.payment[0].object_id;
+        assert!(
+            !response
+                .balance_changes
+                .iter()
+                .any(|change| change.owner == Owner::Address(sender)),
+            "no balance change should be attributed to the mock gas coin's owner, got {:?}",
+            response.balance_changes
+        );
+        assert!(
+            response
+                .object_changes
+                .iter()
+                .any(|change| change.object_id() == mock_coin),
+            "object changes should still report the mock gas coin, got {:?}",
+            response.object_changes
+        );
+    });
+}
+
+/// Dry-running a publish decodes an event the new package's `init` emits.
+///
+/// The event's type is defined only by the package being published, which was
+/// never committed and so is not in the database. Decoding it requires
+/// resolving the type against the objects the simulation wrote. Without that
+/// the payload comes back undecoded.
+///
+/// Uses the test smart contract under `tests/data/publish_with_event`.
+#[test]
+fn dry_run_publish_resolves_events_of_the_published_package() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (address, _): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10 * NANOS_PER_IOTA),
+                address,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
+
+        let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        path.extend(["tests", "data", "publish_with_event"]);
+        let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+        let compiled_modules_bytes = compiled_package.get_package_base64(false);
+        let dependencies = compiled_package.get_dependency_storage_package_ids();
+
+        let transaction_bytes: TransactionBlockBytes = client
+            .publish(
+                address,
+                compiled_modules_bytes,
+                dependencies,
+                Some(gas_ref.object_id),
+                100_000_000.into(),
+            )
+            .await
+            .unwrap();
+
+        let response = client
+            .dry_run_transaction_block(transaction_bytes.tx_bytes)
+            .await
+            .unwrap();
+        assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
+
+        assert_eq!(
+            response.events.data.len(),
+            1,
+            "`init` emits exactly one event, got {:?}",
+            response.events.data
+        );
+        let event = &response.events.data[0];
+        assert_eq!(event.type_.name().to_string(), "PublishEvent");
+        // An unresolved type would leave the payload undecoded.
+        assert_eq!(event.parsed_json, serde_json::json!({ "foo": "bar" }));
     });
 }
 
