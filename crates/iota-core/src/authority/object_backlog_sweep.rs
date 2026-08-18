@@ -44,9 +44,10 @@ use crate::authority::{
     historic_objects::HistoricObjects,
 };
 
-/// Keys one slice takes on before it writes its batch and yields. A slice
-/// runs to the end of the object id it stopped in the middle of, so it can
-/// exceed this by the number of versions that one id has.
+/// Keys one slice decides before it writes its batch and yields. A slice
+/// stops at this many wherever it is, including in the middle of an object
+/// id's versions, so it bounds what the slice holds in memory whatever the
+/// table looks like.
 const KEYS_PER_SLICE: usize = 5_000;
 
 /// Consecutive failed slices tolerated before the sweep leaves the rest to
@@ -163,9 +164,8 @@ impl ObjectBacklogSweep {
         ))
     }
 
-    /// Sweeps the rows above the recorded key, up to
-    /// [`Self::keys_per_slice`], and records how far it got. Returns whether
-    /// rows are left to sweep.
+    /// Sweeps up to [`Self::keys_per_slice`] rows above the recorded key and
+    /// records how far it got. Returns whether rows are left to sweep.
     ///
     /// The deletions, the tombstones recorded in `epoch`'s bucket and the
     /// progress row are one batch, so an interrupted run resumes at the key
@@ -181,31 +181,42 @@ impl ObjectBacklogSweep {
 
         let mut superseded = Vec::new();
         let mut tombstones = Vec::new();
-        // The versions of the object id the scan is currently in, with
-        // whether each one is a tombstone. An id's rows are adjacent and
-        // ascending in version, since `ObjectKey` orders by both.
-        let mut versions: Vec<(ObjectKey, bool)> = Vec::new();
+        // The row the scan has read but not yet decided on, with whether it
+        // is a tombstone. One row of lookahead is all a decision needs: a row
+        // is superseded exactly when the next row belongs to the same object
+        // id, since `ObjectKey` orders by id and then by version.
+        let mut undecided: Option<(ObjectKey, bool)> = None;
         let mut swept_through = None;
-        let mut keys_taken = 0;
+        let mut decided = 0;
         let mut sliced = false;
 
         for row in objects.safe_range_iter((lower_bound, Bound::Unbounded)) {
             let (key, object) = row?;
-            if versions.first().is_some_and(|(first, _)| first.0 != key.0) {
-                keys_taken += versions.len();
-                swept_through = versions.last().map(|(key, _)| *key);
-                Self::classify(&versions, &mut superseded, &mut tombstones);
-                versions.clear();
-                if keys_taken >= self.keys_per_slice {
+            if let Some((previous, tombstone)) = undecided {
+                Self::decide(
+                    previous,
+                    tombstone,
+                    previous.0 == key.0,
+                    &mut superseded,
+                    &mut tombstones,
+                );
+                swept_through = Some(previous);
+                decided += 1;
+                if decided >= self.keys_per_slice {
+                    // `key` stays undecided, and the next slice reads it
+                    // again: the watermark is `previous`.
                     sliced = true;
                     break;
                 }
             }
-            versions.push((key, is_tombstone(object)));
+            undecided = Some((key, is_tombstone(object)));
         }
-        if !sliced && !versions.is_empty() {
-            swept_through = versions.last().map(|(key, _)| *key);
-            Self::classify(&versions, &mut superseded, &mut tombstones);
+        if !sliced {
+            if let Some((last, tombstone)) = undecided {
+                // Nothing follows it, so it is the newest version of its id.
+                Self::decide(last, tombstone, false, &mut superseded, &mut tombstones);
+                swept_through = Some(last);
+            }
         }
 
         let mut batch = objects.batch();
@@ -235,25 +246,23 @@ impl ObjectBacklogSweep {
         Ok(sliced)
     }
 
-    /// Sorts one object id's versions into the ones to delete and the
-    /// tombstones to record, given that `versions` holds every row of that
-    /// id in ascending version order.
+    /// Sorts one row into the ones to delete and the tombstones to record,
+    /// given whether a higher version of the same object id follows it.
     ///
     /// A tombstone is kept wherever it sits: an object wrapped and later
     /// unwrapped has one below its newest version, and a bounded read must
     /// still be able to tell that the object was gone at that version.
-    fn classify(
-        versions: &[(ObjectKey, bool)],
+    fn decide(
+        key: ObjectKey,
+        tombstone: bool,
+        higher_version_follows: bool,
         superseded: &mut Vec<ObjectKey>,
         tombstones: &mut Vec<ObjectKey>,
     ) {
-        let newest = versions.len() - 1;
-        for (index, (key, tombstone)) in versions.iter().enumerate() {
-            if *tombstone {
-                tombstones.push(*key);
-            } else if index != newest {
-                superseded.push(*key);
-            }
+        if tombstone {
+            tombstones.push(key);
+        } else if higher_version_follows {
+            superseded.push(key);
         }
     }
 }
