@@ -98,7 +98,7 @@ port 9202 (validator-0 metrics-address) is already in use
   override it with --node-config-override validator-0:metrics-address=127.0.0.1:<port>
 ```
 
-For the addresses that [Node config overrides](#node-config-overrides) rejects, the report names a new genesis instead of suggesting an override.
+For a validator's `network-address`, `primary-address` and the port of its `p2p-config.listen-address`, the report names a new genesis instead of suggesting an override.
 The admin interface ports are not checked: a local network runs its nodes in-process, which starts no admin interface.
 
 ### Node config overrides

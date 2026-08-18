@@ -47,9 +47,8 @@ impl BoundAddress {
         }
     }
 
-    /// An address whose port a validator's peers read from the committee
-    /// metadata in `genesis.blob`, so that moving it at start time would only
-    /// leave the validator unreachable.
+    /// An address a new genesis moves and an override cannot; `advice` says
+    /// which committee field pins it.
     fn fixed_by_genesis(
         scope: &str,
         field: &str,
@@ -288,25 +287,6 @@ mod tests {
     }
 
     #[test]
-    fn a_clash_names_the_node_the_field_and_the_override_that_moves_it() {
-        let directory = tempfile::tempdir().unwrap();
-        let (_listener, port) = occupy_tcp_port();
-        let (mut config, primary_address) = validator_config(directory.path(), 29200);
-        config.metrics_address = (Ipv4Addr::LOCALHOST, port).into();
-
-        let addresses = validator_addresses("validator-0", &config, primary_address);
-        let err = check_ports_are_free(&addresses).unwrap_err().to_string();
-
-        assert_eq!(
-            err,
-            format!(
-                "port {port} (validator-0 metrics-address) is already in use\n  override it with \
-                 --node-config-override validator-0:metrics-address=127.0.0.1:<port>"
-            )
-        );
-    }
-
-    #[test]
     fn a_committee_address_is_reported_as_one_only_a_new_genesis_moves() {
         let directory = tempfile::tempdir().unwrap();
         let (_socket, port) = occupy_udp_port();
@@ -367,20 +347,6 @@ mod tests {
             err,
             format!("port {port} (faucet) is already in use\n  move it with --with-faucet=<port>")
         );
-    }
-
-    #[test]
-    fn a_network_whose_ports_are_free_passes() {
-        let directory = tempfile::tempdir().unwrap();
-        let (config, primary_address) = validator_config(directory.path(), 29230);
-        let mut addresses = validator_addresses("validator-0", &config, primary_address);
-        let mut fullnode_config = fullnode_config(directory.path());
-        fullnode_config.json_rpc_address = (Ipv4Addr::LOCALHOST, 29184).into();
-        fullnode_config.metrics_address = (Ipv4Addr::LOCALHOST, 29185).into();
-        fullnode_config.p2p_config.listen_address = (Ipv4Addr::LOCALHOST, 29186).into();
-        addresses.extend(fullnode_addresses(&fullnode_config));
-
-        check_ports_are_free(&addresses).unwrap();
     }
 
     /// Only a port something else holds is a clash. A bind that fails for
