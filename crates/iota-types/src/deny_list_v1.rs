@@ -7,7 +7,7 @@ use std::{
     fmt,
 };
 
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag, Version};
+use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag, Version};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
@@ -119,6 +119,74 @@ pub fn check_coin_deny_list_v1(
         }
         if check_address_denied_by_config(&deny_list, address, object_store, cur_epoch) {
             return Err(UserInputError::AddressDeniedForCoin { address, coin_type });
+        }
+    }
+    Ok(())
+}
+
+/// Checks `sender` against the deny list of every non-gas coin type among
+/// `objects` and the declared `receiving_objects`, while returning an
+/// [`ExecutionError`] that folds into `ExecutionStatus::Failure`.
+///
+/// The read is epoch-gated, so the verdict is the same on every validator.
+pub fn check_coin_deny_list_v1_for_sender_during_execution(
+    sender: Address,
+    objects: &BTreeMap<ObjectId, Object>,
+    receiving_objects: &[ObjectReference],
+    cur_epoch: EpochId,
+    object_store: &dyn ObjectStore,
+) -> DenyListResult {
+    // A receiving object absent from the store cannot be received (`receive`
+    // aborts), so it is skipped rather than failing the check.
+    let receiving = receiving_objects
+        .iter()
+        .filter_map(|objref| object_store.get_object(&objref.object_id));
+    let coin_types = objects
+        .values()
+        .filter(|obj| !obj.is_gas_coin())
+        .filter_map(|obj| {
+            obj.coin_type_opt()
+                .map(|coin_type| coin_type.to_canonical_string(false))
+        })
+        .chain(receiving.filter_map(|obj| {
+            if obj.is_gas_coin() {
+                return None;
+            }
+            obj.coin_type_opt()
+                .map(|coin_type| coin_type.to_canonical_string(false))
+        }))
+        .collect::<BTreeSet<_>>();
+    let num_non_gas_coin_owners = coin_types.len() as u64;
+    DenyListResult {
+        result: check_sender_against_coin_types(sender, coin_types, cur_epoch, object_store),
+        num_non_gas_coin_owners,
+    }
+}
+
+fn check_sender_against_coin_types(
+    sender: Address,
+    coin_types: BTreeSet<String>,
+    cur_epoch: EpochId,
+    object_store: &dyn ObjectStore,
+) -> Result<(), ExecutionError> {
+    for coin_type in coin_types {
+        let Some(deny_list) = get_per_type_coin_deny_list_v1(&coin_type, object_store) else {
+            continue;
+        };
+        if check_global_pause(&deny_list, object_store, Some(cur_epoch)) {
+            return Err(ExecutionError::new(
+                ExecutionErrorKind::CoinTypeGlobalPause { coin_type },
+                None,
+            ));
+        }
+        if check_address_denied_by_config(&deny_list, sender, object_store, Some(cur_epoch)) {
+            return Err(ExecutionError::new(
+                ExecutionErrorKind::AddressDeniedForCoin {
+                    address: sender,
+                    coin_type,
+                },
+                None,
+            ));
         }
     }
     Ok(())
