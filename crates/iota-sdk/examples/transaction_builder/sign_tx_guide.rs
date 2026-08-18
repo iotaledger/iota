@@ -19,14 +19,16 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        crypto::{IotaSignature, PublicKey},
-        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        crypto::PublicKey, programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::TransactionAPI,
     },
 };
 use iota_sdk_crypto::{
-    Signer as _, ToFromBase64, ToFromBech32, ed25519::Ed25519PrivateKey,
-    secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+    Signer as _, ToFromBase64, ToFromBech32, Verifier as _,
+    ed25519::Ed25519PrivateKey,
+    secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey,
+    simple::{SimpleKeypair, SimpleVerifier},
 };
 use iota_sdk_types::{Address, Transaction, UserSignature, crypto::SimpleSignature};
 use rand::{SeedableRng, rngs::StdRng};
@@ -143,11 +145,12 @@ async fn main() -> Result<(), anyhow::Error> {
     // use SimpleKeypair to sign the digest.
     let iota_sig: SimpleSignature = ikp_determ_0.sign(&digest);
 
-    // if you would like to verify the signature locally before submission, use this
-    // function. if it fails to verify locally, the transaction will fail to
+    // if you would like to verify the signature locally before submission, check
+    // it against the signing digest and make sure its public key matches the
+    // sender. if it fails to verify locally, the transaction will fail to
     // execute in IOTA.
-    let res = iota_sig.verify_secure(&intent_msg, sender);
-    assert!(res.is_ok());
+    assert_eq!(Address::from(iota_sig.to_public_key()), sender);
+    assert!(SimpleVerifier.verify(&digest, &iota_sig).is_ok());
 
     // execute the transaction.
     let transaction_response = client
