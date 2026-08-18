@@ -330,6 +330,16 @@ impl HistoricObjects {
     /// go by: an expiry that failed after the marker leaves the bucket in the
     /// map until the caller retries, and its tombstone heads may already be
     /// gone from the live `objects` table by then.
+    ///
+    /// A caller that consults the live `objects` table as well must read it
+    /// **before** calling this. The returned handles outlive the buckets read
+    /// lock, so a caller holding them from before an expiry started keeps
+    /// reading a bucket whose tombstone heads are being deleted meanwhile,
+    /// and a live read taken afterwards no longer finds the tombstone that
+    /// covers those rows. Reading live first closes that window: either the
+    /// live read precedes the deletion and finds the tombstone, or this call
+    /// waits on the read lock until the expiry has taken the bucket out of
+    /// the map.
     fn readable_buckets(&self, reverse: bool) -> Vec<Arc<HistoricObjectsBucket>> {
         self.buckets
             .iter(reverse)
@@ -356,12 +366,15 @@ impl HistoricObjects {
     /// Marks `bucket` expiring, then deletes the tombstone heads it recorded
     /// from the live `objects` table.
     ///
-    /// The marker is written and made durable first. A tombstone head may
-    /// only be deleted once the versions beneath it can no longer be read,
-    /// and the versions in this bucket stop being readable the moment the
-    /// marker is there: [`EpochBuckets::prune`] holds the write lock, so no
-    /// query can observe the bucket between the marker and the drop, and a
-    /// crash in between is resumed at open.
+    /// The marker is written and made durable first, since a tombstone head
+    /// may only be deleted once the versions beneath it are out of reach.
+    /// [`EpochBuckets::prune`] holds the buckets write lock while this runs,
+    /// so a query that has not yet taken the read lock cannot reach the
+    /// bucket at all, and one that reaches it after the marker is written
+    /// skips it; a crash between the marker and the drop is resumed at open.
+    /// A query still holding the handles it took before the marker was
+    /// written does keep reading this bucket, which is the window
+    /// [`Self::readable_buckets`] tells its callers how to close.
     ///
     /// Safe to run again on the same bucket: the marker is rewritten as it
     /// was and a tombstone head already deleted is deleted again.
