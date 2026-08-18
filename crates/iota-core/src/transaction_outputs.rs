@@ -180,30 +180,9 @@ impl TransactionOutputs {
 }
 
 /// Pre-images of the object versions a transaction superseded, keyed by
-/// the version each pre-image belonged to.
-///
-/// Equivalent to
-/// [`build_superseded_counting`] with the miss count discarded; kept
-/// separate so a test that only cares about the captured set doesn't have
-/// to thread a counter through it.
-#[cfg(test)]
-fn build_superseded(
-    modified_at: &[ObjectVersion],
-    input_objects: &BTreeMap<ObjectId, Object>,
-    read_objects: &ObjectSet,
-) -> Vec<(ObjectKey, Object)> {
-    let mut capture_misses = 0;
-    build_superseded_counting(
-        modified_at,
-        input_objects,
-        read_objects,
-        &mut capture_misses,
-    )
-}
-
-/// Same as [`build_superseded`], additionally counting into
-/// `capture_misses` every modified version whose pre-image is in neither
-/// source, so the gap is visible instead of silently dropped.
+/// the version each pre-image belonged to. Every modified version whose
+/// pre-image is in neither source is counted into `capture_misses` and left
+/// out, so the gap is visible instead of silently dropped.
 fn build_superseded_counting(
     modified_at: &[ObjectVersion],
     input_objects: &BTreeMap<ObjectId, Object>,
@@ -227,6 +206,24 @@ fn build_superseded_counting(
             }
         })
         .collect()
+}
+
+/// [`build_superseded_counting`] with the miss count discarded, so a test
+/// that only cares about the captured set doesn't have to thread a counter
+/// through it.
+#[cfg(test)]
+fn build_superseded(
+    modified_at: &[ObjectVersion],
+    input_objects: &BTreeMap<ObjectId, Object>,
+    read_objects: &ObjectSet,
+) -> Vec<(ObjectKey, Object)> {
+    let mut capture_misses = 0;
+    build_superseded_counting(
+        modified_at,
+        input_objects,
+        read_objects,
+        &mut capture_misses,
+    )
 }
 
 #[cfg(test)]
