@@ -66,7 +66,7 @@ pub mod checked {
             reference_gas_price: u64,
             config: &ProtocolConfig,
         ) -> IotaResult<Self> {
-            Self::check_gas_preconditions(gas_price, reference_gas_price, config)?;
+            check_gas_price_bounds(gas_price, reference_gas_price, config)?;
 
             Ok(Self::V1(IotaGasStatusV1::new_with_budget(
                 gas_budget,
@@ -93,47 +93,35 @@ pub mod checked {
                 Self::V1(status) => status.check_gas_balance(gas_objs, gas_budget),
             }
         }
-
-        fn check_gas_preconditions(
-            gas_price: u64,
-            reference_gas_price: u64,
-            config: &ProtocolConfig,
-        ) -> IotaResult<()> {
-            // Common checks. We may pull them into version specific status as needed, but
-            // they are unlikely to change.
-
-            // The gas price must be greater than or equal to the reference gas price.
-            if gas_price < reference_gas_price {
-                return Err(UserInputError::GasPriceUnderRGP {
-                    gas_price,
-                    reference_gas_price,
-                }
-                .into());
-            }
-            if gas_price > config.max_gas_price() {
-                return Err(UserInputError::GasPriceTooHigh {
-                    max_gas_price: config.max_gas_price(),
-                }
-                .into());
-            }
-
-            Ok(())
-        }
     }
 
     /// Validates the transaction's declared gas price and budget against the
     /// epoch reference gas price and the protocol config bounds.
     ///
     /// Payload-only: reads no objects and no frontier state, so it is safe to
-    /// run post-consensus before version assignment. Mirrors the price checks
-    /// in `IotaGasStatus::check_gas_preconditions` and the budget-bound
-    /// checks in `IotaGasStatusV1::check_gas_balance`, without touching gas
-    /// coins.
+    /// run post-consensus before version assignment. Shares the price checks
+    /// with `IotaGasStatus::new` and the budget-bound checks with
+    /// `IotaGasStatusV1::check_gas_balance`, without touching gas coins.
     pub fn check_gas_bounds(
         config: &ProtocolConfig,
         reference_gas_price: u64,
         gas_price: u64,
         gas_budget: u64,
+    ) -> UserInputResult<()> {
+        check_gas_price_bounds(gas_price, reference_gas_price, config)?;
+        check_gas_budget_bounds(
+            gas_budget,
+            min_transaction_cost(config, gas_price),
+            config.max_tx_gas(),
+        )
+    }
+
+    /// Checks the declared gas price against the epoch reference gas price and
+    /// the protocol config maximum.
+    pub(crate) fn check_gas_price_bounds(
+        gas_price: u64,
+        reference_gas_price: u64,
+        config: &ProtocolConfig,
     ) -> UserInputResult<()> {
         if gas_price < reference_gas_price {
             return Err(UserInputError::GasPriceUnderRGP {
@@ -146,18 +134,25 @@ pub mod checked {
                 max_gas_price: config.max_gas_price(),
             });
         }
-        let max_gas_budget = config.max_tx_gas();
-        let min_transaction_cost = min_transaction_cost(config, gas_price);
-        if gas_budget > max_gas_budget {
+        Ok(())
+    }
+
+    /// Checks the declared gas budget against the given bounds.
+    pub(crate) fn check_gas_budget_bounds(
+        gas_budget: u64,
+        min_budget: u64,
+        max_budget: u64,
+    ) -> UserInputResult<()> {
+        if gas_budget > max_budget {
             return Err(UserInputError::GasBudgetTooHigh {
                 gas_budget,
-                max_budget: max_gas_budget,
+                max_budget,
             });
         }
-        if gas_budget < min_transaction_cost {
+        if gas_budget < min_budget {
             return Err(UserInputError::GasBudgetTooLow {
                 gas_budget,
-                min_budget: min_transaction_cost,
+                min_budget,
             });
         }
         Ok(())
