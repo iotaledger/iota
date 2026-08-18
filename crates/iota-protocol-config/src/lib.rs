@@ -202,6 +202,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable the P-COOL flow on devnet.
 // Version 33: Amortize the minimum checkpoint interval over a sliding window
 //             on mainnet.
+//             Enable the sliding-window reputation scoring and absolute-score
+//             bad-node selection on testnet
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3210,6 +3212,15 @@ impl ProtocolConfig {
                     // Amortize the minimum checkpoint interval over a sliding
                     // window so the checkpoint rate holds at the ceiling.
                     cfg.checkpoint_rate_window_size = Some(20);
+                    // Enable the redesigned leader schedule: sliding-window
+                    // reputation scoring and absolute-score bad-node
+                    // selection.
+                    if chain != Chain::Mainnet {
+                        cfg.feature_flags
+                            .consensus_enable_sliding_window_leader_schedule = true;
+                        cfg.feature_flags
+                            .consensus_enable_absolute_score_leader_schedule = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
