@@ -271,7 +271,7 @@ impl Default for PolicyConfig {
     fn default() -> Self {
         Self {
             client_id_source: default_client_id_source(),
-            connection_blocklist_ttl_sec: 0,
+            connection_blocklist_ttl_sec: default_connection_blocklist_ttl_sec(),
             proxy_blocklist_ttl_sec: 0,
             spam_policy_type: PolicyType::NoOp,
             error_policy_type: PolicyType::NoOp,
@@ -296,7 +296,6 @@ impl PolicyConfig {
                 window_size_secs: 5,
                 ..FreqThresholdConfig::default()
             }),
-            connection_blocklist_ttl_sec: default_connection_blocklist_ttl_sec(),
             spam_sample_rate: Weight::new(1.0).unwrap(),
             dry_run: true,
             ..Self::default()

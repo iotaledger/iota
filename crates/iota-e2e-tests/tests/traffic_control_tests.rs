@@ -212,7 +212,7 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     let _pcool_guard = override_pcool_flow(false);
     let n = 5;
     let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 1,
+        connection_blocklist_ttl_sec: 120,
         // Test that any N requests to the gRPC API of the validator will cause an IP to be added to
         // the blocklist. In this test we're directly calling
         // `/iota.validator.Validator/Transaction` gRPC method to go above the limit.
@@ -404,7 +404,7 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
     telemetry_subscribers::init_for_testing();
     let txn_count = 5;
     let policy_config = PolicyConfig {
-        connection_blocklist_ttl_sec: 3,
+        connection_blocklist_ttl_sec: 120,
         error_policy_type: PolicyType::TestNConnIP(txn_count - 1),
         dry_run: false,
         ..Default::default()

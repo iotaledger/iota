@@ -52,7 +52,7 @@ policy-config:
     freq-threshold:
       client-threshold: 1000  # Sustained tallies per second per direct client; requests are sampled by spam-sample-rate, so the tolerated request rate is proportionally higher
       proxied-client-threshold: 10  # Sustained tallies per second per proxied client
-      window-size-secs: 30  # Burst allowance: client-threshold * window-size-secs requests back to back
+      window-size-secs: 30  # Burst allowance: client-threshold * window-size-secs tallies back to back
   
   # Policy for handling error traffic
   error-policy-type: NoOp  # NoOp, or a freq-threshold map like the spam policy above
@@ -205,7 +205,7 @@ policy-config:
   # Consider enabling error policy for production
   error-policy-type:
     freq-threshold:
-      client-threshold: 20  # Error requests per second
+      client-threshold: 20  # Error tallies per second
       proxied-client-threshold: 5
       window-size-secs: 30
   

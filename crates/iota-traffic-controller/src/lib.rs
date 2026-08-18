@@ -134,10 +134,6 @@ impl Debug for TrafficController {
 }
 
 impl TrafficController {
-    /// # Panics
-    ///
-    /// Panics when called outside a tokio runtime, as it spawns background
-    /// tasks.
     pub fn init(
         policy_config: PolicyConfig,
         metrics: Arc<TrafficControllerMetrics>,
@@ -668,7 +664,7 @@ async fn run_deadmans_switch_loop(
         );
         warn!("Draining Node firewall.");
         if let Err(err) = File::create(&fw_config.drain_path) {
-            error!("Failed to touch nodefw drain file: {err}");
+            error!("Failed to create node firewall drain file: {err}");
             continue;
         }
         drainfile_present.store(true, Ordering::Relaxed);
