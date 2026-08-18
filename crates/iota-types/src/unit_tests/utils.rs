@@ -81,7 +81,7 @@ pub fn create_fake_transaction() -> TransactionEnvelope {
 
 pub fn make_transaction_data(sender: Address) -> Transaction {
     let object =
-        Object::immutable_with_id_for_testing(ObjectId::generate(StdRng::from_seed([0; 32])));
+        Object::immutable_with_id_for_testing(ObjectId::random_with(StdRng::from_seed([0; 32])));
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(dbg_addr(2), None);

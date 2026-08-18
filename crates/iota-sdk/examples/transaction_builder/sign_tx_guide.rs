@@ -39,11 +39,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // deterministically generate a keypair, testing only, do not use for mainnet,
     // use the next section to randomly generate a keypair instead.
-    let ikp_determ_0 = SimpleKeypair::from(Ed25519PrivateKey::generate(StdRng::from_seed([0; 32])));
+    let ikp_determ_0 =
+        SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed([0; 32])));
     let _ikp_determ_1 =
-        SimpleKeypair::from(Secp256k1PrivateKey::generate(StdRng::from_seed([0; 32])));
+        SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed([0; 32])));
     let _ikp_determ_2 =
-        SimpleKeypair::from(Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32])));
+        SimpleKeypair::from(Secp256r1PrivateKey::random_with(StdRng::from_seed([0; 32])));
 
     // randomly generate a keypair.
     let _ikp_rand_0 = SimpleKeypair::from(Ed25519PrivateKey::random());
