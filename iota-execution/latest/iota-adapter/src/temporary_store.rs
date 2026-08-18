@@ -19,7 +19,10 @@ use iota_types::{
     auth_context::AuthContext,
     base_types::VersionDigest,
     committee::EpochId,
-    deny_list_v1::check_coin_deny_list_v1_during_execution,
+    deny_list_v1::{
+        check_coin_deny_list_v1_during_execution,
+        check_coin_deny_list_v1_for_sender_during_execution,
+    },
     effects::{
         EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
         TransactionEffectsExt, TransactionEvents,
@@ -847,22 +850,32 @@ type ModifiedObjectInfo<'a> = (
 );
 
 impl TemporaryStore<'_> {
-    /// Sender-side coin deny-list check over the transaction's input objects,
-    /// run during execution of attested transactions.
-    ///
-    /// Reuses [`check_coin_deny_list_v1_during_execution`], which checks
-    /// whether each coin's owner is denied for its type — for an owned
-    /// input coin that owner is the sender, so this reproduces the
-    /// sender-side check while returning an [`ExecutionError`] that folds
-    /// into `ExecutionStatus::Failure` rather than aborting a must-execute
-    /// certificate.
-    pub(crate) fn check_input_coin_deny_list(&self) -> Result<(), ExecutionError> {
-        check_coin_deny_list_v1_during_execution(
+    /// Coin deny-list check over the transaction's input and declared
+    /// receiving objects, run during execution of attested transactions.
+    /// Checks `sender` against every non-gas coin type among them.
+    pub(crate) fn check_input_coin_deny_list(&self, sender: Address) -> DenyListResult {
+        let result = check_coin_deny_list_v1_for_sender_during_execution(
+            sender,
             &self.input_objects,
+            &self.receiving_objects,
             self.cur_epoch,
             self.store.as_object_store(),
-        )
-        .result
+        );
+        self.record_deny_list_read(result.num_non_gas_coin_owners);
+        result
+    }
+
+    /// Records the deny-list object as a per-epoch config read in the effects
+    /// when the check examined at least one coin.
+    fn record_deny_list_read(&self, num_non_gas_coin_owners: u64) {
+        // The denylist object is only loaded if there are regulated transfers.
+        // And also if we already have it in the input there is no need to commit it
+        // again in the effects.
+        if num_non_gas_coin_owners > 0 && !self.input_objects.contains_key(&ObjectId::DENY_LIST) {
+            self.loaded_per_epoch_config_objects
+                .write()
+                .insert(ObjectId::DENY_LIST);
+        }
     }
 
     fn get_input_iota(
@@ -1159,16 +1172,7 @@ impl Storage for TemporaryStore<'_> {
             self.cur_epoch,
             self.store.as_object_store(),
         );
-        // The denylist object is only loaded if there are regulated transfers.
-        // And also if we already have it in the input there is no need to commit it
-        // again in the effects.
-        if result.num_non_gas_coin_owners > 0
-            && !self.input_objects.contains_key(&ObjectId::DENY_LIST)
-        {
-            self.loaded_per_epoch_config_objects
-                .write()
-                .insert(ObjectId::DENY_LIST);
-        }
+        self.record_deny_list_read(result.num_non_gas_coin_owners);
         result
     }
 

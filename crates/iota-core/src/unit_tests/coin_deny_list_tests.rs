@@ -7,7 +7,7 @@ use std::sync::Arc;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
-    SharedObjectReference, StructTag, TransactionDigest, TypeTag, Version,
+    SharedObjectReference, StructTag, TransactionDigest, TypeTag, UnchangedSharedKind, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -18,7 +18,7 @@ use iota_types::{
         get_per_type_coin_deny_list_v1,
     },
     effects::{TransactionEffects, TransactionEffectsAPI},
-    error::{IotaError, IotaResult, UserInputError},
+    error::{ExecutionErrorKind, IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
@@ -451,7 +451,7 @@ async fn test_execution_fails_spending_denied_coin_under_attestation() {
     let executable =
         VerifiedExecutableTransaction::new_from_checkpoint(verified_tx, epoch_store.epoch(), 1);
 
-    let (effects, _execution_error) = env
+    let (effects, execution_error) = env
         .env
         .authority
         .try_execute_immediately(&executable.into(), None, &epoch_store)
@@ -465,8 +465,24 @@ async fn test_execution_fails_spending_denied_coin_under_attestation() {
         "expected AddressDeniedForCoin, got {error:?}"
     );
     assert!(
+        matches!(
+            execution_error.as_ref().map(|e| e.kind()),
+            Some(ExecutionErrorKind::AddressDeniedForCoin { .. })
+        ),
+        "expected AddressDeniedForCoin from the executor, got {execution_error:?}"
+    );
+    assert!(
         effects.gas_cost_summary().gas_used() > 0,
         "the issuer must be charged gas for the failed execution"
+    );
+    // The check read the deny list to decide the failure, so the effects must
+    // report that read even though the transaction failed.
+    assert!(
+        effects
+            .unchanged_shared_objects()
+            .contains(&(ObjectId::DENY_LIST, UnchangedSharedKind::PerEpochConfig)),
+        "expected the deny list recorded as a per-epoch config read, got {:?}",
+        effects.unchanged_shared_objects()
     );
 }
 

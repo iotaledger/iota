@@ -119,13 +119,15 @@ mod checked {
         }
     }
 
+    /// The flat fee charged for every transaction.
+    pub(crate) fn min_transaction_cost(config: &ProtocolConfig, gas_price: u64) -> u64 {
+        config.base_tx_cost_fixed() * gas_price
+    }
+
     impl IotaCostTable {
         pub(crate) fn new(c: &ProtocolConfig, gas_price: u64) -> Self {
-            // gas_price here is the Reference Gas Price, however we may decide
-            // to change it to be the price passed in the transaction
-            let min_transaction_cost = c.base_tx_cost_fixed() * gas_price;
             Self {
-                min_transaction_cost,
+                min_transaction_cost: min_transaction_cost(c, gas_price),
                 max_gas_budget: c.max_tx_gas(),
                 package_publish_per_byte_cost: c.package_publish_cost_per_byte(),
                 object_read_per_byte_cost: c.obj_access_cost_read_per_byte(),
@@ -324,18 +326,11 @@ mod checked {
             }
 
             // 2. Gas budget is between min and max budget allowed
-            if gas_budget > self.cost_table.max_gas_budget {
-                return Err(UserInputError::GasBudgetTooHigh {
-                    gas_budget,
-                    max_budget: self.cost_table.max_gas_budget,
-                });
-            }
-            if gas_budget < self.cost_table.min_transaction_cost {
-                return Err(UserInputError::GasBudgetTooLow {
-                    gas_budget,
-                    min_budget: self.cost_table.min_transaction_cost,
-                });
-            }
+            gas::check_gas_budget_bounds(
+                gas_budget,
+                self.cost_table.min_transaction_cost,
+                self.cost_table.max_gas_budget,
+            )?;
 
             // 3. Gas balance (all gas coins together) is bigger or equal to budget
             let mut gas_balance = 0u128;
