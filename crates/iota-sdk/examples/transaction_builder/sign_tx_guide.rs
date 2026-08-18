@@ -24,11 +24,8 @@ use iota_sdk::{
     },
 };
 use iota_sdk_crypto::{
-    Signer as _, ToFromBase64, ToFromBech32, Verifier as _,
-    ed25519::Ed25519PrivateKey,
-    secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey,
-    simple::{SimpleKeypair, SimpleVerifier},
+    IotaVerifier as _, Signer as _, ToFromBase64, ToFromBech32, ed25519::Ed25519PrivateKey,
+    secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{Address, Transaction, UserSignature, crypto::SimpleSignature};
 use rand::{SeedableRng, rngs::StdRng};
@@ -145,12 +142,13 @@ async fn main() -> Result<(), anyhow::Error> {
     // use SimpleKeypair to sign the digest.
     let iota_sig: SimpleSignature = ikp_determ_0.sign(&digest);
 
-    // if you would like to verify the signature locally before submission, check
-    // it against the signing digest and make sure its public key matches the
-    // sender. if it fails to verify locally, the transaction will fail to
-    // execute in IOTA.
-    assert_eq!(Address::from(iota_sig.to_public_key()), sender);
-    assert!(SimpleVerifier.verify(&digest, &iota_sig).is_ok());
+    // if you would like to verify the signature locally before submission,
+    // verify it against the transaction with the sender's public key, which
+    // also ensures the signature carries the matching public key. if it fails
+    // to verify locally, the transaction will fail to execute in IOTA.
+    let iota_sig = UserSignature::Simple(iota_sig);
+    let res = ikp_determ_0.public_key().verify_transaction(&tx, &iota_sig);
+    assert!(res.is_ok());
 
     // execute the transaction.
     let transaction_response = client
@@ -158,7 +156,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .execute_transaction_block(
             iota_types::transaction::TransactionEnvelope::from_user_sig_data(
                 intent_msg.value.clone(),
-                vec![UserSignature::Simple(iota_sig)],
+                vec![iota_sig],
             ),
             IotaTransactionBlockResponseOptions::default(),
             None,
