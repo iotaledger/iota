@@ -475,10 +475,13 @@ impl IotaNode {
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
         let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
-        let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(
-            &config.db_path().join("store"),
-            Some(perpetual_tables_options),
-        ));
+        let (perpetual_tables, historic_objects) =
+            AuthorityPerpetualTables::open_with_historic_objects(
+                &config.db_path().join("store"),
+                Some(perpetual_tables_options),
+            )?;
+        let perpetual_tables = Arc::new(perpetual_tables);
+        let historic_objects = Arc::new(historic_objects);
         let is_genesis = perpetual_tables
             .database_is_empty()
             .expect("Database read should not fail at init.");
@@ -498,6 +501,7 @@ impl IotaNode {
         let perpetual_tables_for_snapshots = perpetual_tables.clone();
         let store = AuthorityStore::open(
             perpetual_tables,
+            historic_objects,
             &genesis,
             &config,
             &prometheus_registry,
