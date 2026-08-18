@@ -36,6 +36,12 @@ const HISTORIC_OBJECTS_CF_PREFIX: &str = "hist_obj_e";
 /// instead, so an older bucket's rows can never be read as the wrong type.
 const DB_PREFIX_HISTORIC_OBJECTS: u8 = 0;
 
+/// Tag of the tombstone-head table inside a bucket's column family.
+const DB_PREFIX_HISTORIC_TOMBSTONES: u8 = 1;
+
+/// Tag of the expiring marker inside a bucket's column family.
+const DB_PREFIX_HISTORIC_EXPIRING: u8 = 2;
+
 /// Column family holding the earliest-retained-epoch marker `EpochBuckets`
 /// would persist on a prune. Nothing prunes yet, so this column family stays
 /// empty and every bucket is retained.
@@ -50,6 +56,17 @@ pub struct HistoricObjectsBucket {
     /// Object versions superseded during this epoch, keyed exactly as the
     /// live `objects` table keys them.
     pub(crate) objects: TaggedDBMap<ObjectKey, Object>,
+
+    /// The objects deleted or wrapped during this epoch. Their tombstones
+    /// stay in the live `objects` table until this bucket expires: a
+    /// tombstone has to outlive every version beneath it, and a tombstone
+    /// written in this epoch can only sit above versions relocated in this
+    /// epoch or an earlier one.
+    pub(crate) tombstones: TaggedDBMap<ObjectKey, ()>,
+
+    /// Present once this bucket has been scheduled for expiry. A bucket
+    /// carrying it is skipped by reads and its expiry is resumed at open.
+    pub(crate) expiring: TaggedDBMap<(), ()>,
 }
 
 impl HistoricObjectsBucket {
@@ -59,6 +76,20 @@ impl HistoricObjectsBucket {
                 db,
                 cf_name,
                 DB_PREFIX_HISTORIC_OBJECTS,
+                &ReadWriteOptions::default(),
+                true,
+            )?,
+            tombstones: TaggedDBMap::reopen(
+                db,
+                cf_name,
+                DB_PREFIX_HISTORIC_TOMBSTONES,
+                &ReadWriteOptions::default(),
+                true,
+            )?,
+            expiring: TaggedDBMap::reopen(
+                db,
+                cf_name,
+                DB_PREFIX_HISTORIC_EXPIRING,
                 &ReadWriteOptions::default(),
                 true,
             )?,
@@ -216,6 +247,11 @@ impl HistoricObjects {
     /// retention-floor family. `None` for any other name, leaving the caller
     /// to report it as unknown.
     ///
+    /// A bucket packs its tombstone heads and its expiring marker into the
+    /// same column family as its relocated versions, tagged apart; the page
+    /// carries all three, the tombstone and marker rows prefixed by table
+    /// name to keep them apart from an object key formatted the same way.
+    ///
     /// For the table dump of `iota-tool`, which walks the perpetual
     /// database's column families by name: these are not fields of
     /// `AuthorityPerpetualTables`, so the dump derived from it cannot read
@@ -227,27 +263,45 @@ impl HistoricObjects {
         page_size: u16,
         page_number: usize,
     ) -> Result<Option<BTreeMap<String, String>>, TypedStoreError> {
-        fn page<K: Debug, V: Debug>(
-            rows: DbIterator<'_, (K, V)>,
+        fn format_rows<'a, K: Debug + 'a, V: Debug + 'a>(
+            prefix: &'static str,
+            rows: DbIterator<'a, (K, V)>,
+        ) -> impl Iterator<Item = Result<(String, String), TypedStoreError>> + 'a {
+            rows.map(move |row| {
+                row.map(|(key, value)| (format!("{prefix}{key:?}"), format!("{value:?}")))
+            })
+        }
+
+        fn page(
+            rows: impl Iterator<Item = Result<(String, String), TypedStoreError>>,
             page_size: u16,
             page_number: usize,
         ) -> Result<BTreeMap<String, String>, TypedStoreError> {
             rows.skip(page_number * page_size as usize)
                 .take(page_size as usize)
-                .map(|row| row.map(|(key, value)| (format!("{key:?}"), format!("{value:?}"))))
                 .collect()
         }
 
         if bucket_cf_epoch(HISTORIC_OBJECTS_CF_PREFIX, cf_name).is_some() {
             let bucket = HistoricObjectsBucket::reopen(db, cf_name)?;
             bucket.objects.try_catch_up_with_primary()?;
-            return page(bucket.objects.safe_iter(), page_size, page_number).map(Some);
+            bucket.tombstones.try_catch_up_with_primary()?;
+            bucket.expiring.try_catch_up_with_primary()?;
+            let rows = format_rows("", bucket.objects.safe_iter())
+                .chain(format_rows("tombstone:", bucket.tombstones.safe_iter()))
+                .chain(format_rows("expiring:", bucket.expiring.safe_iter()));
+            return page(rows, page_size, page_number).map(Some);
         }
         if cf_name == EARLIEST_RETAINED_CF {
             let earliest_retained_table: DBMap<(), EpochId> =
                 DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)?;
             earliest_retained_table.try_catch_up_with_primary()?;
-            return page(earliest_retained_table.safe_iter(), page_size, page_number).map(Some);
+            return page(
+                format_rows("", earliest_retained_table.safe_iter()),
+                page_size,
+                page_number,
+            )
+            .map(Some);
         }
         Ok(None)
     }
