@@ -16,7 +16,6 @@ use iota_sdk::{
     types::{
         coin_manager::CoinManagerTreasuryCap,
         dynamic_field::DynamicFieldName,
-        gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         transaction::{CallArg, TransactionEnvelope},
@@ -153,7 +152,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
         // Type argument for an AliasOutput coming from the IOTA network, i.e., the
         // IOTA token or the Gas type tag.
-        let type_arguments = vec![GAS::type_tag()];
+        let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
         // Then pass the AliasOutput object as an input.
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         // Finally call the alias_output::extract_assets function.
@@ -172,7 +171,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let extracted_alias = Argument::NestedResult(extracted_assets, 2);
 
             // Extract the IOTA balance.
-            let type_arguments = vec![GAS::type_tag()];
+            let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
             let arguments = vec![extracted_base_token];
             let iota_coin = builder.programmable_move_call(
                 ObjectId::FRAMEWORK,

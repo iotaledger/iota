@@ -20,8 +20,8 @@ mod checked {
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
         MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
-        SharedObjectReference, SystemPackage, TransactionDigest, TransactionEffects,
-        TransactionKind, Version, gas::GasCostSummary,
+        SharedObjectReference, StructTag, SystemPackage, TransactionDigest, TransactionEffects,
+        TransactionKind, TypeTag, Version, gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -39,7 +39,6 @@ mod checked {
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
         gas::{IotaGasStatus, IotaGasStatusAPI},
-        gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams},
         messages_checkpoint::CheckpointTimestamp,
@@ -1393,7 +1392,7 @@ mod checked {
             ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_CREATE_REWARDS_FUNCTION_NAME,
-            vec![GAS::type_tag()],
+            vec![TypeTag::from(StructTag::new_gas())],
             vec![storage_charge_arg],
         );
 
@@ -1405,7 +1404,7 @@ mod checked {
             ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_CREATE_REWARDS_FUNCTION_NAME,
-            vec![GAS::type_tag()],
+            vec![TypeTag::from(StructTag::new_gas())],
             vec![computation_charge_arg],
         );
         (storage_charges, computation_charges)
@@ -1460,7 +1459,7 @@ mod checked {
             ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_DESTROY_REBATES_FUNCTION_NAME,
-            vec![GAS::type_tag()],
+            vec![TypeTag::from(StructTag::new_gas())],
             vec![storage_rebates],
         );
         Ok(builder.finish())

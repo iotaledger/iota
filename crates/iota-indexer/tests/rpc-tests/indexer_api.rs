@@ -30,7 +30,6 @@ use iota_test_transaction_builder::{TestTransactionBuilder, split_coin_equal_tx}
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     dynamic_field::DynamicFieldName,
-    gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{CallArg, TransactionAPI},
@@ -813,7 +812,7 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
         let function_1 = Identifier::from_static("split");
         let function_2 = Identifier::from_static("divide_and_keep");
 
-        let iota_type_args = type_args![GAS::type_tag()]?;
+        let iota_type_args = type_args![TypeTag::from(StructTag::new_gas())]?;
         let type_args = iota_type_args
             .into_iter()
             .map(|ty| ty.try_into())

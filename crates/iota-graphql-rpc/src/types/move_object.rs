@@ -416,7 +416,7 @@ impl MoveObject {
         ctx: &Context<'_>,
     ) -> Result<Option<NameRegistration>> {
         let cfg: &IotaNamesConfig = ctx.data_unchecked();
-        let tag = NameRegistration::type_(cfg.package_address.into());
+        let tag = NameRegistration::struct_tag(cfg.package_address.into());
 
         match NameRegistration::try_from(self, &tag) {
             Ok(registration) => Ok(Some(registration)),

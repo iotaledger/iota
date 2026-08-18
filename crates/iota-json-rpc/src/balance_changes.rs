@@ -10,12 +10,11 @@ use std::{
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
 use iota_sdk_types::{
-    ExecutionStatus, ObjectDigest, ObjectId, Owner, TransactionEffects, TypeTag, Version,
+    ExecutionStatus, ObjectDigest, ObjectId, Owner, StructTag, TransactionEffects, TypeTag, Version,
 };
 use iota_types::{
     coin::Coin,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    gas_coin::GAS,
     object::Object,
     transaction::InputObjectKind,
 };
@@ -34,7 +33,7 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
     if effects.status() != &ExecutionStatus::Success {
         return Ok(vec![BalanceChange {
             owner: gas_owner,
-            coin_type: GAS::type_tag(),
+            coin_type: TypeTag::from(StructTag::new_gas()),
             amount: effects.gas_cost_summary().net_gas_usage().neg() as i128,
         }]);
     }

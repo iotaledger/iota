@@ -10,7 +10,6 @@ use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    gas_coin::GAS,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
@@ -264,7 +263,7 @@ fn test_timelocked_staking() {
                 ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("into_balance"),
-                vec![GAS::type_tag()],
+                vec![TypeTag::from(StructTag::new_gas())],
                 vec![iota_coin_argument],
             );
 
@@ -275,7 +274,7 @@ fn test_timelocked_staking() {
                 Identifier::from_static("timelock"),
                 Identifier::from_static("lock"),
                 vec![TypeTag::Struct(Box::new(StructTag::new_balance(
-                    GAS::type_tag(),
+                    TypeTag::from(StructTag::new_gas()),
                 )))],
                 vec![iota_balance, timelock_timestamp],
             );
@@ -382,7 +381,7 @@ fn test_timelocked_unstaking() {
                 ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("into_balance"),
-                vec![GAS::type_tag()],
+                vec![TypeTag::from(StructTag::new_gas())],
                 vec![iota_coin_argument],
             );
 
@@ -393,7 +392,7 @@ fn test_timelocked_unstaking() {
                 Identifier::from_static("timelock"),
                 Identifier::from_static("lock"),
                 vec![TypeTag::Struct(Box::new(StructTag::new_balance(
-                    GAS::type_tag(),
+                    TypeTag::from(StructTag::new_gas()),
                 )))],
                 vec![iota_balance, timelock_timestamp],
             );

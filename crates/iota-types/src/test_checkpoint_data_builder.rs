@@ -19,7 +19,6 @@ use crate::{
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExtForTesting},
     event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    gas_coin::GAS,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummaryExt,
     },
@@ -167,7 +166,7 @@ impl TestCheckpointDataBuilder {
             object_idx,
             Owner::Shared(Version::MIN_VALID_INCL),
             GAS_VALUE_FOR_TESTING,
-            GAS::type_tag(),
+            TypeTag::from(StructTag::new_gas()),
         )
     }
 
@@ -181,7 +180,12 @@ impl TestCheckpointDataBuilder {
             .as_ref()
             .unwrap()
             .sender_idx;
-        self.create_coin_object(object_idx, sender_idx, balance, GAS::type_tag())
+        self.create_coin_object(
+            object_idx,
+            sender_idx,
+            balance,
+            TypeTag::from(StructTag::new_gas()),
+        )
     }
 
     /// Create a new coin object in the transaction.

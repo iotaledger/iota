@@ -28,7 +28,7 @@ use crate::{
     error::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
-    gas_coin::{GAS, GasCoin},
+    gas_coin::GasCoin,
     iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
     move_package::MovePackageExt,
@@ -310,7 +310,10 @@ impl MoveStructExt for MoveStruct {
     /// purposes
     fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
         let balances = self.get_coin_balances(layout_resolver)?;
-        Ok(balances.get(&GAS::type_tag()).copied().unwrap_or(0))
+        Ok(balances
+            .get(&TypeTag::from(StructTag::new_gas()))
+            .copied()
+            .unwrap_or(0))
     }
 
     /// Get the total balances for all `Coin<T>` embedded in `self`.

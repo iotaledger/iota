@@ -18,10 +18,9 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
-    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+    use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
     use iota_types::{
         digests::ChainIdentifier,
-        gas_coin::GAS,
         transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use rand::{SeedableRng, rngs::StdRng};
@@ -844,7 +843,7 @@ mod tests {
                 "split",
                 vec![CallArg::ImmutableOrOwned(coin), CallArg::pure(&1000u64)],
             )
-            .with_type_args(vec![GAS::type_tag()])
+            .with_type_args(vec![TypeTag::from(StructTag::new_gas())])
             .build();
         let tx_bytes = tx.to_base64();
 

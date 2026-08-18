@@ -1091,9 +1091,9 @@ impl PackageMetadata {
         ))
     }
 
-    pub fn type_(&self) -> StructTag {
+    pub fn struct_tag(&self) -> StructTag {
         match self {
-            PackageMetadata::V1(_) => PackageMetadataV1::type_(),
+            PackageMetadata::V1(_) => PackageMetadataV1::struct_tag(),
         }
     }
 
@@ -1190,7 +1190,7 @@ impl PackageMetadataV1 {
         }
     }
 
-    pub fn type_() -> StructTag {
+    pub fn struct_tag() -> StructTag {
         StructTag::new(
             Address::FRAMEWORK,
             PACKAGE_METADATA_MODULE_NAME,

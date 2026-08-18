@@ -11,10 +11,8 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     TransactionBlockBytes,
 };
-use iota_sdk_types::{Address, ObjectId};
-use iota_types::{
-    gas_coin::GAS, quorum_driver_types::ExecuteTransactionRequestType, storage::ReadStore,
-};
+use iota_sdk_types::{Address, ObjectId, StructTag};
+use iota_types::{quorum_driver_types::ExecuteTransactionRequestType, storage::ReadStore};
 use simulacrum::Simulacrum;
 use test_cluster::TestCluster;
 
@@ -443,7 +441,7 @@ async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
             package_id,
             module,
             function,
-            type_args![GAS::type_tag()]?,
+            type_args![TypeTag::from(StructTag::new_gas())]?,
             call_args!(coin.object_id, 10)?,
             Some(gas.object_id),
             10_000_000.into(),

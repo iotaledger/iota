@@ -556,7 +556,7 @@ async fn type_filter_with_pagination() {
     let total_all: usize = all_responses.iter().map(|r| r.objects.len()).sum();
     assert_eq!(total_all, 5, "unfiltered should return all 5 objects");
 
-    // With type filter → only 3 coin objects matching the `GasCoin::type_()`.
+    // With type filter → only 3 coin objects matching the GasCoin type.
     let filtered_base = ListOwnedObjectsRequest::default()
         .with_owner(owner_proto(owner))
         .with_page_size(2)

@@ -604,9 +604,9 @@ impl<R: ReadApiServer> IndexerApiServer for IndexerApi<R> {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
-            filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
-                self.iota_names_config.package_address,
-            ))),
+            filter: Some(IotaObjectDataFilter::StructType(
+                NameRegistration::struct_tag(self.iota_names_config.package_address),
+            )),
             options,
         };
 
