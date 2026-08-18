@@ -54,9 +54,9 @@ const DB_PREFIX_HISTORIC_TOMBSTONES: u8 = 1;
 /// Tag of the expiring marker inside a bucket's column family.
 const DB_PREFIX_HISTORIC_EXPIRING: u8 = 2;
 
-/// Column family holding the earliest-retained-epoch marker `EpochBuckets`
-/// would persist on a prune. Nothing prunes yet, so this column family stays
-/// empty and every bucket is retained.
+/// Column family holding the earliest-retained-epoch marker
+/// [`EpochBuckets`] persists on a prune. It is empty until the first prune,
+/// which is the same as retaining every bucket.
 ///
 /// The name must not begin with [`HISTORIC_OBJECTS_CF_PREFIX`], since that is
 /// how a bucket's column family is told from every other one in this
@@ -208,8 +208,10 @@ impl HistoricObjects {
     /// that database's live objects table, which holds the tombstones the
     /// buckets' heads point at.
     ///
-    /// A bucket left marked expiring by an interrupted prune is finished
-    /// here, oldest first, before any query can reach it.
+    /// A bucket an interrupted prune left behind is finished here, oldest
+    /// first, before any query can reach it: one marked expiring, and one
+    /// below the persisted retention floor, whose marker the same crash may
+    /// have cost it.
     pub fn open(
         db: Arc<Database>,
         db_options: &DBOptions,
@@ -228,14 +230,33 @@ impl HistoricObjects {
             }
         }
 
-        // Ascending, as `BTreeMap` iterates: an expiring bucket's tombstone
+        let cf_options = Self::cf_options(db_options).options;
+        if db.cf_handle(EARLIEST_RETAINED_CF).is_none() {
+            db.create_cf(EARLIEST_RETAINED_CF, &cf_options)?;
+        }
+        let earliest_retained_table: DBMap<(), EpochId> = DBMap::reopen(
+            &db,
+            Some(EARLIEST_RETAINED_CF),
+            &ReadWriteOptions::default(),
+            true,
+        )?;
+        let earliest_retained = earliest_retained_table.get(&())?.unwrap_or(0);
+
+        // A prune persists the floor before it marks anything, so a bucket
+        // below the floor is one whose expiry did not finish, whether or not
+        // it got as far as its marker. Left to `EpochBuckets::open` it would
+        // have its column family dropped with its tombstone heads still in
+        // the live `objects` table, which nothing would ever delete.
+        //
+        // Ascending, as `BTreeMap` iterates, and the buckets below the floor
+        // are the oldest of the two kinds: an expiring bucket's tombstone
         // heads are already deleted while its versions still exist, so a scan
         // bounded at one of those tombstones falls through to the buckets
         // below it, and is only answered correctly because every one of them
         // is gone by then.
         let interrupted: Vec<(EpochId, Arc<HistoricObjectsBucket>)> = buckets
             .iter()
-            .filter(|(_, bucket)| bucket.is_expiring())
+            .filter(|(&epoch, bucket)| epoch < earliest_retained || bucket.is_expiring())
             .map(|(&epoch, bucket)| (epoch, bucket.clone()))
             .collect();
         for (epoch, bucket) in interrupted {
@@ -253,17 +274,6 @@ impl HistoricObjects {
             }
         }
 
-        let cf_options = Self::cf_options(db_options).options;
-        if db.cf_handle(EARLIEST_RETAINED_CF).is_none() {
-            db.create_cf(EARLIEST_RETAINED_CF, &cf_options)?;
-        }
-        let earliest_retained_table: DBMap<(), EpochId> = DBMap::reopen(
-            &db,
-            Some(EARLIEST_RETAINED_CF),
-            &ReadWriteOptions::default(),
-            true,
-        )?;
-
         let buckets = EpochBuckets::open(
             db,
             "historic objects",
@@ -274,6 +284,13 @@ impl HistoricObjects {
             HistoricObjectsBucket::reopen,
         )?;
         Ok(Self { buckets, objects })
+    }
+
+    /// The earliest epoch whose relocated versions are still retained.
+    /// Buckets below it are gone and are never recreated, so an object
+    /// version superseded before this epoch is no longer readable anywhere.
+    pub fn earliest_retained_epoch(&self) -> EpochId {
+        self.buckets.earliest_retained()
     }
 
     /// The bucket holding `epoch`'s relocated versions, created if absent.
