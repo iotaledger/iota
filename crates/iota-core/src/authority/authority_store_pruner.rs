@@ -18,10 +18,7 @@ use iota_types::{
     storage::ObjectKey,
 };
 use once_cell::sync::Lazy;
-use prometheus_filtered::{
-    IntCounter, IntGauge, MetricLevel, Registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry,
-};
+use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
 use tokio::{
     sync::{
         oneshot::{self, Sender},
@@ -732,7 +729,7 @@ impl AuthorityStorePruner {
 mod tests {
     use std::{path::Path, sync::Arc};
 
-    use iota_sdk_types::{ObjectId, TransactionDigest, Version};
+    use iota_sdk_types::{ObjectId, Version};
     use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
     use iota_types::{
         messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
@@ -751,7 +748,7 @@ mod tests {
         authority::{
             authority_store_pruner::AuthorityStorePruningMetrics,
             authority_store_tables::AuthorityPerpetualTables,
-            authority_store_types::{StoreObjectWrapper, get_store_object},
+            authority_store_types::get_store_object,
         },
         checkpoints::CheckpointStore,
     };
