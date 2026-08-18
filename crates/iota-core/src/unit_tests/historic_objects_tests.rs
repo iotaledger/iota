@@ -7,7 +7,6 @@ use iota_sdk_types::ObjectId;
 use iota_types::{object::Object, storage::ObjectKey};
 use typed_store::database::wait_for_database_close;
 
-use super::HistoricObjects;
 use crate::authority::authority_store_tables::AuthorityPerpetualTables;
 
 /// A relocated version is readable from the bucket of the epoch it was
@@ -15,8 +14,8 @@ use crate::authority::authority_store_tables::AuthorityPerpetualTables;
 #[tokio::test]
 async fn test_relocated_version_is_readable_from_its_bucket() {
     let dir = iota_common::tempdir();
-    let perpetual = AuthorityPerpetualTables::open(dir.path(), None);
-    let historic = HistoricObjects::open(perpetual.objects.db.clone()).unwrap();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let object = Object::immutable_with_id_for_testing(ObjectId::random());
     let key = ObjectKey(object.id(), object.version());
@@ -42,8 +41,8 @@ async fn test_relocated_version_is_readable_from_its_bucket() {
 #[tokio::test]
 async fn test_lookup_spans_epoch_buckets() {
     let dir = iota_common::tempdir();
-    let perpetual = AuthorityPerpetualTables::open(dir.path(), None);
-    let historic = HistoricObjects::open(perpetual.objects.db.clone()).unwrap();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let older = Object::immutable_with_id_for_testing(ObjectId::random());
     let newer = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -68,8 +67,8 @@ async fn test_lookup_spans_epoch_buckets() {
 #[tokio::test]
 async fn test_relocated_version_survives_a_reopen() {
     let dir = iota_common::tempdir();
-    let perpetual = AuthorityPerpetualTables::open(dir.path(), None);
-    let historic = HistoricObjects::open(perpetual.objects.db.clone()).unwrap();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let object = Object::immutable_with_id_for_testing(ObjectId::random());
     let key = ObjectKey(object.id(), object.version());
@@ -89,7 +88,7 @@ async fn test_relocated_version_survives_a_reopen() {
     drop(perpetual);
     assert!(wait_for_database_close(weak_db).await);
 
-    let perpetual = AuthorityPerpetualTables::open(dir.path(), None);
-    let historic = HistoricObjects::open(perpetual.objects.db).unwrap();
+    let (_perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     assert_eq!(historic.get(&key).unwrap().as_ref(), Some(&object));
 }
