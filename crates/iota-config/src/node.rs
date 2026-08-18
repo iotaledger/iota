@@ -830,10 +830,8 @@ impl NodeConfig {
     /// Validate the node config, returning an error if a node could not
     /// start with this config or would start ignoring part of it.
     pub fn validate(&self) -> Result<()> {
-        // Validators do not expose the gRPC API, so these two fields are only
-        // checked on a fullnode. An absent `grpc-api-config` key deserializes
-        // to a default config, so this mostly guards configs assembled in
-        // process, such as by the builders.
+        // Validators do not expose the gRPC API. Only an explicit `grpc-api-config:
+        // null` reaches this; an absent key deserializes to the default config.
         if !self.is_validator() && self.enable_grpc_api && self.grpc_api_config.is_none() {
             anyhow::bail!(
                 "`enable-grpc-api` is set but `grpc-api-config` is missing; set \
