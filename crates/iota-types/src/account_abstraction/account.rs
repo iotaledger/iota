@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, Identifier, StructTag};
+use iota_sdk_ext::types::{Address, Identifier, StructTag};
 use serde::{Deserialize, Serialize};
 
 pub const ACCOUNT_MODULE_NAME: Identifier = Identifier::from_static("account");

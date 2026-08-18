@@ -6,7 +6,7 @@ use async_graphql::{
     connection::{Connection, CursorType, Edge},
     *,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ChangeEpoch as NativeChangeEpochTransaction, ChangeEpochV2 as NativeChangeEpochTransactionV2,
     ChangeEpochV3 as NativeChangeEpochTransactionV3,
     ChangeEpochV4 as NativeChangeEpochTransactionV4,

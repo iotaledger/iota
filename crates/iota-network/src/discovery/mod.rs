@@ -17,7 +17,7 @@ use fastcrypto::ed25519::{Ed25519PublicKey, Ed25519Signature};
 use futures::StreamExt;
 use iota_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
 use iota_multiaddr::Multiaddr;
-use iota_sdk_types::{Digest, crypto::IntentScope};
+use iota_sdk_ext::types::{Digest, crypto::IntentScope};
 use iota_types::{
     crypto::{NetworkKeyPair, Signer, ToFromBytes, VerifyingKey},
     message_envelope::{Envelope, Message, VerifiedEnvelope},

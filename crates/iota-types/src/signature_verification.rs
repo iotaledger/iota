@@ -5,7 +5,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::hash::Hash;
 
-use iota_sdk_types::SenderSignedTransaction;
+use iota_sdk_ext::types::SenderSignedTransaction;
 #[cfg(not(target_arch = "wasm32"))]
 use lru::LruCache;
 use nonempty::NonEmpty;

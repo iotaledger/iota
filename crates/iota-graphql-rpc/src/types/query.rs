@@ -10,7 +10,7 @@ use iota_indexer::apis::ReadApi;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
-use iota_sdk_types::{ObjectReference, Transaction, TransactionKind, TypeTag};
+use iota_sdk_ext::types::{ObjectReference, Transaction, TransactionKind, TypeTag};
 use iota_types::{gas_coin::GAS, transaction::TransactionAPI};
 use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;

@@ -3,17 +3,19 @@
 
 use std::{path::PathBuf, time::Duration};
 
-use iota_grpc_types::{
-    field::FieldMaskUtil,
-    read_masks::LIST_OWNED_OBJECTS_READ_MASK,
-    v1::state_service::{
-        GetCoinInfoRequest, ListOwnedObjectsRequest, ListOwnedObjectsResponse,
-        state_service_client::StateServiceClient,
-    },
-};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_macros::sim_test;
-use iota_sdk_types::{Address, Owner, StructTag, TypeTag};
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        read_masks::LIST_OWNED_OBJECTS_READ_MASK,
+        v1::state_service::{
+            GetCoinInfoRequest, ListOwnedObjectsRequest, ListOwnedObjectsResponse,
+            state_service_client::StateServiceClient,
+        },
+    },
+    types::{Address, Owner, StructTag, TypeTag},
+};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -30,13 +32,13 @@ use crate::utils::{
 
 /// Make a unary call and validate field presence on every returned object.
 async fn list_and_validate(
-    state_client: &mut iota_grpc_types::v1::state_service::state_service_client::StateServiceClient<
-        iota_grpc_client::InterceptedChannel,
+    state_client: &mut iota_sdk_ext::grpc_types::v1::state_service::state_service_client::StateServiceClient<
+        iota_sdk_ext::grpc_client::InterceptedChannel,
     >,
     request: ListOwnedObjectsRequest,
     expected_field_mask_paths: &[&str],
     scenario: &str,
-) -> iota_grpc_types::v1::state_service::ListOwnedObjectsResponse {
+) -> iota_sdk_ext::grpc_types::v1::state_service::ListOwnedObjectsResponse {
     let response = state_client
         .list_owned_objects(request)
         .await
@@ -457,7 +459,7 @@ async fn list_owned_objects_cursor_pagination_e2e() {
 /// the timeout. Used to bridge the lag between transaction execution on the
 /// fullnode and owner-index updates that happen during checkpoint commit.
 async fn wait_for_owned_count(
-    state_client: &mut StateServiceClient<iota_grpc_client::InterceptedChannel>,
+    state_client: &mut StateServiceClient<iota_sdk_ext::grpc_client::InterceptedChannel>,
     owner: Address,
     expected_count: usize,
     scenario: &str,

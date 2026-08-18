@@ -8,7 +8,7 @@ use std::{
 };
 
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-use iota_sdk_types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, Version};
+use iota_sdk_ext::types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, Version};
 use iota_types::{
     committee::EpochId, error::VMMemoryLimitExceededSubStatusCode,
     execution::DynamicallyLoadedObjectMetadata, metrics::LimitsMetrics, object::Object,

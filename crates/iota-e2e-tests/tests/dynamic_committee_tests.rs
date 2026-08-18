@@ -11,7 +11,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, Command, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
     TransactionEffects,
 };
@@ -39,8 +39,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            iota_sdk_types::Identifier::from_static(stringify!($module_name)),
-            iota_sdk_types::Identifier::from_static(stringify!($func)),
+            iota_sdk_ext::types::Identifier::from_static(stringify!($module_name)),
+            iota_sdk_ext::types::Identifier::from_static(stringify!($func)),
             vec![],
             vec![$($args),*],
         )
@@ -283,7 +283,7 @@ impl StressTestRunner {
 }
 
 mod add_stake {
-    use iota_sdk_types::TransactionEffects;
+    use iota_sdk_ext::types::TransactionEffects;
 
     use super::*;
 

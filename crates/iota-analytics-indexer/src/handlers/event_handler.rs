@@ -9,7 +9,7 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::type_and_fields_from_move_event_data;
 use iota_package_resolver::Resolver;
-use iota_sdk_types::{Event, TransactionDigest, TransactionEvents, TypeTag};
+use iota_sdk_ext::types::{Event, TransactionDigest, TransactionEvents, TypeTag};
 use iota_types::{SYSTEM_PACKAGE_ADDRESSES, full_checkpoint_content::CheckpointData};
 use move_core_types::annotated_value::MoveValue;
 use tokio::sync::Mutex;
@@ -91,7 +91,7 @@ impl AnalyticsHandler<EventEntry> for EventHandler {
 }
 
 impl EventHandler {
-    pub fn new(store_path: &Path, client: iota_grpc_client::Client) -> Self {
+    pub fn new(store_path: &Path, client: iota_sdk_ext::grpc_client::Client) -> Self {
         let package_store = LocalDBPackageStore::new(&store_path.join("event"), client);
         let state = State {
             events: vec![],

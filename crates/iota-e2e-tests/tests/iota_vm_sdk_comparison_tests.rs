@@ -21,7 +21,7 @@ use std::{
 };
 
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, StructTag,
     TransactionEffects,
 };

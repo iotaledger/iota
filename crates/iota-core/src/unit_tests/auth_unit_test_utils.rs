@@ -5,10 +5,12 @@
 use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use iota_move_build::{BuildConfig, CompiledPackage};
-use iota_sdk_crypto::Signer;
-use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
-    crypto::SimpleSignature,
+use iota_sdk_ext::{
+    crypto::Signer,
+    types::{
+        Address, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
+        crypto::SimpleSignature,
+    },
 };
 use iota_types::{
     effects::TransactionEffectsAPI,

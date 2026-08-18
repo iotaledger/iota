@@ -38,7 +38,7 @@ iota-keys.workspace = true
 iota-metrics.workspace = true
 iota-network-stack.workspace = true
 iota-sdk.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true

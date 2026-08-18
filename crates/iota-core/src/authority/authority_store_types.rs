@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     MoveStruct, ObjectData, Owner, StructTag, TransactionDigest, move_package::MovePackage,
 };
 use iota_types::{
@@ -141,7 +141,7 @@ impl From<StoreObjectV1> for StoreObjectV2 {
     }
 }
 
-/// Forked version of [`iota_sdk_types::ObjectData`]
+/// Forked version of [`iota_sdk_ext::types::ObjectData`]
 /// Adds extra enum value `IndirectObject`, which represents a reference to an
 /// object stored separately
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
@@ -217,7 +217,7 @@ pub(crate) fn try_construct_object(
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::TransactionDigest;
+    use iota_sdk_ext::types::TransactionDigest;
 
     use super::*;
 
@@ -281,7 +281,8 @@ mod tests {
     #[test]
     fn get_store_object_stamps_provided_checkpoint() {
         for expected in [None, Some(0xCAFE_F00D_BEEF_0001u64)] {
-            let object = Object::immutable_with_id_for_testing(iota_sdk_types::ObjectId::random());
+            let object =
+                Object::immutable_with_id_for_testing(iota_sdk_ext::types::ObjectId::random());
             let wrapper = get_store_object(object, expected);
             let StoreObjectWrapper::V2(StoreObjectV2::Value(value)) = wrapper else {
                 panic!("expected V2(Value), got {wrapper:?}");

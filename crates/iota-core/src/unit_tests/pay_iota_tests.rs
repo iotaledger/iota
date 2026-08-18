@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Transaction,
 };
 use iota_types::{

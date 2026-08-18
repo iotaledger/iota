@@ -10,7 +10,7 @@ use iota_faucet::{
     BatchFaucetResponse, BatchStatusFaucetResponse, Faucet, FaucetConfig, FaucetResponse,
     SimpleFaucet,
 };
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 use tracing::{Instrument, debug, info, info_span};
 use uuid::Uuid;
 

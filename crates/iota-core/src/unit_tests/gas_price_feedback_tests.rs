@@ -7,7 +7,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CanceledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError,
     ExecutionStatus, ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference,
     Transaction, TransactionEffects, TransactionKind, UnchangedSharedKind, Version,

@@ -8,7 +8,7 @@ use anyhow::{anyhow, bail};
 use getset::{Getters, MutGetters};
 use iota_config::Config;
 use iota_keys::keystore::{AccountKeystore, Keystore};
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -252,15 +252,16 @@ impl IotaEnv {
         Ok(builder.build(&self.rpc).await?)
     }
 
-    /// Create a [`iota_grpc_client::Client`] for this env's gRPC endpoint.
+    /// Create a [`iota_sdk_ext::grpc_client::Client`] for this env's gRPC
+    /// endpoint.
     ///
     /// Errors if the env has no `grpc` URL configured.
-    pub fn create_grpc_client(&self) -> Result<iota_grpc_client::Client, anyhow::Error> {
+    pub fn create_grpc_client(&self) -> Result<iota_sdk_ext::grpc_client::Client, anyhow::Error> {
         let grpc_url = self
             .grpc
             .as_deref()
             .ok_or_else(|| anyhow!("gRPC is not configured for environment [{}]", self.alias))?;
-        Ok(iota_grpc_client::Client::new(grpc_url)?)
+        Ok(iota_sdk_ext::grpc_client::Client::new(grpc_url)?)
     }
 
     /// Create the env with the default mainnet configuration.

@@ -20,7 +20,9 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Address, ObjectId, Owner, Transaction, TransactionDigest, crypto::Intent};
+use iota_sdk_ext::types::{
+    Address, ObjectId, Owner, Transaction, TransactionDigest, crypto::Intent,
+};
 #[cfg(test)]
 use iota_types::transaction::SenderSignedTransactionAPI;
 use iota_types::{
@@ -1180,7 +1182,7 @@ mod tests {
     use anyhow::*;
     use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};
     use iota_sdk::wallet_context::WalletContext;
-    use iota_sdk_types::{SenderSignedTransaction, crypto::Intent};
+    use iota_sdk_ext::types::{SenderSignedTransaction, crypto::Intent};
     use iota_types::transaction::TransactionAPI;
     use test_cluster::TestClusterBuilder;
 

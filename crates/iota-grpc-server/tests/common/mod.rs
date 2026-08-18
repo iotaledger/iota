@@ -13,7 +13,7 @@ use std::{
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_server::{GrpcReader, GrpcServerHandle, start_grpc_server};
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointContentsDigest, CheckpointDigest, MoveStruct, ObjectId, Owner, StructTag,
     TransactionDigest, TransactionEffects, TransactionEvents, Version,
     checkpoint::{CheckpointContents, CheckpointSummary},

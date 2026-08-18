@@ -2,16 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::StreamExt;
-use iota_grpc_types::{
-    field::FieldMaskUtil,
-    read_masks::GET_TRANSACTIONS_READ_MASK,
-    v1::ledger_service::{
-        GetTransactionsRequest, GetTransactionsResponse, TransactionRequest, TransactionRequests,
-        ledger_service_client::LedgerServiceClient, transaction_result,
-    },
-};
 use iota_macros::sim_test;
-use iota_sdk_types::{Digest, TransactionDigest};
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        read_masks::GET_TRANSACTIONS_READ_MASK,
+        v1::ledger_service::{
+            GetTransactionsRequest, GetTransactionsResponse, TransactionRequest,
+            TransactionRequests, ledger_service_client::LedgerServiceClient, transaction_result,
+        },
+    },
+    types::{Digest, TransactionDigest},
+};
 use prost_types::FieldMask;
 
 use crate::utils::{
@@ -21,7 +23,7 @@ use crate::utils::{
 
 /// Helper function to make GetTransactions requests and validate responses..
 async fn assert_get_transactions_request(
-    ledger_client: &mut LedgerServiceClient<iota_grpc_client::InterceptedChannel>,
+    ledger_client: &mut LedgerServiceClient<iota_sdk_ext::grpc_client::InterceptedChannel>,
     digests: Vec<TransactionDigest>,
     read_mask: Option<FieldMask>,
     max_message_size_bytes: Option<u32>,
@@ -34,7 +36,7 @@ async fn assert_get_transactions_request(
                 .iter()
                 .map(|d| {
                     TransactionRequest::default().with_digest({
-                        iota_grpc_types::v1::types::Digest::default()
+                        iota_sdk_ext::grpc_types::v1::types::Digest::default()
                             .with_digest(d.inner().to_vec())
                     })
                 })
@@ -211,7 +213,7 @@ async fn get_transactions_derived_changes() {
     let mut ledger_client = client.ledger_service_client();
 
     // Transfer to a distinct recipient so the balance moves between two owners
-    let recipient = iota_sdk_types::Address::random();
+    let recipient = iota_sdk_ext::types::Address::random();
     let transaction =
         make_transfer_iota_transaction(&test_cluster.wallet, Some(recipient), Some(1000)).await;
     let sender = transaction.transaction().sender();
@@ -256,7 +258,7 @@ async fn get_transactions_derived_changes() {
 
 #[sim_test]
 async fn get_transactions_derived_changes_failed_transaction() {
-    use iota_sdk_types::{Command, Transaction};
+    use iota_sdk_ext::types::{Command, Transaction};
     use iota_types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::{CallArg, TransactionAPI as _},
@@ -320,7 +322,7 @@ async fn get_transactions_derived_changes_failed_transaction() {
     assert_eq!(
         normalize_grpc_balance_changes(executed_transaction),
         vec![(
-            iota_sdk_types::Owner::Address(sender),
+            iota_sdk_ext::types::Owner::Address(sender),
             iota_types::gas_coin::GAS::type_tag(),
             -gas,
         )],
@@ -338,7 +340,7 @@ async fn get_transactions_derived_changes_failed_transaction() {
         object_changes.iter().all(|change| matches!(
             change,
             crate::utils::NormalizedObjectChange::Mutated { sender: s, owner, .. }
-                if *s == sender && *owner == iota_sdk_types::Owner::Address(sender)
+                if *s == sender && *owner == iota_sdk_ext::types::Owner::Address(sender)
         )),
         "failed transaction should only report sender-owned mutations: {object_changes:?}"
     );
@@ -480,11 +482,11 @@ async fn get_transactions_nonexistent() {
     let request = GetTransactionsRequest::default().with_requests(
         TransactionRequests::default().with_requests(vec![
             TransactionRequest::default().with_digest({
-                iota_grpc_types::v1::types::Digest::default()
+                iota_sdk_ext::grpc_types::v1::types::Digest::default()
                     .with_digest(fake_digest1.inner().to_vec())
             }),
             TransactionRequest::default().with_digest({
-                iota_grpc_types::v1::types::Digest::default()
+                iota_sdk_ext::grpc_types::v1::types::Digest::default()
                     .with_digest(fake_digest2.inner().to_vec())
             }),
         ]),
@@ -553,12 +555,12 @@ async fn get_transactions_mixed_valid_invalid() {
         .with_requests(TransactionRequests::default().with_requests(vec![
             // Valid digest first
             TransactionRequest::default().with_digest({
-                iota_grpc_types::v1::types::Digest::default()
+                iota_sdk_ext::grpc_types::v1::types::Digest::default()
                     .with_digest(real_digest.inner().to_vec())
             }),
             // Invalid digest
             TransactionRequest::default().with_digest({
-                iota_grpc_types::v1::types::Digest::default()
+                iota_sdk_ext::grpc_types::v1::types::Digest::default()
                     .with_digest(fake_digest.inner().to_vec())
             }),
         ]))

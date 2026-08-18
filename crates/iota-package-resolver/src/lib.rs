@@ -10,7 +10,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, Command, Identifier, MakeMoveVector, ProgrammableTransaction, StructTag,
     TypeTag, Version,
     move_package::{MovePackage, TypeOrigin},
@@ -1850,7 +1850,7 @@ mod tests {
 
     use async_trait::async_trait;
     use iota_move_build::{BuildConfig, CompiledPackage};
-    use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+    use iota_sdk_ext::types::{Identifier, ObjectId, StructTag, TypeTag};
     use iota_types::{base_types::random_object_ref, error::IotaResult};
     use move_binary_format::file_format::Ability;
     use move_compiler::compiled_unit::NamedCompiledModule;

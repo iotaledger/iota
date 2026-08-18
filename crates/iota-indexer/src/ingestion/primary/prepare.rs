@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ObjectId, Owner, Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
     Version, checkpoint::CheckpointContents,
 };
@@ -660,7 +660,8 @@ impl PrimaryWorker {
                     .iter()
                     .flat_map(|tx| &tx.output_objects)
                     .filter_map(|object| {
-                        let iota_sdk_types::ObjectData::Package(package) = object.data() else {
+                        let iota_sdk_ext::types::ObjectData::Package(package) = object.data()
+                        else {
                             return None;
                         };
                         Some(IndexedPackage::new(

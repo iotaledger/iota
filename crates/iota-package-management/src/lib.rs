@@ -10,7 +10,7 @@ use std::{
 };
 
 use anyhow::bail;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId};
 use move_package::{
     lock_file::{self, LockFile, schema::ManagedPackage},
     resolution::resolution_graph::Package,

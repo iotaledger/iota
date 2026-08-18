@@ -5,7 +5,7 @@
 use std::collections::BTreeSet;
 
 use async_graphql::InputObject;
-use iota_sdk_types::Address as NativeAddress;
+use iota_sdk_ext::types::Address as NativeAddress;
 
 use crate::types::{
     digest::Digest, intersect, iota_address::IotaAddress,

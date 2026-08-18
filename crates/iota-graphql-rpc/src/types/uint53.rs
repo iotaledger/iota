@@ -5,7 +5,7 @@
 use std::fmt;
 
 use async_graphql::*;
-use iota_sdk_types::Version;
+use iota_sdk_ext::types::Version;
 use iota_types::iota_serde::BigInt;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd)]

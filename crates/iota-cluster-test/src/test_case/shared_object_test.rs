@@ -5,7 +5,7 @@
 use async_trait::async_trait;
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::Owner;
+use iota_sdk_ext::types::Owner;
 use iota_test_transaction_builder::{increment_counter, publish_basics_package_and_make_counter};
 use tracing::info;
 

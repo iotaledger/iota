@@ -26,7 +26,7 @@ use iota_json_rpc_types::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
     ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, SignatureScheme,
     Transaction, TransactionEffects, TypeTag, UserSignature,

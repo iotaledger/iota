@@ -20,7 +20,7 @@ mod checked {
     use std::collections::BTreeMap;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{ObjectId, TypeTag};
+    use iota_sdk_ext::types::{ObjectId, TypeTag};
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID,
         error::{ExecutionError, ExecutionErrorKind},

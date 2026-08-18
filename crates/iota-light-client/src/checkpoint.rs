@@ -269,7 +269,7 @@ pub async fn sync_and_verify_checkpoints(config: &Config) -> anyhow::Result<()> 
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         checkpoint::{CheckpointContents, CheckpointSummary},
         gas::GasCostSummary,
     };

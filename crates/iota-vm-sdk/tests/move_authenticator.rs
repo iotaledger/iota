@@ -16,7 +16,7 @@
 
 use std::{fs, path::PathBuf};
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     MoveStruct, SenderSignedTransaction, Transaction, TransactionDigest, UserSignature,
 };
 use iota_types::{
@@ -147,7 +147,7 @@ fn run(name: &str, opts: ExecuteOptions) -> ExecutionResult {
 
 /// Run a fixture in dev-inspect mode and return the status / signature-status
 /// pair.
-fn replay(name: &str) -> (iota_sdk_types::ExecutionStatus, SignatureStatus) {
+fn replay(name: &str) -> (iota_sdk_ext::types::ExecutionStatus, SignatureStatus) {
     let result = run(name, ExecuteOptions::dev_inspect());
     (result.status, result.signature_status)
 }

@@ -6,7 +6,7 @@ use iota_json_rpc_types::{
     BalanceChange, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
     IotaTransactionKind, ObjectChange,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectDigest, ObjectId, Owner,
     SenderSignedTransaction, StructTag, TransactionDigest, TransactionEffects, TypeTag, Version,
     checkpoint::{CheckpointCommitment, CheckpointContents, EndOfEpochData},
@@ -176,7 +176,7 @@ impl IndexedEvent {
         event_sequence_number: u64,
         checkpoint_sequence_number: u64,
         transaction_digest: TransactionDigest,
-        event: &iota_sdk_types::Event,
+        event: &iota_sdk_ext::types::Event,
         timestamp_ms: u64,
     ) -> Self {
         Self {
@@ -217,7 +217,7 @@ impl EventIndex {
     pub fn from_event(
         tx_sequence_number: u64,
         event_sequence_number: u64,
-        event: &iota_sdk_types::Event,
+        event: &iota_sdk_ext::types::Event,
     ) -> Self {
         let type_instantiation = event
             .type_
@@ -416,7 +416,7 @@ pub struct IndexedTransaction {
     pub timestamp_ms: u64,
     pub object_changes: Vec<IndexedObjectChange>,
     pub balance_change: Vec<IndexedBalanceChange>,
-    pub events: Vec<iota_sdk_types::Event>,
+    pub events: Vec<iota_sdk_ext::types::Event>,
     pub transaction_kind: IotaTransactionKind,
     pub successful_tx_num: u64,
 }
@@ -839,11 +839,11 @@ impl From<IotaTransactionBlockResponseWithOptions> for IotaTransactionBlockRespo
 /// Provides conversion methods from gRPC types to iota core types.
 pub(crate) mod grpc_conversion {
 
-    use iota_grpc_types::v1::{
+    use iota_json_rpc_types::{IotaArgument, IotaExecutionResult, IotaTypeTag};
+    use iota_sdk_ext::grpc_types::v1::{
         command::{CommandOutputs as GrpcCommandOutputs, CommandResults as GrpcCommandResults},
         object::Objects as GrpcObjects,
     };
-    use iota_json_rpc_types::{IotaArgument, IotaExecutionResult, IotaTypeTag};
     use iota_types::object::Object;
 
     use crate::types::IndexerResult;

@@ -12,7 +12,7 @@
 //!   cargo run -p iota-vm-sdk --example offline_dev_inspect
 
 use anyhow::Result;
-use iota_sdk_types::Transaction;
+use iota_sdk_ext::types::Transaction;
 use iota_types::{effects::TransactionEffectsAPI, transaction::TransactionAPI};
 use iota_vm_sdk::{Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion};
 

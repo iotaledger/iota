@@ -27,7 +27,7 @@ use iota_json_rpc_types::{
 };
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
     Event, ExecutionStatus, GasPayment, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId,
     ObjectReference, ProgrammableTransaction, RandomnessRound, Transaction, TransactionDigest,

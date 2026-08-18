@@ -12,8 +12,8 @@ crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-grpc = ["dep:iota-grpc-client", "dep:tokio", "dep:tonic"]
-graphql = ["dep:chrono", "dep:iota-sdk-graphql-client", "dep:tokio"]
+grpc = ["iota-sdk-ext/grpc", "dep:tokio", "dep:tonic"]
+graphql = ["dep:chrono", "iota-sdk-ext/graphql", "dep:tokio"]
 tracing = ["iota-execution/tracing"]
 wasm-bindgen = [
   "dep:base64",
@@ -38,10 +38,8 @@ tonic = { workspace = true, optional = true }
 iota-config.workspace = true
 iota-execution.workspace = true
 iota-framework.workspace = true
-iota-grpc-client = { workspace = true, optional = true }
 iota-protocol-config.workspace = true
-iota-sdk-graphql-client = { workspace = true, optional = true }
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-transaction-checks.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
@@ -74,7 +72,7 @@ serde.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
 # internal dependencies
-iota-sdk-transaction-builder.workspace = true
+iota-sdk-ext = { workspace = true, features = ["txn-builder"] }
 
 [[example]]
 name = "offline_dev_inspect"
@@ -97,7 +95,7 @@ required-features = ["graphql"]
 
 [package.metadata.cargo-udeps.ignore]
 development = [
-  "iota-sdk-transaction-builder",
+  "iota-sdk-ext",
 ]
 
 [lints]

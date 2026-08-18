@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::headers;
+use iota_sdk_ext::grpc_types::headers;
 use tonic::metadata::MetadataMap;
 
 /// Helper function to verify that all expected IOTA headers are present in the

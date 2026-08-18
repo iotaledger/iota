@@ -10,7 +10,7 @@ use bytes::Bytes;
 use futures::{StreamExt, stream};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
-use iota_grpc_client::Client;
+use iota_sdk_ext::grpc_client::Client;
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     committee::EpochId, full_checkpoint_content::CheckpointData,

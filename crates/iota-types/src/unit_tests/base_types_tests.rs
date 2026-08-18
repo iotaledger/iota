@@ -12,10 +12,12 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_crypto::ToFromBytes as _;
-use iota_sdk_types::{
-    Address, Digest, Owner, TransactionDigest,
-    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
+use iota_sdk_ext::{
+    crypto::ToFromBytes as _,
+    types::{
+        Address, Digest, Owner, TransactionDigest,
+        crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
+    },
 };
 use move_binary_format::file_format;
 

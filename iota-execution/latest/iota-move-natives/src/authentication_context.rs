@@ -4,7 +4,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use better_any::{Tid, TidAble};
-use iota_sdk_types::{Digest, MoveAuthenticatorDigest};
+use iota_sdk_ext::types::{Digest, MoveAuthenticatorDigest};
 use iota_types::{
     account_abstraction::authenticator_function::AuthenticatorFunctionRefV1,
     auth_context::{AuthContext, MoveCallArg, MoveCommand},
@@ -154,7 +154,7 @@ impl AuthenticationContext {
 
     /// Returns a `Value` containing the sender's authenticator function info as
     /// a Move `Option`. Returns `None` if the sender did not use a
-    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_ext::types::MoveAuthenticator)
     /// signature.
     pub fn sender_authenticator_function_info_v1_ref(
         &mut self,
@@ -187,7 +187,7 @@ impl AuthenticationContext {
 
     /// Returns a `Value` containing the sponsor's authenticator function info
     /// as a Move `Option`. Returns `None` if the sponsor did not use a
-    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_ext::types::MoveAuthenticator)
     /// signature or the transaction has no sponsor.
     pub fn sponsor_authenticator_function_info_v1_ref(
         &mut self,

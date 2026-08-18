@@ -11,8 +11,10 @@ use std::{
     time::Duration,
 };
 
-use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
+use iota_sdk_ext::{
+    crypto::{Signer, simple::SimpleKeypair},
+    types::{Address, ObjectId, ObjectReference, Version},
+};
 
 const PRUNING_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 
@@ -40,7 +42,7 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::init_metrics;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{TransactionDigest, crypto::SimpleSignature};
+use iota_sdk_ext::types::{TransactionDigest, crypto::SimpleSignature};
 use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType, utils::to_sender_signed_transaction,
 };

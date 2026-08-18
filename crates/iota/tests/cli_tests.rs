@@ -39,10 +39,12 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, SignatureScheme, StructTag,
-    move_package::{MovePackage, UpgradeInfo},
+use iota_sdk_ext::{
+    crypto::simple::SimpleKeypair,
+    types::{
+        Address, ObjectId, ObjectReference, Owner, SignatureScheme, StructTag,
+        move_package::{MovePackage, UpgradeInfo},
+    },
 };
 use iota_swarm_config::genesis_config::{AccountConfig, GenesisConfig};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
@@ -358,7 +360,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
     for _ in 0..3 {
         context.config_mut().keystore_mut().add_key(
             None,
-            SimpleKeypair::from(iota_sdk_crypto::ed25519::Ed25519PrivateKey::random()),
+            SimpleKeypair::from(iota_sdk_ext::crypto::ed25519::Ed25519PrivateKey::random()),
         )?;
     }
 

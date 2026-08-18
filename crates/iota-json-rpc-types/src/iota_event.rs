@@ -5,7 +5,7 @@
 use std::{fmt, fmt::Display, str::FromStr};
 
 use fastcrypto::encoding::{Base58, Base64};
-use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag, TransactionDigest};
+use iota_sdk_ext::types::{Address, Event, Identifier, ObjectId, StructTag, TransactionDigest};
 use iota_types::{
     error::IotaResult,
     event::{EventEnvelope, EventID},

@@ -24,7 +24,7 @@ use iota_sdk::{
     types::transaction::TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_ext::types::{ObjectId, Owner};
 use iota_source_validation_service::{
     AddressLookup, AppState, Branch, CloneCommand, Config, DirectorySource, ErrorResponse,
     IOTA_SOURCE_VALIDATION_VERSION_HEADER, METRICS_HOST_PORT, Network, NetworkLookup, Package,

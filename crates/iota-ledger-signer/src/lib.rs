@@ -3,7 +3,7 @@
 
 use iota_ledger::{Ledger, SignedTransaction};
 use iota_sdk::{IotaClient, types::crypto::PublicKey};
-use iota_sdk_types::{Address, Intent, SignatureScheme, Transaction};
+use iota_sdk_ext::types::{Address, Intent, SignatureScheme, Transaction};
 use tracing::warn;
 
 mod errors;

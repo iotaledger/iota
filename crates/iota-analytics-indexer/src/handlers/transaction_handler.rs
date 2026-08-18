@@ -6,7 +6,7 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
-use iota_sdk_types::{Command, TransactionEffects, TransactionKind};
+use iota_sdk_ext::types::{Command, TransactionEffects, TransactionKind};
 use iota_types::{
     effects::TransactionEffectsAPI,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
@@ -205,7 +205,7 @@ mod tests {
     use std::sync::Arc;
 
     use iota_data_ingestion_core::Worker;
-    use iota_sdk_types::Address;
+    use iota_sdk_ext::types::Address;
     use iota_types::storage::ReadStore;
     use simulacrum::Simulacrum;
 

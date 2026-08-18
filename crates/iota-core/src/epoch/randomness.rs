@@ -21,7 +21,7 @@ use futures::{StreamExt, stream::FuturesUnordered};
 use iota_common::debug_fatal;
 use iota_macros::fail_point_if;
 use iota_network::randomness;
-use iota_sdk_types::RandomnessRound;
+use iota_sdk_ext::types::RandomnessRound;
 use iota_types::{
     base_types::{AuthorityName, CommitRound},
     committee::{Committee, EpochId, StakeUnit},

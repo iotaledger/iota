@@ -39,7 +39,7 @@ use std::{
 };
 
 use iota_common::fatal;
-use iota_sdk_types::{ObjectReference, TransactionDigest};
+use iota_sdk_ext::types::{ObjectReference, TransactionDigest};
 use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     error::{IotaError, IotaResult},

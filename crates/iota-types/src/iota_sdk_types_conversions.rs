@@ -11,7 +11,7 @@
 //! directly to avoid going through the BCS machinery.
 
 use fastcrypto::traits::ToFromBytes;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     address::Address,
     checkpoint::{CheckpointData, CheckpointTransaction, SignedCheckpointSummary},
     crypto::{Bls12381PublicKey, Bls12381Signature},

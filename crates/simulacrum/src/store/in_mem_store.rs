@@ -8,7 +8,7 @@ use std::{
 };
 
 use iota_config::genesis;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, ObjectReference, Owner,
     TransactionDigest, TransactionEffects, TransactionEvents, Version,
     checkpoint::CheckpointContents,

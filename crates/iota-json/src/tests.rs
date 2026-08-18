@@ -7,7 +7,7 @@ use std::{path::Path, str::FromStr};
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TransactionDigest};
+use iota_sdk_ext::types::{Address, Identifier, ObjectId, StructTag, TransactionDigest};
 use iota_types::{
     dynamic_field::derive_dynamic_field_id, gas_coin::GasCoin,
     iota_sdk_types_conversions::struct_tag_sdk_to_core, object::Object, parse_iota_type_tag,

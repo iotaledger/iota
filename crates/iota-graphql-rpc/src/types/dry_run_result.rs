@@ -4,7 +4,7 @@
 
 use async_graphql::*;
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionResult};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Transaction as NativeTransactionData, TransactionEffects as NativeTransactionEffects, TypeTag,
 };
 

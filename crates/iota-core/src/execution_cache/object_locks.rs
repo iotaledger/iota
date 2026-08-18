@@ -4,7 +4,7 @@
 
 use dashmap::{DashMap, mapref::entry::Entry as DashMapEntry};
 use iota_common::debug_fatal;
-use iota_sdk_types::{ObjectId, ObjectReference};
+use iota_sdk_ext::types::{ObjectId, ObjectReference};
 use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     object::Object,

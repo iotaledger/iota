@@ -23,7 +23,7 @@ use iota_execution::{self, Executor};
 use iota_framework::{BuiltInFramework, SystemPackage};
 use iota_genesis_common::{execute_genesis_transaction, get_genesis_protocol_config};
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Command, Event, GenesisObject, Identifier, ObjectId, Owner, TransactionDigest,
     TransactionEffects, TransactionEvents, Version,
     checkpoint::{CheckpointContents, CheckpointSummary},
@@ -1193,7 +1193,7 @@ mod test {
         node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
     };
     use iota_protocol_config::ProtocolVersion;
-    use iota_sdk_types::Address;
+    use iota_sdk_ext::types::Address;
     use iota_types::crypto::{
         AuthorityKeyPair, NetworkKeyPair, generate_proof_of_possession, get_key_pair_from_rng,
     };

@@ -6,7 +6,7 @@
 use std::{collections::HashSet, env, path::PathBuf, str::FromStr};
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Argument, Command, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier,
     ObjectOut, StructTag, TypeTag,
 };

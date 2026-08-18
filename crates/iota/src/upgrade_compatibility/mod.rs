@@ -21,7 +21,7 @@ use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_move_build::CompiledPackage;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk::apis::ReadApi;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{
     execution_config_utils::to_binary_config,
     move_package::{MovePackageExt, UpgradePolicy},

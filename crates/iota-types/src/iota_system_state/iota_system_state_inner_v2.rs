@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::Result;
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 use serde::{Deserialize, Serialize};
 
 use super::{

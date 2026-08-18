@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use iota_sdk_types::{TransactionDigest, TransactionEffects};
+use iota_sdk_ext::types::{TransactionDigest, TransactionEffects};
 use iota_types::{
     effects::{InputSharedObject, TransactionEffectsAPI},
     storage::ObjectKey,
@@ -225,7 +225,9 @@ impl InsertState {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionEffects, Version};
+    use iota_sdk_ext::types::{
+        ObjectDigest, ObjectId, ObjectReference, TransactionEffects, Version,
+    };
     use iota_types::effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting};
 
     use super::*;

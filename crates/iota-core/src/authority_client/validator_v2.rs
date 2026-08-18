@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use futures::StreamExt;
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_ext::types::TransactionDigest;
 use iota_types::{
     error::IotaError,
     messages_grpc::{

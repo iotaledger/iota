@@ -5,7 +5,9 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents};
+use iota_sdk_ext::types::{
+    ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents,
+};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;

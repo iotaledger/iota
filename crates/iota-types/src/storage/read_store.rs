@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointContentsDigest, CheckpointDigest, MoveObjectType, ObjectId,
     TransactionDigest, TransactionEffects, TransactionEvents, Version,
     checkpoint::CheckpointContents,

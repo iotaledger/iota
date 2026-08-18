@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::TransactionEvents;
+use iota_sdk_ext::types::TransactionEvents;
 
 use crate::{
     effects::SignedTransactionEffects,

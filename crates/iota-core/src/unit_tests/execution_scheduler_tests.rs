@@ -18,7 +18,7 @@
 use std::{time::Duration, vec};
 
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     MoveAuthenticatorV1, ObjectId, SenderSignedTransaction, SharedObjectReference,
     TransactionEffectsDigest, UserSignature, VersionAssignment,
 };
@@ -133,7 +133,7 @@ async fn execution_scheduler_waits_for_missing_owned_input() {
     let new_owned_object = Object::with_id_owner_version_for_testing(
         owned_object.id(),
         awaited_version,
-        iota_sdk_types::Owner::Address(owner),
+        iota_sdk_ext::types::Owner::Address(owner),
     );
     state
         .get_cache_writer()
@@ -247,7 +247,7 @@ async fn schedulers_wait_for_authenticator_inputs() {
                     Object::with_id_owner_version_for_testing(
                         shared_object.id(),
                         shared_version,
-                        iota_sdk_types::Owner::Shared(0.into()),
+                        iota_sdk_ext::types::Owner::Shared(0.into()),
                     ),
                 );
             },
@@ -341,7 +341,7 @@ async fn execution_scheduler_releases_all_waiters_on_one_object() {
     let new_shared_object = Object::with_id_owner_version_for_testing(
         shared_object.id(),
         shared_version,
-        iota_sdk_types::Owner::Shared(initial_shared_version),
+        iota_sdk_ext::types::Owner::Shared(initial_shared_version),
     );
     state
         .get_cache_writer()
@@ -420,7 +420,7 @@ async fn scheduler_propagates_expected_effects_digest_wait_path() {
     let new_owned_object = Object::with_id_owner_version_for_testing(
         owned_object.id(),
         awaited_version,
-        iota_sdk_types::Owner::Address(owner),
+        iota_sdk_ext::types::Owner::Address(owner),
     );
     state
         .get_cache_writer()
@@ -471,7 +471,7 @@ async fn execution_scheduler_awaits_all_missing_inputs() {
     let a_ready = Object::with_id_owner_version_for_testing(
         owned_a.id(),
         awaited_version,
-        iota_sdk_types::Owner::Address(owner),
+        iota_sdk_ext::types::Owner::Address(owner),
     );
     state
         .get_cache_writer()
@@ -487,7 +487,7 @@ async fn execution_scheduler_awaits_all_missing_inputs() {
     let b_ready = Object::with_id_owner_version_for_testing(
         owned_b.id(),
         awaited_version,
-        iota_sdk_types::Owner::Address(owner),
+        iota_sdk_ext::types::Owner::Address(owner),
     );
     state
         .get_cache_writer()

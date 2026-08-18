@@ -5,7 +5,7 @@
 use std::fmt;
 
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::{ObjectDigest, ObjectReference, Owner, Version};
+use iota_sdk_ext::types::{ObjectDigest, ObjectReference, Owner, Version};
 use serde::Deserialize;
 
 use crate::board::Board;

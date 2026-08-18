@@ -5,7 +5,7 @@
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
-use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest};
+use iota_sdk_ext::types::{TransactionDigest, TransactionEffectsDigest};
 use iota_types::{
     base_types::*,
     committee::*,

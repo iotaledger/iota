@@ -16,7 +16,7 @@ mod checked {
 
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
         EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
         MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,

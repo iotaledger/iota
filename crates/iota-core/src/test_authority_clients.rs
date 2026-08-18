@@ -12,7 +12,7 @@ use std::{
 use async_trait::async_trait;
 use iota_config::genesis::Genesis;
 use iota_metrics::spawn_monitored_task;
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_ext::types::TransactionDigest;
 use iota_types::{
     crypto::AuthorityKeyPair,
     effects::TransactionEffectsAPI,

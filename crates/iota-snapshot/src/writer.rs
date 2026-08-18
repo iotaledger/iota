@@ -25,7 +25,7 @@ use iota_core::{
     checkpoints::CheckpointStore,
     global_state_hasher::GlobalStateHasher,
 };
-use iota_sdk_types::{ObjectId, ObjectReference};
+use iota_sdk_ext::types::{ObjectId, ObjectReference};
 use iota_storage::{
     blob::{BLOB_ENCODING_BYTES, Blob, BlobEncoding},
     object_store::util::{copy_file, delete_recursively, path_to_filesystem},

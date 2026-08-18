@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectDigest, ObjectId, ObjectReference,
     Owner, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
     UnchangedSharedKind, UnchangedSharedObject, Version,

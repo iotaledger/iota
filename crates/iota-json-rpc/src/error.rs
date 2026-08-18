@@ -279,7 +279,9 @@ impl From<IotaRpcInputError> for ErrorObjectOwned {
 #[cfg(test)]
 mod tests {
     use expect_test::expect;
-    use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
+    use iota_sdk_ext::types::{
+        ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
+    };
     use iota_types::{
         base_types::AuthorityName,
         committee::StakeUnit,

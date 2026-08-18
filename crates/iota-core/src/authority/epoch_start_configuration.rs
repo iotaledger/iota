@@ -6,7 +6,7 @@ use std::fmt;
 
 use enum_dispatch::enum_dispatch;
 use iota_config::NodeConfig;
-use iota_sdk_types::{CheckpointDigest, Version};
+use iota_sdk_ext::types::{CheckpointDigest, Version};
 use iota_types::{
     deny_list_v1::get_deny_list_obj_initial_shared_version,
     epoch_data::EpochData,

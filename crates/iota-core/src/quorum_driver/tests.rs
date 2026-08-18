@@ -13,7 +13,7 @@ use std::{
 
 use iota_common::sync::notify_read::{NotifyRead, Registration};
 use iota_macros::{register_fail_point, sim_test};
-use iota_sdk_types::{Address, TransactionDigest};
+use iota_sdk_ext::types::{Address, TransactionDigest};
 use iota_types::{
     crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair},
     effects::TransactionEffectsAPI,

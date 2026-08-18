@@ -5,7 +5,7 @@
 use std::{cell::RefCell, collections::HashSet, rc::Rc, sync::Arc};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, GasPayment, MoveAuthenticator, ProgrammableTransaction, TransactionDigest,
     TransactionEffects, TransactionKind,
 };

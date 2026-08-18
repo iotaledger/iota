@@ -10,8 +10,8 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
-pub use iota_sdk_types::Object as ObjectInner;
-use iota_sdk_types::{
+pub use iota_sdk_ext::types::Object as ObjectInner;
+use iota_sdk_ext::types::{
     Address, MoveObjectType, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
     TransactionDigest, TypeTag, Version, move_package::MovePackage,
 };
@@ -893,7 +893,7 @@ impl Display for PastObjectRead {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+    use iota_sdk_ext::types::{Address, ObjectId, TransactionDigest};
 
     use crate::{
         gas_coin::GasCoin,

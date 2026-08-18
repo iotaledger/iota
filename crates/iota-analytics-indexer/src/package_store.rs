@@ -5,11 +5,13 @@
 use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
-use iota_grpc_client::{Client, read_mask_fields::ObjectField};
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, error::Error as PackageResolverError,
 };
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::{
+    grpc_client::{Client, read_mask_fields::ObjectField},
+    types::{Address, ObjectId},
+};
 use iota_types::object::Object;
 use thiserror::Error;
 use typed_store::{

@@ -17,7 +17,7 @@
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaRawData};
 use iota_sdk::apis::ReadApi;
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_ext::types::{Identifier, ObjectId};
 use move_binary_format::{
     CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
 };

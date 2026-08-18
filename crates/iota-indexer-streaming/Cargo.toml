@@ -20,7 +20,7 @@ tracing.workspace = true
 
 # internal dependencies
 iota-indexer.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 prometheus-filtered.workspace = true
 
 [lints]

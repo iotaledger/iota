@@ -15,7 +15,7 @@ mod checked {
 
     use iota_config::verifier_signing_config::VerifierSigningConfig;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         Address, ObjectId, ObjectReference, Owner, Transaction, TransactionKind, Version,
     };
     use iota_types::{

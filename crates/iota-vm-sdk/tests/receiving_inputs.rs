@@ -11,7 +11,7 @@
 //! and digest must match the store's current object); `DevInspect` skips
 //! them, like the node. Self-contained — uses only the built-in framework.
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     MoveStruct, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest, Version,
 };
 use iota_types::{
@@ -145,7 +145,7 @@ fn dry_run_rejects_wrong_receiving_digest() {
     let wrong_digest_ref = ObjectReference::new(
         receivable_ref.object_id,
         receivable_ref.version,
-        iota_sdk_types::ObjectDigest::ZERO,
+        iota_sdk_ext::types::ObjectDigest::ZERO,
     );
     let err = vm
         .execute(

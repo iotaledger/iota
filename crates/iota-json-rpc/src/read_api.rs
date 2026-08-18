@@ -28,7 +28,7 @@ use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ObjectId, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
 };
 use iota_storage::key_value_store::TransactionKeyValueStore;
@@ -1458,7 +1458,7 @@ mod tests {
     use std::collections::HashMap;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         CheckpointDigest, TransactionEffectsDigest, TransactionEvents,
         checkpoint::{CheckpointContents, CheckpointSummary},
         gas::GasCostSummary,

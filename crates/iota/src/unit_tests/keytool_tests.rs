@@ -7,16 +7,20 @@ use std::str::FromStr;
 use anyhow::Ok;
 use fastcrypto::encoding::{Base64, Encoding, Hex};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
-use iota_sdk_crypto::{
-    ToFromBech32, ToFromBytes as _, Verifier as _,
-    ed25519::{Ed25519PrivateKey, Ed25519VerifyingKey},
-    secp256k1::Secp256k1PrivateKey,
-    simple::SimpleKeypair,
-};
-use iota_sdk_types::{
-    Address, Ed25519PublicKey, Ed25519Signature, ObjectDigest, ObjectId, ObjectReference,
-    SignatureScheme, Transaction, Version,
-    crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, SimpleSignature, UserSignature},
+use iota_sdk_ext::{
+    crypto::{
+        ToFromBech32, ToFromBytes as _, Verifier as _,
+        ed25519::{Ed25519PrivateKey, Ed25519VerifyingKey},
+        secp256k1::Secp256k1PrivateKey,
+        simple::SimpleKeypair,
+    },
+    types::{
+        Address, Ed25519PublicKey, Ed25519Signature, ObjectDigest, ObjectId, ObjectReference,
+        SignatureScheme, Transaction, Version,
+        crypto::{
+            Intent, IntentScope, PublicKey, PublicKeyExt as _, SimpleSignature, UserSignature,
+        },
+    },
 };
 use iota_types::{
     crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair_from_rng},

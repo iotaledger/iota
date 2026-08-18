@@ -9,7 +9,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     TransactionDigest, TransactionEffects, TransactionEvents,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use inquire::Select;
 use iota_config::genesis::UnsignedGenesis;
-use iota_sdk_types::{MoveStruct, ObjectId, Owner, move_package::MovePackage};
+use iota_sdk_ext::types::{MoveStruct, ObjectId, Owner, move_package::MovePackage};
 use iota_types::{
     coin::CoinMetadata,
     gas_coin::{GasCoin, IotaTreasuryCap, NANOS_PER_IOTA},
@@ -75,7 +75,7 @@ pub fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
         owner_map.insert(object.id(), object.owner);
 
         match &object.data {
-            iota_sdk_types::ObjectData::Struct(move_object) => {
+            iota_sdk_ext::types::ObjectData::Struct(move_object) => {
                 if let Ok(gas) = GasCoin::try_from(&object) {
                     let entry = iota_distribution
                         .entry(object.owner.to_string())
@@ -97,7 +97,7 @@ pub fn examine_genesis_checkpoint(genesis: UnsignedGenesis) {
                     other_object_map.insert(object.id(), move_object.clone());
                 }
             }
-            iota_sdk_types::ObjectData::Package(p) => {
+            iota_sdk_ext::types::ObjectData::Package(p) => {
                 package_map.insert(object.id(), p.clone());
             }
         }

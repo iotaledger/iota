@@ -13,7 +13,7 @@ use arc_swap::ArcSwap;
 use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc, monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CanceledTransaction, ConsensusCommitDigest, SenderSignedTransaction, TransactionDigest,
 };
 use iota_types::{
@@ -921,7 +921,7 @@ mod tests {
     use arc_swap::ArcSwap;
     use futures::pin_mut;
     use iota_protocol_config::{Chain, ConsensusTransactionOrdering, ProtocolConfig};
-    use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, Transaction};
+    use iota_sdk_ext::types::{Address, ObjectId, SenderSignedTransaction, Transaction};
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,

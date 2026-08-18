@@ -6,7 +6,7 @@ use std::{sync::Arc, time::Duration};
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_metrics::spawn_monitored_task;
-use iota_sdk_types::{CheckpointCommitment, checkpoint::EndOfEpochData, gas::GasCostSummary};
+use iota_sdk_ext::types::{CheckpointCommitment, checkpoint::EndOfEpochData, gas::GasCostSummary};
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
     committee::ProtocolVersion,

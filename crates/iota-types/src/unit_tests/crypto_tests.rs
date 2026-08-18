@@ -2,8 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_crypto::{ToFromBech32, ToFromBytes as _};
-use iota_sdk_types::crypto::SimpleSignature;
+use iota_sdk_ext::{
+    crypto::{ToFromBech32, ToFromBytes as _},
+    types::crypto::SimpleSignature,
+};
 use proptest::{collection, prelude::*};
 
 use super::*;

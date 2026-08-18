@@ -7,7 +7,7 @@ use std::fmt;
 use anyhow::Result;
 use enum_dispatch::enum_dispatch;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Identifier, MoveStruct, ObjectId};
+use iota_sdk_ext::types::{Identifier, MoveStruct, ObjectId};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use self::{
@@ -229,7 +229,7 @@ impl IotaSystemState {
     /// Intended for test fixtures that need a structurally valid system
     /// state to exercise BCS round-trip paths.
     pub fn for_testing(epoch: u64, protocol_version: u64) -> Self {
-        use iota_sdk_types::ObjectId;
+        use iota_sdk_ext::types::ObjectId;
 
         use crate::{
             balance::{Balance, Supply},

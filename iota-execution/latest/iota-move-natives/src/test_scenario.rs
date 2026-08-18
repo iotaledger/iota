@@ -11,7 +11,7 @@ use std::{
 
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, MoveStruct, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TypeTag,
     Version,
 };

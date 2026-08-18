@@ -13,6 +13,6 @@ workspace = true
 iota-config.workspace = true
 iota-execution.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 prometheus-filtered.workspace = true

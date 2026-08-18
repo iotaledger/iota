@@ -20,9 +20,11 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
-use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Transaction, TransactionDigest, crypto::SimpleSignature,
+use iota_sdk_ext::{
+    crypto::{ToFromBech32, simple::SimpleKeypair},
+    types::{
+        Address, ObjectId, ObjectReference, Transaction, TransactionDigest, crypto::SimpleSignature,
+    },
 };
 use iota_types::{
     crypto::{AccountKeyPair, IotaSignature, get_key_pair},

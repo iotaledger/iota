@@ -4,7 +4,7 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_json_rpc_types::{Stake as RpcStakedIota, StakeStatus as RpcStakeStatus};
-use iota_sdk_types::StructTag;
+use iota_sdk_ext::types::StructTag;
 use iota_types::governance::StakedIota as NativeStakedIota;
 
 use crate::{

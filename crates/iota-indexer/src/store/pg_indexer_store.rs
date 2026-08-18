@@ -14,7 +14,7 @@ use diesel::{
 };
 use downcast::Any;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{CheckpointDigest, ObjectId};
+use iota_sdk_ext::types::{CheckpointDigest, ObjectId};
 use iota_types::digests::ChainIdentifier;
 use itertools::Itertools;
 use strum::IntoEnumIterator;

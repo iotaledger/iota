@@ -11,7 +11,7 @@
 
 use std::path::PathBuf;
 
-use iota_sdk_types::{SenderSignedTransaction, TransactionDigest};
+use iota_sdk_ext::types::{SenderSignedTransaction, TransactionDigest};
 use iota_types::{
     crypto::EmptySignInfo,
     error::{IotaError, IotaResult},

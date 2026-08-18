@@ -5,7 +5,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use clap::*;
-use iota_sdk_types::{CheckpointDigest, ObjectId, TransactionDigest};
+use iota_sdk_ext::types::{CheckpointDigest, ObjectId, TransactionDigest};
 use iota_storage::{
     http_key_value_store::*, key_value_store::TransactionKeyValueStore,
     key_value_store_metrics::KeyValueStoreMetrics,

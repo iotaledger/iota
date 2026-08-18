@@ -15,7 +15,7 @@ use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, Resolver, Result,
     error::Error as PackageResolverError,
 };
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 
 use crate::data::{DataLoader, Db, DbConnection, QueryExecutor};
 

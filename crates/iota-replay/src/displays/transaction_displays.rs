@@ -8,7 +8,7 @@ use std::{
 };
 
 use iota_execution::Executor;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Argument, Command, MoveCall, ProgrammableTransaction, TypeTag, utils::write_sep,
 };
 use iota_types::{

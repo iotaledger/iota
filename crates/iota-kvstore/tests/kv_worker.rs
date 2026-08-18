@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use iota_data_ingestion_core::Worker;
 use iota_kvstore::{KeyValueStoreReader, KvWorker, TransactionData, emulator::BigTableEmulator};
-use iota_sdk_types::{CheckpointDigest, TransactionDigest};
+use iota_sdk_ext::types::{CheckpointDigest, TransactionDigest};
 use iota_types::{
     base_types::VersionNumber, effects::TransactionEffectsAPI,
     full_checkpoint_content::CheckpointData, object::Object, storage::ObjectKey,

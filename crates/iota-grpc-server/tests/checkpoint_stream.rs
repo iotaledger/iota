@@ -9,14 +9,17 @@ use std::{
 
 use common::MockGrpcStateReader;
 use iota_config::node::GrpcApiConfig;
-use iota_grpc_client::{CheckpointStreamItem, Client, read_mask_fields::CheckpointResponseField};
 use iota_grpc_server::GrpcServerHandle;
-use iota_grpc_types::{
-    read_mask_fields::CheckpointResponseReadMask,
-    v1::{filter, ledger_service::checkpoint_data},
-};
-use iota_sdk_types::{
-    Address, Event, Identifier, ObjectId, Owner, StructTag, TransactionEffects, TransactionEvents,
+use iota_sdk_ext::{
+    grpc_client::{CheckpointStreamItem, Client, read_mask_fields::CheckpointResponseField},
+    grpc_types::{
+        read_mask_fields::CheckpointResponseReadMask,
+        v1::{filter, ledger_service::checkpoint_data},
+    },
+    types::{
+        Address, Event, Identifier, ObjectId, Owner, StructTag, TransactionEffects,
+        TransactionEvents,
+    },
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -233,7 +236,7 @@ async fn test_start_sequence_number_only() {
                     }
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_sdk_ext::grpc_client::Error::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -286,7 +289,7 @@ async fn test_start_and_future_end_sequence_number() {
                     }
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_sdk_ext::grpc_client::Error::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -333,7 +336,7 @@ async fn test_historical_end_sequence_number_only() {
                     let sequence_number = response.sequence_number();
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_sdk_ext::grpc_client::Error::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -381,7 +384,7 @@ async fn test_future_end_sequence_number_only_full() {
                     let sequence_number = response.sequence_number();
                     results.push(sequence_number);
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_sdk_ext::grpc_client::Error::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -439,7 +442,7 @@ async fn test_both_indices_omitted() {
                         break;
                     }
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_sdk_ext::grpc_client::Error::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -501,7 +504,7 @@ async fn test_historical_to_live_gap_fill() {
                         break;
                     }
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_sdk_ext::grpc_client::Error::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -578,7 +581,7 @@ async fn test_gap_fill_with_slow_client() {
                         break;
                     }
                 }
-                Err(iota_grpc_client::Error::Grpc(status))
+                Err(iota_sdk_ext::grpc_client::Error::Grpc(status))
                     if status.code() == tonic::Code::NotFound =>
                 {
                     break;
@@ -687,7 +690,8 @@ async fn test_filter_checkpoints_validation() {
     let sender_bytes = sender.into_bytes();
     let tx_filter = filter::TransactionFilter::default().with_sender(
         filter::AddressFilter::default().with_address(
-            iota_grpc_types::v1::types::Address::default().with_address(sender_bytes.to_vec()),
+            iota_sdk_ext::grpc_types::v1::types::Address::default()
+                .with_address(sender_bytes.to_vec()),
         ),
     );
 
@@ -721,9 +725,10 @@ async fn test_filter_checkpoints_streaming() {
 
     // Create a sender filter matching our known sender
     let make_tx_filter = || {
-        iota_grpc_types::v1::filter::TransactionFilter::default().with_sender(
-            iota_grpc_types::v1::filter::AddressFilter::default().with_address(
-                iota_grpc_types::v1::types::Address::default().with_address(sender_bytes.to_vec()),
+        iota_sdk_ext::grpc_types::v1::filter::TransactionFilter::default().with_sender(
+            iota_sdk_ext::grpc_types::v1::filter::AddressFilter::default().with_address(
+                iota_sdk_ext::grpc_types::v1::types::Address::default()
+                    .with_address(sender_bytes.to_vec()),
             ),
         )
     };
@@ -854,7 +859,7 @@ async fn test_get_checkpoint_pruned_returns_not_found() {
         .await;
     assert!(result.is_err(), "Expected error for pruned checkpoint");
     match result.unwrap_err() {
-        iota_grpc_client::Error::Grpc(status) => {
+        iota_sdk_ext::grpc_client::Error::Grpc(status) => {
             assert_eq!(status.code(), tonic::Code::NotFound);
             assert!(
                 status
@@ -943,7 +948,7 @@ async fn test_stream_checkpoints_subscriber_cap() {
         )
         .await
     {
-        Err(iota_grpc_client::Error::Grpc(status)) => {
+        Err(iota_sdk_ext::grpc_client::Error::Grpc(status)) => {
             assert_eq!(status.code(), tonic::Code::Unavailable);
         }
         Err(other) => panic!("expected Unavailable, got: {other:?}"),
@@ -967,7 +972,7 @@ async fn test_stream_checkpoints_subscriber_cap() {
             .await
         {
             Ok(s) => break s,
-            Err(iota_grpc_client::Error::Grpc(status))
+            Err(iota_sdk_ext::grpc_client::Error::Grpc(status))
                 if status.code() == tonic::Code::Unavailable =>
             {
                 if tokio::time::Instant::now() >= deadline {
@@ -1009,7 +1014,7 @@ async fn test_stream_checkpoint_pruned_start_returns_not_found() {
         .await;
 
     match result {
-        Err(iota_grpc_client::Error::Grpc(status)) => {
+        Err(iota_sdk_ext::grpc_client::Error::Grpc(status)) => {
             assert_eq!(status.code(), tonic::Code::NotFound);
             assert!(
                 status
@@ -1078,9 +1083,11 @@ fn build_checkpoint_transactions_with_events(
 /// Collect all CheckpointData messages from a tonic streaming response,
 /// partitioning payload sizes by type.
 async fn collect_checkpoint_data_stream(
-    mut stream: tonic::codec::Streaming<iota_grpc_types::v1::ledger_service::CheckpointData>,
+    mut stream: tonic::codec::Streaming<
+        iota_sdk_ext::grpc_types::v1::ledger_service::CheckpointData,
+    >,
 ) -> (
-    Vec<iota_grpc_types::v1::ledger_service::CheckpointData>,
+    Vec<iota_sdk_ext::grpc_types::v1::ledger_service::CheckpointData>,
     Vec<usize>,
     Vec<usize>,
 ) {
@@ -1106,13 +1113,15 @@ async fn collect_checkpoint_data_stream(
 
 /// Issue a `GetCheckpoint` request via the raw tonic client.
 async fn get_checkpoint_raw(
-    client: &mut iota_grpc_types::v1::ledger_service::ledger_service_client::LedgerServiceClient<
+    client: &mut iota_sdk_ext::grpc_types::v1::ledger_service::ledger_service_client::LedgerServiceClient<
         tonic::transport::Channel,
     >,
     read_mask: &str,
     max_message_size: u32,
-) -> tonic::codec::Streaming<iota_grpc_types::v1::ledger_service::CheckpointData> {
-    use iota_grpc_types::{field::FieldMaskUtil, v1::ledger_service::GetCheckpointRequest};
+) -> tonic::codec::Streaming<iota_sdk_ext::grpc_types::v1::ledger_service::CheckpointData> {
+    use iota_sdk_ext::grpc_types::{
+        field::FieldMaskUtil, v1::ledger_service::GetCheckpointRequest,
+    };
 
     let req = GetCheckpointRequest::default()
         .with_sequence_number(0)
@@ -1156,7 +1165,7 @@ async fn test_chunked_checkpoint_message_sizes_within_limit() {
         .await
         .expect("connect");
     let mut client =
-        iota_grpc_types::v1::ledger_service::ledger_service_client::LedgerServiceClient::new(
+        iota_sdk_ext::grpc_types::v1::ledger_service::ledger_service_client::LedgerServiceClient::new(
             channel,
         )
         .max_decoding_message_size(128 * 1024 * 1024);
@@ -1231,7 +1240,7 @@ async fn test_chunked_checkpoint_event_message_sizes_within_limit() {
         .await
         .expect("connect");
     let mut client =
-        iota_grpc_types::v1::ledger_service::ledger_service_client::LedgerServiceClient::new(
+        iota_sdk_ext::grpc_types::v1::ledger_service::ledger_service_client::LedgerServiceClient::new(
             channel,
         )
         .max_decoding_message_size(128 * 1024 * 1024);

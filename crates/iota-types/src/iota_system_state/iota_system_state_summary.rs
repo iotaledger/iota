@@ -6,7 +6,7 @@ use either::Either;
 use fastcrypto::{encoding::Base64, traits::ToFromBytes};
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 

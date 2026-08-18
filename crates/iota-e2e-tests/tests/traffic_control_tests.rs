@@ -22,7 +22,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_network::default_iota_network_config;
-use iota_sdk_types::UserSignature;
+use iota_sdk_ext::types::UserSignature;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{

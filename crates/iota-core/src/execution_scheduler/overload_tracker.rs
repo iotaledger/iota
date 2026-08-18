@@ -9,7 +9,7 @@ use std::{
 };
 
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::{ObjectId, SenderSignedTransaction, TransactionDigest};
+use iota_sdk_ext::types::{ObjectId, SenderSignedTransaction, TransactionDigest};
 use iota_types::{
     error::{IotaError, IotaResult},
     fp_bail, fp_ensure,

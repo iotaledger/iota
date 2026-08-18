@@ -30,7 +30,7 @@ use iota_metrics::monitored_scope;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CanceledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
     SenderSignedTransaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
     TransactionKind, UserSignature, Version, VersionAssignment,

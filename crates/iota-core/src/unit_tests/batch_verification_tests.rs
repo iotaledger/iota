@@ -8,7 +8,7 @@ use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address,
     checkpoint::{CheckpointContents, CheckpointSummary},
     gas::GasCostSummary,

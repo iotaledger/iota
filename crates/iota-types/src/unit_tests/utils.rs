@@ -5,14 +5,16 @@
 use std::collections::BTreeMap;
 
 use fastcrypto::traits::KeyPair as KeypairTraits;
-use iota_sdk_crypto::{
-    Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
-};
-use iota_sdk_types::{
-    Address, ObjectId, SenderSignedTransaction, SimpleSignature, Transaction, TransactionKind,
-    UserSignature,
-    crypto::{Intent, MultisigAggregatedSignature, MultisigCommittee, MultisigMember},
+use iota_sdk_ext::{
+    crypto::{
+        Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+        secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+    },
+    types::{
+        Address, ObjectId, SenderSignedTransaction, SimpleSignature, Transaction, TransactionKind,
+        UserSignature,
+        crypto::{Intent, MultisigAggregatedSignature, MultisigCommittee, MultisigMember},
+    },
 };
 use rand::{SeedableRng, rngs::StdRng};
 
@@ -210,7 +212,7 @@ pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address
 
 mod move_authenticator {
     use fastcrypto::hash::HashFunction;
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         Address, Digest, MoveAuthenticator, MoveAuthenticatorV1, SenderSignedTransaction,
         SharedObjectReference, UserSignature,
     };
@@ -281,8 +283,9 @@ mod move_authenticator {
 pub use move_authenticator::*;
 
 mod passkey {
-    use iota_sdk_crypto::secp256r1::Secp256r1PrivateKey;
-    use iota_sdk_types::crypto::PasskeyAuthenticator;
+    use iota_sdk_ext::{
+        crypto::secp256r1::Secp256r1PrivateKey, types::crypto::PasskeyAuthenticator,
+    };
 
     use super::*;
 

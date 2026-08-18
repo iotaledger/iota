@@ -25,7 +25,7 @@ use iota_open_rpc::Module;
 use iota_package_resolver::{
     Package, PackageStore, Resolver, error::Error as PackageResolverError,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, GasPayment, ObjectId, Transaction, TransactionDigest, TransactionExpiration,
     TransactionKind, TransactionV1, UserSignature,
 };

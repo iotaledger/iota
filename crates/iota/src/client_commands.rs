@@ -19,7 +19,6 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::read_mask_fields::{ObjectField, OwnedObjectReadMask};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -49,14 +48,17 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderClient, unresolved};
-use iota_sdk_types::{
-    Address, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
-    SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
-    TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
-    crypto::{Intent, IntentMessage},
-    gas::GasCostSummary,
-    move_package::MovePackage,
+use iota_sdk_ext::{
+    grpc_client::read_mask_fields::{ObjectField, OwnedObjectReadMask},
+    transaction_builder::{TransactionBuilder, TransactionBuilderClient, unresolved},
+    types::{
+        Address, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+        SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
+        TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
+        crypto::{Intent, IntentMessage},
+        gas::GasCostSummary,
+        move_package::MovePackage,
+    },
 };
 use iota_source_validation::{BytecodeSourceVerifier, ValidationMode};
 use iota_types::{
@@ -3306,7 +3308,7 @@ pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
 
 /// Fetch the current object references for the given object IDs over gRPC.
 async fn grpc_input_refs(
-    client: &iota_grpc_client::Client,
+    client: &iota_sdk_ext::grpc_client::Client,
     object_ids: &[ObjectId],
 ) -> Result<Vec<ObjectReference>, anyhow::Error> {
     if object_ids.is_empty() {
@@ -3328,7 +3330,7 @@ async fn grpc_input_refs(
 /// Fetch the coin with the given ID over gRPC, as a reference pinning the
 /// version its type was read at, and the `T` of its `Coin<T>`.
 async fn grpc_coin(
-    client: &iota_grpc_client::Client,
+    client: &iota_sdk_ext::grpc_client::Client,
     coin_id: ObjectId,
 ) -> Result<(ObjectReference, TypeTag), anyhow::Error> {
     let object = client
@@ -3978,7 +3980,7 @@ async fn update_lock_file(
 
 #[cfg(test)]
 mod tests_process_auth_args {
-    use iota_sdk_types::Address;
+    use iota_sdk_ext::types::Address;
     use serde_json::Value as JsonValue;
 
     use super::process_auth_args;

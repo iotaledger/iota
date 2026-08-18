@@ -3,11 +3,13 @@
 
 use std::collections::{HashMap, HashSet};
 
-use iota_grpc_client::read_mask_fields::CheckpointResponseField;
-use iota_grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
-use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, SignedTransaction, Transaction,
-    TransactionDigest, TypeTag,
+use iota_sdk_ext::{
+    grpc_client::read_mask_fields::CheckpointResponseField,
+    grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId},
+    types::{
+        Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, SignedTransaction, Transaction,
+        TransactionDigest, TypeTag,
+    },
 };
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{effects::TransactionEffectsAPI, gas_coin::GAS};
@@ -30,7 +32,7 @@ pub const NFT_MINTED_EVENT: &str = "NFTMinted";
 pub async fn setup_grpc_test(
     wait_for_checkpoint: Option<u64>,
     client_max_message_size_bytes: Option<u32>,
-) -> (TestCluster, iota_grpc_client::Client) {
+) -> (TestCluster, iota_sdk_ext::grpc_client::Client) {
     setup_grpc_test_with_builder(
         |builder| builder,
         wait_for_checkpoint,
@@ -49,7 +51,7 @@ pub async fn setup_grpc_test_with_builder<F>(
     builder_fn: F,
     wait_for_checkpoint: Option<u64>,
     client_max_message_size_bytes: Option<u32>,
-) -> (TestCluster, iota_grpc_client::Client)
+) -> (TestCluster, iota_sdk_ext::grpc_client::Client)
 where
     F: FnOnce(TestClusterBuilder) -> TestClusterBuilder,
 {
@@ -63,7 +65,7 @@ where
         test_cluster.wait_for_checkpoint(checkpoint, None).await;
     }
 
-    let mut client = iota_grpc_client::Client::new(test_cluster.grpc_url())
+    let mut client = iota_sdk_ext::grpc_client::Client::new(test_cluster.grpc_url())
         .expect("Failed to connect to gRPC service");
 
     if let Some(max_size) = client_max_message_size_bytes {
@@ -175,7 +177,7 @@ pub async fn execute_transaction_and_get_digest(test_cluster: &TestCluster) -> T
 /// safe upper bound for stream ranges that need to cover those transactions.
 pub async fn wait_for_executed_transactions_checkpointed(
     cluster: &TestCluster,
-    client: &iota_grpc_client::Client,
+    client: &iota_sdk_ext::grpc_client::Client,
 ) -> u64 {
     let baseline_seq = client
         .get_checkpoint_latest(None, None, CheckpointResponseField::ALL)
@@ -244,7 +246,7 @@ pub enum NormalizedObjectChange {
 /// Normalize the balance changes of a gRPC `ExecutedTransaction` into a
 /// sorted, comparable form.
 pub fn normalize_grpc_balance_changes(
-    executed_transaction: &iota_grpc_types::v1::transaction::ExecutedTransaction,
+    executed_transaction: &iota_sdk_ext::grpc_types::v1::transaction::ExecutedTransaction,
 ) -> Vec<NormalizedBalanceChange> {
     let mut changes = executed_transaction
         .balance_changes()
@@ -266,9 +268,9 @@ pub fn normalize_grpc_balance_changes(
 /// Normalize the object changes of a gRPC `ExecutedTransaction` into a
 /// sorted, comparable form.
 pub fn normalize_grpc_object_changes(
-    executed_transaction: &iota_grpc_types::v1::transaction::ExecutedTransaction,
+    executed_transaction: &iota_sdk_ext::grpc_types::v1::transaction::ExecutedTransaction,
 ) -> Vec<NormalizedObjectChange> {
-    use iota_grpc_types::v1::transaction::object_change::Kind;
+    use iota_sdk_ext::grpc_types::v1::transaction::object_change::Kind;
 
     let mut changes = executed_transaction
         .object_changes()
@@ -329,7 +331,7 @@ pub fn normalize_grpc_object_changes(
 /// Extract the net gas usage from the effects of a gRPC
 /// `ExecutedTransaction` (requires `effects` in the read mask).
 pub fn grpc_net_gas_usage(
-    executed_transaction: &iota_grpc_types::v1::transaction::ExecutedTransaction,
+    executed_transaction: &iota_sdk_ext::grpc_types::v1::transaction::ExecutedTransaction,
 ) -> i64 {
     executed_transaction
         .effects()
@@ -350,7 +352,7 @@ pub fn grpc_net_gas_usage(
 /// - object changes: one coin `Created` for the recipient, all remaining
 ///   entries gas-coin `Mutated` for the sender (source coin and/or gas coin).
 pub fn assert_transfer_derived_changes(
-    executed_transaction: &iota_grpc_types::v1::transaction::ExecutedTransaction,
+    executed_transaction: &iota_sdk_ext::grpc_types::v1::transaction::ExecutedTransaction,
     sender: Address,
     recipient: Address,
     amount: i128,
@@ -369,7 +371,7 @@ pub fn assert_transfer_derived_changes(
     );
 
     let object_changes = normalize_grpc_object_changes(executed_transaction);
-    let gas_coin_type = iota_sdk_types::StructTag::new_gas_coin().to_string();
+    let gas_coin_type = iota_sdk_ext::types::StructTag::new_gas_coin().to_string();
     let created: Vec<_> = object_changes
         .iter()
         .filter(|change| {

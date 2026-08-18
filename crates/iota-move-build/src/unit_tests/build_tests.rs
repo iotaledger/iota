@@ -38,7 +38,7 @@ fn published_size_matches_move_package_size() {
     use std::collections::BTreeMap;
 
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         ObjectId, Version,
         move_package::{MovePackage, UpgradeInfo},
     };

@@ -7,7 +7,7 @@
 
 use anyhow::Context;
 use indexmap::IndexMap;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction,
     SharedObjectReference, TypeTag,
 };

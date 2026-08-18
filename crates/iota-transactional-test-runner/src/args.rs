@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
-use iota_sdk_types::{Address, Argument, Owner, SharedObjectReference, Version};
+use iota_sdk_ext::types::{Address, Argument, Owner, SharedObjectReference, Version};
 use iota_types::{
     move_package::UpgradePolicy, object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,

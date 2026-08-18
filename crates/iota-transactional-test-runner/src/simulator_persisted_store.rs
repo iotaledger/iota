@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, num::NonZeroUsize, path::PathBuf, sync::Arc, ti
 use iota_config::genesis;
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Identifier, ObjectId, ObjectReference,
     Owner, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
     checkpoint::CheckpointContents,

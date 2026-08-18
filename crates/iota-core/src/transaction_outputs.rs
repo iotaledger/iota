@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{ObjectReference, TransactionEffects, TransactionEvents};
+use iota_sdk_ext::types::{ObjectReference, TransactionEffects, TransactionEvents};
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},

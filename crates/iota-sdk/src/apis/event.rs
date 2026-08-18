@@ -8,7 +8,7 @@ use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient};
 use iota_json_rpc_types::{EventFilter, EventPage, IotaEvent};
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_ext::types::TransactionDigest;
 use iota_types::event::EventID;
 use jsonrpsee::core::client::Subscription;
 

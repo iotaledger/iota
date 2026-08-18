@@ -5,7 +5,6 @@
 use std::path::PathBuf;
 
 use iota_genesis_builder::validator_info::GenesisValidatorMetadata;
-use iota_grpc_client::read_mask_fields::{ObjectReadMask, OwnedObjectReadMask};
 use iota_move_build::{BuildConfig, CompiledPackage};
 use iota_sdk::{
     rpc_types::{
@@ -14,13 +13,16 @@ use iota_sdk::{
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_crypto::Signer;
-use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
-use iota_sdk_types::{
-    Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
-    UserSignature, Version,
-    crypto::{BitmapUnit, MultisigAggregatedSignature, MultisigCommittee, SimpleSignature},
+use iota_sdk_ext::{
+    crypto::Signer,
+    grpc_client::read_mask_fields::{ObjectReadMask, OwnedObjectReadMask},
+    transaction_builder::{PTBArgumentList, TransactionBuilder},
+    types::{
+        Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+        SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
+        UserSignature, Version,
+        crypto::{BitmapUnit, MultisigAggregatedSignature, MultisigCommittee, SimpleSignature},
+    },
 };
 use iota_types::{
     crypto::AccountKeyPair,
@@ -802,7 +804,10 @@ pub async fn delete_nft(
 /// Without an explicit gas coin, [`TransactionBuilder::finish`] auto-adds
 /// every IOTA coin the sender owns as gas inputs and merges the leftover into
 /// one output coin, breaking tests that observe the sender's coin count.
-pub async fn select_gas_coin(grpc_client: &iota_grpc_client::Client, sender: Address) -> ObjectId {
+pub async fn select_gas_coin(
+    grpc_client: &iota_sdk_ext::grpc_client::Client,
+    sender: Address,
+) -> ObjectId {
     let gas_coin = grpc_client
         .list_owned_objects(
             sender,
@@ -832,7 +837,7 @@ pub async fn select_gas_coin(grpc_client: &iota_grpc_client::Client, sender: Add
 /// shared mutable objects, `u64`/`Address` and other pure values), or an
 /// array/`Vec` of a single argument type.
 pub async fn move_call_tx<A: PTBArgumentList>(
-    grpc_client: &iota_grpc_client::Client,
+    grpc_client: &iota_sdk_ext::grpc_client::Client,
     sender: Address,
     package_id: ObjectId,
     module: &str,
@@ -861,7 +866,7 @@ pub async fn move_call_tx<A: PTBArgumentList>(
 /// `gas_coin` must differ from `coin_to_split`; when `None`, the builder
 /// selects gas automatically from the sender's IOTA coins.
 pub async fn split_coin_equal_tx(
-    grpc_client: &iota_grpc_client::Client,
+    grpc_client: &iota_sdk_ext::grpc_client::Client,
     sender: Address,
     coin_to_split: ObjectId,
     num_coins: u64,
@@ -879,7 +884,7 @@ pub async fn split_coin_equal_tx(
         .expect("coin not found")
         .object()
         .expect("invalid coin object");
-    let coin_balance = iota_sdk_types::Coin::try_from_object(&coin_object)
+    let coin_balance = iota_sdk_ext::types::Coin::try_from_object(&coin_object)
         .expect("object is not a coin")
         .balance();
 

@@ -5,7 +5,9 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use iota_macros::*;
-use iota_sdk_types::{ObjectId, ObjectReference, Owner, TransactionEffects, TransactionEvents};
+use iota_sdk_ext::types::{
+    ObjectId, ObjectReference, Owner, TransactionEffects, TransactionEvents,
+};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},

@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
+use iota_sdk_ext::types::{TransactionEffects, TransactionEvents, Version};
 use iota_types::{global_state_hash::GlobalStateHash, storage::MarkerValue};
 use serde::{Deserialize, Serialize};
 use tracing::error;

@@ -7,7 +7,7 @@ use std::{fs::File, io::Read, path::PathBuf};
 use expect_test::expect;
 use iota_move::manage_package::ManagePackage;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 
 #[tokio::test]
 async fn test_manage_package_update() {

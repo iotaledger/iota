@@ -15,7 +15,7 @@ use std::{
 
 use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
-use iota_sdk_types::{Address, Event, Identifier, MoveStruct, ObjectId, Owner, StructTag};
+use iota_sdk_ext::types::{Address, Event, Identifier, MoveStruct, ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,

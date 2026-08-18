@@ -7,7 +7,7 @@ use std::{fmt::Display, str::FromStr};
 use anyhow::Error;
 use iota_keys::keystore::{AccountKeystore, Keystore};
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 use serde::Serialize;
 
 /// An address or an alias associated with a key in the wallet

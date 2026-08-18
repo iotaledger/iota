@@ -14,7 +14,7 @@ use iota_json_rpc_types::{
     RPCTransactionRequestParams, StakeStatus, TransactionBlockBytes, TransferObjectParams,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest,
 };
 use iota_swarm_config::genesis_config::AccountConfig;

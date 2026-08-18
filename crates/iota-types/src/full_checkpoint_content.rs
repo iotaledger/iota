@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ObjectId, ObjectReference, TransactionEffects, TransactionEvents, TransactionKind,
     checkpoint::CheckpointContents,
 };

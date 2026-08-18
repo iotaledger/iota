@@ -17,7 +17,7 @@ use iota_core::{
 };
 use iota_replay::{ReplayToolCommand, execute_replay_command};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaTransactionBlockResponseOptions};
-use iota_sdk_types::{Address, ObjectId, SenderSignedTransaction, TransactionDigest};
+use iota_sdk_ext::types::{Address, ObjectId, SenderSignedTransaction, TransactionDigest};
 use iota_snapshot::progress::LOG_TARGET_PROGRESS;
 use iota_types::{
     base_types::*,
@@ -786,7 +786,7 @@ impl ToolCommand {
                 crate::fire_drill::run_fire_drill(fire_drill).await?;
             }
             ToolCommand::GrpcHealthCheck { address } => {
-                let client = iota_grpc_client::Client::new(address)?;
+                let client = iota_sdk_ext::grpc_client::Client::new(address)?;
                 client.get_health(None).await?;
                 println!("OK");
             }

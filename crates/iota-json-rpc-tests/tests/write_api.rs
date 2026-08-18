@@ -15,7 +15,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     GasPayment, ObjectId, Owner, Transaction, TransactionExpiration, TransactionKind, TransactionV1,
 };
 use iota_simulator::fastcrypto::encoding::Base64;

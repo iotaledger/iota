@@ -32,10 +32,13 @@ use iota_keys::{
 };
 use iota_multiaddr::Multiaddr;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme, Transaction, TypeTag,
-    crypto::{Intent, IntentMessage, IntentScope},
+use iota_sdk_ext::{
+    crypto::simple::SimpleKeypair,
+    types::{
+        Address, Identifier, ObjectId, ObjectReference, Owner, SignatureScheme, Transaction,
+        TypeTag,
+        crypto::{Intent, IntentMessage, IntentScope},
+    },
 };
 use iota_types::{
     crypto::{

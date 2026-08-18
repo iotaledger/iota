@@ -10,7 +10,7 @@ use std::{
 
 use futures::{StreamExt as _, future::BoxFuture, stream::FuturesUnordered};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
-use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffectsDigest};
+use iota_sdk_ext::types::{ObjectReference, TransactionDigest, TransactionEffectsDigest};
 use iota_types::{
     base_types::{AuthorityName, ConciseableName as _},
     committee::StakeUnit,
@@ -1079,7 +1079,7 @@ mod tests {
     };
 
     use async_trait::async_trait;
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         Address, ChangedObject, ExecutionStatus, GasCostSummary, IdOperation, ObjectId, ObjectIn,
         ObjectOut, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
     };

@@ -21,9 +21,11 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionKind, TypeTag,
+use iota_sdk_ext::{
+    crypto::simple::SimpleKeypair,
+    types::{
+        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, TransactionKind, TypeTag,
+    },
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{

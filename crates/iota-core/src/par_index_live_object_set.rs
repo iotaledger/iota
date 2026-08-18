@@ -4,7 +4,7 @@
 
 use std::time::Instant;
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use iota_types::{object::Object, storage::error::Error as StorageError};
 use tracing::info;
 

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl};
 use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 use iota_types::object::Object;
 
 use crate::{db::ConnectionPool, errors::IndexerError, schema::objects, store::diesel_macro::*};

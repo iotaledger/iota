@@ -23,7 +23,7 @@ use iota_primitives::{
     TypeTag as TypeTagSchema,
 };
 pub use iota_protocol::*;
-use iota_sdk_types::{ObjectDigest, ObjectId, TypeTag};
+use iota_sdk_ext::types::{ObjectDigest, ObjectId, TypeTag};
 pub use iota_system_state_summary::*;
 pub use iota_transaction::*;
 use iota_types::{

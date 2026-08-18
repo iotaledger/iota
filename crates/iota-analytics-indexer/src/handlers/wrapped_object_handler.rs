@@ -88,7 +88,7 @@ impl AnalyticsHandler<WrappedObjectEntry> for WrappedObjectHandler {
 }
 
 impl WrappedObjectHandler {
-    pub fn new(store_path: &Path, client: iota_grpc_client::Client) -> Self {
+    pub fn new(store_path: &Path, client: iota_sdk_ext::grpc_client::Client) -> Self {
         let package_store = LocalDBPackageStore::new(&store_path.join("wrapped_object"), client);
         let state = Mutex::new(State {
             wrapped_objects: vec![],

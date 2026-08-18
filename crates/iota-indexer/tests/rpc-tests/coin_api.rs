@@ -14,9 +14,11 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk_crypto::{Signer, simple::SimpleKeypair};
-use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag, crypto::SimpleSignature,
+use iota_sdk_ext::{
+    crypto::{Signer, simple::SimpleKeypair},
+    types::{
+        Address, Identifier, ObjectId, ObjectReference, StructTag, TypeTag, crypto::SimpleSignature,
+    },
 };
 use iota_types::{
     balance::Supply,

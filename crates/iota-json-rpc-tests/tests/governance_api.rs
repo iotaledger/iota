@@ -14,7 +14,7 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest};
+use iota_sdk_ext::types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, TransactionDigest};
 use iota_swarm_config::genesis_config::{
     AccountConfig, ValidatorGenesisConfig, ValidatorGenesisConfigBuilder,
 };

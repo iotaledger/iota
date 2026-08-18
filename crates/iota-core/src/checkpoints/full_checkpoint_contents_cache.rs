@@ -7,7 +7,7 @@ use std::{
 };
 
 use iota_config::node::DEFAULT_FULL_CHECKPOINT_CONTENTS_CACHE_SIZE_MB;
-use iota_sdk_types::CheckpointContentsDigest;
+use iota_sdk_ext::types::CheckpointContentsDigest;
 use iota_types::messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents};
 use parking_lot::Mutex;
 use prometheus_filtered::{

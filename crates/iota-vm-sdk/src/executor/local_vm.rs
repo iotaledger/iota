@@ -7,7 +7,7 @@ use std::sync::{Arc, OnceLock};
 
 use iota_execution::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, MoveAuthenticator, SenderSignedTransaction, Transaction, TransactionEvents,
 };
 use iota_types::{
@@ -155,7 +155,7 @@ impl LocalVm {
     /// Run a signed transaction, verifying signatures first.
     ///
     /// Standard schemes are verified cryptographically first. Every
-    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_ext::types::MoveAuthenticator)
     /// — the sender's and, for a sponsored tx, the sponsor's — is verified by
     /// running its function in the VM. On failure the authenticators are re-run
     /// alone to tell a rejection from a body abort.
@@ -375,7 +375,7 @@ impl LocalVm {
     }
 
     /// Decode a single BCS-encoded value of the given
-    /// [`TypeTag`](iota_sdk_types::TypeTag) into an annotated
+    /// [`TypeTag`](iota_sdk_ext::types::TypeTag) into an annotated
     /// [`MoveValue`](move_core_types::annotated_value::MoveValue), resolving
     /// any struct layouts from the packages in the store. Turns raw
     /// `(bytes, type)` pairs — dev-inspect return values and mutable
@@ -388,7 +388,7 @@ impl LocalVm {
     pub fn decode_value(
         &self,
         bytes: &[u8],
-        type_tag: &iota_sdk_types::TypeTag,
+        type_tag: &iota_sdk_ext::types::TypeTag,
     ) -> Result<move_core_types::annotated_value::MoveValue, VmSdkError> {
         let core_tag = iota_types::iota_sdk_types_conversions::type_tag_sdk_to_core(type_tag);
         let resolver = StoreModuleResolver(StoreBackend::new(self.store.as_ref()));

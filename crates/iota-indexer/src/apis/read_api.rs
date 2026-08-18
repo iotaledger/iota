@@ -5,7 +5,6 @@
 use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 
 use async_trait::async_trait;
-use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
 use iota_json_rpc_types::{
@@ -16,7 +15,10 @@ use iota_json_rpc_types::{
 };
 use iota_open_rpc::Module;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{ObjectId, TransactionDigest, Version};
+use iota_sdk_ext::{
+    grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField},
+    types::{ObjectId, TransactionDigest, Version},
+};
 use iota_types::{
     digests::ChainIdentifier,
     iota_serde::BigInt,

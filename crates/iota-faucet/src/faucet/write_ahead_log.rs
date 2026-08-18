@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use iota_sdk_types::{Address, ObjectId, Transaction};
+use iota_sdk_ext::types::{Address, ObjectId, Transaction};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use typed_store::{DBMapUtils, Map, TypedStoreError, rocks::DBMap};
@@ -130,7 +130,7 @@ impl WriteAheadLog {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::ObjectReference;
+    use iota_sdk_ext::types::ObjectReference;
     use iota_types::{
         base_types::random_object_ref,
         transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},

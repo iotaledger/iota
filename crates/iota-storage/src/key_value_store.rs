@@ -8,7 +8,7 @@
 use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents, Version,
     checkpoint::CheckpointContents,
 };

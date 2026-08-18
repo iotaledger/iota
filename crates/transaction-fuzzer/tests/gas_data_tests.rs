@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Transaction, TransactionKind};
+use iota_sdk_ext::types::{Transaction, TransactionKind};
 use iota_types::{
     base_types::dbg_addr, programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::TransactionAPI, utils::to_sender_signed_transaction,

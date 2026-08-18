@@ -5,7 +5,7 @@
 
 use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointContentsDigest, CommandArgumentError, ObjectDigest, ObjectId,
     ObjectReference, Owner, TransactionDigest, TransactionEffectsDigest, Version,
 };
@@ -41,7 +41,7 @@ macro_rules! fp_ensure {
     };
 }
 
-use iota_sdk_types::ExecutionError as ExecutionFailureStatus;
+use iota_sdk_ext::types::ExecutionError as ExecutionFailureStatus;
 
 #[macro_export]
 macro_rules! exit_main {
@@ -736,8 +736,8 @@ impl From<ExecutionError> for IotaError {
     }
 }
 
-impl From<iota_sdk_types::hash::MissingSignatureError> for IotaError {
-    fn from(error: iota_sdk_types::hash::MissingSignatureError) -> Self {
+impl From<iota_sdk_ext::types::hash::MissingSignatureError> for IotaError {
+    fn from(error: iota_sdk_ext::types::hash::MissingSignatureError) -> Self {
         IotaError::InvalidSignature {
             error: error.to_string(),
         }

@@ -14,12 +14,12 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::*;
 use iota_node::IotaNodeHandle;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_crypto::{
-    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, simple::SimpleKeypair,
-};
-use iota_sdk_types::{
-    Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, Transaction,
-    TransactionDigest, TransactionKind, Version,
+use iota_sdk_ext::{
+    crypto::{ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, simple::SimpleKeypair},
+    types::{
+        Address, GasPayment, Identifier, ObjectId, ObjectReference, Owner, Transaction,
+        TransactionDigest, TransactionKind, Version,
+    },
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,

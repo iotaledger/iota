@@ -12,7 +12,7 @@ use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaRawData};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::CompiledPackage;
 use iota_sdk::apis::ReadApi;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, Command, Identifier, ObjectId, Owner, ProgrammableTransaction,
     SharedObjectReference, TypeTag, move_package::MovePackage,
 };

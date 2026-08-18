@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_ext::types::{StructTag, TypeTag};
 use iota_types::coin::{CoinMetadata as NativeCoinMetadata, TreasuryCap};
 
 use crate::{

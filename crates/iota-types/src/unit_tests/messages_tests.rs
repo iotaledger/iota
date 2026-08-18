@@ -9,13 +9,15 @@ use std::{
 };
 
 use fastcrypto::traits::{AggregateAuthenticator, KeyPair};
-use iota_sdk_crypto::{
-    Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
-};
-use iota_sdk_types::{
-    Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme, StructTag,
-    TransactionEventsDigest, crypto::SimpleSignature, gas::GasCostSummary,
+use iota_sdk_ext::{
+    crypto::{
+        Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+        secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+    },
+    types::{
+        Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme,
+        StructTag, TransactionEventsDigest, crypto::SimpleSignature, gas::GasCostSummary,
+    },
 };
 use roaring::RoaringBitmap;
 

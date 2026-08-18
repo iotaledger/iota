@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use iota_json_rpc_types::IotaEvent;
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{TransactionDigest, TransactionEvents, checkpoint::CheckpointContents};
+use iota_sdk_ext::types::{TransactionDigest, TransactionEvents, checkpoint::CheckpointContents};
 use iota_types::{
     full_checkpoint_content::CheckpointTransaction,
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt},

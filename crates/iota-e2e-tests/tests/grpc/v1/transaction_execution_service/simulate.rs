@@ -2,22 +2,24 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{
-    field::FieldMaskUtil,
-    read_masks::SIMULATE_TRANSACTIONS_READ_MASK,
-    v1::{
-        bcs::BcsData,
-        transaction::Transaction as ProtoTransaction,
-        transaction_execution_service::{
-            SimulateTransactionItem, SimulateTransactionsRequest, SimulateTransactionsResponse,
-            SimulatedTransaction, simulate_transaction_item::TransactionCheckModes,
-            simulated_transaction::ExecutionResult,
-            transaction_execution_service_client::TransactionExecutionServiceClient,
+use iota_macros::sim_test;
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        read_masks::SIMULATE_TRANSACTIONS_READ_MASK,
+        v1::{
+            bcs::BcsData,
+            transaction::Transaction as ProtoTransaction,
+            transaction_execution_service::{
+                SimulateTransactionItem, SimulateTransactionsRequest, SimulateTransactionsResponse,
+                SimulatedTransaction, simulate_transaction_item::TransactionCheckModes,
+                simulated_transaction::ExecutionResult,
+                transaction_execution_service_client::TransactionExecutionServiceClient,
+            },
         },
     },
+    types::{Address, Command, Transaction},
 };
-use iota_macros::sim_test;
-use iota_sdk_types::{Address, Command, Transaction};
 use iota_types::{
     effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -62,7 +64,9 @@ fn first_simulated_transaction(response: &SimulateTransactionsResponse) -> &Simu
 ///    `"execution_result.execution_error."` prefix).  Panics if
 ///    `execution_result` is not the `ExecutionError` variant.
 async fn assert_simulate_transaction_request(
-    exec_client: &mut TransactionExecutionServiceClient<iota_grpc_client::InterceptedChannel>,
+    exec_client: &mut TransactionExecutionServiceClient<
+        iota_sdk_ext::grpc_client::InterceptedChannel,
+    >,
     transaction: ProtoTransaction,
     read_mask: Option<FieldMask>,
     expected_response_paths: &[&str],

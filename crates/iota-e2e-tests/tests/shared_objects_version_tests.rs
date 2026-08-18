@@ -5,7 +5,7 @@
 use std::path::PathBuf;
 
 use iota_macros::*;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, SharedObjectReference,
     TransactionEffects, TransactionEvents, Version,
 };

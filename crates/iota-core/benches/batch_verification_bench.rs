@@ -10,7 +10,7 @@ use iota_core::{
     signature_verifier::*,
     test_utils::{make_cert_with_large_committee, make_dummy_tx},
 };
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 use iota_types::{
     committee::Committee,
     crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},

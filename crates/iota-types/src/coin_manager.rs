@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Address, Identifier, ObjectData};
+use iota_sdk_ext::types::{Address, Identifier, ObjectData};
 use serde::{Deserialize, Serialize};
 
 use crate::{

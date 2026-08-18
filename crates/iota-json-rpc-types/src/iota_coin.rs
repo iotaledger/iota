@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
+use iota_sdk_ext::types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
 use iota_types::{
     balance::Supply, coin::CoinMetadata, error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber, object::Object,

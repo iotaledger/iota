@@ -24,7 +24,7 @@ use iota_sdk::{
         quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
     },
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ObjectId, ObjectReference, ProgrammableTransaction, SignatureScheme, Transaction,
     crypto::Intent,
 };

@@ -4,8 +4,10 @@
 
 use async_trait::async_trait;
 use futures::future::join_all;
-use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
-use iota_sdk_types::{Address, Transaction};
+use iota_sdk_ext::{
+    crypto::{ToFromBech32, simple::SimpleKeypair},
+    types::{Address, Transaction},
+};
 use iota_types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionAPI};
 use tracing::debug;
 

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     GasPayment, TransactionEffects as NativeTransactionEffects,
     gas::GasCostSummary as NativeGasCostSummary,
 };

@@ -15,7 +15,7 @@ use fastcrypto::{
     hash::HashFunction,
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ObjectId, TransactionEffects, TransactionEvents,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };

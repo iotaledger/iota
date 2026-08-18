@@ -22,7 +22,7 @@ use futures::{
     stream::FuturesUnordered,
 };
 use iota_metrics::{GaugeGuard, InflightGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_ext::types::TransactionDigest;
 use iota_simulator::anemo::PeerId;
 use iota_types::{
     base_types::AuthorityName,
@@ -1503,7 +1503,7 @@ mod adapter_tests {
     use std::{sync::Arc, time::Duration};
 
     use fastcrypto::traits::KeyPair;
-    use iota_sdk_types::TransactionDigest;
+    use iota_sdk_ext::types::TransactionDigest;
     use iota_types::{
         committee::Committee,
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},

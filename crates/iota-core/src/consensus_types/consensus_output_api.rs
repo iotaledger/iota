@@ -4,7 +4,7 @@
 
 use std::{collections::BTreeMap, fmt::Display};
 
-use iota_sdk_types::ConsensusCommitDigest;
+use iota_sdk_ext::types::ConsensusCommitDigest;
 use iota_types::messages_consensus::ConsensusTransaction;
 use itertools::Itertools as _;
 

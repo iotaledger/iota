@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Command, ExecutionError, ExecutionStatus, GasCostSummary, Identifier, ObjectId,
     ObjectReference, Owner, Transaction, TransactionEffects, TransactionEvents, TransactionKind,
 };

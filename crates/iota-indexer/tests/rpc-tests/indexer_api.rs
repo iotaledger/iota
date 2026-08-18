@@ -23,7 +23,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, IotaTransactionKind, ObjectsPage, TransactionFilter,
     TransactionFilterV2,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Command, Identifier, ObjectId, StructTag, Transaction, TransactionDigest, TypeTag,
 };
 use iota_test_transaction_builder::{TestTransactionBuilder, split_coin_equal_tx};

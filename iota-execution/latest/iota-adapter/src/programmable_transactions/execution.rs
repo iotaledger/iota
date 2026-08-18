@@ -16,7 +16,7 @@ mod checked {
 
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         Address, Command, CommandArgumentError, Identifier, ObjectId, PackageUpgradeError,
         ProgrammableTransaction, StructTag, TypeTag, move_package::MovePackage,
     };

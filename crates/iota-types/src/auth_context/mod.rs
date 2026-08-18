@@ -4,7 +4,7 @@
 mod fields_v1;
 
 pub use fields_v1::*;
-use iota_sdk_types::{Digest, MoveAuthenticatorDigest, ProgrammableTransaction};
+use iota_sdk_ext::types::{Digest, MoveAuthenticatorDigest, ProgrammableTransaction};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{
@@ -115,9 +115,9 @@ impl AuthContext {
     }
 
     /// Returns the sender's auth digest. For
-    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_ext::types::MoveAuthenticator)
     /// signatures equals
-    /// [`MoveAuthenticator::digest()`](iota_sdk_types::MoveAuthenticator::digest);
+    /// [`MoveAuthenticator::digest()`](iota_sdk_ext::types::MoveAuthenticator::digest);
     /// for others Blake2b256 of the serialized (flag-prefixed) signature bytes.
     pub fn sender_auth_digest(&self) -> &Digest {
         &self.sender_auth_digest
@@ -125,16 +125,16 @@ impl AuthContext {
 
     /// Returns the sponsor's auth digest for sponsored transactions, `None`
     /// otherwise. For
-    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_ext::types::MoveAuthenticator)
     /// signatures equals
-    /// [`MoveAuthenticator::digest()`](iota_sdk_types::MoveAuthenticator::digest);
+    /// [`MoveAuthenticator::digest()`](iota_sdk_ext::types::MoveAuthenticator::digest);
     /// for others Blake2b256 of the serialized (flag-prefixed) signature bytes.
     pub fn sponsor_auth_digest(&self) -> Option<&Digest> {
         self.sponsor_auth_digest.as_ref()
     }
 
     /// Returns the sender's authenticator function ref, present when the sender
-    /// uses a [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
+    /// uses a [`MoveAuthenticator`](iota_sdk_ext::types::MoveAuthenticator)
     /// signature.
     pub fn sender_authenticator_function_ref_v1(&self) -> Option<&AuthenticatorFunctionRefV1> {
         self.sender_authenticator_function_ref_v1.as_ref()
@@ -142,7 +142,7 @@ impl AuthContext {
 
     /// Returns the sponsor's authenticator function ref, present when the
     /// sponsor uses a
-    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_ext::types::MoveAuthenticator)
     /// signature.
     pub fn sponsor_authenticator_function_ref_v1(&self) -> Option<&AuthenticatorFunctionRefV1> {
         self.sponsor_authenticator_function_ref_v1.as_ref()
@@ -267,7 +267,7 @@ pub struct AuthContextData {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         Argument, Command, Identifier, ObjectId, ProgrammableTransaction, TypeTag,
     };
 

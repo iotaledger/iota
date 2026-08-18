@@ -8,7 +8,7 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 pub mod checked {
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         ObjectData, ObjectId, ObjectReference, TransactionDigest, gas::GasCostSummary,
     };
     use iota_types::{

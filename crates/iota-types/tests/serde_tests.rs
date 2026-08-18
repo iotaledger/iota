@@ -4,7 +4,7 @@
 
 use std::str::FromStr;
 
-use iota_sdk_types::StructTag;
+use iota_sdk_ext::types::StructTag;
 use iota_types::{base_types::ObjectType, iota_serde::IotaStructTag, parse_iota_struct_tag};
 use serde::Serialize;
 use serde_json::Value;

@@ -9,7 +9,7 @@
     rust_2021_compatibility
 )]
 
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
+use iota_sdk_ext::types::{Address, ObjectId, StructTag, TypeTag, Version};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},

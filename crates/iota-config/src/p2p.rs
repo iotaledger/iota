@@ -5,7 +5,7 @@
 use std::{net::SocketAddr, num::NonZeroU32, time::Duration};
 
 use iota_multiaddr::Multiaddr;
-use iota_sdk_types::CheckpointDigest;
+use iota_sdk_ext::types::CheckpointDigest;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use serde::{Deserialize, Serialize};
 

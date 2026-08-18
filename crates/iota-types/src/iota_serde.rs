@@ -11,7 +11,7 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Address, StructTag, TypeTag, Version};
+use iota_sdk_ext::types::{Address, StructTag, TypeTag, Version};
 use serde::{
     self, Deserialize, Serialize,
     de::{Deserializer, Error},

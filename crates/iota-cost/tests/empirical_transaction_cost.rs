@@ -6,7 +6,7 @@ use std::{collections::BTreeMap, path::PathBuf};
 
 use insta::assert_json_snapshot;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, Transaction,
     gas::GasCostSummary,
 };

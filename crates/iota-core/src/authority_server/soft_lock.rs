@@ -46,7 +46,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use iota_sdk_types::{ObjectReference, TransactionDigest};
+use iota_sdk_ext::types::{ObjectReference, TransactionDigest};
 use iota_types::error::IotaError;
 use parking_lot::Mutex;
 use tracing::{debug, error, trace};
@@ -442,7 +442,7 @@ impl PreConsensusSoftLocks {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectDigest, ObjectId, Version};
+    use iota_sdk_ext::types::{ObjectDigest, ObjectId, Version};
 
     use super::*;
 

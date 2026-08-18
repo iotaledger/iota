@@ -54,7 +54,7 @@ mod test {
     use fastcrypto::traits::{KeyPair, ToFromBytes};
     use iota_multiaddr::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
-    use iota_sdk_types::Address;
+    use iota_sdk_ext::types::Address;
     use iota_types::{
         committee::CommitteeTrait,
         crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},

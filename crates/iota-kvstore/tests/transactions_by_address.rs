@@ -10,7 +10,7 @@ use iota_kvstore::{
     emulator::BigTableEmulator,
     transactions_by_address,
 };
-use iota_sdk_types::{Address, TransactionDigest};
+use iota_sdk_ext::types::{Address, TransactionDigest};
 use iota_types::{
     full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointContentsExt,
     test_checkpoint_data_builder::TestCheckpointDataBuilder,

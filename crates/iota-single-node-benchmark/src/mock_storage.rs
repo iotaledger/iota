@@ -8,7 +8,7 @@ use std::{
 };
 
 use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use iota_sdk_types::{ObjectId, Owner, Version};
+use iota_sdk_ext::types::{ObjectId, Owner, Version};
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
     base_types::{EpochId, VersionNumber},

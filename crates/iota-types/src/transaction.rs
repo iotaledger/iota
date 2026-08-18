@@ -16,7 +16,7 @@ use std::{
 use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, CanceledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
@@ -2336,7 +2336,7 @@ impl<S> Envelope<SenderSignedTransaction, S> {
 impl TransactionEnvelope {
     pub fn from_data_and_signer(
         tx: Transaction,
-        signers: Vec<&impl iota_sdk_crypto::Signer<SimpleSignature>>,
+        signers: Vec<&impl iota_sdk_ext::crypto::Signer<SimpleSignature>>,
     ) -> Self {
         let signatures = {
             let intent_msg = tx.intent_message();
@@ -2356,7 +2356,7 @@ impl TransactionEnvelope {
     pub fn signature_from_signer(
         tx: Transaction,
         intent: Intent,
-        signer: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+        signer: &impl iota_sdk_ext::crypto::Signer<SimpleSignature>,
     ) -> SimpleSignature {
         let intent_msg = IntentMessage::new(intent, tx);
         SimpleSignature::new_secure(&intent_msg, signer)

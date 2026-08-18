@@ -8,7 +8,7 @@
 use std::collections::{HashMap, VecDeque};
 
 use iota_common::sync::notify_read::NotifyRead;
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_ext::types::TransactionDigest;
 use iota_types::error::IotaError;
 use parking_lot::RwLock;
 

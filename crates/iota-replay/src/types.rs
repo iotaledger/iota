@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use iota_json_rpc_types::{IotaEvent, IotaObjectResponseError, IotaTransactionBlockEffects};
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk::error::Error as IotaRpcError;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ObjectDigest, ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest,
     TransactionKind, Version,
 };

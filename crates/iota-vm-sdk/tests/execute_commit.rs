@@ -6,7 +6,7 @@
 //! `DevInspect` / `DryRun` leave the store untouched. Self-contained — uses
 //! only the built-in framework, no Move compiler.
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Identifier, MoveStruct, ObjectId, Owner, StructTag, Transaction, TransactionDigest,
     transaction::{GenesisTransaction, TransactionKind},
 };

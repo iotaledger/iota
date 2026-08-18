@@ -7,7 +7,7 @@ use std::{collections::HashSet, time::Duration};
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Identifier, ObjectId, SharedObjectReference, Transaction,
     checkpoint::{CheckpointContents, CheckpointSummary},
     gas::GasCostSummary,

@@ -17,7 +17,7 @@
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use iota_sdk_types::{SenderSignedTransaction, Transaction, UserSignature};
+use iota_sdk_ext::types::{SenderSignedTransaction, Transaction, UserSignature};
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::{Object, ObjectInner},

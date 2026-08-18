@@ -31,7 +31,7 @@ use iota_sdk::{
         transaction::TransactionAPI,
     },
 };
-use iota_sdk_types::{Argument, Command, Identifier, Owner, Transaction, TypeTag};
+use iota_sdk_ext::types::{Argument, Command, Identifier, Owner, Transaction, TypeTag};
 use move_package::BuildConfig as MoveBuildConfig;
 use utils::{setup_for_write_with_network, sign_and_execute_transaction};
 

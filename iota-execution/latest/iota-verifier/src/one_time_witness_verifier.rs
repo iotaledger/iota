@@ -21,7 +21,7 @@
 //!   initializer
 //! - it is never instantiated anywhere in its defining module
 
-use iota_sdk_types::{Address, Identifier};
+use iota_sdk_ext::types::{Address, Identifier};
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
     error::ExecutionError,

@@ -6,7 +6,9 @@ use iota_json_rpc_api::WriteApiClient;
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Command, Identifier, ObjectId, ProgrammableTransaction, TransactionKind};
+use iota_sdk_ext::types::{
+    Command, Identifier, ObjectId, ProgrammableTransaction, TransactionKind,
+};
 use iota_types::transaction::CallArg;
 use jsonrpsee::{core::ClientError, types::ErrorCode};
 use test_cluster::TestClusterBuilder;
@@ -41,7 +43,7 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
         Identifier::new_unchecked("_"),
         Identifier::new_unchecked("timestamp_ms"),
         vec![],
-        vec![iota_sdk_types::Argument::Input(0)],
+        vec![iota_sdk_ext::types::Argument::Input(0)],
     )];
     let pt = ProgrammableTransaction { inputs, commands };
     let tx = TransactionKind::new_programmable(pt);

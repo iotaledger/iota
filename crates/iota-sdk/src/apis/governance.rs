@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use iota_json_rpc_api::GovernanceReadApiClient;
 use iota_json_rpc_types::{DelegatedStake, DelegatedTimelockedStake, IotaCommittee, ValidatorApys};
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 use iota_types::{
     iota_serde::BigInt,
     iota_system_state::iota_system_state_summary::{

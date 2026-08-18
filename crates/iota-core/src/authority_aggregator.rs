@@ -20,7 +20,7 @@ use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
     TransactionEvents,
 };

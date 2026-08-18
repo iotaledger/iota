@@ -11,7 +11,7 @@ use iota_indexer::{
     optimistic_indexing::IngestionPath,
 };
 use iota_json_rpc_types::IotaExecutionStatus;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Event as NativeEvent, ExecutionStatus as NativeExecutionStatus,
     Transaction as NativeTransactionData, TransactionEffects as NativeTransactionEffects,
 };

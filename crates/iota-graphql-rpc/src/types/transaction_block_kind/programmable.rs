@@ -7,7 +7,7 @@ use async_graphql::{
     *,
 };
 use iota_json_rpc_types::IotaArgument;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Argument as NativeArgument, Command as NativeProgrammableTransaction,
     MoveCall as NativeMoveCallTransaction,
     ProgrammableTransaction as NativeProgrammableTransactionBlock, SharedObjectReference,

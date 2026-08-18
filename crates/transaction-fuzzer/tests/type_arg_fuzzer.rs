@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectReference, Owner};
+use iota_sdk_ext::types::{ObjectReference, Owner};
 use iota_types::effects::TransactionEffectsAPI;
 use proptest::{collection::vec, prelude::*, strategy::ValueTree};
 use transaction_fuzzer::{

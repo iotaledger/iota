@@ -7,7 +7,7 @@ use std::sync::Arc;
 use async_graphql::*;
 use diesel::QueryDsl;
 use iota_indexer::schema::chain_identifier;
-use iota_sdk_types::CheckpointDigest;
+use iota_sdk_ext::types::CheckpointDigest;
 use iota_types::digests::ChainIdentifier as NativeChainIdentifier;
 use tokio::sync::OnceCell;
 use tracing::error;

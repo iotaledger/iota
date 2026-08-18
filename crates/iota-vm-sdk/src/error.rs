@@ -10,7 +10,7 @@
 //! their causes (BCS / layout / VM invariant failures) are not a single
 //! matchable type.
 
-use iota_sdk_types::{ObjectId, Version};
+use iota_sdk_ext::types::{ObjectId, Version};
 use iota_types::error::IotaError;
 
 /// Top-level error for every fallible operation in the SDK.

@@ -16,7 +16,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest, TransactionEffects,
     Version, move_package::MovePackage,
 };

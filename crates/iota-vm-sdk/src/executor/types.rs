@@ -5,7 +5,9 @@
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{Event, ObjectId, TransactionEffects, TransactionEvents, gas::GasCostSummary};
+use iota_sdk_ext::types::{
+    Event, ObjectId, TransactionEffects, TransactionEvents, gas::GasCostSummary,
+};
 use iota_types::object::Object;
 use move_core_types::annotated_value::MoveValue;
 
@@ -102,7 +104,7 @@ pub enum SignatureStatus {
     /// [`LocalVm::execute`](super::LocalVm::execute)).
     NotChecked,
     /// Signatures verified successfully. For a
-    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator)
+    /// [`MoveAuthenticator`](iota_sdk_ext::types::MoveAuthenticator)
     /// this means the authenticator function did not abort during execution.
     Verified,
     /// Signature verification failed.
@@ -216,7 +218,7 @@ pub struct ExecutionResult {
     /// Id of the mock gas coin minted for a gas-less transaction, if any.
     pub mock_gas_id: Option<ObjectId>,
     /// The Move-level execution status (success or abort).
-    pub status: iota_sdk_types::ExecutionStatus,
+    pub status: iota_sdk_ext::types::ExecutionStatus,
     /// The outcome of signature verification for the run.
     pub signature_status: SignatureStatus,
     /// `true` if and only if [`ExecutionMode::Execute`] ran successfully and

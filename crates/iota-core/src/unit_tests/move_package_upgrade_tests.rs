@@ -11,7 +11,7 @@ use std::{
 
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, CommandArgumentError, Digest, ExecutionError, ExecutionStatus, Identifier,
     ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
     TransactionEffects,
@@ -46,8 +46,8 @@ macro_rules! move_call {
     {$builder:expr, ($addr:expr)::$module_name:ident::$func:ident($($args:expr),* $(,)?)} => {
         $builder.programmable_move_call(
             $addr,
-            iota_sdk_types::Identifier::from_static(stringify!($module_name)),
-            iota_sdk_types::Identifier::from_static(stringify!($func)),
+            iota_sdk_ext::types::Identifier::from_static(stringify!($module_name)),
+            iota_sdk_ext::types::Identifier::from_static(stringify!($func)),
             vec![],
             vec![$($args),*],
         )

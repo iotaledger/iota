@@ -21,7 +21,7 @@ use iota_sdk::{
         transaction::{CallArg, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Argument, Identifier, ObjectId, SignatureScheme, Transaction, TypeTag, crypto::Intent,
 };
 use iota_types::transaction::TransactionAPI;

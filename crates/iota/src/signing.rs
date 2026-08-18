@@ -9,7 +9,7 @@ use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, MoveAuthenticatorV1, ObjectId, Owner, SharedObjectReference, Transaction, TypeTag,
     UserSignature, Version,
     crypto::{Intent, SimpleSignature},

@@ -8,7 +8,7 @@ use iota_json_rpc_types::{
     iota_primitives::{Address as AddressSchema, ObjectId as ObjectIdSchema},
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 

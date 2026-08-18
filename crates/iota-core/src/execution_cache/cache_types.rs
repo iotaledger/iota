@@ -10,7 +10,7 @@ use std::{
 };
 
 use iota_common::debug_fatal;
-use iota_sdk_types::Version;
+use iota_sdk_ext::types::Version;
 use moka::sync::SegmentedCache as MokaCache;
 use parking_lot::Mutex;
 
@@ -299,7 +299,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::Version;
+    use iota_sdk_ext::types::Version;
 
     use super::*;
 

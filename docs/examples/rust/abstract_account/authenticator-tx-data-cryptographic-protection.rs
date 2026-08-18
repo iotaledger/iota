@@ -13,7 +13,7 @@ use docs_examples::utils::{
 };
 use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::ObjectChange};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
     SharedObjectReference, SignatureScheme, Transaction, TransactionKind, TypeTag, UserSignature,
 };

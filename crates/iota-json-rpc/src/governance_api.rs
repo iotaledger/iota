@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_types::{
     MoveTypeTagTrait,
     committee::EpochId,

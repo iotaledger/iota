@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_config::{genesis::Genesis, node::ExpensiveSafetyCheckConfig};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ObjectId, ObjectReference, Owner, Transaction, TransactionEffects, Version,
 };
 use iota_types::{

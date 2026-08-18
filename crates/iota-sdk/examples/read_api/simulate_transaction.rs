@@ -12,7 +12,7 @@ mod utils;
 use iota_sdk::types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::TransactionAPI,
 };
-use iota_sdk_types::{Transaction, TransactionKind};
+use iota_sdk_ext::types::{Transaction, TransactionKind};
 use utils::setup_for_write;
 
 #[tokio::main]

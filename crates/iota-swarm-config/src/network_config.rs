@@ -5,7 +5,7 @@
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_config::{Config, NodeConfig, genesis, node};
 use iota_multiaddr::Multiaddr;
-use iota_sdk_crypto::ToFromBytes as _;
+use iota_sdk_ext::crypto::ToFromBytes as _;
 use iota_types::{committee::CommitteeWithNetworkMetadata, crypto::AccountKeyPair};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{DeserializeAs, SerializeAs, serde_as};

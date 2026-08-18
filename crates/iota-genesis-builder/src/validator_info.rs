@@ -5,7 +5,7 @@
 use anyhow::bail;
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 use iota_types::crypto::{
     AuthorityPublicKey, AuthorityPublicKeyBytes, AuthoritySignature, NetworkPublicKey,
     verify_proof_of_possession,

@@ -8,7 +8,7 @@ use async_graphql::{connection::Connection, dataloader::Loader, *};
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, SelectableHelper};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{models::epoch::QueryableEpochInfo, schema::epochs};
-use iota_sdk_types::checkpoint::CheckpointCommitment as EpochCommitment;
+use iota_sdk_ext::types::checkpoint::CheckpointCommitment as EpochCommitment;
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,

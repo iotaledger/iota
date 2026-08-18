@@ -12,7 +12,7 @@ pub mod checked {
 
     use enum_dispatch::enum_dispatch;
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{GasPayment, ObjectReference, Transaction, gas::GasCostSummary};
+    use iota_sdk_ext::types::{GasPayment, ObjectReference, Transaction, gas::GasCostSummary};
 
     use crate::{
         ObjectId,

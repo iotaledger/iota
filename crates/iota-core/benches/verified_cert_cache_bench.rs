@@ -4,7 +4,7 @@
 
 use criterion::{Criterion, *};
 use iota_core::signature_verifier::SignatureVerifierMetrics;
-use iota_sdk_types::CertificateDigest;
+use iota_sdk_ext::types::CertificateDigest;
 use iota_types::signature_verification::VerifiedDigestCache;
 
 fn verified_cert_cache_bench(c: &mut Criterion) {

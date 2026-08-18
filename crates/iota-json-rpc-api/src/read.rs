@@ -10,7 +10,7 @@ use iota_json_rpc_types::{
     iota_primitives::{Base58 as Base58Schema, ObjectId as ObjectIdSchema, SequenceNumberU64},
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::{ObjectId, TransactionDigest, Version};
+use iota_sdk_ext::types::{ObjectId, TransactionDigest, Version};
 use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 

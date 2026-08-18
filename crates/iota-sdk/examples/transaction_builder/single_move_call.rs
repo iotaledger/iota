@@ -12,7 +12,7 @@ use iota_json::IotaJsonValue;
 use iota_sdk::types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::TransactionAPI,
 };
-use iota_sdk_types::Transaction;
+use iota_sdk_ext::types::Transaction;
 use serde_json::json;
 use utils::{setup_for_write, sign_and_execute_transaction};
 

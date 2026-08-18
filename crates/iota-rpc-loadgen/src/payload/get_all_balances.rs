@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use futures::future::join_all;
 use iota_json_rpc_types::Balance;
 use iota_sdk::IotaClient;
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 
 use super::validation::chunk_entities;
 use crate::payload::{GetAllBalances, ProcessPayload, RpcCommandProcessor, SignerInfo};

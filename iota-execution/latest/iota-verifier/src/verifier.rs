@@ -47,7 +47,7 @@ pub fn iota_verify_module_metered_check_timeout_only(
     {
         if matches!(
             error.kind(),
-            iota_sdk_types::ExecutionError::IotaMoveVerificationTimeout
+            iota_sdk_ext::types::ExecutionError::IotaMoveVerificationTimeout
         ) {
             return Err(error);
         }
@@ -67,7 +67,7 @@ pub fn iota_verify_module_unmetered(
             debug_assert!(
                 !matches!(
                     err.kind(),
-                    iota_sdk_types::ExecutionError::IotaMoveVerificationTimeout
+                    iota_sdk_ext::types::ExecutionError::IotaMoveVerificationTimeout
                 ),
                 "Unexpected timeout error in execution"
             );

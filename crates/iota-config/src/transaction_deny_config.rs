@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_types::deny_rule_governance::{DenyRuleConfig, DenyRuleSet};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -248,7 +248,7 @@ impl DenyRuleConfig for TransactionDenyConfig {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, ObjectId};
+    use iota_sdk_ext::types::{Address, ObjectId};
     use iota_types::deny_rule_governance::DenyRuleSet;
 
     use super::{DenyRuleConfig, TransactionDenyConfig, TransactionDenyConfigBuilder};

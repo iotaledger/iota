@@ -8,7 +8,7 @@ use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, Transaction,
 };
 use iota_swarm_config::{

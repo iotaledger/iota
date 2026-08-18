@@ -12,7 +12,7 @@ use iota_indexer::{
     store::PgIndexerStore, types::ObjectStatus,
 };
 use iota_json::call_args;
-use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_ext::crypto::simple::SimpleKeypair;
 use iota_types::crypto::{AccountKeyPair, get_key_pair};
 
 use crate::{

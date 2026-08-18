@@ -5,9 +5,11 @@ use std::{collections::BTreeMap, time::Duration};
 use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
 use downcast::Any;
 use fastcrypto::encoding::Base64;
-use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
-use iota_grpc_types::v1::transaction::ExecutedTransaction;
-use iota_sdk_types::{ObjectId, Transaction, TransactionDigest, UserSignature, Version};
+use iota_sdk_ext::{
+    grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField},
+    grpc_types::v1::transaction::ExecutedTransaction,
+    types::{ObjectId, Transaction, TransactionDigest, UserSignature, Version},
+};
 use iota_types::{
     effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
     transaction::TransactionEnvelope,

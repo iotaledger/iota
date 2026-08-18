@@ -11,7 +11,7 @@
 use std::collections::BTreeMap;
 
 use iota_framework::BuiltInFramework;
-use iota_sdk_types::{ObjectId, Version};
+use iota_sdk_ext::types::{ObjectId, Version};
 use iota_types::{
     base_types::VersionNumber,
     committee::EpochId,
@@ -129,7 +129,7 @@ impl Store for InMemoryStore {
             .objects
             .get(child)
             .filter(|o| o.version() <= version_upper_bound)
-            .filter(|o| o.owner == iota_sdk_types::Owner::Object(*parent))
+            .filter(|o| o.owner == iota_sdk_ext::types::Owner::Object(*parent))
             .cloned())
     }
 
@@ -217,14 +217,14 @@ impl ChildObjectResolver for StoreBackend<'_> {
             .map_err(|e| IotaError::Storage(e.to_string()))?
             .filter(|obj| {
                 obj.version() == receive_object_at_version
-                    && obj.owner == iota_sdk_types::Owner::Address((*owner).into())
+                    && obj.owner == iota_sdk_ext::types::Owner::Address((*owner).into())
             }))
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{MoveStruct, ObjectId, Owner, TransactionDigest, Version};
+    use iota_sdk_ext::types::{MoveStruct, ObjectId, Owner, TransactionDigest, Version};
     use iota_types::{
         object::{MoveStructExt, Object},
         storage::ChildObjectResolver,

@@ -8,7 +8,7 @@ use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::CoinReadApiClient;
 use iota_json_rpc_types::{Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_types::balance::Supply;
 
 use crate::{
@@ -39,7 +39,7 @@ impl CoinReadApi {
     /// use std::str::FromStr;
     ///
     /// use iota_sdk::IotaClientBuilder;
-    /// use iota_sdk_types::Address;
+    /// use iota_sdk_ext::types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -76,7 +76,7 @@ impl CoinReadApi {
     /// use std::str::FromStr;
     ///
     /// use iota_sdk::IotaClientBuilder;
-    /// use iota_sdk_types::Address;
+    /// use iota_sdk_ext::types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -113,7 +113,7 @@ impl CoinReadApi {
     /// use std::str::FromStr;
     ///
     /// use iota_sdk::IotaClientBuilder;
-    /// use iota_sdk_types::Address;
+    /// use iota_sdk_ext::types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -177,7 +177,7 @@ impl CoinReadApi {
     /// use std::str::FromStr;
     ///
     /// use iota_sdk::IotaClientBuilder;
-    /// use iota_sdk_types::Address;
+    /// use iota_sdk_ext::types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -226,7 +226,7 @@ impl CoinReadApi {
     /// use std::str::FromStr;
     ///
     /// use iota_sdk::IotaClientBuilder;
-    /// use iota_sdk_types::Address;
+    /// use iota_sdk_ext::types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
@@ -253,7 +253,7 @@ impl CoinReadApi {
     /// use std::str::FromStr;
     ///
     /// use iota_sdk::IotaClientBuilder;
-    /// use iota_sdk_types::Address;
+    /// use iota_sdk_ext::types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {

@@ -10,11 +10,11 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use iota_grpc_types::{
+use iota_macros::sim_test;
+use iota_sdk_ext::grpc_types::{
     read_mask_fields::CheckpointResponseField,
     v1::{filter as grpc_filter, types as grpc_types},
 };
-use iota_macros::sim_test;
 use iota_types::transaction::CallArg;
 use tokio::time::timeout;
 

@@ -8,7 +8,7 @@ use anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents,
     Version, checkpoint::CheckpointContents,
 };
@@ -140,7 +140,7 @@ impl Key {
     /// ```rust
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk_types::TransactionDigest;
+    /// use iota_sdk_ext::types::TransactionDigest;
     /// use iota_storage::http_key_value_store::Key;
     ///
     /// let key = Key::new("tx", "7jb54RvJduLj9HdV9L41UJqZ5KWdzYY2rl1eL8AVl9o").unwrap();
@@ -218,7 +218,7 @@ impl Key {
     ///
     /// # Example
     /// ```rust
-    /// use iota_sdk_types::TransactionDigest;
+    /// use iota_sdk_ext::types::TransactionDigest;
     /// use iota_storage::http_key_value_store::{ItemType, Key};
     ///
     /// let item_type = Key::CheckpointContents(1).item_type();
@@ -249,7 +249,7 @@ impl Key {
     /// # Examples
     ///
     /// ```rust
-    /// use iota_sdk_types::TransactionDigest;
+    /// use iota_sdk_ext::types::TransactionDigest;
     /// use iota_storage::http_key_value_store::{
     ///     ItemType, Key, TaggedKey, encode_digest, encode_object_key, encoded_tagged_key,
     /// };

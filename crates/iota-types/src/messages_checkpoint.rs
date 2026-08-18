@@ -10,7 +10,7 @@ use std::{
 use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CheckpointContentsDigest, CheckpointContentsV1, CheckpointDigest, Digest, RandomnessRound,
     Transaction,
     checkpoint::{
@@ -120,8 +120,8 @@ mod checkpoint_summary_ext {
 }
 
 /// Node-only helpers for [`CheckpointSummary`], which is defined in
-/// `iota_sdk_types`. These live on an extension trait because inherent methods
-/// cannot be added to a type that is foreign to this crate.
+/// `iota_sdk_ext::types`. These live on an extension trait because inherent
+/// methods cannot be added to a type that is foreign to this crate.
 pub trait CheckpointSummaryExt: Sized + checkpoint_summary_ext::Sealed {
     fn new_with_protocol_config(
         protocol_config: &ProtocolConfig,
@@ -377,8 +377,9 @@ mod checkpoint_contents_ext {
 }
 
 /// Node-only helpers for [`CheckpointContents`], which is defined in
-/// `iota_sdk_types`. They bridge the node's `ExecutionDigests` representation
-/// to the SDK type's parallel [`CheckpointTransactionInfo`] form.
+/// `iota_sdk_ext::types`. They bridge the node's `ExecutionDigests`
+/// representation to the SDK type's parallel [`CheckpointTransactionInfo`]
+/// form.
 pub trait CheckpointContentsExt: Sized + checkpoint_contents_ext::Sealed {
     fn new_with_digests_and_signatures(
         contents: impl IntoIterator<Item = ExecutionDigests>,
@@ -728,7 +729,7 @@ pub struct CheckpointVersionSpecificDataV1 {
 #[cfg(test)]
 mod tests {
     use fastcrypto::traits::KeyPair;
-    use iota_sdk_types::{ConsensusCommitDigest, TransactionDigest, TransactionEffectsDigest};
+    use iota_sdk_ext::types::{ConsensusCommitDigest, TransactionDigest, TransactionEffectsDigest};
     use rand::{SeedableRng, prelude::StdRng};
 
     use super::*;

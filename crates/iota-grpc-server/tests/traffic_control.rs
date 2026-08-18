@@ -27,22 +27,24 @@ use common::{
 use futures::StreamExt;
 use iota_core::traffic_controller::TrafficController;
 use iota_grpc_server::GrpcServerHandle;
-use iota_grpc_types::{
-    field::FieldMaskUtil,
-    v1::{
-        ledger_service::{
-            GetObjectsRequest, ObjectRequest, ObjectRequests,
-            ledger_service_client::LedgerServiceClient,
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskUtil,
+        v1::{
+            ledger_service::{
+                GetObjectsRequest, ObjectRequest, ObjectRequests,
+                ledger_service_client::LedgerServiceClient,
+            },
+            state_service::{ListOwnedObjectsRequest, state_service_client::StateServiceClient},
+            transaction_execution_service::{
+                ExecuteTransactionItem, ExecuteTransactionsRequest,
+                transaction_execution_service_client::TransactionExecutionServiceClient,
+            },
+            types::{Address as ProtoAddress, ObjectId as ProtoObjectId, ObjectReference},
         },
-        state_service::{ListOwnedObjectsRequest, state_service_client::StateServiceClient},
-        transaction_execution_service::{
-            ExecuteTransactionItem, ExecuteTransactionsRequest,
-            transaction_execution_service_client::TransactionExecutionServiceClient,
-        },
-        types::{Address as ProtoAddress, ObjectId as ProtoObjectId, ObjectReference},
     },
+    types::{Transaction, TransactionDigest},
 };
-use iota_sdk_types::{Transaction, TransactionDigest};
 use iota_types::{
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,

@@ -4,7 +4,7 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{account_address::AccountAddress, gas_algebra::InternalGas};
 use move_vm_runtime::{native_charge_gas_early_exit, native_functions::NativeContext};

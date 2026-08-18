@@ -8,7 +8,7 @@ use either::Either;
 use fastcrypto::traits::{AggregateAuthenticator, ToFromBytes};
 use futures::pin_mut;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CertificateDigest, SenderSignedDataDigest, SenderSignedTransaction, crypto::Intent,
 };
 use iota_types::{

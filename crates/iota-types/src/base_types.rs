@@ -12,7 +12,7 @@ use std::{
 use anyhow::anyhow;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Identifier, MoveObjectType, ObjectDigest, ObjectId, ObjectReference, Owner,
     SignatureScheme, StructTag, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
     TypeTag, Version,

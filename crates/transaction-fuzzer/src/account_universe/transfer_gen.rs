@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ExecutionError, ExecutionStatus, GasPayment, ObjectReference, Transaction,
     TransactionKind,
 };

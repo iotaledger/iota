@@ -11,7 +11,7 @@ use std::{
 #[cfg(not(target_arch = "wasm32"))]
 use iota_metrics::monitored_scope;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ChangedObject, ExecutionStatus, IdOperation, ObjectData, ObjectId, ObjectIn,
     ObjectOut, ObjectReference, Owner, TransactionDigest, TransactionEffects, TransactionEvents,
     Version, gas::GasCostSummary,

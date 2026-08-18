@@ -32,16 +32,18 @@ use fastcrypto::{
     secp256r1::{Secp256r1PublicKey, Secp256r1PublicKeyAsBytes},
     serde_helpers::BytesRepresentation,
 };
-use iota_sdk_crypto::{
-    Verifier,
-    ed25519::Ed25519PrivateKey,
-    secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey,
-    simple::{SimpleKeypair, SimpleVerifier},
-};
-use iota_sdk_types::{
-    Address, SignatureScheme,
-    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
+use iota_sdk_ext::{
+    crypto::{
+        Verifier,
+        ed25519::Ed25519PrivateKey,
+        secp256k1::Secp256k1PrivateKey,
+        secp256r1::Secp256r1PrivateKey,
+        simple::{SimpleKeypair, SimpleVerifier},
+    },
+    types::{
+        Address, SignatureScheme,
+        crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
+    },
 };
 use rand::{
     SeedableRng,
@@ -146,7 +148,7 @@ pub fn verify_proof_of_possession(
 /// type; this conversion lets those keys be stored in configs as
 /// [`SimpleKeypair`].
 pub fn network_to_simple_keypair(kp: &NetworkKeyPair) -> SimpleKeypair {
-    use iota_sdk_crypto::ToFromBytes as _;
+    use iota_sdk_ext::crypto::ToFromBytes as _;
 
     SimpleKeypair::from(
         Ed25519PrivateKey::from_bytes(kp.as_bytes()).expect("valid ed25519 private key bytes"),
@@ -168,13 +170,13 @@ pub fn simple_to_network_keypair(kp: &SimpleKeypair) -> Result<NetworkKeyPair, E
 impl From<&SimpleKeypair> for PublicKey {
     fn from(kp: &SimpleKeypair) -> Self {
         match kp.public_key() {
-            iota_sdk_types::PublicKey::Ed25519(pk) => {
+            iota_sdk_ext::types::PublicKey::Ed25519(pk) => {
                 PublicKey::Ed25519(BytesRepresentation(pk.into_inner()))
             }
-            iota_sdk_types::PublicKey::Secp256k1(pk) => {
+            iota_sdk_ext::types::PublicKey::Secp256k1(pk) => {
                 PublicKey::Secp256k1(BytesRepresentation(pk.into_inner()))
             }
-            iota_sdk_types::PublicKey::Secp256r1(pk) => {
+            iota_sdk_ext::types::PublicKey::Secp256r1(pk) => {
                 PublicKey::Secp256r1(BytesRepresentation(pk.into_inner()))
             }
             _ => unreachable!("SimpleKeypair keys use the three simple signature schemes"),
@@ -625,7 +627,7 @@ pub trait IotaSignature: Sized {
     /// Signs a message that is already in hashed form.
     fn new_hashed(
         hashed_msg: &[u8],
-        secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+        secret: &impl iota_sdk_ext::crypto::Signer<SimpleSignature>,
     ) -> SimpleSignature {
         secret.sign(hashed_msg)
     }
@@ -634,7 +636,7 @@ pub trait IotaSignature: Sized {
     #[instrument(level = "trace", skip_all)]
     fn new_secure<T>(
         value: &IntentMessage<T>,
-        secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+        secret: &impl iota_sdk_ext::crypto::Signer<SimpleSignature>,
     ) -> SimpleSignature
     where
         T: Serialize,
@@ -1101,15 +1103,15 @@ mod bcs_signable {
 
     pub trait BcsSignable: serde::Serialize + serde::de::DeserializeOwned {}
     impl BcsSignable for crate::committee::Committee {}
-    impl BcsSignable for iota_sdk_types::checkpoint::CheckpointSummary {}
-    impl BcsSignable for iota_sdk_types::checkpoint::CheckpointContents {}
+    impl BcsSignable for iota_sdk_ext::types::checkpoint::CheckpointSummary {}
+    impl BcsSignable for iota_sdk_ext::types::checkpoint::CheckpointContents {}
     #[cfg(not(target_arch = "wasm32"))]
     impl BcsSignable for crate::messages_consensus::VersionedMisbehaviorReport {}
 
-    impl BcsSignable for iota_sdk_types::TransactionEffects {}
-    impl BcsSignable for iota_sdk_types::TransactionEvents {}
-    impl BcsSignable for iota_sdk_types::Transaction {}
-    impl BcsSignable for iota_sdk_types::SenderSignedTransaction {}
+    impl BcsSignable for iota_sdk_ext::types::TransactionEffects {}
+    impl BcsSignable for iota_sdk_ext::types::TransactionEvents {}
+    impl BcsSignable for iota_sdk_ext::types::Transaction {}
+    impl BcsSignable for iota_sdk_ext::types::SenderSignedTransaction {}
     impl BcsSignable for crate::object::ObjectInner {}
 
     impl BcsSignable for crate::global_state_hash::GlobalStateHash {}
@@ -1273,7 +1275,7 @@ pub mod bcs_signable_test {
     where
         T: super::bcs_signable::BcsSignable,
     {
-        use iota_sdk_types::crypto::{Intent, IntentScope};
+        use iota_sdk_ext::types::crypto::{Intent, IntentScope};
 
         let mut obligation = VerificationObligation::default();
         // Add the obligation of the authority signature verifications.

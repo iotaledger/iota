@@ -18,7 +18,7 @@ use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, TransactionExpiration,
     crypto::{Intent, IntentMessage, IntentScope},
     gas::GasCostSummary,

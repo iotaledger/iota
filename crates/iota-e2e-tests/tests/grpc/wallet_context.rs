@@ -1,8 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::read_mask_fields::ServiceInfoReadMask;
 use iota_macros::sim_test;
+use iota_sdk_ext::grpc_types::read_mask_fields::ServiceInfoReadMask;
 use test_cluster::TestClusterBuilder;
 
 /// `WalletContext::get_grpc_client()` returns a working client for a

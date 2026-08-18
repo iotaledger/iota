@@ -41,7 +41,7 @@ use std::{
 
 use derive_more::Display;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Identifier, ObjectId, PackageUpgradeError, StructTag, TypeTag, Version,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };

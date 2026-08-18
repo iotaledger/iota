@@ -4,7 +4,7 @@
 
 use std::{cmp::Ordering, collections::HashMap};
 
-use iota_sdk_types::{ObjectId, SharedObjectReference};
+use iota_sdk_ext::types::{ObjectId, SharedObjectReference};
 use iota_types::{
     base_types::CommitRound,
     executable_transaction::VerifiedExecutableTransaction,
@@ -763,7 +763,7 @@ mod execution_slot_tests {
 
 #[cfg(test)]
 pub mod shared_object_test_utils {
-    use iota_sdk_types::Version;
+    use iota_sdk_ext::types::Version;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         base_types::random_object_ref,
@@ -860,7 +860,7 @@ pub mod shared_object_test_utils {
 #[cfg(test)]
 mod object_cost_tests {
     use iota_protocol_config::PerObjectCongestionControlMode;
-    use iota_sdk_types::TransactionDigest;
+    use iota_sdk_ext::types::TransactionDigest;
     use rstest::rstest;
 
     use super::{shared_object_test_utils::*, *};

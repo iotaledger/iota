@@ -1,15 +1,17 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{
-    field::{FieldMaskTree, FieldMaskUtil, MessageFields},
-    google::rpc::bad_request::FieldViolation,
-    v1::{
-        error_reason::ErrorReason,
-        types::{Address as GrpcAddress, ObjectId as ProtoObjectId},
+use iota_sdk_ext::{
+    grpc_types::{
+        field::{FieldMaskTree, FieldMaskUtil, MessageFields},
+        google::rpc::bad_request::FieldViolation,
+        v1::{
+            error_reason::ErrorReason,
+            types::{Address as GrpcAddress, ObjectId as ProtoObjectId},
+        },
     },
+    types::{Address, ObjectId},
 };
-use iota_sdk_types::{Address, ObjectId};
 use prost_types::FieldMask;
 
 use crate::error::RpcError;

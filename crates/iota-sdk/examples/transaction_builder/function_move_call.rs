@@ -16,7 +16,7 @@ use iota_sdk::{
         transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{Argument, Command, Identifier, ObjectId, Transaction, crypto::Intent};
+use iota_sdk_ext::types::{Argument, Command, Identifier, ObjectId, Transaction, crypto::Intent};
 use utils::setup_for_write;
 
 // This example shows how to use programmable transactions to chain multiple

@@ -16,8 +16,7 @@ use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_fro
 use iota_metrics::MetricGroups;
 use iota_multiaddr::Multiaddr;
 use iota_names::config::IotaNamesConfig;
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::Address;
+use iota_sdk_ext::{crypto::simple::SimpleKeypair, types::Address};
 use iota_types::{
     committee::EpochId,
     crypto::{
@@ -1870,7 +1869,7 @@ mod bech32_formatted_keypair {
     use std::ops::Deref;
 
     use fastcrypto::encoding::{Base64, Encoding};
-    use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
+    use iota_sdk_ext::crypto::{ToFromBech32, simple::SimpleKeypair};
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S, T>(kp: &T, serializer: S) -> Result<S::Ok, S::Error>

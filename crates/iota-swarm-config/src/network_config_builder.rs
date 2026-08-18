@@ -17,7 +17,7 @@ use iota_config::{
     transaction_deny_config::TransactionDenyConfig,
 };
 use iota_protocol_config::Chain;
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 use iota_types::{
     base_types::AuthorityName,
     committee::{Committee, ProtocolVersion},

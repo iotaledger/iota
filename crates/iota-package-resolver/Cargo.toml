@@ -14,7 +14,7 @@ lru.workspace = true
 thiserror.workspace = true
 
 # internal dependencies
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 move-binary-format.workspace = true
 # TODO: `move-command-line-common` is used for `ErrorBitset`. We should

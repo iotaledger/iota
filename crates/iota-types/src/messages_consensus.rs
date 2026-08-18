@@ -13,7 +13,7 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Digest, MisbehaviorReportDigest, ObjectReference, SenderSignedTransaction, TransactionDigest,
     crypto::IntentScope,
 };
@@ -909,7 +909,7 @@ mod tests {
     fn deny_rule_proposal_consensus_kind_wire_format_unchanged() {
         use std::collections::BTreeSet;
 
-        use iota_sdk_types::{Address, ObjectId};
+        use iota_sdk_ext::types::{Address, ObjectId};
 
         use crate::deny_rule_governance::DenyRuleSet;
 
@@ -974,7 +974,7 @@ mod tests {
     /// The proposal round-trips through BCS unchanged.
     #[test]
     fn deny_rule_proposal_bcs_round_trip() {
-        use iota_sdk_types::{Address, ObjectId};
+        use iota_sdk_ext::types::{Address, ObjectId};
 
         use crate::deny_rule_governance::DenyRuleSet;
 

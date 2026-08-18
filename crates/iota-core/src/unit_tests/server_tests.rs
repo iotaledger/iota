@@ -9,7 +9,7 @@ use iota_network::api::{
 };
 use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig};
 // Additional imports for P-COOL tests
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, Command, Identifier, ObjectId, ProgrammableTransaction, SplitCoins,
     Transaction, TransactionDigest, TransactionEffectsDigest,
     crypto::{Intent, IntentMessage, IntentScope, IntentScope::AuthorityCapabilities},
@@ -295,7 +295,7 @@ async fn build_shared_object_transaction(
     sender: Address,
     sender_key: &AccountKeyPair,
     gas_object_id: ObjectId,
-    pkg_ref: iota_sdk_types::ObjectReference,
+    pkg_ref: iota_sdk_ext::types::ObjectReference,
 ) -> TransactionEnvelope {
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let gas = state.get_object(&gas_object_id).unwrap();

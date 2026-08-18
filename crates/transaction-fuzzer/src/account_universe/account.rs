@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     object::Object,

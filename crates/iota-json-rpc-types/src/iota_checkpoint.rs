@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CheckpointDigest, Digest, TransactionDigest,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
     gas::GasCostSummary,

@@ -14,13 +14,15 @@ use std::{
 use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
-use iota_sdk_crypto::{
-    ToFromBech32, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
-    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
-};
-use iota_sdk_types::{
-    Address, SignatureScheme,
-    crypto::{Intent, IntentMessage, SimpleSignature},
+use iota_sdk_ext::{
+    crypto::{
+        ToFromBech32, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+        secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
+    },
+    types::{
+        Address, SignatureScheme,
+        crypto::{Intent, IntentMessage, SimpleSignature},
+    },
 };
 use iota_types::crypto::{
     EncodeDecodeBase64, IotaSignature, PublicKey, enum_dispatch, get_key_pair_from_rng,

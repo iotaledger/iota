@@ -12,7 +12,7 @@ use async_graphql::{
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{models::checkpoints::StoredCheckpoint, schema::checkpoints};
-use iota_sdk_types::{CheckpointDigest, CheckpointSummary};
+use iota_sdk_ext::types::{CheckpointDigest, CheckpointSummary};
 use serde::{Deserialize, Serialize};
 
 use crate::{

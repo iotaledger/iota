@@ -1,9 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::read_mask_fields::ObjectReadMask;
 use iota_macros::sim_test;
-use iota_sdk_types::{ObjectId, Version};
+use iota_sdk_ext::{
+    grpc_types::read_mask_fields::ObjectReadMask,
+    types::{ObjectId, Version},
+};
 
 use super::{super::utils::setup_grpc_test, common::assert_server_not_found};
 
@@ -72,7 +74,7 @@ async fn get_objects_scenarios() {
         .await
         .expect_err("Empty input should return an error");
     assert!(
-        matches!(err, iota_grpc_client::Error::EmptyRequest),
+        matches!(err, iota_sdk_ext::grpc_client::Error::EmptyRequest),
         "Expected EmptyRequest error, got: {err}"
     );
 

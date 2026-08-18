@@ -4,9 +4,11 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use iota_grpc_client::read_mask_fields::CheckpointResponseField;
-use iota_grpc_types::read_mask_fields::CheckpointResponseReadMask;
 use iota_macros::sim_test;
+use iota_sdk_ext::{
+    grpc_client::read_mask_fields::CheckpointResponseField,
+    grpc_types::read_mask_fields::CheckpointResponseReadMask,
+};
 use tokio::time::timeout;
 
 use super::{super::utils::setup_grpc_test, common::assert_grpc_not_found};

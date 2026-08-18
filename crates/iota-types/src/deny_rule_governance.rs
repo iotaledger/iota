@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 
 /// Read access to a set of transaction deny rules.
@@ -115,7 +115,7 @@ impl DenyRuleConfig for DenyRuleSet {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, ObjectId};
+    use iota_sdk_ext::types::{Address, ObjectId};
 
     use crate::deny_rule_governance::{DenyRuleConfig, DenyRuleSet};
 

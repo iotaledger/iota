@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_crypto::{Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey};
-use iota_sdk_types::{
-    Address,
-    crypto::{
-        Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
-        MultisigMemberSignature, PersonalMessage, Secp256k1Signature,
+use iota_sdk_ext::{
+    crypto::{Signer, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey},
+    types::{
+        Address,
+        crypto::{
+            Intent, IntentMessage, MultisigAggregatedSignature, MultisigCommittee, MultisigMember,
+            MultisigMemberSignature, PersonalMessage, Secp256k1Signature,
+        },
     },
 };
 

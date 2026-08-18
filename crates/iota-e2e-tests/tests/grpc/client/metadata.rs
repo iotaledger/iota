@@ -1,9 +1,11 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_client::{HeadersInterceptor, ResponseExt};
-use iota_grpc_types::read_mask_fields::ServiceInfoReadMask;
 use iota_macros::sim_test;
+use iota_sdk_ext::{
+    grpc_client::{HeadersInterceptor, ResponseExt},
+    grpc_types::read_mask_fields::ServiceInfoReadMask,
+};
 
 use super::super::utils::setup_grpc_test;
 
@@ -68,7 +70,7 @@ async fn metadata_envelope_headers() {
 /// server still serves the request.  The fixture's gRPC server does not
 /// enforce auth, so this tests only the interceptor wiring end-to-end (request
 /// succeeds with the auth header attached).  Header *content* is verified at
-/// the unit level in `iota_grpc_client::interceptors::tests`.
+/// the unit level in `iota_sdk_ext::grpc_client::interceptors::tests`.
 #[sim_test]
 async fn metadata_envelope_with_auth() {
     let (_test_cluster, client) = setup_grpc_test(Some(1), None).await;

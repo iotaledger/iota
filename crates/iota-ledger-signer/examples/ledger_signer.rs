@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use clap::{Arg, Command};
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::Transaction;
+use iota_sdk_ext::types::Transaction;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {

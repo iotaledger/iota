@@ -20,7 +20,7 @@ use iota_sdk::{
         quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
     },
 };
-use iota_sdk_types::{SignatureScheme, crypto::Intent};
+use iota_sdk_ext::types::{SignatureScheme, crypto::Intent};
 use utils::request_tokens_from_faucet;
 
 const MNEMONIC_WITH_TIMELOCKED_IOTA: &str = "mesh dose off wage gas tent key light help girl faint catch sock trouble guard moon talk pill enemy hawk gain mix sad mimic";

@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use iota_config::genesis;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents,
     Version, checkpoint::CheckpointContents,
 };

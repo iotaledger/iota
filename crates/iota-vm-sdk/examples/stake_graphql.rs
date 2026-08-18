@@ -13,9 +13,9 @@
 //!   cargo run -p iota-vm-sdk --features graphql --example stake_graphql
 
 use anyhow::{Context, Result};
-use iota_sdk_graphql_client::Client;
-use iota_sdk_transaction_builder::TransactionBuilder;
-use iota_sdk_types::Address;
+use iota_sdk_ext::{
+    graphql_client::Client, transaction_builder::TransactionBuilder, types::Address,
+};
 use iota_vm_sdk::{ExecuteOptions, LocalVm, Transaction, graphql::GraphQLStore};
 
 #[tokio::main]

@@ -9,7 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ExecutionStatus, ObjectDigest, ObjectId, Owner, TransactionEffects, TypeTag, Version,
 };
 use iota_types::{

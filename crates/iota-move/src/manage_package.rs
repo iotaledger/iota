@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::bail;
 use clap::Parser;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use move_cli::base;
 use move_package::{
     BuildConfig,

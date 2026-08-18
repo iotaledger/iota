@@ -1,18 +1,20 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_grpc_types::{
-    headers,
-    v1::{
-        bcs::BcsData,
-        transaction::Transaction as ProtoTransaction,
-        transaction_execution_service::{
-            ExecuteTransactionsRequest, SimulateTransactionItem, SimulateTransactionsRequest,
+use iota_macros::sim_test;
+use iota_sdk_ext::{
+    grpc_types::{
+        headers,
+        v1::{
+            bcs::BcsData,
+            transaction::Transaction as ProtoTransaction,
+            transaction_execution_service::{
+                ExecuteTransactionsRequest, SimulateTransactionItem, SimulateTransactionsRequest,
+            },
         },
     },
+    types::{Address, Transaction},
 };
-use iota_macros::sim_test;
-use iota_sdk_types::{Address, Transaction};
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use iota_types::transaction::TransactionAPI;
 

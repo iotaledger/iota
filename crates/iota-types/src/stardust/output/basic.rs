@@ -5,7 +5,7 @@
 //! package.
 
 use anyhow::Result;
-use iota_sdk_types::{Address, Identifier, ObjectData, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, Identifier, ObjectData, StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 

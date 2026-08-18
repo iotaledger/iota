@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ObjectId, SenderSignedTransaction, SharedObjectReference, TransactionDigest,
     TransactionEffects, Version, VersionAssignment,
 };
@@ -275,7 +275,7 @@ fn get_or_init_versions<'a>(
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         Address, ObjectDigest, ObjectReference, RandomnessRound, SenderSignedTransaction,
     };
     use iota_test_transaction_builder::TestTransactionBuilder;

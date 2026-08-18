@@ -13,9 +13,7 @@
 //!   cargo run -p iota-vm-sdk --features grpc --example stake_grpc
 
 use anyhow::{Context, Result};
-use iota_grpc_client::Client;
-use iota_sdk_transaction_builder::TransactionBuilder;
-use iota_sdk_types::Address;
+use iota_sdk_ext::{grpc_client::Client, transaction_builder::TransactionBuilder, types::Address};
 use iota_vm_sdk::{ExecuteOptions, LocalVm, Transaction, grpc::GrpcStore};
 
 #[tokio::main]

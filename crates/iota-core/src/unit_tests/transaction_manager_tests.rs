@@ -4,7 +4,7 @@
 
 use std::{time::Duration, vec};
 
-use iota_sdk_types::{ObjectId, Owner, SharedObjectReference, Version, VersionAssignment};
+use iota_sdk_ext::types::{ObjectId, Owner, SharedObjectReference, Version, VersionAssignment};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_key,

@@ -106,7 +106,7 @@ pub use iota_json_rpc_types as rpc_types;
 use iota_json_rpc_types::{
     IotaObjectDataFilter, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery, Page,
 };
-use iota_sdk_types::{Address, ObjectId, StructTag};
+use iota_sdk_ext::types::{Address, ObjectId, StructTag};
 use iota_transaction_builder::{DataReader, TransactionBuilder};
 pub use iota_types as types;
 use jsonrpsee::{
@@ -497,7 +497,7 @@ impl IotaClientBuilder {
 /// use std::str::FromStr;
 ///
 /// use iota_sdk::IotaClientBuilder;
-/// use iota_sdk_types::Address;
+/// use iota_sdk_ext::types::Address;
 ///
 /// #[tokio::main]
 /// async fn main() -> Result<(), anyhow::Error> {

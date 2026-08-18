@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use futures::FutureExt;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects,
     TransactionEvents,
     checkpoint::{CheckpointContents, CheckpointSummary},
@@ -383,7 +383,7 @@ mod simtests {
         routing::get,
     };
     use iota_macros::sim_test;
-    use iota_sdk_types::{Address, Event, Identifier, StructTag};
+    use iota_sdk_ext::types::{Address, Event, Identifier, StructTag};
     use iota_simulator::configs::constant_latency_ms;
     use iota_storage::http_key_value_store::*;
     use rustls::crypto::{CryptoProvider, ring};

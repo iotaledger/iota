@@ -8,7 +8,7 @@
 //! with zero network access, returns per-command results, and leaves the store
 //! untouched (`committed == false`).
 
-use iota_sdk_types::Transaction;
+use iota_sdk_ext::types::Transaction;
 use iota_types::transaction::TransactionAPI;
 use iota_vm_sdk::{
     Chain, ChainContext, ExecuteOptions, ExecutionMode, InMemoryStore, LocalVm, ObjectId,

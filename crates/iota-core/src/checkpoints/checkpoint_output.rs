@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use iota_sdk_types::checkpoint::{CheckpointContents, CheckpointSummary};
+use iota_sdk_ext::types::checkpoint::{CheckpointContents, CheckpointSummary};
 use iota_types::{
     base_types::AuthorityName,
     error::IotaResult,

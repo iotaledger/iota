@@ -10,7 +10,7 @@ use std::{
 };
 
 use iota_framework::{SystemPackage, SystemPackageMetadata};
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 use serde::{Deserialize, Serialize};
 
 pub type SnapshotManifest = BTreeMap<u64, Snapshot>;

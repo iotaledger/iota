@@ -31,11 +31,9 @@ url.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
-iota-grpc-client.workspace = true
-iota-grpc-types.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["grpc", "types"] }
 iota-storage.workspace = true
 iota-types.workspace = true
 prometheus-filtered.workspace = true

@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
+use iota_sdk_ext::types::{Address, ObjectId, StructTag, TypeTag};
 use iota_types::supported_protocol_versions::Chain;
 use serde::{Deserialize, Serialize};
 

@@ -13,7 +13,7 @@ use anyhow::anyhow;
 use bincode::Options;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CheckpointDigest, ObjectId, TransactionEffects, Version, checkpoint::CheckpointContents,
 };
 use iota_types::{
@@ -1071,7 +1071,7 @@ impl ObjectCompactionMetrics {
 mod tests {
     use std::{collections::HashSet, path::Path, sync::Arc, time::Duration};
 
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         ObjectDigest, ObjectId, ObjectReference, TransactionDigest, TransactionEffects, Version,
     };
     use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
@@ -1334,7 +1334,7 @@ mod tests {
     #[tokio::test]
     async fn compaction_filter_handles_legacy_v1_row() {
         use bincode::Options;
-        use iota_sdk_types::Owner;
+        use iota_sdk_ext::types::Owner;
         use typed_store::rocksdb::compaction_filter::Decision;
 
         use super::ObjectsCompactionFilter;

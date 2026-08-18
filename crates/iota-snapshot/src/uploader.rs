@@ -10,7 +10,7 @@ use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
     authority::authority_store_tables::AuthorityPerpetualTables, checkpoints::CheckpointStore,
 };
-use iota_sdk_types::CheckpointCommitment;
+use iota_sdk_ext::types::CheckpointCommitment;
 use iota_storage::{
     FileCompression,
     object_store::util::{

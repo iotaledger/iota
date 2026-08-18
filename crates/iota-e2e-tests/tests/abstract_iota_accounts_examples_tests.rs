@@ -35,7 +35,7 @@ use fastcrypto::{
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
     ProgrammableTransaction, SharedObjectReference, SignatureScheme, Transaction,
     TransactionEffects, TypeTag, UserSignature, crypto::Intent,

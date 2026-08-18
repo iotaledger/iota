@@ -8,7 +8,7 @@ use std::{
 };
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_sdk_ext::types::{Address, ObjectId, TransactionDigest};
 use iota_types::{
     base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
     deny_rule_governance::DenyRuleSet, messages_consensus::TransactionDenyRuleProposal,

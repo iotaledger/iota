@@ -43,7 +43,7 @@ use iota_data_ingestion_core::history::reader::{
 use iota_multiaddr::Multiaddr;
 use iota_network::default_iota_network_config;
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CheckpointContentsDigest, ObjectDigest, ObjectId, Owner, TransactionDigest, Version,
     checkpoint::CheckpointCommitment,
 };

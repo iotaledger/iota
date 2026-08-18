@@ -4,7 +4,7 @@
 
 use std::fmt;
 
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId};
 use serde::Deserialize;
 
 #[derive(Deserialize)]

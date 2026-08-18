@@ -49,7 +49,7 @@ impl ObjectDerivedData {
         if let Some(display) = StoredDisplay::try_from_object(object) {
             self.displays.insert(display.object_type.clone(), display);
         }
-        if let iota_sdk_types::ObjectData::Package(package) = object.data() {
+        if let iota_sdk_ext::types::ObjectData::Package(package) = object.data() {
             self.packages
                 .push(IndexedPackage::new(package.clone(), checkpoint_sequence_number).into());
         }

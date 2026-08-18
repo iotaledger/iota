@@ -8,22 +8,25 @@ mod transaction;
 use std::{sync::Arc, time::Duration};
 
 use futures::stream::{FuturesUnordered, StreamExt as _};
-use iota_grpc_types::{
-    field::{FieldMaskTree, FieldMaskUtil, MessageFields},
-    google::rpc::bad_request::FieldViolation,
-    proto::timestamp_ms_to_proto,
-    read_masks::EXECUTE_TRANSACTIONS_READ_MASK,
-    v1::{
-        error_reason::ErrorReason,
-        transaction::{ExecutedTransaction, Transaction as ProtoTransaction},
-        transaction_execution_service::{
-            self as grpc_tx_service, ExecuteTransactionItem, ExecuteTransactionResult,
-            ExecuteTransactionsRequest, ExecuteTransactionsResponse, SimulateTransactionsRequest,
-            SimulateTransactionsResponse, execute_transaction_result, simulate_transaction_result,
+use iota_sdk_ext::{
+    grpc_types::{
+        field::{FieldMaskTree, FieldMaskUtil, MessageFields},
+        google::rpc::bad_request::FieldViolation,
+        proto::timestamp_ms_to_proto,
+        read_masks::EXECUTE_TRANSACTIONS_READ_MASK,
+        v1::{
+            error_reason::ErrorReason,
+            transaction::{ExecutedTransaction, Transaction as ProtoTransaction},
+            transaction_execution_service::{
+                self as grpc_tx_service, ExecuteTransactionItem, ExecuteTransactionResult,
+                ExecuteTransactionsRequest, ExecuteTransactionsResponse,
+                SimulateTransactionsRequest, SimulateTransactionsResponse,
+                execute_transaction_result, simulate_transaction_result,
+            },
         },
     },
+    types::TransactionDigest,
 };
-use iota_sdk_types::TransactionDigest;
 use iota_types::{
     effects::TransactionEffectsAPI,
     quorum_driver_types::{ExecuteTransactionRequestV1, ExecuteTransactionResponseV1},
@@ -163,7 +166,7 @@ fn parse_read_mask<T: MessageFields>(
 /// 3. Validate the digest if provided
 fn parse_transaction_proto(
     transaction: Option<&ProtoTransaction>,
-) -> Result<iota_sdk_types::transaction::Transaction, RpcError> {
+) -> Result<iota_sdk_ext::types::transaction::Transaction, RpcError> {
     let transaction_proto = transaction
         .ok_or_else(|| FieldViolation::new("transaction").with_reason(ErrorReason::FieldMissing))?;
 
@@ -173,7 +176,7 @@ fn parse_transaction_proto(
             .with_reason(ErrorReason::FieldMissing)
     })?;
 
-    let sdk_transaction: iota_sdk_types::transaction::Transaction =
+    let sdk_transaction: iota_sdk_ext::types::transaction::Transaction =
         bcs::from_bytes(&transaction_bcs.data).map_err(|e| {
             FieldViolation::new("transaction.bcs")
                 .with_description(format!("invalid transaction BCS: {e}"))
@@ -190,7 +193,7 @@ fn parse_transaction_proto(
             })?;
 
         if computed_digest.inner() != &provided_digest_bytes {
-            let provided_digest_typed = iota_sdk_types::Digest::new(provided_digest_bytes);
+            let provided_digest_typed = iota_sdk_ext::types::Digest::new(provided_digest_bytes);
             return Err(FieldViolation::new("transaction.digest")
                 .with_description(format!(
                     "provided digest does not match computed digest: provided={provided_digest_typed}, computed={computed_digest}"
@@ -223,7 +226,7 @@ fn parse_transaction_proto(
 /// ## Read Mask
 ///
 /// The read mask paths apply directly to
-/// [`ExecutedTransaction`](iota_grpc_types::v1::transaction::ExecutedTransaction)
+/// [`ExecutedTransaction`](iota_sdk_ext::grpc_types::v1::transaction::ExecutedTransaction)
 /// fields (e.g. `"effects"`, not `"executed_transaction.effects"`).
 ///
 /// ## Available Read Mask Fields
@@ -575,8 +578,8 @@ async fn finalize_item(
 /// `execute_single_transaction` so that `rebuild_from_cache` does not need to
 /// re-parse the proto request.
 struct RebuildCtx {
-    transaction: iota_sdk_types::Transaction,
-    signatures: Vec<iota_sdk_types::UserSignature>,
+    transaction: iota_sdk_ext::types::Transaction,
+    signatures: Vec<iota_sdk_ext::types::UserSignature>,
 }
 
 /// Rebuild an `ExecutedTransaction` from the local cache for a tx that has
@@ -662,7 +665,7 @@ async fn execute_single_transaction(
                     .with_reason(ErrorReason::FieldMissing)
             })?;
 
-            bcs::from_bytes::<iota_sdk_types::UserSignature>(&bcs_data.data).map_err(|e| {
+            bcs::from_bytes::<iota_sdk_ext::types::UserSignature>(&bcs_data.data).map_err(|e| {
                 FieldViolation::new_at("signatures", i)
                     .with_description(format!("invalid signature: {e}"))
                     .with_reason(ErrorReason::FieldInvalid)
@@ -671,7 +674,7 @@ async fn execute_single_transaction(
         .collect::<std::result::Result<Vec<_>, _>>()?;
 
     // Create signed transaction
-    let sdk_signed_transaction = iota_sdk_types::SignedTransaction {
+    let sdk_signed_transaction = iota_sdk_ext::types::SignedTransaction {
         transaction: sdk_transaction,
         signatures: sdk_signatures,
     };
@@ -713,7 +716,7 @@ async fn execute_single_transaction(
     let digest = *effects.effects.transaction_digest();
 
     // Build the merged response
-    let sdk_transaction: iota_sdk_types::Transaction = transaction.transaction().clone();
+    let sdk_transaction: iota_sdk_ext::types::Transaction = transaction.transaction().clone();
     let signatures = transaction.signatures().to_owned();
 
     // Keep a pre-parsed copy for the rebuild-from-cache path so it doesn't

@@ -4,7 +4,8 @@
 
 use std::sync::Arc;
 
-use iota_grpc_types::{
+use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
+use iota_sdk_ext::grpc_types::{
     field::FieldMaskTree,
     proto::timestamp_ms_to_proto,
     read_masks::GET_EPOCH_READ_MASK,
@@ -14,7 +15,6 @@ use iota_grpc_types::{
         ledger_service::{GetEpochRequest, GetEpochResponse},
     },
 };
-use iota_protocol_config::{Chain, ProtocolConfig as IotaProtocolConfig};
 use iota_types::committee::EpochId;
 use tonic::Status;
 
@@ -131,7 +131,7 @@ impl Merge<&EpochReadSource> for Epoch {
                 .get_committee(source.epoch)
                 .map_err(|e| RpcError::from(e).with_context("failed to get committee"))?
                 .ok_or_else(|| CommitteeNotFoundError::new(source.epoch))?;
-            let sdk_committee: iota_sdk_types::ValidatorCommittee =
+            let sdk_committee: iota_sdk_ext::types::ValidatorCommittee =
                 committee.as_ref().clone().into();
             self.committee = Some(sdk_committee.into());
         }

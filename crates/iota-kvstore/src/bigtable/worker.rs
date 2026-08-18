@@ -9,7 +9,7 @@ use std::{
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
-use iota_sdk_types::{Address, Owner, TransactionDigest};
+use iota_sdk_ext::types::{Address, Owner, TransactionDigest};
 use iota_types::{
     effects::TransactionEffectsExt,
     full_checkpoint_content::CheckpointData,
@@ -60,10 +60,10 @@ pub enum Table {
     /// [`Object`](iota_types::object::Object) for every object.
     Objects,
     /// Stores a mapping of
-    /// [`TransactionDigest`](iota_sdk_types::TransactionDigest) to
+    /// [`TransactionDigest`](iota_sdk_ext::types::TransactionDigest) to
     /// [`TransactionEnvelope`](iota_types::transaction::TransactionEnvelope),
-    /// [`TransactionEffects`](iota_sdk_types::TransactionEffects),
-    /// [`TransactionEvents`](iota_sdk_types::TransactionEvents) and
+    /// [`TransactionEffects`](iota_sdk_ext::types::TransactionEffects),
+    /// [`TransactionEvents`](iota_sdk_ext::types::TransactionEvents) and
     /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber) for every transaction.
     Transactions,
     /// Stores a mapping of ( [`Address`], [`TransactionSequenceNumber`] ) to
@@ -74,11 +74,11 @@ pub enum Table {
     TransactionsByAddress,
     /// Stores a mapping of
     /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber)
-    /// to [`CheckpointContents`](iota_sdk_types::checkpoint::CheckpointContents) and [`CertifiedCheckpointSummary`](iota_types::messages_checkpoint::CertifiedCheckpointSummary) for
+    /// to [`CheckpointContents`](iota_sdk_ext::types::checkpoint::CheckpointContents) and [`CertifiedCheckpointSummary`](iota_types::messages_checkpoint::CertifiedCheckpointSummary) for
     /// every checkpoint.
     Checkpoints,
     /// Stores a mapping of
-    /// [`CheckpointDigest`](iota_sdk_types::CheckpointDigest) to
+    /// [`CheckpointDigest`](iota_sdk_ext::types::CheckpointDigest) to
     /// [`CheckpointSequenceNumber`](iota_types::messages_checkpoint::CheckpointSequenceNumber)
     /// for every checkpoint.
     CheckpointsByDigest,

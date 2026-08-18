@@ -8,7 +8,7 @@ use fastcrypto::{
     hash::HashFunction,
     rsa::{Base64UrlUnpadded, Encoding as _},
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ObjectId, SignatureScheme, Transaction, UserSignature,
     crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
 };

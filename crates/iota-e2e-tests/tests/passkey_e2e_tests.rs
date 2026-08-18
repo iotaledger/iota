@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 
 use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, SignatureScheme, Transaction, UserSignature,
     crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
 };

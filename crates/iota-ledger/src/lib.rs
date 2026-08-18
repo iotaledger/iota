@@ -4,7 +4,7 @@
 use std::{thread, time, vec};
 
 use hex::ToHex;
-use iota_sdk_types::SignatureScheme;
+use iota_sdk_ext::types::SignatureScheme;
 use tracing::debug;
 mod transport;
 use serde::Serialize;
@@ -12,7 +12,7 @@ use transport::{APDUAnswer, APDUCommand, LedgerTransport};
 
 pub use crate::api::errors::LedgerError;
 mod api;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };

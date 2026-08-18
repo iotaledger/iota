@@ -8,7 +8,7 @@ use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
-use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEffects};
+use iota_sdk_ext::types::{Address, ObjectId, TransactionDigest, TransactionEffects};
 use iota_types::{
     deny_rule_governance::DenyRuleConfig,
     effects::TransactionEffectsAPI,
@@ -782,7 +782,7 @@ impl ValidatorV2 for ValidatorService {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, ObjectId};
+    use iota_sdk_ext::types::{Address, ObjectId};
     use iota_types::deny_rule_governance::{DenyRuleConfig, DenyRuleSet};
 
     use super::DenyRuleUnion;

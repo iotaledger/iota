@@ -17,7 +17,7 @@ use iota_package_management::{
     PublishedAtError, resolve_published_id,
     system_package_versions::{SYSTEM_GIT_REPO, SystemPackagesVersion, latest_system_packages},
 };
-use iota_sdk_types::{Address, ObjectId, Version, move_package::MovePackage};
+use iota_sdk_ext::types::{Address, ObjectId, Version, move_package::MovePackage};
 // `ProtocolBuildConfig` lives in `iota-types` (both this crate and the verifier
 // depend on it); re-export it here so callers that build a `BuildConfig` can
 // reach it without a separate `iota-types` dependency.

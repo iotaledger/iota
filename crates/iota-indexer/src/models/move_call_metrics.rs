@@ -10,7 +10,7 @@ use diesel::{
     sql_types::{BigInt, Binary, Text},
 };
 use iota_json_rpc_types::MoveFunctionName;
-use iota_sdk_types::ObjectId;
+use iota_sdk_ext::types::ObjectId;
 
 use crate::{
     errors::IndexerError,

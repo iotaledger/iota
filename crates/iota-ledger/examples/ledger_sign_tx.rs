@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use clap::{Arg, Command};
-use iota_sdk_types::{Transaction, crypto::Intent};
+use iota_sdk_ext::types::{Transaction, crypto::Intent};
 use iota_types::object::{Object, ObjectInner};
 
 pub fn main() -> Result<()> {

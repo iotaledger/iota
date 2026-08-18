@@ -15,8 +15,7 @@ use iota_config::{
 use iota_genesis_builder::validator_info::{GenesisValidatorInfo, ValidatorInfo};
 use iota_multiaddr::Multiaddr;
 use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_crypto::simple::SimpleKeypair;
-use iota_sdk_types::Address;
+use iota_sdk_ext::{crypto::simple::SimpleKeypair, types::Address};
 use iota_types::{
     committee::ProtocolVersion,
     crypto::{
@@ -319,7 +318,7 @@ fn default_iota_key_pair() -> SimpleKeypair {
 // format of this config field.
 mod base64_formatted_keypair {
     use fastcrypto::encoding::{Base64, Encoding};
-    use iota_sdk_crypto::simple::SimpleKeypair;
+    use iota_sdk_ext::crypto::simple::SimpleKeypair;
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S: Serializer>(kp: &SimpleKeypair, serializer: S) -> Result<S::Ok, S::Error> {

@@ -8,7 +8,7 @@ use std::{
 };
 
 use fastcrypto::traits::KeyPair;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     SenderSignedTransaction,
     crypto::{Intent, IntentScope},
 };

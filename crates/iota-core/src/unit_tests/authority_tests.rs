@@ -24,7 +24,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
@@ -2477,7 +2477,7 @@ async fn try_execute_immediately_panics_on_effects_digest_mismatch() {
     );
 
     // A certified effects digest that cannot match what this transfer produces.
-    let bogus_effects_digest = iota_sdk_types::TransactionEffectsDigest::new([255; 32]);
+    let bogus_effects_digest = iota_sdk_ext::types::TransactionEffectsDigest::new([255; 32]);
     let executable =
         VerifiedExecutableTransaction::new_from_certificate(certified_transfer_transaction);
     let _ = authority_state.try_execute_immediately(
@@ -2521,7 +2521,7 @@ async fn try_execute_immediately_panics_on_already_executed_digest_mismatch() {
             &authority_state.epoch_store_for_testing(),
         )
         .unwrap();
-    let bogus_effects_digest = iota_sdk_types::TransactionEffectsDigest::new([255; 32]);
+    let bogus_effects_digest = iota_sdk_ext::types::TransactionEffectsDigest::new([255; 32]);
     let _ = authority_state.try_execute_immediately(
         &executable,
         Some(bogus_effects_digest),
@@ -8058,7 +8058,7 @@ async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityStat
 /// author is dropped by `verify_consensus_transaction`.
 #[tokio::test]
 async fn deny_rule_proposal_through_consensus_updates_active_set() {
-    use iota_sdk_types::Address;
+    use iota_sdk_ext::types::Address;
     use iota_types::{
         deny_rule_governance::{DenyRuleConfig, DenyRuleSet},
         messages_consensus::TransactionDenyRuleProposal,
@@ -8146,7 +8146,7 @@ async fn deny_rule_proposal_through_consensus_updates_active_set() {
 /// consensus handler and never affects the active set.
 #[tokio::test]
 async fn deny_rule_proposal_ignored_when_flag_disabled() {
-    use iota_sdk_types::Address;
+    use iota_sdk_ext::types::Address;
     use iota_types::{
         deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
@@ -8190,7 +8190,7 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
 }
 
 fn rules_denying(
-    address: iota_sdk_types::Address,
+    address: iota_sdk_ext::types::Address,
 ) -> iota_types::deny_rule_governance::DenyRuleSet {
     iota_types::deny_rule_governance::DenyRuleSet {
         denied_addresses: [address].into(),

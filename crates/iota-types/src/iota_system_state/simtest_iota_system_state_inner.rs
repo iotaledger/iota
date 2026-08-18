@@ -4,7 +4,7 @@
 
 use fastcrypto::traits::ToFromBytes;
 use iota_multiaddr::Multiaddr;
-use iota_sdk_types::Address;
+use iota_sdk_ext::types::Address;
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
 

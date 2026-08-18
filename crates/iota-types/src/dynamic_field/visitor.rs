@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_ext::types::{ObjectId, TypeTag};
 use move_core_types::{
     account_address::AccountAddress,
     annotated_value as A,

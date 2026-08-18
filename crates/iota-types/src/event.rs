@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use anyhow::ensure;
-use iota_sdk_types::{Event, TransactionDigest};
+use iota_sdk_ext::types::{Event, TransactionDigest};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use serde_with::serde_as;

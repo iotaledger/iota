@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     GasPayment, MoveAuthenticator, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
     SenderSignedTransaction, StructTag, TransactionDigest, TransactionKind, Version,
 };

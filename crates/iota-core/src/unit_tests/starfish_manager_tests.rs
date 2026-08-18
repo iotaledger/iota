@@ -8,7 +8,7 @@ use fastcrypto::traits::KeyPair;
 use futures::FutureExt;
 use iota_core::epoch_start_consensus_committee::get_consensus_committee;
 use iota_metrics::{RegistryService, monitored_mpsc::unbounded_channel};
-use iota_sdk_types::checkpoint::{CheckpointContents, CheckpointSummary};
+use iota_sdk_ext::types::checkpoint::{CheckpointContents, CheckpointSummary};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_types::messages_checkpoint::CertifiedCheckpointSummary;
 use prometheus_filtered::Registry;

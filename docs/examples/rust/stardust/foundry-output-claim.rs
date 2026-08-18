@@ -22,7 +22,7 @@ use iota_sdk::{
         transaction::{CallArg, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
     crypto::Intent,
 };

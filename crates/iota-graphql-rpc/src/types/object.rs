@@ -18,7 +18,9 @@ use iota_indexer::{
     schema::objects,
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
-use iota_sdk_types::{MoveStruct as NativeMoveStruct, Owner as NativeOwner, StructTag, TypeTag};
+use iota_sdk_ext::types::{
+    MoveStruct as NativeMoveStruct, Owner as NativeOwner, StructTag, TypeTag,
+};
 use iota_types::object::{Object as NativeObject, bounded_visitor::BoundedVisitor};
 use move_core_types::annotated_value::{MoveStruct, MoveTypeLayout};
 use serde::{Deserialize, Serialize};

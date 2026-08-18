@@ -19,7 +19,7 @@ use bincode::Options;
 use either::Either;
 use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest,
     TransactionEvents, TransactionEventsDigest, TypeTag, Version,
 };
@@ -1677,7 +1677,7 @@ impl IndexStore {
 mod tests {
     use std::collections::BTreeMap;
 
-    use iota_sdk_types::{Address, ObjectId, Owner, TransactionDigest, TransactionEvents};
+    use iota_sdk_ext::types::{Address, ObjectId, Owner, TransactionDigest, TransactionEvents};
     use iota_types::{
         base_types::{ObjectInfo, ObjectType},
         gas_coin::GAS,

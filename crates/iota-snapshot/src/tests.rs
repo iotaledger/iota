@@ -24,7 +24,7 @@ use iota_core::{
     global_state_hasher::GlobalStateHasher,
     grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore, OwnerTypeFilter},
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointCommitment, CheckpointDigest, GasCostSummary, ObjectId, TransactionDigest,
     TransactionEffects, TransactionEvents,
     checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},

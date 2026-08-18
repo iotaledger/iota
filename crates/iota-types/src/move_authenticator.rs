@@ -4,7 +4,7 @@
 use std::collections::HashSet;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, MoveAuthenticator, MoveAuthenticatorV1, ObjectDigest, ObjectId, ObjectReference,
     SharedObjectReference, TypeTag, Version, crypto::IntentMessage,
 };

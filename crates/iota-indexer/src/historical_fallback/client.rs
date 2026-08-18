@@ -10,7 +10,7 @@ use futures::{
     TryStreamExt,
     stream::{self, StreamExt},
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents,
     Version, checkpoint::CheckpointContents,
 };

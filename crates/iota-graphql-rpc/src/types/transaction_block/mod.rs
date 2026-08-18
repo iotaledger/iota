@@ -15,7 +15,7 @@ use iota_indexer::{
     schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
 use iota_json_rpc_api::ReadApiServer;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address as NativeAddress, Event as NativeEvent,
     SenderSignedTransaction as NativeSenderSignedTransaction, Transaction as NativeTransactionData,
     TransactionEffects as NativeTransactionEffects, TransactionExpiration,

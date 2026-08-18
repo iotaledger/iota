@@ -16,7 +16,7 @@ thiserror.workspace = true
 
 # internal dependencies
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 move-package.workspace = true
 move-symbol-pool.workspace = true
 

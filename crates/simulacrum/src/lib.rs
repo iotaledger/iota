@@ -31,7 +31,7 @@ use iota_config::{
 };
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
     EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, Transaction,
     TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind,
@@ -455,7 +455,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// Request that `amount` Nanos be sent to `address` from a faucet account.
     ///
     /// ```
-    /// use iota_sdk_types::Address;
+    /// use iota_sdk_ext::types::Address;
     /// use iota_types::gas_coin::NANOS_PER_IOTA;
     /// use simulacrum::Simulacrum;
     ///
@@ -506,7 +506,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         };
 
         let kind = TransactionKind::Programmable(pt);
-        let tx = iota_sdk_types::Transaction::new_with_gas_data(kind, sender, gas_data);
+        let tx = iota_sdk_ext::types::Transaction::new_with_gas_data(kind, sender, gas_data);
         let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
 
         self.execute_transaction(tx).map(|x| x.0)
@@ -868,8 +868,8 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn dynamic_field_iter(
         &self,
-        _parent: iota_sdk_types::ObjectId,
-        _cursor: Option<iota_sdk_types::ObjectId>,
+        _parent: iota_sdk_ext::types::ObjectId,
+        _cursor: Option<iota_sdk_ext::types::ObjectId>,
     ) -> iota_types::storage::error::Result<
         Box<
             dyn Iterator<
@@ -892,7 +892,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn package_versions_iter(
         &self,
-        _original_package_id: iota_sdk_types::ObjectId,
+        _original_package_id: iota_sdk_ext::types::ObjectId,
         _cursor: Option<u64>,
     ) -> iota_types::storage::error::Result<
         Box<dyn Iterator<Item = iota_types::storage::PackageVersionIteratorItem> + '_>,

@@ -38,7 +38,7 @@ use iota_macros::{fail_point, fail_point_async, fail_point_if};
 use iota_metrics::{
     TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, monitored_scope, spawn_monitored_task,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
     ExecutionStatus, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
     RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
@@ -6025,7 +6025,7 @@ pub mod framework_injection {
     };
 
     use iota_framework::{BuiltInFramework, SystemPackage};
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_ext::types::ObjectId;
     use iota_types::base_types::AuthorityName;
     use move_binary_format::CompiledModule;
 

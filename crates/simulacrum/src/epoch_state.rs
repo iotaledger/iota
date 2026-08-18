@@ -10,7 +10,7 @@ use iota_config::{
 };
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{Transaction, TransactionEffects};
+use iota_sdk_ext::types::{Transaction, TransactionEffects};
 use iota_types::{
     committee::{Committee, EpochId},
     effects::TransactionEffectsAPI,

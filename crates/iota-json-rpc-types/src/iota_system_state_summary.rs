@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId};
 use iota_types::iota_system_state::iota_system_state_summary::{
     IotaSystemStateSummary as NativeSystemStateSummary,
     IotaSystemStateSummaryV1 as NativeSystemStateSummaryV1,

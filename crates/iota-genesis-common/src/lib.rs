@@ -7,7 +7,7 @@ mod migration_tx_data_ext;
 
 use iota_execution::executor;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{TransactionEffects, TransactionEvents, TransactionKind};
+use iota_sdk_ext::types::{TransactionEffects, TransactionEvents, TransactionKind};
 use iota_types::{
     digests::ChainIdentifier,
     effects::TransactionEffectsAPI,

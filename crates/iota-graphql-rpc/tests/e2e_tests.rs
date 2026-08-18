@@ -18,7 +18,7 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
-    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+    use iota_sdk_ext::types::{Address, ObjectId, TransactionDigest};
     use iota_types::{
         digests::ChainIdentifier,
         gas_coin::GAS,

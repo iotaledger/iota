@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::crypto::Intent;
+use iota_sdk_ext::types::crypto::Intent;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, StakeUnit},
@@ -346,7 +346,7 @@ mod stake_aggregator_insert_tests {
         hash::{HashFunction, Sha3_256},
         traits::KeyPair,
     };
-    use iota_sdk_types::crypto::IntentScope;
+    use iota_sdk_ext::types::crypto::IntentScope;
     use iota_types::{
         base_types::AuthorityName,
         committee::Committee,

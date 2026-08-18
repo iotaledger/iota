@@ -12,7 +12,7 @@ use std::{
 use fastcrypto::traits::KeyPair;
 use iota_multiaddr::Multiaddr;
 pub use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{TransactionDigest, validator::ValidatorCommitteeMember};
+use iota_sdk_ext::types::{TransactionDigest, validator::ValidatorCommitteeMember};
 use once_cell::sync::OnceCell;
 use rand::{
     Rng, SeedableRng,
@@ -569,7 +569,7 @@ impl CommitteeChainVerifier {
 #[cfg(test)]
 mod test {
     use fastcrypto::traits::KeyPair;
-    use iota_sdk_types::checkpoint::{CheckpointSummary, EndOfEpochData};
+    use iota_sdk_ext::types::checkpoint::{CheckpointSummary, EndOfEpochData};
 
     use super::*;
     use crate::{

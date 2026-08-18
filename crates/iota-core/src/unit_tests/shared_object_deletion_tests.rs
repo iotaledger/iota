@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CommandArgumentError, ExecutionError as ExecutionFailureStatus,
     ExecutionError::{InputObjectDeleted, SharedObjectOperationNotAllowed},
     ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference, TransactionDigest,

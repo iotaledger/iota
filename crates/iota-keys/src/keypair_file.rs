@@ -9,11 +9,13 @@ use fastcrypto::{
     encoding::{Base64, Encoding, Hex},
     traits::EncodeDecodeBase64,
 };
-use iota_sdk_crypto::{
-    ToFromBase64, ToFromBech32, ToFromBytes as _, secp256k1::Secp256k1PrivateKey,
-    simple::SimpleKeypair,
+use iota_sdk_ext::{
+    crypto::{
+        ToFromBase64, ToFromBech32, ToFromBytes as _, secp256k1::Secp256k1PrivateKey,
+        simple::SimpleKeypair,
+    },
+    types::SignatureScheme,
 };
-use iota_sdk_types::SignatureScheme;
 use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair, simple_to_network_keypair};
 
 /// Write Bech32 encoded `flag || privkey` to file.

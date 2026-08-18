@@ -32,7 +32,7 @@ use iota_json_rpc_types::{
     TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TransactionEvents, TypeTag,
     Version,
 };

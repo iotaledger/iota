@@ -12,7 +12,7 @@
 use std::collections::HashSet;
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Digest, Event, GasPayment, MoveAuthenticator, ObjectId, ObjectReference, Transaction,
     TransactionEffects, UserSignature,
 };

@@ -5,7 +5,7 @@
 use std::str::FromStr;
 
 use async_graphql::*;
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_ext::types::{Address, ObjectId};
 use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
 

@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, EndOfEpochTransactionKind, Event, Identifier, MoveStruct, ObjectId, ObjectReference,
     Owner, SenderSignedTransaction, SharedObjectReference, StructTag, Transaction,
     TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind, TypeTag, Version,
@@ -694,7 +694,7 @@ impl TestCheckpointDataBuilder {
 mod tests {
     use std::str::FromStr;
 
-    use iota_sdk_types::Command;
+    use iota_sdk_ext::types::Command;
 
     use super::*;
     use crate::{

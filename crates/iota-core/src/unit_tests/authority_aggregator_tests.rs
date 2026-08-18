@@ -15,7 +15,7 @@ use iota_framework::BuiltInFramework;
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_protocol_config::Chain::Unknown;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
     SenderSignedTransaction, StakeUnit, Transaction, TransactionDigest, TransactionEffects,
     TransactionEvents,
@@ -106,7 +106,7 @@ pub fn set_local_client_config(
 
 pub fn create_object_move_transaction(
     src: Address,
-    secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+    secret: &impl iota_sdk_ext::crypto::Signer<SimpleSignature>,
     dest: Address,
     value: u64,
     package_id: ObjectId,
@@ -139,7 +139,7 @@ pub fn create_object_move_transaction(
 
 pub fn delete_object_move_transaction(
     src: Address,
-    secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+    secret: &impl iota_sdk_ext::crypto::Signer<SimpleSignature>,
     object_ref: ObjectReference,
     framework_obj_id: ObjectId,
     gas_object_ref: ObjectReference,
@@ -164,7 +164,7 @@ pub fn delete_object_move_transaction(
 
 pub fn set_object_move_transaction(
     src: Address,
-    secret: &impl iota_sdk_crypto::Signer<SimpleSignature>,
+    secret: &impl iota_sdk_ext::crypto::Signer<SimpleSignature>,
     object_ref: ObjectReference,
     value: u64,
     framework_obj_id: ObjectId,

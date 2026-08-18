@@ -28,7 +28,7 @@ iota-framework-snapshot.workspace = true
 iota-genesis-common.workspace = true
 iota-multiaddr.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true

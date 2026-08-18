@@ -18,7 +18,7 @@ mod checked {
         self, LoadedRuntimeObject, ObjectRuntime, RuntimeResults, get_all_uids, max_event_error,
     };
     use iota_protocol_config::ProtocolConfig;
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         Address, Argument, CommandArgumentError, Event, MoveStruct, ObjectData, ObjectId, Owner,
         SharedObjectReference, StructTag, TypeTag, move_package::MovePackage,
     };
@@ -1014,7 +1014,7 @@ mod checked {
 
         /// Special case errors for type arguments to Move functions
         pub fn convert_type_argument_error(&self, idx: usize, error: VMError) -> ExecutionError {
-            use iota_sdk_types::TypeArgumentError;
+            use iota_sdk_ext::types::TypeArgumentError;
             use move_core_types::vm_status::StatusCode;
             match error.major_status() {
                 StatusCode::NUMBER_OF_TYPE_ARGUMENTS_MISMATCH => {

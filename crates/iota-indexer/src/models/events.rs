@@ -7,7 +7,7 @@ use std::{str::FromStr, sync::Arc};
 use diesel::prelude::*;
 use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{Address, Identifier, ObjectId, TransactionDigest};
+use iota_sdk_ext::types::{Address, Identifier, ObjectId, TransactionDigest};
 use iota_types::{event::EventID, object::bounded_visitor::BoundedVisitor, parse_iota_struct_tag};
 
 use crate::{errors::IndexerError, schema::events, types::IndexedEvent};
@@ -136,7 +136,7 @@ impl StoredEvent {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Event, Identifier, StructTag};
+    use iota_sdk_ext::types::{Event, Identifier, StructTag};
 
     use super::*;
 

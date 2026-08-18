@@ -11,7 +11,7 @@ use fuzz::{ReplayFuzzer, ReplayFuzzerConfig};
 use fuzz_mutations::base_fuzzers;
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_protocol_config::Chain;
-use iota_sdk_types::{ObjectId, TransactionDigest, Version};
+use iota_sdk_ext::types::{ObjectId, TransactionDigest, Version};
 use iota_types::digests::{get_mainnet_chain_identifier, get_testnet_chain_identifier};
 use move_vm_config::runtime::get_default_output_filepath;
 use tracing::{error, info, warn};

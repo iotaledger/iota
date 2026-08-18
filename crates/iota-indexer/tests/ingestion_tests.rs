@@ -32,7 +32,7 @@ mod ingestion_tests {
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
     };
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, Transaction,
         TransactionEffects, Version,
     };

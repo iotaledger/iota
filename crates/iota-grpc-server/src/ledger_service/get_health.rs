@@ -3,7 +3,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use iota_grpc_types::v1::ledger_service::{GetHealthRequest, GetHealthResponse};
+use iota_sdk_ext::grpc_types::v1::ledger_service::{GetHealthRequest, GetHealthResponse};
 use tonic::Code;
 
 use crate::{error::RpcError, ledger_service::LedgerGrpcService};

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use iota_move_build::{BuildConfig, IotaPackageHooks};
 use iota_sdk::IotaClient;
-use iota_sdk_types::{Transaction, TransactionKind};
+use iota_sdk_ext::types::{Transaction, TransactionKind};
 use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::TransactionAPI,
 };

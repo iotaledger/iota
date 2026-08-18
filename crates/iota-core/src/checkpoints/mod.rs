@@ -29,7 +29,7 @@ use iota_common::{
 };
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CheckpointContentsDigest, CheckpointDigest, GasCostSummary, TransactionDigest,
     TransactionEffects, TransactionKind, UserSignature,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
@@ -2932,7 +2932,7 @@ impl CheckpointServiceNotify for CheckpointService {
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use iota_sdk_types::{GasCostSummary, TransactionEffects};
+    use iota_sdk_ext::types::{GasCostSummary, TransactionEffects};
     use iota_types::effects::TransactionEffectsAPI;
     use itertools::MultiUnzip;
 
@@ -3059,7 +3059,7 @@ mod tests {
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         GenesisObject, Identifier, ObjectData, ObjectId, Owner, TransactionEffects,
         TransactionEffectsDigest, TransactionEvents, Version, move_package::MovePackage,
     };

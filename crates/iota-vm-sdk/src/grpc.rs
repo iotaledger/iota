@@ -3,11 +3,13 @@
 
 //! gRPC-backed store (`feature = "grpc"`, native only); see [`GrpcStore`].
 
-use iota_grpc_client::{
-    Client,
-    read_mask_fields::{EpochReadMask, ObjectReadMask, ServiceInfoReadMask},
+use iota_sdk_ext::{
+    grpc_client::{
+        Client,
+        read_mask_fields::{EpochReadMask, ObjectReadMask, ServiceInfoReadMask},
+    },
+    types::{CheckpointDigest, Digest, ObjectId, Version},
 };
-use iota_sdk_types::{CheckpointDigest, Digest, ObjectId, Version};
 use iota_types::{digests::ChainIdentifier, object::Object};
 
 use crate::{
@@ -176,7 +178,7 @@ impl ObjectFetcher for GrpcFetcher {
 /// as absent rather than fault. The batched read reports a missing object per
 /// requested ref, so the refs the node could serve survive a missing one.
 fn skip_not_found<T>(
-    results: Vec<Result<T, iota_grpc_client::api::Error>>,
+    results: Vec<Result<T, iota_sdk_ext::grpc_client::api::Error>>,
 ) -> Result<Vec<T>, StoreError> {
     let mut items = Vec::with_capacity(results.len());
     for result in results {
@@ -191,7 +193,7 @@ fn skip_not_found<T>(
 
 #[cfg(test)]
 mod tests {
-    use iota_grpc_client::{RpcStatus, api::Error};
+    use iota_sdk_ext::grpc_client::{RpcStatus, api::Error};
 
     use super::skip_not_found;
 

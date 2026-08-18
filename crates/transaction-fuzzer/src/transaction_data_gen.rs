@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, GasPayment, ObjectDigest, ObjectId, ObjectReference, Transaction,
     TransactionExpiration, TransactionKind, TransactionV1, Version,
 };

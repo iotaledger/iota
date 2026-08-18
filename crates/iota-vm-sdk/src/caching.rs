@@ -23,7 +23,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use iota_sdk_types::{ObjectId, Version};
+use iota_sdk_ext::types::{ObjectId, Version};
 use iota_types::object::Object;
 use tokio::{
     runtime::{Handle, RuntimeFlavor},
@@ -215,7 +215,7 @@ impl<F: ObjectFetcher> Store for CachingStore<F> {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{MoveStruct, ObjectId, Owner, TransactionDigest, Version};
+    use iota_sdk_ext::types::{MoveStruct, ObjectId, Owner, TransactionDigest, Version};
     use iota_types::object::{MoveStructExt, Object};
 
     use super::{CachingStore, ObjectFetcher};

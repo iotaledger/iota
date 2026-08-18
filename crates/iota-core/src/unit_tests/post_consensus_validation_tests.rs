@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionDigest, Version};
+use iota_sdk_ext::types::{Address, ObjectId, ObjectReference, Owner, TransactionDigest, Version};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
@@ -939,7 +939,7 @@ async fn test_winner_blocks_multiple_losers() {
     let gas2 = authority.get_object(&gas2_id).unwrap();
     let gas3 = authority.get_object(&gas3_id).unwrap();
 
-    use iota_sdk_types::{Identifier, Transaction};
+    use iota_sdk_ext::types::{Identifier, Transaction};
     use iota_types::transaction::{CallArg, TransactionAPI};
 
     let tx1 = Transaction::new_move_call(

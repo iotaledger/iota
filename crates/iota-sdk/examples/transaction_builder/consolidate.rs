@@ -17,7 +17,7 @@ use iota_sdk::{
         transaction::{CallArg, TransactionAPI},
     },
 };
-use iota_sdk_types::{Argument, Command, ObjectReference, Transaction, TransactionKind};
+use iota_sdk_ext::types::{Argument, Command, ObjectReference, Transaction, TransactionKind};
 use utils::{setup_for_write, sign_and_execute_transaction};
 
 #[tokio::main]

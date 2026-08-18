@@ -2,10 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_crypto::{Verifier, passkey::PasskeyVerifier};
-use iota_sdk_types::{
-    Address,
-    crypto::{IntentMessage, PasskeyAuthenticator},
+use iota_sdk_ext::{
+    crypto::{Verifier, passkey::PasskeyVerifier},
+    types::{
+        Address,
+        crypto::{IntentMessage, PasskeyAuthenticator},
+    },
 };
 use serde::Serialize;
 

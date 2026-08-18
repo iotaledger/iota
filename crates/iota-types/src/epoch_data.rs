@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{CheckpointDigest, checkpoint::CheckpointSummary};
+use iota_sdk_ext::types::{CheckpointDigest, checkpoint::CheckpointSummary};
 
 use crate::{base_types::EpochId, messages_checkpoint::CheckpointTimestamp};
 

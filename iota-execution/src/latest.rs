@@ -15,7 +15,7 @@ use iota_adapter_latest::{
 };
 use iota_move_natives_latest::all_natives;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, GasPayment, MoveAuthenticator, ProgrammableTransaction, TransactionDigest,
     TransactionEffects, TransactionKind,
 };

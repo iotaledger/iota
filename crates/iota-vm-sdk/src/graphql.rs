@@ -4,8 +4,10 @@
 //! GraphQL-backed store (`feature = "graphql"`, native only); see
 //! [`GraphQLStore`], which mirrors `GrpcStore` but fetches over GraphQL.
 
-use iota_sdk_graphql_client::Client;
-use iota_sdk_types::{ObjectId, Version};
+use iota_sdk_ext::{
+    graphql_client::Client,
+    types::{ObjectId, Version},
+};
 use iota_types::{digests::ChainIdentifier, object::Object};
 
 use crate::{

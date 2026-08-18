@@ -16,10 +16,12 @@ use std::{
     ops::Neg,
 };
 
-use iota_grpc_types::v1::transaction as grpc_tx;
-use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, StructTag, TransactionEffects,
-    TypeTag, Version,
+use iota_sdk_ext::{
+    grpc_types::v1::transaction as grpc_tx,
+    types::{
+        Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, StructTag, TransactionEffects,
+        TypeTag, Version,
+    },
 };
 use iota_types::{
     coin::Coin,
@@ -396,7 +398,7 @@ impl From<DerivedBalanceChange> for grpc_tx::BalanceChange {
 
 /// A Move object's type is always a struct; the proto carries it as the more
 /// general `TypeTag`, matching `BalanceChange.coin_type`.
-fn object_type_to_proto(object_type: StructTag) -> iota_grpc_types::v1::types::TypeTag {
+fn object_type_to_proto(object_type: StructTag) -> iota_sdk_ext::grpc_types::v1::types::TypeTag {
     (&TypeTag::Struct(Box::new(object_type))).into()
 }
 
@@ -495,7 +497,7 @@ impl From<DerivedObjectChange> for grpc_tx::ObjectChange {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::TransactionDigest;
+    use iota_sdk_ext::types::TransactionDigest;
     use iota_types::{
         effects::{TestEffectsBuilder, TransactionEffectsAPIForTesting as _},
         full_checkpoint_content::CheckpointTransaction,
@@ -525,14 +527,15 @@ mod tests {
     /// of objects created by the `*_for_testing` constructors. Also returns
     /// the gas coin at its input version (0) and output version (1) so the
     /// derivation finds the mutated gas object.
-    fn version_zero_gas_transaction() -> (iota_sdk_types::SenderSignedTransaction, Object, Object) {
-        use iota_sdk_types::{ObjectReference, SenderSignedTransaction, Transaction};
+    fn version_zero_gas_transaction()
+    -> (iota_sdk_ext::types::SenderSignedTransaction, Object, Object) {
+        use iota_sdk_ext::types::{ObjectReference, SenderSignedTransaction, Transaction};
         use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 
         let gas_id = ObjectId::random();
         let gas_ref = ObjectReference::new(gas_id, 0u64.into(), ObjectDigest::MIN);
         let tx = Transaction::new(
-            iota_sdk_types::TransactionKind::Programmable(
+            iota_sdk_ext::types::TransactionKind::Programmable(
                 ProgrammableTransactionBuilder::new().finish(),
             ),
             sender_address(),
@@ -646,7 +649,7 @@ mod tests {
         // A created non-coin Move object (a treasury cap) must not produce a
         // balance change
         let treasury_cap = Object::treasury_cap_for_testing(
-            iota_sdk_types::StructTag::new_gas(),
+            iota_sdk_ext::types::StructTag::new_gas(),
             iota_types::coin::TreasuryCap {
                 id: iota_types::id::UID::new(ObjectId::random()),
                 total_supply: iota_types::balance::Supply { value: 0 },
@@ -672,7 +675,7 @@ mod tests {
         // Rebuild the effects as a failed execution with a non-zero gas charge
         let mut effects = TestEffectsBuilder::new(tx.transaction.data())
             .with_status(ExecutionStatus::Failure {
-                error: iota_sdk_types::ExecutionError::InsufficientGas,
+                error: iota_sdk_ext::types::ExecutionError::InsufficientGas,
                 command: None,
             })
             .build();

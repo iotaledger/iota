@@ -14,7 +14,7 @@ serde.workspace = true
 tracing.workspace = true
 
 # internal dependencies
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true

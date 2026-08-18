@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use iota_json_rpc_types::ObjectChange;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, StructTag, Version};
+use iota_sdk_ext::types::{Address, ObjectId, ObjectReference, Owner, StructTag, Version};
 use iota_types::{effects::ObjectRemoveKind, storage::WriteKind};
 
 use crate::ObjectProvider;

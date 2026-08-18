@@ -3,7 +3,7 @@
 
 use std::ops::Range;
 
-use iota_grpc_client::{
+use iota_sdk_ext::grpc_client::{
     Client,
     read_mask_fields::{CheckpointResponseReadMask, EpochField},
 };

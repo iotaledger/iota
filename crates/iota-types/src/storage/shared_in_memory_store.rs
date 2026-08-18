@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     CheckpointContentsDigest, CheckpointDigest, TransactionDigest, TransactionEffects,
     TransactionEvents, checkpoint::CheckpointContents,
 };
@@ -152,14 +152,14 @@ impl ReadStore for SharedInMemoryStore {
 impl ObjectStore for SharedInMemoryStore {
     fn try_get_object(
         &self,
-        _object_id: &iota_sdk_types::ObjectId,
+        _object_id: &iota_sdk_ext::types::ObjectId,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
 
     fn try_get_object_by_key(
         &self,
-        _object_id: &iota_sdk_types::ObjectId,
+        _object_id: &iota_sdk_ext::types::ObjectId,
         _version: crate::base_types::VersionNumber,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
@@ -491,14 +491,14 @@ impl SingleCheckpointSharedInMemoryStore {
 impl ObjectStore for SingleCheckpointSharedInMemoryStore {
     fn try_get_object(
         &self,
-        _object_id: &iota_sdk_types::ObjectId,
+        _object_id: &iota_sdk_ext::types::ObjectId,
     ) -> Result<Option<crate::object::Object>> {
         todo!()
     }
 
     fn try_get_object_by_key(
         &self,
-        _object_id: &iota_sdk_types::ObjectId,
+        _object_id: &iota_sdk_ext::types::ObjectId,
         _version: crate::base_types::VersionNumber,
     ) -> Result<Option<crate::object::Object>> {
         todo!()

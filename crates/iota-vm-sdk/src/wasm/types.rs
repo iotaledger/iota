@@ -68,19 +68,19 @@ pub enum Owner {
     Unknown,
 }
 
-impl From<&iota_sdk_types::Owner> for Owner {
-    fn from(owner: &iota_sdk_types::Owner) -> Self {
+impl From<&iota_sdk_ext::types::Owner> for Owner {
+    fn from(owner: &iota_sdk_ext::types::Owner) -> Self {
         match owner {
-            iota_sdk_types::Owner::Address(address) => Owner::Address {
+            iota_sdk_ext::types::Owner::Address(address) => Owner::Address {
                 address: address.to_string(),
             },
-            iota_sdk_types::Owner::Object(object_id) => Owner::Object {
+            iota_sdk_ext::types::Owner::Object(object_id) => Owner::Object {
                 object_id: object_id.to_string(),
             },
-            iota_sdk_types::Owner::Shared(version) => Owner::Shared {
+            iota_sdk_ext::types::Owner::Shared(version) => Owner::Shared {
                 initial_shared_version: version.as_u64(),
             },
-            iota_sdk_types::Owner::Immutable => Owner::Immutable,
+            iota_sdk_ext::types::Owner::Immutable => Owner::Immutable,
             _ => Owner::Unknown,
         }
     }

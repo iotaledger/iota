@@ -5,7 +5,7 @@
 use std::cmp;
 
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, Command, Identifier, ObjectId, ObjectReference, ProgrammableTransaction,
 };
 use iota_types::{

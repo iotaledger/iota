@@ -26,7 +26,7 @@ use iota_kvstore::{
         row_range::{EndKey, StartKey},
     },
 };
-use iota_sdk_types::{Address, TransactionDigest, TransactionEvents};
+use iota_sdk_ext::types::{Address, TransactionDigest, TransactionEvents};
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::storage::ObjectKey;
 use serde::{Deserialize, Serialize};
@@ -621,7 +621,7 @@ impl TryFrom<Vec<Key>> for ObjectsBeforeVersionRequest {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{ObjectId, Version};
+    use iota_sdk_ext::types::{ObjectId, Version};
     use iota_types::storage::ObjectKey;
 
     use super::*;

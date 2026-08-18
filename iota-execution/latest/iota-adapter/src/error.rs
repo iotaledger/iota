@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ExecutionError as ExecutionFailureStatus, MoveLocation, ObjectId};
+use iota_sdk_ext::types::{ExecutionError as ExecutionFailureStatus, MoveLocation, ObjectId};
 use iota_types::{
     error::{ExecutionError, IotaError},
     iota_sdk_types_conversions::identifier_core_to_sdk,

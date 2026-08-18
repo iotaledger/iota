@@ -7,7 +7,7 @@ use async_graphql::{
     *,
 };
 use iota_indexer::types::OwnerType;
-use iota_sdk_types::TypeTag;
+use iota_sdk_ext::types::TypeTag;
 use iota_types::coin::Coin as NativeCoin;
 
 use crate::{

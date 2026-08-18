@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
-use iota_sdk_types::SignatureScheme;
+use iota_sdk_ext::types::SignatureScheme;
 use tempfile::TempDir;
 
 #[test]

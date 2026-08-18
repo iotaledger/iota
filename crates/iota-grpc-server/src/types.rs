@@ -6,19 +6,21 @@ use std::{pin::Pin, sync::Arc};
 use anyhow::Result;
 use futures::StreamExt;
 use grpc_ledger_service::checkpoint_data::Progress;
-use iota_grpc_types::{
-    field::FieldMaskTree,
-    proto::timestamp_ms_to_proto,
-    v1::{
-        checkpoint as grpc_checkpoint, event as grpc_event,
-        ledger_service::{self as grpc_ledger_service},
-        transaction as grpc_transaction,
-    },
-};
 use iota_node_storage::GrpcStateReader;
-use iota_sdk_types::{
-    Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TransactionEffects,
-    TransactionEvents, TypeTag, Version, checkpoint::CheckpointContents,
+use iota_sdk_ext::{
+    grpc_types::{
+        field::FieldMaskTree,
+        proto::timestamp_ms_to_proto,
+        v1::{
+            checkpoint as grpc_checkpoint, event as grpc_event,
+            ledger_service::{self as grpc_ledger_service},
+            transaction as grpc_transaction,
+        },
+    },
+    types::{
+        Address, CheckpointDigest, ObjectId, StructTag, TransactionDigest, TransactionEffects,
+        TransactionEvents, TypeTag, Version, checkpoint::CheckpointContents,
+    },
 };
 use iota_types::{
     base_types::VersionNumber,
@@ -62,7 +64,7 @@ pub struct TransactionReadFields {
 impl TransactionReadFields {
     /// Derive which fields to fetch from an `ExecutedTransaction` field mask.
     pub fn from_mask(mask: &FieldMaskTree) -> Self {
-        use iota_grpc_types::v1::transaction::ExecutedTransaction;
+        use iota_sdk_ext::grpc_types::v1::transaction::ExecutedTransaction;
 
         Self {
             include_transaction: mask.contains(ExecutedTransaction::TRANSACTION_FIELD.name),
@@ -1228,7 +1230,7 @@ impl GrpcReader {
             // The object sets must be complete: a silently missing object
             // would shorten the input/output object lists and corrupt any
             // derived change fields, with no way for the client to detect it
-            let require_object = |object_id: &iota_sdk_types::ObjectId,
+            let require_object = |object_id: &iota_sdk_ext::types::ObjectId,
                                   version: Version|
              -> Result<Object, crate::error::RpcError> {
                 self.state_reader
@@ -1303,8 +1305,8 @@ impl GrpcReader {
 #[derive(Debug)]
 pub struct TransactionReadData {
     pub digest: TransactionDigest,
-    pub transaction: Option<iota_sdk_types::transaction::Transaction>,
-    pub signatures: Option<Vec<iota_sdk_types::UserSignature>>,
+    pub transaction: Option<iota_sdk_ext::types::transaction::Transaction>,
+    pub signatures: Option<Vec<iota_sdk_ext::types::UserSignature>>,
     pub effects: Option<TransactionEffects>,
     pub events: Option<TransactionEvents>,
     pub checkpoint: Option<u64>,
@@ -1336,7 +1338,7 @@ impl CheckpointTransactionWithContext {
 }
 
 impl Merge<CheckpointTransactionWithContext>
-    for iota_grpc_types::v1::transaction::ExecutedTransaction
+    for iota_sdk_ext::grpc_types::v1::transaction::ExecutedTransaction
 {
     type Error = RpcError;
 
@@ -1346,22 +1348,26 @@ impl Merge<CheckpointTransactionWithContext>
         mask: &FieldMaskTree,
     ) -> Result<(), Self::Error> {
         if let Some(submask) = mask.subtree(Self::TRANSACTION_FIELD.name) {
-            self.transaction = Some(iota_grpc_types::v1::transaction::Transaction::merge_from(
-                &source.transaction.transaction,
-                &submask,
-            )?);
+            self.transaction = Some(
+                iota_sdk_ext::grpc_types::v1::transaction::Transaction::merge_from(
+                    &source.transaction.transaction,
+                    &submask,
+                )?,
+            );
         }
 
         if let Some(submask) = mask.subtree(Self::SIGNATURES_FIELD.name) {
-            self.signatures = Some(iota_grpc_types::v1::signatures::UserSignatures::merge_from(
-                &source.transaction.transaction,
-                &submask,
-            )?);
+            self.signatures = Some(
+                iota_sdk_ext::grpc_types::v1::signatures::UserSignatures::merge_from(
+                    &source.transaction.transaction,
+                    &submask,
+                )?,
+            );
         }
 
         if let Some(submask) = mask.subtree(Self::EFFECTS_FIELD.name) {
             self.effects = Some(
-                iota_grpc_types::v1::transaction::TransactionEffects::merge_from(
+                iota_sdk_ext::grpc_types::v1::transaction::TransactionEffects::merge_from(
                     &source.transaction.effects,
                     &submask,
                 )?,
@@ -1393,17 +1399,18 @@ impl Merge<CheckpointTransactionWithContext>
         // carry effects and input/output objects, so no extra fetches needed.
         if mask.subtree(Self::BALANCE_CHANGES_FIELD.name).is_some() {
             self.balance_changes = Some(
-                iota_grpc_types::v1::transaction::BalanceChanges::default().with_balance_changes(
-                    crate::changes::derive_balance_changes(
-                        &source.transaction.effects,
-                        &source.transaction.input_objects,
-                        &source.transaction.output_objects,
-                        None,
-                    )?
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
-                ),
+                iota_sdk_ext::grpc_types::v1::transaction::BalanceChanges::default()
+                    .with_balance_changes(
+                        crate::changes::derive_balance_changes(
+                            &source.transaction.effects,
+                            &source.transaction.input_objects,
+                            &source.transaction.output_objects,
+                            None,
+                        )?
+                        .into_iter()
+                        .map(Into::into)
+                        .collect(),
+                    ),
             );
         }
 
@@ -1413,29 +1420,30 @@ impl Merge<CheckpointTransactionWithContext>
 
             let sender = source.transaction.transaction.transaction().sender();
             self.object_changes = Some(
-                iota_grpc_types::v1::transaction::ObjectChanges::default().with_object_changes(
-                    crate::changes::derive_object_changes(
-                        sender,
-                        &source.transaction.effects,
-                        &source.transaction.input_objects,
-                        &source.transaction.output_objects,
-                    )?
-                    .into_iter()
-                    .map(Into::into)
-                    .collect(),
-                ),
+                iota_sdk_ext::grpc_types::v1::transaction::ObjectChanges::default()
+                    .with_object_changes(
+                        crate::changes::derive_object_changes(
+                            sender,
+                            &source.transaction.effects,
+                            &source.transaction.input_objects,
+                            &source.transaction.output_objects,
+                        )?
+                        .into_iter()
+                        .map(Into::into)
+                        .collect(),
+                    ),
             );
         }
 
         if let Some(submask) = mask.subtree(Self::INPUT_OBJECTS_FIELD.name) {
-            self.input_objects = Some(iota_grpc_types::v1::object::Objects::merge_from(
+            self.input_objects = Some(iota_sdk_ext::grpc_types::v1::object::Objects::merge_from(
                 Some(source.transaction.input_objects),
                 &submask,
             )?);
         }
 
         if let Some(submask) = mask.subtree(Self::OUTPUT_OBJECTS_FIELD.name) {
-            self.output_objects = Some(iota_grpc_types::v1::object::Objects::merge_from(
+            self.output_objects = Some(iota_sdk_ext::grpc_types::v1::object::Objects::merge_from(
                 Some(source.transaction.output_objects),
                 &submask,
             )?);

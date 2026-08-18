@@ -3,7 +3,7 @@
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use iota_sdk_types::{Address, MoveStruct, ObjectId};
+use iota_sdk_ext::types::{Address, MoveStruct, ObjectId};
 use iota_types::{collection_types::VecMap, dynamic_field::Field, id::ID, object::Object};
 use serde::{Deserialize, Serialize};
 

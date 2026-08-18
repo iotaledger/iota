@@ -73,7 +73,7 @@ mod sim_only_tests {
     use iota_macros::*;
     use iota_move_build::{BuildConfig, CompiledPackage};
     use iota_protocol_config::Chain;
-    use iota_sdk_types::{
+    use iota_sdk_ext::types::{
         Address, Command, Identifier, MoveCall, ObjectId, ObjectReference, Owner,
         ProgrammableTransaction, Transaction, TransactionDigest, TransactionEffects,
         TransactionKind, Version,

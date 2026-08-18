@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_ext::types::{StructTag, TypeTag};
 use move_core_types::annotated_visitor::{self, StructDriver, Traversal, ValueDriver};
 
 use crate::iota_sdk_types_conversions::struct_tag_core_to_sdk;

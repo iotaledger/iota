@@ -99,7 +99,7 @@ use iota_network::{
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     RandomnessRound,
     crypto::{Intent, IntentMessage, IntentScope},
 };

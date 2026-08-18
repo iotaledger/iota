@@ -19,8 +19,7 @@ tracing.workspace = true
 
 # internal dependencies
 iota-protocol-config.workspace = true
-iota-sdk-crypto = { workspace = true, features = ["bech32", "ed25519"] }
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["ed25519", "bech32", "types"] }
 iota-types.workspace = true
 move-vm-config.workspace = true
 

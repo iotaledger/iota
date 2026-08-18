@@ -7,7 +7,7 @@ use std::{collections::HashSet, env, fs::File, io::Read, path::PathBuf};
 use expect_test::expect;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ExecutionError, ExecutionStatus, Identifier, ObjectData, ObjectId, Owner, Transaction,
 };
 use iota_types::{

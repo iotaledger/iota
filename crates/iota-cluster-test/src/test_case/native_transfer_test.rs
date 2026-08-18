@@ -4,7 +4,7 @@
 
 use async_trait::async_trait;
 use iota_json_rpc_types::IotaTransactionBlockResponse;
-use iota_sdk_types::{Address, ObjectId, Owner};
+use iota_sdk_ext::types::{Address, ObjectId, Owner};
 use jsonrpsee::rpc_params;
 use tracing::info;
 

@@ -10,7 +10,7 @@ use std::{
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, GenesisTransaction,
     Identifier, SenderSignedTransaction, SharedObjectReference, TransactionKind,
     crypto::{IntentScope, SimpleSignature},
@@ -50,7 +50,7 @@ macro_rules! assert_matches {
 }
 
 use fastcrypto::traits::AggregateAuthenticator;
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     ConsensusCommitDigest,
     crypto::{IntentAppId, IntentVersion},
 };

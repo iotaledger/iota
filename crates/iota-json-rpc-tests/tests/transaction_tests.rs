@@ -8,7 +8,7 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
 use iota_macros::sim_test;
-use iota_sdk_types::SenderSignedTransaction;
+use iota_sdk_ext::types::SenderSignedTransaction;
 use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
 use test_cluster::TestClusterBuilder;
 

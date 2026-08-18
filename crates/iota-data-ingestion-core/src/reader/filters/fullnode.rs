@@ -59,8 +59,10 @@
 
 use std::ops::Not;
 
-use iota_grpc_types::v1::{filter as proto, types::ObjectReference};
-use iota_sdk_types::{Address, ObjectDigest, ObjectId, Version};
+use iota_sdk_ext::{
+    grpc_types::v1::{filter as proto, types::ObjectReference},
+    types::{Address, ObjectDigest, ObjectId, Version},
+};
 
 /// Available transaction kinds for filtering.
 pub type TransactionKind = proto::TransactionKind;

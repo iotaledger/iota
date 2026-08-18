@@ -15,7 +15,7 @@ use iota_core::{
 use iota_json_rpc_types::{
     Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, TransactionFilter,
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, Transaction,
     TransactionDigest, TransactionEffects, TypeTag, Version, checkpoint::CheckpointContents,
 };

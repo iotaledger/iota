@@ -51,8 +51,7 @@ tracing.workspace = true
 iota-macros.workspace = true
 iota-multiaddr.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk-crypto = { workspace = true, features = ["bech32", "ed25519", "passkey", "rand", "secp256k1", "secp256r1"] }
-iota-sdk-types = { workspace = true, features = ["serde", "rand", "hash"] }
+iota-sdk-ext = { workspace = true, features = ["ed25519", "secp256r1", "secp256k1", "passkey", "bech32", "serde", "rand", "hash"] }
 move-binary-format.workspace = true
 move-bytecode-utils.workspace = true
 move-core-types.workspace = true
@@ -86,7 +85,7 @@ tokio.workspace = true
 url.workspace = true
 
 # internal dependencies
-iota-sdk-types = { workspace = true, features = ["proptest"] }
+iota-sdk-ext = { workspace = true, features = ["proptest"] }
 
 [[bench]]
 name = "global_state_hash_bench"
@@ -95,4 +94,4 @@ harness = false
 [features]
 default = []
 tracing = ["move-vm-profiler/tracing", "move-vm-test-utils/tracing"]
-fuzzing = ["dep:proptest", "iota-sdk-types/proptest", "move-core-types/fuzzing"]
+fuzzing = ["dep:proptest", "iota-sdk-ext/proptest", "move-core-types/fuzzing"]

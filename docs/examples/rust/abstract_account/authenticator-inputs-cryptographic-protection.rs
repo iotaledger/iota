@@ -24,7 +24,7 @@ use iota_sdk::{
         transaction::TransactionEnvelope,
     },
 };
-use iota_sdk_types::{
+use iota_sdk_ext::types::{
     Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
     SharedObjectReference, SignatureScheme, TypeTag, UserSignature,
 };

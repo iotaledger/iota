@@ -14,7 +14,7 @@ use std::{
 
 use iota_config::node::AuthorityOverloadConfig;
 use iota_metrics::monitored_scope;
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_ext::types::TransactionDigest;
 use iota_types::{
     error::{IotaError, IotaResult},
     fp_bail,

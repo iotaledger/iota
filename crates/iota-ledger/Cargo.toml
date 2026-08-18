@@ -23,7 +23,7 @@ thiserror.workspace = true
 tracing.workspace = true
 
 # internal dependencies
-iota-sdk-types.workspace = true
+iota-sdk-ext = { workspace = true, features = ["types"] }
 iota-types.workspace = true
 
 [dev-dependencies]
