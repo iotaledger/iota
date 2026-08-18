@@ -8,7 +8,9 @@
 //!
 //! 1. **Semantic validation** — deduplication, already-executed check,
 //!    structural validity, attestor verification, and deny checks (deny lists,
-//!    gas, ownership, coin deny list, Move authenticator).
+//!    gas, ownership, coin deny list, Move authenticator) — the full set for
+//!    `UserTransactionV1`, a payload-only subset for `UserTransactionV2`; see
+//!    Check #6.
 //! 2. **Owned-object conflict resolution** (white-flag) — three-tier lock check
 //!    and lock acquisition.
 //!
@@ -75,7 +77,9 @@ use crate::{
 /// For each `UserTransactionV1` or `UserTransactionV2` in consensus order:
 /// - Runs deduplication, already-executed check, structural validity, attestor
 ///   verification (V2 only), lock conflict check, and deny checks (deny list,
-///   gas, ownership, coin deny list, Move authenticator).
+///   gas, ownership, coin deny list, Move authenticator) — the last group in
+///   full for `UserTransactionV1`, as a payload-only subset for
+///   `UserTransactionV2`.
 /// - If all checks pass, acquires owned-object locks in a local tracking map.
 /// - Drops the transaction (with an error) on any failure.
 /// - An already-executed transaction is **retained** (not dropped): it
@@ -271,10 +275,12 @@ pub async fn validate_and_resolve_conflicts(
         // expensive deny checks so conflicting transactions are filtered first.
         //
         // Locks are keyed by full ObjectReference (id + version + digest), not just
-        // ObjectID. Two transactions referencing the same object at different
-        // versions will NOT conflict here — version freshness is validated
-        // later in Check #6 (deny checks load objects from DB and verify
-        // that the transaction's input refs match the current state).
+        // ObjectID, so two transactions referencing the same object at different
+        // versions do NOT conflict here. Version freshness is validated elsewhere:
+        // in Check #6 for `UserTransactionV1`, whose deny checks load objects from
+        // DB and verify the input refs against current state, and at execution
+        // (`check_certificate_input`) for `UserTransactionV2`, whose Check #6 is
+        // payload-only.
         //
         // Tier 1: Local HashMap (current commit).
         // Tier 2: Consensus quarantine (previous uncommitted commits).
@@ -334,9 +340,9 @@ pub async fn validate_and_resolve_conflicts(
         //   - Move bytecode verifier on publish: the Move VM re-verifies every newly
         //     published package; the signing-time variant only adds a stricter meter as
         //     a DoS gate.
-        //   - Gas balance, coin deny list, `MoveAuthenticator` execution: re-applied in
-        //     the execution pipeline.
-        //
+        //   - Gas balance, ownership, coin deny list, `MoveAuthenticator` execution:
+        //     re-applied in the execution pipeline; the payload-only gas bounds are
+        //     checked below.
         //
         // The user signature is verified pre-consensus in the block verifier
         // (`IotaTxValidator::validate_transactions`) for both `UserTransactionV1`
@@ -372,6 +378,12 @@ pub async fn validate_and_resolve_conflicts(
                 continue;
             }
         } else {
+            // Payload-only gas bounds/price: a pure function of the transaction and
+            // epoch constants, so the drop is deterministic before version assignment.
+            // The balance is checked at execution instead — it depends on the gas coins'
+            // values at the versions this commit assigns, which are not applied yet, so
+            // a read here would follow this validator's execution progress rather than
+            // the state the transaction executes against.
             let txn = transaction.data().transaction();
             if let Err(e) = check_gas_bounds(
                 epoch_store.protocol_config(),

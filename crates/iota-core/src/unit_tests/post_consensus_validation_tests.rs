@@ -2073,7 +2073,24 @@ async fn test_v2_gas_bounds_out_of_range_dropped() {
         &sender_key,
     );
 
-    for tx in [price_under_rgp, budget_too_high] {
+    // Each transaction is paired with the error it must be dropped for; a matcher
+    // accepting either would pass even if both tripped the same bound.
+    for (tx, expected_error) in [
+        (
+            price_under_rgp,
+            UserInputError::GasPriceUnderRGP {
+                gas_price: rgp - 1,
+                reference_gas_price: rgp,
+            },
+        ),
+        (
+            budget_too_high,
+            UserInputError::GasBudgetTooHigh {
+                gas_budget: max_tx_gas + 1,
+                max_budget: max_tx_gas,
+            },
+        ),
+    ] {
         let digest = *tx.digest();
         let mut transactions = vec![make_user_tx_v2(
             tx,
@@ -2095,16 +2112,12 @@ async fn test_v2_gas_bounds_out_of_range_dropped() {
             "out-of-bounds-gas V2 should be dropped"
         );
         assert_eq!(dropped.len(), 1, "one dropped entry expected");
-        assert!(
-            matches!(
-                dropped[0].1,
-                IotaError::UserInput {
-                    error: UserInputError::GasPriceUnderRGP { .. }
-                        | UserInputError::GasBudgetTooHigh { .. }
-                }
-            ),
-            "expected a gas-bounds UserInputError, got {:?}",
+        assert_eq!(
             dropped[0].1,
+            IotaError::UserInput {
+                error: expected_error
+            },
+            "unexpected drop reason",
         );
         assert!(
             locks.is_empty(),
