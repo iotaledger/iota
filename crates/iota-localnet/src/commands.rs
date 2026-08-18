@@ -69,8 +69,7 @@ const DEFAULT_GRAPHQL_PORT: u16 = 9125;
 const DEFAULT_GRAPHQL_METRICS_PORT: u16 = 9126;
 #[cfg(feature = "indexer")]
 const DEFAULT_INDEXER_PORT: u16 = 9124;
-/// Port base of the fullnode layout, see
-/// [`FullnodeConfigBuilder::with_deterministic_ports`].
+/// Port base of the fullnode layout, see [`fullnode_genesis_config`].
 const FULLNODE_PORT_BASE: u16 = 9184;
 /// Port base of the validator layout, see
 /// [`ConfigBuilder::with_deterministic_ports`].
@@ -1167,7 +1166,6 @@ fn fullnode_genesis_config<R: rand::RngCore + rand::CryptoRng>(
         &node_ip.to_string(),
         FULLNODE_PORT_BASE + 2,
     );
-    config.p2p_listen_address = None;
     config
 }
 

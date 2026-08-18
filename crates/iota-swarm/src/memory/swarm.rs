@@ -463,7 +463,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     /// and building the genesis (e.g. on invalid genesis parameters or a
     /// validator below the minimum stake).
     pub fn try_build(mut self) -> Result<Swarm> {
-        let fullnode_genesis_config = self.fullnode_genesis_config.take();
+        let mut fullnode_genesis_config = self.fullnode_genesis_config.take();
         let dir = if let Some(dir) = self.dir {
             SwarmDirectory::Persistent(dir)
         } else {
@@ -633,7 +633,6 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 fullnode_config_builder.with_grpc_api_config(grpc_config.clone());
         }
 
-        let mut fullnode_genesis_config = fullnode_genesis_config;
         for idx in 0..self.fullnode_count {
             let mut builder = fullnode_config_builder.clone();
             // Only the first fullnode is used as the rpc fullnode, and only it

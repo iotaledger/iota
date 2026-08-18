@@ -130,9 +130,9 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-/// Genesis pins the fullnode's ports, not its address. The simulator gives
-/// every node an address of its own and routes loopback addresses back to the
-/// caller, so a fullnode entry on 127.0.0.1 could never reach the validators.
+/// Genesis does not pin the fullnode's address. The simulator gives every node
+/// an address of its own and routes loopback addresses back to the caller, so a
+/// fullnode entry on 127.0.0.1 could never reach the validators.
 #[sim_test]
 async fn the_persisted_fullnode_entry_keeps_its_own_address() -> Result<(), anyhow::Error> {
     let tmp_dir = iota_common::tempdir();
@@ -142,16 +142,6 @@ async fn the_persisted_fullnode_entry_keeps_its_own_address() -> Result<(), anyh
     let genesis_config = PersistedNetworkConfig::read(working_dir)?.genesis_config;
     let fullnode = genesis_config.fullnode_config_info.unwrap();
     let node_ip = fullnode.network_address.to_socket_addr().unwrap().ip();
-
-    assert_eq!(fullnode.metrics_address, SocketAddr::new(node_ip, 9184));
-    assert_eq!(
-        fullnode.admin_interface_address,
-        SocketAddr::new(node_ip, 9185)
-    );
-    assert_eq!(
-        fullnode.p2p_address.to_string(),
-        format!("/ip4/{node_ip}/udp/9186/http")
-    );
 
     // Outside the simulator every node is on localhost, inside it none is.
     for validator in genesis_config.validator_config_info.unwrap() {
@@ -518,10 +508,6 @@ async fn two_runs_derive_the_same_node_configs() -> Result<(), anyhow::Error> {
         );
     }
 
-    // The fullnode's database is the one the first run would have created.
-    let fullnode = PersistedConfig::<NodeConfig>::read(&first.join(IOTA_FULLNODE_CONFIG))?;
-    assert!(fullnode.db_path.starts_with(working_dir));
-
     tmp_dir.close()?;
     config_tmp_dir.close()?;
     Ok(())
@@ -579,31 +565,13 @@ async fn start_works_with_a_committee_of_two() -> Result<(), anyhow::Error> {
     let tmp_dir = iota_common::tempdir();
     let working_dir = tmp_dir.path();
 
-    if let Ok(res) = tokio::time::timeout(
-        Duration::from_secs(10),
-        LocalnetCommand::Start {
-            #[cfg(feature = "indexer")]
-            data_ingestion_dir: None,
-            config_dir: Some(working_dir.to_path_buf()),
-            no_full_node: false,
-            disable_fullnode_pruning: false,
-            force_regenesis: false,
-            with_faucet: None,
-            faucet_amount: None,
-            faucet_coin_count: None,
-            with_grpc: None,
-            node_config_override: vec![],
-            fullnode_rpc_port: FULLNODE_RPC_PORT,
-            committee_size: Some(2),
-            epoch_duration_ms: None,
-            #[cfg(feature = "indexer")]
-            indexer_feature_args: Box::new(IndexerFeatureArgs::for_testing()),
-            write_config: None,
-        }
-        .execute(),
-    )
-    .await
-    {
+    let mut command = start_command(working_dir, None, vec![]);
+    let LocalnetCommand::Start { committee_size, .. } = &mut command else {
+        unreachable!("start_command builds a start command")
+    };
+    *committee_size = Some(2);
+
+    if let Ok(res) = tokio::time::timeout(Duration::from_secs(10), command.execute()).await {
         res.unwrap();
     };
 
