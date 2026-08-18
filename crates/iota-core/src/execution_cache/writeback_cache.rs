@@ -1564,12 +1564,12 @@ impl ObjectCacheRead for WritebackCache {
                         if let ObjectEntry::Object(object) = object {
                             self.metrics
                                 .record_cache_hit("object_lt_or_eq_version", $level);
-                            return Ok(Some(object.clone()));
+                            return Ok(Some(Some(object.clone())));
                         } else {
                             // if we find a tombstone, the object does not exist
                             self.metrics
                                 .record_cache_negative_hit("object_lt_or_eq_version", $level);
-                            return Ok(None);
+                            return Ok(Some(None));
                         }
                     } else {
                         self.metrics
@@ -1615,7 +1615,9 @@ impl ObjectCacheRead for WritebackCache {
         self.metrics
             .record_cache_miss("object_lt_or_eq_version", "object_by_id");
 
-        Self::with_locked_cache_entries(
+        // `None` when the database has to be scanned, after the locks are
+        // released.
+        let scan: IotaResult<Option<Option<Object>>> = Self::with_locked_cache_entries(
             &self.dirty.objects,
             &self.cached.object_cache,
             &object_id,
@@ -1679,15 +1681,14 @@ impl ObjectCacheRead for WritebackCache {
 
                     if obj_version <= version_bound {
                         match obj_entry {
-                            ObjectEntry::Object(object) => Ok(Some(object)),
-                            ObjectEntry::Deleted | ObjectEntry::Wrapped => Ok(None),
+                            ObjectEntry::Object(object) => Ok(Some(Some(object))),
+                            ObjectEntry::Deleted | ObjectEntry::Wrapped => Ok(Some(None)),
                         }
                     } else {
                         // The latest object exceeded the bound, so now we have to do a scan
                         // But we already know there is no dirty entry within the bound,
-                        // so we go to the db.
-                        self.record_db_get("object_lt_or_eq_version_scan")
-                            .find_object_lt_or_eq_version(object_id, version_bound)
+                        // so we go to the db, after the locks are released.
+                        Ok(None)
                     }
 
                 // no object found in dirty set or db, object does not exist
@@ -1699,7 +1700,7 @@ impl ObjectCacheRead for WritebackCache {
                 } else if let Some(latest_cache_entry) = latest_cache_entry {
                     // If there is a latest cache entry, it had better not be a live object!
                     assert!(!latest_cache_entry.lock().is_alive());
-                    Ok(None)
+                    Ok(Some(None))
                 } else {
                     // If there is no latest cache entry, we can insert one.
                     let highest = cached_entry.and_then(|c| c.get_highest());
@@ -1709,10 +1710,21 @@ impl ObjectCacheRead for WritebackCache {
                         // okay to get ticket at last second - see above
                         self.object_by_id_cache.get_ticket_for_read(&object_id),
                     );
-                    Ok(None)
+                    Ok(Some(None))
                 }
             },
-        )
+        );
+        match scan? {
+            Some(found) => Ok(found),
+            // Outside the locks: the scan can walk every historic bucket, and
+            // the dirty entry's lock is that of a whole shard of objects that
+            // execution writes. Dirty and cached versions are all above the
+            // bound, and a version that moves to the historic store meanwhile
+            // is found there, since the scan reads the live table first.
+            None => self
+                .record_db_get("object_lt_or_eq_version_scan")
+                .find_object_lt_or_eq_version_with_historic_fallback(object_id, version_bound),
+        }
     }
 
     fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
