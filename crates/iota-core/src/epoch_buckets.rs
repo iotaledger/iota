@@ -218,8 +218,12 @@ impl<B> EpochBuckets<B> {
     /// `before_drop` runs for each expiring epoch, in ascending epoch order,
     /// while the write lock is held and before the column family is dropped.
     /// A store whose buckets have no side effects passes a closure that does
-    /// nothing. An error from it leaves that epoch's bucket in place and
-    /// stops the prune.
+    /// nothing. An error from it stops the prune and leaves that epoch's
+    /// bucket in the map, visible to `iter()` again once the lock releases —
+    /// whatever `before_drop` already wrote for that epoch is not rolled
+    /// back. A callback must therefore be safe to run again verbatim on the
+    /// same epoch, and must not durably change how a bucket may be read
+    /// before it has done everything needed to make that safe.
     pub(crate) fn prune(
         &self,
         epochs_to_retain: u64,
