@@ -17,6 +17,7 @@ use iota_sdk::iota_client_config::IotaClientConfig;
 use iota_swarm_config::{
     genesis_config::DEFAULT_NUMBER_OF_AUTHORITIES, network_config::NetworkConfigLight,
 };
+use iota_types::traffic_control::PolicyConfig;
 
 #[sim_test]
 async fn test_genesis() -> Result<(), anyhow::Error> {
@@ -190,6 +191,46 @@ async fn genesis_gives_every_node_fixed_ports() -> Result<(), anyhow::Error> {
         ports.len(),
         "two nodes share a port: {ports:?}"
     );
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+// A node started from a written config gets the default
+// denial-of-service protection, matching what an absent `policy-config`
+// key deserializes to.
+#[tokio::test]
+async fn genesis_writes_the_default_traffic_control_policy() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
+
+    LocalnetCommand::Genesis {
+        working_dir: Some(working_dir.to_path_buf()),
+        write_config: None,
+        force: false,
+        from_config: None,
+        epoch_duration_ms: None,
+        benchmark_ips: None,
+        with_faucet: false,
+        committee_size: DEFAULT_NUMBER_OF_AUTHORITIES,
+        num_additional_gas_accounts: None,
+        chain_start_timestamp_ms: None,
+        admin_interface_address: None,
+    }
+    .execute()
+    .await?;
+
+    let expected = format!("{:?}", Some(PolicyConfig::default_dos_protection_policy()));
+
+    let network_conf =
+        PersistedConfig::<NetworkConfigLight>::read(&working_dir.join(IOTA_NETWORK_CONFIG))?;
+    for validator in network_conf.validator_configs() {
+        assert_eq!(format!("{:?}", validator.policy_config), expected);
+    }
+
+    let fullnode_conf =
+        PersistedConfig::<NodeConfig>::read(&working_dir.join(IOTA_FULLNODE_CONFIG))?;
+    assert_eq!(format!("{:?}", fullnode_conf.policy_config), expected);
 
     tmp_dir.close()?;
     Ok(())

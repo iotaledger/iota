@@ -42,6 +42,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
+use iota_types::traffic_control::PolicyConfig;
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{info, warn};
@@ -1004,6 +1005,10 @@ async fn genesis(
     let genesis = iota_config::node::Genesis::new_from_file(&genesis_path);
     for validator in &mut network_config.validator_configs {
         validator.genesis = genesis.clone();
+        // A written config starts a real node, which should get the safe
+        // default; the builders leave `policy-config` unset because in-memory
+        // swarm nodes run without a traffic controller.
+        validator.policy_config = Some(PolicyConfig::default_dos_protection_policy());
     }
 
     info!("Network genesis completed.");
@@ -1017,6 +1022,7 @@ async fn genesis(
         .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
         .with_admin_interface_address(admin_interface_address_with_port)
+        .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
         .with_deterministic_ports(FULLNODE_PORT_BASE)
         .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
 
@@ -1039,6 +1045,7 @@ async fn genesis(
                 .with_admin_interface_address(admin_interface_address_with_port)
                 .with_json_rpc_address(([0, 0, 0, 0], 9000))
                 .with_genesis(genesis.clone())
+                .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
                 .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
             ssfn_nodes.push(ssfn_config.clone());
             ssfn_config.save(path)?;
