@@ -7,6 +7,7 @@ use std::{
     sync::Arc,
 };
 
+use iota_common::debug_fatal;
 use iota_sdk_types::{
     ObjectId, ObjectReference, ObjectVersion, TransactionEffects, TransactionEvents,
 };
@@ -149,9 +150,19 @@ impl TransactionOutputs {
             &read_objects,
             &mut capture_misses,
         );
-        metrics
-            .superseded_capture_misses
-            .inc_by(capture_misses as u64);
+        if capture_misses > 0 {
+            metrics
+                .superseded_capture_misses
+                .inc_by(capture_misses as u64);
+            // A miss loses no data — the same set drives both the bucket
+            // insert and the live delete, so the version simply stays in the
+            // live table — but relocation then stops for that shape of
+            // object, which only a crash in a test build makes visible.
+            debug_fatal!(
+                "{capture_misses} of the versions {tx_digest} superseded have no pre-image among \
+                 its input objects or the objects it read"
+            );
+        }
 
         TransactionOutputs {
             transaction: Arc::new(transaction),
@@ -171,10 +182,7 @@ impl TransactionOutputs {
 /// Pre-images of the object versions a transaction superseded, keyed by
 /// the version each pre-image belonged to.
 ///
-/// A modified object's pre-image is normally in `input_objects`. Objects
-/// loaded at runtime — dynamic fields, in particular — never appear there,
-/// so a lookup that misses in `input_objects` falls back to `read_objects`,
-/// which tracks every object loaded during execution. Equivalent to
+/// Equivalent to
 /// [`build_superseded_counting`] with the miss count discarded; kept
 /// separate so a test that only cares about the captured set doesn't have
 /// to thread a counter through it.
