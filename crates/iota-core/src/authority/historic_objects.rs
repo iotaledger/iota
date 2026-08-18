@@ -18,7 +18,7 @@ use std::{
     },
 };
 
-use iota_sdk_types::{TransactionDigest, TransactionEffects};
+use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects, Version};
 use iota_types::{
     committee::EpochId,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -349,6 +349,38 @@ impl HistoricObjects {
         Ok(())
     }
 
+    /// The newest version of `id` at or below `version` among the relocated
+    /// versions, newest bucket first, `None` if no version of it in range was
+    /// ever relocated (or its bucket has since been dropped).
+    ///
+    /// Buckets are searched newest first because an object's versions are
+    /// relocated in increasing version order, so the first bucket holding
+    /// anything within the bound holds the newest such version.
+    ///
+    /// This answers from the buckets alone and knows nothing of tombstones,
+    /// so a caller must read the live `objects` table first and only fall
+    /// through to here once that read comes back with nothing in range — both
+    /// because a tombstone in range means the object is gone, and for the
+    /// ordering `Self::readable_buckets` requires.
+    pub fn find_lt_or_eq_version(
+        &self,
+        id: ObjectId,
+        version: Version,
+    ) -> IotaResult<Option<Object>> {
+        for bucket in self.readable_buckets(true) {
+            let newest = bucket
+                .objects
+                .safe_range_iter_reversed(ObjectKey::min_for_id(&id)..=ObjectKey(id, version))
+                .next()
+                .transpose()
+                .map_err(|e| IotaError::Storage(e.to_string()))?;
+            if let Some((_, object)) = newest {
+                return Ok(Some(object));
+            }
+        }
+        Ok(None)
+    }
+
     /// The buckets a query may read, in scan order: ascending epochs for
     /// forward scans, descending for reverse scans.
     ///
@@ -457,10 +489,7 @@ impl HistoricObjects {
             true,
         )?;
         let mut batch = unreadable.batch();
-        batch.insert_batch_tagged(
-            &unreadable,
-            [(ObjectKey(iota_sdk_types::ObjectId::ZERO, 1.into()), epoch)],
-        )?;
+        batch.insert_batch_tagged(&unreadable, [(ObjectKey(ObjectId::ZERO, 1.into()), epoch)])?;
         batch.write()
     }
 

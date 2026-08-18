@@ -296,20 +296,25 @@ impl AuthorityPerpetualTables {
         )
     }
 
-    // This is used by indexer to find the correct version of dynamic field child
-    // object. We do not store the version of the child object, but because of
-    // lamport timestamp, we know the child must have version number less then
-    // or eq to the parent.
+    /// The newest row for `object_id` at or below `version`, still wrapped.
+    ///
+    /// A `StoreObject::Value` is a live version; a `Deleted` or `Wrapped`
+    /// row means the object was deleted or wrapped at or below the bound,
+    /// which is a different answer from `None` — nothing at all in range —
+    /// and callers must not collapse the two. Use [`Self::object`] to
+    /// resolve a row once the two cases have been told apart.
     pub fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
         version: Version,
-    ) -> IotaResult<Option<Object>> {
+    ) -> Result<Option<(ObjectKey, StoreObjectWrapper)>, IotaError> {
         let mut iter = self.objects.safe_range_iter_reversed(
             ObjectKey::min_for_id(&object_id)..=ObjectKey(object_id, version),
         );
         match iter.next() {
-            Some(Ok((key, o))) => self.object(&key, o),
+            // Migrate legacy V1 rows before returning; callers inspect the
+            // wrapper via `inner()`, which panics on an un-migrated V1.
+            Some(Ok((key, o))) => Ok(Some((key, o.migrate()))),
             Some(Err(e)) => Err(e.into()),
             None => Ok(None),
         }
