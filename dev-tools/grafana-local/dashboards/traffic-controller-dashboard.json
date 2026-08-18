@@ -1363,7 +1363,7 @@
       "targets": [
         {
           "expr": "rate(firewall_delegation_overflow{host=~\"$host\"}[$__rate_interval])",
-          "legendFormat": "dropped blocks/s {{host}}",
+          "legendFormat": "locally applied blocks/s {{host}}",
           "refId": "A"
         }
       ],

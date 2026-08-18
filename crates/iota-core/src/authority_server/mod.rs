@@ -199,8 +199,8 @@ impl ValidatorService {
         unwrapped
     }
 
-    /// Extracts the domain request from a proto request and checks traffic
-    /// control. Shared pre-processing for both unary and streaming handlers.
+    /// Checks traffic control, then extracts the domain request from a proto
+    /// request. Shared pre-processing for both unary and streaming handlers.
     async fn pre_handle<ProtoReq, DomainReq>(
         &self,
         request: tonic::Request<ProtoReq>,

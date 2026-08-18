@@ -316,7 +316,6 @@ async fn test_validator_traffic_control_error_blocked_with_policy_reconfig()
             .await
             .unwrap();
     }
-    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     // If Node and TrafficController has not crashed, blocklist and policy freq
     // state should still be intact. A single additional erroneous request from
     // the client should trigger enforcement.
@@ -597,7 +596,7 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
         delegate_error_blocking: false,
         destination_port: 9000,
         drain_path: tmp_dir.path().join("drain"),
-        drain_timeout_secs: 10,
+        drain_timeout_secs: 300,
     };
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_policy_config(Some(policy_config))

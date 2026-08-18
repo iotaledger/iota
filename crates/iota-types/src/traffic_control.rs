@@ -180,7 +180,8 @@ pub struct FreqThresholdConfig {
     pub proxied_client_threshold: u64,
     /// Burst allowance, expressed in seconds of the sustained rate: a client
     /// may send up to `threshold * window_size_secs` tallies back to back
-    /// before being blocked, with the total burst clamped at `u32::MAX`.
+    /// before being blocked, with the total burst clamped at `u32::MAX`. Zero
+    /// is rejected at startup.
     #[serde(default = "default_window_size_secs")]
     pub window_size_secs: u64,
 }

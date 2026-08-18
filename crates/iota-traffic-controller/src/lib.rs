@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Protocol level traffic control. Tallies are charged to the spam and error
-//! policies inline, so a breaching client is blocked before
-//! [`TrafficController::tally`] returns.
+//! policies inline, so a breaching client is blocked locally, or queued for the
+//! firewall, before [`TrafficController::tally`] returns.
 
 pub mod metrics;
 pub mod nodefw_client;
@@ -36,6 +36,7 @@ use iota_types::{
     },
 };
 use parking_lot::Mutex;
+use prometheus_filtered::IntGauge;
 use rand::Rng;
 use tokio::{
     sync::{mpsc, mpsc::error::TrySendError},
@@ -52,7 +53,8 @@ use crate::{
 
 const CLEAR_BLOCKLIST_INTERVAL: Duration = Duration::from_secs(3);
 const DEADMANS_SWITCH_POLL_INTERVAL: Duration = Duration::from_secs(1);
-/// Number of pending firewall delegations held before further ones are dropped.
+/// Number of pending firewall delegations held before further ones are applied
+/// locally instead.
 const FIREWALL_DELEGATION_QUEUE_SIZE: usize = 256;
 
 type Blocklist = Arc<DashMap<IpAddr, SystemTime>>;
@@ -89,13 +91,22 @@ struct TallyState {
 /// Queue of blocks handed to the remote firewall, so that the request thread
 /// never waits on the delegation request.
 struct FirewallDelegation {
-    sender: mpsc::Sender<Vec<(IpAddr, BlockAddress)>>,
+    sender: mpsc::Sender<Vec<DelegatedBlock>>,
     /// Clients whose block is queued or in flight, so that a client breaching
     /// on every request enqueues at most one block per firewall roundtrip.
     pending: Arc<Mutex<HashSet<IpAddr>>>,
     destination_port: u16,
     delegate_spam_blocking: bool,
     delegate_error_blocking: bool,
+}
+
+/// A block queued for the remote firewall, tagged with whether it targets the
+/// proxied client so that a failed delegation lands in the right local
+/// blocklist.
+struct DelegatedBlock {
+    client: IpAddr,
+    address: BlockAddress,
+    proxied: bool,
 }
 
 impl Drop for TallyState {
@@ -295,15 +306,15 @@ impl TrafficController {
         state: &TallyState,
         delegation: &FirewallDelegation,
     ) {
-        let addresses: Vec<_> =
+        let blocks: Vec<_> =
             block_addresses(response, &self.policy_config, delegation.destination_port)
                 .into_iter()
-                .filter(|(client, _)| delegation.pending.lock().insert(*client))
+                .filter(|block| delegation.pending.lock().insert(block.client))
                 .collect();
-        if addresses.is_empty() {
+        if blocks.is_empty() {
             return;
         }
-        let dropped = match delegation.sender.try_send(addresses) {
+        let dropped = match delegation.sender.try_send(blocks) {
             Ok(()) => return,
             Err(TrySendError::Full(dropped)) => {
                 // Not logged: it recurs on every request of a sustained breach.
@@ -317,7 +328,7 @@ impl TrafficController {
         };
         release_pending(
             &delegation.pending,
-            dropped.into_iter().map(|(client, _)| client),
+            dropped.into_iter().map(|block| block.client),
         );
         block_locally(
             response,
@@ -400,11 +411,13 @@ fn spawn_tally_state(
             delegate_error_blocking: fw_config.delegate_error_blocking,
         });
         let nodefw_client = NodeFWClient::new(fw_config.remote_fw_url.clone());
+        let delegation_blocklists = blocklists.clone();
         let delegation_metrics = metrics.clone();
         spawn_monitored_task!(run_firewall_delegation_loop(
             receiver,
             pending,
             nodefw_client,
+            delegation_blocklists,
             delegation_metrics
         ));
 
@@ -504,7 +517,7 @@ fn blocked(client: &Option<IpAddr>, blocklist: &Blocklist) -> bool {
 }
 
 /// The client to block and the TTL of that block, for the direct and the
-/// proxied dimension in that order.
+/// proxied client in that order.
 fn blocks(response: &PolicyResponse, policy_config: &PolicyConfig) -> [(Option<IpAddr>, u64); 2] {
     [
         (
@@ -532,13 +545,19 @@ fn block_locally(
         blocks(response, policy_config).into_iter().zip(targets)
     {
         let Some(client) = client else { continue };
-        if blocklist
-            .insert(client, SystemTime::now() + Duration::from_secs(ttl_secs))
-            .is_none()
-        {
-            debug!("Adding client {client:?} to blocklist");
-            len_gauge.inc();
-        }
+        insert_block(blocklist, len_gauge, client, ttl_secs);
+    }
+}
+
+/// Blocks a client for `ttl_secs`, counting it only when it was not already
+/// blocked so that the gauge matches the blocklist length.
+fn insert_block(blocklist: &Blocklist, len_gauge: &IntGauge, client: IpAddr, ttl_secs: u64) {
+    if blocklist
+        .insert(client, SystemTime::now() + Duration::from_secs(ttl_secs))
+        .is_none()
+    {
+        debug!("Adding client {client:?} to blocklist");
+        len_gauge.inc();
     }
 }
 
@@ -546,20 +565,22 @@ fn block_addresses(
     response: &PolicyResponse,
     policy_config: &PolicyConfig,
     destination_port: u16,
-) -> Vec<(IpAddr, BlockAddress)> {
+) -> Vec<DelegatedBlock> {
     blocks(response, policy_config)
         .into_iter()
-        .filter_map(|(client, ttl)| {
+        .zip([false, true])
+        .filter_map(|((client, ttl), proxied)| {
             let client = client?;
             debug!("Delegating blocking of client {client:?} to firewall");
-            Some((
+            Some(DelegatedBlock {
                 client,
-                BlockAddress {
+                address: BlockAddress {
                     source_address: client.to_string(),
                     destination_port,
                     ttl,
                 },
-            ))
+                proxied,
+            })
         })
         .collect()
 }
@@ -605,13 +626,14 @@ async fn run_clear_blocklists_loop(
 
 /// Posts delegated blocks to the remote firewall, off the request path.
 async fn run_firewall_delegation_loop(
-    mut receiver: mpsc::Receiver<Vec<(IpAddr, BlockAddress)>>,
+    mut receiver: mpsc::Receiver<Vec<DelegatedBlock>>,
     pending: Arc<Mutex<HashSet<IpAddr>>>,
     node_fw_client: NodeFWClient,
+    blocklists: Blocklists,
     metrics: Arc<TrafficControllerMetrics>,
 ) {
     while let Some(batch) = receiver.recv().await {
-        let (clients, addresses): (Vec<_>, Vec<_>) = batch.into_iter().unzip();
+        let addresses: Vec<_> = batch.iter().map(|block| block.address.clone()).collect();
         metrics
             .blocks_delegated_to_firewall
             .inc_by(addresses.len() as u64);
@@ -621,8 +643,16 @@ async fn run_firewall_delegation_loop(
         {
             metrics.firewall_delegation_request_fail.inc();
             warn!("Failed to delegate blocklist to firewall: {err}");
+            for block in &batch {
+                let (blocklist, len_gauge) = if block.proxied {
+                    (&blocklists.proxied_clients, &metrics.proxy_ip_blocklist_len)
+                } else {
+                    (&blocklists.clients, &metrics.connection_ip_blocklist_len)
+                };
+                insert_block(blocklist, len_gauge, block.client, block.address.ttl);
+            }
         }
-        release_pending(&pending, clients);
+        release_pending(&pending, batch.into_iter().map(|block| block.client));
     }
     info!("TrafficController firewall delegation queue closed by all senders");
 }
@@ -701,9 +731,7 @@ impl Add for TrafficSimMetrics {
     }
 }
 
-pub struct TrafficSim {
-    pub traffic_controller: TrafficController,
-}
+pub struct TrafficSim;
 
 impl TrafficSim {
     pub async fn run(

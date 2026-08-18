@@ -47,8 +47,14 @@ type ClientRateLimiter =
 /// Sustained `threshold` tallies per second, tolerating `threshold *
 /// window_size_secs` back to back.
 fn sustained_quota(threshold: u64, window_size_secs: u64) -> Quota {
-    Quota::per_second(clamp_to_cells(threshold))
-        .allow_burst(clamp_to_cells(threshold.saturating_mul(window_size_secs)))
+    let burst = threshold.saturating_mul(window_size_secs);
+    if burst > u32::MAX as u64 {
+        warn!(
+            "freq-threshold burst {burst} exceeds {} cells, clamping",
+            u32::MAX
+        );
+    }
+    Quota::per_second(clamp_to_cells(threshold)).allow_burst(clamp_to_cells(burst))
 }
 
 /// The `threshold`-th tally in a row breaches and earlier ones pass, with the
@@ -133,7 +139,7 @@ impl QuotaKind {
     }
 }
 
-/// Rate limiter for one client dimension (direct or proxied).
+/// Rate limiter for direct or proxied clients.
 enum Limiter {
     /// Every tally blocks its client; the operator killswitch.
     BlockAll,
@@ -392,7 +398,7 @@ mod tests {
     #[test]
     fn test_freq_threshold_blocks_once_burst_is_exhausted() {
         // Sustained 2/s tolerating a 5 second burst, so the 11th back to back
-        // tally is the first to breach, for both client dimensions.
+        // tally is the first to breach, for both the direct and the proxied client.
         let policy = freq_threshold(2, 2, 5);
         let direct = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
         let proxied = IpAddr::V4(Ipv4Addr::new(192, 168, 0, 1));

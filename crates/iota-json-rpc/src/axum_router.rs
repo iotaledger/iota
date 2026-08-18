@@ -200,14 +200,13 @@ async fn process_raw_request<L: Logger>(
         }
         None => None,
     };
-    if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
-        // check if either IP is blocked, in which case return early
-        if let Some(traffic_controller) = &service.traffic_controller {
-            if let Err(blocked_response) = handle_traffic_req(traffic_controller.clone(), &client) {
-                return blocked_response;
-            }
+    // check if either IP is blocked, in which case return early
+    if let Some(traffic_controller) = &service.traffic_controller {
+        if let Err(blocked_response) = handle_traffic_req(traffic_controller.clone(), &client) {
+            return blocked_response;
         }
-
+    }
+    if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
         // handle response tallying
         let response = process_request(request, api_version, service.call_data()).await;
         if let Some(traffic_controller) = &service.traffic_controller {

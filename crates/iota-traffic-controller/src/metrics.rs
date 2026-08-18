@@ -71,7 +71,7 @@ impl TrafficControllerMetrics {
             .unwrap(),
             firewall_delegation_overflow: register_int_counter_with_registry!(
                 "firewall_delegation_overflow",
-                "Number of blocks dropped because the firewall delegation queue was full",
+                "Number of blocks applied locally because the firewall delegation queue was full",
                 registry
             )
             .unwrap(),
