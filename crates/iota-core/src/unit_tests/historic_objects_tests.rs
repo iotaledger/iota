@@ -4,14 +4,14 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use iota_sdk_types::ObjectId;
-use iota_types::{object::Object, storage::ObjectKey};
+use iota_types::{committee::EpochId, object::Object, storage::ObjectKey};
 use typed_store::{
     database::wait_for_database_close,
-    rocks::{ReadWriteOptions, TaggedDBMap, default_db_options},
+    rocks::{DBMap, ReadWriteOptions, TaggedDBMap, default_db_options},
     traits::Map,
 };
 
-use super::{DB_PREFIX_HISTORIC_TOMBSTONES, HistoricObjects};
+use super::{DB_PREFIX_HISTORIC_TOMBSTONES, EARLIEST_RETAINED_CF, HistoricObjects};
 use crate::authority::{
     authority_store_tables::AuthorityPerpetualTables,
     authority_store_types::{StoreObject, StoreObjectWrapper},
@@ -294,6 +294,64 @@ async fn test_an_interrupted_expiry_is_finished_at_open() {
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     assert!(perpetual.objects.get(&deleted).unwrap().is_none());
     assert_eq!(historic.get(&relocated).unwrap(), None);
+}
+
+/// A prune persists its retention floor before it marks the first bucket, so
+/// a crash in between leaves a bucket below the floor and unmarked. Its expiry
+/// is finished at the next open all the same: dropping its column family on
+/// its own would leave its tombstone heads in the live `objects` table with
+/// nothing left to delete them.
+#[tokio::test]
+async fn test_a_bucket_below_the_retention_floor_is_expired_at_open() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    let object = Object::immutable_with_id_for_testing(ObjectId::random());
+    let relocated = ObjectKey(object.id(), object.version());
+    let deleted = ObjectKey(ObjectId::random(), 4.into());
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.objects, [(relocated, object)])
+        .unwrap();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, [(deleted, ())])
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [(deleted, StoreObjectWrapper::from(StoreObject::Deleted))],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    historic.ensure(2).unwrap();
+
+    // The floor a prune persists first, without the marker it would have
+    // written next.
+    let earliest_retained_table: DBMap<(), EpochId> = DBMap::reopen(
+        &perpetual.objects.db,
+        Some(EARLIEST_RETAINED_CF),
+        &ReadWriteOptions::default(),
+        true,
+    )
+    .unwrap();
+    earliest_retained_table.insert(&(), &2).unwrap();
+    assert!(bucket.expiring.get(&()).unwrap().is_none());
+
+    let weak_db = Arc::downgrade(&perpetual.objects.db);
+    drop(earliest_retained_table);
+    drop(bucket);
+    drop(historic);
+    drop(perpetual);
+    assert!(wait_for_database_close(weak_db).await);
+
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    assert!(perpetual.objects.get(&deleted).unwrap().is_none());
+    assert_eq!(historic.get(&relocated).unwrap(), None);
+    assert_eq!(historic.earliest_retained_epoch(), 2);
 }
 
 /// Recovery at open goes oldest bucket first and stops at the first bucket it
