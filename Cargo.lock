@@ -8095,6 +8095,7 @@ dependencies = [
  "iota-common",
  "iota-macros",
  "iota-metrics",
+ "iota-protocol-config",
  "iota-simulator",
  "iota-types",
  "parking_lot 0.12.3",

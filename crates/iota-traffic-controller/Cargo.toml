@@ -32,6 +32,7 @@ iota-macros.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true
+iota-protocol-config.workspace = true
 
 [lints]
 workspace = true
