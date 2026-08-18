@@ -4,12 +4,11 @@
 
 use std::{
     collections::{BTreeSet, HashMap},
-    sync::{Arc, Mutex, Weak},
+    sync::{Arc, Mutex},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use anyhow::anyhow;
-use bincode::Options;
 use iota_config::node::AuthorityStorePruningConfig;
 use iota_metrics::{monitored_scope, spawn_monitored_task};
 use iota_sdk_types::{
@@ -21,10 +20,7 @@ use iota_types::{
     storage::ObjectKey,
 };
 use once_cell::sync::Lazy;
-use prometheus_filtered::{
-    IntCounter, IntGauge, MetricLevel, Registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry,
-};
+use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
 use tokio::{
     sync::{
         oneshot::{self, Sender},
@@ -33,14 +29,10 @@ use tokio::{
     time::Instant,
 };
 use tracing::{debug, error, info, warn};
-use typed_store::{
-    Map, TypedStoreError,
-    rocksdb::{LiveFile, compaction_filter::Decision},
-};
+use typed_store::{Map, TypedStoreError, rocksdb::LiveFile};
 
-use super::authority_store_tables::{AuthorityPerpetualTables, AuthorityPrunerTables};
+use super::authority_store_tables::AuthorityPerpetualTables;
 use crate::{
-    authority::authority_store_types::{StoreObject, StoreObjectWrapper},
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointStore, CheckpointWatermark},
     rpc_indexes::RpcIndexesStore,
@@ -711,81 +703,11 @@ impl AuthorityStorePruner {
     }
 }
 
-#[derive(Clone)]
-pub struct ObjectsCompactionFilter {
-    db: Weak<AuthorityPrunerTables>,
-    metrics: Arc<ObjectCompactionMetrics>,
-}
-
-impl ObjectsCompactionFilter {
-    pub fn new(db: Arc<AuthorityPrunerTables>, registry: &Registry) -> Self {
-        Self {
-            db: Arc::downgrade(&db),
-            metrics: ObjectCompactionMetrics::new(registry),
-        }
-    }
-    pub fn filter(&mut self, key: &[u8], value: &[u8]) -> anyhow::Result<Decision> {
-        let ObjectKey(object_id, version) = bincode::DefaultOptions::new()
-            .with_big_endian()
-            .with_fixint_encoding()
-            .deserialize(key)?;
-        let object: StoreObjectWrapper = bcs::from_bytes(value)?;
-        // Compaction sees raw on-disk rows, which may be legacy V1; migrate
-        // before `into_inner()`, which panics on an un-migrated V1.
-        if matches!(object.migrate().into_inner(), StoreObject::Value(_)) {
-            if let Some(db) = self.db.upgrade() {
-                match db.object_tombstones.get(&object_id)? {
-                    Some(gc_version) => {
-                        if version <= gc_version {
-                            self.metrics.key_removed.inc();
-                            return Ok(Decision::Remove);
-                        }
-                        self.metrics.key_kept.inc();
-                    }
-                    None => self.metrics.key_not_found.inc(),
-                }
-            }
-        }
-        Ok(Decision::Keep)
-    }
-}
-
-struct ObjectCompactionMetrics {
-    key_removed: IntCounter,
-    key_kept: IntCounter,
-    key_not_found: IntCounter,
-}
-
-impl ObjectCompactionMetrics {
-    pub fn new(registry: &Registry) -> Arc<Self> {
-        Arc::new(Self {
-            key_removed: register_int_counter_with_registry!(
-                "objects_compaction_filter_key_removed",
-                "Compaction key removed",
-                registry
-            )
-            .unwrap(),
-            key_kept: register_int_counter_with_registry!(
-                "objects_compaction_filter_key_kept",
-                "Compaction key kept",
-                registry
-            )
-            .unwrap(),
-            key_not_found: register_int_counter_with_registry!(
-                "objects_compaction_filter_key_not_found",
-                "Compaction key not found",
-                registry
-            )
-            .unwrap(),
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{path::Path, sync::Arc};
 
-    use iota_sdk_types::{ObjectId, TransactionDigest, Version};
+    use iota_sdk_types::{ObjectId, Version};
     use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
     use iota_types::{
         messages_checkpoint::{CheckpointSequenceNumber, CheckpointTimestamp},
@@ -793,7 +715,6 @@ mod tests {
         storage::ObjectKey,
     };
     use more_asserts as ma;
-    use prometheus_filtered::Registry;
     use tokio::sync::{oneshot, watch};
     use tracing::info;
     use typed_store::Map;
@@ -803,7 +724,7 @@ mod tests {
         authority::{
             authority_store_pruner::AuthorityStorePruningMetrics,
             authority_store_tables::AuthorityPerpetualTables,
-            authority_store_types::{StoreObjectWrapper, get_store_object},
+            authority_store_types::get_store_object,
         },
         checkpoints::CheckpointStore,
     };
@@ -870,65 +791,6 @@ mod tests {
         );
         ma::assert_le!(after_compaction_size, before_compaction_size);
         Ok(())
-    }
-
-    /// A legacy V1 row reaching the objects compaction filter (a pre-V2 object
-    /// left on disk after an in-place upgrade or a V1 formal-snapshot restore)
-    /// must be migrated before `into_inner()`, which panics on an un-migrated
-    /// V1 wrapper.
-    #[tokio::test]
-    async fn compaction_filter_handles_legacy_v1_row() {
-        use bincode::Options;
-        use iota_sdk_types::Owner;
-        use typed_store::rocksdb::compaction_filter::Decision;
-
-        use super::ObjectsCompactionFilter;
-        use crate::authority::{
-            authority_store_tables::AuthorityPrunerTables,
-            authority_store_types::{StoreData, StoreObjectV1, StoreObjectValue},
-        };
-
-        // A V1 `Value` row is what a pre-V2 binary wrote for a live object;
-        // only `Value` rows reach the tombstone lookup.
-        let object_key = ObjectKey(ObjectId::random(), Version::from_u64(1));
-        let v1_value = StoreObjectValue {
-            data: StoreData::Coin(42),
-            owner: Owner::Immutable,
-            previous_transaction: TransactionDigest::random(),
-            storage_rebate: 7,
-        };
-        let key_bytes = bincode::DefaultOptions::new()
-            .with_big_endian()
-            .with_fixint_encoding()
-            .serialize(&object_key)
-            .unwrap();
-        let value_bytes = bcs::to_bytes(&StoreObjectWrapper::V1(StoreObjectV1::Value(Box::new(
-            v1_value,
-        ))))
-        .unwrap();
-
-        // The filter holds only a `Weak`, so keep a strong ref alive for the
-        // tombstone lookup to run.
-        let tmp_dir = iota_common::tempdir();
-        let pruner_db = Arc::new(AuthorityPrunerTables::open(tmp_dir.path()));
-        let mut filter = ObjectsCompactionFilter::new(pruner_db.clone(), &Registry::default());
-
-        // No tombstone: the row must survive.
-        let decision = filter
-            .filter(&key_bytes, &value_bytes)
-            .expect("legacy V1 row must not panic");
-        assert!(matches!(decision, Decision::Keep));
-
-        // Tombstoned at this version: the row must be compacted away, which
-        // proves the migrated row reached the tombstone-lookup branch.
-        pruner_db
-            .object_tombstones
-            .insert(&object_key.0, &object_key.1)
-            .unwrap();
-        let decision = filter
-            .filter(&key_bytes, &value_bytes)
-            .expect("legacy V1 row must not panic");
-        assert!(matches!(decision, Decision::Remove));
     }
 
     /// Builds a single-epoch chain of checkpoints with the given timestamps,

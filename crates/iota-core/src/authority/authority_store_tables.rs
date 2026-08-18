@@ -7,21 +7,17 @@ use std::path::Path;
 use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_types::{global_state_hash::GlobalStateHash, storage::MarkerValue};
 use serde::{Deserialize, Serialize};
-use tracing::error;
 use typed_store::{
     DBMapUtils, DbIterator,
     metrics::SamplingInterval,
     rocks::{
-        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
-        read_size_from_env,
+        DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options, read_size_from_env,
     },
-    rocksdb::compaction_filter::Decision,
     traits::Map,
 };
 
 use super::*;
 use crate::authority::{
-    authority_store_pruner::ObjectsCompactionFilter,
     authority_store_types::{
         StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
     },
@@ -40,7 +36,6 @@ const ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE: &str = "EFFECTS_BLOCK_CACHE_MB";
 pub struct AuthorityPerpetualTablesOptions {
     /// Whether to enable write stalling on all column families.
     pub enable_write_stall: bool,
-    pub compaction_filter: Option<ObjectsCompactionFilter>,
 }
 
 impl AuthorityPerpetualTablesOptions {
@@ -153,9 +148,12 @@ pub struct AuthorityPerpetualTables {
     /// Parameters of the system fixed at the epoch start
     pub(crate) epoch_start_configuration: DBMap<(), EpochStartConfiguration>,
 
-    /// A singleton table that stores latest pruned checkpoint. Used to keep
-    /// objects pruner progress
-    pub(crate) pruned_checkpoint: DBMap<(), CheckpointSequenceNumber>,
+    /// Deprecated: was the objects pruner's progress watermark. The objects
+    /// pruner has been replaced by per-epoch bucket expiry, which has no use
+    /// for this table.
+    #[allow(dead_code)]
+    #[deprecated_db_map]
+    pruned_checkpoint: Option<DBMap<(), CheckpointSequenceNumber>>,
 
     /// The total IOTA supply and the epoch at which it was stored.
     /// We check and update it at the end of each epoch if expensive checks are
@@ -181,31 +179,6 @@ pub struct AuthorityPerpetualTables {
     /// this build has got through `objects`, and whether it has reached the
     /// end. Empty until the sweep first writes a slice.
     pub(crate) object_backlog_sweep_progress: DBMap<(), ObjectBacklogSweepProgress>,
-}
-
-#[derive(DBMapUtils)]
-pub struct AuthorityPrunerTables {
-    /// Each deleted object's highest tombstoned version, fed to the
-    /// compaction filter that drops old rows from `objects` at or below it.
-    /// Belongs to the objects knob, since it exists solely to serve that
-    /// pruner.
-    pub(crate) object_tombstones: DBMap<ObjectId, Version>,
-}
-
-impl AuthorityPrunerTables {
-    pub fn path(parent_path: &Path) -> PathBuf {
-        parent_path.join("pruner")
-    }
-
-    pub fn open(parent_path: &Path) -> Self {
-        Self::open_tables_read_write(
-            Self::path(parent_path),
-            MetricConf::new("pruner")
-                .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
-            None,
-            None,
-        )
-    }
 }
 
 /// The total IOTA supply used during conservation checks.
@@ -261,7 +234,7 @@ impl AuthorityPerpetualTables {
         let mut table_options = BTreeMap::from([
             (
                 "objects".to_string(),
-                objects_table_config(db_options.clone(), db_options_override.compaction_filter),
+                objects_table_config(db_options.clone()),
             ),
             (
                 "live_owned_object_markers".to_string(),
@@ -437,21 +410,6 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    pub fn get_highest_pruned_checkpoint(
-        &self,
-    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
-        self.pruned_checkpoint.get(&())
-    }
-
-    pub fn set_highest_pruned_checkpoint(
-        &self,
-        wb: &mut DBBatch,
-        checkpoint_number: CheckpointSequenceNumber,
-    ) -> IotaResult {
-        wb.insert_batch(&self.pruned_checkpoint, [((), checkpoint_number)])?;
-        Ok(())
-    }
-
     pub fn get_transaction(
         &self,
         digest: &TransactionDigest,
@@ -492,16 +450,6 @@ impl AuthorityPerpetualTables {
             objects.push(key);
         }
         Ok(objects)
-    }
-
-    pub fn set_highest_pruned_checkpoint_without_wb(
-        &self,
-        checkpoint_number: CheckpointSequenceNumber,
-    ) -> IotaResult {
-        let mut wb = self.pruned_checkpoint.batch();
-        self.set_highest_pruned_checkpoint(&mut wb, checkpoint_number)?;
-        wb.write()?;
-        Ok(())
     }
 
     pub fn database_is_empty(&self) -> IotaResult<bool> {
@@ -766,23 +714,7 @@ fn live_owned_object_markers_table_config(db_options: DBOptions) -> DBOptions {
     }
 }
 
-fn objects_table_config(
-    mut db_options: DBOptions,
-    compaction_filter: Option<ObjectsCompactionFilter>,
-) -> DBOptions {
-    if let Some(mut compaction_filter) = compaction_filter {
-        db_options
-            .options
-            .set_compaction_filter("objects", move |_, key, value| {
-                match compaction_filter.filter(key, value) {
-                    Ok(decision) => decision,
-                    Err(err) => {
-                        error!("Compaction error: {:?}", err);
-                        Decision::Keep
-                    }
-                }
-            });
-    }
+fn objects_table_config(db_options: DBOptions) -> DBOptions {
     db_options
         .optimize_for_write_throughput()
         .optimize_for_read(read_size_from_env(ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE).unwrap_or(5 * 1024))

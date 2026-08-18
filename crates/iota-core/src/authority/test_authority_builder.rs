@@ -28,12 +28,8 @@ use super::{
 };
 use crate::{
     authority::{
-        AuthorityState, AuthorityStore,
-        authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_store_pruner::ObjectsCompactionFilter,
-        authority_store_tables::{
-            AuthorityPerpetualTables, AuthorityPerpetualTablesOptions, AuthorityPrunerTables,
-        },
+        AuthorityState, AuthorityStore, authority_per_epoch_store::AuthorityPerEpochStore,
+        authority_store_tables::AuthorityPerpetualTables,
         epoch_start_configuration::EpochStartConfiguration,
     },
     checkpoints::CheckpointStore,
@@ -237,26 +233,15 @@ impl<'a> TestAuthorityBuilder<'a> {
             .unwrap_or_else(|| iota_common::tempdir().keep());
         let mut config = local_network_config.validator_configs()[0].clone();
         let registry = Registry::new();
-        let compaction_filter = config
-            .authority_store_pruning_config
-            .enable_compaction_filter
-            .then(|| {
-                let pruner_db = Arc::new(AuthorityPrunerTables::open(&storage_dir.join("store")));
-                ObjectsCompactionFilter::new(pruner_db, &registry)
-            });
 
         let authority_store = match self.store {
             Some(store) => store,
             None => {
-                let perpetual_tables_options = AuthorityPerpetualTablesOptions {
-                    compaction_filter,
-                    ..Default::default()
-                };
                 // unwrap ok - for testing only.
                 let (perpetual_tables, historic_objects) =
                     AuthorityPerpetualTables::open_with_historic_objects(
                         &storage_dir.join("store"),
-                        Some(perpetual_tables_options),
+                        None,
                     )
                     .unwrap();
                 AuthorityStore::open_with_committee_for_testing(
