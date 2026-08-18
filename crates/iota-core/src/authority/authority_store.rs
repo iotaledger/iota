@@ -1296,18 +1296,39 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// Return the object with version less then or eq to the provided seq
-    /// number. This is used by indexer to find the correct version of
-    /// dynamic field child object. We do not store the version of the child
-    /// object, but because of lamport timestamp, we know the child must
-    /// have version number less then or eq to the parent.
-    pub fn find_object_lt_or_eq_version(
+    /// The newest version of `object_id` at or below `version`: the live
+    /// `objects` table first, the historic buckets after a miss there.
+    ///
+    /// `None` covers both an object deleted or wrapped at or below the bound
+    /// and an object with no version in range at all. The two are told apart
+    /// on the way, and only the second one reaches the buckets: a tombstone in
+    /// range is the answer, and serving a relocated version from underneath it
+    /// would hand back a deleted object.
+    ///
+    /// Reading the live table first is also what keeps a concurrent bucket
+    /// expiry from being observed out of order, as
+    /// `HistoricObjects::readable_buckets` explains: either the live read runs
+    /// before the expiry deletes the tombstone head and finds the tombstone,
+    /// or the bucket is out of the map by the time the buckets are asked.
+    ///
+    /// This is used to find the correct version of a dynamic field child
+    /// object. We do not store the version of the child object, but because of
+    /// lamport timestamp, we know the child must have version number less then
+    /// or eq to the parent.
+    pub fn find_object_lt_or_eq_version_with_historic_fallback(
         &self,
         object_id: ObjectId,
         version: Version,
     ) -> IotaResult<Option<Object>> {
-        self.perpetual_tables
-            .find_object_lt_or_eq_version(object_id, version)
+        match self
+            .perpetual_tables
+            .find_object_lt_or_eq_version(object_id, version)?
+        {
+            Some((key, row)) => self.perpetual_tables.object(&key, row),
+            None => self
+                .historic_objects
+                .find_lt_or_eq_version(object_id, version),
+        }
     }
 
     /// Returns the latest object reference we have for this object_id in the
