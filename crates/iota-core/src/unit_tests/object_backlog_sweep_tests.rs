@@ -179,15 +179,16 @@ async fn the_sweep_resumes_from_its_watermark() {
     seed(&interrupted);
     let sweep = sweeper(&interrupted, 1);
     assert!(sweep.sweep_slice(SWEEP_EPOCH).unwrap());
+    // One row decided, the first version of the first object id, which the
+    // second version supersedes.
     assert_eq!(
         progress(&interrupted),
         Some(ObjectBacklogSweepProgress::SweptThrough(ObjectKey(
             live_id(),
-            3.into()
+            1.into()
         )))
     );
-    // The two superseded versions of the first object id, and nothing else.
-    assert_eq!(live_keys(&interrupted).len(), 7);
+    assert_eq!(live_keys(&interrupted).len(), 8);
 
     // Release every handle on the database before reopening the same path,
     // as a restart does.
