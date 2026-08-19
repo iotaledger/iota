@@ -302,6 +302,7 @@ impl OptimisticTransactionExecutor {
             .multi_get_transactions(&[tx_digest])
             .await?
             .pop()
+            .map(StoredTransaction::from)
             .ok_or_else(|| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "transaction {tx_digest} not found in the DB after being marked as indexed."

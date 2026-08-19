@@ -2,23 +2,27 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    ops::Bound,
+};
 
 use async_graphql::{connection::CursorType, dataloader::Loader, *};
 use connection::Edge;
 use cursor::TxLookup;
-use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
+use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{
     apis::ReadApi,
     models::transactions::{OptimisticTransaction, StoredTransaction},
-    schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
+    read::TransactionRead,
+    schema::{checkpoints, transactions},
 };
 use iota_json_rpc_api::ReadApiServer;
 use iota_sdk_types::{
     Address as NativeAddress, Event as NativeEvent,
     SenderSignedTransaction as NativeSenderSignedTransaction, Transaction as NativeTransactionData,
-    TransactionEffects as NativeTransactionEffects, TransactionExpiration,
+    TransactionDigest, TransactionEffects as NativeTransactionEffects, TransactionExpiration,
 };
 use iota_types::{message_envelope::Message, transaction::TransactionAPI};
 use serde::{Deserialize, Serialize};
@@ -147,41 +151,6 @@ impl DigestKey {
             digest,
             checkpoint_viewed_at,
         }
-    }
-}
-
-/// `DataLoader` key for fetching a `TransactionBlock` by its sequence number,
-/// constrained by a consistency cursor.
-#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
-pub(crate) struct SeqKey {
-    pub tx_sequence_number: u64,
-    pub checkpoint_viewed_at: u64,
-}
-
-impl SeqKey {
-    pub fn new(tx_sequence_number: u64, checkpoint_viewed_at: u64) -> Self {
-        Self {
-            tx_sequence_number,
-            checkpoint_viewed_at,
-        }
-    }
-}
-
-/// Filter for a point query of a TransactionBlock.
-pub(crate) enum TransactionBlockLookup {
-    ByDigest(DigestKey),
-    BySeq(SeqKey),
-}
-
-impl From<DigestKey> for TransactionBlockLookup {
-    fn from(key: DigestKey) -> Self {
-        TransactionBlockLookup::ByDigest(key)
-    }
-}
-
-impl From<SeqKey> for TransactionBlockLookup {
-    fn from(key: SeqKey) -> Self {
-        TransactionBlockLookup::BySeq(key)
     }
 }
 
@@ -346,15 +315,9 @@ impl TransactionBlock {
     /// or sequence number. Treats it as if it is being viewed at the
     /// `checkpoint_viewed_at` (e.g. the state of all relevant addresses
     /// will be at that checkpoint).
-    pub(crate) async fn query(
-        ctx: &Context<'_>,
-        key: TransactionBlockLookup,
-    ) -> Result<Option<Self>, Error> {
+    pub(crate) async fn query(ctx: &Context<'_>, key: DigestKey) -> Result<Option<Self>, Error> {
         let DataLoader(loader) = ctx.data_unchecked();
-        match key {
-            TransactionBlockLookup::ByDigest(digest_key) => loader.load_one(digest_key).await,
-            TransactionBlockLookup::BySeq(seq_key) => loader.load_one(seq_key).await,
-        }
+        loader.load_one(key).await
     }
 
     /// Look up multiple `TransactionBlock`s by their digests. Returns a map
@@ -441,6 +404,42 @@ impl TransactionBlock {
         let db: &Db = ctx.data_unchecked();
         let is_from_front = page.is_from_front();
 
+        // For the only-`atCheckpoint` case, we support fallback.
+        // `scan_limit` is ignored here
+        if let Some(at_checkpoint) = filter.only_at_checkpoint() {
+            return Self::paginate_at_checkpoint_with_fallback(
+                db,
+                page,
+                u64::from(at_checkpoint),
+                checkpoint_viewed_at,
+            )
+            .await;
+        }
+
+        // For the only-`affectedAddress` case, we support fallback.
+        // `scan_limit` is ignored here
+        if let Some(address) = filter.only_affected_address() {
+            return Self::paginate_by_affected_address_with_fallback(
+                db,
+                page,
+                address,
+                checkpoint_viewed_at,
+            )
+            .await;
+        }
+
+        // For the only-`transactionIds` case, we support fallback.
+        // `scan_limit` is ignored here
+        if let Some(transaction_ids) = filter.only_transaction_ids() {
+            return Self::paginate_by_transaction_ids_with_fallback(
+                db,
+                page,
+                transaction_ids,
+                checkpoint_viewed_at,
+            )
+            .await;
+        }
+
         use transactions::dsl as tx;
         let (prev, next, transactions, tx_bounds): (
             bool,
@@ -481,7 +480,7 @@ impl TransactionBlock {
 
                     (prev, next, iter.collect())
                 } else {
-                    let subquery = subqueries(&filter, tx_bounds).unwrap();
+                    let subquery = subqueries(&filter, tx_bounds, &page).unwrap();
                     let (prev, next, results) =
                         page.paginate_raw_query::<TxLookup>(conn, checkpoint_viewed_at, subquery)?;
 
@@ -534,6 +533,196 @@ impl TransactionBlock {
     pub(crate) fn is_available(&self) -> bool {
         self.checkpoint_viewed_at < UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER
     }
+
+    /// Paginates transactions in a single checkpoint with fallback support.
+    async fn paginate_at_checkpoint_with_fallback(
+        db: &Db,
+        page: Page<Cursor>,
+        at_checkpoint: u64,
+        checkpoint_viewed_at: u64,
+    ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
+        if at_checkpoint > checkpoint_viewed_at {
+            return Ok(ScanConnection::new(false, false));
+        }
+
+        // Fetch the page plus the rows at the cursors, to later compute
+        // `has_next`/`has_prev` via `paginate_results`. The bounds are
+        // inclusive so that the cursor rows themselves are fetched.
+        let tx_seq_range = (
+            page.after()
+                .map_or(Bound::Unbounded, |c| Bound::Included(c.tx_sequence_number)),
+            page.before()
+                .map_or(Bound::Unbounded, |c| Bound::Included(c.tx_sequence_number)),
+        );
+        let mut results = db
+            .inner
+            .query_stored_transactions_by_checkpoint_seq_with_fallback(
+                at_checkpoint,
+                tx_seq_range,
+                page.limit() + 2,
+                !page.is_from_front(),
+            )
+            .await
+            .map_err(Error::from)?;
+        if !page.is_from_front() {
+            results.reverse();
+        }
+
+        let (prev, next, results) = page.paginate_results(
+            results.first().map(|f| f.cursor(checkpoint_viewed_at)),
+            results.last().map(|l| l.cursor(checkpoint_viewed_at)),
+            results,
+        );
+
+        let mut conn = ScanConnection::new(prev, next);
+        for stored in results {
+            let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let inner = TransactionBlockInner::try_from(stored)?;
+            conn.edges.push(Edge::new(
+                cursor,
+                TransactionBlock {
+                    inner,
+                    checkpoint_viewed_at,
+                },
+            ));
+        }
+        Ok(conn)
+    }
+
+    /// Paginates the transactions that affect `address`, with fallback
+    /// support when part of the history has been pruned from Postgres.
+    async fn paginate_by_affected_address_with_fallback(
+        db: &Db,
+        page: Page<Cursor>,
+        address: IotaAddress,
+        checkpoint_viewed_at: u64,
+    ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
+        use checkpoints::dsl;
+        // Exclusive upperbound, we cannot return newer data than
+        // `checkpoint_viewed_at`.
+        let tx_hi: i64 = db
+            .execute(move |conn| {
+                conn.first(move || {
+                    dsl::checkpoints
+                        .select(dsl::network_total_transactions)
+                        .filter(dsl::sequence_number.eq(checkpoint_viewed_at as i64))
+                })
+                .optional()
+            })
+            .await?
+            .ok_or_else(|| {
+                Error::DataPruned(format!("checkpoint {checkpoint_viewed_at} has been pruned"))
+            })?;
+
+        // Page cursors are inclusive, we need to convert them to exclusive
+        let cursor = if page.is_from_front() {
+            page.after()
+                .and_then(|c| c.tx_sequence_number.checked_sub(1))
+        } else {
+            Some(match page.before() {
+                Some(c) => (tx_hi as u64).min(c.tx_sequence_number.saturating_add(1)),
+                None => tx_hi as u64,
+            })
+        };
+
+        let mut results = db
+            .inner
+            .query_stored_transactions_by_affected_addresses_with_fallback(
+                address.into(),
+                cursor,
+                page.limit() + 2,
+                !page.is_from_front(),
+            )
+            .await
+            .map_err(Error::from)?;
+        if !page.is_from_front() {
+            results.reverse();
+        }
+
+        // Initial fetch above honored only the start cursor. We filter the result to
+        // also honor the end cursor and the `tx_hi`
+        results.retain(|tx| {
+            let tx_seq = tx.tx_sequence_number as u64;
+            tx.tx_sequence_number < tx_hi
+                && page.after().is_none_or(|c| c.tx_sequence_number <= tx_seq)
+                && page.before().is_none_or(|c| tx_seq <= c.tx_sequence_number)
+        });
+
+        let (prev, next, results) = page.paginate_results(
+            results.first().map(|f| f.cursor(checkpoint_viewed_at)),
+            results.last().map(|l| l.cursor(checkpoint_viewed_at)),
+            results,
+        );
+
+        let mut conn = ScanConnection::new(prev, next);
+        for stored in results {
+            let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let inner = TransactionBlockInner::try_from(stored)?;
+            conn.edges.push(Edge::new(
+                cursor,
+                TransactionBlock {
+                    inner,
+                    checkpoint_viewed_at,
+                },
+            ));
+        }
+        Ok(conn)
+    }
+
+    /// Paginates transactions selected by digest, with fallback support.
+    async fn paginate_by_transaction_ids_with_fallback(
+        db: &Db,
+        page: Page<Cursor>,
+        transaction_ids: &[Digest],
+        checkpoint_viewed_at: u64,
+    ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
+        let digests: Vec<TransactionDigest> = transaction_ids.iter().map(|d| (*d).into()).collect();
+
+        let mut results: Vec<StoredTransaction> = db
+            .inner
+            .multi_get_transactions_with_fallback(&digests)
+            .await
+            .map_err(Error::from)?
+            .into_iter()
+            .filter_map(|tx| match tx {
+                TransactionRead::Checkpointed(stored) => Some(stored),
+                // Optimistic transactions are not yet in a checkpoint, so they
+                // have no `tx_sequence_number` to order and paginate.
+                TransactionRead::Optimistic(_) => None,
+            })
+            .collect();
+
+        // The fetch above returns every requested transaction. Keep only the
+        // ones visible at `checkpoint_viewed_at` and inside the inclusive
+        // cursors range, to satisfy requirements of `page.paginate_results`.
+        results.retain(|tx| {
+            let tx_seq = tx.tx_sequence_number as u64;
+            tx.checkpoint_sequence_number as u64 <= checkpoint_viewed_at
+                && page.after().is_none_or(|c| c.tx_sequence_number <= tx_seq)
+                && page.before().is_none_or(|c| tx_seq <= c.tx_sequence_number)
+        });
+        results.sort_by_key(|tx| tx.tx_sequence_number);
+
+        let (prev, next, results) = page.paginate_results(
+            results.first().map(|f| f.cursor(checkpoint_viewed_at)),
+            results.last().map(|l| l.cursor(checkpoint_viewed_at)),
+            results,
+        );
+
+        let mut conn = ScanConnection::new(prev, next);
+        for stored in results {
+            let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let inner = TransactionBlockInner::try_from(stored)?;
+            conn.edges.push(Edge::new(
+                cursor,
+                TransactionBlock {
+                    inner,
+                    checkpoint_viewed_at,
+                },
+            ));
+        }
+        Ok(conn)
+    }
 }
 
 impl Loader<DigestKey> for Db {
@@ -544,145 +733,41 @@ impl Loader<DigestKey> for Db {
         &self,
         keys: &[DigestKey],
     ) -> Result<HashMap<DigestKey, TransactionBlock>, Error> {
-        use optimistic_transactions::dsl as opt_tx;
-        use transactions::dsl as tx;
-        use tx_digests::dsl as ds;
-        use tx_global_order::dsl as tx_global;
+        let digests: Vec<TransactionDigest> = keys.iter().map(|k| k.digest.into()).collect();
 
-        let digests: Vec<_> = keys.iter().map(|k| k.digest.to_vec()).collect();
-
-        // First, fetch from the main transactions table
-        let transactions: Vec<StoredTransaction> = self
-            .execute(move |conn| {
-                conn.results(move || {
-                    let join = ds::tx_sequence_number.eq(tx::tx_sequence_number);
-
-                    tx::transactions
-                        .inner_join(ds::tx_digests.on(join))
-                        .select(StoredTransaction::as_select())
-                        .filter(ds::tx_digest.eq_any(digests.clone()))
-                })
-            })
+        let by_digest: BTreeMap<Vec<u8>, TransactionRead> = self
+            .inner
+            .multi_get_transactions_with_fallback(&digests)
             .await
-            .map_err(|e| Error::Internal(format!("Failed to fetch transactions: {e}")))?;
-
-        let transaction_digest_to_stored: BTreeMap<Vec<u8>, StoredTransaction> = transactions
+            .map_err(|e| Error::Internal(format!("Failed to fetch transactions: {e}")))?
             .into_iter()
-            .map(|tx| (tx.transaction_digest.clone(), tx))
+            .map(|tx| (tx.transaction_digest().to_vec(), tx))
             .collect();
 
-        // Process stored transactions and collect missing digests
         let mut results = HashMap::new();
-        let mut missing_digests = Vec::new();
-
         for key in keys {
-            let digest_bytes = key.digest.as_slice();
-
-            if let Some(stored) = transaction_digest_to_stored.get(digest_bytes) {
-                let mut checkpoint_viewed_at = key.checkpoint_viewed_at;
-                if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
-                    checkpoint_viewed_at = UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER;
-                }
-                let tx_block = TransactionBlock {
-                    inner: TransactionBlockInner::try_from(stored.clone())?,
-                    checkpoint_viewed_at,
-                };
-                results.insert(*key, tx_block);
-            } else {
-                missing_digests.push(key.digest.to_vec());
-            }
-        }
-
-        if !missing_digests.is_empty() {
-            let optimistic_transactions: Vec<OptimisticTransaction> = self
-                .execute(move |conn| {
-                    conn.results(move || {
-                        opt_tx::optimistic_transactions
-                            .inner_join(
-                                tx_global::tx_global_order.on(opt_tx::global_sequence_number
-                                    .eq(tx_global::global_sequence_number)
-                                    .and(
-                                        opt_tx::optimistic_sequence_number
-                                            .eq(tx_global::optimistic_sequence_number),
-                                    )),
-                            )
-                            // Filter by digest on tx_global_order table because it is indexed by
-                            // digest, optimistic_transactions table is not
-                            .filter(tx_global::tx_digest.eq_any(missing_digests.clone()))
-                            .select(OptimisticTransaction::as_select())
-                    })
-                })
-                .await
-                .map_err(|e| {
-                    Error::Internal(format!("Failed to fetch optimistic transactions: {e}"))
-                })?;
-
-            let transaction_digest_to_optimistic: BTreeMap<Vec<u8>, OptimisticTransaction> =
-                optimistic_transactions
-                    .into_iter()
-                    .map(|opt_tx| (opt_tx.transaction_digest.clone(), opt_tx))
-                    .collect();
-
-            for key in keys {
-                let digest_bytes = key.digest.as_slice();
-                if let Some(optimistic) = transaction_digest_to_optimistic.get(digest_bytes) {
-                    let tx_block = TransactionBlock {
-                        inner: TransactionBlockInner::try_from(optimistic.clone())?,
-                        checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
-                    };
-                    results.insert(*key, tx_block);
-                }
-            }
-        }
-
-        Ok(results)
-    }
-}
-
-impl Loader<SeqKey> for Db {
-    type Value = TransactionBlock;
-    type Error = Error;
-
-    async fn load(&self, keys: &[SeqKey]) -> Result<HashMap<SeqKey, TransactionBlock>, Error> {
-        use transactions::dsl as tx;
-
-        let tx_seqs = keys
-            .iter()
-            .map(|k| k.tx_sequence_number as i64)
-            .collect::<Vec<_>>();
-        let transactions: Vec<StoredTransaction> = self
-            .execute(move |conn| {
-                conn.results(|| {
-                    tx::transactions
-                        .select(StoredTransaction::as_select())
-                        .filter(tx::tx_sequence_number.eq_any(tx_seqs.clone()))
-                })
-            })
-            .await
-            .map_err(|e| Error::Internal(format!("Failed to fetch transactions: {e}")))?;
-
-        let seq_num_to_tx: HashMap<i64, StoredTransaction> = transactions
-            .into_iter()
-            .map(|tx| (tx.tx_sequence_number, tx))
-            .collect();
-
-        let mut results = HashMap::with_capacity(keys.len());
-        for key in keys {
-            let Some(stored) = seq_num_to_tx.get(&(key.tx_sequence_number as i64)) else {
+            let Some(tx) = by_digest.get(key.digest.as_slice()) else {
                 continue;
             };
-
-            let mut checkpoint_viewed_at = key.checkpoint_viewed_at;
-            if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
-                checkpoint_viewed_at = UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER;
-            }
-            results.insert(
-                *key,
-                TransactionBlock {
-                    inner: TransactionBlockInner::try_from(stored.clone())?,
-                    checkpoint_viewed_at,
+            let block = match tx {
+                TransactionRead::Checkpointed(stored) => {
+                    let checkpoint_viewed_at =
+                        if key.checkpoint_viewed_at < stored.checkpoint_sequence_number as u64 {
+                            UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER
+                        } else {
+                            key.checkpoint_viewed_at
+                        };
+                    TransactionBlock {
+                        inner: TransactionBlockInner::try_from(stored.clone())?,
+                        checkpoint_viewed_at,
+                    }
+                }
+                TransactionRead::Optimistic(opt) => TransactionBlock {
+                    inner: TransactionBlockInner::try_from(opt.clone())?,
+                    checkpoint_viewed_at: UNAVAILABLE_CHECKPOINT_SEQUENCE_NUMBER,
                 },
-            );
+            };
+            results.insert(*key, block);
         }
 
         Ok(results)
