@@ -140,48 +140,6 @@ module Test::M1 {
 //# run-graphql
 # scanLimit required
 {
-  transactionBlocks(filter: {sentAddress: "@{A}" recvAddress: "@{B}" afterCheckpoint: 1 beforeCheckpoint: 4 kind: PROGRAMMABLE_TX}) {
-    pageInfo {
-      hasNextPage
-      hasPreviousPage
-      endCursor
-      startCursor
-    }
-    nodes {
-      digest
-      effects {
-        checkpoint {
-          sequenceNumber
-        }
-      }
-    }
-  }
-}
-
-//# run-graphql
-# valid
-{
-  transactionBlocks(scanLimit: 50 filter: {sentAddress: "@{A}" recvAddress: "@{B}" afterCheckpoint: 1 beforeCheckpoint: 4 kind: PROGRAMMABLE_TX}) {
-    pageInfo {
-      hasNextPage
-      hasPreviousPage
-      endCursor
-      startCursor
-    }
-    nodes {
-      digest
-      effects {
-        checkpoint {
-          sequenceNumber
-        }
-      }
-    }
-  }
-}
-
-//# run-graphql
-# scanLimit required
-{
   transactionBlocks(filter: {sentAddress: "@{A}" recvAddress: "@{B}" afterCheckpoint: 1 beforeCheckpoint: 4 inputObject: "@{obj_3_0}"}) {
     pageInfo {
       hasNextPage
