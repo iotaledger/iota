@@ -28,14 +28,14 @@ use tracing::{debug, info, warn};
 
 use crate::{
     CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
-    block_header::VerifiedTransactions,
+    block_header::CommitmentVerifiedTransactions,
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, CommittedSubDag, TrustedCommit},
     commit_syncer::{
         CommitSyncType, CommitSyncerHandle, FetchedCommits, Inner, fetch_loop as shared_fetch_loop,
         handle_fetch_join_error, requeue_partial_range, schedule_commit_ranges,
         try_start_fetches as shared_try_start_fetches, verify_fetched_headers,
-        verify_transactions_with_transactions_refs,
+        verify_transactions_commitments,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -672,14 +672,14 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .inc();
         }
 
-        // 5. Verify transactions
+        // 5. Verify the transactions against their commitments
         let mut transactions_map = if !fetched_transactions.is_empty() {
             Handle::current()
                 .spawn_blocking({
                     let context = inner.context.clone();
 
                     move || {
-                        verify_transactions_with_transactions_refs(
+                        verify_transactions_commitments(
                             &context,
                             target_authority,
                             fetched_transactions,
@@ -708,7 +708,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             let reputation_scores = commit.reputation_scores().to_vec();
 
             // Collect transactions for this commit
-            let commit_transactions: Vec<VerifiedTransactions> = commit_tx_refs
+            let commit_transactions: Vec<CommitmentVerifiedTransactions> = commit_tx_refs
                 .iter()
                 .filter_map(|tx_ref| transactions_map.remove(tx_ref))
                 .collect();

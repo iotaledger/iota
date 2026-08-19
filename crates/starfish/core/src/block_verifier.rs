@@ -32,7 +32,9 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
         serialized_transactions: &[u8],
     ) -> ConsensusResult<Vec<Transaction>>;
 
-    fn check_and_verify_transactions(&self, transactions: &[Transaction]) -> ConsensusResult<()>;
+    /// Checks protocol limits on the transactions and runs the application's
+    /// transaction verifier.
+    fn verify_transactions_validity(&self, transactions: &[Transaction]) -> ConsensusResult<()>;
 }
 
 /// `SignedBlockVerifier` checks the validity of a block.
@@ -313,7 +315,7 @@ impl BlockVerifier for SignedBlockVerifier {
         bcs::from_bytes(serialized_transactions).map_err(ConsensusError::MalformedTransactions)
     }
 
-    fn check_and_verify_transactions(&self, transactions: &[Transaction]) -> ConsensusResult<()> {
+    fn verify_transactions_validity(&self, transactions: &[Transaction]) -> ConsensusResult<()> {
         let batch: Vec<_> = transactions.iter().map(|t| t.data()).collect();
         self.check_transactions(&batch)?;
         self.transaction_verifier
@@ -370,7 +372,7 @@ impl BlockVerifier for NoopBlockVerifier {
         bcs::from_bytes(serialized_transactions).map_err(ConsensusError::MalformedTransactions)
     }
 
-    fn check_and_verify_transactions(&self, _transactions: &[Transaction]) -> ConsensusResult<()> {
+    fn verify_transactions_validity(&self, _transactions: &[Transaction]) -> ConsensusResult<()> {
         Ok(())
     }
 }

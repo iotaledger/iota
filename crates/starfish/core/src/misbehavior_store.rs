@@ -234,7 +234,8 @@ impl MisbehaviorStore {
         }
     }
 
-    /// Attributes a transaction payload that failed verification.
+    /// Attributes a transaction payload that failed the commitment check or
+    /// the transaction validity check.
     ///
     /// `author` is charged with a provable fault only when `authored` is true,
     /// i.e. a verified, author-signed block header commits to this payload, so

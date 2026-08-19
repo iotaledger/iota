@@ -24,9 +24,9 @@ use tracing::{debug, error, info, warn};
 use crate::{
     CommitIndex, Round, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
-        ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment, VerifiedBlock,
-        VerifiedOwnShard, VerifiedTransactions,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, GENESIS_ROUND,
+        ShardWithProof, ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment,
+        VerifiedBlock, VerifiedOwnShard,
     },
     block_verifier::{BlockVerifier, max_shard_bytes},
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
@@ -236,10 +236,10 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
 
         self.block_verifier
-            .check_and_verify_transactions(&transactions)
+            .verify_transactions_validity(&transactions)
             .inspect_err(|e| self.record_invalid_transactions(peer, peer_hostname, e))?;
 
-        let verified_transactions = VerifiedTransactions::new(
+        let verified_transactions = CommitmentVerifiedTransactions::new(
             transactions,
             verified_block_header.transaction_ref(),
             Some(verified_block_header.digest()),
@@ -1788,9 +1788,9 @@ mod tests {
             AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
         },
         block_header::{
-            BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
-            TestBlockHeader, TestBlockHeaderVersion, TransactionsCommitment, VerifiedBlock,
-            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
+            BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions,
+            GENESIS_ROUND, SignedBlockHeader, TestBlockHeader, TestBlockHeaderVersion,
+            TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -2648,7 +2648,7 @@ mod tests {
 
         async fn add_transactions(
             &self,
-            _transactions: Vec<VerifiedTransactions>,
+            _transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
@@ -2820,7 +2820,7 @@ mod tests {
             DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
         dag_builder.layers(1..=rounds).build();
         let mut all_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
-        let mut all_transactions: Vec<Vec<VerifiedTransactions>> = vec![];
+        let mut all_transactions: Vec<Vec<CommitmentVerifiedTransactions>> = vec![];
         for round in 0..=rounds {
             all_headers.push(dag_builder.block_headers(round..=round));
             all_transactions.push(dag_builder.transactions(round..=round));
@@ -2989,7 +2989,7 @@ mod tests {
             DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
         dag_builder.layers(1..=rounds).build();
         let mut all_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
-        let mut all_transactions: Vec<Vec<VerifiedTransactions>> = vec![];
+        let mut all_transactions: Vec<Vec<CommitmentVerifiedTransactions>> = vec![];
         for round in 0..=rounds {
             all_headers.push(dag_builder.block_headers(round..=round));
             all_transactions.push(dag_builder.transactions(round..=round));
@@ -3275,7 +3275,7 @@ mod tests {
             let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
                 .map_err(ConsensusError::MalformedTransactions)
                 .unwrap();
-            let verified_transactions = VerifiedTransactions::new(
+            let verified_transactions = CommitmentVerifiedTransactions::new(
                 transactions,
                 verified_block_header.transaction_ref(),
                 Some(verified_block_header.digest()),
@@ -3353,7 +3353,7 @@ mod tests {
             let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
                 .map_err(ConsensusError::MalformedTransactions)
                 .unwrap();
-            let verified_transactions = VerifiedTransactions::new(
+            let verified_transactions = CommitmentVerifiedTransactions::new(
                 transactions,
                 verified_block_header.transaction_ref(),
                 Some(verified_block_header.digest()),

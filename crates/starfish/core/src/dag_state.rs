@@ -27,9 +27,9 @@ use crate::dag_visualizer::grpc_streamer::DagVisualizerEvent;
 use crate::{
     authority_set::AuthoritySet,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
-        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
-        VerifiedTransactions, genesis_blocks,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs,
+        CommitmentVerifiedTransactions, GENESIS_ROUND, Round, Slot, TransactionsCommitment,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, genesis_blocks,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef, CommitVote,
@@ -258,7 +258,8 @@ pub(crate) struct DagState {
     /// entry with index transaction_ref.author. Evicted using the minimum
     /// between GC round for the last solid leader round evicted rounds by
     /// authority.
-    recent_transactions_by_authority: Vec<BTreeMap<GenericTransactionRef, VerifiedTransactions>>,
+    recent_transactions_by_authority:
+        Vec<BTreeMap<GenericTransactionRef, CommitmentVerifiedTransactions>>,
     /// Contains recent own serialized shards with their Merkle proofs per
     /// authority. To access own shard for a given transaction_ref, one
     /// needs to read first the entry with index transaction_ref.author.
@@ -328,7 +329,7 @@ pub(crate) struct DagState {
     pending_acknowledgments: BTreeSet<BlockRef>,
 
     /// Transactions to be flushed to storage.
-    transactions_to_write: Vec<VerifiedTransactions>,
+    transactions_to_write: Vec<CommitmentVerifiedTransactions>,
     block_headers_to_write: Vec<VerifiedBlockHeader>,
     commits_to_write: Vec<TrustedCommit>,
 
@@ -792,7 +793,7 @@ impl DagState {
 
     pub(crate) fn add_transactions(
         &mut self,
-        transactions: VerifiedTransactions,
+        transactions: CommitmentVerifiedTransactions,
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
@@ -990,7 +991,7 @@ impl DagState {
 
     fn update_transaction_metadata(
         &mut self,
-        transactions: &VerifiedTransactions,
+        transactions: &CommitmentVerifiedTransactions,
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
@@ -1115,7 +1116,7 @@ impl DagState {
     pub(crate) fn get_verified_transactions(
         &self,
         transactions_refs: &[GenericTransactionRef],
-    ) -> Vec<Option<VerifiedTransactions>> {
+    ) -> Vec<Option<CommitmentVerifiedTransactions>> {
         self.try_get_verified_transactions(transactions_refs)
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
     }
@@ -1127,7 +1128,7 @@ impl DagState {
     pub(crate) fn try_get_verified_transactions(
         &self,
         transactions_refs: &[GenericTransactionRef],
-    ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
+    ) -> ConsensusResult<Vec<Option<CommitmentVerifiedTransactions>>> {
         let mut transactions = vec![None; transactions_refs.len()];
         let mut missing = Vec::new();
 
@@ -2988,11 +2989,11 @@ impl DagState {
     fn empty_transactions_for_ref(
         &self,
         tx_ref: &GenericTransactionRef,
-    ) -> Option<VerifiedTransactions> {
+    ) -> Option<CommitmentVerifiedTransactions> {
         match tx_ref {
             GenericTransactionRef::TransactionRef(tx_ref) => (tx_ref.transactions_commitment
                 == self.empty_transactions_commitment)
-                .then(|| VerifiedTransactions::new_empty_from_ref(*tx_ref, None)),
+                .then(|| CommitmentVerifiedTransactions::new_empty_from_ref(*tx_ref, None)),
             // The legacy BlockRef form carries no commitment; commits that
             // use it derive refs from acknowledgments, which never include
             // empty blocks.
@@ -4795,7 +4796,7 @@ mod test {
                         &mut encoder,
                     )
                     .unwrap();
-                let verified_transaction = VerifiedTransactions::new(
+                let verified_transaction = CommitmentVerifiedTransactions::new(
                     transactions,
                     TransactionRef::new(block_ref, transaction_commitment),
                     Some(block_ref.digest),

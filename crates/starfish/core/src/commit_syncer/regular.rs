@@ -31,7 +31,7 @@ use crate::{
         fast::{FastSyncPauseSource, paused_by_fast_sync},
         fetch_loop as shared_fetch_loop, handle_fetch_join_error, requeue_partial_range,
         schedule_commit_ranges, try_start_fetches as shared_try_start_fetches,
-        verify_fetched_headers, verify_transactions_with_transactions_refs,
+        verify_fetched_headers, verify_transactions_commitments,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -346,7 +346,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                     expected_transactions.insert(gen_tx_ref);
                 }
 
-                // Collect available transactions from VerifiedTransactions
+                // Collect available transactions from CommitmentVerifiedTransactions
                 for verified_txns in certified_commit.transactions() {
                     let gen_tx_ref =
                         GenericTransactionRef::TransactionRef(verified_txns.transaction_ref());
@@ -697,14 +697,14 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             }
         }
 
-        // 13. Verify transactions
+        // 13. Verify the transactions against their commitments
         let mut transactions_map = if !fetched_transactions.is_empty() {
             Handle::current()
                 .spawn_blocking({
                     let context = inner.context.clone();
 
                     move || {
-                        verify_transactions_with_transactions_refs(
+                        verify_transactions_commitments(
                             &context,
                             target_authority,
                             fetched_transactions,
