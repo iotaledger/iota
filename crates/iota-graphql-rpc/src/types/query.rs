@@ -362,11 +362,12 @@ impl Query {
     ) -> Result<Option<TransactionBlock>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
         let key = transaction_block::DigestKey::new(digest, checkpoint);
-        TransactionBlock::query(ctx, key.into()).await.extend()
+        TransactionBlock::query(ctx, key).await.extend()
     }
 
     /// Fetch multiple transaction blocks by their digests.
     /// This includes all transactions, even if they are not checkpointed yet.
+    #[graphql(deprecation = "Use `transactionsByDigests` instead. Will be removed in v1.38.")]
     async fn transaction_blocks_by_digests(
         &self,
         ctx: &Context<'_>,
@@ -392,6 +393,37 @@ impl Query {
             .into_iter()
             .map(|digest| result.remove(&digest))
             .collect())
+    }
+
+    /// Fetch multiple transaction blocks by their digests.
+    ///
+    /// Unlike `transactionBlocks(filter: { transactionIds })`, this includes
+    /// all transactions, even if they are not checkpointed yet.
+    ///
+    /// Pages keep the order of the `digests` argument and hold one node per
+    /// digest, null when the transaction was not found. Only forward
+    /// pagination is supported: `limit` caps the page size and `cursor`
+    /// resumes after an entry of a previous page.
+    async fn transactions_by_digests(
+        &self,
+        ctx: &Context<'_>,
+        limit: Option<u64>,
+        cursor: Option<transaction_block::ByDigestCursor>,
+        digests: Vec<Digest>,
+    ) -> Result<transaction_block::TransactionsByDigestsPage> {
+        let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
+        if digests.len() > limits.max_transaction_ids as usize {
+            return Err(Error::Client(format!(
+                "Transaction IDs exceed max limit of '{}'",
+                limits.max_transaction_ids
+            ))
+            .into());
+        }
+
+        let Watermark { checkpoint, .. } = *ctx.data()?;
+        TransactionBlock::paginate_by_digests(ctx, limit, cursor, &digests, checkpoint)
+            .await
+            .extend()
     }
 
     /// The coin objects that exist in the network.

@@ -16,7 +16,7 @@ use iota_indexer::{
     schema::{checkpoints, events},
 };
 use iota_sdk_types::{Address as NativeAddress, Event as NativeEvent, Identifier, ObjectId};
-use iota_types::parse_iota_struct_tag;
+use iota_types::{event::EventID, parse_iota_struct_tag};
 use lookups::{add_bounds, select_emit_module, select_event_type, select_sender};
 
 use crate::{
@@ -29,9 +29,10 @@ use crate::{
         base64::Base64,
         cursor::{Page, Target},
         date_time::DateTime,
+        digest::Digest,
         move_module::MoveModule,
         move_value::MoveValue,
-        transaction_block::{SeqKey, TransactionBlock},
+        transaction_block::{DigestKey, TransactionBlock},
     },
 };
 
@@ -44,18 +45,22 @@ pub(crate) use filter::EventFilter;
 /// An event emitted in a transaction that has been checkpointed.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct CheckpointedEventInfo {
-    /// The sequence number of the parent transaction.
-    tx_sequence_number: u64,
+    /// The digest of the parent transaction.
+    tx_digest: Digest,
     /// The timestamp of the parent transaction.
     timestamp_ms: i64,
 }
 
-impl From<&StoredEvent> for CheckpointedEventInfo {
-    fn from(value: &StoredEvent) -> Self {
-        Self {
-            tx_sequence_number: value.tx_sequence_number as u64,
+impl TryFrom<&StoredEvent> for CheckpointedEventInfo {
+    type Error = Error;
+
+    fn try_from(value: &StoredEvent) -> Result<Self, Self::Error> {
+        let tx_digest = Digest::try_from(value.transaction_digest.as_slice())
+            .map_err(|e| Error::Internal(format!("Bad transaction digest on event: {e}")))?;
+        Ok(Self {
+            tx_digest,
             timestamp_ms: value.timestamp_ms,
-        }
+        })
     }
 }
 
@@ -89,9 +94,9 @@ impl Event {
         let Some(checkpointed) = &self.checkpointed_info else {
             return Ok(None);
         };
-        let key = SeqKey::new(checkpointed.tx_sequence_number, self.checkpoint_viewed_at);
+        let key = DigestKey::new(checkpointed.tx_digest, self.checkpoint_viewed_at);
 
-        TransactionBlock::query(ctx, key.into()).await.extend()
+        TransactionBlock::query(ctx, key).await.extend()
     }
 
     /// The Move module containing some function that when called by
@@ -166,6 +171,30 @@ impl Event {
         let cursor_viewed_at = page.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
+        use checkpoints::dsl;
+        // Exclusive upperbound, we cannot return newer data than `checkpoint_viewed_at`
+        let tx_hi: i64 = db
+            .execute(move |conn| {
+                conn.first(move || {
+                    dsl::checkpoints
+                        .select(dsl::network_total_transactions)
+                        .filter(dsl::sequence_number.eq(checkpoint_viewed_at as i64))
+                })
+            })
+            .await?;
+
+        // For the only-`transactionDigest` case, we support fallback.
+        if let Some(tx_digest) = filter.only_transaction_digest() {
+            return Self::paginate_by_tx_digest_with_fallback(
+                db,
+                page,
+                tx_digest,
+                checkpoint_viewed_at,
+                tx_hi,
+            )
+            .await;
+        }
+
         // Construct tx and ev sequence number query with table-relevant filters, if
         // they exist. The resulting query will look something like `SELECT
         // tx_sequence_number, event_sequence_number FROM lookup_table WHERE
@@ -183,14 +212,8 @@ impl Event {
             }
         };
 
-        use checkpoints::dsl;
         let (prev, next, results) = db
             .execute(move |conn| {
-                let tx_hi: i64 = conn.first(move || {
-                    dsl::checkpoints.select(dsl::network_total_transactions)
-                        .filter(dsl::sequence_number.eq(checkpoint_viewed_at as i64))
-                })?;
-
                 let (prev, next, mut events): (bool, bool, Vec<StoredEvent>) =
                     if let Some(filter_query) =  query_constraint {
                         let query = add_bounds(filter_query, &filter.transaction_digest, &page, tx_hi);
@@ -260,6 +283,80 @@ impl Event {
         Ok(conn)
     }
 
+    /// Paginates events of a single transaction with fallback support.
+    ///
+    /// `tx_hi` is the exclusive upperbound on transaction sequence numbers
+    async fn paginate_by_tx_digest_with_fallback(
+        db: &Db,
+        page: Page<Cursor>,
+        tx_digest: Digest,
+        checkpoint_viewed_at: u64,
+        tx_hi: i64,
+    ) -> Result<Connection<String, Event>, Error> {
+        // Page cursors are inclusive, we need to convert them to exclusive
+        let cursor = if page.is_from_front() {
+            // Cannot do -1 when cursor=0
+            page.after().and_then(|cursor| {
+                cursor.e.checked_sub(1).map(|event_seq| EventID {
+                    tx_digest: tx_digest.into(),
+                    event_seq,
+                })
+            })
+        } else {
+            // Cannot do +1 when cursor=`u64::MAX`
+            page.before().and_then(|cursor| {
+                cursor.e.checked_add(1).map(|event_seq| EventID {
+                    tx_digest: tx_digest.into(),
+                    event_seq,
+                })
+            })
+        };
+
+        // we fetch with limit+2, so that we receive back both cursors in case of full
+        // page, as required by `page.paginate_results`
+        let mut results = db
+            .inner
+            .query_stored_events_by_tx_digest_with_fallback(
+                tx_digest.into(),
+                cursor,
+                page.limit() + 2,
+                !page.is_from_front(),
+            )
+            .await
+            .map_err(Error::from)?;
+        if !page.is_from_front() {
+            results.reverse();
+        }
+
+        // Initial fetch above honored only the start cursor. We filter the result to
+        // also honor the end cursor and the `tx_hi`
+        results.retain(|ev| {
+            let key = (
+                ev.tx_sequence_number as u64,
+                ev.event_sequence_number as u64,
+            );
+            ev.tx_sequence_number < tx_hi
+                && page.after().is_none_or(|c| (c.tx, c.e) <= key)
+                && page.before().is_none_or(|c| key <= (c.tx, c.e))
+        });
+
+        let (prev, next, results) = page.paginate_results(
+            results.first().map(|f| f.cursor(checkpoint_viewed_at)),
+            results.last().map(|l| l.cursor(checkpoint_viewed_at)),
+            results,
+        );
+
+        let mut conn = Connection::new(prev, next);
+        for stored in results {
+            let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            conn.edges.push(Edge::new(
+                cursor,
+                Event::try_from_stored_event(stored, checkpoint_viewed_at)?,
+            ));
+        }
+        Ok(conn)
+    }
+
     pub(crate) fn try_from_stored_transaction(
         stored_tx: &StoredTransaction,
         idx: usize,
@@ -279,8 +376,10 @@ impl Event {
             ))
         })?;
 
+        let tx_digest = Digest::try_from(stored_tx.transaction_digest.as_slice())
+            .map_err(|e| Error::Internal(format!("Bad transaction digest on transaction: {e}")))?;
         let checkpointed = CheckpointedEventInfo {
-            tx_sequence_number: stored_tx.tx_sequence_number as u64,
+            tx_digest,
             timestamp_ms: stored_tx.timestamp_ms,
         };
         Ok(Self {
@@ -297,7 +396,7 @@ impl Event {
         let Some(Some(sender_bytes)) = stored.senders.first() else {
             return Err(Error::Internal("No senders found for event".to_string()));
         };
-        let checkpointed = CheckpointedEventInfo::from(&stored);
+        let checkpointed = CheckpointedEventInfo::try_from(&stored)?;
         let sender =
             NativeAddress::from_bytes(sender_bytes).map_err(|e| Error::Internal(e.to_string()))?;
         let package_id =

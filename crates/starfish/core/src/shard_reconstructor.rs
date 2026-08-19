@@ -8,7 +8,7 @@ use std::{
 };
 
 use parking_lot::RwLock;
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, Committee, Stake};
 use tokio::{
     sync::{
         Mutex, mpsc,
@@ -140,10 +140,19 @@ impl ShardAccumulator {
         }
     }
 
-    /// The condition to reconstruct the transaction data is by relying on the
-    /// number of shards
-    fn is_ready_to_reconstruct(&self, info_length: usize) -> bool {
-        self.number_shards >= info_length
+    /// Ready once enough shards for decoding are collected and the relayers'
+    /// combined stake reaches the validity threshold (f+1), which guarantees
+    /// an honest relayer and thus a genuinely authored commitment.
+    fn is_ready_to_reconstruct(&self, info_length: usize, committee: &Committee) -> bool {
+        if self.number_shards < info_length {
+            return false;
+        }
+        let relayer_stake: Stake = self
+            .collected_shard_indices()
+            .filter_map(|i| committee.to_authority_index(i))
+            .map(|i| committee.stake(i))
+            .sum();
+        committee.reached_validity(relayer_stake)
     }
 
     /// Indices of the shards collected so far. A shard at index `i` is
@@ -335,7 +344,7 @@ type ReconstructionResult = Result<VerifiedTransactions, TransactionRef>;
 pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     /// Shards below this round will not be collected
     transaction_gc_round: Round,
-    /// Upon having this number of shards, the reconstruction is possible
+    /// Minimum number of shards the decoder needs to reconstruct the data
     info_length: usize,
     /// The total number of shards
     total_length: usize,
@@ -440,10 +449,10 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                         .filter_map(|i| context.committee.to_authority_index(i))
                         .collect();
                     let result = match shard_accumulator.decode_by_codec(&mut codec) {
-                        // With at least one honest relayer the commitment is
-                        // genuine and proof-valid shards decode to the committed
-                        // payload, so a decode failure requires info_length
-                        // colluding relayers (or a codec bug).
+                        // Validity-threshold relayer stake guarantees an honest
+                        // relayer and thus a genuine commitment, so a decode
+                        // failure indicates a codec bug or Byzantine stake
+                        // beyond the fault model.
                         Err(err) => {
                             error!("Failed to reconstruct transactions for {tx_ref:?}: {err:?}");
                             // A commitment mismatch means the reconstructed bytes
@@ -771,6 +780,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             &mut self.reconstruction_queue,
             &self.ready_to_reconstruct_sender,
             self.info_length,
+            &self.context.committee,
             &tx_ref,
         )
         .await?;
@@ -785,10 +795,11 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         reconstruction_queue: &mut BTreeSet<TransactionRef>,
         sender: &Sender<ShardAccumulator>,
         info_length: usize,
+        committee: &Committee,
         tx_ref: &TransactionRef,
     ) -> ConsensusResult<()> {
         if let Some(acc) = accumulators.get(tx_ref) {
-            if acc.is_ready_to_reconstruct(info_length) {
+            if acc.is_ready_to_reconstruct(info_length, committee) {
                 // take ownership out of map
                 let acc = accumulators
                     .remove(tx_ref)
@@ -1120,6 +1131,92 @@ mod tests {
             block_ref
         );
         assert_eq!(vt.transactions(), txs);
+
+        h.handle
+            .stop()
+            .await
+            .expect("We should expect graceful shutdown");
+    }
+
+    /// `info_length` shards from low-stake relayers must not reconstruct;
+    /// decoding starts only at validity threshold (f+1) relayer stake
+    #[tokio::test]
+    async fn test_reconstruction_waits_for_validity_threshold_stake() {
+        telemetry_subscribers::init_for_testing();
+
+        // GIVEN a committee of 10 where the validity threshold (34) is
+        // unreachable without authority 9 (stake 91).
+        let (context, _) = Context::new_for_test(10);
+        let mut stakes = vec![1; 9];
+        stakes.push(91);
+        let (committee, _) = starfish_config::local_committee_and_keys(0, stakes);
+        let context = Arc::new(context.with_committee(committee));
+        let h = TestHarness::new_with_block_verifier(context.clone(), Arc::new(NoopBlockVerifier));
+        let transaction_message_sender = h.tx.clone();
+
+        let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 1).build());
+        let block_ref = header.reference();
+
+        let txs = Transaction::random_transactions(4, 48);
+        let serialized = Transaction::serialize(&txs).unwrap();
+
+        let mut encoder = create_encoder(&context);
+        let commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized,
+            &context,
+            &mut encoder,
+        )
+        .unwrap();
+
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.parity_length();
+        let all_shards = encoder
+            .encode_serialized_data(&serialized, info_length, parity_length)
+            .unwrap();
+
+        // Shards from the info_length lowest-stake relayers: enough to decode,
+        // not enough stake.
+        let batch: Vec<_> = (0..info_length)
+            .map(|i| {
+                TransactionMessage::Shard(ShardMessage {
+                    transaction_ref: TransactionRef::new(block_ref, commitment),
+                    block_digest: Some(block_ref.digest),
+                    shard: all_shards[i].clone(),
+                    shard_index: i,
+                })
+            })
+            .collect();
+        transaction_message_sender.send(batch).await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(400)).await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
+        assert!(
+            fetched.is_empty(),
+            "info_length shards whose relayers hold less than the validity threshold stake must not reconstruct"
+        );
+
+        // WHEN the high-stake relayer's shard pushes the combined stake over
+        // the validity threshold
+        let high_stake_index = context.committee.size() - 1;
+        transaction_message_sender
+            .send(vec![TransactionMessage::Shard(ShardMessage {
+                transaction_ref: TransactionRef::new(block_ref, commitment),
+                block_digest: Some(block_ref.digest),
+                shard: all_shards[high_stake_index].clone(),
+                shard_index: high_stake_index,
+            })])
+            .await
+            .unwrap();
+
+        // THEN reconstruction should happen
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
+        assert_eq!(
+            fetched.len(),
+            1,
+            "Reconstruction should happen once the relayers' stake reaches the validity threshold"
+        );
+        assert_eq!(fetched[0].transactions(), txs);
 
         h.handle
             .stop()

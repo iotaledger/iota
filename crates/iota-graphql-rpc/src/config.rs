@@ -8,6 +8,7 @@ use async_graphql::*;
 use iota_graphql_config::GraphQLConfig;
 use iota_names::config::IotaNamesConfig;
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::functional_group::FunctionalGroup;
 
@@ -23,6 +24,7 @@ pub struct ServerConfig {
     pub internal_features: InternalFeatureConfig,
     pub tx_exec_full_node: TxExecFullNodeConfig,
     pub ide: Ide,
+    pub historic_fallback: HistoricFallbackOptions,
 }
 
 /// Configuration for connections for the RPC, passed in as command-line
@@ -64,6 +66,59 @@ pub struct ConnectionConfig {
         env = "MAX_AVAILABLE_RANGE",
     )]
     pub max_available_range: u64,
+}
+
+/// CLI options that control the archival fallback used when Postgres data has
+/// been pruned.
+#[GraphQLConfig]
+#[derive(clap::Args, Debug, Clone)]
+pub struct HistoricFallbackOptions {
+    #[arg(
+        long,
+        help = "Experimental: REST KV store URL for historic fallback. Depends on the iota-rest-kv API which is still being finalized."
+    )]
+    pub fallback_kv_url: Option<Url>,
+
+    #[arg(
+        long,
+        default_value_t = HistoricFallbackOptions::DEFAULT_MULTI_FETCH_BATCH_SIZE,
+        env = "FALLBACK_KV_MULTI_FETCH_BATCH_SIZE",
+        help = "Experimental: Maximum number of keys per batch request to fallback KV store."
+    )]
+    pub fallback_kv_multi_fetch_batch_size: usize,
+
+    #[arg(
+        long,
+        default_value_t = HistoricFallbackOptions::DEFAULT_CONCURRENT_FETCHES,
+        env = "FALLBACK_KV_CONCURRENT_FETCHES",
+        help = "Experimental: Maximum number of concurrent batch requests to fallback KV store."
+    )]
+    pub fallback_kv_concurrent_fetches: usize,
+
+    #[arg(
+        long,
+        default_value_t = HistoricFallbackOptions::DEFAULT_CACHE_SIZE,
+        env = "FALLBACK_KV_CACHE_SIZE",
+        help = "Experimental: Cache size for historic fallback."
+    )]
+    pub fallback_kv_cache_size: u64,
+}
+
+impl HistoricFallbackOptions {
+    pub const DEFAULT_MULTI_FETCH_BATCH_SIZE: usize = 100;
+    pub const DEFAULT_CONCURRENT_FETCHES: usize = 10;
+    pub const DEFAULT_CACHE_SIZE: u64 = 100_000;
+}
+
+impl Default for HistoricFallbackOptions {
+    fn default() -> Self {
+        Self {
+            fallback_kv_url: None,
+            fallback_kv_multi_fetch_batch_size: Self::DEFAULT_MULTI_FETCH_BATCH_SIZE,
+            fallback_kv_concurrent_fetches: Self::DEFAULT_CONCURRENT_FETCHES,
+            fallback_kv_cache_size: Self::DEFAULT_CACHE_SIZE,
+        }
+    }
 }
 
 /// Configuration on features supported by the GraphQL service, passed in a
