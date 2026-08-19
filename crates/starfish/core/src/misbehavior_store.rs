@@ -161,7 +161,12 @@ impl MisbehaviorStore {
         }
 
         if eviction_advanced || had_faulty {
-            Some(MisbehaviorCounts::V2(self.persisted.snapshot(idx)))
+            let counts = self.persisted.snapshot(idx);
+            let persisted = match context.protocol_config.scorer_version_as_option() {
+                Some(2) => MisbehaviorCounts::V2(counts),
+                _ => MisbehaviorCounts::V1(counts.fold_into_v1()),
+            };
+            Some(persisted)
         } else {
             None
         }
@@ -623,6 +628,20 @@ pub struct MisbehaviorCountsV2 {
     pub invalid_bundle_parts: u64,
 }
 
+impl MisbehaviorCountsV2 {
+    /// Folds the bundle-part count into `faulty_blocks_unprovable`.
+    fn fold_into_v1(&self) -> MisbehaviorCountsV1 {
+        MisbehaviorCountsV1 {
+            faulty_blocks_provable: self.faulty_blocks_provable,
+            faulty_blocks_unprovable: self
+                .faulty_blocks_unprovable
+                .saturating_add(self.invalid_bundle_parts),
+            missing_proposals: self.missing_proposals,
+            equivocations: self.equivocations,
+        }
+    }
+}
+
 #[cfg(test)]
 impl MisbehaviorStore {
     pub(crate) fn persisted_missing_proposals(&self) -> Vec<u64> {
@@ -835,6 +854,44 @@ mod tests {
         let result =
             store.update_misbehavior_counts_on_eviction(oob, &recent_refs, 2, 1, 3, &context);
         assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_persisted_variant_follows_scorer_version() {
+        // With scorer version 2 inactive, persisted rows use the V1 format so a
+        // rollback to a binary without the V2 variant can still read them, and
+        // the bundle-part count folds into `faulty_blocks_unprovable`.
+        let mut context = Context::new_for_test(4).0;
+        context.protocol_config.set_scorer_version_for_testing(1);
+        let context = Arc::new(context);
+        let store = MisbehaviorStore::new(&context);
+        let authority = AuthorityIndex::new_for_test(0);
+
+        store.record_faulty_block(
+            authority,
+            authority,
+            &ConsensusError::WrongEpoch {
+                expected: 1,
+                actual: 2,
+            },
+        );
+        store.record_faulty_block(
+            authority,
+            authority,
+            &ConsensusError::MalformedShard(bcs::Error::Custom("bad".to_string())),
+        );
+
+        let result = store.update_misbehavior_counts_on_eviction(
+            authority,
+            &BTreeSet::new(),
+            0,
+            0,
+            1,
+            &context,
+        );
+
+        // V1 row: the one bundle part folds into unprovable (1 + 1).
+        assert_eq!(result, Some(MisbehaviorCounts::new_v1_for_test(0, 2, 0, 0)));
     }
 
     #[tokio::test]
