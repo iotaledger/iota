@@ -1087,7 +1087,7 @@ impl Display for IotaTransactionBlockEffects {
         builder.push_record(vec![format!("Executed Epoch: {}", self.executed_epoch())]);
 
         if !self.created().is_empty() {
-            builder.push_record(vec![format!("\nCreated Objects: ")]);
+            builder.push_record(vec!["\nCreated Objects: ".to_string()]);
 
             for oref in self.created() {
                 builder.push_record(vec![owned_objref_string(oref)]);
@@ -1095,21 +1095,21 @@ impl Display for IotaTransactionBlockEffects {
         }
 
         if !self.mutated().is_empty() {
-            builder.push_record(vec![format!("Mutated Objects: ")]);
+            builder.push_record(vec!["Mutated Objects: ".to_string()]);
             for oref in self.mutated() {
                 builder.push_record(vec![owned_objref_string(oref)]);
             }
         }
 
         if !self.shared_objects().is_empty() {
-            builder.push_record(vec![format!("Shared Objects: ")]);
+            builder.push_record(vec!["Shared Objects: ".to_string()]);
             for oref in self.shared_objects() {
                 builder.push_record(vec![objref_string(oref)]);
             }
         }
 
         if !self.deleted().is_empty() {
-            builder.push_record(vec![format!("Deleted Objects: ")]);
+            builder.push_record(vec!["Deleted Objects: ".to_string()]);
 
             for oref in self.deleted() {
                 builder.push_record(vec![objref_string(oref)]);
@@ -1117,7 +1117,7 @@ impl Display for IotaTransactionBlockEffects {
         }
 
         if !self.wrapped().is_empty() {
-            builder.push_record(vec![format!("Wrapped Objects: ")]);
+            builder.push_record(vec!["Wrapped Objects: ".to_string()]);
 
             for oref in self.wrapped() {
                 builder.push_record(vec![objref_string(oref)]);
@@ -1125,7 +1125,7 @@ impl Display for IotaTransactionBlockEffects {
         }
 
         if !self.unwrapped().is_empty() {
-            builder.push_record(vec![format!("Unwrapped Objects: ")]);
+            builder.push_record(vec!["Unwrapped Objects: ".to_string()]);
             for oref in self.unwrapped() {
                 builder.push_record(vec![owned_objref_string(oref)]);
             }
@@ -1153,7 +1153,7 @@ impl Display for IotaTransactionBlockEffects {
 
         let dependencies = self.dependencies();
         if !dependencies.is_empty() {
-            builder.push_record(vec![format!("\nTransaction Dependencies:")]);
+            builder.push_record(vec!["\nTransaction Dependencies:".to_string()]);
             for dependency in dependencies {
                 builder.push_record(vec![format!("   {dependency}")]);
             }
@@ -1812,7 +1812,7 @@ impl Display for IotaTransactionBlock {
         let mut builder = TableBuilder::default();
 
         builder.push_record(vec![format!("{}", self.data)]);
-        builder.push_record(vec![format!("Signatures:")]);
+        builder.push_record(vec!["Signatures:".to_string()]);
         for tx_sig in &self.tx_signatures {
             builder.push_record(vec![format!(
                 "   {}\n",

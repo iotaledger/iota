@@ -1951,12 +1951,14 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
     }
 
     fn add_signature(&mut self, new_signature: SimpleSignature) {
-        self.0.signatures.push(new_signature.into());
+        self.signed_transaction_mut()
+            .signatures
+            .push(new_signature.into());
     }
 
     fn get_signer_sig_mapping(&self) -> IotaResult<BTreeMap<Address, &UserSignature>> {
         let mut mapping = BTreeMap::new();
-        for sig in &self.0.signatures {
+        for sig in &self.signed_transaction().signatures {
             let address = sig.derive_address();
             mapping.insert(address, sig);
         }
@@ -1968,11 +1970,11 @@ impl SenderSignedTransactionAPI for SenderSignedTransaction {
     }
 
     fn transaction_mut_for_testing(&mut self) -> &mut Transaction {
-        &mut self.0.transaction
+        &mut self.signed_transaction_mut().transaction
     }
 
     fn tx_signatures_mut_for_testing(&mut self) -> &mut Vec<UserSignature> {
-        &mut self.0.signatures
+        &mut self.signed_transaction_mut().signatures
     }
 
     fn serialized_size(&self) -> IotaResult<usize> {

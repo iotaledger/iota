@@ -1096,7 +1096,7 @@ mod tests {
 
     mod get_balance_tests {
 
-        use super::{super::*, *};
+        use super::*;
         // Success scenarios
         #[tokio::test]
         async fn test_gas_coin() {
@@ -1241,7 +1241,7 @@ mod tests {
     }
 
     mod get_all_balances_tests {
-        use super::{super::*, *};
+        use super::*;
 
         // Success scenarios
         #[tokio::test]
