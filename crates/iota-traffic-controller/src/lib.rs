@@ -190,6 +190,7 @@ impl TrafficController {
         let tally_loop_metrics = self.metrics.clone();
         let clear_loop_metrics = self.metrics.clone();
         let tally_loop_fw_config = self.fw_config.clone();
+        let tally_loop_dry_run = self.dry_run.clone();
 
         let spam_policy = self
             .spam_policy
@@ -209,6 +210,7 @@ impl TrafficController {
             tally_loop_blocklists,
             tally_loop_metrics,
             mem_drainfile_present,
+            tally_loop_dry_run,
         ));
         spawn_monitored_task!(run_clear_blocklists_loop(blocklists, clear_loop_metrics));
         self.open_tally_channel(tx);
@@ -471,6 +473,7 @@ async fn run_tally_loop(
     blocklists: Blocklists,
     metrics: Arc<TrafficControllerMetrics>,
     mut mem_drainfile_present: bool,
+    dry_run: Arc<AtomicBool>,
 ) {
     let spam_blocklists = Arc::new(blocklists.clone());
     let error_blocklists = Arc::new(blocklists);
@@ -490,6 +493,10 @@ async fn run_tally_loop(
                 metrics.tallies.inc();
                 match received {
                     Some(tally) => {
+                        // The firewall must receive no blocks during a drain
+                        // or a dry run.
+                        let delegation_allowed = !mem_drainfile_present
+                            && !dry_run.load(Ordering::Relaxed);
                         // TODO: spawn a task to handle tallying concurrently
                         if let Err(err) = handle_spam_tally(
                             spam_policy.clone(),
@@ -499,7 +506,7 @@ async fn run_tally_loop(
                             tally.clone(),
                             spam_blocklists.clone(),
                             metrics.clone(),
-                            mem_drainfile_present,
+                            delegation_allowed,
                         )
                         .await {
                             warn!("Error handling spam tally: {}", err);
@@ -512,7 +519,7 @@ async fn run_tally_loop(
                             tally,
                             error_blocklists.clone(),
                             metrics.clone(),
-                            mem_drainfile_present,
+                            delegation_allowed,
                         )
                         .await {
                             warn!("Error handling error tally: {}", err);
@@ -598,7 +605,7 @@ async fn handle_error_tally(
     tally: TrafficTally,
     blocklists: Arc<Blocklists>,
     metrics: Arc<TrafficControllerMetrics>,
-    mem_drainfile_present: bool,
+    delegation_allowed: bool,
 ) -> Result<(), reqwest::Error> {
     let Some((error_weight, error_type)) = tally.clone().error_info else {
         return Ok(());
@@ -617,7 +624,7 @@ async fn handle_error_tally(
     let resp = policy.lock().await.handle_tally(tally);
     metrics.error_tally_handled.inc();
     if let Some(fw_config) = fw_config {
-        if fw_config.delegate_error_blocking && !mem_drainfile_present {
+        if fw_config.delegate_error_blocking && delegation_allowed {
             let client = nodefw_client
                 .as_ref()
                 .expect("Expected NodeFWClient for blocklist delegation");
@@ -643,7 +650,7 @@ async fn handle_spam_tally(
     tally: TrafficTally,
     blocklists: Arc<Blocklists>,
     metrics: Arc<TrafficControllerMetrics>,
-    mem_drainfile_present: bool,
+    delegation_allowed: bool,
 ) -> Result<(), reqwest::Error> {
     if !(tally.spam_weight.is_sampled() && policy_config.spam_sample_rate.is_sampled()) {
         return Ok(());
@@ -651,7 +658,7 @@ async fn handle_spam_tally(
     let resp = policy.lock().await.handle_tally(tally.clone());
     metrics.tally_handled.inc();
     if let Some(fw_config) = fw_config {
-        if fw_config.delegate_spam_blocking && !mem_drainfile_present {
+        if fw_config.delegate_spam_blocking && delegation_allowed {
             let client = nodefw_client
                 .as_ref()
                 .expect("Expected NodeFWClient for blocklist delegation");
@@ -1085,5 +1092,133 @@ pub fn get_client_ip(
                 None => ClientIpStatus::XForwardedForUnparsable,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::net::Ipv4Addr;
+
+    use super::*;
+
+    const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+
+    /// The policy that the request breaches.
+    enum PolicyKind {
+        Spam,
+        Error,
+    }
+
+    /// Where the block for one breaching request went.
+    #[derive(Debug, PartialEq)]
+    struct Outcome {
+        blocked_locally: i64,
+        delegated: u64,
+    }
+
+    /// Tallies one breaching request. The controller delegates both policies.
+    async fn tally_one_breach(dry_run: bool, kind: PolicyKind) -> Outcome {
+        let error = matches!(kind, PolicyKind::Error);
+        let blocking_policy = PolicyType::TestNConnIP(1);
+        let policy_config = PolicyConfig {
+            spam_policy_type: if error {
+                PolicyType::NoOp
+            } else {
+                blocking_policy.clone()
+            },
+            error_policy_type: if error {
+                blocking_policy
+            } else {
+                PolicyType::NoOp
+            },
+            spam_sample_rate: Weight::one(),
+            // Do not use the default of zero. It makes the policy clear its
+            // counts in a busy loop.
+            connection_blocklist_ttl_sec: 120,
+            dry_run,
+            ..Default::default()
+        };
+        // Keep this directory. The tally loop reads `drain_path`.
+        let tmp_dir = iota_common::tempdir();
+        let fw_config = RemoteFirewallConfig {
+            // No server listens here. The metrics show if the node delegates a
+            // block.
+            remote_fw_url: "http://127.0.0.1:1".to_string(),
+            destination_port: 8080,
+            delegate_spam_blocking: true,
+            delegate_error_blocking: true,
+            drain_path: tmp_dir.path().join("drain"),
+            drain_timeout_secs: 300,
+        };
+        let controller = TrafficController::init_for_test(policy_config, Some(fw_config)).await;
+        let error_info = error.then(|| (Weight::one(), "error".to_string()));
+        controller.tally(TrafficTally::new(
+            Some(CLIENT),
+            None,
+            error_info,
+            Weight::one(),
+        ));
+
+        let metrics = &controller.metrics;
+        for _ in 0..100 {
+            let outcome = Outcome {
+                blocked_locally: metrics.connection_ip_blocklist_len.get(),
+                delegated: metrics.blocks_delegated_to_firewall.get(),
+            };
+            if outcome
+                != (Outcome {
+                    blocked_locally: 0,
+                    delegated: 0,
+                })
+            {
+                return outcome;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("the tally loop recorded no block in one second");
+    }
+
+    #[tokio::test]
+    async fn test_dry_run_keeps_spam_blocks_local() {
+        assert_eq!(
+            tally_one_breach(true, PolicyKind::Spam).await,
+            Outcome {
+                blocked_locally: 1,
+                delegated: 0,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dry_run_keeps_error_blocks_local() {
+        assert_eq!(
+            tally_one_breach(true, PolicyKind::Error).await,
+            Outcome {
+                blocked_locally: 1,
+                delegated: 0,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_spam_blocks_are_delegated_without_dry_run() {
+        assert_eq!(
+            tally_one_breach(false, PolicyKind::Spam).await,
+            Outcome {
+                blocked_locally: 0,
+                delegated: 1,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_error_blocks_are_delegated_without_dry_run() {
+        assert_eq!(
+            tally_one_breach(false, PolicyKind::Error).await,
+            Outcome {
+                blocked_locally: 0,
+                delegated: 1,
+            }
+        );
     }
 }

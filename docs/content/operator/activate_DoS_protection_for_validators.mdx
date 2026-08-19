@@ -97,6 +97,8 @@ firewall-config:
   drain-timeout-secs: 300
 ```
 
+While `dry-run` is enabled, the node sends no blocks to the firewall. Set `dry-run: false` in `policy-config` to start delegating.
+
 ## Non-Proxy Mode Configuration
 
 If your validator node receives traffic directly from clients (no proxy or load balancer in front), use this configuration:
