@@ -94,8 +94,8 @@ async fn sweep_backlog(
         // together and takes the newer answer, and deleting it would throw
         // away the object history this configuration exists to keep.
         info!(
-            "keeping the object versions superseded before this build: this node retains every \
-             epoch's superseded versions"
+            "not sweeping the object versions superseded before this build: this node retains \
+             every epoch's superseded versions"
         );
         return;
     }
