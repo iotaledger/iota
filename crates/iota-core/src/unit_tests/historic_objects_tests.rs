@@ -4,11 +4,7 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use iota_sdk_types::{ObjectId, Owner, Version};
-use iota_types::{
-    committee::EpochId,
-    object::Object,
-    storage::{ObjectKey, ObjectOrTombstone},
-};
+use iota_types::{committee::EpochId, object::Object, storage::ObjectKey};
 use prometheus_filtered::Registry;
 use tempfile::TempDir;
 use typed_store::{
@@ -25,7 +21,6 @@ use crate::authority::{
     AuthorityStore,
     authority_store_tables::AuthorityPerpetualTables,
     authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
-    object_backlog_sweep::ObjectBacklogSweepProgress,
 };
 
 /// A perpetual store, its historic buckets, and an [`AuthorityStore`] over
@@ -54,16 +49,6 @@ fn test_store() -> (
 
 fn object_at(id: ObjectId, version: u64) -> Object {
     Object::with_id_owner_version_for_testing(id, version.into(), Owner::Immutable)
-}
-
-/// Records the one-time sweep of the pre-upgrade superseded versions as
-/// finished, which is what a database written by this build alone looks like
-/// once its first node start is over. Expiry waits for it.
-fn mark_backlog_swept(perpetual: &AuthorityPerpetualTables) {
-    perpetual
-        .object_backlog_sweep_progress
-        .insert(&(), &ObjectBacklogSweepProgress::Done)
-        .unwrap();
 }
 
 /// A relocated version is readable from the bucket of the epoch it was
@@ -264,7 +249,6 @@ async fn test_expiry_deletes_the_epochs_tombstone_heads() {
         .unwrap();
     batch.write().unwrap();
     drop(bucket);
-    mark_backlog_swept(&perpetual);
 
     historic.ensure(2).unwrap();
     assert_eq!(historic.prune(1).unwrap(), Some(2));
@@ -301,7 +285,6 @@ async fn test_expiry_deletes_heads_past_the_batch_boundary() {
         .unwrap();
     batch.write().unwrap();
     drop(bucket);
-    mark_backlog_swept(&perpetual);
 
     historic.ensure(2).unwrap();
     assert_eq!(historic.prune(1).unwrap(), Some(2));
@@ -496,7 +479,6 @@ async fn test_interrupted_expiries_are_resumed_oldest_first() {
             perpetual.objects.db.clone(),
             &default_db_options(),
             perpetual.objects.clone(),
-            perpetual.object_backlog_sweep_progress.clone(),
         )
         .is_err()
     );
@@ -717,90 +699,6 @@ async fn test_a_tombstone_below_the_relocated_version_is_not_the_answer() {
             "bound {bound}"
         );
     }
-}
-
-/// A version superseded before this build sits in the live `objects` table
-/// until the one-time sweep reaches it, on a schedule of its own. Expiring
-/// the bucket that recorded the tombstone above such a version would delete
-/// that tombstone and leave the older live version as the object's newest
-/// row, reporting a deleted object as alive. Nothing expires until the sweep
-/// has walked the whole table.
-#[tokio::test]
-async fn test_expiry_waits_for_the_backlog_sweep() {
-    let (perpetual, historic, store, _dir) = test_store();
-    let id = ObjectId::random();
-    let deleted = ObjectKey(id, 4.into());
-
-    // Versions 2 and 3 left in the live table by an earlier build, and the
-    // object deleted at version 4 since, its tombstone head recorded in the
-    // bucket of the epoch that deleted it.
-    let bucket = historic.ensure(1).unwrap();
-    let mut batch = perpetual.objects.batch();
-    batch
-        .insert_batch(
-            &perpetual.objects,
-            [2, 3].map(|version| {
-                (
-                    ObjectKey(id, version.into()),
-                    get_store_object(object_at(id, version), None),
-                )
-            }),
-        )
-        .unwrap();
-    batch
-        .insert_batch(
-            &perpetual.objects,
-            [(deleted, StoreObjectWrapper::from(StoreObject::Deleted))],
-        )
-        .unwrap();
-    batch
-        .insert_batch_tagged(&bucket.tombstones, [(deleted, ())])
-        .unwrap();
-    batch.write().unwrap();
-    drop(bucket);
-
-    // The sweep has deleted this object's first version and stopped there, so
-    // the versions below the tombstone are still in the live table.
-    perpetual
-        .object_backlog_sweep_progress
-        .insert(
-            &(),
-            &ObjectBacklogSweepProgress::SweptThrough(ObjectKey(id, 1.into())),
-        )
-        .unwrap();
-
-    historic.ensure(2).unwrap();
-    let earliest_retained = historic.prune(1).unwrap();
-
-    assert_eq!(
-        store
-            .find_object_lt_or_eq_version_with_historic_fallback(id, 12.into())
-            .unwrap()
-            .map(|object| object.version()),
-        None,
-        "the bounded read served a version from under the deleted tombstone"
-    );
-    match store.get_latest_object_or_tombstone(id).unwrap() {
-        Some((key, ObjectOrTombstone::Tombstone(_))) => assert_eq!(key, deleted),
-        Some((key, ObjectOrTombstone::Object(_))) => {
-            panic!("the deleted object reads as alive at {key:?}")
-        }
-        None => panic!("the object has no row left at all"),
-    }
-    assert!(perpetual.objects.get(&deleted).unwrap().is_some());
-    assert_eq!(earliest_retained, None);
-
-    // Once the sweep has drained those versions and reached the end of the
-    // table, the same prune expires the bucket and takes the tombstone with
-    // it, leaving the object no row at all.
-    perpetual
-        .objects
-        .multi_remove([ObjectKey(id, 2.into()), ObjectKey(id, 3.into())])
-        .unwrap();
-    mark_backlog_swept(&perpetual);
-    assert_eq!(historic.prune(1).unwrap(), Some(2));
-    assert!(perpetual.objects.get(&deleted).unwrap().is_none());
-    assert!(store.get_latest_object_or_tombstone(id).unwrap().is_none());
 }
 
 /// A bucket marked expiring is left out of the walk as it is left out of an

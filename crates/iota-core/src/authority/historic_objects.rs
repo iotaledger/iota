@@ -35,9 +35,7 @@ use typed_store::{
 };
 
 use crate::{
-    authority::{
-        authority_store_types::StoreObjectWrapper, object_backlog_sweep::ObjectBacklogSweepProgress,
-    },
+    authority::authority_store_types::StoreObjectWrapper,
     epoch_buckets::{EpochBuckets, bucket_cf_epoch, bucket_cf_name},
 };
 
@@ -158,11 +156,6 @@ pub struct HistoricObjects {
     /// The live objects table of the same database, holding the tombstones a
     /// bucket's heads point at until that bucket expires.
     objects: DBMap<ObjectKey, StoreObjectWrapper>,
-    /// How far the one-time sweep of the versions superseded before this
-    /// build has got through the live `objects` table. Read by
-    /// [`Self::prune`], which may not expire a bucket while any of those
-    /// versions are still there.
-    backlog_sweep_progress: DBMap<(), ObjectBacklogSweepProgress>,
 }
 
 impl HistoricObjects {
@@ -219,21 +212,17 @@ impl HistoricObjects {
     /// buckets are its column families, not a database of their own, and
     /// `db_options` are the options its tables were opened with. `objects` is
     /// that database's live objects table, which holds the tombstones the
-    /// buckets' heads point at, and `backlog_sweep_progress` is its record of
-    /// how far the one-time sweep of the pre-upgrade superseded versions has
-    /// got, which [`Self::prune`] waits for.
+    /// buckets' heads point at.
     ///
     /// A bucket an interrupted prune left behind is finished here, oldest
     /// first, before any query can reach it: one marked expiring, and one
     /// below the persisted retention floor, whose marker the same crash may
-    /// have cost it. This runs whatever the sweep's progress says: such a
-    /// bucket's heads are already partly deleted, so finishing is the only
-    /// way to a consistent table.
+    /// have cost it. Such a bucket's heads are already partly deleted, so
+    /// finishing is the only way to a consistent table.
     pub fn open(
         db: Arc<Database>,
         db_options: &DBOptions,
         objects: DBMap<ObjectKey, StoreObjectWrapper>,
-        backlog_sweep_progress: DBMap<(), ObjectBacklogSweepProgress>,
     ) -> Result<Self, TypedStoreError> {
         let existing_cfs = list_tables(db.path_for_pruning().to_path_buf())
             .map_err(|e| TypedStoreError::RocksDB(format!("failed to list buckets: {e}")))?;
@@ -310,11 +299,7 @@ impl HistoricObjects {
             buckets,
             HistoricObjectsBucket::reopen,
         )?;
-        Ok(Self {
-            buckets,
-            objects,
-            backlog_sweep_progress,
-        })
+        Ok(Self { buckets, objects })
     }
 
     /// The oldest epoch this store still holds a bucket for, `None` when it
@@ -436,28 +421,20 @@ impl HistoricObjects {
     /// Drops the buckets outside `epochs_to_retain` — the newest bucket and
     /// the `epochs_to_retain - 1` below it — and deletes the tombstone heads
     /// each dropped epoch recorded. Returns the earliest epoch still
-    /// retained, `None` when there is no bucket at all and `None` while the
-    /// one-time sweep of the pre-upgrade superseded versions is still running.
+    /// retained, `None` when there is no bucket at all.
     ///
-    /// Nothing expires until that sweep has walked the whole live `objects`
-    /// table. A bucket's heads may only be deleted once every version beneath
-    /// them is out of reach, which for a relocated version follows from
-    /// expiring oldest epoch first; a version superseded before this build was
-    /// never relocated, so it sits in the live table until the sweep deletes
-    /// it, and deleting a tombstone above one would leave that version as the
-    /// newest row of a deleted object. Waiting grows the database instead,
-    /// which the next boundary undoes once the sweep is finished.
+    /// A bucket's heads may only be deleted once every version beneath them is
+    /// out of reach, which for a relocated version follows from expiring
+    /// oldest epoch first. A version superseded before this build was never
+    /// relocated and sits in the live `objects` table until
+    /// [`crate::authority::object_backlog_sweep::sweep`] deletes it, and
+    /// deleting a tombstone above one would leave that version as the newest
+    /// row of a deleted object; that walk finishes at node startup, before
+    /// anything that reaches this.
     ///
     /// Blocks queries for the duration, so an async caller must use
     /// `spawn_blocking`.
     pub fn prune(&self, epochs_to_retain: u64) -> IotaResult<Option<EpochId>> {
-        if !self.backlog_swept()? {
-            info!(
-                "retaining every historic bucket for now: the object versions superseded before \
-                 this build are still being swept out of the live table"
-            );
-            return Ok(None);
-        }
         self.buckets
             .prune(epochs_to_retain, |epoch, bucket| {
                 Self::expire_bucket(&self.objects, epoch, bucket).map_err(|e| {
@@ -465,21 +442,6 @@ impl HistoricObjects {
                 })
             })
             .map_err(|e| IotaError::Storage(e.to_string()))
-    }
-
-    /// Whether the one-time sweep has walked the whole live `objects` table on
-    /// this database.
-    ///
-    /// Read from the durable progress row on every call rather than
-    /// remembered, so a restart neither loses the answer nor has to sweep
-    /// again: a database an earlier run swept through reports `true` at once.
-    fn backlog_swept(&self) -> IotaResult<bool> {
-        Ok(matches!(
-            self.backlog_sweep_progress
-                .get(&())
-                .map_err(|e| IotaError::Storage(e.to_string()))?,
-            Some(ObjectBacklogSweepProgress::Done)
-        ))
     }
 
     /// Marks `bucket` expiring, then deletes the tombstone heads it recorded
