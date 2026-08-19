@@ -2418,7 +2418,7 @@ impl AuthorityState {
             effects
                 .all_changed_objects()
                 .into_iter()
-                .map(|(obj_ref, owner, _kind)| (obj_ref, owner)),
+                .map(|(changed, _kind)| (changed.reference, changed.owner)),
             transaction
                 .data()
                 .transaction()
@@ -2486,6 +2486,7 @@ impl AuthorityState {
         let modified_at_version = effects
             .modified_at_versions()
             .into_iter()
+            .map(|modified| (modified.object_id, modified.version))
             .collect::<HashMap<_, _>>();
 
         let tx_digest = effects.transaction_digest();
@@ -2509,7 +2510,8 @@ impl AuthorityState {
         let mut new_owners = vec![];
         let mut new_dynamic_fields = vec![];
 
-        for (oref, owner, kind) in effects.all_changed_objects() {
+        for (changed, kind) in effects.all_changed_objects() {
+            let (oref, owner) = (changed.reference, changed.owner);
             let id = &oref.object_id;
             // For mutated objects, retrieve old owner and delete old index if there is a
             // owner change.
@@ -4782,7 +4784,8 @@ impl AuthorityState {
         // execution. Their updated version will already showup in
         // "written_coins" but their input isn't included in the set of input
         // objects in a inner_temporary_store.
-        for (object_id, version) in effects.modified_at_versions() {
+        for modified in effects.modified_at_versions() {
+            let (object_id, version) = (modified.object_id, modified.version);
             if inner_temporary_store
                 .loaded_runtime_objects
                 .contains_key(&object_id)
@@ -6391,7 +6394,8 @@ impl NodeStateDump {
 
         // Record all modified objects
         let mut modified_at_versions = Vec::new();
-        for (id, ver) in effects.modified_at_versions() {
+        for modified in effects.modified_at_versions() {
+            let (id, ver) = (modified.object_id, modified.version);
             if let Some(w) = object_store.try_get_object_by_key(&id, ver)? {
                 modified_at_versions.push(ObjDumpFormat::new(w))
             }

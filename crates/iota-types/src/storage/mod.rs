@@ -573,7 +573,7 @@ pub fn get_transaction_input_objects(
     let input_object_keys = effects
         .modified_at_versions()
         .into_iter()
-        .map(|(object_id, version)| ObjectKey(object_id, version))
+        .map(|modified| ObjectKey(modified.object_id, modified.version))
         .collect::<Vec<_>>();
 
     let input_objects = object_store
@@ -600,7 +600,7 @@ pub fn get_transaction_output_objects(
     let output_object_keys = effects
         .all_changed_objects()
         .into_iter()
-        .map(|(object_ref, _owner, _kind)| ObjectKey::from(object_ref))
+        .map(|(changed, _kind)| ObjectKey::from(changed.reference))
         .collect::<Vec<_>>();
 
     let output_objects = object_store

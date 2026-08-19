@@ -793,7 +793,7 @@ mod ingestion_tests {
             .expect("gas must be mutated by tx1")
             .0
             .version;
-        let created_coin_1 = effects1.created()[0].0;
+        let created_coin_1 = effects1.created()[0].reference;
 
         let (tx2, _) = sim.transfer_txn(Address::random());
         let (effects2, err) = sim.execute_transaction(tx2).unwrap();
@@ -805,7 +805,7 @@ mod ingestion_tests {
             .expect("gas must be mutated by tx2")
             .0
             .version;
-        let created_coin_2 = effects2.created()[0].0;
+        let created_coin_2 = effects2.created()[0].reference;
 
         sim.create_checkpoint();
 
@@ -820,7 +820,7 @@ mod ingestion_tests {
             .expect("gas must be mutated by tx3")
             .0
             .version;
-        let created_coin_3 = effects3.created()[0].0;
+        let created_coin_3 = effects3.created()[0].reference;
         sim.create_checkpoint();
 
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(

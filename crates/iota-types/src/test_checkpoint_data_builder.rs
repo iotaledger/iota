@@ -782,8 +782,8 @@ mod tests {
             tx.effects
                 .created()
                 .iter()
-                .any(|(object_ref, owner)| object_ref.object_id == created_obj_id
-                    && owner.address_or_object().unwrap()
+                .any(|created| created.reference.object_id == created_obj_id
+                    && created.owner.address_or_object().unwrap()
                         == &TestCheckpointDataBuilder::derive_address(0))
         );
     }
@@ -811,7 +811,7 @@ mod tests {
             tx.effects
                 .mutated()
                 .iter()
-                .any(|(object_ref, _)| object_ref.object_id == obj_id)
+                .any(|changed| changed.reference.object_id == obj_id)
         );
     }
 
@@ -882,7 +882,7 @@ mod tests {
             tx.effects
                 .unwrapped()
                 .iter()
-                .any(|(object_ref, _owner)| object_ref.object_id == obj_id)
+                .any(|changed| changed.reference.object_id == obj_id)
         );
     }
 
@@ -909,8 +909,8 @@ mod tests {
             tx.effects
                 .mutated()
                 .iter()
-                .any(|(object_ref, owner)| object_ref.object_id == obj_id
-                    && owner.address_or_object().unwrap()
+                .any(|changed| changed.reference.object_id == obj_id
+                    && changed.owner.address_or_object().unwrap()
                         == &TestCheckpointDataBuilder::derive_address(1))
         );
     }

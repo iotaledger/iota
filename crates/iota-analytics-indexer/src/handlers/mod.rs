@@ -8,7 +8,8 @@ use anyhow::{Result, bail};
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::{PackageStore, Resolver};
 use iota_sdk_types::{
-    ObjectId, Owner, SenderSignedTransaction, StructTag, TransactionEffects, TypeTag,
+    ObjectId, OwnedObjectReference, Owner, SenderSignedTransaction, StructTag, TransactionEffects,
+    TypeTag,
 };
 use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -134,13 +135,21 @@ impl ObjectStatusTracker {
         let created: BTreeSet<ObjectId> = effects
             .created()
             .iter()
-            .map(|(obj_ref, _)| obj_ref.object_id)
+            .map(
+                |OwnedObjectReference {
+                     reference: obj_ref, ..
+                 }| obj_ref.object_id,
+            )
             .collect();
         let mutated: BTreeSet<ObjectId> = effects
             .mutated()
             .iter()
             .chain(effects.unwrapped().iter())
-            .map(|(obj_ref, _)| obj_ref.object_id)
+            .map(
+                |OwnedObjectReference {
+                     reference: obj_ref, ..
+                 }| obj_ref.object_id,
+            )
             .collect();
         let deleted: BTreeSet<ObjectId> = effects
             .all_tombstones()

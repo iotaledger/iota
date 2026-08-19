@@ -15,7 +15,7 @@ use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
-use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, OwnedObjectReference, StructTag, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     balance::Supply,
@@ -351,7 +351,7 @@ async fn find_package_object_id(
             .get_executed_transaction_and_effects(publish_txn_digest, kv_store)
             .await?;
 
-        for (created, _) in effect.created() {
+        for OwnedObjectReference { reference: created, .. } in effect.created() {
             if let Ok(object_read) = state.get_object_read(&created.object_id) {
                 if let Ok(object) = object_read.into_object() {
                     if matches!(object.data.opt_object_type(), Some(object_type) if object_type == &object_struct_tag) {

@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::{
-    ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+    ExecutionError, ExecutionStatus, ObjectId, ObjectReference, OwnedObjectReference, Owner,
+    ProgrammableTransaction,
 };
 use iota_types::{effects::TransactionEffectsAPI, transaction::CallArg};
 use proptest::{prelude::*, strategy::ValueTree};
@@ -41,27 +42,31 @@ fn publish_coin_factory(
     let package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
         .unwrap();
     let cap = effects
         .created()
         .into_iter()
-        .find(|(obj_ref, _)| {
-            if let Some(stag) = exec
-                .state
-                .get_object(&obj_ref.object_id)
-                .unwrap()
-                .data
-                .opt_struct_tag()
-            {
-                stag.name().as_str().eq("TreasuryCap")
-            } else {
-                false
-            }
-        })
+        .find(
+            |OwnedObjectReference {
+                 reference: obj_ref, ..
+             }| {
+                if let Some(stag) = exec
+                    .state
+                    .get_object(&obj_ref.object_id)
+                    .unwrap()
+                    .data
+                    .opt_struct_tag()
+                {
+                    stag.name().as_str().eq("TreasuryCap")
+                } else {
+                    false
+                }
+            },
+        )
         .unwrap();
 
-    (package.0, cap.0)
+    (package.reference, cap.reference)
 }
 
 /// This function runs programmable transaction block and checks if it executed
@@ -103,22 +108,26 @@ pub fn run_pt_success(
     let new_cap = effects
         .mutated()
         .into_iter()
-        .find(|(obj_ref, _)| {
-            if let Some(stag) = exec
-                .state
-                .get_object(&obj_ref.object_id)
-                .unwrap()
-                .data
-                .opt_struct_tag()
-            {
-                stag.name().as_str().eq("TreasuryCap")
-            } else {
-                false
-            }
-        })
+        .find(
+            |OwnedObjectReference {
+                 reference: obj_ref, ..
+             }| {
+                if let Some(stag) = exec
+                    .state
+                    .get_object(&obj_ref.object_id)
+                    .unwrap()
+                    .data
+                    .opt_struct_tag()
+                {
+                    stag.name().as_str().eq("TreasuryCap")
+                } else {
+                    false
+                }
+            },
+        )
         .unwrap();
 
-    new_cap.0
+    new_cap.reference
 }
 
 #[test]

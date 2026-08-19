@@ -13,8 +13,8 @@ use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, CommandArgumentError, Digest, ExecutionError, ExecutionStatus, Identifier,
-    ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
-    TransactionEffects,
+    ObjectId, ObjectReference, OwnedObjectReference, Owner, PackageUpgradeError,
+    ProgrammableTransaction, StructTag, TransactionEffects,
 };
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
@@ -226,10 +226,10 @@ impl UpgradeStateRunner {
         let cap = effects
             .created()
             .into_iter()
-            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+            .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Address(_)))
             .unwrap();
 
-        (package, cap.0)
+        (package, cap.reference)
     }
 
     pub async fn upgrade(
@@ -279,11 +279,11 @@ impl UpgradeStateRunner {
         .await
         .unwrap();
 
-        if let Some(updated_cap) = effects
-            .mutated()
-            .into_iter()
-            .find_map(|(cap, _)| (cap.object_id == self.upgrade_cap.object_id).then_some(cap))
-        {
+        if let Some(updated_cap) = effects.mutated().into_iter().find_map(
+            |OwnedObjectReference { reference: cap, .. }| {
+                (cap.object_id == self.upgrade_cap.object_id).then_some(cap)
+            },
+        ) {
             self.upgrade_cap = updated_cap;
         }
 
@@ -412,7 +412,12 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     let created = effects
         .created()
         .into_iter()
-        .find_map(|(b, owner)| matches!(owner, Owner::Address(_)).then_some(b))
+        .find_map(
+            |OwnedObjectReference {
+                 reference: b,
+                 owner,
+             }| matches!(owner, Owner::Address(_)).then_some(b),
+        )
         .unwrap();
 
     let b = runner
@@ -852,9 +857,9 @@ async fn test_multiple_upgrades(
     let package_v2 = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
         .unwrap()
-        .0
+        .reference
         .object_id;
 
     // Second upgrade: May also adds a dep on the iota framework and stdlib.
@@ -919,9 +924,9 @@ async fn test_interleaved_upgrades() {
     let dep_v2_package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
         .unwrap()
-        .0;
+        .reference;
 
     let pt2 = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -986,9 +991,9 @@ async fn test_publish_override_happy_path() {
     let dep_v2_package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
         .unwrap()
-        .0;
+        .reference;
 
     // Publish P that depends on both `dep_on_upgrading_package` and
     // `stage1_basic_compatibility_valid` Dependency graph for dep_on_dep:
@@ -1132,9 +1137,9 @@ async fn test_publish_transitive_override_happy_path() {
     let base_v2_package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
         .unwrap()
-        .0;
+        .reference;
 
     // publish a root package that depends on the dependent package and on version 2
     // of the base package (overriding base package dependency of the dependent
@@ -1238,7 +1243,12 @@ async fn test_upgraded_types_in_one_txn() {
     let created_b = effects
         .created()
         .into_iter()
-        .find_map(|(b, owner)| matches!(owner, Owner::Address(_)).then_some(b))
+        .find_map(
+            |OwnedObjectReference {
+                 reference: b,
+                 owner,
+             }| matches!(owner, Owner::Address(_)).then_some(b),
+        )
         .unwrap();
 
     // Create an instance of the type introduced at version 3 using function from
@@ -1255,7 +1265,12 @@ async fn test_upgraded_types_in_one_txn() {
     let created_c = effects
         .created()
         .into_iter()
-        .find_map(|(c, owner)| matches!(owner, Owner::Address(_)).then_some(c))
+        .find_map(
+            |OwnedObjectReference {
+                 reference: c,
+                 owner,
+             }| matches!(owner, Owner::Address(_)).then_some(c),
+        )
         .unwrap();
 
     // modify objects created of types introduced at versions 2 and 3 and emit
@@ -1304,9 +1319,9 @@ async fn test_different_versions_across_calls() {
     let package_v3 = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
         .unwrap()
-        .0
+        .reference
         .object_id;
 
     // call the same function twice within the same block but from two different
@@ -1353,9 +1368,9 @@ async fn test_conflicting_versions_across_calls() {
     let base_v2_package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
         .unwrap()
-        .0;
+        .reference;
 
     // publish a dependent package at version 2 that depends on the base package at
     // version 2
@@ -1399,9 +1414,9 @@ async fn test_conflicting_versions_across_calls() {
     let dependent_v2_package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
         .unwrap()
-        .0;
+        .reference;
 
     // call the same function twice within the same block but from two different
     // module versions that differ only by having different dependencies

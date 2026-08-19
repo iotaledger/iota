@@ -154,7 +154,7 @@ impl TestSetup {
             create_shared_object_effects.status()
         );
         assert_eq!(create_shared_object_effects.created().len(), 1);
-        create_shared_object_effects.created()[0].0
+        create_shared_object_effects.created()[0].reference
     }
 
     // Creates a owned object in `setup_authority_state` and returns the object
@@ -183,7 +183,7 @@ impl TestSetup {
             create_owned_object_effects.status()
         );
         assert_eq!(create_owned_object_effects.created().len(), 1);
-        create_owned_object_effects.created()[0].0
+        create_owned_object_effects.created()[0].reference
     }
 
     // Converts an object to a genesis object by setting its previous_transaction to
@@ -1333,7 +1333,7 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
         effects
             .mutated()
             .iter()
-            .any(|(obj_ref, _)| obj_ref.object_id == gas_object_id)
+            .any(|mutated| mutated.reference.object_id == gas_object_id)
     );
     assert!(effects.input_shared_objects().is_empty());
 
@@ -1651,7 +1651,7 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
         effects
             .mutated()
             .iter()
-            .any(|(obj_ref, _)| obj_ref.object_id == gas_coins[0].object_id)
+            .any(|mutated| mutated.reference.object_id == gas_coins[0].object_id)
     );
     assert!(
         effects

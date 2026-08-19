@@ -4,7 +4,7 @@
 
 use authority_tests::send_and_confirm_transaction;
 use bcs;
-use iota_sdk_types::{Address, ExecutionStatus, Identifier, Owner};
+use iota_sdk_types::{Address, ExecutionStatus, Identifier, OwnedObjectReference, Owner};
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -79,14 +79,14 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         effects
             .created()
             .iter()
-            .all(|(_, owner)| owner == &Owner::Address(sender))
+            .all(|OwnedObjectReference { owner, .. }| owner == &Owner::Address(sender))
     );
     // N of the objects should now be owned by recipient.
     assert_eq!(
         effects
             .mutated()
             .iter()
-            .filter(|(_, owner)| owner == &Owner::Address(recipient))
+            .filter(|OwnedObjectReference { owner, .. }| owner == &Owner::Address(recipient))
             .count(),
         N
     );

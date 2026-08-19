@@ -215,7 +215,7 @@ impl GasPriceFeedbackTester {
         );
         assert_eq!(effects.created().len(), 1);
 
-        effects.created()[0].0
+        effects.created()[0].reference
     }
 
     /// Build and sign a programmable transaction.

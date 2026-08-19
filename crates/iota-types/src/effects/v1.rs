@@ -4,7 +4,10 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::{Address, ObjectDigest, TransactionDigest, TransactionEventsDigest};
+use iota_sdk_types::{
+    Address, ObjectDigest, ObjectVersion, OwnedObjectReference, TransactionDigest,
+    TransactionEventsDigest,
+};
 
 use super::{
     ChangedObject, EpochId, ExecutionStatus, GasCostSummary, IdOperation, InputSharedObject,
@@ -16,14 +19,6 @@ use crate::{
     execution::SharedInput,
     object::OBJECT_START_VERSION,
 };
-
-/// The node reports an object and its owner as a pair, where the SDK names it.
-fn into_pairs(owned: Vec<iota_sdk_types::OwnedObjectReference>) -> Vec<(ObjectReference, Owner)> {
-    owned
-        .into_iter()
-        .map(|owned| (owned.reference, owned.owner))
-        .collect()
-}
 
 impl TransactionEffectsAPI for TransactionEffectsV1 {
     fn status(&self) -> &ExecutionStatus {
@@ -38,19 +33,16 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         self.epoch
     }
 
-    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
+    fn modified_at_versions(&self) -> Vec<ObjectVersion> {
         TransactionEffectsV1::modified_at_versions(self)
-            .into_iter()
-            .map(|modified| (modified.object_id, modified.version))
-            .collect()
     }
 
     fn lamport_version(&self) -> Version {
         self.lamport_version
     }
 
-    fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)> {
-        into_pairs(TransactionEffectsV1::old_object_metadata(self))
+    fn old_object_metadata(&self) -> Vec<OwnedObjectReference> {
+        TransactionEffectsV1::old_object_metadata(self)
     }
 
     fn input_shared_objects(&self) -> Vec<InputSharedObject> {
@@ -76,16 +68,16 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
             .collect()
     }
 
-    fn created(&self) -> Vec<(ObjectReference, Owner)> {
-        into_pairs(TransactionEffectsV1::created(self))
+    fn created(&self) -> Vec<OwnedObjectReference> {
+        TransactionEffectsV1::created(self)
     }
 
-    fn mutated(&self) -> Vec<(ObjectReference, Owner)> {
-        into_pairs(TransactionEffectsV1::mutated(self))
+    fn mutated(&self) -> Vec<OwnedObjectReference> {
+        TransactionEffectsV1::mutated(self)
     }
 
-    fn unwrapped(&self) -> Vec<(ObjectReference, Owner)> {
-        into_pairs(TransactionEffectsV1::unwrapped(self))
+    fn unwrapped(&self) -> Vec<OwnedObjectReference> {
+        TransactionEffectsV1::unwrapped(self)
     }
 
     fn deleted(&self) -> Vec<ObjectReference> {
@@ -104,17 +96,15 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
         TransactionEffectsV1::object_changes(self)
     }
 
-    fn gas_object(&self) -> (ObjectReference, Owner) {
+    fn gas_object(&self) -> OwnedObjectReference {
         // A transaction that needs no gas has no gas object; this reports the
         // dummy reference callers here have always been given for one.
-        TransactionEffectsV1::gas_object(self)
-            .map(|gas| (gas.reference, gas.owner))
-            .unwrap_or_else(|| {
-                (
-                    ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
-                    Owner::Address(Address::ZERO),
-                )
-            })
+        TransactionEffectsV1::gas_object(self).unwrap_or_else(|| {
+            OwnedObjectReference::new(
+                ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
+                Owner::Address(Address::ZERO),
+            )
+        })
     }
 
     fn events_digest(&self) -> Option<&TransactionEventsDigest> {
@@ -426,7 +416,7 @@ fn check_invariant(v1: &TransactionEffectsV1) {
     }
 
     // Make sure that gas object exists in changed_objects.
-    let (_, owner) = TransactionEffectsAPI::gas_object(v1);
+    let OwnedObjectReference { owner, .. } = TransactionEffectsAPI::gas_object(v1);
     assert!(matches!(owner, Owner::Address(_)));
 
     for unchanged in &v1.unchanged_shared_objects {

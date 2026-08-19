@@ -4,7 +4,7 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_sdk_types::{
-    GasPayment, TransactionEffects as NativeTransactionEffects,
+    GasPayment, OwnedObjectReference, TransactionEffects as NativeTransactionEffects,
     gas::GasCostSummary as NativeGasCostSummary,
 };
 use iota_types::effects::TransactionEffectsAPI;
@@ -161,7 +161,10 @@ impl GasEffects {
     /// `GasEffects` so that when viewing that entity's state, it will be as
     /// if it was read at the same checkpoint.
     pub(crate) fn from(effects: &NativeTransactionEffects, checkpoint_viewed_at: u64) -> Self {
-        let (object_ref, _owner) = effects.gas_object();
+        let OwnedObjectReference {
+            reference: object_ref,
+            owner: _owner,
+        } = effects.gas_object();
         Self {
             summary: GasCostSummary::from(effects.gas_cost_summary()),
             object_id: IotaAddress::from(object_ref.object_id),

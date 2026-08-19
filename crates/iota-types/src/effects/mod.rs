@@ -94,7 +94,7 @@ impl InputSharedObject {
     }
 }
 
-pub use iota_sdk_types::ObjectChange;
+pub use iota_sdk_types::{ObjectChange, ObjectVersion, OwnedObjectReference};
 
 mod transaction_effects_api {
     pub trait Sealed {}
@@ -119,7 +119,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// Return the `(ObjectId, Version)` pair, at their pre-execution version,
     /// of every object that existed in the store before this transaction
     /// and was modified by it (mutated, wrapped, or deleted).
-    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)>;
+    fn modified_at_versions(&self) -> Vec<ObjectVersion>;
 
     /// The version assigned to all output objects (apart from packages).
     fn lamport_version(&self) -> Version;
@@ -128,7 +128,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// exists in the store prior to this transaction and is modified in
     /// this transaction. It includes objects that are mutated, wrapped and
     /// deleted.
-    fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)>;
+    fn old_object_metadata(&self) -> Vec<OwnedObjectReference>;
 
     /// Returns the list of sequenced shared objects used in the input.
     /// This is needed in effects because in transaction we only have object ID
@@ -142,16 +142,16 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// Objects (Move objects and packages) newly created by this transaction,
     /// paired with their owner. Excludes objects that were created and then
     /// wrapped within the same transaction.
-    fn created(&self) -> Vec<(ObjectReference, Owner)>;
+    fn created(&self) -> Vec<OwnedObjectReference>;
 
     /// Objects that existed before this transaction and whose contents were
     /// updated by it (in-place mutations and system package upgrades),
     /// reported at their post-execution `(ObjectReference, Owner)`.
-    fn mutated(&self) -> Vec<(ObjectReference, Owner)>;
+    fn mutated(&self) -> Vec<OwnedObjectReference>;
 
     /// Objects that were wrapped inside another object before this transaction
     /// and have been promoted back to top-level objects in the store by it.
-    fn unwrapped(&self) -> Vec<(ObjectReference, Owner)>;
+    fn unwrapped(&self) -> Vec<OwnedObjectReference>;
 
     /// Objects that existed before this transaction and were deleted by it.
     /// References use the post-execution version and the
@@ -181,7 +181,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     // TODO: We should consider having this function to return Option.
     // When the gas object is not available (i.e. system transaction), we currently
     // return dummy object ref and owner. This is not ideal.
-    fn gas_object(&self) -> (ObjectReference, Owner);
+    fn gas_object(&self) -> OwnedObjectReference;
 
     /// Digest of the events emitted by this transaction, or `None` if it
     /// emitted no events.
@@ -281,7 +281,7 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     /// mutated, created and unwrapped objects. In other words, all objects
     /// that still exist in the object state after this transaction.
     /// It doesn't include deleted/wrapped objects.
-    fn all_changed_objects(&self) -> Vec<(ObjectReference, Owner, WriteKind)>;
+    fn all_changed_objects(&self) -> Vec<(OwnedObjectReference, WriteKind)>;
 
     /// Return all objects that existed in the state prior to the transaction
     /// but no longer exist in the state after the transaction.
@@ -297,7 +297,7 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, Version)>;
 
     /// Return an iterator of mutated objects, but excluding the gas object.
-    fn mutated_excluding_gas(&self) -> Vec<(ObjectReference, Owner)>;
+    fn mutated_excluding_gas(&self) -> Vec<OwnedObjectReference>;
 
     /// Returns all affected objects in this transaction effects.
     /// Affected objects include created, mutated, unwrapped, deleted,
@@ -395,7 +395,7 @@ impl TransactionEffectsAPI for TransactionEffects {
         delegate_effects_api!(self, epoch)
     }
 
-    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
+    fn modified_at_versions(&self) -> Vec<ObjectVersion> {
         delegate_shadowed_effects_api!(self, modified_at_versions)
     }
 
@@ -403,7 +403,7 @@ impl TransactionEffectsAPI for TransactionEffects {
         delegate_effects_api!(self, lamport_version)
     }
 
-    fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)> {
+    fn old_object_metadata(&self) -> Vec<OwnedObjectReference> {
         delegate_shadowed_effects_api!(self, old_object_metadata)
     }
 
@@ -411,15 +411,15 @@ impl TransactionEffectsAPI for TransactionEffects {
         delegate_shadowed_effects_api!(self, input_shared_objects)
     }
 
-    fn created(&self) -> Vec<(ObjectReference, Owner)> {
+    fn created(&self) -> Vec<OwnedObjectReference> {
         delegate_shadowed_effects_api!(self, created)
     }
 
-    fn mutated(&self) -> Vec<(ObjectReference, Owner)> {
+    fn mutated(&self) -> Vec<OwnedObjectReference> {
         delegate_shadowed_effects_api!(self, mutated)
     }
 
-    fn unwrapped(&self) -> Vec<(ObjectReference, Owner)> {
+    fn unwrapped(&self) -> Vec<OwnedObjectReference> {
         delegate_shadowed_effects_api!(self, unwrapped)
     }
 
@@ -439,7 +439,7 @@ impl TransactionEffectsAPI for TransactionEffects {
         delegate_shadowed_effects_api!(self, object_changes)
     }
 
-    fn gas_object(&self) -> (ObjectReference, Owner) {
+    fn gas_object(&self) -> OwnedObjectReference {
         delegate_shadowed_effects_api!(self, gas_object)
     }
 
@@ -530,11 +530,8 @@ impl TransactionEffectsExt for TransactionEffects {
         }
     }
 
-    fn all_changed_objects(&self) -> Vec<(ObjectReference, Owner, WriteKind)> {
+    fn all_changed_objects(&self) -> Vec<(OwnedObjectReference, WriteKind)> {
         delegate_sdk_effects_api!(self, all_changed_objects)
-            .into_iter()
-            .map(|(object, kind)| (object.reference, object.owner, kind))
-            .collect()
     }
 
     fn all_removed_objects(&self) -> Vec<(ObjectReference, ObjectRemoveKind)> {
@@ -569,19 +566,21 @@ impl TransactionEffectsExt for TransactionEffects {
             .collect::<Vec<_>>()
     }
 
-    fn mutated_excluding_gas(&self) -> Vec<(ObjectReference, Owner)> {
+    fn mutated_excluding_gas(&self) -> Vec<OwnedObjectReference> {
+        let gas = self.gas_object();
         self.mutated()
             .into_iter()
-            .filter(|o| o != &self.gas_object())
+            .filter(|mutated| *mutated != gas)
             .collect()
     }
 
     fn all_affected_objects(&self) -> Vec<ObjectReference> {
+        let reference = |owned: OwnedObjectReference| owned.reference;
         self.created()
             .into_iter()
-            .map(|(r, _)| r)
-            .chain(self.mutated().into_iter().map(|(r, _)| r))
-            .chain(self.unwrapped().into_iter().map(|(r, _)| r))
+            .map(reference)
+            .chain(self.mutated().into_iter().map(reference))
+            .chain(self.unwrapped().into_iter().map(reference))
             .chain(
                 self.input_shared_objects()
                     .into_iter()

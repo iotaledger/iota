@@ -26,8 +26,8 @@ use iota_macros::sim_test;
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
-    ObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, SignatureScheme,
-    Transaction, TransactionEffects, TypeTag, UserSignature,
+    ObjectReference, OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
+    SignatureScheme, Transaction, TransactionEffects, TypeTag, UserSignature,
     crypto::{Intent, SimpleSignature},
 };
 use iota_test_transaction_builder::publish_package;
@@ -1401,9 +1401,10 @@ async fn test_successful_receiving_gas_then_create_account() -> Result<(), anyho
     let conflict_coin_ref = effects_cert
         .all_changed_objects()
         .iter()
-        .find(|obj| obj.0.object_id == conflict_coin_ref.object_id)
+        .find(|(changed, _)| changed.reference.object_id == conflict_coin_ref.object_id)
         .expect("Expected to find the updated conflict coin object")
-        .0;
+        .0
+        .reference;
 
     // Step 3: create the AA account (from the delayed abstract account object)
     let effects = test_env.make_delayed_abstract_account().await?;
@@ -1926,7 +1927,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
         "Expected computation cost > 0: the sponsor must pay gas even for a post-consensus failure"
     );
     assert_eq!(
-        effects_cert.data().gas_object().0.object_id,
+        effects_cert.data().gas_object().reference.object_id,
         sponsor_gas.object_id,
         "Expected the sponsor's gas coin to be used for the failed TX"
     );
@@ -2149,8 +2150,13 @@ impl TestEnvironment {
                 .effects
                 .all_changed_objects()
                 .iter()
-                .map(|e| (e.0.reference, e.0.owner, e.1))
-                .collect::<Vec<(ObjectReference, Owner, WriteKind)>>(),
+                .map(|(changed, kind)| {
+                    (
+                        OwnedObjectReference::new(changed.reference, changed.owner),
+                        *kind,
+                    )
+                })
+                .collect::<Vec<_>>(),
         ));
         self.aa_create_transaction = Some(transaction);
 
@@ -2897,14 +2903,14 @@ fn delayed_abstract_account_type_tag(aa_package_id: &ObjectId) -> TypeTag {
 }
 
 fn abstract_account_from_all_changed_objects(
-    all_changed_objects: &[(ObjectReference, Owner, WriteKind)],
+    all_changed_objects: &[(OwnedObjectReference, WriteKind)],
 ) -> ObjectReference {
     // Extract the only created shared object which is the abstract account
     all_changed_objects
         .iter()
-        .find_map(|change| match change {
-            (_, Owner::Shared(_), WriteKind::Create) => Some(change.0),
-            _ => None,
+        .find_map(|(changed, kind)| {
+            matches!((changed.owner, kind), (Owner::Shared(_), WriteKind::Create))
+                .then_some(changed.reference)
         })
         .expect("Expected a shared object in the transaction response")
 }
