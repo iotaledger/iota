@@ -479,6 +479,15 @@ async fn start(
              configs would point at a temporary directory that is removed on exit. Pass \
              `--network.config <DIR>` or run `iota-localnet genesis` first."
         );
+        #[cfg(feature = "indexer")]
+        ensure!(
+            data_ingestion_dir.is_some()
+                || (indexer_feature_args.with_indexer.is_none()
+                    && indexer_feature_args.with_graphql.is_none()),
+            "Cannot pass `--with-indexer` or `--with-graphql` and `--write-config` at the same \
+             time: the written fullnode config would point at a temporary data ingestion \
+             directory that is removed on exit. Pass `--data-ingestion-dir <DIR>`."
+        );
     }
 
     #[cfg(feature = "indexer")]
@@ -626,9 +635,12 @@ async fn start(
     // must enable it by default.
     #[cfg(feature = "indexer")]
     if with_indexer.is_some() || with_graphql.is_some() {
-        // the gRPC api uses default values if config is not provided,
-        // allowing to not override it when provided in fullnode config.
-        swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(true);
+        // The gRPC API config is given rather than left out, since the builder
+        // would otherwise put the API on a free port, which differs on every
+        // run. A `--node-config-override` still wins over it.
+        swarm_builder = swarm_builder
+            .with_fullnode_enable_grpc_api(true)
+            .with_fullnode_grpc_api_config(GrpcApiConfig::default());
     }
 
     // the indexer requires to set the fullnode's data ingestion directory
@@ -1039,6 +1051,11 @@ async fn genesis(
 
     let validator_info = genesis_conf.validator_config_info.take();
     let ssfn_info = genesis_conf.ssfn_config_info.take();
+    // A genesis config that names its validators is a deployment's, and the
+    // node config files of that deployment are written below. A plain `genesis`
+    // names none and writes none: the configs a local network runs come from
+    // `start --write-config`.
+    let write_deployment_configs = validator_info.is_some();
 
     if let Some(epoch_duration_ms) = epoch_duration_ms {
         genesis_conf.parameters.epoch_duration_ms = epoch_duration_ms;
@@ -1101,13 +1118,21 @@ async fn genesis(
 
     info!("Client keystore is stored in {:?}.", keystore_path);
 
-    if let Some(ssfn_info) = ssfn_info {
-        write_state_sync_fullnode_configs(
+    if write_deployment_configs {
+        let ssfn_seed_peers = match ssfn_info {
+            Some(ssfn_info) => write_state_sync_fullnode_configs(
+                iota_config_dir,
+                ssfn_info,
+                &validator_configs,
+                admin_interface_address_with_port,
+            )?,
+            None => Vec::new(),
+        };
+        write_validator_configs(
             iota_config_dir,
-            ssfn_info,
             validator_configs,
             &genesis,
-            admin_interface_address_with_port,
+            &ssfn_seed_peers,
         )?;
     }
 
@@ -1169,18 +1194,17 @@ fn fullnode_genesis_config<R: rand::RngCore + rand::CryptoRng>(
     config
 }
 
-/// Write a node config file per state sync fullnode entry, and the validator
-/// config files that name them as seed peers.
+/// Write a node config file per state sync fullnode entry, and return the seed
+/// peers the validators reach them through.
 ///
 /// These are templates for a deployment, not configs a local network runs:
 /// their paths and addresses are the ones a packaged node uses.
 fn write_state_sync_fullnode_configs(
     config_directory: &Path,
     ssfn_info: Vec<SsfnGenesisConfig>,
-    validator_configs: Vec<NodeConfig>,
-    genesis: &Genesis,
+    validator_configs: &[NodeConfig],
     admin_interface_address: Option<SocketAddr>,
-) -> Result<(), anyhow::Error> {
+) -> Result<Vec<SeedPeer>, anyhow::Error> {
     let mut ssfn_configs = vec![];
     for (index, ssfn) in ssfn_info.into_iter().enumerate() {
         let path = config_directory.join(iota_config::ssfn_config_file(
@@ -1201,12 +1225,12 @@ fn write_state_sync_fullnode_configs(
             .with_json_rpc_address(([0, 0, 0, 0], 9000))
             .with_genesis(deployed_genesis.clone())
             .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
-            .try_build_from_parts(&mut OsRng, &validator_configs, deployed_genesis)?;
+            .try_build_from_parts(&mut OsRng, validator_configs, deployed_genesis)?;
         ssfn_config.save(path)?;
         ssfn_configs.push(ssfn_config);
     }
 
-    let ssfn_seed_peers = ssfn_configs
+    ssfn_configs
         .iter()
         .enumerate()
         .map(|(index, config)| {
@@ -1223,8 +1247,20 @@ fn write_state_sync_fullnode_configs(
                 address,
             })
         })
-        .collect::<Result<Vec<SeedPeer>, anyhow::Error>>()?;
+        .collect()
+}
 
+/// Write a node config file per validator, naming `ssfn_seed_peers` as their
+/// seed peers.
+///
+/// These are templates for a deployment, not configs a local network runs:
+/// their paths and addresses are the ones a packaged node uses.
+fn write_validator_configs(
+    config_directory: &Path,
+    validator_configs: Vec<NodeConfig>,
+    genesis: &Genesis,
+    ssfn_seed_peers: &[SeedPeer],
+) -> Result<(), anyhow::Error> {
     for (index, mut validator) in validator_configs.into_iter().enumerate() {
         let path = config_directory.join(iota_config::validator_config_file(
             validator.network_address.clone(),
@@ -1232,7 +1268,7 @@ fn write_state_sync_fullnode_configs(
         ));
         validator.genesis = genesis.clone();
         validator.policy_config = Some(PolicyConfig::default_dos_protection_policy());
-        validator.p2p_config.seed_peers.clone_from(&ssfn_seed_peers);
+        validator.p2p_config.seed_peers = ssfn_seed_peers.to_vec();
         validator.save(path)?;
     }
     Ok(())

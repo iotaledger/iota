@@ -10,6 +10,8 @@ use std::{
     time::Duration,
 };
 
+#[cfg(feature = "indexer")]
+use clap::Parser;
 use iota_config::{
     Config, IOTA_CLIENT_CONFIG, IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME,
     IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG, NodeConfig, PersistedConfig,
@@ -125,6 +127,46 @@ async fn test_genesis() -> Result<(), anyhow::Error> {
         .execute()
         .await;
     assert!(matches!(result, Err(..)));
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
+/// A genesis config that names its validators is a deployment's, and `genesis`
+/// writes its validator config files. The private network's `bootstrap.sh`
+/// mounts them, and its template names no state sync fullnodes.
+#[tokio::test]
+async fn genesis_from_config_writes_the_validator_configs() -> Result<(), anyhow::Error> {
+    let source_dir = iota_common::tempdir();
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
+
+    genesis_command(source_dir.path(), 2).execute().await?;
+    let genesis_config = PersistedNetworkConfig::read(source_dir.path())?.genesis_config;
+    assert!(genesis_config.ssfn_config_info.is_none());
+    let validator_configs: Vec<String> = genesis_config
+        .validator_config_info
+        .iter()
+        .flatten()
+        .enumerate()
+        .map(|(index, validator)| {
+            iota_config::validator_config_file(validator.network_address.clone(), index)
+        })
+        .collect();
+    let config_path = source_dir.path().join("genesis-config.yaml");
+    genesis_config.persisted(&config_path).save()?;
+
+    let mut command = genesis_command(working_dir, 2);
+    let LocalnetCommand::Genesis { from_config, .. } = &mut command else {
+        unreachable!("genesis_command builds a genesis command")
+    };
+    *from_config = Some(config_path);
+    command.execute().await?;
+
+    let files = file_names(working_dir);
+    for name in validator_configs {
+        assert!(files.contains(&name), "{files:?}");
+    }
 
     tmp_dir.close()?;
     Ok(())
@@ -430,6 +472,32 @@ async fn write_config_is_rejected_under_force_regenesis() {
     let err = format!("{:#}", command.execute().await.unwrap_err());
     assert!(
         err.contains("`--force-regenesis` and `--write-config`"),
+        "{err}"
+    );
+}
+
+/// A `--with-indexer` run without `--data-ingestion-dir` keeps the fullnode's
+/// data ingestion directory in a temporary directory that is gone once the
+/// command exits.
+#[cfg(feature = "indexer")]
+#[tokio::test]
+async fn write_config_is_rejected_with_the_indexer() {
+    let tmp_dir = iota_common::tempdir();
+    let config_dir = tmp_dir.path().to_str().unwrap();
+    let node_configs = tmp_dir.path().join("node-configs");
+    let command = LocalnetCommand::parse_from([
+        "iota-localnet",
+        "start",
+        "--with-indexer",
+        "--network.config",
+        config_dir,
+        "--write-config",
+        node_configs.to_str().unwrap(),
+    ]);
+
+    let err = format!("{:#}", command.execute().await.unwrap_err());
+    assert!(
+        err.contains("`--with-indexer` or `--with-graphql`"),
         "{err}"
     );
 }

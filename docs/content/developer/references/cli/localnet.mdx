@@ -200,7 +200,7 @@ iota-localnet start --force-regenesis --with-faucet --epoch-duration-ms 30000 --
 Use `iota-localnet genesis` to generate a genesis configuration for a local network. The resulting config can then
 be used with `iota-localnet start --network.config <DIR>` to start a persisted network.
 
-It writes the genesis blob, the network state every node config is derived from (`network.yaml`), the client config and the keystore. It does not write node config files; `iota-localnet start --write-config <DIR>` does, see [Node config files](#node-config-files).
+It writes the genesis blob, the network state every node config is derived from (`network.yaml`), the client config and the keystore. It does not write the node config files of a local network; `iota-localnet start --write-config <DIR>` does, see [Node config files](#node-config-files). A genesis config passed with `--from-config` names the validators of a deployment, and a run that is given one also writes a config file per validator, and per state sync fullnode it names.
 
 ### Usage
 
