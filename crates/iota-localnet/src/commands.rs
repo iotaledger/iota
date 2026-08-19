@@ -519,8 +519,8 @@ async fn start(
     }
 
     // The service addresses are resolved here rather than where each service
-    // starts, so that an unparsable one fails before genesis and so that the
-    // port check knows every address this run binds.
+    // starts. An unparsable one then fails before genesis, and the port check
+    // knows every address this run binds.
     let faucet_address = with_faucet
         .map(|input| {
             parse_host_port(input, DEFAULT_FAUCET_PORT)

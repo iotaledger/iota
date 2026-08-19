@@ -50,7 +50,7 @@ impl BoundAddress {
         }
     }
 
-    /// An address a new genesis moves and an override cannot; `advice` says
+    /// An address a new genesis moves and an override cannot. `advice` says
     /// which committee field pins it.
     fn fixed_by_genesis(
         scope: &str,
@@ -79,9 +79,9 @@ impl BoundAddress {
         }
     }
 
-    /// Whether something already holds the address. Any other reason a bind
-    /// fails, such as an address this host does not have, is not a port clash
-    /// and is left to the node to report.
+    /// Whether something already holds the address. A bind can fail for other
+    /// reasons, such as an address this host does not have. Those are not port
+    /// clashes, and the node reports them itself.
     fn is_in_use(&self) -> bool {
         let bound = match self.transport {
             Transport::Tcp => TcpListener::bind(self.address).map(drop),
@@ -90,8 +90,8 @@ impl BoundAddress {
         matches!(bound, Err(err) if err.kind() == io::ErrorKind::AddrInUse)
     }
 
-    /// Whether both addresses want the same socket, so that whichever binds
-    /// first takes it from the other. A wildcard address covers every IP of
+    /// Whether both addresses want the same socket. Whichever binds first
+    /// then takes it from the other. A wildcard address covers every IP of
     /// the host, so it clashes with any address on its port.
     fn clashes_with(&self, other: &Self) -> bool {
         self.transport == other.transport
@@ -103,21 +103,23 @@ impl BoundAddress {
 }
 
 /// Fail if two of `addresses` want one socket, or if something else already
-/// holds one of them, naming every clash and what to do about it.
+/// holds one of them. The error names every clash and what to do about it.
 ///
-/// This runs just before the network launches and reserves nothing: each port
-/// is free again the moment it has been probed, so one that passes here can
-/// still be taken by the time a node binds it. It turns the common case — a
-/// second local network, another program on a fixed port, or one port given
-/// to two things of this run — into a message naming the node and the field,
-/// instead of a bind failure from inside a node.
+/// This runs just before the network launches and reserves nothing. Each port
+/// is free again the moment the check probes it. A port that passes here can
+/// therefore still be taken by the time a node binds it.
+///
+/// The check turns the common case into a message that names the node and the
+/// field, instead of a bind failure from inside a node. That case is a second
+/// local network, another program on a fixed port, or one port given to two
+/// things of this run.
 pub fn check_ports_are_free(addresses: &[BoundAddress]) -> Result<(), anyhow::Error> {
     let mut clashes = Vec::new();
 
     for (index, address) in addresses.iter().enumerate() {
-        // Only the first later address on the port is reported, so that a port
-        // several of them want reads as a chain of pairs rather than as every
-        // combination of them.
+        // Only the first later address on the port is reported. A port that
+        // several of them want then reads as a chain of pairs, rather than as
+        // every combination of them.
         let Some(other) = addresses[index + 1..]
             .iter()
             .find(|other| address.clashes_with(other))
@@ -294,10 +296,10 @@ mod tests {
     /// primary address its committee entry carries, both derived from one
     /// genesis entry as `start` derives them.
     ///
-    /// A test that probes these addresses passes a `port_base` away from the
-    /// real one, so that a local network running beside the test does not read
-    /// as a clash, and its own, so that two tests binding at the same moment
-    /// do not read as one.
+    /// A test that probes these addresses passes a `port_base` of its own,
+    /// away from the real one. A local network beside the test then does not
+    /// read as a clash. Two tests that bind at the same moment do not read as
+    /// one either.
     fn validator_config(directory: &Path, port_base: u16) -> (NodeConfig, Option<SocketAddr>) {
         let validator = ValidatorGenesisConfigBuilder::new()
             .with_ip("127.0.0.1".to_owned())
@@ -394,7 +396,7 @@ mod tests {
     }
 
     /// Two addresses of one run on one port never both bind, however free the
-    /// port is, so the check has to compare the run's own addresses too.
+    /// port is. The check therefore compares the run's own addresses too.
     #[test]
     fn a_port_this_run_binds_twice_is_reported() {
         // TEST-NET-1, which is not assigned to an interface, so that nothing
@@ -422,8 +424,8 @@ mod tests {
     }
 
     /// Only a port something else holds is a clash. A bind that fails for
-    /// another reason must not be reported, or every address this host does
-    /// not have would look occupied.
+    /// another reason must not be reported. Every address this host does not
+    /// have would otherwise look occupied.
     #[test]
     fn an_address_this_host_does_not_have_is_not_a_clash() {
         // TEST-NET-1, which is not assigned to an interface.
