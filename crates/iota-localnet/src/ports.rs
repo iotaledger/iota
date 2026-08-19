@@ -11,7 +11,7 @@ use iota_config::NodeConfig;
 use iota_swarm::memory::{Node, Swarm};
 
 /// The transport an address is bound with.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Transport {
     Tcp,
     Udp,
@@ -28,6 +28,8 @@ pub struct BoundAddress {
     bound_by: String,
     address: SocketAddr,
     transport: Transport,
+    /// Whether only a new genesis moves the address.
+    fixed_by_genesis: bool,
     /// What to do about the address when its port is taken.
     advice: String,
 }
@@ -40,6 +42,7 @@ impl BoundAddress {
             bound_by: format!("{scope} {field}"),
             address,
             transport,
+            fixed_by_genesis: false,
             advice: format!(
                 "override it with --node-config-override {scope}:{field}={ip}:<port>",
                 ip = address.ip()
@@ -60,6 +63,7 @@ impl BoundAddress {
             bound_by: format!("{scope} {field}"),
             address,
             transport,
+            fixed_by_genesis: true,
             advice: advice.to_owned(),
         }
     }
@@ -70,6 +74,7 @@ impl BoundAddress {
             bound_by: name.to_owned(),
             address,
             transport: Transport::Tcp,
+            fixed_by_genesis: false,
             advice: format!("move it with {flag}=<port>"),
         }
     }
@@ -84,35 +89,74 @@ impl BoundAddress {
         };
         matches!(bound, Err(err) if err.kind() == io::ErrorKind::AddrInUse)
     }
+
+    /// Whether both addresses want the same socket, so that whichever binds
+    /// first takes it from the other. A wildcard address covers every IP of
+    /// the host, so it clashes with any address on its port.
+    fn clashes_with(&self, other: &Self) -> bool {
+        self.transport == other.transport
+            && self.address.port() == other.address.port()
+            && (self.address.ip() == other.address.ip()
+                || self.address.ip().is_unspecified()
+                || other.address.ip().is_unspecified())
+    }
 }
 
-/// Fail if any of `addresses` is already taken, naming every one that is and
-/// what to do about it.
+/// Fail if two of `addresses` want one socket, or if something else already
+/// holds one of them, naming every clash and what to do about it.
 ///
 /// This runs just before the network launches and reserves nothing: each port
 /// is free again the moment it has been probed, so one that passes here can
 /// still be taken by the time a node binds it. It turns the common case — a
-/// second local network, or another program on a fixed port — into a message
-/// naming the node and the field, instead of a bind failure from inside a
-/// node.
+/// second local network, another program on a fixed port, or one port given
+/// to two things of this run — into a message naming the node and the field,
+/// instead of a bind failure from inside a node.
 pub fn check_ports_are_free(addresses: &[BoundAddress]) -> Result<(), anyhow::Error> {
-    let taken: Vec<String> = addresses
-        .iter()
-        .filter(|address| address.is_in_use())
-        .map(|address| {
-            format!(
-                "port {port} ({bound_by}) is already in use\n  {advice}",
-                port = address.address.port(),
-                bound_by = address.bound_by,
-                advice = address.advice
-            )
-        })
-        .collect();
+    let mut clashes = Vec::new();
 
-    if taken.is_empty() {
+    for (index, address) in addresses.iter().enumerate() {
+        // Only the first later address on the port is reported, so that a port
+        // several of them want reads as a chain of pairs rather than as every
+        // combination of them.
+        let Some(other) = addresses[index + 1..]
+            .iter()
+            .find(|other| address.clashes_with(other))
+        else {
+            continue;
+        };
+        // Only a new genesis moves a genesis-fixed address, so advise on the
+        // other one wherever there is a choice.
+        let advice = if other.fixed_by_genesis && !address.fixed_by_genesis {
+            &address.advice
+        } else {
+            &other.advice
+        };
+        clashes.push(format!(
+            "port {port} is bound twice by this run ({bound_by}, {other_bound_by})\n  {advice}",
+            port = address.address.port(),
+            bound_by = address.bound_by,
+            other_bound_by = other.bound_by,
+        ));
+    }
+
+    clashes.extend(
+        addresses
+            .iter()
+            .filter(|address| address.is_in_use())
+            .map(|address| {
+                format!(
+                    "port {port} ({bound_by}) is already in use\n  {advice}",
+                    port = address.address.port(),
+                    bound_by = address.bound_by,
+                    advice = address.advice
+                )
+            }),
+    );
+
+    if clashes.is_empty() {
         return Ok(());
     }
-    bail!(taken.join("\n"))
+    bail!(clashes.join("\n"))
 }
 
 /// The addresses the nodes of `swarm` bind when the network launches.
@@ -346,6 +390,34 @@ mod tests {
         assert_eq!(
             err,
             format!("port {port} (faucet) is already in use\n  move it with --with-faucet=<port>")
+        );
+    }
+
+    /// Two addresses of one run on one port never both bind, however free the
+    /// port is, so the check has to compare the run's own addresses too.
+    #[test]
+    fn a_port_this_run_binds_twice_is_reported() {
+        // TEST-NET-1, which is not assigned to an interface, so that nothing
+        // but the comparison between these addresses can report them.
+        let address: SocketAddr = "192.0.2.1:9123".parse().unwrap();
+        let addresses = [
+            BoundAddress::overridable("fullnode", "json-rpc-address", address, Transport::Tcp),
+            BoundAddress::service("faucet", "--with-faucet", address),
+            // The same port over the other transport is another socket.
+            BoundAddress::overridable(
+                "fullnode",
+                "p2p-config.listen-address",
+                address,
+                Transport::Udp,
+            ),
+        ];
+
+        let err = check_ports_are_free(&addresses).unwrap_err().to_string();
+
+        assert_eq!(
+            err,
+            "port 9123 is bound twice by this run (fullnode json-rpc-address, faucet)\n  move it \
+             with --with-faucet=<port>"
         );
     }
 

@@ -98,6 +98,7 @@ port 9202 (validator-0 metrics-address) is already in use
   override it with --node-config-override validator-0:metrics-address=127.0.0.1:<port>
 ```
 
+A port the run itself would bind twice — a `--with-faucet` port that is also the fullnode's JSON-RPC port, say — is reported the same way.
 For a validator's `network-address`, `primary-address` and the port of its `p2p-config.listen-address`, the report names a new genesis instead of suggesting an override.
 The admin interface ports are not checked: a local network runs its nodes in-process, which starts no admin interface.
 
