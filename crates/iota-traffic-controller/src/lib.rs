@@ -917,6 +917,9 @@ pub fn get_client_ip(
 mod tests {
     use std::{net::Ipv4Addr, path::PathBuf};
 
+    use iota_macros::sim_test;
+    use iota_types::traffic_control::FreqThresholdConfig;
+
     use super::*;
 
     const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
@@ -1157,5 +1160,39 @@ mod tests {
                 delegated: 1,
             }
         );
+    }
+
+    fn freq_threshold(client_threshold: u64) -> PolicyType {
+        PolicyType::FreqThreshold(FreqThresholdConfig {
+            client_threshold,
+            proxied_client_threshold: client_threshold,
+            window_size_secs: 5,
+        })
+    }
+
+    #[sim_test]
+    async fn test_rejected_reconfiguration_applies_nothing() {
+        let controller = TrafficController::init_for_test(
+            PolicyConfig {
+                spam_policy_type: freq_threshold(100),
+                error_policy_type: freq_threshold(50),
+                dry_run: false,
+                ..Default::default()
+            },
+            None,
+        );
+        // The spam threshold is too large. The error threshold and the dry-run
+        // flag are valid, but the controller must apply neither of them.
+        let result = controller.admin_reconfigure(TrafficControlReconfigParams {
+            error_threshold: Some(10),
+            spam_threshold: Some(MAX_CLIENT_THRESHOLD + 1),
+            dry_run: Some(true),
+        });
+
+        assert!(matches!(result, Err(IotaError::InvalidAdminRequest(_))));
+        let state = controller.get_current_state();
+        assert_eq!(state.error_threshold, Some(50));
+        assert_eq!(state.spam_threshold, Some(100));
+        assert_eq!(state.dry_run, Some(false));
     }
 }
