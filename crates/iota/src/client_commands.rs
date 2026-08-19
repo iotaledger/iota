@@ -19,7 +19,10 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::read_mask_fields::{ObjectField, OwnedObjectReadMask};
+use iota_grpc_client::{
+    Client as GrpcClient,
+    read_mask_fields::{ObjectField, OwnedObjectReadMask},
+};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -3299,7 +3302,7 @@ pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
 
 /// Fetch the current object references for the given object IDs over gRPC.
 pub(crate) async fn grpc_input_refs(
-    client: &iota_grpc_client::Client,
+    client: &GrpcClient,
     object_ids: &[ObjectId],
 ) -> Result<Vec<ObjectReference>, anyhow::Error> {
     if object_ids.is_empty() {
@@ -3321,7 +3324,7 @@ pub(crate) async fn grpc_input_refs(
 /// Fetch the coin with the given ID over gRPC, as a reference pinning the
 /// version its type was read at, and the `T` of its `Coin<T>`.
 async fn grpc_coin(
-    client: &iota_grpc_client::Client,
+    client: &GrpcClient,
     coin_id: ObjectId,
 ) -> Result<(ObjectReference, TypeTag), anyhow::Error> {
     let object = client

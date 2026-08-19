@@ -7,6 +7,7 @@ use std::{collections::BTreeMap, path::Path};
 use anyhow::Result;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
+use iota_grpc_client::Client as GrpcClient;
 use iota_json::{is_receiving_argument, primitive_type};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::CompiledPackage;
@@ -244,7 +245,7 @@ pub struct PTBBuilder<'a> {
     context: &'a WalletContext,
     /// gRPC client for reading objects from chain. Needed for object
     /// resolution.
-    grpc_client: &'a iota_grpc_client::Client,
+    grpc_client: &'a GrpcClient,
     /// The last command that we have added. This is used to support assignment
     /// commands.
     last_command: Option<Argument>,
@@ -304,7 +305,7 @@ impl<'a> PTBBuilder<'a> {
     pub fn new(
         starting_env: BTreeMap<String, AccountAddress>,
         context: &'a WalletContext,
-        grpc_client: &'a iota_grpc_client::Client,
+        grpc_client: &'a GrpcClient,
     ) -> Self {
         Self {
             addresses: starting_env,
