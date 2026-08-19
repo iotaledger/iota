@@ -5,13 +5,11 @@
 use std::{collections::HashSet, path::PathBuf};
 
 use iota_macros::*;
-use iota_sdk_types::{ObjectId, ObjectReference, Owner};
+use iota_sdk_types::{ObjectId, ObjectReference, Owner, TransactionEffects, TransactionEvents};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
-    transaction::{CallArg, Transaction},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    transaction::{CallArg, TransactionEnvelope},
 };
 use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
@@ -160,7 +158,7 @@ impl TestEnvironment {
         &self,
         function: &'static str,
         arguments: Vec<CallArg>,
-    ) -> Transaction {
+    ) -> TransactionEnvelope {
         let transaction = self
             .test_cluster
             .test_transaction_builder()

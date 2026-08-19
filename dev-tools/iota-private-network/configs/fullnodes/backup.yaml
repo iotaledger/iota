@@ -17,16 +17,6 @@ authority-store-pruning-config:
 state-debug-dump-config:
   dump-file-directory: /opt/iota/state_debug_dump
 enable-experimental-rest-api: true
-# db_snapshot
-db-checkpoint-config:
-  perform-db-checkpoints-at-epoch-end: true
-  perform-index-db-checkpoints-at-epoch-end: true
-  prune-and-compact-before-upload: false
-  object-store-config:
-    object-store: "File"
-    directory: "/opt/iota/db_snapshot"
-    object-store-connection-limit: 20
-  concurrency: 5
 # formal_snapshot
 state-snapshot-write-config:
   object-store-config:

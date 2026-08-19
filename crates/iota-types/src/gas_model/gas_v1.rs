@@ -175,7 +175,7 @@ mod checked {
         cost_table: IotaCostTable,
         /// Gas budget for this gas status instance.
         /// Typically the gas budget as defined in the
-        /// `TransactionData::GasPayment`
+        /// `Transaction::GasPayment`
         gas_budget: u64,
         /// Computation cost after execution. This is the result of the gas used
         /// by the `GasStatus` properly bucketized.
@@ -303,6 +303,9 @@ mod checked {
         // 1. Gas object has an address owner.
         // 2. Gas budget is between min and max budget allowed
         // 3. Gas balance (all gas coins together) is bigger or equal to budget
+        //
+        // Keep the three checks together: it is only sound because step 1 has already
+        // rejected every gas object that `as_object` returns `None` for.
         pub(crate) fn check_gas_balance(
             &self,
             gas_objs: &[&ObjectReadResult],

@@ -23,7 +23,7 @@ use iota_swarm_config::{
     genesis_config::GenesisConfig,
     network_config::{NetworkConfig, NetworkConfigLight},
 };
-use iota_types::crypto::{AccountKeyPair, get_key_pair};
+use iota_types::crypto::AccountKeyPair;
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -129,7 +129,7 @@ impl Cluster for RemoteRunningCluster {
     }
 
     fn user_key(&self) -> AccountKeyPair {
-        get_key_pair().1
+        AccountKeyPair::random()
     }
 
     fn remote_faucet_url(&self) -> Option<&str> {
@@ -314,7 +314,7 @@ impl Cluster for LocalNewCluster {
     }
 
     fn user_key(&self) -> AccountKeyPair {
-        get_key_pair().1
+        AccountKeyPair::random()
     }
 
     fn remote_faucet_url(&self) -> Option<&str> {

@@ -13,8 +13,9 @@ use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponseOptions, ObjectChange,
 };
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{Address, ObjectId, Version};
-use iota_types::crypto::{AccountKeyPair, IotaKeyPair, get_key_pair};
+use iota_types::crypto::{AccountKeyPair, get_key_pair};
 use jsonrpsee::http_client::HttpClient;
 
 use crate::{
@@ -32,7 +33,7 @@ pub async fn call_test_fn(
     client: &HttpClient,
     store: &PgIndexerStore,
     sender: Address,
-    keypair: &IotaKeyPair,
+    keypair: &SimpleKeypair,
     package_id: ObjectId,
     function: &str,
     arguments: Vec<IotaJsonValue>,
@@ -139,7 +140,7 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
     runtime.block_on(async move {
         // --- Set up a funded address ---
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let keypair = SimpleKeypair::from(keypair);
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

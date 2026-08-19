@@ -5,11 +5,8 @@
 
 use iota_config::transaction_deny_config::TransactionDenyConfig;
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{Event, ObjectId, gas::GasCostSummary};
-use iota_types::{
-    effects::{TransactionEffects, TransactionEvents},
-    object::Object,
-};
+use iota_sdk_types::{Event, ObjectId, TransactionEffects, TransactionEvents, gas::GasCostSummary};
+use iota_types::object::Object;
 use move_core_types::annotated_value::MoveValue;
 
 use crate::debug::{DebugArtifacts, DebugConfig};

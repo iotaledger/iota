@@ -8,10 +8,10 @@ use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEffects};
 use iota_types::{
     deny_rule_governance::DenyRuleConfig,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaError,
     fp_ensure,
     messages_consensus::ConsensusTransaction,
@@ -21,7 +21,7 @@ use iota_types::{
         TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     traffic_control::Weight,
-    transaction::{SenderSignedTransactionAPI, Transaction},
+    transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -114,12 +114,13 @@ use crate::{
         soft_lock::PreConsensusSoftLocks,
     },
     consensus_adapter::ConsensusAdapter,
+    execution_scheduler::ExecutionSchedulerAPI,
 };
 
 impl ValidatorService {
     async fn submit_tx_impl(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
     ) -> Result<ReceiverStream<TxUpdateItem>, tonic::Status> {
         let state = self.state.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
@@ -207,12 +208,20 @@ impl ValidatorService {
         metrics: &Arc<ValidatorServiceMetrics>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
         soft_locks: &Arc<PreConsensusSoftLocks>,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> (TxStatusUpdate, Weight) {
         let tx_digest = *transaction.digest();
 
         let build_executed = |effects: TransactionEffects| -> TxStatusUpdate {
             let effects_digest = effects.digest();
+            if let Err(error) = state.check_effects_against_previously_signed(
+                epoch_store,
+                &tx_digest,
+                &effects_digest,
+                "submit_tx",
+            ) {
+                return TxStatusUpdate::Rejected { error };
+            }
             TxStatusUpdate::Executed {
                 effects_digest,
                 details: Some(Self::build_executed_data(state, &effects)),
@@ -466,7 +475,7 @@ impl ValidatorService {
         match cache.try_get_executed_effects(&tx_digest) {
             Ok(Some(effects)) => {
                 return (
-                    Self::build_executed_update(state, effects, include_details),
+                    Self::build_executed_update(state, epoch_store, effects, include_details),
                     Weight::one(),
                 );
             }
@@ -485,7 +494,7 @@ impl ValidatorService {
                 let digests_to_watch = [tx_digest];
                 tokio::select! {
                     biased;
-                    effects_digests = cache.notify_read_executed_effects_digests(&digests_to_watch) => {
+                    effects_digests = cache.notify_read_executed_effects_digests("ValidatorService::notify_read_executed_effects_digests", &digests_to_watch) => {
                         Either::Left(effects_digests)
                     }
                     dropped_error = epoch_store.notify_read_dropped_digests(tx_digest) => {
@@ -514,6 +523,14 @@ impl ValidatorService {
                         Weight::zero(),
                     );
                 };
+                if let Err(error) = state.check_effects_against_previously_signed(
+                    epoch_store,
+                    &tx_digest,
+                    &effects_digest,
+                    "get_tx_status",
+                ) {
+                    return (TxStatusUpdate::Rejected { error }, Weight::zero());
+                }
                 let details = if include_details {
                     match cache.try_get_executed_effects(&tx_digest) {
                         Ok(Some(effects)) => Some(Self::build_executed_data(state, &effects)),
@@ -555,10 +572,19 @@ impl ValidatorService {
     /// including full details.
     fn build_executed_update(
         state: &Arc<AuthorityState>,
+        epoch_store: &AuthorityPerEpochStore,
         effects: TransactionEffects,
         include_details: bool,
     ) -> TxStatusUpdate {
         let effects_digest = effects.digest();
+        if let Err(error) = state.check_effects_against_previously_signed(
+            epoch_store,
+            effects.transaction_digest(),
+            &effects_digest,
+            "get_tx_status",
+        ) {
+            return TxStatusUpdate::Rejected { error };
+        }
         let details = if include_details {
             Some(Self::build_executed_data(state, &effects))
         } else {
@@ -702,8 +728,8 @@ impl ValidatorService {
             ValidatorHealthResponse {
                 num_inflight_execution_transactions: self
                     .state
-                    .transaction_manager()
-                    .inflight_queue_len()
+                    .execution_scheduler()
+                    .num_pending_transactions()
                     as u64,
                 num_inflight_consensus_transactions: self
                     .consensus_adapter

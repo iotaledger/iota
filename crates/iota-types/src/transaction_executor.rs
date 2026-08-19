@@ -4,10 +4,11 @@
 
 use std::{collections::BTreeMap, time::Duration};
 
-use iota_sdk_types::{ObjectId, TransactionDigest};
+use iota_sdk_types::{
+    GasPayment, ObjectId, Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
+};
 
 use crate::{
-    effects::{TransactionEffects, TransactionEvents},
     error::{ExecutionError, IotaError},
     execution::ExecutionResult,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -15,7 +16,6 @@ use crate::{
     quorum_driver_types::{
         ExecuteTransactionRequestV1, ExecuteTransactionResponseV1, QuorumDriverError,
     },
-    transaction::TransactionData,
 };
 
 /// Trait to define the interface for how the REST service interacts with a
@@ -31,7 +31,7 @@ pub trait TransactionExecutor: Send + Sync {
 
     fn simulate_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> Result<SimulateTransactionResult, IotaError>;
 
@@ -85,15 +85,34 @@ pub struct SimulateTransactionResult {
     pub events: Option<TransactionEvents>,
     pub input_objects: BTreeMap<ObjectId, Object>,
     pub output_objects: BTreeMap<ObjectId, Object>,
+    /// The return values and mutable-reference outputs of every command, under
+    /// either [`VmChecks`] — both run through the executor's dev-inspect entry
+    /// point, which collects them regardless of which checks are in force.
     pub execution_result: Result<Vec<ExecutionResult>, ExecutionError>,
     pub mock_gas_id: Option<ObjectId>,
     pub suggested_gas_price: Option<u64>,
+    /// The gas the simulation ran with, once whatever the transaction left
+    /// unset was filled in. Callers reporting the transaction back should
+    /// use this rather than re-deriving it, which would read a possibly
+    /// different epoch.
+    pub gas_data: GasPayment,
 }
 
+/// Which Move VM checks a simulation runs with.
+///
+/// This is the only thing that separates the two ways a transaction can be
+/// simulated, so it is what callers pick between: a dry run wants
+/// [`VmChecks::Enabled`], a dev inspect wants [`VmChecks::Disabled`].
 #[derive(Default, Debug, Copy, Clone)]
 pub enum VmChecks {
+    /// Run the transaction as it would run on chain: the same input and gas
+    /// checks a validator applies, and metering against the transaction's own
+    /// budget.
     #[default]
     Enabled,
+    /// Relax the rules around entry functions and argument values, so that any
+    /// Move function can be called and any value built from its bytes. Input
+    /// checks are reduced to the ones execution cannot proceed without.
     Disabled,
 }
 

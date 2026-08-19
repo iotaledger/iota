@@ -8,7 +8,9 @@ use std::sync::Arc;
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_config::{genesis::Genesis, node::ExpensiveSafetyCheckConfig};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionEffects, Version};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, Owner, Transaction, TransactionEffects, Version,
+};
 use iota_types::{
     crypto::{AccountKeyPair, AuthorityKeyPair},
     effects::SignedTransactionEffects,
@@ -18,8 +20,8 @@ use iota_types::{
     object::Object,
     transaction::{
         CertifiedTransaction, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        Transaction, TransactionData, TransactionDataAPI, VerifiedCertificate,
-        VerifiedSignedTransaction, VerifiedTransaction,
+        TransactionAPI, TransactionEnvelope, VerifiedCertificate, VerifiedSignedTransaction,
+        VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
 };
@@ -27,12 +29,13 @@ use iota_types::{
 use super::test_authority_builder::TestAuthorityBuilder;
 use crate::{
     authority::AuthorityState, checkpoints::CheckpointServiceNoop,
-    consensus_handler::SequencedConsensusTransaction, global_state_hasher::GlobalStateHasher,
+    consensus_handler::SequencedConsensusTransaction, execution_scheduler::ExecutionSchedulerAPI,
+    global_state_hasher::GlobalStateHasher,
 };
 
 pub async fn send_and_confirm_transaction(
     authority: &AuthorityState,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     send_and_confirm_transaction_(
         authority,
@@ -45,7 +48,7 @@ pub async fn send_and_confirm_transaction(
 pub async fn send_and_confirm_transaction_(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
     with_shared: bool, // transaction includes shared objects
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     let (txn, effects, _execution_error_opt) = send_and_confirm_transaction_with_execution_error(
@@ -61,7 +64,7 @@ pub async fn send_and_confirm_transaction_(
 
 pub async fn certify_transaction(
     authority: &AuthorityState,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
 ) -> Result<VerifiedCertificate, IotaError> {
     // Make the initial request
     let epoch_store = authority.load_epoch_store_one_call_per_task();
@@ -155,7 +158,7 @@ pub async fn execute_certificate_with_execution_error(
 pub async fn send_and_confirm_transaction_with_execution_error(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
     with_shared: bool,    // transaction includes shared objects
     fake_consensus: bool, // runs consensus handler if true
 ) -> Result<
@@ -282,7 +285,7 @@ pub fn init_transfer_transaction(
     gas_budget: u64,
     gas_price: u64,
 ) -> VerifiedTransaction {
-    let data = TransactionData::new_transfer(
+    let tx = Transaction::new_transfer(
         recipient,
         object_ref,
         sender,
@@ -290,7 +293,7 @@ pub fn init_transfer_transaction(
         gas_budget,
         gas_price,
     );
-    let tx = to_sender_signed_transaction(data, secret);
+    let tx = to_sender_signed_transaction(tx, secret);
     authority_state
         .epoch_store_for_testing()
         .verify_transaction(tx)
@@ -320,7 +323,7 @@ pub fn init_certified_transfer_transaction(
 }
 
 pub fn init_certified_transaction(
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
     authority_state: &AuthorityState,
 ) -> VerifiedCertificate {
     let epoch_store = authority_state.epoch_store_for_testing();
@@ -344,7 +347,7 @@ pub fn init_certified_transaction(
 
 pub async fn certify_shared_obj_transaction_no_execution(
     authority: &AuthorityState,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
 ) -> Result<VerifiedCertificate, IotaError> {
     let epoch_store = authority.load_epoch_store_one_call_per_task();
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
@@ -376,7 +379,7 @@ pub async fn enqueue_all_and_execute_all(
     );
     let mut output = Vec::new();
     for cert in certificates {
-        let effects = authority.notify_read_effects(&cert).await?;
+        let effects = authority.notify_read_effects("", &cert).await?;
         output.push(effects);
     }
     Ok(output)
@@ -416,7 +419,7 @@ pub async fn send_consensus(authority: &AuthorityState, cert: &VerifiedCertifica
         .unwrap();
 
     authority
-        .transaction_manager()
+        .execution_scheduler()
         .enqueue(certs, &authority.epoch_store_for_testing());
 }
 

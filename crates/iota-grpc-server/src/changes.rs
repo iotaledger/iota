@@ -18,11 +18,12 @@ use std::{
 
 use iota_grpc_types::v1::transaction as grpc_tx;
 use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, StructTag, TypeTag, Version,
+    Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, StructTag, TransactionEffects,
+    TypeTag, Version,
 };
 use iota_types::{
     coin::Coin,
-    effects::{ObjectRemoveKind, TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{ObjectRemoveKind, TransactionEffectsAPI, TransactionEffectsExt},
     gas_coin::GAS,
     object::Object,
     storage::WriteKind,
@@ -499,7 +500,7 @@ mod tests {
         effects::{TestEffectsBuilder, TransactionEffectsAPIForTesting as _},
         full_checkpoint_content::CheckpointTransaction,
         test_checkpoint_data_builder::TestCheckpointDataBuilder,
-        transaction::TransactionDataAPI as _,
+        transaction::TransactionAPI as _,
     };
 
     use super::*;
@@ -524,17 +525,13 @@ mod tests {
     /// of objects created by the `*_for_testing` constructors. Also returns
     /// the gas coin at its input version (0) and output version (1) so the
     /// derivation finds the mutated gas object.
-    fn version_zero_gas_transaction() -> (iota_types::transaction::SenderSignedData, Object, Object)
-    {
-        use iota_sdk_types::ObjectReference;
-        use iota_types::{
-            programmable_transaction_builder::ProgrammableTransactionBuilder,
-            transaction::{SenderSignedData, TransactionData},
-        };
+    fn version_zero_gas_transaction() -> (iota_sdk_types::SenderSignedTransaction, Object, Object) {
+        use iota_sdk_types::{ObjectReference, SenderSignedTransaction, Transaction};
+        use iota_types::programmable_transaction_builder::ProgrammableTransactionBuilder;
 
         let gas_id = ObjectId::random();
         let gas_ref = ObjectReference::new(gas_id, 0u64.into(), ObjectDigest::MIN);
-        let transaction_data = TransactionData::new(
+        let tx = Transaction::new(
             iota_sdk_types::TransactionKind::Programmable(
                 ProgrammableTransactionBuilder::new().finish(),
             ),
@@ -545,7 +542,7 @@ mod tests {
         );
         let gas_owner = Owner::Address(sender_address());
         (
-            SenderSignedData::new(transaction_data, vec![]),
+            SenderSignedTransaction::new(tx, vec![]),
             Object::with_id_owner_version_for_testing(gas_id, 0u64.into(), gas_owner),
             Object::with_id_owner_version_for_testing(gas_id, 1u64.into(), gas_owner),
         )

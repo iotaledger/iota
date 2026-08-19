@@ -29,6 +29,8 @@ use object_store::{DynObjectStore, ObjectStoreExt, path::Path};
 use serde::{Deserialize, Serialize};
 use tracing::{error, info, warn};
 
+use crate::common;
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct KVStoreTaskConfig {
@@ -264,6 +266,11 @@ impl Worker for KVStoreWorker {
             .zip(repeat(checkpoint_summary)),
         )
         .await?;
+
+        if checkpoint_number.is_multiple_of(common::PROGRESS_LOG_INTERVAL) {
+            info!("stored checkpoint {checkpoint_number} in the KV store");
+        }
+
         Ok(())
     }
 }

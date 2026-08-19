@@ -10,9 +10,10 @@ use iota_config::{
 };
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::{Transaction, TransactionEffects};
 use iota_types::{
     committee::{Committee, EpochId},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaResult,
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
@@ -22,7 +23,7 @@ use iota_types::{
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    transaction::{ObjectReadResult, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{ObjectReadResult, TransactionAPI, VerifiedTransaction},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 
@@ -164,7 +165,7 @@ impl EpochState {
 
     /// Simulate a transaction without committing changes.
     /// This is similar to execute_transaction but:
-    /// - Takes TransactionData instead of VerifiedTransaction (no signature
+    /// - Takes Transaction instead of VerifiedTransaction (no signature
     ///   required)
     /// - Takes VmChecks parameter to control validation strictness
     /// - Returns SimulateTransactionResult with input/output objects
@@ -174,11 +175,16 @@ impl EpochState {
         store: &dyn SimulatorStore,
         deny_config: &TransactionDenyConfig,
         verifier_signing_config: &VerifierSigningConfig,
-        mut transaction: TransactionData,
+        mut transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         // Cheap validity checks for a transaction, including input size limits.
         transaction.validity_check_no_gas_check(&self.protocol_config)?;
+
+        // The full validity check caps the gas payment size alongside requiring a
+        // gas payment at all, which a simulation relaxes so it can mock one. The cap
+        // still applies, and is cheapest before any object is loaded.
+        transaction.check_gas_payment_size(&self.protocol_config)?;
 
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
@@ -211,6 +217,13 @@ impl EpochState {
             None
         };
 
+        iota_types::gas::fill_in_unset_simulation_gas(
+            &mut transaction,
+            &input_objects,
+            self.epoch_start_state.reference_gas_price(),
+            &self.protocol_config,
+        );
+
         // `MoveAuthenticator`s are not supported in Simulacrum, so we set the
         // `authenticator_gas_budget` to 0.
         let authenticator_gas_budget = 0;
@@ -229,7 +242,18 @@ impl EpochState {
                 authenticator_gas_budget,
             )?
         } else {
-            let checked_input_objects = iota_transaction_checks::check_dev_inspect_input(
+            // Execution smashes the gas coins and reserves the whole budget from them
+            // before running any command, treating the input checks as having verified
+            // that they are gas coins at all — so with those checks skipped here, this
+            // has to stand in for them. With the checks enabled,
+            // `check_transaction_input` covers it.
+            iota_types::gas::check_gas_coins_cover_budget_in_simulation(
+                &input_objects,
+                transaction.gas(),
+                transaction.gas_budget(),
+            )?;
+
+            let checked_input_objects = iota_transaction_checks::check_simulation_input(
                 &self.protocol_config,
                 transaction.kind(),
                 input_objects,
@@ -273,6 +297,7 @@ impl EpochState {
             execution_result,
             mock_gas_id,
             suggested_gas_price: None,
+            gas_data: transaction.gas_data().clone(),
         })
     }
 }

@@ -4,8 +4,10 @@
 
 use iota_keys::keystore::AccountKeystore;
 use iota_sdk::{IotaClient, IotaClientBuilder, wallet_context::WalletContext};
-use iota_sdk_types::{Address, crypto::Intent};
-use iota_types::{crypto::Signature, transaction::TransactionData};
+use iota_sdk_types::{
+    Address, Transaction,
+    crypto::{Intent, SimpleSignature},
+};
 use tracing::{Instrument, info, info_span};
 
 use super::Cluster;
@@ -52,11 +54,11 @@ impl WalletClient {
         &self.fullnode_client
     }
 
-    pub fn sign(&self, txn_data: &TransactionData, desc: &str) -> Signature {
+    pub fn sign(&self, tx: &Transaction, desc: &str) -> SimpleSignature {
         self.get_wallet()
             .config()
             .keystore()
-            .sign_secure(&self.address, txn_data, Intent::iota_transaction())
+            .sign_secure(&self.address, tx, Intent::iota_transaction())
             .unwrap_or_else(|e| panic!("failed to sign transaction for {desc}. {e}"))
     }
 }

@@ -11,20 +11,35 @@ task 1, line 8:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 9971200
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 2, lines 10-29:
 //# publish --sender A --dependencies simple_abstract_account
 created: object(3,0), object(3,1), object(3,2), object(3,3), object(3,4), object(3,5)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 21470000, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 21470000
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 3, line 31:
 //# init-abstract-account --sender A --package-metadata object(3,5) --inputs "authenticate" "authenticate_with_event" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 events: Event { package_id: ObjectId("simple_abstract_account"), module: Identifier("abstract_account"), sender: Address("A"), type_: StructTag { address: Address("iota"), module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: Address("simple_abstract_account"), module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: "Foo5TqMMN+4KIiOD6LZX2CC6G3AixPrSgs/yXHA4MXwhgPZflJxVy+kfZCbdpt12vcrMBAO1tSmMX6FmsF5lvwxhdXRoZW50aWNhdGUXYXV0aGVudGljYXRlX3dpdGhfZXZlbnQ=" }
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6931200, storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 6931200
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 4, line 33:
 //# view-object 4,2
@@ -44,7 +59,12 @@ events: Event { package_id: ObjectId("test"), module: Identifier("authenticate")
 created: object(6,0)
 mutated: object(4,0)
 unchanged_shared: object(4,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 1960800
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 6, line 39:
 //# view-object 6,0

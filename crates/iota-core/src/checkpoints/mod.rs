@@ -22,20 +22,23 @@ use std::{
 };
 
 use diffy::create_patch;
-use iota_common::{debug_fatal, fatal, random::get_rng, sync::notify_read::NotifyRead};
-use iota_macros::fail_point;
+use iota_common::{
+    debug_fatal, fatal,
+    random::get_rng,
+    sync::notify_read::{CHECKPOINT_BUILDER_NOTIFY_READ_TASK_NAME, NotifyRead},
+};
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
 use iota_sdk_types::{
-    CheckpointContentsDigest, CheckpointDigest, GasCostSummary, TransactionDigest, TransactionKind,
-    UserSignature,
+    CheckpointContentsDigest, CheckpointDigest, GasCostSummary, TransactionDigest,
+    TransactionEffects, TransactionKind, UserSignature,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     event::SystemEpochInfoEvent,
     iota_system_state::{
@@ -50,7 +53,7 @@ use iota_types::{
     },
     messages_consensus::ConsensusTransactionKey,
     storage::EpochInfoV2,
-    transaction::{Transaction, TransactionDataAPI, TransactionKey},
+    transaction::{TransactionAPI, TransactionEnvelope, TransactionKey},
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;
@@ -264,16 +267,6 @@ impl CheckpointStore {
     pub fn new_for_tests() -> Arc<Self> {
         let storage_dir = iota_common::tempdir().keep();
         CheckpointStore::new(storage_dir.as_path())
-    }
-
-    pub fn new_for_db_checkpoint_handler(path: &Path) -> Arc<Self> {
-        let tables = CheckpointStoreTables::new(path, "db_checkpoint");
-        Arc::new(Self {
-            tables,
-            full_checkpoint_contents_cache: FullCheckpointContentsCache::default(),
-            synced_checkpoint_notify_read: NotifyRead::new(),
-            executed_checkpoint_notify_read: NotifyRead::new(),
-        })
     }
 
     pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
@@ -601,34 +594,54 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
+        self.multi_insert_certified_checkpoints(std::slice::from_ref(checkpoint))
+    }
+
+    /// Inserts a batch of certified checkpoints in a single write, like
+    /// [`Self::insert_certified_checkpoint`] for each of them.
+    pub fn multi_insert_certified_checkpoints(
+        &self,
+        checkpoints: &[VerifiedCheckpoint],
+    ) -> Result<(), TypedStoreError> {
+        let Some(last) = checkpoints.last() else {
+            return Ok(());
+        };
         debug!(
-            checkpoint_seq = checkpoint.sequence_number(),
-            "Inserting certified checkpoint",
+            checkpoint_seq = last.sequence_number(),
+            count = checkpoints.len(),
+            "Inserting certified checkpoints",
         );
         let mut batch = self.tables.certified_checkpoints.batch();
         batch
             .insert_batch(
                 &self.tables.certified_checkpoints,
-                [(checkpoint.sequence_number(), checkpoint.serializable_ref())],
+                checkpoints
+                    .iter()
+                    .map(|c| (c.sequence_number(), c.serializable_ref())),
             )?
             .insert_batch(
                 &self.tables.checkpoint_by_digest,
-                [(checkpoint.digest(), checkpoint.serializable_ref())],
-            )?;
-        if checkpoint.next_epoch_committee().is_some() {
-            batch.insert_batch(
+                checkpoints
+                    .iter()
+                    .map(|c| (c.digest(), c.serializable_ref())),
+            )?
+            .insert_batch(
                 &self.tables.epoch_last_checkpoint_map,
-                [(&checkpoint.epoch(), checkpoint.sequence_number())],
+                checkpoints
+                    .iter()
+                    .filter(|c| c.next_epoch_committee().is_some())
+                    .map(|c| (c.epoch(), c.sequence_number())),
             )?;
-        }
         batch.write()?;
 
-        if let Some(local_checkpoint) = self
-            .tables
-            .locally_computed_checkpoints
-            .get(&checkpoint.sequence_number())?
-        {
-            self.check_for_checkpoint_fork(&local_checkpoint, checkpoint);
+        for checkpoint in checkpoints {
+            if let Some(local_checkpoint) = self
+                .tables
+                .locally_computed_checkpoints
+                .get(&checkpoint.sequence_number())?
+            {
+                self.check_for_checkpoint_fork(&local_checkpoint, checkpoint);
+            }
         }
 
         Ok(())
@@ -671,13 +684,31 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        let seq = checkpoint.sequence_number();
-        debug!(checkpoint_seq = seq, "Updating highest synced checkpoint",);
+        self.multi_update_highest_synced_checkpoint(std::slice::from_ref(checkpoint))
+    }
+
+    /// Marks a consecutive run of checkpoints as synced: writes the watermark
+    /// once, for the last checkpoint, but notifies waiters of every
+    /// checkpoint in the run.
+    pub fn multi_update_highest_synced_checkpoint(
+        &self,
+        checkpoints: &[VerifiedCheckpoint],
+    ) -> Result<(), TypedStoreError> {
+        let Some(last) = checkpoints.last() else {
+            return Ok(());
+        };
+        debug!(
+            checkpoint_seq = last.sequence_number(),
+            "Updating highest synced checkpoint",
+        );
         self.tables.watermarks.insert(
             &CheckpointWatermark::HighestSynced,
-            &(seq, *checkpoint.digest()),
+            &(last.sequence_number(), *last.digest()),
         )?;
-        self.synced_checkpoint_notify_read.notify(&seq, checkpoint);
+        for checkpoint in checkpoints {
+            self.synced_checkpoint_notify_read
+                .notify(&checkpoint.sequence_number(), checkpoint);
+        }
         Ok(())
     }
 
@@ -693,7 +724,7 @@ impl CheckpointStore {
         type ReadResult = Result<Vec<Option<VerifiedCheckpoint>>, TypedStoreError>;
 
         notify_read
-            .read(&[seq], |seqs| {
+            .read("notify_read_checkpoint_watermark", &[seq], |seqs| {
                 let seq = seqs[0];
                 let Some(highest) = get_watermark() else {
                     return Ok(vec![None]) as ReadResult;
@@ -811,19 +842,41 @@ impl CheckpointStore {
         checkpoint: &VerifiedCheckpoint,
         full_contents: VerifiedCheckpointContents,
     ) -> Result<(), TypedStoreError> {
-        let full_contents = full_contents.into_inner();
-        let contents = full_contents.checkpoint_contents();
-        assert_eq!(checkpoint.contents_digest, contents.digest());
+        self.multi_insert_verified_checkpoint_contents(vec![(checkpoint.clone(), full_contents)])
+    }
 
-        self.tables
-            .checkpoint_content
-            .insert(&contents.digest(), &contents)?;
+    /// Batch variant of [`Self::insert_verified_checkpoint_contents`]:
+    /// persists all contents rows in a single write, then caches the full
+    /// contents.
+    ///
+    /// INVARIANT: See [`Self::cache_full_checkpoint_contents`].
+    pub fn multi_insert_verified_checkpoint_contents(
+        &self,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
+    ) -> Result<(), TypedStoreError> {
+        let checkpoints: Vec<_> = checkpoints
+            .into_iter()
+            .map(|(checkpoint, full_contents)| (checkpoint, full_contents.into_inner()))
+            .collect();
 
-        self.cache_full_checkpoint_contents(
-            checkpoint.sequence_number(),
-            checkpoint.contents_digest,
-            full_contents,
-        );
+        let mut batch = self.tables.checkpoint_content.batch();
+        for (checkpoint, full_contents) in &checkpoints {
+            let contents = full_contents.checkpoint_contents();
+            assert_eq!(checkpoint.contents_digest, contents.digest());
+            batch.insert_batch(
+                &self.tables.checkpoint_content,
+                [(contents.digest(), contents)],
+            )?;
+        }
+        batch.write()?;
+
+        for (checkpoint, full_contents) in checkpoints {
+            self.cache_full_checkpoint_contents(
+                checkpoint.sequence_number(),
+                checkpoint.contents_digest,
+                full_contents,
+            );
+        }
         Ok(())
     }
 
@@ -949,29 +1002,6 @@ impl CheckpointStore {
                 .computation_cost,
         })
     }
-
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // This checkpoints the entire db and not one column family
-        self.tables
-            .checkpoint_content
-            .checkpoint_db(path)
-            .map_err(Into::into)
-    }
-
-    pub fn delete_highest_executed_checkpoint_test_only(&self) -> Result<(), TypedStoreError> {
-        let mut wb = self.tables.watermarks.batch();
-        wb.delete_batch(
-            &self.tables.watermarks,
-            std::iter::once(CheckpointWatermark::HighestExecuted),
-        )?;
-        wb.write()?;
-        Ok(())
-    }
-
-    pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
-        self.delete_highest_executed_checkpoint_test_only()?;
-        Ok(())
-    }
 }
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize)]
@@ -1028,6 +1058,23 @@ struct BuiltCheckpoint {
     /// would retain them.
     full_contents: Option<FullCheckpointContents>,
 }
+
+#[derive(Debug)]
+pub enum CheckpointBuilderError {
+    ChangeEpochTxAlreadyExecuted,
+    SystemPackagesMissing,
+    Retry(anyhow::Error),
+}
+
+impl<IotaError: std::error::Error + Send + Sync + 'static> From<IotaError>
+    for CheckpointBuilderError
+{
+    fn from(e: IotaError) -> Self {
+        Self::Retry(e.into())
+    }
+}
+
+pub type CheckpointBuilderResult<T = ()> = Result<T, CheckpointBuilderError>;
 
 pub struct CheckpointBuilder {
     state: Arc<AuthorityState>,
@@ -1118,13 +1165,29 @@ impl CheckpointBuilder {
         }
         info!("Starting CheckpointBuilder");
         loop {
-            self.maybe_build_checkpoints().await;
+            match self.maybe_build_checkpoints().await {
+                Ok(()) => {}
+                err @ Err(
+                    CheckpointBuilderError::ChangeEpochTxAlreadyExecuted
+                    | CheckpointBuilderError::SystemPackagesMissing,
+                ) => {
+                    info!("CheckpointBuilder stopping: {:?}", err);
+                    return;
+                }
+                Err(CheckpointBuilderError::Retry(inner)) => {
+                    let msg = format!("{inner:?}");
+                    debug_fatal!("Error while making checkpoint, will retry in 1s: {}", msg);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    self.metrics.checkpoint_errors.inc();
+                    continue;
+                }
+            }
 
             self.notify.notified().await;
         }
     }
 
-    async fn maybe_build_checkpoints(&mut self) {
+    async fn maybe_build_checkpoints(&mut self) -> CheckpointBuilderResult {
         let _scope = monitored_scope("BuildCheckpoints");
 
         // Collect info about the most recently built checkpoint.
@@ -1222,36 +1285,28 @@ impl CheckpointBuilder {
                 "Making checkpoint with commit height range"
             );
 
-            match self
+            let seq = self
                 .make_checkpoint(std::mem::take(&mut grouped_pending_checkpoints))
-                .await
-            {
-                Ok(seq) => {
-                    // Count only on success; a failed build retries the same
-                    // group and would otherwise double-count it.
-                    self.metrics
-                        .commits_per_checkpoint
-                        .observe(commits_in_checkpoint as f64);
-                    // Advance the window anchor to the highest checkpoint just
-                    // built (a single call may emit several when chunked).
-                    last_seq = Some(seq);
-                    self.last_built.send_if_modified(|cur| {
-                        // when rebuilding checkpoints at startup, seq can be for an old checkpoint
-                        if seq > *cur {
-                            *cur = seq;
-                            true
-                        } else {
-                            false
-                        }
-                    });
+                .await?;
+
+            // Count only on success; a failed build retries the same
+            // group and would otherwise double-count it.
+            self.metrics
+                .commits_per_checkpoint
+                .observe(commits_in_checkpoint as f64);
+            // Advance the window anchor to the highest checkpoint just
+            // built (a single call may emit several when chunked).
+            last_seq = Some(seq);
+            self.last_built.send_if_modified(|cur| {
+                // when rebuilding checkpoints at startup, seq can be for an old checkpoint
+                if seq > *cur {
+                    *cur = seq;
+                    true
+                } else {
+                    false
                 }
-                Err(e) => {
-                    error!("Error while making checkpoint, will retry in 1s: {:?}", e);
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                    self.metrics.checkpoint_errors.inc();
-                    return;
-                }
-            }
+            });
+
             // Ensure that the task can be cancelled at end of epoch, even if no other await
             // yields execution.
             tokio::task::yield_now().await;
@@ -1260,6 +1315,8 @@ impl CheckpointBuilder {
             "Waiting for more checkpoints from consensus after processing {last_height:?}; {} pending checkpoints left unprocessed until next interval",
             grouped_pending_checkpoints.len(),
         );
+
+        Ok(())
     }
 
     #[instrument(level = "debug", skip_all, fields(last_height = pendings.last().unwrap().details().checkpoint_height
@@ -1267,7 +1324,7 @@ impl CheckpointBuilder {
     async fn make_checkpoint(
         &self,
         pendings: Vec<PendingCheckpoint>,
-    ) -> anyhow::Result<CheckpointSequenceNumber> {
+    ) -> CheckpointBuilderResult<CheckpointSequenceNumber> {
         let _scope = monitored_scope("CheckpointBuilder::make_checkpoint");
         let last_details = pendings.last().unwrap().details().clone();
 
@@ -1343,7 +1400,10 @@ impl CheckpointBuilder {
                 .await?;
             let root_effects = self
                 .effects_store
-                .try_notify_read_executed_effects(&root_digests)
+                .try_notify_read_executed_effects(
+                    CHECKPOINT_BUILDER_NOTIFY_READ_TASK_NAME,
+                    &root_digests,
+                )
                 .in_monitored_scope("CheckpointNotifyRead")
                 .await?;
 
@@ -1557,9 +1617,11 @@ impl CheckpointBuilder {
     #[expect(clippy::type_complexity)]
     fn split_checkpoint_chunks(
         &self,
-        transactions_effects_and_sizes: Vec<(Transaction, TransactionEffects, usize)>,
+        transactions_effects_and_sizes: Vec<(TransactionEnvelope, TransactionEffects, usize)>,
         signatures: Vec<Vec<UserSignature>>,
-    ) -> anyhow::Result<Vec<Vec<(Transaction, TransactionEffects, Vec<UserSignature>)>>> {
+    ) -> CheckpointBuilderResult<
+        Vec<Vec<(TransactionEnvelope, TransactionEffects, Vec<UserSignature>)>>,
+    > {
         let _guard = monitored_scope("CheckpointBuilder::split_checkpoint_chunks");
         let mut chunks = Vec::new();
         let mut chunk = Vec::new();
@@ -1642,7 +1704,7 @@ impl CheckpointBuilder {
         all_effects: Vec<TransactionEffects>,
         details: &PendingCheckpointInfo,
         all_roots: &HashSet<TransactionDigest>,
-    ) -> anyhow::Result<NonEmpty<BuiltCheckpoint>> {
+    ) -> CheckpointBuilderResult<NonEmpty<BuiltCheckpoint>> {
         let _scope = monitored_scope("CheckpointBuilder::create_checkpoints");
 
         let total = all_effects.len();
@@ -1779,7 +1841,7 @@ impl CheckpointBuilder {
             }
 
             let (chunk_transactions, mut effects, mut signatures): (
-                Vec<Transaction>,
+                Vec<TransactionEnvelope>,
                 Vec<TransactionEffects>,
                 Vec<Vec<UserSignature>>,
             ) = chunk.into_iter().multiunzip();
@@ -1980,7 +2042,7 @@ impl CheckpointBuilder {
         signatures: &mut Vec<Vec<UserSignature>>,
         checkpoint: CheckpointSequenceNumber,
         scores: Vec<u64>,
-    ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
+    ) -> CheckpointBuilderResult<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
             .create_and_execute_advance_epoch_tx(
@@ -2399,9 +2461,9 @@ impl CheckpointSignatureAggregator {
                     format!("{digest} (total stake: {total_stake})")
                 })
                 .collect::<Vec<String>>();
-            error!(
-                checkpoint_seq = self.summary.sequence_number,
-                "Split brain detected in checkpoint signature aggregation! Remaining stake: {:?}, Digests by stake: {:?}",
+            debug_fatal!(
+                "Split brain detected in checkpoint signature aggregation for checkpoint {:?}. Remaining stake: {:?}, Digests by stake: {:?}",
+                self.summary.sequence_number,
                 self.signatures_by_digest.uncommitted_stake(),
                 digests_by_stake_messages,
             );
@@ -2594,8 +2656,6 @@ async fn diagnose_split_brain(
     let mut file = File::create(checkpoint_fork_file_path).unwrap();
     write!(file, "{fork_logs_text}").unwrap();
     debug!("{}", fork_logs_text);
-
-    fail_point!("split_brain_reached");
 }
 
 pub trait CheckpointServiceNotify {
@@ -2872,8 +2932,8 @@ impl CheckpointServiceNotify for CheckpointService {
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use iota_sdk_types::GasCostSummary;
-    use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+    use iota_sdk_types::{GasCostSummary, TransactionEffects};
+    use iota_types::effects::TransactionEffectsAPI;
     use itertools::MultiUnzip;
 
     #[expect(clippy::type_complexity)]
@@ -3000,14 +3060,11 @@ mod tests {
     use iota_macros::sim_test;
     use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
     use iota_sdk_types::{
-        GenesisObject, Identifier, ObjectData, ObjectId, Owner, TransactionEffectsDigest, Version,
-        move_package::MovePackage,
+        GenesisObject, Identifier, ObjectData, ObjectId, Owner, TransactionEffects,
+        TransactionEffectsDigest, TransactionEvents, Version, move_package::MovePackage,
     };
     use iota_types::{
-        effects::{
-            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
-            TransactionEvents,
-        },
+        effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting},
         messages_checkpoint::SignedCheckpointSummary,
         transaction::VerifiedTransaction,
     };
@@ -3669,6 +3726,7 @@ mod tests {
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
         fn try_notify_read_executed_effects(
             &self,
+            _: &str,
             digests: &[TransactionDigest],
         ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffects>>> {
             std::future::ready(Ok(digests
@@ -3680,6 +3738,7 @@ mod tests {
 
         fn try_notify_read_executed_effects_digests(
             &self,
+            _: &str,
             digests: &[TransactionDigest],
         ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffectsDigest>>> {
             std::future::ready(Ok(digests

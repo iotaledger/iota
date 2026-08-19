@@ -42,9 +42,14 @@ use bytes::Bytes;
 use itertools::Itertools;
 use parking_lot::RwLock;
 #[cfg(not(test))]
-use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
+use rand::prelude::SliceRandom as _;
+use rand::{SeedableRng as _, rngs::StdRng, thread_rng};
 use starfish_config::AuthorityIndex;
-use tokio::{sync::oneshot, task::JoinHandle, time::sleep};
+use tokio::{
+    sync::oneshot,
+    task::JoinHandle,
+    time::{Instant, sleep},
+};
 use tracing::{info, warn};
 
 use crate::{
@@ -54,11 +59,14 @@ use crate::{
         VerifiedTransactions,
     },
     block_verifier::{BlockVerifier, serialized_transactions_size_limit},
-    commit::{Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, TrustedCommit},
+    commit::{
+        CertifiedCommits, Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef,
+        TrustedCommit,
+    },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
@@ -104,6 +112,20 @@ impl CommitSyncType {
         match self {
             CommitSyncType::Fast => "fast_commit_sync",
             CommitSyncType::Regular => "commit_sync",
+        }
+    }
+
+    /// Fetch source under which peer responsiveness is tracked. The two sync
+    /// types are tracked separately because they call different endpoints: fast
+    /// sync asks one request for the commits and their transactions and keeps
+    /// only the prefix the peer covered, while regular sync fetches headers and
+    /// transactions in requests of their own and tolerates a peer that returns
+    /// no transactions. A peer that consistently fails one may serve the other
+    /// well.
+    pub(crate) fn data_source(&self) -> DataSource {
+        match self {
+            CommitSyncType::Fast => DataSource::FastCommitSyncer,
+            CommitSyncType::Regular => DataSource::CommitSyncer,
         }
     }
 
@@ -468,6 +490,28 @@ pub(crate) fn verify_transactions_with_transactions_refs(
     Ok(verified_transactions_map)
 }
 
+/// How much of a requested commit range a fetch response actually delivered.
+/// Implemented by both syncers' payload types so [`fetch_loop`] can scale the
+/// latency it feeds to [`crate::peer_responsiveness::PeerResponsiveness`].
+pub(crate) trait FetchedCommits {
+    fn delivered_commits(&self) -> usize;
+}
+
+impl FetchedCommits for CertifiedCommits {
+    fn delivered_commits(&self) -> usize {
+        self.commits().len()
+    }
+}
+
+/// Factor by which a peer's measured latency is inflated when it delivered less
+/// than the full requested range. A peer that answers a large request with a
+/// short prefix is as costly as a slow one, because the remainder has to be
+/// fetched again, so it must not rank as fast. Never below 1.0: fast sync may
+/// legitimately return more commits than requested.
+pub(crate) fn shortfall_factor(requested: usize, delivered: usize) -> f64 {
+    (requested as f64 / delivered.max(1) as f64).max(1.0)
+}
+
 /// Generic fetch loop that retries fetching data from available authorities
 /// until a request succeeds. This is shared between RegularCommitSyncer and
 /// FastCommitSyncer.
@@ -497,7 +541,7 @@ pub(crate) async fn fetch_loop<C, T, F, Fut>(
 ) -> (CommitIndex, T)
 where
     C: NetworkClient,
-    T: Send,
+    T: Send + FetchedCommits,
     F: Fn(Arc<Inner<C>>, AuthorityIndex, CommitRange, Duration) -> Fut,
     Fut: std::future::Future<Output = ConsensusResult<T>> + Send,
 {
@@ -514,6 +558,15 @@ where
     // system can adjust to slow network or large data sizes quickly.
     const MAX_NUM_TARGETS: usize = 24;
     let mut timeout_multiplier = 0;
+
+    // A failed attempt is reported at this fixed scale rather than at the
+    // escalating `fetch_timeout` below. The tracker keeps the worst latency it
+    // has seen for a peer and only decays it on success, so feeding the
+    // escalated value would leave a peer looking slow for many rounds after it
+    // recovered.
+    let failure_penalty = TIMEOUT * fetch_timeout_multiplier;
+    let data_source = inner.sync_type.data_source();
+    let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
 
     let _timer = inner
         .context
@@ -540,19 +593,36 @@ where
                 }
             })
             .collect_vec();
-        #[cfg(not(test))]
-        target_authorities.shuffle(&mut ThreadRng::default());
+        // Ranking runs before the truncation, so the peers actually tried are
+        // the best-ranked ones rather than a random subset of a committee
+        // larger than MAX_NUM_TARGETS. This changes which peers are reached in
+        // a round: a peer whose last attempt failed is ordered last and can
+        // fall outside the cut. That is safe here because a single peer serving
+        // the range is enough, one success clears the failed state, and the
+        // exploration fraction keeps drawing every peer - though on a committee
+        // much larger than MAX_NUM_TARGETS a given peer comes back slowly.
+        if inner.context.parameters.enable_peer_responsiveness_ranking {
+            inner.context.peer_responsiveness.prioritize(
+                data_source,
+                &mut target_authorities,
+                &mut rng,
+            );
+        } else {
+            #[cfg(not(test))]
+            target_authorities.shuffle(&mut rng);
+        }
         // A peer that has voted for the end of the range has solidified every
         // commit in it, so it is the one worth asking. A peer that has not may
         // still serve the range: votes are only seen from blocks we received,
         // and serving additionally needs the certifying headers in the peer's
-        // storage. So it is ordered behind, keeping the shuffled order within
-        // each group. Since the truncation below runs after this, a committee
-        // with more voters than MAX_NUM_TARGETS fills every round with voters,
-        // and a peer whose headers do not reach us is not asked until they do.
-        // Accepted: rounds retry forever over the up-to-24 peers that
-        // provably solidified the range, and any header from a behind-listed
-        // peer carrying a recent commit vote promotes it immediately.
+        // storage. So it is ordered behind, keeping the order chosen above
+        // within each group. Since the truncation below runs after this, a
+        // committee with more voters than MAX_NUM_TARGETS fills every round
+        // with voters, and a peer whose headers do not reach us is not asked
+        // until they do. Accepted: rounds retry forever over the up-to-24 peers
+        // that provably solidified the range, and any header from a
+        // behind-listed peer carrying a recent commit vote promotes it
+        // immediately.
         if inner
             .context
             .parameters
@@ -574,6 +644,9 @@ where
         let fetch_timeout = request_timeout * fetch_timeout_multiplier;
         // Try fetching from the selected target authority.
         for authority in target_authorities {
+            // Spans fetch and verification, so the cost of checking what a peer
+            // sent counts against it rather than only its time on the wire.
+            let started = Instant::now();
             match tokio::time::timeout(
                 fetch_timeout,
                 fetch_once_fn(
@@ -586,6 +659,14 @@ where
             .await
             {
                 Ok(Ok(data)) => {
+                    inner.context.peer_responsiveness.record_success(
+                        data_source,
+                        authority,
+                        started.elapsed().mul_f64(shortfall_factor(
+                            commit_range.size(),
+                            data.delivered_commits(),
+                        )),
+                    );
                     info!(
                         "[{}] Finished fetching commits in {commit_range:?}",
                         inner.sync_type.as_str()
@@ -593,6 +674,10 @@ where
                     return (commit_range.end(), data);
                 }
                 Ok(Err(e)) => {
+                    inner
+                        .context
+                        .peer_responsiveness
+                        .record_failure_with_timeout(data_source, authority, failure_penalty);
                     let hostname = inner
                         .context
                         .committee
@@ -614,6 +699,10 @@ where
                         .inc();
                 }
                 Err(_) => {
+                    inner
+                        .context
+                        .peer_responsiveness
+                        .record_failure_with_timeout(data_source, authority, failure_penalty);
                     let hostname = inner
                         .context
                         .committee
@@ -851,6 +940,9 @@ pub(crate) mod tests {
     #[derive(Default)]
     pub(crate) struct FakeNetworkClient {
         pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
+        /// Waited out before answering, so a test can pin the latency the fetch
+        /// loop records.
+        pub(crate) response_delay: Duration,
         /// Every peer asked for commits, in the order it was asked.
         pub(crate) requested_peers: parking_lot::Mutex<Vec<AuthorityIndex>>,
     }
@@ -901,6 +993,7 @@ pub(crate) mod tests {
             _timeout: Duration,
         ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
             self.requested_peers.lock().push(peer);
+            sleep(self.response_delay).await;
             match &self.commits_and_transactions {
                 Some(response) => Ok(response.clone()),
                 None => Err(ConsensusError::NoCommitReceived { peer }),
@@ -1132,5 +1225,16 @@ pub(crate) mod tests {
                 limit: error_limit,
             }) if error_peer == peer && count == limit + 1 && error_limit == limit
         ));
+    }
+
+    #[test]
+    fn shortfall_factor_penalizes_short_responses() {
+        assert_eq!(shortfall_factor(10, 10), 1.0);
+        assert_eq!(shortfall_factor(10, 2), 5.0);
+        // Fast sync may return more commits than requested.
+        assert_eq!(shortfall_factor(10, 20), 1.0);
+        // Never divides by zero, even though the fetch paths reject empty
+        // responses before reaching this point.
+        assert_eq!(shortfall_factor(10, 0), 10.0);
     }
 }

@@ -20,8 +20,10 @@ use effects_certifier::*;
 pub use error::{AggregatedRequestErrors, TransactionDriverError};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
-use iota_sdk_types::TransactionDigest;
-use iota_types::{committee::EpochId, messages_grpc::TxStatusUpdate, transaction::Transaction};
+use iota_sdk_types::{TransactionDigest, TransactionEvents};
+use iota_types::{
+    committee::EpochId, messages_grpc::TxStatusUpdate, transaction::TransactionEnvelope,
+};
 pub use metrics::*;
 use parking_lot::Mutex;
 use rand::Rng;
@@ -76,7 +78,7 @@ pub struct SubmitTransactionOptions {
 pub struct QuorumTransactionResponse {
     pub effects: iota_types::transaction_driver_types::FinalizedEffects,
 
-    pub events: Option<iota_types::effects::TransactionEvents>,
+    pub events: Option<TransactionEvents>,
     // Input objects will only be populated in the happy path
     pub input_objects: Option<Vec<iota_types::object::Object>>,
     // Output objects will only be populated in the happy path
@@ -145,7 +147,7 @@ where
     #[instrument(level = "error", skip_all, fields(tx_digest = ?transaction.as_ref().map(|t| *t.digest())))]
     pub async fn drive_transaction(
         &self,
-        transaction: Option<Transaction>,
+        transaction: Option<TransactionEnvelope>,
         options: SubmitTransactionOptions,
         timeout_duration: Option<Duration>,
         skip_certification: bool,
@@ -316,7 +318,7 @@ where
     async fn drive_transaction_once(
         &self,
         amplification_factor: u64,
-        transaction: Option<Transaction>,
+        transaction: Option<TransactionEnvelope>,
         options: &SubmitTransactionOptions,
         skip_certification: bool,
     ) -> Result<QuorumTransactionResponse, TransactionDriverError> {

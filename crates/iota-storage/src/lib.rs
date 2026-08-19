@@ -158,12 +158,19 @@ pub fn make_iterator<T: DeserializeOwned, R: Read + 'static>(
     }
 }
 
+/// The chain-linkage part of checkpoint verification: checks that
+/// `checkpoint` directly extends `current` (matching previous digest and a
+/// valid epoch transition). Does not verify authority signatures; returns the
+/// summary unchanged on success so the caller can finish verification.
+///
+/// # Panics
+///
+/// Panics if `checkpoint`'s sequence number is not `current`'s plus one.
 #[expect(clippy::result_large_err)]
-pub fn verify_checkpoint_with_committee(
-    committee: Arc<Committee>,
+pub fn verify_checkpoint_linkage(
     current: &VerifiedCheckpoint,
     checkpoint: CertifiedCheckpointSummary,
-) -> Result<VerifiedCheckpoint, CertifiedCheckpointSummary> {
+) -> Result<CertifiedCheckpointSummary, CertifiedCheckpointSummary> {
     assert_eq!(
         checkpoint.sequence_number(),
         current.sequence_number().checked_add(1).unwrap()
@@ -208,6 +215,17 @@ pub fn verify_checkpoint_with_committee(
         );
         return Err(checkpoint);
     }
+
+    Ok(checkpoint)
+}
+
+#[expect(clippy::result_large_err)]
+pub fn verify_checkpoint_with_committee(
+    committee: Arc<Committee>,
+    current: &VerifiedCheckpoint,
+    checkpoint: CertifiedCheckpointSummary,
+) -> Result<VerifiedCheckpoint, CertifiedCheckpointSummary> {
+    let checkpoint = verify_checkpoint_linkage(current, checkpoint)?;
 
     checkpoint
         .verify_authority_signatures(&committee)

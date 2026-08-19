@@ -11,15 +11,15 @@ use iota_protocol_config::{
 };
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, SharedObjectReference,
-    TransactionDigest, Version,
+    TransactionDigest, TransactionEffects, Version,
 };
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
-    effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
+    effects::{InputSharedObject, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, Transaction},
+    transaction::{CallArg, TransactionEnvelope},
 };
 
 use crate::{
@@ -39,6 +39,7 @@ use crate::{
         test_authority_builder::TestAuthorityBuilder,
     },
     move_call,
+    test_utils::set_scheduler_env,
 };
 
 pub const TEST_ONLY_GAS_PRICE: u64 = 1000;
@@ -215,7 +216,7 @@ async fn commit_and_execute_transaction(
     shared_objects: &[(ObjectId, Version)],
     owned_object: &ObjectReference,
     gas_units: u64,
-) -> (Transaction, TransactionEffects) {
+) -> (TransactionEnvelope, TransactionEffects) {
     let mut txn_builder = ProgrammableTransactionBuilder::new();
     let mut args = vec![];
     for shared_object in shared_objects {
@@ -276,14 +277,31 @@ async fn commit_and_execute_transaction(
     (transaction, execution_effects)
 }
 
+#[sim_test]
+async fn test_congestion_control_execution_cancellation_transaction_manager() {
+    congestion_control_execution_cancellation(false).await;
+}
+
+#[sim_test]
+async fn test_congestion_control_execution_cancellation_execution_scheduler() {
+    congestion_control_execution_cancellation(true).await;
+}
+
 // Tests execution aspect of cancelled transaction due to shared object
 // congestion. Mainly tests that
 //   1. Cancelled transaction should return correct error status.
 //   2. Executing cancelled transaction with effects should result in the same
 //      transaction cancellation.
-#[sim_test]
-async fn test_congestion_control_execution_cancellation() {
+//
+// Run against both schedulers: a congestion-cancelled transaction is only
+// "ready" because the availability check treats its cancelled sentinel input
+// version as available; a regression there would strand cancelled transactions
+// in the scheduler instead of executing them to cancelled effects.
+async fn congestion_control_execution_cancellation(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
+    // Select the scheduler before the authorities are built (the env vars are
+    // read by ExecutionSchedulerWrapper::new).
+    set_scheduler_env(use_execution_scheduler);
 
     // Creates a test setup with a protocol config such that the the congestion
     // limit is equal to one default transaction's gas budget, and the overshoot
@@ -320,6 +338,10 @@ async fn test_congestion_control_execution_cancellation() {
         .build()
         .await;
     authority_state_2.insert_genesis_objects(&genesis_objects);
+    assert_eq!(
+        authority_state.uses_execution_scheduler(),
+        use_execution_scheduler
+    );
 
     // The congestion limit, taking overshoot into account is
     // 2 * TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT. We set the initial debt to be
@@ -396,7 +418,7 @@ async fn test_congestion_control_execution_cancellation() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            error: ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
                 congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
                 suggested_gas_price,
             },
@@ -437,7 +459,7 @@ async fn test_congestion_control_execution_cancellation() {
     // Should result in the same cancellation.
     assert_eq!(
         execution_error.unwrap().to_execution_status().0,
-        ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
             congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
             suggested_gas_price,
         }
@@ -613,7 +635,7 @@ async fn test_congestion_control_debt_tracking() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            error: ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
                 congested_objects: vec![shared_object_2.object_id],
                 suggested_gas_price: expected_suggested_gas_price,
             },
@@ -752,7 +774,7 @@ async fn test_congestion_control_debt_tracking() {
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
-            error: ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            error: ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
                 congested_objects: vec![shared_object_1.object_id, shared_object_2.object_id],
                 suggested_gas_price: expected_suggested_gas_price,
             },

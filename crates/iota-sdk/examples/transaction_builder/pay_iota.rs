@@ -12,7 +12,7 @@ use iota_config::{IOTA_KEYSTORE_FILENAME, iota_config_dir};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     rpc_types::IotaTransactionBlockResponseOptions,
-    types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction},
+    types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope},
 };
 use iota_sdk_types::crypto::Intent;
 use utils::setup_for_write;
@@ -54,7 +54,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let transaction_response = client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx_data, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             ExecuteTransactionRequestType::WaitForLocalExecution,
         )

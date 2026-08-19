@@ -5,14 +5,12 @@
 //! reporting for standard signature schemes, missing input objects, and
 //! unsupported protocol versions.
 
-use iota_sdk_types::{MoveStruct, ObjectId, Owner, TransactionDigest, Version};
+use iota_sdk_types::{MoveStruct, ObjectId, Owner, Transaction, TransactionDigest, Version};
 use iota_types::{
     crypto::{AccountKeyPair, get_key_pair},
     object::{MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
-    },
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use iota_vm_sdk::{
@@ -38,10 +36,10 @@ fn gas_coin(owner: Address) -> Object {
 
 /// `transfer_iota(recipient, Some(amount))`: splits a fresh coin off gas and
 /// transfers it.
-fn transfer_tx(sender: Address, gas: &Object, recipient: Address, amount: u64) -> TransactionData {
+fn transfer_tx(sender: Address, gas: &Object, recipient: Address, amount: u64) -> Transaction {
     let mut b = ProgrammableTransactionBuilder::new();
     b.transfer_iota(recipient, Some(amount));
-    TransactionData::new_programmable(
+    Transaction::new_programmable(
         sender,
         vec![gas.object_ref()],
         b.finish(),
@@ -78,8 +76,8 @@ fn standard_signature_is_verified_on_success() {
 /// front with [`VmSdkError::SignatureVerification`], never run as if valid.
 #[test]
 fn invalid_standard_signature_is_rejected() {
-    let (sender, _key): (Address, AccountKeyPair) = get_key_pair();
-    let (_other, wrong_key): (Address, AccountKeyPair) = get_key_pair();
+    let sender = Address::random();
+    let wrong_key = AccountKeyPair::random();
     let gas = gas_coin(sender);
     let recipient = Address::from(ObjectId::random());
 

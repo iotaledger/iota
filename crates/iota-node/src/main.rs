@@ -8,11 +8,12 @@ use clap::{ArgGroup, Parser};
 use iota_common::sync::async_once_cell::AsyncOnceCell;
 use iota_config::{Config, NodeConfig, node::RunWithRange};
 use iota_core::runtime::IotaRuntimes;
-use iota_metrics::hardware_metrics::{hardware_metrics_enabled, register_hardware_metrics};
+use iota_metrics::hardware_metrics::register_hardware_metrics;
+use iota_multiaddr::Multiaddr;
 use iota_node::{IotaNode, ServerVersion};
 use iota_types::{
     committee::EpochId, crypto::KeypairTraits, messages_checkpoint::CheckpointSequenceNumber,
-    multiaddr::Multiaddr, supported_protocol_versions::SupportedProtocolVersions,
+    supported_protocol_versions::SupportedProtocolVersions,
 };
 #[cfg(all(feature = "flamegraph-alloc", nightly))]
 use telemetry_subscribers::flamegraph::CounterAlloc;
@@ -74,27 +75,29 @@ fn main() {
         _ => config.run_with_range = None,
     };
 
-    // Apply the configured metric group levels; an omitted `metrics.groups`
-    // section behaves like the default config (dashboard metrics only).
+    // Apply the configured metric group levels, with the METRICS_FILTER env
+    // variable merged over them.
     let metric_groups = config
         .metrics
         .as_ref()
         .and_then(|m| m.groups.clone())
         .unwrap_or_default();
-    let metrics_filter =
-        prometheus_filtered::Filter::resolve(Some(&metric_groups.to_filter_string()));
+    let env_filter = std::env::var(prometheus_filtered::METRICS_FILTER_ENV).ok();
+    let (metrics_filter, dropped_directives) = metric_groups.startup_filter(env_filter.as_deref());
+    // Logging is not initialized yet, so bad directives are reported on
+    // stderr; the remaining directives still apply.
+    for err in dropped_directives {
+        eprintln!("dropping METRICS_FILTER directive: {err}");
+    }
 
     let runtimes = IotaRuntimes::new(&config);
     let metrics_rt = runtimes.metrics.enter();
     let registry_service =
         iota_metrics::start_prometheus_server_with_filter(config.metrics_address, metrics_filter);
 
-    // The hardware collector bypasses gather-time filtering, so its level is
-    // applied here, once at startup: `off` skips the group, any other level
-    // registers it.
-    if hardware_metrics_enabled(&registry_service.default_registry().filter()) {
-        register_hardware_metrics(&registry_service, &config.db_path)
-            .expect("Failed registering hardware metrics");
+    // Register the host hardware collector.
+    if let Err(err) = register_hardware_metrics(&registry_service, &config.db_path) {
+        eprintln!("failed to register hardware metrics: {err}");
     }
 
     // Initialize logging

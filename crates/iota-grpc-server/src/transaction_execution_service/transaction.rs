@@ -13,7 +13,7 @@ use iota_grpc_types::{
         event as grpc_event, object as grpc_obj, signatures as grpc_sig, transaction as grpc_tx,
     },
 };
-use iota_sdk_types::TypeTag;
+use iota_sdk_types::{Transaction, TransactionEffects, TransactionEvents, TypeTag, UserSignature};
 
 use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
 
@@ -21,10 +21,10 @@ use crate::{GrpcReader, error::RpcError, merge::Merge, utils::render_json};
 pub struct TransactionReadSource<'a> {
     pub reader: Arc<GrpcReader>,
     pub config: &'a iota_config::node::GrpcApiConfig,
-    pub transaction: Option<iota_sdk_types::transaction::Transaction>,
-    pub signatures: Option<Vec<iota_sdk_types::UserSignature>>,
-    pub effects: Option<iota_types::effects::TransactionEffects>,
-    pub events: Option<iota_types::effects::TransactionEvents>,
+    pub transaction: Option<Transaction>,
+    pub signatures: Option<Vec<UserSignature>>,
+    pub effects: Option<TransactionEffects>,
+    pub events: Option<TransactionEvents>,
     pub checkpoint: Option<u64>,
     pub timestamp_ms: Option<u64>,
     pub input_objects: Option<Vec<iota_types::object::Object>>,
@@ -119,7 +119,7 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
 
         // Derive object changes if requested
         if mask.subtree(Self::OBJECT_CHANGES_FIELD.name).is_some() {
-            use iota_types::transaction::TransactionDataAPI as _;
+            use iota_types::transaction::TransactionAPI as _;
 
             let sender = source
                 .transaction
@@ -153,7 +153,7 @@ impl TransactionReadSource<'_> {
         &self,
     ) -> Result<
         (
-            &iota_types::effects::TransactionEffects,
+            &TransactionEffects,
             &[iota_types::object::Object],
             &[iota_types::object::Object],
         ),

@@ -10,14 +10,14 @@ use std::{
 
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Version};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionEffects, Version};
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     messages_grpc::HandleTransactionResponse,
     mock_checkpoint_builder::ValidatorKeypairProvider,
     transaction::{
-        CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction, Transaction,
+        CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction, TransactionEnvelope,
         VerifiedTransaction,
     },
 };
@@ -208,7 +208,7 @@ impl BenchmarkContext {
     pub(crate) async fn generate_transactions(
         &self,
         tx_generator: Arc<dyn TxGenerator>,
-    ) -> Vec<Transaction> {
+    ) -> Vec<TransactionEnvelope> {
         info!(
             "{}: Creating {} transactions",
             tx_generator.name(),
@@ -229,7 +229,7 @@ impl BenchmarkContext {
 
     pub(crate) async fn certify_transactions(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
         skip_signing: bool,
     ) -> Vec<CertifiedTransaction> {
         info!("Creating transaction certificates");
@@ -363,7 +363,7 @@ impl BenchmarkContext {
     /// Benchmark parallel signing a vector of transactions and measure the TPS.
     pub(crate) async fn benchmark_transaction_signing(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
         print_sample_tx: bool,
     ) {
         if print_sample_tx {
@@ -441,7 +441,7 @@ impl BenchmarkContext {
 
     async fn execute_raw_transactions(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
     ) -> Vec<TransactionEffects> {
         let tasks: FuturesUnordered<_> = transactions
             .into_iter()
@@ -506,7 +506,7 @@ impl BenchmarkContext {
     }
     pub(crate) async fn validator_sign_transactions(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
     ) -> Vec<HandleTransactionResponse> {
         info!(
             "Started signing {} transactions. You can now attach a profiler",

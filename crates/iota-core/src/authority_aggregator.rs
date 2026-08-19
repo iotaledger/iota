@@ -20,14 +20,16 @@ use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
-use iota_sdk_types::{ObjectId, ObjectReference, TransactionDigest, TransactionEffectsDigest};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionEvents,
+};
 use iota_types::{
     base_types::*,
     committee::{Committee, CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit},
     crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo},
     effects::{
-        CertifiedTransactionEffects, SignedTransactionEffects, TransactionEffects,
-        TransactionEvents, VerifiedCertifiedTransactionEffects,
+        CertifiedTransactionEffects, SignedTransactionEffects, VerifiedCertifiedTransactionEffects,
     },
     error::{IotaError, IotaResult, UserInputError},
     fp_ensure,
@@ -1092,7 +1094,7 @@ where
     #[instrument(level = "trace", skip_all)]
     pub async fn process_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<ProcessTransactionResult, AggregatorProcessTransactionError> {
         // Now broadcast the transaction to all authorities.
@@ -1849,7 +1851,7 @@ where
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub async fn execute_transaction_block(
         &self,
-        transaction: &Transaction,
+        transaction: &TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<VerifiedCertifiedTransactionEffects, anyhow::Error> {
         let tx_guard = GaugeGuard::acquire(&self.metrics.inflight_transactions);

@@ -21,15 +21,16 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{
-    Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
+    Address, Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
 };
 use iota_test_transaction_builder::{
     TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
     publish_simple_warrior_package,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, get_key_pair},
     digests::ChainIdentifier,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
@@ -1515,7 +1516,7 @@ fn try_get_past_object_version_found() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = Address::random();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1557,7 +1558,7 @@ fn try_get_past_object_version_not_found() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = Address::random();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1596,7 +1597,7 @@ fn try_get_past_object_version_too_high() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = Address::random();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1762,7 +1763,7 @@ fn try_multi_get_past_objects() {
         );
 
         // Create valid objects
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = Address::random();
         let (gas_ref_1, tx_digest_1) = cluster
             .fund_address_and_return_gas_and_tx(
                 cluster.get_reference_gas_price().await,
@@ -1860,7 +1861,7 @@ fn try_get_object_before_version() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let receiver = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -2585,7 +2586,7 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
 
     runtime.block_on(async move {
         let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let keypair = SimpleKeypair::from(keypair);
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

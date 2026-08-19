@@ -15,13 +15,11 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions, TransactionBlockBytes,
 };
 use iota_sdk::{IotaClient, wallet_context::WalletContext};
-use iota_sdk_types::{Address, Owner, TransactionDigest};
+use iota_sdk_types::{Address, Owner, Transaction, TransactionDigest};
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
-    gas_coin::GasCoin,
-    iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Transaction, TransactionData},
+    gas_coin::GasCoin, iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
+    quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
 };
 use jsonrpsee::{
     core::{client::ClientT, params::ArrayParams},
@@ -139,7 +137,7 @@ impl TestContext {
 
     /// See `make_transactions_with_wallet_context` for potential caveats
     /// of this helper function.
-    pub async fn make_transactions(&self, max_txn_num: usize) -> Vec<Transaction> {
+    pub async fn make_transactions(&self, max_txn_num: usize) -> Vec<TransactionEnvelope> {
         batch_make_transfer_transactions(self.get_wallet(), max_txn_num).await
     }
 
@@ -147,7 +145,7 @@ impl TestContext {
         &self,
         method: &str,
         params: ArrayParams,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let fn_rpc_url = self.get_fullnode_rpc_url();
         // TODO cache this?
         let rpc_client = HttpClientBuilder::default().build(fn_rpc_url)?;
@@ -155,17 +153,13 @@ impl TestContext {
         TransactionBlockBytes::to_data(rpc_client.request(method, params).await?)
     }
 
-    async fn sign_and_execute(
-        &self,
-        txn_data: TransactionData,
-        desc: &str,
-    ) -> IotaTransactionBlockResponse {
-        let signature = self.get_context().sign(&txn_data, desc);
+    async fn sign_and_execute(&self, tx: Transaction, desc: &str) -> IotaTransactionBlockResponse {
+        let signature = self.get_context().sign(&tx, desc);
         let resp = self
             .get_fullnode_client()
             .quorum_driver_api()
             .execute_transaction_block(
-                Transaction::from_data(txn_data, vec![signature]),
+                TransactionEnvelope::from_data(tx, vec![signature]),
                 IotaTransactionBlockResponseOptions::new()
                     .with_object_changes()
                     .with_balance_changes()

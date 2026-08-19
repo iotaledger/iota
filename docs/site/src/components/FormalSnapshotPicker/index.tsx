@@ -5,7 +5,7 @@ import SnapshotEpochPicker, {
 } from '@site/src/components/SnapshotEpochPicker';
 import { EpochSelection, Network } from '@site/src/hooks/useFormalSnapshotEpochs';
 
-const NETWORKS = ['mainnet', 'testnet'] as const;
+const NETWORKS = ['mainnet', 'testnet', 'devnet'] as const;
 
 const SETUPS = ['binary', 'docker'] as const;
 type Setup = (typeof SETUPS)[number];
@@ -33,8 +33,8 @@ function buildCommand(
 
     return [
         'docker run --rm \\',
-        '  -v "<PATH-TO-NODE-DB>":/opt/iota/db \\',
-        '  -v "<PATH-TO-GENESIS-BLOB>":/opt/iota/config/genesis.blob \\',
+        '  -v "$PWD/data/db":/opt/iota/db \\',
+        '  -v "$PWD/data/config/genesis.blob":/opt/iota/config/genesis.blob \\',
         `  iotaledger/iota-tools:${network} \\`,
         '  /bin/sh -c "/usr/local/bin/iota-tool download-formal-snapshot \\',
         `    ${epochArg} \\`,

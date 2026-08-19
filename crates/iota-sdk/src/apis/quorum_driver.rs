@@ -9,14 +9,15 @@ use std::{
 
 use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions};
-use iota_types::{quorum_driver_types::ExecuteTransactionRequestType, transaction::Transaction};
+use iota_types::{
+    quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
+};
 
 use crate::{
     RpcClient,
     error::{Error, IotaRpcResult},
 };
 
-const WAIT_FOR_LOCAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(60);
 const WAIT_FOR_LOCAL_EXECUTION_MIN_INTERVAL: Duration = Duration::from_millis(100);
 const WAIT_FOR_LOCAL_EXECUTION_MAX_INTERVAL: Duration = Duration::from_secs(2);
 
@@ -41,7 +42,7 @@ impl QuorumDriverApi {
     /// before returning [Error::FailToConfirmTransactionStatus].
     pub async fn execute_transaction_block(
         &self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
         options: IotaTransactionBlockResponseOptions,
         request_type: impl Into<Option<ExecuteTransactionRequestType>>,
     ) -> IotaRpcResult<IotaTransactionBlockResponse> {
@@ -70,7 +71,13 @@ impl QuorumDriverApi {
 
         // JSON-RPC ignores WaitForLocalExecution, so simulate it by polling for the
         // transaction.
-        let mut poll_response = tokio::time::timeout(WAIT_FOR_LOCAL_EXECUTION_TIMEOUT, async {
+        let wait_for_local_execution_timeout: Duration = if cfg!(msim) {
+            // In simtests, fullnodes can stop receiving checkpoints for > 30s.
+            Duration::from_secs(120)
+        } else {
+            Duration::from_secs(60)
+        };
+        let mut poll_response = tokio::time::timeout(wait_for_local_execution_timeout, async {
             let mut backoff = iota_common::backoff::ExponentialBackoff::new(
                 WAIT_FOR_LOCAL_EXECUTION_MIN_INTERVAL,
                 WAIT_FOR_LOCAL_EXECUTION_MAX_INTERVAL,

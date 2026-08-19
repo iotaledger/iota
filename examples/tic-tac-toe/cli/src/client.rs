@@ -18,17 +18,15 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
-    SharedObjectReference, StructTag, TransactionKind,
+    Address, Identifier, MultisigAggregatedSignature, MultisigCommittee, ObjectId, ObjectReference,
+    Owner, ProgrammableTransaction, SharedObjectReference, StructTag, Transaction, TransactionKind,
     crypto::{Intent, UserSignature},
 };
 use iota_types::{
     crypto::PublicKey,
-    multisig::{MultiSig, MultiSigPublicKey},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::{
-        CallArg, InputObjectKind, Transaction, TransactionData, TransactionDataAPI,
-        TransactionKindExt,
+        CallArg, InputObjectKind, TransactionAPI, TransactionEnvelope, TransactionKindExt,
     },
 };
 
@@ -392,7 +390,7 @@ impl Client {
             vec![g],
         );
 
-        let admin_key: MultiSigPublicKey =
+        let admin_key: MultisigCommittee =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
         let admin = Address::from(&admin_key);
 
@@ -532,7 +530,7 @@ impl Client {
             vec![g, m],
         );
 
-        let admin_key: MultiSigPublicKey =
+        let admin_key: MultisigCommittee =
             bcs::from_bytes(&game.admin).context("Failed to deserialize admin's public key.")?;
         let admin = Address::from(&admin_key);
 
@@ -554,8 +552,8 @@ impl Client {
 
     /// Execute a PTB, expecting it to create a shared or owned Game, and return
     /// its ObjectId.
-    async fn execute_for_game(&self, data: TransactionData) -> Result<ObjectId> {
-        let tx = self.wallet.sign_transaction(&data);
+    async fn execute_for_game(&self, tx: Transaction) -> Result<ObjectId> {
+        let tx = self.wallet.sign_transaction(&tx);
         let IotaTransactionBlockResponse {
             object_changes: Some(object_changes),
             ..
@@ -595,11 +593,11 @@ impl Client {
         &self,
         sender: Address,
         tx: ProgrammableTransaction,
-    ) -> Result<TransactionData> {
+    ) -> Result<Transaction> {
         self.build_tx_data_with_sponsor(sender, None, tx).await
     }
 
-    /// Do gas estimation and coin selection to create a `TransactionData` from
+    /// Do gas estimation and coin selection to create a `Transaction` from
     /// a `ProgrammableTransaction`. If `sponsor` is provided, it will be
     /// used as the gas sponsor, and coin selection will fetch coins owned
     /// by this address, otherwise coins will be selected from the `sender`'
@@ -609,7 +607,7 @@ impl Client {
         sender: Address,
         sponsor: Option<Address>,
         tx: ProgrammableTransaction,
-    ) -> Result<TransactionData> {
+    ) -> Result<Transaction> {
         let client = self.client().await?;
 
         let max_budget = self.max_gas_budget().await?;
@@ -656,11 +654,11 @@ impl Client {
 
         let payment = vec![gas_coin];
         Ok(if let Some(sponsor) = sponsor {
-            TransactionData::new_with_gas_coins_allow_sponsor(
+            Transaction::new_with_gas_coins_allow_sponsor(
                 tx_kind, sender, payment, budget, gas_price, sponsor,
             )
         } else {
-            TransactionData::new_with_gas_coins(tx_kind, sender, payment, budget, gas_price)
+            Transaction::new_with_gas_coins(tx_kind, sender, payment, budget, gas_price)
         })
     }
 
@@ -709,30 +707,34 @@ impl Client {
     async fn multi_sig_transaction(
         &self,
         sender: Address,
-        admin_key: MultiSigPublicKey,
-        data: TransactionData,
-    ) -> Result<Transaction> {
+        admin_key: MultisigCommittee,
+        tx: Transaction,
+    ) -> Result<TransactionEnvelope> {
         let sponsor_sig: UserSignature = self
             .wallet
             .config()
             .keystore()
-            .sign_secure(&sender, &data, Intent::iota_transaction())
+            .sign_secure(&sender, &tx, Intent::iota_transaction())
             .context("Signing transaction")?
             .into();
 
-        let multi_sig: UserSignature = MultiSig::new(vec![sponsor_sig.clone()], admin_key)
-            .context("Signing as admin")?
-            .into();
+        let multi_sig: UserSignature =
+            MultisigAggregatedSignature::new(vec![sponsor_sig.clone()], admin_key)
+                .context("Signing as admin")?
+                .into();
 
-        Ok(Transaction::from_user_sig_data(
-            data,
+        Ok(TransactionEnvelope::from_user_sig_data(
+            tx,
             vec![multi_sig, sponsor_sig],
         ))
     }
 
     /// Execute the transaction, and check whether it succeeded or failed.
     /// Transaction execution failure is treated as an error.
-    async fn execute_transaction(&self, tx: Transaction) -> Result<IotaTransactionBlockResponse> {
+    async fn execute_transaction(
+        &self,
+        tx: TransactionEnvelope,
+    ) -> Result<IotaTransactionBlockResponse> {
         let response = self
             .wallet
             .execute_transaction_may_fail(tx)

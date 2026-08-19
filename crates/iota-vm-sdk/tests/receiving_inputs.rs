@@ -11,15 +11,14 @@
 //! and digest must match the store's current object); `DevInspect` skips
 //! them, like the node. Self-contained — uses only the built-in framework.
 
-use iota_sdk_types::{MoveStruct, ObjectId, ObjectReference, Owner, TransactionDigest, Version};
+use iota_sdk_types::{
+    MoveStruct, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest, Version,
+};
 use iota_types::{
     error::{IotaError, UserInputError},
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
 };
 use iota_vm_sdk::{
     Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,
@@ -68,12 +67,12 @@ fn tx_with_receiving_input(
     sender: Address,
     gas: &Object,
     receiving: ObjectReference,
-) -> TransactionData {
+) -> Transaction {
     let mut b = ProgrammableTransactionBuilder::new();
     b.input(CallArg::Receiving(receiving))
         .expect("add receiving input");
     b.transfer_iota(Address::from(ObjectId::random()), Some(1000));
-    TransactionData::new_programmable(
+    Transaction::new_programmable(
         sender,
         vec![gas.object_ref()],
         b.finish(),

@@ -8,7 +8,7 @@ use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectId, SharedObjectReference,
+    Identifier, ObjectId, SharedObjectReference, Transaction,
     checkpoint::{CheckpointContents, CheckpointSummary},
     gas::GasCostSummary,
 };
@@ -21,8 +21,7 @@ use iota_types::{
     },
     object::Object,
     transaction::{
-        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionData,
-        TransactionDataAPI,
+        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI,
     },
     utils::{make_committee_key_num, to_sender_signed_transaction},
 };
@@ -37,6 +36,7 @@ use crate::{
     authority::{AuthorityState, authority_tests::init_state_with_objects},
     checkpoints::CheckpointServiceNoop,
     consensus_handler::SequencedConsensusTransaction,
+    execution_scheduler::ExecutionSchedulerAPI,
     mock_consensus::with_block_status,
 };
 
@@ -77,7 +77,7 @@ pub async fn test_certificates(
         let module = "object_basics";
         let function = "create";
 
-        let data = TransactionData::new_move_call(
+        let tx = Transaction::new_move_call(
             sender,
             ObjectId::FRAMEWORK,
             Identifier::from_static(module),
@@ -97,7 +97,7 @@ pub async fn test_certificates(
         .unwrap();
 
         let transaction = epoch_store
-            .verify_transaction(to_sender_signed_transaction(data, &keypair))
+            .verify_transaction(to_sender_signed_transaction(tx, &keypair))
             .unwrap();
 
         // Submit the transaction and assemble a certificate.
@@ -200,7 +200,7 @@ pub fn make_consensus_adapter_for_test(
 
             if self.execute {
                 self.state
-                    .transaction_manager()
+                    .execution_scheduler()
                     .enqueue(transactions, epoch_store);
             }
 

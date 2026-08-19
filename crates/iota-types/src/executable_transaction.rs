@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use iota_sdk_types::SenderSignedTransaction;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -9,7 +10,7 @@ use crate::{
     crypto::AuthorityStrongQuorumSignInfo,
     message_envelope::{Envelope, TrustedEnvelope, VerifiedEnvelope},
     messages_checkpoint::CheckpointSequenceNumber,
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::TransactionAPI,
 };
 
 /// CertificateProof is a proof that a transaction certs existed at a given
@@ -64,9 +65,10 @@ impl CertificateProof {
 /// transaction, and hence it can be executed locally. This is an abstraction
 /// data structure to cover both the case where the transaction is certified or
 /// checkpointed when we schedule it for execution.
-pub type ExecutableTransaction = Envelope<SenderSignedData, CertificateProof>;
-pub type VerifiedExecutableTransaction = VerifiedEnvelope<SenderSignedData, CertificateProof>;
-pub type TrustedExecutableTransaction = TrustedEnvelope<SenderSignedData, CertificateProof>;
+pub type ExecutableTransaction = Envelope<SenderSignedTransaction, CertificateProof>;
+pub type VerifiedExecutableTransaction =
+    VerifiedEnvelope<SenderSignedTransaction, CertificateProof>;
+pub type TrustedExecutableTransaction = TrustedEnvelope<SenderSignedTransaction, CertificateProof>;
 
 impl VerifiedExecutableTransaction {
     pub fn certificate_sig(&self) -> Option<&AuthorityStrongQuorumSignInfo> {

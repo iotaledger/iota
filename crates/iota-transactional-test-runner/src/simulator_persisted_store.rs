@@ -9,14 +9,15 @@ use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::ProtocolVersion;
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Identifier, ObjectId, ObjectReference,
-    Owner, StructTag, TransactionDigest, Version, checkpoint::CheckpointContents,
+    Owner, StructTag, TransactionDigest, TransactionEffects, TransactionEvents, Version,
+    checkpoint::CheckpointContents,
 };
 use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::ConfigBuilder};
 use iota_types::{
     base_types::VersionNumber,
     committee::{Committee, EpochId},
     crypto::AccountKeyPair,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::Object,

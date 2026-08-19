@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, time::Duration};
+use std::{collections::HashMap, num::NonZeroUsize, time::Duration};
 
 use anemo::{PeerId, Request};
 use anyhow::anyhow;
@@ -335,7 +335,9 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
         std::fs::write(temp_dir.path().join("MANIFEST"), &manifest_bytes[..])?;
     }
     let checkpoint_archive_config = CheckpointArchiveConfig {
-        download_concurrency: 1,
+        download_concurrency: NonZeroUsize::new(1).unwrap(),
+        verify_concurrency: NonZeroUsize::new(2).unwrap(),
+        max_checkpoints_ahead_of_execution: NonZeroUsize::new(1_000_000).unwrap(),
         url: format!("file://{}", temp_dir.path().display()),
     };
     // Build and connect two nodes where Node 1 will be given access to an archive
@@ -1073,4 +1075,30 @@ async fn sync_with_checkpoints_gap() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[test]
+fn test_checkpoint_archive_sync_end() {
+    use crate::state_sync::checkpoint_archive_sync_end;
+
+    // The run ends just below the peers' lowest checkpoint.
+    assert_eq!(checkpoint_archive_sync_end(1, 100), Some(99));
+
+    // Peers already cover everything from checkpoint 1 on.
+    assert_eq!(checkpoint_archive_sync_end(1, 1), None);
+    assert_eq!(checkpoint_archive_sync_end(1, 0), None);
+}
+
+#[test]
+fn test_required_executed_checkpoint() {
+    use crate::state_sync::worker::required_executed_checkpoint;
+
+    // Within the cap of checkpoint 0: nothing to wait for.
+    assert_eq!(required_executed_checkpoint(30, 30), 0);
+    assert_eq!(required_executed_checkpoint(50, 1000), 0);
+
+    // Past the cap: execution has to reach the checkpoint the cap is anchored
+    // to, so that inserting stays exactly at the cap.
+    assert_eq!(required_executed_checkpoint(31, 30), 1);
+    assert_eq!(required_executed_checkpoint(51, 30), 21);
 }

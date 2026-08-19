@@ -115,13 +115,19 @@ use server::CheckpointContentsDownloadLimitLayer;
 pub use server::{
     GetCheckpointAvailabilityResponse, GetCheckpointSummaryRequest, StateSyncHandshake,
 };
-use worker::StateSyncWorker;
+use worker::{StateSyncReducer, StateSyncWorker};
 
 const PEER_BALANCER_SELECTION_WINDOW: usize = 10;
 
 // Periodically prune `peer_heights` so the temp maps don't accumulate the
 // entire sync range.
 const PEER_HEIGHTS_CLEANUP_CHECKPOINT_INTERVAL: u64 = 10_000;
+
+/// Caps the memory the archive reader may hold in downloaded checkpoints that
+/// have not been inserted yet. Without it the reader keeps downloading until it
+/// is `MAX_CHECKPOINTS_IN_PROGRESS` checkpoints ahead, which is a lot of memory
+/// while the reducer waits for execution to catch up.
+const CHECKPOINT_ARCHIVE_DATA_LIMIT: usize = 256 * 1024 * 1024;
 
 /// A handle to the StateSync subsystem.
 ///
@@ -1249,10 +1255,9 @@ where
 }
 
 async fn setup_data_ingestion_executor<W: Worker + 'static>(
-    worker: W,
+    worker_pool: WorkerPool<W>,
     remote_store_url: RemoteUrl,
     initial_checkpoint_number: CheckpointSequenceNumber,
-    concurrency: usize,
     reader_options: Option<ReaderOptions>,
     ingestion_limit: Option<IngestionLimit>,
 ) -> IngestionResult<(
@@ -1263,12 +1268,6 @@ async fn setup_data_ingestion_executor<W: Worker + 'static>(
     let progress_store = ShimProgressStore(initial_checkpoint_number);
     let token = CancellationToken::new();
     let mut executor = IndexerExecutor::new(progress_store, 1, metrics, token.child_token());
-    let worker_pool = WorkerPool::new(
-        worker,
-        "data_ingestion_executor".to_string(),
-        concurrency,
-        Default::default(),
-    );
     executor.register(worker_pool).await?;
     if let Some(limit) = ingestion_limit {
         executor.with_ingestion_limit(limit);
@@ -1354,26 +1353,47 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             return;
         };
         // The archive should cover [start, end); we want everything up to end-1
-        // and leave `end` onward to normal p2p sync. `MaxCheckpoint(end-1)` makes
-        // the executor shut down on its own once it has processed that range.
-        //
-        // `MaxCheckpoint` only fires once the reader delivers checkpoint `end`.
-        let ingestion_limit =
-            lowest_checkpoint_on_peers.map(|end| IngestionLimit::MaxCheckpoint(end - 1));
+        // and leave `end` onward to normal p2p sync. `MaxCheckpoint(last)`
+        // makes the executor shut down on its own once it has processed that
+        // range.
+        let Some(last) = checkpoint_archive_sync_end(
+            start,
+            lowest_checkpoint_on_peers.expect("checked by sync_from_checkpoint_archive"),
+        ) else {
+            return;
+        };
+        let ingestion_limit = Some(IngestionLimit::MaxCheckpoint(last));
         let reader_options = ReaderOptions {
-            batch_size: checkpoint_archive_config.download_concurrency,
+            batch_size: checkpoint_archive_config.download_concurrency.get(),
+            // The reducer waits for execution before inserting, and downloaded
+            // checkpoints pile up in memory while it does.
+            data_limit: CHECKPOINT_ARCHIVE_DATA_LIMIT,
             ..Default::default()
         };
-        // Keep a clone for the final log; the original is moved into StateSyncWorker.
+        // Keep a clone for the final log; the original is moved into the reducer.
         let store_for_log = store.clone();
+        // Workers verify signatures and content digests in parallel; the
+        // reducer chain-checks and inserts the results in sequence order.
+        let worker_pool = WorkerPool::new_with_reducer(
+            StateSyncWorker(store.clone()),
+            "data_ingestion_executor".to_string(),
+            checkpoint_archive_config.verify_concurrency.get(),
+            Default::default(),
+            StateSyncReducer {
+                store,
+                metrics,
+                max_checkpoints_ahead_of_execution: checkpoint_archive_config
+                    .max_checkpoints_ahead_of_execution
+                    .get() as u64,
+            },
+        );
         let setup_result = setup_data_ingestion_executor(
-            StateSyncWorker(store, metrics),
+            worker_pool,
             RemoteUrl::HybridHistoricalStore {
                 historical_url: checkpoint_archive_config.url.clone(),
                 live_url: None,
             },
             start,
-            1,
             Some(reader_options),
             ingestion_limit,
         )
@@ -1397,6 +1417,17 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             Err(err) => warn!("State sync from archive failed with error: {:?}", err),
         }
     }
+}
+
+/// The last checkpoint an archive sync run covers: the one below the peers'
+/// lowest available checkpoint, since everything from there on comes from
+/// normal p2p sync. `None` when the range is empty.
+fn checkpoint_archive_sync_end(
+    start: CheckpointSequenceNumber,
+    lowest_checkpoint_on_peers: CheckpointSequenceNumber,
+) -> Option<CheckpointSequenceNumber> {
+    let last = lowest_checkpoint_on_peers.checked_sub(1)?;
+    (start <= last).then_some(last)
 }
 
 /// Syncs checkpoint contents from peers if the target sequence cursor, which is

@@ -5,10 +5,13 @@
 use std::sync::Arc;
 
 use parking_lot::RwLock;
+use rstest::rstest;
 use starfish_config::AuthorityIndex;
 
 use crate::{
-    block_header::{BlockHeaderAPI, Slot, TestBlockHeader, VerifiedBlockHeader},
+    block_header::{
+        BlockHeaderAPI, Slot, TestBlockHeader, TestBlockHeaderVersion, VerifiedBlockHeader,
+    },
     commit::{DecidedLeader, WAVE_LENGTH},
     context::Context,
     dag_state::{DagState, DataSource},
@@ -19,9 +22,10 @@ use crate::{
 };
 
 /// Commit one leader.
+#[rstest]
 #[tokio::test]
-async fn direct_commit() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn direct_commit(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // note: pipelines, waves & rounds are zero-indexed.
     let decision_round_wave_0_pipeline_1 = committer.committers[1].certifying_round(0);
@@ -45,9 +49,10 @@ async fn direct_commit() {
 }
 
 /// Ensure idempotent replies.
+#[rstest]
 #[tokio::test]
-async fn idempotence() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn idempotence(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach decision round of pipeline 1 wave 0 which is round
     // 4. note: pipelines, waves & rounds are zero-indexed.
@@ -94,9 +99,10 @@ async fn idempotence() {
 }
 
 /// Commit one by one each leader as the dag progresses in ideal conditions.
+#[rstest]
 #[tokio::test]
-async fn multiple_direct_commit() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn multiple_direct_commit(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
     let mut last_finalized = Slot::new(0, 0);
@@ -140,9 +146,10 @@ async fn multiple_direct_commit() {
 }
 
 /// Commit 10 leaders in a row (calling the committer after adding them).
+#[rstest]
 #[tokio::test]
-async fn direct_commit_late_call() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn direct_commit_late_call(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
     // note: pipelines, waves & rounds are zero-indexed.
@@ -171,9 +178,10 @@ async fn direct_commit_late_call() {
 }
 
 /// Do not commit anything if we are still in the first wave.
+#[rstest]
 #[tokio::test]
-async fn no_genesis_commit() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn no_genesis_commit(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // Pipeline 0 wave 0 will not have a commit because its leader round is the
     // genesis round.
@@ -191,9 +199,10 @@ async fn no_genesis_commit() {
 }
 
 /// We do not commit anything if we miss the first leader.
+#[rstest]
 #[tokio::test]
-async fn direct_skip_no_leader() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn direct_skip_no_leader(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach the decision round of the leader of wave 0 for
     // pipeline 1 but without the leader block.
@@ -216,7 +225,7 @@ async fn direct_skip_no_leader() {
         .filter(|&authority| authority.0 != leader_pipeline_1_wave_0)
         .map(|authority| (authority.0, genesis.clone()))
         .collect::<Vec<_>>();
-    let references = build_dag_layer(connections, dag_state.clone());
+    let references = build_dag_layer(&context, connections, dag_state.clone());
 
     let decision_round_pipeline_1_wave_0 = committer.committers[1].certifying_round(0);
     build_dag(
@@ -242,9 +251,10 @@ async fn direct_skip_no_leader() {
 }
 
 /// We directly skip the leader if it has enough blame.
+#[rstest]
 #[tokio::test]
-async fn direct_skip_enough_blame() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn direct_skip_enough_blame(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach the wave 0 leader for pipeline 1.
     // note: pipelines, waves & rounds are zero-indexed.
@@ -272,7 +282,7 @@ async fn direct_skip_enough_blame() {
         .map(|authority| (authority.0, references_without_leader_1.clone()))
         .collect();
     let references_without_votes_for_leader_1 =
-        build_dag_layer(connections_without_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_without_leader_1, dag_state.clone());
 
     // one vote for that leader
     let connections_with_leader_1 = context
@@ -282,7 +292,7 @@ async fn direct_skip_enough_blame() {
         .map(|authority| (authority.0, references_round_1.clone()))
         .collect();
     let references_with_votes_for_leader_1 =
-        build_dag_layer(connections_with_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_with_leader_1, dag_state.clone());
 
     let references: Vec<_> = references_without_votes_for_leader_1
         .into_iter()
@@ -316,9 +326,10 @@ async fn direct_skip_enough_blame() {
 }
 
 /// Indirect-commit the first leader.
+#[rstest]
 #[tokio::test]
-async fn indirect_commit() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn indirect_commit(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
     // Add enough blocks to reach the wave 0 leader of pipeline 1.
@@ -352,7 +363,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_round_1.clone()))
         .collect();
     let references_with_votes_for_leader_1 =
-        build_dag_layer(connections_with_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_with_leader_1, dag_state.clone());
 
     let connections_without_leader_1 = context
         .committee
@@ -361,7 +372,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_without_leader_1.clone()))
         .collect();
     let references_without_votes_for_leader_1 =
-        build_dag_layer(connections_without_leader_1, dag_state.clone());
+        build_dag_layer(&context, connections_without_leader_1, dag_state.clone());
 
     // Only f+1 validators certify that leader.
     let mut references_round_3 = Vec::new();
@@ -373,6 +384,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references_with_votes_for_leader_1.clone()))
         .collect::<Vec<_>>();
     references_round_3.extend(build_dag_layer(
+        &context,
         connections_with_votes_for_leader_1,
         dag_state.clone(),
     ));
@@ -389,6 +401,7 @@ async fn indirect_commit() {
         .map(|authority| (authority.0, references.clone()))
         .collect::<Vec<_>>();
     references_round_3.extend(build_dag_layer(
+        &context,
         connections_without_votes_for_leader_1,
         dag_state.clone(),
     ));
@@ -433,9 +446,10 @@ async fn indirect_commit() {
 }
 
 /// Commit the first 3 leaders, skip the 4th, and commit the next 3 leaders.
+#[rstest]
 #[tokio::test]
-async fn indirect_skip() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn indirect_skip(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
     let wave_length = WAVE_LENGTH;
 
     // Add enough blocks to reach the 4th leader.
@@ -460,6 +474,7 @@ async fn indirect_skip() {
         .map(|authority| (authority.0, references_round_4.clone()))
         .collect::<Vec<_>>();
     references_round_5.extend(build_dag_layer(
+        &context,
         connections_with_leader_4,
         dag_state.clone(),
     ));
@@ -471,6 +486,7 @@ async fn indirect_skip() {
         .map(|authority| (authority.0, references_without_leader_4.clone()))
         .collect();
     references_round_5.extend(build_dag_layer(
+        &context,
         connections_without_leader_4,
         dag_state.clone(),
     ));
@@ -527,9 +543,10 @@ async fn indirect_skip() {
 }
 
 /// If there is no leader with enough support nor blame, we commit nothing.
+#[rstest]
 #[tokio::test]
-async fn undecided() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn undecided(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
 
     // Add enough blocks to reach the first leader.
     // note: pipelines, waves & rounds are zero-indexed.
@@ -555,7 +572,7 @@ async fn undecided() {
         .into_iter()
         .chain(non_leader_connections)
         .collect::<Vec<_>>();
-    let references_voting_round_1 = build_dag_layer(connections, dag_state.clone());
+    let references_voting_round_1 = build_dag_layer(&context, connections, dag_state.clone());
 
     // Add enough blocks to reach the first decision round
     let decision_round_1 = committer.committers[1].certifying_round(0);
@@ -578,9 +595,11 @@ async fn undecided() {
 // blocks. However when extra dag layers are added and the byzantine node is
 // meant to be a leader, its block is skipped as there is not enough votes to
 // directly decide it and not any certified links to indirectly commit it.
+#[rstest]
 #[tokio::test]
-async fn test_byzantine_validator() {
-    let (context, dag_state, committer) = basic_test_setup();
+async fn test_byzantine_validator(#[values(false, true)] starfish_speed: bool) {
+    let (context, dag_state, committer) = basic_test_setup(starfish_speed);
+    let version = TestBlockHeaderVersion::from_context(&context);
 
     // Add enough blocks to reach leader A12
     // note: pipelines, waves & rounds are zero-indexed.
@@ -618,6 +637,7 @@ async fn test_byzantine_validator() {
     // dag state
     let byzantine_block_b13_1 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 1)
+            .set_version(version)
             .set_ancestors(references_without_leader_round_wave_4.clone())
             .build(),
     );
@@ -630,6 +650,7 @@ async fn test_byzantine_validator() {
 
     let byzantine_block_b13_2 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 1)
+            .set_version(version)
             .set_ancestors(references_without_leader_round_wave_4.clone())
             .set_timestamp_ms(timestamp + 1)
             .build(),
@@ -640,6 +661,7 @@ async fn test_byzantine_validator() {
 
     let byzantine_block_b13_3 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(13, 1)
+            .set_version(version)
             .set_ancestors(references_without_leader_round_wave_4)
             .set_timestamp_ms(timestamp + 2)
             .build(),
@@ -655,6 +677,7 @@ async fn test_byzantine_validator() {
     let mut references_round_14 = vec![];
     let decision_block_a14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 0)
+            .set_version(version)
             .set_ancestors(good_references_voting_round_wave_4.clone())
             .build(),
     );
@@ -670,6 +693,7 @@ async fn test_byzantine_validator() {
 
     let decision_block_b14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 1)
+            .set_version(version)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()
@@ -686,6 +710,7 @@ async fn test_byzantine_validator() {
 
     let decision_block_c14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 2)
+            .set_version(version)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()
@@ -702,6 +727,7 @@ async fn test_byzantine_validator() {
 
     let decision_block_d14 = VerifiedBlockHeader::new_for_test(
         TestBlockHeader::new(14, 3)
+            .set_version(version)
             .set_ancestors(
                 good_references_voting_round_wave_4_without_b13
                     .iter()
@@ -772,18 +798,19 @@ async fn test_byzantine_validator() {
     };
 }
 
-fn basic_test_setup() -> (
+fn basic_test_setup(
+    starfish_speed: bool,
+) -> (
     Arc<Context>,
     Arc<RwLock<DagState>>,
     super::UniversalCommitter,
 ) {
     telemetry_subscribers::init_for_testing();
     // Committee of 4 with even stake
-    // Test blocks carry no strong votes; run with StarfishSpeed off.
     let mut context = Context::new_for_test(4).0;
     context
         .protocol_config
-        .set_consensus_starfish_speed_for_testing(false);
+        .set_consensus_starfish_speed_for_testing(starfish_speed);
     let context = Arc::new(context);
     let dag_state = Arc::new(RwLock::new(DagState::new(
         context.clone(),

@@ -9,10 +9,7 @@ use async_trait::async_trait;
 use fastcrypto::ed25519;
 use iota_config::NodeConfig;
 use iota_metrics::{RegistryID, RegistryService, monitored_mpsc::unbounded_channel};
-use iota_types::{
-    committee::EpochId,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-};
+use iota_types::committee::EpochId;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
     Clock, CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority,
@@ -27,6 +24,7 @@ use crate::{
         ConsensusManagerMetrics, ConsensusManagerTrait, ReplayWaiter, Running, RunningLockGuard,
     },
     consensus_validator::IotaTxValidator,
+    epoch_start_consensus_committee::get_consensus_committee,
     starfish_adapter::LazyStarfishClient,
 };
 
@@ -99,7 +97,7 @@ impl ConsensusManagerTrait for StarfishManager {
         tx_validator: IotaTxValidator,
     ) {
         let system_state = epoch_store.epoch_start_state();
-        let committee: Committee = system_state.get_consensus_committee();
+        let committee: Committee = get_consensus_committee(system_state);
         let epoch = epoch_store.epoch();
         let protocol_config = epoch_store.protocol_config();
 
@@ -128,24 +126,6 @@ impl ConsensusManagerTrait for StarfishManager {
             .authorities()
             .find(|(_, a)| a.protocol_key == own_protocol_key)
             .expect("Own authority should be among the consensus authorities!");
-
-        // Apply the protective consensus gRPC resource limits by default,
-        // filling only the bounds left unconfigured so explicit node config is
-        // respected. A node can opt out via the environment variable without a
-        // redeploy; these are local operational parameters, so heterogeneous
-        // values across validators are safe.
-        let parameters = {
-            let mut p = parameters;
-            if matches!(
-                std::env::var("CONSENSUS_GRPC_PROTECTIVE_LIMITS").as_deref(),
-                Ok("0") | Ok("false")
-            ) {
-                info!("Consensus gRPC protective limits disabled for validator {own_index}");
-            } else {
-                p.tonic.apply_protective();
-            }
-            p
-        };
 
         // Allow DAG visualizer port to be set via environment variable.
         // The port is used as-is (no offset) — in Docker each validator has its

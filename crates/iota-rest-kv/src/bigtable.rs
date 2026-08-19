@@ -26,9 +26,9 @@ use iota_kvstore::{
         row_range::{EndKey, StartKey},
     },
 };
-use iota_sdk_types::TransactionDigest;
+use iota_sdk_types::{Address, TransactionDigest, TransactionEvents};
 use iota_storage::http_key_value_store::{ItemType, Key};
-use iota_types::{effects::TransactionEvents, sdk_types::Address, storage::ObjectKey};
+use iota_types::storage::ObjectKey;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, instrument};
 
@@ -331,6 +331,12 @@ impl KvStoreClient {
             .enumerate()
             .filter_map(|(index, key)| key.as_ref().map(|k| (k.clone(), index)))
             .collect::<HashMap<Vec<u8>, usize>>();
+
+        // With no keys to look up, `multi_get` would read the whole table
+        // instead of nothing, so return the empty result without calling it.
+        if key_to_index.is_empty() {
+            return Ok(results);
+        }
 
         let start = Instant::now();
         for row in client
@@ -668,5 +674,22 @@ mod tests {
             _ => None,
         });
         assert!(matches!(result, Err(ApiError::BadRequest(_))));
+    }
+
+    #[tokio::test]
+    async fn fetch_from_bigtable_with_only_missing_keys_does_not_query_the_store() {
+        // When all keys are missing, the result must be all-None and no
+        // request should be sent (an empty multi_get scans the whole table).
+        // The test client points at a closed port, so any request would fail this test.
+        let client = KvStoreClient::new_for_tests();
+        let results = client
+            .fetch_from_bigtable(
+                CHECKPOINTS_TABLE,
+                vec![None, None, None],
+                CHECKPOINT_SUMMARY_COLUMN_QUALIFIER,
+            )
+            .await
+            .expect("missing keys must resolve without querying the store");
+        assert_eq!(results, vec![None, None, None]);
     }
 }
