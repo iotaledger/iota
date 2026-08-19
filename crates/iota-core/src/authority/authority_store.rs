@@ -50,6 +50,7 @@ use crate::{
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         historic_objects::{HistoricObjects, HistoricObjectsBucket},
+        object_backlog_sweep::ObjectBacklogSweepProgress,
     },
     global_state_hasher::GlobalStateHashStore,
     transaction_outputs::TransactionOutputs,
@@ -1709,7 +1710,17 @@ impl AuthorityStore {
     /// This is what a node reaches on its own once its object retention has
     /// caught up; a test that wants the versions of a given epoch gone has to
     /// have started a later epoch first.
+    ///
+    /// Records the one-time sweep of the pre-upgrade superseded versions as
+    /// finished first, since expiry waits for it. A test cluster's database is
+    /// written by this build alone and so holds none of those versions, while
+    /// the nodes that drive expiry from here have their retention disabled and
+    /// therefore never run the sweep that would say so.
     pub fn expire_historic_objects_and_compact_for_testing(&self) {
+        self.perpetual_tables
+            .object_backlog_sweep_progress
+            .insert(&(), &ObjectBacklogSweepProgress::Done)
+            .expect("recording the object backlog sweep as finished should not fail");
         self.historic_objects
             .prune(1)
             .expect("expiring the historic buckets should not fail");
