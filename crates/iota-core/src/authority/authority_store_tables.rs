@@ -502,6 +502,22 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
+    /// Marks the one-time object-backlog sweep as already done, so that a
+    /// later node start does not walk `objects` looking for versions to
+    /// delete.
+    ///
+    /// Call this only on a database that cannot hold a backlog to begin
+    /// with, such as one just populated by a formal-snapshot restore: a
+    /// snapshot is taken at an epoch boundary and carries only the live
+    /// object set, so there are no superseded versions for the sweep to
+    /// find, and recording `Done` up front skips a walk that would delete
+    /// nothing.
+    pub fn mark_object_backlog_swept(&self) -> IotaResult {
+        self.object_backlog_sweep_progress
+            .insert(&(), &ObjectBacklogSweepProgress::Done)?;
+        Ok(())
+    }
+
     pub fn insert_store_object_v1_test_only(&self, object: Object) -> IotaResult {
         use crate::authority::authority_store_types::{StoreObjectV1, StoreObjectValue};
 
@@ -904,5 +920,26 @@ mod tests {
             .unwrap()
             .expect("value must reconstruct");
         assert_eq!(reconstructed.object_ref(), object_ref);
+    }
+
+    /// A formal-snapshot restore has no backlog of superseded versions to
+    /// walk, so it records the sweep as done directly rather than paying for
+    /// a walk over the live object set it just wrote.
+    #[tokio::test]
+    async fn mark_object_backlog_swept_records_done() {
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+
+        assert_eq!(
+            perpetual_db.object_backlog_sweep_progress.get(&()).unwrap(),
+            None
+        );
+
+        perpetual_db.mark_object_backlog_swept().unwrap();
+
+        assert_eq!(
+            perpetual_db.object_backlog_sweep_progress.get(&()).unwrap(),
+            Some(ObjectBacklogSweepProgress::Done)
+        );
     }
 }
