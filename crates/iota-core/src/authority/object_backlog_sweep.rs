@@ -68,17 +68,37 @@ pub enum ObjectBacklogSweepProgress {
 }
 
 /// Starts the sweep of the object versions superseded before this build,
-/// unless an earlier run already walked the whole table.
+/// unless an earlier run already walked the whole table or this node keeps
+/// every epoch's superseded versions.
 ///
 /// Both handles are weak, so that a dropped node stops the sweep at its next
 /// slice instead of holding its database open: `store` owns the tables being
 /// swept, `state` answers which epoch's bucket the tombstones found are
 /// recorded in.
-pub(crate) fn spawn(state: Weak<AuthorityState>, store: Weak<AuthorityStore>) -> JoinHandle<()> {
-    spawn_monitored_task!(sweep_backlog(state, store))
+pub(crate) fn spawn(
+    state: Weak<AuthorityState>,
+    store: Weak<AuthorityStore>,
+    num_epochs_to_retain: u64,
+) -> JoinHandle<()> {
+    spawn_monitored_task!(sweep_backlog(state, store, num_epochs_to_retain))
 }
 
-async fn sweep_backlog(state: Weak<AuthorityState>, store: Weak<AuthorityStore>) {
+async fn sweep_backlog(
+    state: Weak<AuthorityState>,
+    store: Weak<AuthorityStore>,
+    num_epochs_to_retain: u64,
+) {
+    if num_epochs_to_retain == u64::MAX {
+        // This node expires no bucket either, so the backlog is left where it
+        // is: the bounded read consults the live table and the buckets
+        // together and takes the newer answer, and deleting it would throw
+        // away the object history this configuration exists to keep.
+        info!(
+            "keeping the object versions superseded before this build: this node retains every \
+             epoch's superseded versions"
+        );
+        return;
+    }
     match store
         .upgrade()
         .map(|store| ObjectBacklogSweep::new(&store).done())
