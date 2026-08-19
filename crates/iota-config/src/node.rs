@@ -827,8 +827,9 @@ impl NodeConfig {
         self.consensus_config.is_some()
     }
 
-    /// Validate the node config. This fails if a node could not start with
-    /// the config, or if it would start and ignore part of the config.
+    /// Validate the node config. The checks reject a config a node could
+    /// not start with. They also reject the known cases where a node would
+    /// start and ignore part of the config.
     pub fn validate(&self) -> Result<()> {
         // Validators do not expose the gRPC API. Only an explicit
         // `grpc-api-config: null` reaches this. An absent key deserializes to
