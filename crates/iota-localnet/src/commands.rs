@@ -274,8 +274,8 @@ pub enum LocalnetCommand {
         /// `'[::1]:9000'`), an empty value or `null` clears the field, a
         /// mapping merges with the section, a list replaces it.
         ///
-        /// A validator's `network-address`, `p2p-address` and
-        /// `primary-address` are in the genesis committee metadata and
+        /// A validator's `network-address`, `p2p-config.external-address`
+        /// and `primary-address` are in the genesis committee metadata and
         /// cannot be overridden; re-run genesis to change them.
         ///
         /// Warning: overriding per-node values (e.g. `db-path`) for every
@@ -695,6 +695,13 @@ async fn start(
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     info!("Cluster started");
 
+    // Taken off the built config rather than off `--fullnode-rpc-port`, since an
+    // override can move the address.
+    let fullnode_url = swarm
+        .fullnodes()
+        .next()
+        .map(|node| node.config().json_rpc_address)
+        .unwrap_or(fullnode_url);
     // the indexer requires a fullnode url with protocol specified
     let fullnode_url = format!("http://{fullnode_url}");
     info!("Fullnode URL: {}", fullnode_url);

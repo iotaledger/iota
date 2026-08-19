@@ -116,7 +116,7 @@ applied 2 overrides to fullnode: authority-store-pruning-config.num-epochs-to-re
 
 The following are rejected:
 
-- A validator's `network-address`, `p2p-address` and `primary-address`. These sit in the committee metadata inside `genesis.blob`, so overriding one at start would leave the validator unreachable at the address its peers dial. Re-run `iota-localnet genesis` to change them. On a fullnode, which is not a committee member, the same fields are ordinary config and stay overridable.
+- A validator's `network-address`, `p2p-config.external-address` (its `p2p-address` in the committee) and `primary-address`. These sit in the committee metadata inside `genesis.blob`, so overriding one at start would leave the validator unreachable at the address its peers dial. Re-run `iota-localnet genesis` to change them. On a fullnode, which is not a committee member, `network-address` and `p2p-config.external-address` are ordinary config and stay overridable; `primary-address` is not a node config field on any node.
 - Adding or removing `consensus-config`, which is what makes a node a validator.
 - The key pair fields, `genesis` and `migration-tx-data-path`.
 - A field inside a section the generated config switched off with an explicit `null`, such as `policy-config.dry-run` while `policy-config` is `null`. Set the whole section instead, for example `policy-config={dry-run: false}`.
