@@ -1321,16 +1321,21 @@ impl AuthorityStore {
     /// or the bucket is out of the map by the time the buckets are asked.
     ///
     /// Execution reads this way too, and its answer does not depend on
-    /// `num_epochs_to_retain`. Reaching the buckets at all means a transaction
-    /// that superseded the version being asked for has already executed and is
-    /// ordered after this reader — consensus assignment for a shared root, the
-    /// owned-object lock for an owned one — so that relocation is in the
-    /// current epoch's bucket. Buckets are expired only at reconfiguration,
-    /// with execution halted, and the newest bucket is retained at every
-    /// retention setting, so the current epoch's bucket is present on every
-    /// node. Keep both halves true: an expiry that could run while
-    /// transactions execute, or a retention that could drop the newest bucket,
-    /// would make execution's answer differ between nodes.
+    /// `num_epochs_to_retain`. An answer taken from the buckets means a
+    /// transaction that superseded the version being asked for has already
+    /// executed and is ordered after this reader — consensus assignment for a
+    /// shared root, the owned-object lock for an owned one — so that
+    /// relocation is in the current epoch's bucket. Execution only ever
+    /// expires a bucket at reconfiguration, with execution halted, and the
+    /// newest bucket is retained at every retention setting, so the current
+    /// epoch's bucket is present on every node. Keep both halves true: an
+    /// expiry that could run while transactions execute, or a retention that
+    /// could drop the newest bucket, would make execution's answer differ
+    /// between nodes. The two other places that expire — `HistoricObjects`'s
+    /// own open, which finishes an interrupted expiry before any transaction
+    /// can execute, and the test-only
+    /// [`Self::expire_historic_objects_and_compact_for_testing`] — leave both
+    /// halves standing.
     ///
     /// This is used to find the correct version of a dynamic field child
     /// object. We do not store the version of the child object, but because of
