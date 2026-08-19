@@ -361,6 +361,20 @@ pub trait TransactionEffectsExtForTesting: transaction_effects_ext::Sealed {
     fn new_empty_v1_for_testing(transaction_digest: TransactionDigest) -> Self;
 }
 
+// `iota-sdk-types` has inherent methods on `TransactionEffectsV1` named as this
+// trait's are, and an inherent method takes precedence over a trait one. Where
+// the two differ, the call has to name the trait.
+macro_rules! delegate_shadowed_effects_api {
+    ($self:ident, $method:ident) => {
+        match $self {
+            TransactionEffects::V1(v1) => TransactionEffectsAPI::$method(&**v1),
+            _ => unimplemented!(
+                "a new TransactionEffects enum variant was added and needs to be handled"
+            ),
+        }
+    };
+}
+
 // Helper macro to reduce boilerplate code
 macro_rules! delegate_effects_api {
     ($self:ident, $method:ident $(, $arg:expr)*) => {
@@ -387,7 +401,7 @@ impl TransactionEffectsAPI for TransactionEffects {
     }
 
     fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
-        delegate_effects_api!(self, modified_at_versions)
+        delegate_shadowed_effects_api!(self, modified_at_versions)
     }
 
     fn lamport_version(&self) -> Version {
@@ -395,43 +409,43 @@ impl TransactionEffectsAPI for TransactionEffects {
     }
 
     fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, old_object_metadata)
+        delegate_shadowed_effects_api!(self, old_object_metadata)
     }
 
     fn input_shared_objects(&self) -> Vec<InputSharedObject> {
-        delegate_effects_api!(self, input_shared_objects)
+        delegate_shadowed_effects_api!(self, input_shared_objects)
     }
 
     fn created(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, created)
+        delegate_shadowed_effects_api!(self, created)
     }
 
     fn mutated(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, mutated)
+        delegate_shadowed_effects_api!(self, mutated)
     }
 
     fn unwrapped(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, unwrapped)
+        delegate_shadowed_effects_api!(self, unwrapped)
     }
 
     fn deleted(&self) -> Vec<ObjectReference> {
-        delegate_effects_api!(self, deleted)
+        delegate_shadowed_effects_api!(self, deleted)
     }
 
     fn unwrapped_then_deleted(&self) -> Vec<ObjectReference> {
-        delegate_effects_api!(self, unwrapped_then_deleted)
+        delegate_shadowed_effects_api!(self, unwrapped_then_deleted)
     }
 
     fn wrapped(&self) -> Vec<ObjectReference> {
-        delegate_effects_api!(self, wrapped)
+        delegate_shadowed_effects_api!(self, wrapped)
     }
 
     fn object_changes(&self) -> Vec<ObjectChange> {
-        delegate_effects_api!(self, object_changes)
+        delegate_shadowed_effects_api!(self, object_changes)
     }
 
     fn gas_object(&self) -> (ObjectReference, Owner) {
-        delegate_effects_api!(self, gas_object)
+        delegate_shadowed_effects_api!(self, gas_object)
     }
 
     fn events_digest(&self) -> Option<&TransactionEventsDigest> {

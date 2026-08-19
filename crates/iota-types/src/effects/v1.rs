@@ -17,6 +17,14 @@ use crate::{
     object::OBJECT_START_VERSION,
 };
 
+/// The node reports an object and its owner as a pair, where the SDK names it.
+fn into_pairs(owned: Vec<iota_sdk_types::OwnedObjectReference>) -> Vec<(ObjectReference, Owner)> {
+    owned
+        .into_iter()
+        .map(|owned| (owned.reference, owned.owner))
+        .collect()
+}
+
 impl TransactionEffectsAPI for TransactionEffectsV1 {
     fn status(&self) -> &ExecutionStatus {
         &self.status
@@ -31,15 +39,9 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
     }
 
     fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
-        self.changed_objects
-            .iter()
-            .filter_map(|change| {
-                if let ObjectIn::Data { version, .. } = &change.input_state {
-                    Some((change.object_id, *version))
-                } else {
-                    None
-                }
-            })
+        TransactionEffectsV1::modified_at_versions(self)
+            .into_iter()
+            .map(|modified| (modified.object_id, modified.version))
             .collect()
     }
 
@@ -48,265 +50,81 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
     }
 
     fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)> {
-        self.changed_objects
-            .iter()
-            .filter_map(|change| {
-                if let ObjectIn::Data {
-                    version,
-                    digest,
-                    owner,
-                } = change.input_state
-                {
-                    Some((
-                        ObjectReference::new(change.object_id, version, digest),
-                        owner,
-                    ))
-                } else {
-                    None
-                }
-            })
-            .collect()
+        into_pairs(TransactionEffectsV1::old_object_metadata(self))
     }
 
     fn input_shared_objects(&self) -> Vec<InputSharedObject> {
-        self.changed_objects
-            .iter()
-            .filter_map(|changed| {
-                if let ObjectIn::Data {
-                    version,
-                    digest,
-                    owner: Owner::Shared { .. },
-                } = changed.input_state
-                {
-                    Some(InputSharedObject::Mutate(ObjectReference::new(
-                        changed.object_id,
-                        version,
-                        digest,
-                    )))
-                } else {
-                    None
+        TransactionEffectsV1::input_shared_objects(self)
+            .into_iter()
+            .map(|shared| match shared {
+                iota_sdk_types::InputSharedObject::Mutate(reference) => {
+                    InputSharedObject::Mutate(reference)
+                }
+                iota_sdk_types::InputSharedObject::ReadOnly(reference) => {
+                    InputSharedObject::ReadOnly(reference)
+                }
+                iota_sdk_types::InputSharedObject::ReadDeleted(object) => {
+                    InputSharedObject::ReadDeleted(object.object_id, object.version)
+                }
+                iota_sdk_types::InputSharedObject::MutateDeleted(object) => {
+                    InputSharedObject::MutateDeleted(object.object_id, object.version)
+                }
+                iota_sdk_types::InputSharedObject::Canceled(object) => {
+                    InputSharedObject::Cancelled(object.object_id, object.version)
                 }
             })
-            .chain(self.unchanged_shared_objects.iter().filter_map(
-                |unchanged| match unchanged.kind {
-                    UnchangedSharedKind::ReadOnlyRoot { version, digest } => {
-                        Some(InputSharedObject::ReadOnly(ObjectReference::new(
-                            unchanged.object_id,
-                            version,
-                            digest,
-                        )))
-                    }
-                    UnchangedSharedKind::MutateDeleted { version } => Some(
-                        InputSharedObject::MutateDeleted(unchanged.object_id, version),
-                    ),
-                    UnchangedSharedKind::ReadDeleted { version } => {
-                        Some(InputSharedObject::ReadDeleted(unchanged.object_id, version))
-                    }
-                    UnchangedSharedKind::Canceled { version } => {
-                        Some(InputSharedObject::Cancelled(unchanged.object_id, version))
-                    }
-                    // We can not expose the per epoch config object as input shared object,
-                    // since it does not require sequencing, and hence shall not be considered
-                    // as a normal input shared object.
-                    UnchangedSharedKind::PerEpochConfig => None,
-                    _ => unimplemented!(
-                        "a new UnchangedSharedKind enum variant was added and needs to be handled"
-                    ),
-                },
-            ))
             .collect()
     }
 
     fn created(&self) -> Vec<(ObjectReference, Owner)> {
-        self.changed_objects
-            .iter()
-            .filter_map(|changed| {
-                match (
-                    &changed.input_state,
-                    &changed.output_state,
-                    &changed.id_operation,
-                ) {
-                    (
-                        ObjectIn::Missing,
-                        ObjectOut::ObjectWrite { digest, owner },
-                        IdOperation::Created,
-                    ) => Some((
-                        ObjectReference::new(changed.object_id, self.lamport_version, *digest),
-                        *owner,
-                    )),
-                    (
-                        ObjectIn::Missing,
-                        ObjectOut::PackageWrite { version, digest },
-                        IdOperation::Created,
-                    ) => Some((
-                        ObjectReference::new(changed.object_id, *version, *digest),
-                        Owner::Immutable,
-                    )),
-                    _ => None,
-                }
-            })
-            .collect()
+        into_pairs(TransactionEffectsV1::created(self))
     }
 
     fn mutated(&self) -> Vec<(ObjectReference, Owner)> {
-        self.changed_objects
-            .iter()
-            .filter_map(
-                |changed| match (&changed.input_state, &changed.output_state) {
-                    (ObjectIn::Data { .. }, ObjectOut::ObjectWrite { digest, owner }) => Some((
-                        ObjectReference::new(changed.object_id, self.lamport_version, *digest),
-                        *owner,
-                    )),
-                    (ObjectIn::Data { .. }, ObjectOut::PackageWrite { version, digest }) => Some((
-                        ObjectReference::new(changed.object_id, *version, *digest),
-                        Owner::Immutable,
-                    )),
-                    _ => None,
-                },
-            )
-            .collect()
+        into_pairs(TransactionEffectsV1::mutated(self))
     }
 
     fn unwrapped(&self) -> Vec<(ObjectReference, Owner)> {
-        self.changed_objects
-            .iter()
-            .filter_map(|changed| {
-                match (
-                    &changed.input_state,
-                    &changed.output_state,
-                    &changed.id_operation,
-                ) {
-                    (
-                        ObjectIn::Missing,
-                        ObjectOut::ObjectWrite { digest, owner },
-                        IdOperation::None,
-                    ) => Some((
-                        ObjectReference::new(changed.object_id, self.lamport_version, *digest),
-                        *owner,
-                    )),
-                    _ => None,
-                }
-            })
-            .collect()
+        into_pairs(TransactionEffectsV1::unwrapped(self))
     }
 
     fn deleted(&self) -> Vec<ObjectReference> {
-        self.changed_objects
-            .iter()
-            .filter_map(|changed| {
-                match (
-                    &changed.input_state,
-                    &changed.output_state,
-                    &changed.id_operation,
-                ) {
-                    (ObjectIn::Data { .. }, ObjectOut::Missing, IdOperation::Deleted) => {
-                        Some(ObjectReference::new(
-                            changed.object_id,
-                            self.lamport_version,
-                            ObjectDigest::OBJECT_DELETED,
-                        ))
-                    }
-                    _ => None,
-                }
-            })
-            .collect()
+        TransactionEffectsV1::deleted(self)
     }
 
     fn unwrapped_then_deleted(&self) -> Vec<ObjectReference> {
-        self.changed_objects
-            .iter()
-            .filter_map(|changed| {
-                match (
-                    &changed.input_state,
-                    &changed.output_state,
-                    &changed.id_operation,
-                ) {
-                    (ObjectIn::Missing, ObjectOut::Missing, IdOperation::Deleted) => {
-                        Some(ObjectReference::new(
-                            changed.object_id,
-                            self.lamport_version,
-                            ObjectDigest::OBJECT_DELETED,
-                        ))
-                    }
-                    _ => None,
-                }
-            })
-            .collect()
+        TransactionEffectsV1::unwrapped_then_deleted(self)
     }
 
     fn wrapped(&self) -> Vec<ObjectReference> {
-        self.changed_objects
-            .iter()
-            .filter_map(|changed| {
-                match (
-                    &changed.input_state,
-                    &changed.output_state,
-                    &changed.id_operation,
-                ) {
-                    (ObjectIn::Data { .. }, ObjectOut::Missing, IdOperation::None) => {
-                        Some(ObjectReference::new(
-                            changed.object_id,
-                            self.lamport_version,
-                            ObjectDigest::OBJECT_WRAPPED,
-                        ))
-                    }
-                    _ => None,
-                }
-            })
-            .collect()
+        TransactionEffectsV1::wrapped(self)
     }
 
     fn object_changes(&self) -> Vec<ObjectChange> {
-        self.changed_objects
-            .iter()
-            .map(|changed| {
-                let input_version_digest = match &changed.input_state {
-                    ObjectIn::Missing => None,
-                    ObjectIn::Data {
-                        version, digest, ..
-                    } => Some((version, digest)),
-                    _ => unimplemented!(
-                        "a new ObjectIn enum variant was added and needs to be handled"
-                    ),
-                };
-
-                let output_version_digest = match &changed.output_state {
-                    ObjectOut::Missing => None,
-                    ObjectOut::ObjectWrite { digest, .. } => Some((&self.lamport_version, digest)),
-                    ObjectOut::PackageWrite { version, digest } => Some((version, digest)),
-                    _ => unimplemented!(
-                        "a new ObjectOut enum variant was added and needs to be handled"
-                    ),
-                };
-
-                ObjectChange {
-                    id: changed.object_id,
-                    input_version: input_version_digest.map(|k| *k.0),
-                    input_digest: input_version_digest.map(|k| *k.1),
-                    output_version: output_version_digest.map(|k| *k.0),
-                    output_digest: output_version_digest.map(|k| *k.1),
-                    id_operation: changed.id_operation,
-                }
+        TransactionEffectsV1::object_changes(self)
+            .into_iter()
+            .map(|change| ObjectChange {
+                id: change.object_id,
+                input_version: change.input_version,
+                input_digest: change.input_digest,
+                output_version: change.output_version,
+                output_digest: change.output_digest,
+                id_operation: change.id_operation,
             })
             .collect()
     }
 
     fn gas_object(&self) -> (ObjectReference, Owner) {
-        if let Some(gas_object_index) = self.gas_object_index {
-            let changed = &self.changed_objects[gas_object_index as usize];
-            match changed.output_state {
-                ObjectOut::ObjectWrite { digest, owner } => (
-                    ObjectReference::new(changed.object_id, self.lamport_version, digest),
-                    owner,
-                ),
-                _ => panic!("Gas object must be an ObjectWrite in changed_objects"),
-            }
-        } else {
-            (
-                ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
-                Owner::Address(Address::ZERO),
-            )
-        }
+        // A transaction that needs no gas has no gas object; this reports the
+        // dummy reference callers here have always been given for one.
+        TransactionEffectsV1::gas_object(self)
+            .map(|gas| (gas.reference, gas.owner))
+            .unwrap_or_else(|| {
+                (
+                    ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
+                    Owner::Address(Address::ZERO),
+                )
+            })
     }
 
     fn events_digest(&self) -> Option<&TransactionEventsDigest> {
@@ -618,7 +436,7 @@ fn check_invariant(v1: &TransactionEffectsV1) {
     }
 
     // Make sure that gas object exists in changed_objects.
-    let (_, owner) = v1.gas_object();
+    let (_, owner) = TransactionEffectsAPI::gas_object(v1);
     assert!(matches!(owner, Owner::Address(_)));
 
     for unchanged in &v1.unchanged_shared_objects {
