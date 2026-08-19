@@ -173,8 +173,8 @@ async fn genesis_from_config_writes_the_validator_configs() -> Result<(), anyhow
 }
 
 /// Genesis does not pin the fullnode's address. The simulator gives every node
-/// an address of its own and routes loopback addresses back to the caller, so a
-/// fullnode entry on 127.0.0.1 could never reach the validators.
+/// an address of its own, and routes loopback addresses back to the caller. A
+/// fullnode entry on 127.0.0.1 could therefore never reach the validators.
 #[sim_test]
 async fn the_persisted_fullnode_entry_keeps_its_own_address() -> Result<(), anyhow::Error> {
     let tmp_dir = iota_common::tempdir();
@@ -204,7 +204,7 @@ async fn the_persisted_fullnode_entry_keeps_its_own_address() -> Result<(), anyh
 }
 
 /// The persisted network config is what every later run derives its node
-/// configs from, so reading and writing it must not change it.
+/// configs from. A read followed by a write must not change it.
 #[tokio::test]
 async fn the_persisted_network_config_round_trips() -> Result<(), anyhow::Error> {
     let tmp_dir = iota_common::tempdir();
@@ -448,8 +448,8 @@ async fn write_config_writes_runnable_configs_and_starts_nothing() -> Result<(),
 }
 
 /// A `--force-regenesis` run keeps its state in a temporary directory that is
-/// gone once the command exits, so the configs would name paths that no longer
-/// exist.
+/// gone once the command exits. The configs would therefore name paths that no
+/// longer exist.
 #[tokio::test]
 async fn write_config_is_rejected_under_force_regenesis() {
     let tmp_dir = iota_common::tempdir();

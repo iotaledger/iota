@@ -635,7 +635,7 @@ async fn start(
     // must enable it by default.
     #[cfg(feature = "indexer")]
     if with_indexer.is_some() || with_graphql.is_some() {
-        // The gRPC API config is given rather than left out, since the builder
+        // The gRPC API config is given rather than left out. The builder
         // would otherwise put the API on a free port, which differs on every
         // run. A `--node-config-override` still wins over it.
         swarm_builder = swarm_builder
@@ -1101,7 +1101,7 @@ async fn genesis(
     let genesis = Genesis::new_from_file(&genesis_path);
 
     // The fullnode is not part of the genesis committee, but its entry is
-    // persisted with the validators' so that `start` derives the same fullnode
+    // persisted with the validators'. `start` then derives the same fullnode
     // config, and reuses its database, on every run.
     genesis_config.fullnode_config_info.get_or_insert_with(|| {
         fullnode_genesis_config(&mut OsRng, admin_interface_address_with_port)
@@ -1176,8 +1176,8 @@ async fn genesis(
 /// localnet ports, and a network address on a currently-free port.
 ///
 /// Only the ports are fixed. The addresses stay on the IP the fullnode would
-/// have used anyway, which is localhost outside the simulator and one address
-/// of its own inside it.
+/// have used anyway. That IP is localhost outside the simulator, and one
+/// address of its own inside it.
 fn fullnode_genesis_config<R: rand::RngCore + rand::CryptoRng>(
     rng: &mut R,
     admin_interface_address: Option<SocketAddr>,

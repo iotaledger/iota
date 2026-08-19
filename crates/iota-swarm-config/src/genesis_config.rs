@@ -264,7 +264,7 @@ pub struct GenesisConfig {
     pub ssfn_config_info: Option<Vec<SsfnGenesisConfig>>,
     pub validator_config_info: Option<Vec<ValidatorGenesisConfig>>,
     /// The key pairs and addresses of the network's fullnode. Unlike the
-    /// validators, a fullnode is not part of the genesis committee; the entry
+    /// validators, a fullnode is not part of the genesis committee. The entry
     /// exists so that its config is the same on every run.
     #[serde(default)]
     pub fullnode_config_info: Option<ValidatorGenesisConfig>,

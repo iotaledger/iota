@@ -81,7 +81,7 @@ impl NetworkConfig {
 /// of a local network are derived from, and the version of the format they are
 /// written in.
 ///
-/// The genesis blob is not derived from this; it is persisted beside it and
+/// The genesis blob is not derived from this. It is persisted beside it and
 /// only read.
 #[serde_as]
 #[derive(Deserialize, Serialize)]

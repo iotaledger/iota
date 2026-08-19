@@ -1505,8 +1505,8 @@ impl TestClusterBuilder {
         let keystore_path = dir.join(IOTA_KEYSTORE_FILENAME);
 
         // A config directory the swarm was started from already holds the
-        // network config its node configs were derived from, in a format only
-        // the tool that wrote it reads back.
+        // network config its node configs were derived from. Only the tool
+        // that wrote that config reads it back.
         if !network_path.exists() {
             let network_config = swarm.config();
             // Create light config to save

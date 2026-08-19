@@ -202,8 +202,8 @@ impl<R> SwarmBuilder<R> {
     }
 
     /// Take the first fullnode's key pairs and addresses from
-    /// `fullnode_genesis_config` instead of generating them, which gives it
-    /// the same config, and the same db path, on every build.
+    /// `fullnode_genesis_config` instead of generating them. This gives it the
+    /// same config, and the same db path, on every build.
     ///
     /// Further fullnodes keep generated key pairs and addresses, since an
     /// address can only be used once.
