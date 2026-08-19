@@ -33,6 +33,7 @@ use iota_core::{
         authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
+        object_backlog_sweep,
         shared_object_version_manager::Schedulable,
     },
     authority_aggregator::{
@@ -595,6 +596,19 @@ impl IotaNode {
                 warn!("failed to remove a legacy index database: {e}");
             }
         }
+
+        // Before any service that could expire a historic bucket starts, and
+        // before the index rebuild below scans the live `objects` table for
+        // its latest versions.
+        object_backlog_sweep::sweep(
+            store.clone(),
+            epoch_store.epoch(),
+            config.authority_store_pruning_config.num_epochs_to_retain,
+        )
+        .await
+        .map_err(|e| {
+            anyhow!("failed to sweep the object versions superseded before this build: {e}")
+        })?;
 
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(

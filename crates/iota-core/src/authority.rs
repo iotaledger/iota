@@ -2839,14 +2839,6 @@ impl AuthorityState {
             rx_execution_shutdown,
         ));
 
-        // Drain the object versions a build without the historic buckets
-        // superseded and left in the live table.
-        object_backlog_sweep::spawn(
-            Arc::downgrade(&state),
-            Arc::downgrade(&store),
-            num_epochs_to_retain,
-        );
-
         state
     }
 
@@ -3199,9 +3191,7 @@ impl AuthorityState {
     /// durable expiring marker, so its versions stay unreadable and its
     /// tombstones stay in the live table, and the next open finishes the job;
     /// failing the reconfiguration instead would halt the node at a boundary
-    /// it would then fail again on every retry. It also expires nothing while
-    /// the one-time sweep of the pre-upgrade superseded versions is still
-    /// running, which [`HistoricObjects::prune`] decides for itself.
+    /// it would then fail again on every retry.
     async fn advance_historic_objects(&self, new_epoch: EpochId) -> IotaResult<()> {
         self.historic_objects.ensure(new_epoch)?;
 
