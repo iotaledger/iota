@@ -1195,4 +1195,89 @@ mod tests {
         assert_eq!(state.spam_threshold, Some(100));
         assert_eq!(state.dry_run, Some(false));
     }
+
+    fn controller_with_delegation_queue(
+        queue_size: usize,
+    ) -> (TrafficController, mpsc::Receiver<Vec<DelegatedBlock>>) {
+        // A threshold of one blocks the direct client on every tally.
+        let policy_config = PolicyConfig {
+            spam_policy_type: PolicyType::TestNConnIP(1),
+            spam_sample_rate: Weight::one(),
+            dry_run: false,
+            ..Default::default()
+        };
+        let metrics = Arc::new(TrafficControllerMetrics::new_for_tests());
+        let (sender, receiver) = mpsc::channel(queue_size);
+        // The delegation loop stays unspawned. Queued blocks stay queued.
+        let state = TallyState {
+            spam_policy: Arc::new(TrafficControlPolicy::from_policy_type(
+                &policy_config.spam_policy_type,
+                policy_config.connection_blocklist_ttl_sec,
+                metrics.rate_limiter_evictions.clone(),
+            )),
+            error_policy: Arc::new(TrafficControlPolicy::from_policy_type(
+                &PolicyType::NoOp,
+                policy_config.connection_blocklist_ttl_sec,
+                metrics.rate_limiter_evictions.clone(),
+            )),
+            blocklists: Blocklists {
+                clients: Arc::new(DashMap::new()),
+                proxied_clients: Arc::new(DashMap::new()),
+            },
+            firewall_delegation: Some(FirewallDelegation {
+                sender,
+                pending: Arc::new(Mutex::new(HashSet::new())),
+                destination_port: 8080,
+                delegate_spam_blocking: true,
+                delegate_error_blocking: true,
+            }),
+            drainfile_present: Arc::new(AtomicBool::new(false)),
+            shutdown: CancellationToken::new(),
+        };
+        let controller = TrafficController {
+            acl: Acl::Tally(Arc::new(state)),
+            policy_config: Arc::new(policy_config),
+            metrics,
+            dry_run: Arc::new(AtomicBool::new(false)),
+        };
+        (controller, receiver)
+    }
+
+    fn spam(controller: &TrafficController, client: IpAddr) {
+        controller.tally(TrafficTally::new(Some(client), None, None, Weight::one()));
+    }
+
+    #[test]
+    fn test_delegation_queues_one_block_per_client() {
+        let (controller, mut receiver) = controller_with_delegation_queue(8);
+        let client = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        for _ in 0..3 {
+            spam(&controller, client);
+        }
+
+        let batch = receiver.try_recv().expect("the first block is queued");
+        assert_eq!(batch.len(), 1);
+        assert_eq!(batch[0].client, client);
+        // The client stays pending. The later tallies queue no more blocks.
+        assert!(receiver.try_recv().is_err());
+        // The firewall has the block. The local blocklist stays empty.
+        assert!(controller.check(&Some(client), &None));
+    }
+
+    #[test]
+    fn test_delegation_overflow_blocks_locally() {
+        let (controller, _receiver) = controller_with_delegation_queue(1);
+        let queued = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        let overflow = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 2));
+        spam(&controller, queued);
+        spam(&controller, overflow);
+
+        assert_eq!(controller.metrics.firewall_delegation_overflow.get(), 1);
+        assert!(controller.check(&Some(queued), &None));
+        // The queue is full. The controller blocks the second client locally.
+        assert!(!controller.check(&Some(overflow), &None));
+        // The second client is no longer pending. A new breach queues a block.
+        spam(&controller, overflow);
+        assert_eq!(controller.metrics.firewall_delegation_overflow.get(), 2);
+    }
 }
