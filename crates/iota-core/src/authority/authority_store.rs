@@ -1327,10 +1327,10 @@ impl AuthorityStore {
     /// transaction that superseded the version being asked for has already
     /// executed and is ordered after this reader — consensus assignment for a
     /// shared root, the owned-object lock for an owned one — so that
-    /// relocation is in the current epoch's bucket. Execution only ever
-    /// expires a bucket at reconfiguration, with execution halted, and the
-    /// newest bucket is retained at every retention setting, so the current
-    /// epoch's bucket is present on every node. Keep both halves true: an
+    /// relocation is in the current epoch's bucket. Buckets are expired only
+    /// at reconfiguration, with execution halted, and the newest bucket is
+    /// retained at every retention setting, so the current epoch's bucket is
+    /// present on every node. Keep both halves true: an
     /// expiry that could run while transactions execute, or a retention that
     /// could drop the newest bucket, would make execution's answer differ
     /// between nodes. The two other places that expire — `HistoricObjects`'s
