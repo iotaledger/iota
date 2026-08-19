@@ -450,6 +450,22 @@ mod tests {
         assert_eq!(response.block_proxied_client, Some(proxied));
     }
 
+    #[test]
+    fn test_direct_and_proxied_thresholds_are_independent() {
+        // The direct quota is 2 per second with a 5 second burst. The proxied
+        // quota is 1000 per second. Only the direct client breaches at tally 11.
+        let policy = freq_threshold(2, 1000, 5);
+        let direct = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+        let proxied = IpAddr::V4(Ipv4Addr::new(192, 168, 0, 1));
+        let tally = TrafficTally::new(Some(direct), Some(proxied), None, Weight::one());
+        for _ in 0..10 {
+            policy.charge(&tally);
+        }
+        let response = policy.charge(&tally);
+        assert_eq!(response.block_client, Some(direct));
+        assert_eq!(response.block_proxied_client, None);
+    }
+
     #[sim_test]
     async fn test_client_recovers_as_the_quota_replenishes() {
         // Sustained 2/s with a 5 second burst: 10 tallies exhaust the burst,
