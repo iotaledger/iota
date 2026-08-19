@@ -214,6 +214,7 @@ impl AuthorityPerpetualTables {
             tables.objects.db.clone(),
             &db_options,
             tables.objects.clone(),
+            tables.object_backlog_sweep_progress.clone(),
         )?;
         Ok((tables, historic_objects))
     }

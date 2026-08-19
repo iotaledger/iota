@@ -9044,6 +9044,22 @@ fn rules_denying(address: iota_sdk_types::Address) -> iota_sdk_types::DenyRuleSe
     }
 }
 
+/// Records the one-time sweep of the pre-upgrade superseded versions as
+/// finished, which expiry waits for. The node runs that sweep itself shortly
+/// after startup, so leaving it to do so would have these tests race it.
+fn mark_backlog_swept(authority: &AuthorityState) {
+    use typed_store::Map;
+
+    use crate::authority::object_backlog_sweep::ObjectBacklogSweepProgress;
+
+    authority
+        .database_for_testing()
+        .perpetual_tables
+        .object_backlog_sweep_progress
+        .insert(&(), &ObjectBacklogSweepProgress::Done)
+        .unwrap();
+}
+
 #[tokio::test]
 async fn test_effects_equivocation_prevented_at_signing_not_execution() {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
@@ -9144,6 +9160,7 @@ async fn reconfiguration_expires_buckets_beyond_the_retention() {
         .with_num_epochs_to_retain(1)
         .build()
         .await;
+    mark_backlog_swept(&authority);
     let historic = authority.get_historic_objects();
 
     // One relocated version per epoch, so an expired bucket is observable by
@@ -9277,14 +9294,18 @@ async fn object_availability_follows_the_oldest_bucket_held() {
 /// finishes the job.
 #[tokio::test]
 async fn a_failed_expiry_does_not_fail_reconfiguration() {
+    use typed_store::Map;
+
     use crate::authority::historic_objects::HistoricObjects;
 
     let authority = TestAuthorityBuilder::new()
         .with_num_epochs_to_retain(1)
         .build()
         .await;
+    mark_backlog_swept(&authority);
     let historic = authority.get_historic_objects();
-    for epoch in 0..=3 {
+    let oldest = historic.ensure(0).unwrap();
+    for epoch in 1..=3 {
         historic.ensure(epoch).unwrap();
     }
 
@@ -9296,4 +9317,9 @@ async fn a_failed_expiry_does_not_fail_reconfiguration() {
         .advance_historic_objects(3)
         .await
         .expect("a failed expiry must not fail the epoch boundary");
+
+    // The expiry did run and did fail: the bucket it could not finish carries
+    // the durable marker that keeps its versions unreadable until the next
+    // open finishes the job.
+    assert!(oldest.expiring.get(&()).unwrap().is_some());
 }

@@ -3199,7 +3199,9 @@ impl AuthorityState {
     /// durable expiring marker, so its versions stay unreadable and its
     /// tombstones stay in the live table, and the next open finishes the job;
     /// failing the reconfiguration instead would halt the node at a boundary
-    /// it would then fail again on every retry.
+    /// it would then fail again on every retry. It also expires nothing while
+    /// the one-time sweep of the pre-upgrade superseded versions is still
+    /// running, which [`HistoricObjects::prune`] decides for itself.
     async fn advance_historic_objects(&self, new_epoch: EpochId) -> IotaResult<()> {
         self.historic_objects.ensure(new_epoch)?;
 
