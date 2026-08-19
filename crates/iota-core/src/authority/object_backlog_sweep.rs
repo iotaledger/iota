@@ -249,8 +249,9 @@ impl ObjectBacklogSweep {
             // Recording a tombstone this far above where it was written is
             // safe: the rows beneath it have just been deleted, and no
             // bucket ever held them, so nothing is left for it to cover.
-            // Its own epoch may have recorded it as well, in an older bucket
-            // that expires first; deleting it twice is harmless.
+            // Its own epoch may have recorded it as well, in an older
+            // bucket; no bucket expires until this sweep has reached the end
+            // of the table, and deleting the same head twice is a no-op.
             let bucket = self.historic_objects.ensure(epoch)?;
             batch
                 .insert_batch_tagged(&bucket.tombstones, tombstones.iter().map(|key| (*key, ())))?;
