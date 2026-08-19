@@ -456,10 +456,14 @@ impl HistoricObjects {
     ) -> Result<(), TypedStoreError> {
         bucket.mark_expiring()?;
 
+        // Synced, as the marker and the retention floor are: a column-family
+        // drop is durable at once, so a deletion still in the write-ahead log
+        // when the machine stops would leave the bucket gone and its tombstone
+        // heads in the live `objects` table with nothing left to delete them.
         let delete = |heads: Vec<ObjectKey>| -> Result<(), TypedStoreError> {
             let mut batch = objects.batch();
             batch.delete_batch(objects, heads)?;
-            batch.write()
+            batch.write_opt(&synced_write_options())
         };
 
         let mut deleted = 0;
