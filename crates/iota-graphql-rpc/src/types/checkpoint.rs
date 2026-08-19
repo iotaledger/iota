@@ -399,8 +399,8 @@ impl Checkpoint {
     /// If the `Page<Cursor>` is set, then this function will defer to the
     /// `checkpoint_viewed_at` in the cursor if they are consistent.
     ///
-    /// Specifying cursor or requesting epoch from the pruned range will result
-    /// in an error.
+    /// A cursor or epoch in the pruned range is served from the fallback KV
+    /// store when configured, otherwise the request errors.
     pub(crate) async fn paginate(
         db: &Db,
         page: Page<Cursor>,
