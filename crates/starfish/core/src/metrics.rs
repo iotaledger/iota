@@ -944,7 +944,8 @@ impl NodeMetrics {
                 "decided_leaders_total",
                 "Total number of (direct or indirect, skip or commit) decided leaders per authority",
                 &["authority", "commit_type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             last_committed_authority_round: register_int_gauge_vec_with_registry!(
                 "last_committed_authority_round",
