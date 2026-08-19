@@ -668,18 +668,10 @@ impl HistoricalFallbackReader {
     pub(crate) async fn paginate_transaction_digests_by_address(
         &self,
         address: Address,
-        cursor: Option<TransactionDigest>,
+        cursor: Option<TransactionSequenceNumber>,
         limit: usize,
         oldest_first: bool,
     ) -> IndexerResult<Vec<TransactionDigest>> {
-        let cursor = match cursor {
-            Some(digest) => match self.cursor_cache.get(&digest) {
-                Some(tx_sequence_number) => Some(tx_sequence_number),
-                None => Some(self.resolve_transaction_sequence_number(digest).await?),
-            },
-            None => None,
-        };
-
         let pairs = self
             .client
             .transaction_digests_by_address(address, cursor, limit, oldest_first)
@@ -694,11 +686,23 @@ impl HistoricalFallbackReader {
             .collect())
     }
 
+    /// Resolves the `tx_sequence_number` of the given cursor digest, through
+    /// the cursor cache or the checkpoint data in the fallback storage.
+    pub(crate) async fn resolve_cursor_tx_sequence_number(
+        &self,
+        digest: TransactionDigest,
+    ) -> IndexerResult<TransactionSequenceNumber> {
+        match self.cursor_cache.get(&digest) {
+            Some(tx_sequence_number) => Ok(tx_sequence_number),
+            None => self.resolve_transaction_sequence_number(digest).await,
+        }
+    }
+
     /// Fetches a paginated list of transactions that affect a given address.
     pub(crate) async fn transactions_by_address(
         &self,
         address: Address,
-        cursor: Option<TransactionDigest>,
+        cursor: Option<TransactionSequenceNumber>,
         limit: usize,
         oldest_first: bool,
     ) -> IndexerResult<Vec<Option<StoredTransaction>>> {

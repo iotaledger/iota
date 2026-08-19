@@ -147,6 +147,26 @@ impl TransactionBlockFilter {
         self.at_checkpoint
     }
 
+    /// Returns the affected address when `affected_address` is the only
+    /// filter set.
+    pub(crate) fn only_affected_address(&self) -> Option<IotaAddress> {
+        if self.function.is_some()
+            || self.kind.is_some()
+            || self.sent_address.is_some()
+            || self.recv_address.is_some()
+            || self.input_object.is_some()
+            || self.changed_object.is_some()
+            || self.wrapped_or_deleted_object.is_some()
+            || self.transaction_ids.is_some()
+            || self.after_checkpoint.is_some()
+            || self.at_checkpoint.is_some()
+            || self.before_checkpoint.is_some()
+        {
+            return None;
+        }
+        self.affected_address
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
         self.before_checkpoint == Some(UInt53::from(0))
             || matches!(
