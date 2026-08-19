@@ -50,12 +50,12 @@ use crate::authority::{
 /// table looks like.
 const KEYS_PER_SLICE: usize = 5_000;
 
-/// Consecutive failed slices tolerated before the sweep leaves the rest to
-/// the next node start.
-const MAX_CONSECUTIVE_FAILURES: usize = 3;
-
-/// Delay before a failed slice is attempted again.
+/// Delay before a failed slice is attempted again, doubled after each further
+/// failure up to [`MAX_RETRY_DELAY`].
 const RETRY_DELAY: Duration = Duration::from_secs(5);
+
+/// Longest a failed slice waits before it is attempted again.
+const MAX_RETRY_DELAY: Duration = Duration::from_secs(300);
 
 /// How far the sweep has got through the live `objects` table.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -93,7 +93,14 @@ async fn sweep_backlog(state: Weak<AuthorityState>, store: Weak<AuthorityStore>)
     }
     info!("sweeping the object versions superseded before this build out of the live table");
 
-    let mut consecutive_failures = 0;
+    // A failing slice is retried for as long as the node runs. Nothing about
+    // a slice makes the next one fail too: it re-reads the epoch, the
+    // progress row and the range it works on, and the failure it is likeliest
+    // to meet — an epoch refused because reconfiguration has raised the
+    // retention floor but not yet swapped the epoch store — lasts only as
+    // long as that reopen. Giving up instead would leave the backlog in the
+    // live table, and with it every bucket unexpirable until a restart.
+    let mut retry_delay = RETRY_DELAY;
     loop {
         let (Some(state), Some(store)) = (state.upgrade(), store.upgrade()) else {
             info!("stopping the object backlog sweep: the node is shutting down");
@@ -109,7 +116,7 @@ async fn sweep_backlog(state: Weak<AuthorityState>, store: Weak<AuthorityStore>)
         // the node is executing meanwhile.
         match tokio::task::spawn_blocking(move || sweep.sweep_slice(epoch)).await {
             Ok(Ok(true)) => {
-                consecutive_failures = 0;
+                retry_delay = RETRY_DELAY;
                 tokio::task::yield_now().await;
             }
             Ok(Ok(false)) => {
@@ -117,16 +124,13 @@ async fn sweep_backlog(state: Weak<AuthorityState>, store: Weak<AuthorityStore>)
                 return;
             }
             Ok(Err(e)) => {
-                consecutive_failures += 1;
-                if consecutive_failures == MAX_CONSECUTIVE_FAILURES {
-                    error!(
-                        "leaving the rest of the object backlog to the next node start, which \
-                         resumes from the same key: {e}"
-                    );
-                    return;
-                }
-                warn!("an object backlog sweep slice failed and is being retried: {e}");
-                tokio::time::sleep(RETRY_DELAY).await;
+                warn!(
+                    ?retry_delay,
+                    "an object backlog sweep slice failed and is being retried, \
+                     which holds up expiring the historic buckets: {e}"
+                );
+                tokio::time::sleep(retry_delay).await;
+                retry_delay = (retry_delay * 2).min(MAX_RETRY_DELAY);
             }
             Err(e) => {
                 error!("the object backlog sweep task failed: {e}");
