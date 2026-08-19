@@ -403,7 +403,13 @@ impl TransactionBlock {
     ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
         let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
 
-        // If the caller has provided some arbitrary combination of `function`, `kind`,
+        if filter.is_unsupported() {
+            return Err(Error::Client(
+                "The provided filter combination is not supported".into(),
+            ));
+        }
+
+        // If the caller has provided some arbitrary combination of `function`,
         // `recvAddress`, `inputObject`, or `changedObject`, we require setting a
         // `scanLimit`.
         if let Some(scan_limit) = scan_limit {

@@ -11,7 +11,7 @@ use typed_store::TypedStoreError;
 use crate::{
     block_header::{BlockRef, GENESIS_ROUND, Round},
     commit::{Commit, CommitIndex},
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// Errors that can occur when processing blocks, reading from storage, or
@@ -286,7 +286,7 @@ pub(crate) enum ConsensusError {
     #[error("Received unexpected transaction from peer {peer}: {received:?}")]
     UnexpectedTransactionForCommit {
         peer: AuthorityIndex,
-        received: GenericTransactionRef,
+        received: TransactionRef,
     },
 
     #[error(
@@ -455,19 +455,19 @@ impl ConsensusError {
     }
 
     pub fn quick_validation_requested_tx_refs(
-        gen_tx_refs: &[GenericTransactionRef],
+        tx_refs: &[TransactionRef],
         peer: AuthorityIndex,
         committee: &Committee,
     ) -> ConsensusResult<()> {
-        for gen_tx_ref in gen_tx_refs {
-            if !committee.is_valid_index(gen_tx_ref.author()) {
+        for tx_ref in tx_refs {
+            if !committee.is_valid_index(tx_ref.author) {
                 return Err(ConsensusError::InvalidAuthorityIndexRequested {
-                    index: gen_tx_ref.author(),
+                    index: tx_ref.author,
                     max: committee.size(),
                     peer,
                 });
             }
-            if gen_tx_ref.round() == GENESIS_ROUND {
+            if tx_ref.round == GENESIS_ROUND {
                 return Err(ConsensusError::UnexpectedGenesisRequested { peer });
             }
         }

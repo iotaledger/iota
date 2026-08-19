@@ -48,7 +48,7 @@ use crate::{
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
+    transaction_ref::{GenericTransactionRef, TransactionRef},
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -1372,10 +1372,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .handle_fetch_commits(peer, commit_range, CommitSyncType::Fast)
             .await?;
 
-        let transaction_refs: Vec<GenericTransactionRef> = commits
+        // The `BlockRef` arm exists only for `CommitV1`, which is no longer
+        // produced and never enters the per-epoch store these commits are read
+        // from.
+        let transaction_refs: Vec<TransactionRef> = commits
             .iter()
             .flat_map(|commit| commit.committed_transactions())
-            .collect();
+            .map(GenericTransactionRef::expect_transaction_ref)
+            .collect::<ConsensusResult<_>>()?;
 
         let serialized_transactions = self
             .handle_fetch_transactions(peer, transaction_refs, TransactionFetchMode::FastCommitSync)
@@ -1444,7 +1448,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        mut committed_transactions_refs: Vec<GenericTransactionRef>,
+        mut committed_transactions_refs: Vec<TransactionRef>,
         fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
@@ -1490,12 +1494,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let (below_gc, above_gc): (Vec<_>, Vec<_>) = committed_transactions_refs
             .iter()
             .cloned()
-            .partition(|gen_tx_ref| gen_tx_ref.round() < gc_round);
+            .partition(|tx_ref| tx_ref.round < gc_round);
 
         // Fetch transactions below GC from store
         let store_transactions = if !below_gc.is_empty() {
+            let refs: Vec<GenericTransactionRef> =
+                below_gc.iter().copied().map(Into::into).collect();
             self.store
-                .read_serialized_transactions(&below_gc)?
+                .read_serialized_transactions(&refs)?
                 .into_iter()
                 .zip(below_gc)
                 .collect::<Vec<_>>()
@@ -1505,9 +1511,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Fetch transactions at-or-above GC from dag_state
         let dag_transactions = if !above_gc.is_empty() {
+            let refs: Vec<GenericTransactionRef> =
+                above_gc.iter().copied().map(Into::into).collect();
             self.dag_state
                 .read()
-                .get_serialized_transactions(&above_gc)
+                .get_serialized_transactions(&refs)
                 .into_iter()
                 .zip(above_gc)
                 .collect::<Vec<_>>()
@@ -1517,9 +1525,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // Combine and serialize the results
         let mut result = Vec::new();
-        for (opt_serialized_tx, gen_ref) in store_transactions.into_iter().chain(dag_transactions) {
+        for (opt_serialized_tx, transaction_ref) in
+            store_transactions.into_iter().chain(dag_transactions)
+        {
             if let Some(serialized_tx) = opt_serialized_tx {
-                let transaction_ref = gen_ref.expect_transaction_ref()?;
                 let serialized = bcs::to_bytes(&SerializedTransactionsV2 {
                     transaction_ref,
                     serialized_transactions: serialized_tx,
@@ -1807,7 +1816,7 @@ mod tests {
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
-        transaction_ref::GenericTransactionRef,
+        transaction_ref::{GenericTransactionRef, TransactionRef},
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -1866,7 +1875,7 @@ mod tests {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<GenericTransactionRef>,
+            _transaction_refs: Vec<TransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -4053,20 +4062,19 @@ mod tests {
             all_block_headers.push(dag_builder.block_headers(round..=round));
         }
 
-        let mut block_refs_to_request_first_batch: Vec<GenericTransactionRef> = (1..=rounds)
+        let mut tx_refs_to_request_first_batch: Vec<TransactionRef> = (1..=rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
-                    .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+                    .map(|bh| bh.transaction_ref())
             })
             .collect();
 
-        let mut block_refs_to_request_second_batch: Vec<GenericTransactionRef> = (rounds + 1
-            ..=2 * rounds)
+        let mut tx_refs_to_request_second_batch: Vec<TransactionRef> = (rounds + 1..=2 * rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
-                    .map(|bh| GenericTransactionRef::TransactionRef(bh.transaction_ref()))
+                    .map(|bh| bh.transaction_ref())
             })
             .collect();
 
@@ -4074,13 +4082,13 @@ mod tests {
         let serialized_transactions = authority_service
             .handle_fetch_transactions(
                 peer,
-                block_refs_to_request_first_batch.clone(),
+                tx_refs_to_request_first_batch.clone(),
                 TransactionFetchMode::TransactionSync,
             )
             .await
             .expect("We should expect a correct return of serialized transactions");
 
-        block_refs_to_request_first_batch.truncate(
+        tx_refs_to_request_first_batch.truncate(
             context
                 .parameters
                 .max_transactions_per_transaction_sync_fetch,
@@ -4088,9 +4096,9 @@ mod tests {
         // Verify that we received the correct number of requested transactions
         assert_eq!(
             serialized_transactions.len(),
-            block_refs_to_request_first_batch.len(),
-            "Should receive {} block transactions",
-            block_refs_to_request_first_batch.len()
+            tx_refs_to_request_first_batch.len(),
+            "Should receive {} transactions",
+            tx_refs_to_request_first_batch.len()
         );
 
         // Check the correctness of the received transactions
@@ -4101,10 +4109,7 @@ mod tests {
             let transaction_ref = deserialized.transaction_ref;
 
             // Verify it matches the expected ref
-            assert_eq!(
-                GenericTransactionRef::TransactionRef(transaction_ref),
-                block_refs_to_request_first_batch[i]
-            );
+            assert_eq!(transaction_ref, tx_refs_to_request_first_batch[i]);
 
             let serialized_transactions = deserialized.serialized_transactions;
             // Verify the transaction commitment matches
@@ -4119,7 +4124,7 @@ mod tests {
             );
         }
 
-        block_refs_to_request_second_batch.truncate(
+        tx_refs_to_request_second_batch.truncate(
             context
                 .parameters
                 .max_transactions_per_transaction_sync_fetch,
@@ -4128,7 +4133,7 @@ mod tests {
         let serialized_transactions = authority_service
             .handle_fetch_transactions(
                 peer,
-                block_refs_to_request_second_batch.clone(),
+                tx_refs_to_request_second_batch.clone(),
                 TransactionFetchMode::TransactionSync,
             )
             .await

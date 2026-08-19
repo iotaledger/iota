@@ -576,7 +576,7 @@ impl Default for Limits {
             // Filter-specific limits, such as the number of transaction ids that can be specified
             // for the `TransactionBlockFilter`.
             max_transaction_ids: 1000,
-            max_scan_limit: 100_000_000,
+            max_scan_limit: 1_000_000,
             // Protocol limit for max transaction bytes allowed + base64
             // overhead (roughly 1/3 of the original string). This is rounded up.
             //

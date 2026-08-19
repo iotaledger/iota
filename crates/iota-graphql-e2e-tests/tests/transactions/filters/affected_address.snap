@@ -107,19 +107,6 @@ Response: {
         ]
       }
     },
-    "combinedWithKind": {
-      "nodes": [
-        {
-          "digest": "H839zjkRueyvCZ7wAknEGDzVATF9iifpgrWdYxm8Fhmu"
-        },
-        {
-          "digest": "H1AZsRNmZifH1VCkD3x8afmewn151RZhhUi9XkfZBQ5N"
-        },
-        {
-          "digest": "7uTN8JCRtZNcEkLT2tr78sxYFT94cs5FHaXaTcb2zTxn"
-        }
-      ]
-    },
     "combinedWithOtherSent": {
       "nodes": [
         {
@@ -137,5 +124,22 @@ Response: {
         }
       ]
     }
-  }
+  },
+  "errors": [
+    {
+      "message": "The provided filter combination is not supported",
+      "locations": [
+        {
+          "line": 11,
+          "column": 3
+        }
+      ],
+      "path": [
+        "combinedWithKind"
+      ],
+      "extensions": {
+        "code": "BAD_USER_INPUT"
+      }
+    }
+  ]
 }

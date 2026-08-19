@@ -41,7 +41,7 @@ use crate::{
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _},
+    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
 };
 
 pub(crate) struct RegularCommitSyncer<C: NetworkClient> {
@@ -550,11 +550,20 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
             .cloned()
             .collect();
 
-        // 3a. Collect all committed transaction block refs from commits
-        let committed_tx_refs: Vec<GenericTransactionRef> = commits
+        // 3a. Collect the committed transaction refs of each commit. Commits
+        //     passing verify_commits are V2/V3, which only carry
+        //     `TransactionRef`s, so the legacy `BlockRef` variant is an error.
+        let commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .flat_map(|c| c.committed_transactions())
-            .collect();
+            .map(|c| {
+                c.committed_transactions()
+                    .into_iter()
+                    .map(GenericTransactionRef::expect_transaction_ref)
+                    .collect()
+            })
+            .collect::<ConsensusResult<_>>()?;
+        let committed_tx_refs: Vec<TransactionRef> =
+            commits_tx_refs.iter().flatten().copied().collect();
 
         let num_chunks = block_refs
             .len()
@@ -612,7 +621,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         .max_transactions_per_commit_sync_fetch,
                 )
                 .enumerate()
-                .map(|(i, request_block_refs)| {
+                .map(|(i, request_tx_refs)| {
                     let inner = inner.clone();
                     async move {
                         // 9. Send out pipelined fetch requests to avoid overloading the target
@@ -622,11 +631,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         sleep(individual_delay * i as u32 + individual_delay / 2).await;
                         let serialized_transactions = inner
                             .network_client
-                            .fetch_transactions(
-                                target_authority,
-                                request_block_refs.to_vec(),
-                                timeout,
-                            )
+                            .fetch_transactions(target_authority, request_tx_refs.to_vec(), timeout)
                             .await?;
 
                         // 10. Verify that the number of returned transactions is not greater than
@@ -635,14 +640,15 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         //     headers. We don't want to fail the whole fetch in this case.
                         //     TransactionSynchronizer will take care of fetching missing
                         //     transactions later.
-                        if request_block_refs.len() < serialized_transactions.len() {
+                        if request_tx_refs.len() < serialized_transactions.len() {
                             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                                 target_authority,
                             ));
                         }
-                        let requested_block_refs_set: BTreeSet<_> =
-                            request_block_refs.iter().cloned().collect();
-                        // Deserialize to extract BlockRef and build a map directly
+                        let requested_tx_refs_set: BTreeSet<_> =
+                            request_tx_refs.iter().cloned().collect();
+                        // Deserialize to extract the TransactionRef and build a map
+                        // directly
                         let mut result = BTreeMap::new();
                         for serialized_bytes in serialized_transactions {
                             let serialized_tx: SerializedTransactionsV2 =
@@ -651,10 +657,8 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
 
                             // 11. Verify the returned transactions match the requested transaction
                             //     refs.
-                            let committed_transaction_ref = GenericTransactionRef::TransactionRef(
-                                serialized_tx.transaction_ref,
-                            );
-                            if !requested_block_refs_set.contains(&committed_transaction_ref) {
+                            let committed_transaction_ref = serialized_tx.transaction_ref;
+                            if !requested_tx_refs_set.contains(&committed_transaction_ref) {
                                 return Err(ConsensusError::UnexpectedTransactionForCommit {
                                     peer: target_authority,
                                     received: committed_transaction_ref,
@@ -667,7 +671,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             );
                         }
 
-                        Ok::<BTreeMap<GenericTransactionRef, Bytes>, ConsensusError>(result)
+                        Ok::<BTreeMap<TransactionRef, Bytes>, ConsensusError>(result)
                     }
                 })
                 .collect()
@@ -716,7 +720,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
         // 14. Now create the Certified commits by assigning the block headers and
         //     transactions to each commit and retaining the commit votes history.
         let mut certified_commits = Vec::new();
-        for commit in &commits {
+        for (commit, commit_tx_refs) in commits.iter().zip(&commits_tx_refs) {
             let block_headers = commit
                 .block_headers()
                 .iter()
@@ -730,8 +734,7 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                 .collect::<Vec<_>>();
 
             // Collect transactions for this commit
-            let commit_transactions = commit
-                .committed_transactions()
+            let commit_transactions = commit_tx_refs
                 .iter()
                 .filter_map(|tx_ref| transactions_map.remove(tx_ref))
                 .collect::<Vec<_>>();
