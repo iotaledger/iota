@@ -1032,8 +1032,8 @@ mod test {
             ])
             .try_build()
             .unwrap_err();
-        // Validator 0 has the section; validator 1 does not, so the dotted
-        // edit leaves its required fields unset there.
+        // Validator 0 has the section, validator 1 does not. The dotted
+        // edit therefore leaves its required fields unset on validator 1.
         let err = format!("{err:#}");
         assert!(err.contains("validator 1"), "{err}");
         assert!(err.contains("remote-fw-url"), "{err}");
@@ -1080,7 +1080,7 @@ mod test {
 
     #[test]
     fn overrides_apply_to_a_supplied_network_config() {
-        // The localnet feeds a network config loaded from disk; overrides
+        // The localnet feeds a network config loaded from disk. Overrides
         // apply to those configs, not to freshly generated ones.
         let dir = tempfile::TempDir::new().unwrap();
         let mut network_config = ConfigBuilder::new(dir.path())

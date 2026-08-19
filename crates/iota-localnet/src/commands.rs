@@ -268,18 +268,21 @@ pub enum LocalnetCommand {
         /// `fullnode:authority-store-pruning-config.num-epochs-to-retain=5`.
         ///
         /// Scope is `all` (default), `fullnode`, `validator` (all
-        /// validators), or `validator-<N>`; the path uses the field names
-        /// from the node config YAML. Repeatable; later overrides win.
-        /// Values are YAML: quote one that would parse as structure (e.g.
-        /// `'[::1]:9000'`), an empty value or `null` clears the field, a
-        /// mapping merges with the section, a list replaces it.
+        /// validators), or `validator-<N>`. The path uses the field names
+        /// from the node config YAML. The option is repeatable, and later
+        /// overrides win.
+        ///
+        /// Values are YAML. Quote a value that would parse as structure
+        /// (e.g. `'[::1]:9000'`). An empty value or `null` clears the field.
+        /// A mapping merges with the section. A list replaces the section.
         ///
         /// A validator's `network-address`, `p2p-config.external-address`
         /// and `primary-address` are in the genesis committee metadata and
-        /// cannot be overridden; re-run genesis to change them.
+        /// cannot be overridden. Re-run genesis to change them.
         ///
-        /// Warning: overriding per-node values (e.g. `db-path`) for every
-        /// node or clearing `p2p-config.seed-peers` breaks the network.
+        /// Warning: the network breaks if you override a per-node value
+        /// (e.g. `db-path`) for every node, or if you clear
+        /// `p2p-config.seed-peers`.
         // Taken as a string and parsed in `start`: clap reports a rejected
         // value by echoing the whole argument, which may carry a credential.
         #[arg(long, value_name = "[SCOPE:]PATH=VALUE")]
@@ -435,7 +438,7 @@ async fn start(
     committee_size: Option<usize>,
 ) -> Result<(), anyhow::Error> {
     // Parsed here rather than by clap, whose error would echo the whole
-    // argument; these errors name the path only.
+    // argument. These errors name the path only.
     let mut node_config_overrides = node_config_override
         .iter()
         .map(|input| input.parse::<NodeConfigOverride>())
@@ -489,8 +492,8 @@ async fn start(
     // Resolve the configuration directory.
     let config_path = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
 
-    // Deprecated --with-grpc becomes node config overrides; prepended so
-    // explicit --node-config-override values win.
+    // Deprecated --with-grpc becomes node config overrides. They are
+    // prepended so that explicit --node-config-override values win.
     if let Some(input) = with_grpc.clone() {
         eprintln!(
             "{}",
@@ -1227,8 +1230,9 @@ async fn genesis(
 /// Translate the deprecated `--with-grpc` value into node config overrides.
 ///
 /// The API is off on a generated fullnode, which leaves `grpc-api-config`
-/// an explicit `null`, so the address is set by replacing the whole
-/// section; the fields it does not mention come out at their default.
+/// an explicit `null`. The address is therefore set with a value that
+/// replaces the whole section. The fields that value does not mention come
+/// out at their default.
 fn with_grpc_overrides(input: String) -> Result<[NodeConfigOverride; 2], anyhow::Error> {
     let grpc_address = parse_host_port(input, DEFAULT_GRPC_PORT)
         .map_err(|_| anyhow!("Invalid gRPC host and port"))?;
@@ -1257,7 +1261,7 @@ fn check_fullnode_override_scopes(
 }
 
 /// Log, per node the overrides reached, how many applied and which fields
-/// they set, later overrides winning per field.
+/// they set. Later overrides win per field.
 fn log_applied_node_config_overrides(swarm: &Swarm) {
     let node_config_overrides = swarm.node_config_overrides();
     for index in 0..swarm.config().validator_configs().len() {

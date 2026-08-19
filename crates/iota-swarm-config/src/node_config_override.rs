@@ -28,14 +28,16 @@ const PROTECTED_FIELDS: &[&str] = &["genesis", "migration-tx-data-path"];
 
 /// The addresses `ValidatorGenesisConfig::to_validator_info` copies into
 /// `ValidatorInfo`, and therefore into the committee metadata in
-/// `genesis.blob`, paired with the [`NodeConfig`] path each one is written
-/// to. A validator whose config disagrees with the committee entry it is
-/// listed under cannot be reached at the address its peers dial, so these
-/// change only by re-running genesis.
+/// `genesis.blob`. Each is paired with the [`NodeConfig`] path it is
+/// written to.
 ///
-/// `primary-address` has no [`NodeConfig`] field of its own — a validator
-/// reads its peers' primary addresses from the committee — but naming it
-/// here answers an override of it with the reason rather than with
+/// A validator whose config disagrees with its committee entry cannot be
+/// reached at the address its peers dial. These addresses therefore change
+/// only by re-running genesis.
+///
+/// `primary-address` has no [`NodeConfig`] field of its own, because a
+/// validator reads its peers' primary addresses from the committee. It is
+/// named here so that an override of it gets the reason instead of
 /// "not a known node config field".
 ///
 /// A fullnode is not a committee member, so none of these are genesis data
@@ -80,11 +82,14 @@ impl fmt::Display for OverrideScope {
 /// A single `[scope:]<path>=<value>` override for a [`NodeConfig`].
 ///
 /// `scope` is `all` (default), `fullnode`, `validator` (all validators), or
-/// `validator-<N>`; `path` is a dot-separated list of field names as they
-/// appear in the config YAML; `value` is YAML — `null` (or an empty value)
-/// clears a field, and clearing one that is already unset changes nothing;
-/// a mapping merges with the section's current fields; a list is replaced
-/// as a whole.
+/// `validator-<N>`.
+///
+/// `path` is a dot-separated list of field names as they appear in the
+/// config YAML.
+///
+/// `value` is YAML. `null`, or an empty value, clears a field. If the field
+/// is already unset, the clear changes nothing. A mapping merges with the
+/// section's current fields. A list replaces the current list as a whole.
 #[derive(Clone, Debug)]
 pub struct NodeConfigOverride {
     pub scope: OverrideScope,
@@ -169,7 +174,7 @@ impl NodeConfigOverride {
     }
 
     /// The dot-joined paths of the fields this override sets, one per leaf
-    /// of its value; an empty mapping names the section itself.
+    /// of its value. An empty mapping names the section itself.
     fn field_paths(&self) -> Vec<String> {
         fn collect(prefix: String, value: &Value, paths: &mut Vec<String>) {
             match value.as_mapping().filter(|mapping| !mapping.is_empty()) {
@@ -203,23 +208,25 @@ impl NodeConfigOverride {
 /// Declaration order decides, not how specific a scope is: a later
 /// `validator:` override beats an earlier `validator-0:` one.
 ///
-/// The merge runs on the serialized config, so an override that sets a
-/// field inside a section the config leaves at its default starts from the
-/// section's own per-field serde defaults, not from the value the config
-/// holds in memory. The two agree for `grpc-api-config` and differ for
-/// `policy-config`, whose [`NodeConfig`] default is the DoS protection
-/// policy while `PolicyConfig`'s field defaults compose to the no-op one;
-/// set the whole section to configure that one.
+/// The merge runs on the serialized config. An override that sets a field
+/// inside a section the config leaves at its default therefore starts from
+/// the section's own per-field serde defaults. It does not start from the
+/// value the config holds in memory.
+///
+/// The two agree for `grpc-api-config`. They differ for `policy-config`,
+/// whose [`NodeConfig`] default is the DoS protection policy, while
+/// `PolicyConfig`'s field defaults compose to the no-op one. Set the whole
+/// section to configure that one.
 ///
 /// A section the config switches off with an explicit `null` is a scalar,
-/// so setting a field inside it is rejected: re-enabling it means setting
-/// the whole section.
+/// so an override that sets a field inside it is rejected. To switch the
+/// section back on, set the whole section.
 ///
 /// Unknown fields, type mismatches, and changes that would leave the node
-/// unable to run are rejected; on error the config is left unchanged.
+/// unable to run are rejected. On error the config is left unchanged.
 /// [`NodeConfig::validate`] judges the final state, so an override may
-/// clear a field a later one restores; creating or removing
-/// `consensus-config` is rejected per override.
+/// clear a field a later one restores. An override that creates or removes
+/// `consensus-config` is rejected even if a later override undoes it.
 pub fn apply_node_config_overrides<'a>(
     overrides: impl IntoIterator<Item = &'a NodeConfigOverride>,
     config: &mut NodeConfig,
@@ -231,9 +238,9 @@ pub fn apply_node_config_overrides<'a>(
         return Ok(());
     }
 
-    // iota-node and iota-swarm decide whether a node runs as a validator
-    // or a fullnode by whether it has a consensus config, so an override
-    // must not create or remove that section.
+    // iota-node and iota-swarm decide whether a node runs as a validator or
+    // a fullnode by whether it has a consensus config. An override must
+    // therefore not create or remove that section.
     for config_override in &overrides {
         if config_override
             .path
@@ -260,10 +267,10 @@ pub fn apply_node_config_overrides<'a>(
     }
 
     // The genesis is serialized with the config and deep-copied once per
-    // override below; at localnet scale that cost is not worth avoiding.
+    // override below. At localnet scale that cost is small enough to accept.
     let mut merged = serde_yaml::to_value(&*config).context("failed to serialize node config")?;
 
-    // Apply and check one override at a time, so a typo is caught even if
+    // Apply and check one override at a time. A typo is then caught even if
     // a later override overwrites the field, and the error names the
     // override at fault.
     let mut checked: Option<NodeConfig> = None;
@@ -281,7 +288,7 @@ pub fn apply_node_config_overrides<'a>(
             let key = Value::from(segment.as_str());
             if !mapping.contains_key(&key) {
                 // An unset optional section is omitted from the serialized
-                // config; create it so a nested field can still be set. A
+                // config. Create it so a nested field can still be set. A
                 // section the config carries as `null` is left as it is, so
                 // the next segment is rejected as nesting under a scalar.
                 let absent = if i < last {
@@ -325,7 +332,7 @@ pub fn apply_node_config_overrides<'a>(
     let mut new_config = checked.expect("the batch is non-empty");
 
     // `supported_protocol_versions` is #[serde(skip)] on NodeConfig and
-    // would be lost in the round trip; preserve it.
+    // would be lost in the round trip. Preserve it.
     new_config.supported_protocol_versions = config.supported_protocol_versions;
 
     // Overrides are named by scope and path only: the rejected state is
@@ -350,8 +357,8 @@ pub fn apply_node_config_overrides<'a>(
     Ok(())
 }
 
-/// Merge `value` into `target`: mappings merge recursively so unmentioned
-/// fields keep their current values; any other value replaces the old one.
+/// Merge `value` into `target`. Mappings merge recursively, so unmentioned
+/// fields keep their current values. Any other value replaces the old one.
 fn merge_value(target: &mut Value, value: Value) {
     match (target, value) {
         (Value::Mapping(target), Value::Mapping(value)) => {
@@ -392,8 +399,8 @@ const UNFIT_VALUE: &str = "the value does not fit the field's type";
 /// carries no part of the value, and [`UNFIT_VALUE`] otherwise.
 ///
 /// Serde renders the rejected value into most of its messages, and a
-/// custom deserializer can render anything at all, so only the two shapes
-/// that name a field of the config schema and nothing else are kept.
+/// custom deserializer can render anything at all. Only the two shapes that
+/// name a field of the config schema, and nothing else, are kept.
 fn safe_deserialization_message(message: &str) -> &str {
     let field = message
         .strip_prefix("missing field `")
@@ -416,7 +423,7 @@ fn safe_deserialization_message(message: &str) -> &str {
 /// serde_ignored inserts for each `Option` and newtype layer it descends
 /// through.
 ///
-/// serde_ignored cannot see into `#[serde(flatten)]` content; every
+/// serde_ignored cannot see into `#[serde(flatten)]` content. Every
 /// flattened field in the `NodeConfig` tree is protected, so no override
 /// path reaches one.
 fn ignored_field_path(path: &serde_ignored::Path<'_>) -> String {
@@ -439,9 +446,9 @@ fn ignored_field_path(path: &serde_ignored::Path<'_>) -> String {
 
 /// Field names serde also accepts under a second spelling, with the one
 /// the serialized config uses. Only an override path is normalized to that
-/// spelling; an alias used as a key inside an override value collides with
-/// the canonical key as a duplicate field when the config already carries
-/// it.
+/// spelling. Inside an override value an alias is not normalized. It
+/// collides with the canonical key as a duplicate field when the config
+/// already carries that key.
 const FIELD_NAME_ALIASES: &[(&str, &str)] = &[("starfish_parameters", "parameters")];
 
 impl FromStr for NodeConfigOverride {
@@ -749,7 +756,7 @@ mod tests {
             let config_override: NodeConfigOverride =
                 "enable-index-processing=false".parse().unwrap();
             config_override.apply_to(&mut config).unwrap();
-            // Undo the single intended change; nothing else may have moved.
+            // Undo the single intended change. Nothing else may have moved.
             config.enable_index_processing = enable_index_processing;
 
             assert_eq!(debug_with_keys_loaded(&config), before);
@@ -780,7 +787,7 @@ mod tests {
 
     #[test]
     fn clearing_a_section_the_node_does_not_have_changes_nothing() {
-        // Including the validator-only `consensus-config`, which an
+        // This includes the validator-only `consensus-config`, which an
         // override may not create on a fullnode but may clear where it is
         // already absent.
         let mut config = test_config();
@@ -797,7 +804,7 @@ mod tests {
     #[test]
     fn a_field_name_alias_is_normalized_to_the_serialized_name() {
         // `consensus-config.parameters` also deserializes from
-        // `starfish_parameters`; an edit under the alias must land on the
+        // `starfish_parameters`. An edit under the alias must land on the
         // field the config already carries, not next to it.
         let mut config = validator_test_config();
         let set: NodeConfigOverride =
@@ -836,12 +843,13 @@ mod tests {
         let policy_config = format!("{:?}", config.policy_config.unwrap());
         assert!(policy_config.contains("FreqThreshold"), "{policy_config}");
 
-        // Merging it into a variant the config already spells out under the
-        // serialized name is rejected: the two names sit side by side.
+        // An edit that merges it into a variant the config already spells
+        // out under the serialized name is rejected. The two names sit side
+        // by side.
         let mut config = test_config();
         config.policy_config = Some(PolicyConfig {
-            // Deviating from the field's default is what makes the config
-            // carry the section, and with it the serialized variant name.
+            // The config carries the section, and with it the serialized
+            // variant name, only while the field deviates from its default.
             channel_capacity: 42,
             ..PolicyConfig::default_dos_protection_policy()
         });
@@ -917,10 +925,10 @@ mod tests {
     #[test]
     fn a_policy_config_edit_starts_from_the_sections_own_field_defaults() {
         // `NodeConfig` defaults `policy-config` to the DoS protection policy
-        // and serializes that value by omitting the key, so an edit inside
-        // the section merges onto an absent one and the fields it does not
-        // mention come from `PolicyConfig`'s own serde defaults, which
-        // compose to the no-op policy instead.
+        // and serializes that value by omitting the key. An edit inside the
+        // section therefore merges onto an absent one. The fields it does not
+        // mention come from `PolicyConfig`'s own serde defaults, which compose
+        // to the no-op policy instead.
         let mut config = test_config();
         config.policy_config = Some(PolicyConfig::default_dos_protection_policy());
 
@@ -938,7 +946,7 @@ mod tests {
         );
         assert_eq!(applied.get("dry-run"), Some(&Value::Bool(false)));
         // The DoS protection policy the config carried set both policy
-        // types and a larger channel; the field defaults set neither.
+        // types and a larger channel. The field defaults set neither.
         assert_eq!(applied.get("spam-policy-type"), Some(&Value::from("NoOp")));
         assert_eq!(applied.get("error-policy-type"), Some(&Value::from("NoOp")));
         assert_eq!(applied.get("channel-capacity"), Some(&Value::from(100)));
@@ -947,8 +955,8 @@ mod tests {
     #[test]
     fn a_grpc_api_config_edit_lands_on_the_section_default() {
         // Unlike `PolicyConfig`, every field of `GrpcApiConfig` defaults to
-        // the value its `Default` impl gives, so an edit inside the section
-        // leaves the rest of it at the config's default.
+        // the value its `Default` impl gives. An edit inside the section
+        // therefore leaves the rest of it at the config's default.
         let mut config = test_config();
         config.grpc_api_config = Some(GrpcApiConfig::default());
 
@@ -1061,7 +1069,7 @@ mod tests {
                 .num_latest_epoch_dbs_to_retain,
             3
         );
-        // Including `periodic-compaction-threshold-days`, whose `None`
+        // This includes `periodic-compaction-threshold-days`, whose `None`
         // serializes as an explicit `null` and so survives the round trip.
         assert_eq!(
             config
@@ -1088,7 +1096,7 @@ mod tests {
         let mut config = validator_test_config();
         let db_path = config.consensus_config.as_ref().unwrap().db_path.clone();
 
-        // Recreating the section from a bare mapping would silently reset
+        // A section recreated from a bare mapping would silently reset
         // every field the second override does not mention.
         let overrides: [NodeConfigOverride; 2] = [
             "consensus-config=".parse().unwrap(),
@@ -1169,8 +1177,8 @@ mod tests {
             "{err}"
         );
 
-        // Nesting under a field an earlier override set to a scalar blames
-        // the nesting override, not the earlier valid one.
+        // An override that nests under a field an earlier override set to a
+        // scalar is blamed itself, not the earlier valid one.
         let mut config = test_config();
         let overrides: Vec<NodeConfigOverride> = [
             "enable-index-processing=false",
@@ -1373,14 +1381,14 @@ mod tests {
         let set_twenty: NodeConfigOverride = "metrics.push-interval-seconds=20".parse().unwrap();
         let clear: NodeConfigOverride = "metrics=null".parse().unwrap();
 
-        // A later override on the same field replaces the earlier entry...
+        // A later override on the same field replaces the earlier entry.
         assert_eq!(
             winning_field_paths([&set_ten, &set_twenty]),
             ["metrics.push-interval-seconds"]
         );
 
-        // ...and a later override of a whole section drops the entries
-        // nested inside it.
+        // A later override of a whole section drops the entries nested
+        // inside it.
         assert_eq!(winning_field_paths([&set_ten, &clear]), ["metrics"]);
 
         // In the reverse order both steps are listed: the clear reset the
@@ -1393,14 +1401,15 @@ mod tests {
 
     #[test]
     fn apply_keeps_consensus_config_presence() {
-        // Creating the validator-only section on a fullnode is rejected...
+        // An override that creates the validator-only section on a fullnode
+        // is rejected.
         let mut config = test_config();
         let create: NodeConfigOverride = "consensus-config.db-retention-epochs=2".parse().unwrap();
         let err = create.apply_to(&mut config).unwrap_err().to_string();
         assert!(err.contains("validator"), "unhelpful error: {err}");
         assert!(config.consensus_config.is_none());
 
-        // ...and so is removing it from a validator.
+        // An override that removes it from a validator is also rejected.
         let mut config = validator_test_config();
         let clear: NodeConfigOverride = "consensus-config=null".parse().unwrap();
         assert!(clear.apply_to(&mut config).is_err());
