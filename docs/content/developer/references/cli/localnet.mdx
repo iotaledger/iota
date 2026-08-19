@@ -58,6 +58,37 @@ iota-localnet start [OPTIONS]
 | `--remote-migration-snapshots <URL>...` | Remotely stored migration snapshot URLs. |
 | `--delegator <ADDRESS>` | Specify the delegator address. |
 
+### Ports
+
+Every node port is fixed, so a local network binds the same ports on every run and on every machine.
+The metrics, admin interface, p2p, network and primary addresses are on `127.0.0.1`; the JSON-RPC, faucet, indexer, GraphQL and gRPC services listen on `0.0.0.0`.
+
+| Port | Used by |
+|--------|-------------|
+| `9000` | Fullnode JSON-RPC (change it with `--fullnode-rpc-port`). |
+| `9123` | Faucet (`--with-faucet`). |
+| `9124` | Indexer (`--with-indexer`). |
+| `9125` | GraphQL (`--with-graphql`). |
+| `9184` | Fullnode metrics. |
+| `9185` | Fullnode admin interface. |
+| `9186` | Fullnode p2p (UDP). |
+| `50051` | Fullnode gRPC API (`--with-grpc`). |
+
+Each validator owns a block of ten ports starting at `9200 + 10 * i`: validator 0 owns `9200`-`9209`, validator 1 owns `9210`-`9219`, and so on. Only the first five of a block are used; the other five are reserved so future endpoints don't shift the layout.
+
+| Port | Used by |
+|--------|-------------|
+| `9200 + 10 * i` | Validator network address (TCP). |
+| `9201 + 10 * i` | Validator p2p address (UDP). |
+| `9202 + 10 * i` | Validator metrics. |
+| `9203 + 10 * i` | Validator primary address (UDP). |
+| `9204 + 10 * i` | Validator admin interface. |
+| `9205 + 10 * i` to `9209 + 10 * i` | Reserved. |
+
+The default committee of 1 therefore owns `9200`-`9209`, and `--committee-size 4` owns `9200`-`9239`.
+A node fails to start if one of its ports is already taken, for instance by a second local network.
+The admin interface addresses can be changed with `iota-localnet genesis --admin-interface-address`.
+
 :::info Indexer options
 
 When built with the `indexer` feature, additional options are available:

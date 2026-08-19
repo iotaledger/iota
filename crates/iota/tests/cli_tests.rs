@@ -155,24 +155,28 @@ impl TreeShakingTest {
     ) -> Result<ObjectId, anyhow::Error> {
         let mut build_config = BuildConfig::new_for_testing().config;
         build_config.lock_file = Some(self.package_path(package_name).join("Move.lock"));
-        let resp = IotaClientCommands::Upgrade {
-            package_path: self.package_path(package_name),
-            upgrade_capability,
-            build_config,
-            skip_dependency_verification: false,
-            verify_deps: false,
-            verify_compatibility: true,
-            with_unpublished_dependencies: false,
-            payment: PaymentArgs {
-                gas: vec![self.gas_obj_id],
-            },
-            gas_data: GasDataArgs {
-                gas_budget: Some(self.rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-                ..Default::default()
-            },
-            processing: TxProcessingArgs::default(),
-        }
-        .execute(self.test_cluster.wallet_mut())
+        // Boxed because the tree-shaking tests chain many CLI commands in a single
+        // test future, which otherwise gets close to the test thread's stack limit.
+        let resp = Box::pin(
+            IotaClientCommands::Upgrade {
+                package_path: self.package_path(package_name),
+                upgrade_capability,
+                build_config,
+                skip_dependency_verification: false,
+                verify_deps: false,
+                verify_compatibility: true,
+                with_unpublished_dependencies: false,
+                payment: PaymentArgs {
+                    gas: vec![self.gas_obj_id],
+                },
+                gas_data: GasDataArgs {
+                    gas_budget: Some(self.rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+                    ..Default::default()
+                },
+                processing: TxProcessingArgs::default(),
+            }
+            .execute(self.test_cluster.wallet_mut()),
+        )
         .await?;
 
         let IotaClientCommandResult::TransactionBlock(publish_response) = resp else {
@@ -209,22 +213,26 @@ async fn publish_package(
     let mut build_config = BuildConfig::new_for_testing().config;
     let move_lock_path = package_path.clone().join("Move.lock");
     build_config.lock_file = Some(move_lock_path.clone());
-    let resp = IotaClientCommands::Publish {
-        package_path: package_path.clone(),
-        build_config: build_config.clone(),
-        skip_dependency_verification: false,
-        verify_deps: false,
-        with_unpublished_dependencies,
-        payment: PaymentArgs {
-            gas: vec![gas_obj_id],
-        },
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(context)
+    // Boxed because the tree-shaking tests chain many CLI commands in a single
+    // test future, which otherwise gets close to the test thread's stack limit.
+    let resp = Box::pin(
+        IotaClientCommands::Publish {
+            package_path: package_path.clone(),
+            build_config: build_config.clone(),
+            skip_dependency_verification: false,
+            verify_deps: false,
+            with_unpublished_dependencies,
+            payment: PaymentArgs {
+                gas: vec![gas_obj_id],
+            },
+            gas_data: GasDataArgs {
+                gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+                ..Default::default()
+            },
+            processing: TxProcessingArgs::default(),
+        }
+        .execute(context),
+    )
     .await?;
 
     let IotaClientCommandResult::TransactionBlock(publish_response) = resp else {

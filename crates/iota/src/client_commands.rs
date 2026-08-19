@@ -51,7 +51,7 @@ use iota_sdk::{
 };
 use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderClient, unresolved};
 use iota_sdk_types::{
-    Address, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    Address, Identifier, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference, Owner,
     SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
     TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
     crypto::{Intent, IntentMessage},
@@ -967,12 +967,11 @@ impl IotaClientCommands {
                 let (upgrade_policy, compiled_package) =
                     upgrade_result.map_err(|e| anyhow!("{e}"))?;
 
-                let compiled_modules =
-                    compiled_package.get_package_bytes(with_unpublished_dependencies);
+                let package_data = MovePackageData::new(
+                    compiled_package.get_package_bytes(with_unpublished_dependencies),
+                    compiled_package.get_published_dependencies_ids(),
+                );
                 let package_id = compiled_package.published_at.clone()?;
-                let package_digest =
-                    compiled_package.get_package_digest(with_unpublished_dependencies);
-                let dep_ids = compiled_package.get_published_dependencies_ids();
 
                 if verify_compatibility {
                     let protocol_version =
@@ -1008,23 +1007,17 @@ impl IotaClientCommands {
                     .await?;
                 }
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .upgrade_tx_kind(
-                        package_id,
-                        compiled_modules,
-                        dep_ids,
-                        upgrade_capability,
-                        upgrade_policy,
-                        package_digest.to_vec(),
-                    )
-                    .await?;
+                let grpc_client = context.get_grpc_client().await?;
+                let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
+                builder.upgrade_package(
+                    package_id,
+                    package_data,
+                    upgrade_capability,
+                    upgrade_policy,
+                );
+                let tx_kind = builder.finish_kind().await?;
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
-
+                let gas_payment = grpc_input_refs(&grpc_client, &payment.gas).await?;
                 let result = dry_run_or_execute_or_serialize(
                     sender,
                     tx_kind,
@@ -1133,18 +1126,18 @@ impl IotaClientCommands {
                 }
 
                 let compiled_package = compile_result?;
-                let compiled_modules =
-                    compiled_package.get_package_bytes(with_unpublished_dependencies);
-                let dep_ids = compiled_package.get_published_dependencies_ids();
+                let package_data = MovePackageData::new(
+                    compiled_package.get_package_bytes(with_unpublished_dependencies),
+                    compiled_package.get_published_dependencies_ids(),
+                );
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .publish_tx_kind(sender, compiled_modules, dep_ids)
-                    .await?;
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let grpc_client = context.get_grpc_client().await?;
+                let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
+                let upgrade_cap = builder.publish_package(package_data).result();
+                builder.transfer_objects(sender, [upgrade_cap]);
+                let tx_kind = builder.finish_kind().await?;
+
+                let gas_payment = grpc_input_refs(&grpc_client, &payment.gas).await?;
                 let result = dry_run_or_execute_or_serialize(
                     sender,
                     tx_kind,

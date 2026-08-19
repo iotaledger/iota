@@ -65,6 +65,7 @@ iota-storage.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
+iota-traffic-controller.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-command-line-common.workspace = true

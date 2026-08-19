@@ -75,6 +75,8 @@ pub struct SwarmBuilder<R = OsRng> {
     fullnode_enable_grpc_api: bool,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     disable_address_verification_cooldown: bool,
+    deterministic_validator_port_base: Option<u16>,
+    deterministic_fullnode_port_base: Option<u16>,
 }
 
 impl SwarmBuilder {
@@ -110,6 +112,8 @@ impl SwarmBuilder {
             fullnode_enable_grpc_api: false,
             fullnode_grpc_api_config: None,
             disable_address_verification_cooldown: false,
+            deterministic_validator_port_base: None,
+            deterministic_fullnode_port_base: None,
         }
     }
 }
@@ -147,6 +151,8 @@ impl<R> SwarmBuilder<R> {
             fullnode_enable_grpc_api: self.fullnode_enable_grpc_api,
             fullnode_grpc_api_config: self.fullnode_grpc_api_config,
             disable_address_verification_cooldown: self.disable_address_verification_cooldown,
+            deterministic_validator_port_base: self.deterministic_validator_port_base,
+            deterministic_fullnode_port_base: self.deterministic_fullnode_port_base,
         }
     }
 
@@ -172,6 +178,26 @@ impl<R> SwarmBuilder<R> {
 
     pub fn with_validators(mut self, validators: Vec<ValidatorGenesisConfig>) -> Self {
         self.committee = CommitteeConfig::Validators(validators);
+        self
+    }
+
+    /// Lay the generated validators out as
+    /// [`ConfigBuilder::with_deterministic_ports`] describes.
+    ///
+    /// Has no effect when the validators come from a network config or from
+    /// `with_validators`.
+    pub fn with_deterministic_validator_ports(mut self, port_base: u16) -> Self {
+        self.deterministic_validator_port_base = Some(port_base);
+        self
+    }
+
+    /// Lay the first fullnode out as
+    /// [`FullnodeConfigBuilder::with_deterministic_ports`] describes.
+    ///
+    /// Further fullnodes keep currently-free ports, since the three addresses
+    /// can only be used once.
+    pub fn with_deterministic_fullnode_ports(mut self, port_base: u16) -> Self {
+        self.deterministic_fullnode_port_base = Some(port_base);
         self
     }
 
@@ -443,6 +469,10 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 config_builder = config_builder.with_data_ingestion_dir(path);
             }
 
+            if let Some(port_base) = self.deterministic_validator_port_base {
+                config_builder = config_builder.with_deterministic_ports(port_base);
+            }
+
             if let Some(max_submit_position) = self.max_submit_position {
                 config_builder = config_builder.with_max_submit_position(max_submit_position);
             }
@@ -556,6 +586,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 }
                 if let Some(rpc_port) = self.fullnode_rpc_port {
                     builder = builder.with_rpc_port(rpc_port);
+                }
+                if let Some(port_base) = self.deterministic_fullnode_port_base {
+                    builder = builder.with_deterministic_ports(port_base);
                 }
             }
             let config = builder
@@ -730,7 +763,7 @@ impl AsRef<Path> for SwarmDirectory {
 
 #[cfg(test)]
 mod test {
-    use std::num::NonZeroUsize;
+    use std::{collections::BTreeSet, net::SocketAddr, num::NonZeroUsize};
 
     use iota_swarm_config::network_config_builder::ConfigBuilder;
 
@@ -777,5 +810,37 @@ mod test {
         }
 
         println!("hello");
+    }
+
+    #[test]
+    fn deterministic_ports_reach_the_node_configs() {
+        let swarm = Swarm::builder()
+            .committee_size(NonZeroUsize::new(2).unwrap())
+            .with_deterministic_validator_ports(9200)
+            .with_fullnode_count(1)
+            .with_deterministic_fullnode_ports(9184)
+            .build();
+
+        let validator_ports = swarm
+            .validator_nodes()
+            .map(|validator| {
+                validator
+                    .config()
+                    .network_address
+                    .to_socket_addr()
+                    .unwrap()
+                    .port()
+            })
+            .collect::<BTreeSet<_>>();
+        assert_eq!(validator_ports, BTreeSet::from([9200, 9210]));
+
+        let fullnode = swarm.fullnodes().next().unwrap().config();
+        let ip = fullnode.network_address.to_socket_addr().unwrap().ip();
+        assert_eq!(fullnode.metrics_address, SocketAddr::new(ip, 9184));
+        assert_eq!(fullnode.admin_interface_address, SocketAddr::new(ip, 9185));
+        assert_eq!(
+            fullnode.p2p_config.listen_address,
+            SocketAddr::new(ip, 9186)
+        );
     }
 }
