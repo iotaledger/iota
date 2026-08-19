@@ -225,8 +225,8 @@ pub struct NodeConfig {
     ///
     /// With the key absent the default denial-of-service protection policy
     /// applies, an explicit `null` turns traffic control off, and a value
-    /// configures it. A node that turns it off must drop `firewall_config`
-    /// too; `validate` rejects a firewall without a policy.
+    /// configures it. A node that turns it off must also drop
+    /// `firewall_config`. `validate` rejects a firewall without a policy.
     #[serde(
         skip_serializing_if = "is_default_traffic_controller_policy_config",
         default = "default_traffic_controller_policy_config"
@@ -827,11 +827,12 @@ impl NodeConfig {
         self.consensus_config.is_some()
     }
 
-    /// Validate the node config, returning an error if a node could not
-    /// start with this config or would start ignoring part of it.
+    /// Validate the node config. This fails if a node could not start with
+    /// the config, or if it would start and ignore part of the config.
     pub fn validate(&self) -> Result<()> {
-        // Validators do not expose the gRPC API. Only an explicit `grpc-api-config:
-        // null` reaches this; an absent key deserializes to the default config.
+        // Validators do not expose the gRPC API. Only an explicit
+        // `grpc-api-config: null` reaches this. An absent key deserializes to
+        // the default config.
         if !self.is_validator() && self.enable_grpc_api && self.grpc_api_config.is_none() {
             anyhow::bail!(
                 "`enable-grpc-api` is set but `grpc-api-config` is missing; set \
@@ -1766,7 +1767,7 @@ mod tests {
         config.grpc_api_config = Some(GrpcApiConfig::default());
         config.validate().unwrap();
 
-        // Validators do not expose the gRPC API; the check does not apply.
+        // Validators do not expose the gRPC API. The check does not apply.
         config.grpc_api_config = None;
         config.consensus_config = Some(consensus_config());
         config.validate().unwrap();

@@ -2481,14 +2481,14 @@ fn build_kv_store(
 }
 
 /// Builds and starts the gRPC server for the IOTA node based on the node's
-/// configuration; validators return early as they do not expose the gRPC
+/// configuration. Validators return early as they do not expose the gRPC
 /// API.
 ///
 /// Returns `None` on a validator and when the gRPC API is disabled.
 ///
 /// # Panics
 ///
-/// Panics if the gRPC API is enabled without a `grpc-api-config`;
+/// Panics if the gRPC API is enabled without a `grpc-api-config`.
 /// [`NodeConfig::validate`] rejects such a config at startup.
 async fn build_grpc_server(
     config: &NodeConfig,
@@ -2820,9 +2820,9 @@ mod config_tests {
 
     use super::IotaNode;
 
-    /// `start_async` validates the config before it does anything else, which
-    /// is what keeps the `expect` in `build_grpc_server` and the
-    /// `debug_assert` in `start_state_snapshot` unreachable.
+    /// `start_async` validates the config before it does anything else. That
+    /// keeps the `expect` in `build_grpc_server` and the `debug_assert` in
+    /// `start_state_snapshot` unreachable.
     #[tokio::test]
     async fn start_rejects_a_config_no_node_could_start_with() {
         let mut config: NodeConfig = serde_yaml::from_str(
