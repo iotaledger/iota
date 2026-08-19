@@ -99,22 +99,12 @@ async fn sweep_backlog(
         );
         return;
     }
-    match store
-        .upgrade()
-        .map(|store| ObjectBacklogSweep::new(&store).done())
-    {
-        None => return,
-        Some(Ok(true)) => return,
-        Some(Ok(false)) => {}
-        Some(Err(e)) => {
-            error!("cannot read how far the object backlog sweep got: {e}");
-            return;
-        }
-    }
     info!("sweeping the object versions superseded before this build out of the live table");
 
-    // A failing slice is retried for as long as the node runs. Nothing about
-    // a slice makes the next one fail too: it re-reads the epoch, the
+    // A failing slice is retried for as long as the node runs, and so is the
+    // very first one, whose read of how far an earlier run got is otherwise
+    // the one failure in this walk with no retry to fall back on. Nothing
+    // about a slice makes the next one fail too: it re-reads the epoch, the
     // progress row and the range it works on, and the failure it is likeliest
     // to meet — an epoch refused because reconfiguration has raised the
     // retention floor but not yet swapped the epoch store — lasts only as
@@ -175,17 +165,6 @@ impl ObjectBacklogSweep {
             historic_objects: store.get_historic_objects().clone(),
             keys_per_slice: KEYS_PER_SLICE,
         }
-    }
-
-    /// Whether the walk has already reached the end of the table on this
-    /// database.
-    fn done(&self) -> IotaResult<bool> {
-        Ok(matches!(
-            self.perpetual_tables
-                .object_backlog_sweep_progress
-                .get(&())?,
-            Some(ObjectBacklogSweepProgress::Done)
-        ))
     }
 
     /// Sweeps up to [`Self::keys_per_slice`] rows above the recorded key and
