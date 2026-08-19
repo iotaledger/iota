@@ -9,8 +9,8 @@ use tracing::instrument;
 use crate::{
     Transaction,
     block_header::{
-        BlockHeader, BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader,
-        genesis_block_headers,
+        BlockHeader, BlockHeaderAPI, BlockRef, CommitmentVerifiedTransactions, GENESIS_ROUND,
+        SignedBlockHeader, genesis_block_headers,
     },
     context::Context,
     encoder::shard_bytes,
@@ -34,7 +34,10 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
 
     /// Checks protocol limits on the transactions and runs the application's
     /// transaction verifier.
-    fn verify_transactions_validity(&self, transactions: &[Transaction]) -> ConsensusResult<()>;
+    fn verify_transactions_validity(
+        &self,
+        transactions: &CommitmentVerifiedTransactions,
+    ) -> ConsensusResult<()>;
 }
 
 /// `SignedBlockVerifier` checks the validity of a block.
@@ -315,8 +318,15 @@ impl BlockVerifier for SignedBlockVerifier {
         bcs::from_bytes(serialized_transactions).map_err(ConsensusError::MalformedTransactions)
     }
 
-    fn verify_transactions_validity(&self, transactions: &[Transaction]) -> ConsensusResult<()> {
-        let batch: Vec<_> = transactions.iter().map(|t| t.data()).collect();
+    fn verify_transactions_validity(
+        &self,
+        transactions: &CommitmentVerifiedTransactions,
+    ) -> ConsensusResult<()> {
+        let batch: Vec<_> = transactions
+            .transactions()
+            .iter()
+            .map(|t| t.data())
+            .collect();
         self.check_transactions(&batch)?;
         self.transaction_verifier
             .verify_batch(&batch)
@@ -372,7 +382,10 @@ impl BlockVerifier for NoopBlockVerifier {
         bcs::from_bytes(serialized_transactions).map_err(ConsensusError::MalformedTransactions)
     }
 
-    fn verify_transactions_validity(&self, _transactions: &[Transaction]) -> ConsensusResult<()> {
+    fn verify_transactions_validity(
+        &self,
+        _transactions: &CommitmentVerifiedTransactions,
+    ) -> ConsensusResult<()> {
         Ok(())
     }
 }

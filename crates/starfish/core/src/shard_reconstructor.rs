@@ -474,7 +474,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                             Err(tx_ref)
                         }
                         Ok(verified_transactions) => match block_verifier
-                            .verify_transactions_validity(&verified_transactions.transactions())
+                            .verify_transactions_validity(&verified_transactions)
                         {
                             Ok(()) => {
                                 debug!("Successfully reconstructed transactions for {tx_ref:?}");

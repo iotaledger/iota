@@ -1399,9 +1399,8 @@ impl CommitmentVerifiedTransactions {
         self.transaction_ref
     }
 
-    /// Returns the leader round of the sub-dag.
-    pub fn transactions(&self) -> Vec<Transaction> {
-        self.transactions.clone()
+    pub fn transactions(&self) -> &[Transaction] {
+        &self.transactions
     }
 
     pub fn serialized(&self) -> &Bytes {

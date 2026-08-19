@@ -235,16 +235,16 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         let verified_block_header =
             VerifiedBlockHeader::new_verified(signed_block_header, serialized_block_header);
 
-        self.block_verifier
-            .verify_transactions_validity(&transactions)
-            .inspect_err(|e| self.record_invalid_transactions(peer, peer_hostname, e))?;
-
         let verified_transactions = CommitmentVerifiedTransactions::new(
             transactions,
             verified_block_header.transaction_ref(),
             Some(verified_block_header.digest()),
             serialized_transactions,
         );
+        self.block_verifier
+            .verify_transactions_validity(&verified_transactions)
+            .inspect_err(|e| self.record_invalid_transactions(peer, peer_hostname, e))?;
+
         let has_transactions = verified_transactions.has_transactions();
         let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
         let block_ref = verified_block.reference();

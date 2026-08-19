@@ -1172,9 +1172,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // Run the same checks here so a payload violating them can't be
         // acknowledged and become committable via this route either.
         for verified_transactions in &transactions {
-            if let Err(err) =
-                block_verifier.verify_transactions_validity(&verified_transactions.transactions())
-            {
+            if let Err(err) = block_verifier.verify_transactions_validity(verified_transactions) {
                 let author = verified_transactions.author();
                 metrics
                     .invalid_transactions
