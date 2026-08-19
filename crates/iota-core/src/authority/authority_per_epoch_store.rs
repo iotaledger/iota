@@ -1882,6 +1882,11 @@ impl AuthorityPerEpochStore {
             .await
     }
 
+    #[cfg(test)]
+    pub(crate) fn pending_dropped_digest_requests_for_testing(&self) -> usize {
+        self.dropped_tx_status_cache.num_pending_for_testing()
+    }
+
     /// Sets the pre-consensus soft lock table. Called once during validator
     /// setup. Gating on `enable_pcool_flow` is the caller's
     /// responsibility — when the flow is disabled, releases simply produce no
