@@ -73,7 +73,7 @@ use crate::{
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI},
+    transaction_ref::{GenericTransactionRefAPI, TransactionRef},
 };
 
 /// Allowed multiplicity of commit vote headers per authority in a
@@ -428,13 +428,12 @@ pub(crate) fn verify_commits(
 pub(crate) fn verify_transactions_with_transactions_refs(
     context: &Arc<Context>,
     peer: AuthorityIndex,
-    serialized_transactions: BTreeMap<GenericTransactionRef, Bytes>,
-) -> ConsensusResult<BTreeMap<GenericTransactionRef, VerifiedTransactions>> {
+    serialized_transactions: BTreeMap<TransactionRef, Bytes>,
+) -> ConsensusResult<BTreeMap<TransactionRef, VerifiedTransactions>> {
     let mut verified_transactions_map = BTreeMap::new();
     let mut encoder = create_encoder(context);
     let size_limit = serialized_transactions_size_limit(context);
-    for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
-        let transaction_ref = committed_transactions_ref.expect_transaction_ref()?;
+    for (transaction_ref, inner_serialized_transactions) in serialized_transactions {
         // Range-check the peer-supplied author and round before any consumer
         // indexes the committee by author.
         if !context.committee.is_valid_index(transaction_ref.author) {
@@ -481,10 +480,7 @@ pub(crate) fn verify_transactions_with_transactions_refs(
             inner_serialized_transactions,
         );
 
-        verified_transactions_map.insert(
-            GenericTransactionRef::TransactionRef(transaction_ref),
-            verified_transactions,
-        );
+        verified_transactions_map.insert(transaction_ref, verified_transactions);
     }
 
     Ok(verified_transactions_map)
@@ -961,7 +957,7 @@ pub(crate) mod tests {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<GenericTransactionRef>,
+            _transaction_refs: Vec<TransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
@@ -1113,10 +1109,8 @@ pub(crate) mod tests {
             author: AuthorityIndex::new_for_test(0),
             transactions_commitment: TransactionsCommitment::MIN,
         };
-        let serialized_transactions = BTreeMap::from([(
-            GenericTransactionRef::TransactionRef(transaction_ref),
-            Bytes::from(vec![0u8; size_limit + 1]),
-        )]);
+        let serialized_transactions =
+            BTreeMap::from([(transaction_ref, Bytes::from(vec![0u8; size_limit + 1]))]);
 
         let result =
             verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
@@ -1148,10 +1142,8 @@ pub(crate) mod tests {
             author: out_of_range_author,
             transactions_commitment,
         };
-        let serialized_transactions = BTreeMap::from([(
-            GenericTransactionRef::TransactionRef(transaction_ref),
-            inner_serialized_transactions,
-        )]);
+        let serialized_transactions =
+            BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
         let result =
             verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
@@ -1185,10 +1177,8 @@ pub(crate) mod tests {
             author: AuthorityIndex::new_for_test(0),
             transactions_commitment,
         };
-        let serialized_transactions = BTreeMap::from([(
-            GenericTransactionRef::TransactionRef(transaction_ref),
-            inner_serialized_transactions,
-        )]);
+        let serialized_transactions =
+            BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
         let result =
             verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
