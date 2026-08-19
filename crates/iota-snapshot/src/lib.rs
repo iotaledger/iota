@@ -617,6 +617,13 @@ pub async fn setup_db_state(
     .unwrap();
     perpetual_db.set_epoch_start_configuration(&epoch_start_configuration)?;
     perpetual_db.insert_root_state_hash(epoch, last_checkpoint.sequence_number, state_hash)?;
+    // The restored database holds only the live object set from this epoch
+    // boundary, so the one-time object-backlog sweep has nothing to find;
+    // mark it done so the node's first start does not walk `objects` for
+    // nothing.
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
+    // call once every database has swept the pre-bucket backlog.
+    perpetual_db.mark_object_backlog_swept()?;
     committee_store.insert_new_committee(&next_epoch_committee)?;
     checkpoint_store.update_highest_executed_checkpoint(&last_checkpoint)?;
 
