@@ -3298,7 +3298,7 @@ pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
 }
 
 /// Fetch the current object references for the given object IDs over gRPC.
-async fn grpc_input_refs(
+pub(crate) async fn grpc_input_refs(
     client: &iota_grpc_client::Client,
     object_ids: &[ObjectId],
 ) -> Result<Vec<ObjectReference>, anyhow::Error> {
