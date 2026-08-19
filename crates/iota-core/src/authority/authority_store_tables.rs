@@ -178,6 +178,8 @@ pub struct AuthorityPerpetualTables {
     /// How far the one-time sweep of the object versions superseded before
     /// this build has got through `objects`, and whether it has reached the
     /// end. Empty until the sweep first writes a slice.
+    /// TODO: remove this table once every database has swept the pre-bucket
+    /// backlog, <https://github.com/iotaledger/iota/issues/12712>
     pub(crate) object_backlog_sweep_progress: DBMap<(), ObjectBacklogSweepProgress>,
 }
 

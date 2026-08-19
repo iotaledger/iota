@@ -600,6 +600,8 @@ impl IotaNode {
         // Before any service that could expire a historic bucket starts, and
         // before the index rebuild below scans the live `objects` table for
         // its latest versions.
+        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
+        // call once every database has swept the pre-bucket backlog.
         object_backlog_sweep::sweep(
             store.clone(),
             epoch_store.epoch(),
