@@ -42,15 +42,17 @@ use super::{
     authority_store_tables::{AuthorityPerpetualTables, LiveObject},
     *,
 };
+#[cfg(any(test, feature = "test-utils"))]
+use crate::authority::{
+    authority_store_pruner::AuthorityStorePruner, object_backlog_sweep::ObjectBacklogSweepProgress,
+};
 use crate::{
     authority::{
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
-        authority_store_pruner::AuthorityStorePruner,
         authority_store_tables::TotalIotaSupplyCheck,
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
         epoch_start_configuration::{EpochFlag, EpochStartConfiguration},
         historic_objects::{HistoricObjects, HistoricObjectsBucket},
-        object_backlog_sweep::ObjectBacklogSweepProgress,
     },
     global_state_hasher::GlobalStateHashStore,
     transaction_outputs::TransactionOutputs,
@@ -1721,6 +1723,7 @@ impl AuthorityStore {
     /// written by this build alone and so holds none of those versions, while
     /// the nodes that drive expiry from here have their retention disabled and
     /// therefore never run the sweep that would say so.
+    #[cfg(any(test, feature = "test-utils"))]
     pub fn expire_historic_objects_and_compact_for_testing(&self) {
         self.perpetual_tables
             .object_backlog_sweep_progress
