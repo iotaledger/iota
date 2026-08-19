@@ -99,7 +99,8 @@ pub struct IndexerFeatureArgs {
     /// and value: `--with-graphql=6124` or `--with-graphql=0.0.0.0`, or
     /// `--with-graphql=0.0.0.0:9125` Note that GraphQL requires a running
     /// indexer, which will be enabled by default if the `--with-indexer`
-    /// flag is not set.
+    /// flag is not set. GraphQL serves its metrics on the next port, 9126 by
+    /// default.
     #[arg(
             long,
             default_missing_value = "0.0.0.0:9125",
@@ -541,6 +542,27 @@ async fn start(
                 .map_err(|_| anyhow!("Invalid graphql host and port"))
         })
         .transpose()?;
+    // The GraphQL service binds a Prometheus listener beside its main port.
+    // Its own default is the fullnode metrics port, so the address is pinned
+    // here, where the port check also reads it.
+    #[cfg(feature = "indexer")]
+    let graphql_metrics_address = graphql_address
+        .map(|_| -> Result<SocketAddr, anyhow::Error> {
+            let address = parse_host_port_with_default_host(
+                graphql_metrics_address.unwrap_or_default(),
+                &Ipv4Addr::LOCALHOST.to_string(),
+                DEFAULT_GRAPHQL_METRICS_PORT,
+            )
+            .map_err(|_| anyhow!("Invalid graphql metrics host and port"))?;
+            // The service rebuilds the address as `host:port`, which an IPv6
+            // host needs brackets to survive.
+            ensure!(
+                address.is_ipv4(),
+                "graphql metrics configuration requires an IPv4 address"
+            );
+            Ok(address)
+        })
+        .transpose()?;
 
     if epoch_duration_ms.is_some() && genesis_blob_exists(config_dir.clone()) && !force_regenesis {
         bail!(
@@ -744,6 +766,13 @@ async fn start(
                 graphql_address,
             ));
         }
+        if let Some(graphql_metrics_address) = graphql_metrics_address {
+            addresses.push(BoundAddress::service(
+                "GraphQL metrics",
+                "--graphql-metrics-address",
+                graphql_metrics_address,
+            ));
+        }
     }
     check_ports_are_free(&addresses)?;
 
@@ -847,21 +876,8 @@ async fn start(
     #[cfg(feature = "indexer")]
     if let Some(graphql_address) = graphql_address {
         tracing::info!("Starting the GraphQL service at {graphql_address}");
-        // The metrics address the service picks by default collides with the
-        // fullnode metrics endpoint, which binds `FULLNODE_PORT_BASE` before
-        // this runs.
-        let graphql_metrics_address = parse_host_port_with_default_host(
-            graphql_metrics_address.unwrap_or_default(),
-            &Ipv4Addr::LOCALHOST.to_string(),
-            DEFAULT_GRAPHQL_METRICS_PORT,
-        )
-        .map_err(|_| anyhow!("Invalid graphql metrics host and port"))?;
-        // The service rebuilds the address as `host:port`, which an IPv6 host
-        // needs brackets to survive.
-        ensure!(
-            graphql_metrics_address.is_ipv4(),
-            "graphql metrics configuration requires an IPv4 address"
-        );
+        let graphql_metrics_address =
+            graphql_metrics_address.expect("resolved with the GraphQL address");
         tracing::info!("Serving the GraphQL metrics at {graphql_metrics_address}");
         let graphql_connection_config = ConnectionConfig {
             port: graphql_address.port(),
@@ -1460,6 +1476,12 @@ fn log_applied_overrides_for_node<'a>(
     );
 }
 
+/// The addresses `--with-graphql` binds: the GraphQL server itself, and the
+/// Prometheus listener beside it.
+
+/// The GraphQL service settings of a local network: the address the flag
+/// gave it, the indexer database at `db_url`, and its Prometheus listener.
+
 /// Parse the input string into a SocketAddr, with a default port if none is
 /// provided.
 pub fn parse_host_port(
@@ -1509,6 +1531,23 @@ mod tests {
         // `all:` reaches the validators, so it stays allowed either way.
         let all_scoped: NodeConfigOverride = "all:enable-index-processing=false".parse().unwrap();
         check_fullnode_override_scopes(std::slice::from_ref(&all_scoped), false).unwrap();
+    }
+
+    /// The GraphQL service binds a Prometheus listener beside its main port.
+    /// The port check reads the same address the service is given, so the run
+    /// cannot check one address and bind another.
+    #[cfg(feature = "indexer")]
+    #[test]
+    fn the_graphql_metrics_address_defaults_beside_the_fullnode_metrics_port() {
+        let localhost = Ipv4Addr::LOCALHOST.to_string();
+        let address = parse_host_port_with_default_host(
+            String::new(),
+            &localhost,
+            DEFAULT_GRAPHQL_METRICS_PORT,
+        )
+        .unwrap();
+        assert_eq!(address, SocketAddr::from(([127, 0, 0, 1], 9126)));
+        assert_ne!(address.port(), FULLNODE_PORT_BASE);
     }
 
     #[test]

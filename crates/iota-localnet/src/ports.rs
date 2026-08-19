@@ -3,7 +3,7 @@
 
 use std::{
     io,
-    net::{SocketAddr, TcpListener, UdpSocket},
+    net::{IpAddr, Ipv6Addr, SocketAddr, TcpListener, UdpSocket},
 };
 
 use anyhow::bail;
@@ -92,10 +92,19 @@ impl BoundAddress {
 
     /// Whether both addresses want the same socket. Whichever binds first
     /// then takes it from the other. A wildcard address covers every IP of
-    /// the host, so it clashes with any address on its port.
+    /// the host in its own address family. The IPv6 wildcard `[::]` also
+    /// covers the IPv4 space on the default dual-stack setting, so it
+    /// clashes across the families.
     fn clashes_with(&self, other: &Self) -> bool {
-        self.transport == other.transport
-            && self.address.port() == other.address.port()
+        if self.transport != other.transport || self.address.port() != other.address.port() {
+            return false;
+        }
+        if self.address.ip() == IpAddr::V6(Ipv6Addr::UNSPECIFIED)
+            || other.address.ip() == IpAddr::V6(Ipv6Addr::UNSPECIFIED)
+        {
+            return true;
+        }
+        self.address.is_ipv4() == other.address.is_ipv4()
             && (self.address.ip() == other.address.ip()
                 || self.address.ip().is_unspecified()
                 || other.address.ip().is_unspecified())
@@ -221,12 +230,17 @@ fn validator_addresses(
         "its port is the validator's `p2p-address` in the committee metadata of `genesis.blob`, \
          so only a new genesis can move it",
     ));
-    addresses.push(BoundAddress::overridable(
-        scope,
-        "metrics-address",
-        config.metrics_address,
-        Transport::Tcp,
-    ));
+    // Under the simulator no Prometheus server starts, so nothing binds
+    // this address. It is the only validator address kept on 127.0.0.1
+    // there, so probing it would read an unrelated process as a clash.
+    if !cfg!(msim) {
+        addresses.push(BoundAddress::overridable(
+            scope,
+            "metrics-address",
+            config.metrics_address,
+            Transport::Tcp,
+        ));
+    }
     if let Some(primary_address) = primary_address {
         // Consensus serves this over TCP, even though the committee writes it
         // as a UDP multiaddr.
@@ -358,10 +372,10 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let (_metrics_listener, metrics_port) = occupy_tcp_port();
         let (_json_rpc_listener, json_rpc_port) = occupy_tcp_port();
-        let (mut validator_config, primary_address) = validator_config(directory.path(), 29220);
-        validator_config.metrics_address = (Ipv4Addr::LOCALHOST, metrics_port).into();
+        let (validator_config, primary_address) = validator_config(directory.path(), 29220);
         let mut fullnode_config = fullnode_config(directory.path());
         fullnode_config.json_rpc_address = (Ipv4Addr::LOCALHOST, json_rpc_port).into();
+        fullnode_config.metrics_address = (Ipv4Addr::LOCALHOST, metrics_port).into();
 
         let mut addresses = validator_addresses("validator-0", &validator_config, primary_address);
         addresses.extend(fullnode_addresses(&fullnode_config));
@@ -370,10 +384,10 @@ mod tests {
         assert_eq!(
             err,
             format!(
-                "port {metrics_port} (validator-0 metrics-address) is already in use\n  override \
-                 it with --node-config-override validator-0:metrics-address=127.0.0.1:<port>\n\
-                 port {json_rpc_port} (fullnode json-rpc-address) is already in use\n  override \
-                 it with --node-config-override fullnode:json-rpc-address=127.0.0.1:<port>"
+                "port {json_rpc_port} (fullnode json-rpc-address) is already in use\n  override \
+                 it with --node-config-override fullnode:json-rpc-address=127.0.0.1:<port>\n\
+                 port {metrics_port} (fullnode metrics-address) is already in use\n  override \
+                 it with --node-config-override fullnode:metrics-address=127.0.0.1:<port>"
             )
         );
     }
@@ -393,6 +407,29 @@ mod tests {
             err,
             format!("port {port} (faucet) is already in use\n  move it with --with-faucet=<port>")
         );
+    }
+
+    /// An IPv4 wildcard covers only its own family: `0.0.0.0` and `[::1]`
+    /// on one port bind side by side. The IPv6 wildcard covers both
+    /// families on the default dual-stack setting.
+    #[test]
+    fn a_wildcard_clashes_only_within_the_families_it_covers() {
+        let v4_wildcard =
+            BoundAddress::service("faucet", "--with-faucet", "0.0.0.0:9123".parse().unwrap());
+        let v6_wildcard =
+            BoundAddress::service("faucet", "--with-faucet", "[::]:9123".parse().unwrap());
+        let v6 = BoundAddress::service("indexer", "--with-indexer", "[::1]:9123".parse().unwrap());
+        let v4 = BoundAddress::service(
+            "indexer",
+            "--with-indexer",
+            "127.0.0.1:9123".parse().unwrap(),
+        );
+
+        assert!(!v4_wildcard.clashes_with(&v6));
+        assert!(v4_wildcard.clashes_with(&v4));
+        assert!(v6_wildcard.clashes_with(&v4));
+        assert!(v6_wildcard.clashes_with(&v4_wildcard));
+        assert!(v6_wildcard.clashes_with(&v6));
     }
 
     /// Two addresses of one run on one port never both bind, however free the
@@ -447,24 +484,30 @@ mod tests {
 
         let addresses = validator_addresses("validator-0", &config, primary_address);
 
+        // Under the simulator no Prometheus server starts, so the
+        // metrics-address is not listed there.
+        let mut expected_bound_by = vec![
+            "validator-0 network-address",
+            "validator-0 p2p-config.listen-address",
+        ];
+        let mut expected_ports = vec![9200, 9201];
+        if !cfg!(msim) {
+            expected_bound_by.push("validator-0 metrics-address");
+            expected_ports.push(9202);
+        }
+        expected_bound_by.push("validator-0 primary-address");
+        expected_ports.push(9203);
+
         let bound_by: Vec<&str> = addresses
             .iter()
             .map(|address| address.bound_by.as_str())
             .collect();
-        assert_eq!(
-            bound_by,
-            [
-                "validator-0 network-address",
-                "validator-0 p2p-config.listen-address",
-                "validator-0 metrics-address",
-                "validator-0 primary-address",
-            ]
-        );
+        assert_eq!(bound_by, expected_bound_by);
         let ports: Vec<u16> = addresses
             .iter()
             .map(|address| address.address.port())
             .collect();
-        assert_eq!(ports, [9200, 9201, 9202, 9203]);
+        assert_eq!(ports, expected_ports);
     }
 
     /// The gRPC API is off unless a run asks for it, and an address nothing
