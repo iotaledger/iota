@@ -1,6 +1,9 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+// TODO(https://github.com/iotaledger/iota/issues/12712): remove this module
+// once every database has swept the pre-bucket backlog.
+
 //! The one-time sweep of the object versions superseded before this build.
 //!
 //! A superseded version now leaves the live `objects` table in the batch
