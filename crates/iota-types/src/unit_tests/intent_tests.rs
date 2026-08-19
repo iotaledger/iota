@@ -81,7 +81,7 @@ fn test_authority_signature_intent() {
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
-    let signature: SimpleSignature = sender_key.sign(&tx.signing_digest());
+    let signature = sender_key.sign(&tx.signing_digest());
     let tx = TransactionEnvelope::from_data(tx, vec![signature]);
     let tx1 = tx.clone();
     assert!(
