@@ -351,22 +351,39 @@ async fn a_network_config_this_build_cannot_read_is_rejected() -> Result<(), any
     let version_line = format!("version: {}\n", PersistedNetworkConfig::VERSION);
     assert!(network_config.contains(&version_line), "{network_config}");
 
-    for network_config in [
+    // A file without a version predates the field and reads as older.
+    fs::write(
+        &network_config_path,
         network_config.replace(&version_line, ""),
+    )?;
+    let err = start_command(working_dir, None, vec![])
+        .execute()
+        .await
+        .unwrap_err();
+    let err = format!("{err:#}");
+    assert!(
+        err.contains("was created by an older version of iota-localnet"),
+        "{err}"
+    );
+    assert!(err.contains("iota-localnet genesis --force"), "{err}");
+
+    // A newer version must not advise `genesis --force`, which deletes the
+    // newer network's state.
+    fs::write(
+        &network_config_path,
         network_config.replace(&version_line, "version: 4294967295\n"),
-    ] {
-        fs::write(&network_config_path, &network_config)?;
-        let err = start_command(working_dir, None, vec![])
-            .execute()
-            .await
-            .unwrap_err();
-        let err = format!("{err:#}");
-        assert!(
-            err.contains("was created by an older version of iota-localnet"),
-            "{err}"
-        );
-        assert!(err.contains("iota-localnet genesis --force"), "{err}");
-    }
+    )?;
+    let err = start_command(working_dir, None, vec![])
+        .execute()
+        .await
+        .unwrap_err();
+    let err = format!("{err:#}");
+    assert!(
+        err.contains("was created by a newer version of iota-localnet"),
+        "{err}"
+    );
+    assert!(err.contains("Update iota-localnet"), "{err}");
+    assert!(!err.contains("genesis --force"), "{err}");
 
     tmp_dir.close()?;
     Ok(())

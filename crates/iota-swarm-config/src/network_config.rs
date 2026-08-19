@@ -4,7 +4,7 @@
 
 use std::path::Path;
 
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result, bail, ensure};
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_config::{Config, IOTA_NETWORK_CONFIG, NodeConfig, genesis, node};
 use iota_multiaddr::Multiaddr;
@@ -121,12 +121,22 @@ impl PersistedNetworkConfig {
             .with_context(|| format!("cannot open the IOTA network config file at {path:?}"))?;
         let format_version: NetworkConfigFormatVersion = serde_yaml::from_str(&contents)
             .with_context(|| format!("cannot read the IOTA network config file at {path:?}"))?;
-        ensure!(
-            format_version.version == Some(Self::VERSION),
-            "the configuration in {} was created by an older version of iota-localnet and cannot \
-             be read. Re-create it with `iota-localnet genesis --force`.",
-            config_directory.display()
-        );
+        if format_version.version != Some(Self::VERSION) {
+            // `genesis --force` deletes the directory, which is the wrong
+            // advice for a file a newer build wrote.
+            if format_version.version > Some(Self::VERSION) {
+                bail!(
+                    "the configuration in {} was created by a newer version of iota-localnet and \
+                     cannot be read. Update iota-localnet.",
+                    config_directory.display()
+                );
+            }
+            bail!(
+                "the configuration in {} was created by an older version of iota-localnet and \
+                 cannot be read. Re-create it with `iota-localnet genesis --force`.",
+                config_directory.display()
+            );
+        }
         serde_yaml::from_str(&contents)
             .with_context(|| format!("cannot read the IOTA network config file at {path:?}"))
     }
