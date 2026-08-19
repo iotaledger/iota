@@ -37,7 +37,7 @@ use crate::{
     types::{
         address::Address,
         base64::Base64,
-        cursor::{Page, Target},
+        cursor::{JsonCursor, Page, Target},
         digest::Digest,
         epoch::Epoch,
         gas::GasInput,
@@ -152,6 +152,36 @@ impl DigestKey {
             checkpoint_viewed_at,
         }
     }
+}
+
+/// Cursor for the paginated `transactionsByDigests`: a position in the
+/// `digests` argument.
+///
+/// `checkpoint_viewed_at` keeps later pages at the same consistent view as the
+/// first one.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
+pub(crate) struct TransactionBlockByDigestCursor {
+    /// The checkpoint sequence number this page was viewed at.
+    #[serde(rename = "c")]
+    pub checkpoint_viewed_at: u64,
+    /// Position in the `digests` argument.
+    #[serde(rename = "i")]
+    pub index: u64,
+}
+
+pub(crate) type ByDigestCursor = JsonCursor<TransactionBlockByDigestCursor>;
+
+/// A page of the `transactionsByDigests` query.
+#[derive(SimpleObject)]
+pub(crate) struct TransactionsByDigestsPage {
+    /// One entry per digest of the page, in the order of the `digests`
+    /// argument, null when the transaction was not found.
+    nodes: Vec<Option<TransactionBlock>>,
+    /// Whether there are more entries after this page.
+    has_next_page: bool,
+    /// Cursor of the last entry of this page; pass it as `cursor` to get the
+    /// next page.
+    end_cursor: Option<String>,
 }
 
 #[Object]
@@ -325,6 +355,11 @@ impl TransactionBlock {
     /// blocks that could be found. We return a map because the order of
     /// results from the DB is not otherwise guaranteed to match the order that
     /// digests were passed into `multi_query`.
+    ///
+    /// Fetches with fallback and includes optimistic transactions. Optimistic
+    /// transactions and transactions checkpointed after `checkpoint_viewed_at`
+    /// get a sentinel `checkpoint_viewed_at` value that generally prevents
+    /// nested queries on them.
     pub(crate) async fn multi_query(
         ctx: &Context<'_>,
         digests: Vec<Digest>,
@@ -722,6 +757,56 @@ impl TransactionBlock {
             ));
         }
         Ok(conn)
+    }
+
+    /// Paginates transactions selected by digest, with fallback support.
+    /// Keeps optimistic transactions (not yet in a checkpoint).
+    ///
+    /// Pages keep the order of `digests` and hold one entry per digest, null
+    /// when the transaction was not found. The page starts right after the
+    /// entry `cursor` points at, and `limit` caps the page size (defaults to
+    /// `default_page_size`, capped by `max_page_size`).
+    pub(crate) async fn paginate_by_digests(
+        ctx: &Context<'_>,
+        limit: Option<u64>,
+        cursor: Option<ByDigestCursor>,
+        digests: &[Digest],
+        checkpoint_viewed_at: u64,
+    ) -> Result<TransactionsByDigestsPage, Error> {
+        let limits = &ctx.data_unchecked::<ServiceConfig>().limits;
+        let limit = limit.unwrap_or(limits.default_page_size as u64);
+        if limit > limits.max_page_size as u64 {
+            return Err(Error::PageTooLarge(limit, limits.max_page_size));
+        }
+
+        // Use `checkpoint_viewed_at` from the cursor if specified
+        let checkpoint_viewed_at = cursor
+            .as_ref()
+            .map_or(checkpoint_viewed_at, |c| c.checkpoint_viewed_at);
+
+        let start = cursor
+            .map_or(0, |c| c.index as usize + 1)
+            .min(digests.len());
+        let end = (start + limit as usize).min(digests.len());
+        let has_next_page = end < digests.len();
+
+        let chunk = &digests[start..end];
+        let mut found = Self::multi_query(ctx, chunk.to_vec(), checkpoint_viewed_at).await?;
+        let nodes: Vec<_> = chunk.iter().map(|digest| found.remove(digest)).collect();
+
+        let end_cursor = (!nodes.is_empty()).then(|| {
+            ByDigestCursor::new(TransactionBlockByDigestCursor {
+                checkpoint_viewed_at,
+                index: (end - 1) as u64,
+            })
+            .encode_cursor()
+        });
+
+        Ok(TransactionsByDigestsPage {
+            nodes,
+            has_next_page,
+            end_cursor,
+        })
     }
 }
 
