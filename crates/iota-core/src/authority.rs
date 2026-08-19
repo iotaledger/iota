@@ -2841,7 +2841,11 @@ impl AuthorityState {
 
         // Drain the object versions a build without the historic buckets
         // superseded and left in the live table.
-        object_backlog_sweep::spawn(Arc::downgrade(&state), Arc::downgrade(&store));
+        object_backlog_sweep::spawn(
+            Arc::downgrade(&state),
+            Arc::downgrade(&store),
+            num_epochs_to_retain,
+        );
 
         state
     }
