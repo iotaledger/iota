@@ -26,7 +26,7 @@ use iota_types::{
     object::Object,
     storage::{ObjectKey, ObjectStore},
 };
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use typed_store::{
     DbIterator, TypedStoreError,
     database::Database,
@@ -266,13 +266,22 @@ impl HistoricObjects {
             .map(|(&epoch, bucket)| (epoch, bucket.clone()))
             .collect();
         for (epoch, bucket) in interrupted {
-            Self::expire_bucket(&objects, epoch, &bucket)?;
+            let cf_name = bucket_cf_name(HISTORIC_OBJECTS_CF_PREFIX, epoch);
+            if let Err(e) = Self::expire_bucket(&objects, epoch, &bucket) {
+                // Named so that an operator whose node will not start can
+                // reach the column family with external tooling.
+                error!(
+                    epoch,
+                    cf_name, "cannot finish the interrupted expiry of a historic bucket: {e}"
+                );
+                return Err(e);
+            }
             buckets.remove(&epoch);
             info!(
                 epoch,
                 "dropping the bucket of an interrupted expiry at open"
             );
-            if let Err(e) = db.drop_cf(&bucket_cf_name(HISTORIC_OBJECTS_CF_PREFIX, epoch)) {
+            if let Err(e) = db.drop_cf(&cf_name) {
                 warn!(
                     epoch,
                     "failed to drop an expiring bucket column family: {e}"
