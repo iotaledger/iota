@@ -969,7 +969,7 @@ fn deny_rule_update_chunks_split_deterministically() {
 /// atomically with each injecting commit — not from the epoch-start seed,
 /// which is stale once injections have advanced the object.
 #[tokio::test]
-async fn restart_recovers_the_flushed_deny_rule_mirror() {
+async fn restart_recovers_the_deny_rule_mirror() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     let store = authority_state.epoch_store_for_testing();
     let address = Address::new([7u8; 32]);
@@ -983,7 +983,7 @@ async fn restart_recovers_the_flushed_deny_rule_mirror() {
     // An injecting commit persists the advanced mirror with its results.
     let mirror = rules_denying_address(address);
     let mut output = ConsensusCommitOutput::default();
-    output.record_flushed_deny_rule_mirror(mirror.clone());
+    output.record_deny_rule_mirror(mirror.clone());
     output.set_default_commit_stats_for_testing();
     let mut batch = store.db_batch_for_test();
     output.write_to_batch(&store, &mut batch).unwrap();
@@ -1240,6 +1240,8 @@ async fn every_injected_deny_rule_chunk_becomes_a_checkpoint_root() {
 async fn deny_rule_mirror_guard_exempts_nodes_outside_the_committee() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     let store = authority_state.epoch_store_for_testing();
+    // Close the epoch so the comparisons below run rather than being exempt.
+    store.get_reconfig_state_write_lock_guard().close_all_tx();
     let walked = rules_denying_address(Address::new([9u8; 32]));
 
     // Matching states (both default) pass for a committee member, as does a
@@ -1291,7 +1293,7 @@ async fn deny_rule_mirror_guard_exempts_nodes_outside_the_committee() {
 /// immediately, so a row absent although commits have flushed is a lost
 /// row: the store refuses to open rather than start from the stale seed.
 #[tokio::test]
-#[should_panic(expected = "flushed_deny_rule_mirror row is missing")]
+#[should_panic(expected = "deny_rule_mirror row is missing")]
 async fn lost_mirror_row_after_flushed_commits_fails_the_reopen() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     let store = authority_state.epoch_store_for_testing();
@@ -1317,11 +1319,11 @@ async fn lost_mirror_row_after_flushed_commits_fails_the_reopen() {
     )
     .unwrap();
     let tables = store.tables().unwrap();
-    assert!(tables.flushed_deny_rule_mirror.get(&()).unwrap().is_some());
+    assert!(tables.deny_rule_mirror.get(&()).unwrap().is_some());
 
     // Flush a commit, then lose the row.
     flush_deny_rule_proposal(&store, deny_proposal(store.name, 1, DenyRuleSet::default()));
-    tables.flushed_deny_rule_mirror.remove(&()).unwrap();
+    tables.deny_rule_mirror.remove(&()).unwrap();
     drop(tables);
     store.release_db_handles();
     let _ = AuthorityPerEpochStore::new(
@@ -1340,13 +1342,34 @@ async fn lost_mirror_row_after_flushed_commits_fails_the_reopen() {
     );
 }
 
+/// A validator that crosses the boundary by executing synced checkpoints
+/// never closes the epoch in its own consensus. Its mirror legitimately
+/// lags the object and the re-seed repairs it. The guard must not report
+/// that lag as a divergence.
+#[tokio::test]
+async fn deny_rule_mirror_guard_exempts_an_epoch_consensus_did_not_close() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    // The reconfig state stays at its default: the epoch was never closed.
+    let mut diverged = (*store.epoch_start_configuration).clone();
+    diverged.set_transaction_deny_rules_for_testing(
+        Version::from_u64(3),
+        rules_denying_address(Address::new([9u8; 32])),
+    );
+    // `debug_fatal!` aborts test configurations, so returning is the assertion.
+    authority_state.check_transaction_deny_rules_consistency(&store, &diverged);
+    assert_eq!(store.metrics.deny_rule_mirror_divergence.get(), 0);
+}
+
 /// A diverged mirror is reported: `debug_fatal!` aborts test configurations,
-/// so a divergence introduced by a bug fails the suite.
+/// so a divergence introduced by a bug fails the suite. The epoch is closed
+/// first so the comparison runs.
 #[tokio::test]
 #[should_panic(expected = "diverged from the mirrored state")]
 async fn deny_rule_mirror_guard_reports_divergence() {
     let authority_state = TestAuthorityBuilder::new().build().await;
     let store = authority_state.epoch_store_for_testing();
+    store.get_reconfig_state_write_lock_guard().close_all_tx();
     let mut diverged = (*store.epoch_start_configuration).clone();
     diverged.set_transaction_deny_rules_for_testing(
         Version::from_u64(3),

@@ -931,7 +931,7 @@ pub struct AuthorityEpochTables {
     /// The mirrored deny-rule state as of the last flushed commit, written
     /// in the flush batch so a restart resumes there and replays the rest.
     /// Present from epoch-store construction whenever the object exists.
-    flushed_deny_rule_mirror: DBMap<(), DenyRuleSet>,
+    deny_rule_mirror: DBMap<(), DenyRuleSet>,
 
     /// Contains a single key, which overrides the value of
     /// ProtocolConfig::buffer_stake_for_protocol_upgrade_bps
@@ -3087,11 +3087,23 @@ impl AuthorityPerEpochStore {
     /// announces its configuration each epoch, so this converges towards the
     /// full committee stake as announcements arrive.
     pub fn announced_deny_rule_stake(&self) -> StakeUnit {
-        self.consensus_quarantine
-            .read()
-            .current_deny_rule_proposals()
+        Self::announced_stake(
+            &self
+                .consensus_quarantine
+                .read()
+                .current_deny_rule_proposals(),
+            self.committee(),
+        )
+    }
+
+    /// The total committee stake behind the given proposals.
+    fn announced_stake(
+        proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
+        committee: &Committee,
+    ) -> StakeUnit {
+        proposals
             .keys()
-            .map(|authority| self.committee().weight(authority))
+            .map(|authority| committee.weight(authority))
             .sum()
     }
 
@@ -3126,7 +3138,7 @@ impl AuthorityPerEpochStore {
         tables: &AuthorityEpochTables,
         epoch_start_configuration: &EpochStartConfiguration,
     ) -> IotaResult<DenyRuleSet> {
-        if let Some(row) = tables.flushed_deny_rule_mirror.get(&())? {
+        if let Some(row) = tables.deny_rule_mirror.get(&())? {
             return Ok(row);
         }
         let Some(seed) = epoch_start_configuration.transaction_deny_rules_state() else {
@@ -3138,11 +3150,11 @@ impl AuthorityPerEpochStore {
             .is_some()
         {
             fatal!(
-                "flushed_deny_rule_mirror row is missing although commits have flushed — the epoch \
+                "deny_rule_mirror row is missing although commits have flushed — the epoch \
                  database is corrupted; restore or state-sync before rejoining"
             );
         }
-        tables.flushed_deny_rule_mirror.insert(&(), seed)?;
+        tables.deny_rule_mirror.insert(&(), seed)?;
         Ok(seed.clone())
     }
 
@@ -4299,15 +4311,17 @@ impl AuthorityPerEpochStore {
                 .iter()
                 .map(|(authority, proposal)| (*authority, proposal.clone())),
         );
+        // No proposals means an empty aggregate and zero announced stake.
+        // The diff can produce no chunk from that.
+        if proposals.is_empty() {
+            return Ok(());
+        }
         let aggregate = Self::compute_active_transaction_deny_rules(&proposals, self.committee());
         let mirror = self.mirrored_transaction_deny_rules.load_full();
 
         // Removals wait for enough of the committee to re-announce, so entries
         // do not drop out while announcements are still arriving.
-        let announced_stake: StakeUnit = proposals
-            .keys()
-            .map(|authority| self.committee().weight(authority))
-            .sum();
+        let announced_stake = Self::announced_stake(&proposals, self.committee());
         let removals_unlocked = announced_stake >= self.committee().quorum_threshold()
             && consensus_commit_info.round
                 >= self.protocol_config().deny_rule_removal_grace_round_floor();
@@ -4361,7 +4375,7 @@ impl AuthorityPerEpochStore {
             self.metrics
                 .deny_rule_update_transactions_injected
                 .inc_by(chunk_count as u64);
-            output.record_flushed_deny_rule_mirror(target.clone());
+            output.record_deny_rule_mirror(target.clone());
             self.mirrored_transaction_deny_rules.store(Arc::new(target));
             // The recompute in `push_consensus_output` only runs for commits
             // that record proposals, so a removal unlocking on a proposal-free

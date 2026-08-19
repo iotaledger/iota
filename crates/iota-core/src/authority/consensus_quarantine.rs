@@ -109,9 +109,9 @@ pub(crate) struct ConsensusCommitOutput {
     deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
 
     // The mirror state reached by this commit's injected updates, when it
-    // injected any. Written to `flushed_deny_rule_mirror` atomically with
+    // injected any. Written to `deny_rule_mirror` atomically with
     // `last_consensus_stats`.
-    flushed_deny_rule_mirror: Option<DenyRuleSet>,
+    deny_rule_mirror: Option<DenyRuleSet>,
 }
 
 impl ConsensusCommitOutput {
@@ -280,8 +280,8 @@ impl ConsensusCommitOutput {
     }
 
     /// Records the mirror state reached by this commit's injected updates.
-    pub fn record_flushed_deny_rule_mirror(&mut self, rules: DenyRuleSet) {
-        self.flushed_deny_rule_mirror = Some(rules);
+    pub fn record_deny_rule_mirror(&mut self, rules: DenyRuleSet) {
+        self.deny_rule_mirror = Some(rules);
     }
 
     pub fn write_to_batch(
@@ -423,8 +423,8 @@ impl ConsensusCommitOutput {
         )?;
 
         batch.insert_batch(&tables.deny_rule_proposals, self.deny_rule_proposals)?;
-        if let Some(mirror) = self.flushed_deny_rule_mirror {
-            batch.insert_batch(&tables.flushed_deny_rule_mirror, [((), mirror)])?;
+        if let Some(mirror) = self.deny_rule_mirror {
+            batch.insert_batch(&tables.deny_rule_mirror, [((), mirror)])?;
         }
 
         Ok(())

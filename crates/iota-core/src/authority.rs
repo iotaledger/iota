@@ -3272,10 +3272,12 @@ impl AuthorityState {
     /// Reports a mirror that diverged from the object at the epoch boundary,
     /// where the two must agree. Reporting is the remedy: reconfiguration
     /// re-seeds the mirror from the object, so failing here would only pin
-    /// the node to the diverged state. A missing object is fatal instead —
-    /// objects cannot be deleted, so the local store lost it and there is
-    /// nothing to re-seed from. Nodes outside the closing committee hold no
-    /// mirror and are exempt.
+    /// the node to the diverged state. A missing object is fatal instead.
+    /// Objects cannot be deleted, so the local store lost it and there is
+    /// nothing to re-seed from. Nodes outside the closing committee are
+    /// exempt. So is an epoch this node's consensus did not close. A
+    /// checkpoint catch-up leaves the mirror legitimately behind until the
+    /// re-seed.
     pub(crate) fn check_transaction_deny_rules_consistency(
         &self,
         cur_epoch_store: &AuthorityPerEpochStore,
@@ -3300,6 +3302,20 @@ impl AuthorityState {
             }
             return;
         };
+        // RejectAllTx proves this node's consensus processed every commit of
+        // the epoch, so the mirror is complete. Otherwise the tail came from
+        // synced checkpoints and the mirror's lag carries no signal.
+        if cur_epoch_store
+            .get_reconfig_state_read_lock_guard()
+            .should_accept_tx()
+        {
+            info!(
+                "skipping the deny-rule mirror comparison: consensus did not close epoch {} on \
+                 this node",
+                cur_epoch_store.epoch(),
+            );
+            return;
+        }
         let mirrored_deny_rules = cur_epoch_store.get_mirrored_transaction_deny_rules();
         if *walked_deny_rules != *mirrored_deny_rules {
             debug_fatal!(

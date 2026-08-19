@@ -1525,6 +1525,8 @@
                 "debug_print_stack_trace_base_cost": {
                   "u64": "52"
                 },
+                "deny_rule_removal_grace_round_floor": null,
+                "deny_rule_update_max_entries_per_tx": null,
                 "dynamic_field_add_child_object_cost_base": {
                   "u64": "100"
                 },
