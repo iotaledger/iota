@@ -9,7 +9,7 @@ use prometheus_filtered::Registry;
 use tempfile::TempDir;
 use typed_store::{database::wait_for_database_close, traits::Map};
 
-use super::{ObjectBacklogSweep, ObjectBacklogSweepProgress};
+use super::{KEYS_PER_SLICE, ObjectBacklogSweep, ObjectBacklogSweepProgress, sweep};
 use crate::authority::{
     AuthorityStore,
     authority_store_tables::AuthorityPerpetualTables,
@@ -163,6 +163,43 @@ async fn the_sweep_keeps_the_latest_version_and_the_tombstones() {
             .is_empty()
     );
     assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
+}
+
+/// One call walks the whole table, however many slices that takes, so a
+/// caller that awaits it is left with no backlog at all.
+#[tokio::test]
+async fn one_call_drives_the_walk_past_the_slice_boundary() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let last_version = KEYS_PER_SLICE as u64 + 10;
+    store
+        .perpetual_tables
+        .objects
+        .multi_insert((1..=last_version).map(|version| value(live_id(), version)))
+        .unwrap();
+
+    sweep(store.clone(), SWEEP_EPOCH, 2).await.unwrap();
+
+    assert_eq!(
+        live_keys(&store),
+        vec![ObjectKey(live_id(), last_version.into())]
+    );
+    assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
+}
+
+/// A node that retains every epoch's superseded versions keeps the
+/// pre-upgrade ones too: it expires no bucket, so the live table is the only
+/// place that history still exists.
+#[tokio::test]
+async fn retaining_every_epoch_leaves_the_backlog_in_the_live_table() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    seed(&store);
+
+    sweep(store.clone(), SWEEP_EPOCH, u64::MAX).await.unwrap();
+
+    assert_eq!(live_keys(&store).len(), 9);
+    assert_eq!(progress(&store), None);
 }
 
 /// A walk stopped part-way resumes from the key it recorded, across a
