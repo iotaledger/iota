@@ -102,16 +102,6 @@ impl TransactionEffectsAPI for TransactionEffectsV1 {
 
     fn object_changes(&self) -> Vec<ObjectChange> {
         TransactionEffectsV1::object_changes(self)
-            .into_iter()
-            .map(|change| ObjectChange {
-                id: change.object_id,
-                input_version: change.input_version,
-                input_digest: change.input_digest,
-                output_version: change.output_version,
-                output_digest: change.output_digest,
-                id_operation: change.id_operation,
-            })
-            .collect()
     }
 
     fn gas_object(&self) -> (ObjectReference, Owner) {

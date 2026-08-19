@@ -58,10 +58,7 @@ impl Message for TransactionEffects {
     }
 }
 
-pub enum ObjectRemoveKind {
-    Delete,
-    Wrap,
-}
+pub use iota_sdk_types::ObjectRemoveKind;
 
 /// Description of a shared object that was used as input to a transaction.
 ///
@@ -97,22 +94,7 @@ impl InputSharedObject {
     }
 }
 
-/// Effect on an individual object, keyed by its [`ObjectId`].
-///
-/// Describes the input and output version/digest of a single object that was
-/// read or modified during transaction execution, along with the
-/// [`IdOperation`] that was applied to it. This is a flattened,
-/// version-agnostic view derived from the effects via
-/// [`TransactionEffectsAPI::object_changes`].
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub struct ObjectChange {
-    pub id: ObjectId,
-    pub input_version: Option<Version>,
-    pub input_digest: Option<ObjectDigest>,
-    pub output_version: Option<Version>,
-    pub output_digest: Option<ObjectDigest>,
-    pub id_operation: IdOperation,
-}
+pub use iota_sdk_types::ObjectChange;
 
 mod transaction_effects_api {
     pub trait Sealed {}
@@ -375,6 +357,19 @@ macro_rules! delegate_shadowed_effects_api {
     };
 }
 
+// Dispatch to what `iota-sdk-types` derives on the version itself, for the
+// accessors this repo no longer derives.
+macro_rules! delegate_sdk_effects_api {
+    ($self:ident, $method:ident) => {
+        match $self {
+            TransactionEffects::V1(v1) => TransactionEffectsV1::$method(&**v1),
+            _ => unimplemented!(
+                "a new TransactionEffects enum variant was added and needs to be handled"
+            ),
+        }
+    };
+}
+
 // Helper macro to reduce boilerplate code
 macro_rules! delegate_effects_api {
     ($self:ident, $method:ident $(, $arg:expr)*) => {
@@ -536,32 +531,14 @@ impl TransactionEffectsExt for TransactionEffects {
     }
 
     fn all_changed_objects(&self) -> Vec<(ObjectReference, Owner, WriteKind)> {
-        self.mutated()
+        delegate_sdk_effects_api!(self, all_changed_objects)
             .into_iter()
-            .map(|(r, o)| (r, o, WriteKind::Mutate))
-            .chain(
-                self.created()
-                    .into_iter()
-                    .map(|(r, o)| (r, o, WriteKind::Create)),
-            )
-            .chain(
-                self.unwrapped()
-                    .into_iter()
-                    .map(|(r, o)| (r, o, WriteKind::Unwrap)),
-            )
+            .map(|(object, kind)| (object.reference, object.owner, kind))
             .collect()
     }
 
     fn all_removed_objects(&self) -> Vec<(ObjectReference, ObjectRemoveKind)> {
-        self.deleted()
-            .iter()
-            .map(|obj_ref| (*obj_ref, ObjectRemoveKind::Delete))
-            .chain(
-                self.wrapped()
-                    .iter()
-                    .map(|obj_ref| (*obj_ref, ObjectRemoveKind::Wrap)),
-            )
-            .collect()
+        delegate_sdk_effects_api!(self, all_removed_objects)
     }
 
     fn all_tombstones(&self) -> Vec<(ObjectId, Version)> {
@@ -584,7 +561,7 @@ impl TransactionEffectsExt for TransactionEffects {
                     && change.output_digest.is_none()
                     && change.id_operation == IdOperation::Created
                 {
-                    Some((change.id, change.output_version.unwrap_or_default()))
+                    Some((change.object_id, change.output_version.unwrap_or_default()))
                 } else {
                     None
                 }

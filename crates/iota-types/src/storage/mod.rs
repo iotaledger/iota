@@ -90,16 +90,7 @@ impl From<&Object> for InputKey {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
-pub enum WriteKind {
-    /// The object was in storage already but has been modified
-    Mutate,
-    /// The object was created in this transaction
-    Create,
-    /// The object was previously wrapped in another object, but has been
-    /// restored to storage
-    Unwrap,
-}
+pub use iota_sdk_types::WriteKind;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum DeleteKind {
