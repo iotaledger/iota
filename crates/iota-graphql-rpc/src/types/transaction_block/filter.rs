@@ -167,6 +167,26 @@ impl TransactionBlockFilter {
         self.affected_address
     }
 
+    /// Returns the transaction digests when `transactionIds` is the only
+    /// filter set.
+    pub(crate) fn only_transaction_ids(&self) -> Option<&Vec<Digest>> {
+        let no_other_filters = self.function.is_none()
+            && self.kind.is_none()
+            && self.sent_address.is_none()
+            && self.recv_address.is_none()
+            && self.affected_address.is_none()
+            && self.input_object.is_none()
+            && self.changed_object.is_none()
+            && self.wrapped_or_deleted_object.is_none()
+            && self.after_checkpoint.is_none()
+            && self.at_checkpoint.is_none()
+            && self.before_checkpoint.is_none();
+
+        no_other_filters
+            .then_some(self.transaction_ids.as_ref())
+            .flatten()
+    }
+
     pub(crate) fn is_empty(&self) -> bool {
         self.before_checkpoint == Some(UInt53::from(0))
             || matches!(

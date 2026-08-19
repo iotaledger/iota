@@ -428,6 +428,18 @@ impl TransactionBlock {
             .await;
         }
 
+        // For the only-`transactionIds` case, we support fallback.
+        // `scan_limit` is ignored here
+        if let Some(transaction_ids) = filter.only_transaction_ids() {
+            return Self::paginate_by_transaction_ids_with_fallback(
+                db,
+                page,
+                transaction_ids,
+                checkpoint_viewed_at,
+            )
+            .await;
+        }
+
         use transactions::dsl as tx;
         let (prev, next, transactions, tx_bounds): (
             bool,
@@ -635,6 +647,61 @@ impl TransactionBlock {
                 && page.after().is_none_or(|c| c.tx_sequence_number <= tx_seq)
                 && page.before().is_none_or(|c| tx_seq <= c.tx_sequence_number)
         });
+
+        let (prev, next, results) = page.paginate_results(
+            results.first().map(|f| f.cursor(checkpoint_viewed_at)),
+            results.last().map(|l| l.cursor(checkpoint_viewed_at)),
+            results,
+        );
+
+        let mut conn = ScanConnection::new(prev, next);
+        for stored in results {
+            let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
+            let inner = TransactionBlockInner::try_from(stored)?;
+            conn.edges.push(Edge::new(
+                cursor,
+                TransactionBlock {
+                    inner,
+                    checkpoint_viewed_at,
+                },
+            ));
+        }
+        Ok(conn)
+    }
+
+    /// Paginates transactions selected by digest, with fallback support.
+    async fn paginate_by_transaction_ids_with_fallback(
+        db: &Db,
+        page: Page<Cursor>,
+        transaction_ids: &[Digest],
+        checkpoint_viewed_at: u64,
+    ) -> Result<ScanConnection<String, TransactionBlock>, Error> {
+        let digests: Vec<TransactionDigest> = transaction_ids.iter().map(|d| (*d).into()).collect();
+
+        let mut results: Vec<StoredTransaction> = db
+            .inner
+            .multi_get_transactions_with_fallback(&digests)
+            .await
+            .map_err(Error::from)?
+            .into_iter()
+            .filter_map(|tx| match tx {
+                TransactionRead::Checkpointed(stored) => Some(stored),
+                // Optimistic transactions are not yet in a checkpoint, so they
+                // have no `tx_sequence_number` to order and paginate.
+                TransactionRead::Optimistic(_) => None,
+            })
+            .collect();
+
+        // The fetch above returns every requested transaction. Keep only the
+        // ones visible at `checkpoint_viewed_at` and inside the inclusive
+        // cursors range, to satisfy requirements of `page.paginate_results`.
+        results.retain(|tx| {
+            let tx_seq = tx.tx_sequence_number as u64;
+            tx.checkpoint_sequence_number as u64 <= checkpoint_viewed_at
+                && page.after().is_none_or(|c| c.tx_sequence_number <= tx_seq)
+                && page.before().is_none_or(|c| tx_seq <= c.tx_sequence_number)
+        });
+        results.sort_by_key(|tx| tx.tx_sequence_number);
 
         let (prev, next, results) = page.paginate_results(
             results.first().map(|f| f.cursor(checkpoint_viewed_at)),
