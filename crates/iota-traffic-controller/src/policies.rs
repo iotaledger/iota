@@ -458,7 +458,7 @@ impl TestNConnIPPolicy {
         let frequencies_clone = frequencies.clone();
         spawn_monitored_task!(run_clear_frequencies(
             frequencies_clone,
-            config.connection_blocklist_ttl_sec * 2,
+            config.connection_blocklist_ttl_sec.saturating_mul(2),
         ));
         Self {
             config,
