@@ -472,8 +472,11 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .inc_by(verified_shards.len() as u64);
         Ok(verified_shards)
     }
-    fn ensure_commit_lag_within_threshold(&self, block_ref: BlockRef) -> ConsensusResult<()> {
-        let last_commit_index = self.dag_state.read().last_commit_index();
+    fn ensure_commit_lag_within_threshold(
+        &self,
+        block_ref: BlockRef,
+        last_commit_index: CommitIndex,
+    ) -> ConsensusResult<()> {
         let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
         // The threshold to ignore block should be larger than commit_sync_batch_size,
         // to avoid excessive block rejections and synchronizations.
@@ -690,13 +693,13 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     /// would only widen the round window in which shards and payloads are
     /// retained, so ingestion pauses until the transactions synchronizer
     /// closes the gap.
-    fn ensure_solid_commit_lag_within_threshold(&self, block_ref: BlockRef) -> ConsensusResult<()> {
-        let solid_commit_lag = {
-            let dag_state = self.dag_state.read();
-            if !dag_state.is_solidification_lagging() {
-                return Ok(());
-            }
-            dag_state.solid_commit_lag_rounds()
+    fn ensure_solid_commit_lag_within_threshold(
+        &self,
+        block_ref: BlockRef,
+        solid_commit_lag: Option<Round>,
+    ) -> ConsensusResult<()> {
+        let Some(solid_commit_lag) = solid_commit_lag else {
+            return Ok(());
         };
         self.context
             .metrics
@@ -911,8 +914,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         //
         // IMPORTANT: this must be done after observing votes from the block, otherwise
         // observed quorum commit will no longer progress.
-        self.ensure_commit_lag_within_threshold(block_ref)?;
-        self.ensure_solid_commit_lag_within_threshold(block_ref)?;
+        //
+        // Read both lag inputs under a single short dag_state lock, then decide without
+        // holding it — the threshold comparisons, metrics and errors need no lock.
+        let (last_commit_index, solid_commit_lag) = {
+            let dag_state = self.dag_state.read();
+            let solid_commit_lag = dag_state
+                .is_solidification_lagging()
+                .then(|| dag_state.solid_commit_lag_rounds());
+            (dag_state.last_commit_index(), solid_commit_lag)
+        };
+        self.ensure_commit_lag_within_threshold(block_ref, last_commit_index)?;
+        self.ensure_solid_commit_lag_within_threshold(block_ref, solid_commit_lag)?;
 
         self.context
             .metrics
