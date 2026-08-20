@@ -226,7 +226,7 @@ mod ingestion_tests {
         .context("failed reading `tx_global_order` from PostgresDB")?;
 
         assert_eq!(
-            stored_global_order.chk_tx_sequence_number,
+            stored_global_order.tx_sequence_number,
             Some(stored_global_order.global_sequence_number)
         );
         let expected_optimistic_sequence_number = -1;
@@ -263,7 +263,7 @@ mod ingestion_tests {
                             tx_digest: digest.inner().to_vec(),
                             global_sequence_number,
                             optimistic_sequence_number: None,
-                            chk_tx_sequence_number: None,
+                            tx_sequence_number: None,
                         };
                         insert_or_ignore_into!(tx_global_order::table, insertable, conn);
                         Ok::<(), IndexerError>(())

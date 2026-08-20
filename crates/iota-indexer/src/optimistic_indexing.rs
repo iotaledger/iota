@@ -435,8 +435,8 @@ impl OptimisticTransactionExecutor {
 
         sql_query(
             r#"
-                INSERT INTO tx_global_order (tx_digest, global_sequence_number, chk_tx_sequence_number)
-                SELECT $1, MAX(chk_tx_sequence_number), NULL FROM tx_global_order
+                INSERT INTO tx_global_order (tx_digest, global_sequence_number, tx_sequence_number)
+                SELECT $1, MAX(tx_sequence_number), NULL FROM tx_global_order
                 RETURNING *;
             "#,
         )

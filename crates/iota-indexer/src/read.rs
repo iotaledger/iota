@@ -1958,8 +1958,8 @@ impl IndexerReader {
     /// - Optimistic transactions: `optimistic_sequence_number > 0` (objects are
     ///   committed atomically with the tx)
     /// - Checkpoint transactions: the latest indexed checkpoint's
-    ///   `max_tx_sequence_number >= chk_tx_sequence_number`, meaning the
-    ///   checkpoint containing this tx has been fully persisted
+    ///   `max_tx_sequence_number >= tx_sequence_number`, meaning the checkpoint
+    ///   containing this tx has been fully persisted
     pub(crate) async fn is_transaction_fully_indexed(
         &self,
         digest: TransactionDigest,
@@ -1971,7 +1971,7 @@ impl IndexerReader {
                     .filter(tx_global_order::tx_digest.eq(digest_bytes))
                     .select((
                         tx_global_order::optimistic_sequence_number,
-                        tx_global_order::chk_tx_sequence_number,
+                        tx_global_order::tx_sequence_number,
                     ))
                     .first::<(i64, Option<i64>)>(conn)
                     .optional()
@@ -1993,7 +1993,7 @@ impl IndexerReader {
                         .flatten()
                         .is_some_and(|max_tx| max_tx >= tx_seq))
                 }
-                // Row not found or chk_tx_sequence_number not yet set.
+                // Row not found or tx_sequence_number not yet set.
                 _ => Ok(false),
             }
         })
@@ -3113,11 +3113,11 @@ impl<'a> DBReader<'a> {
             events::tx_sequence_number
                 .nullable()
                 .eq(tx_global_order::table
-                    .select(tx_global_order::chk_tx_sequence_number.assume_not_null())
+                    .select(tx_global_order::tx_sequence_number.assume_not_null())
                     // we filter the tx_global_order table because it is indexed by digest,
                     // events table is not
                     .filter(tx_global_order::tx_digest.eq(tx_digest.into_inner().to_vec()))
-                    .filter(tx_global_order::chk_tx_sequence_number.is_not_null())
+                    .filter(tx_global_order::tx_sequence_number.is_not_null())
                     .single_value()),
         );
 
@@ -3158,11 +3158,11 @@ impl<'a> DBReader<'a> {
         let pool = self.main_reader.get_pool();
         run_query_async!(&pool, move |conn| {
             tx_global_order::table
-                .select(tx_global_order::chk_tx_sequence_number.assume_not_null())
+                .select(tx_global_order::tx_sequence_number.assume_not_null())
                 // we filter the tx_global_order table because it is indexed by digest,
                 // transactions (and other tables) are not
                 .filter(tx_global_order::tx_digest.eq(cursor.into_inner().to_vec()))
-                .filter(tx_global_order::chk_tx_sequence_number.is_not_null())
+                .filter(tx_global_order::tx_sequence_number.is_not_null())
                 .first::<i64>(conn)
                 .optional()
         })
@@ -3179,11 +3179,11 @@ impl<'a> DBReader<'a> {
                     transactions::tx_sequence_number
                         .nullable()
                         .eq(tx_global_order::table
-                            .select(tx_global_order::chk_tx_sequence_number.assume_not_null())
+                            .select(tx_global_order::tx_sequence_number.assume_not_null())
                             // we filter the tx_global_order table because it is indexed by digest,
                             // transactions table is not
                             .filter(tx_global_order::tx_digest.eq(digest.into_inner().to_vec()))
-                            .filter(tx_global_order::chk_tx_sequence_number.is_not_null())
+                            .filter(tx_global_order::tx_sequence_number.is_not_null())
                             .single_value()),
                 )
                 .select((transactions::timestamp_ms, transactions::events))
@@ -3462,7 +3462,7 @@ impl<'a> DBReader<'a> {
                 .filter(tx_global_order::tx_digest.eq_any(digests))
                 .select((
                     OptimisticTransaction::as_select(),
-                    tx_global_order::chk_tx_sequence_number,
+                    tx_global_order::tx_sequence_number,
                 ))
                 .load::<(OptimisticTransaction, Option<i64>)>(conn)
         })
@@ -3484,8 +3484,8 @@ impl<'a> DBReader<'a> {
             // using two-step query to allow partition pruning during execution.
             let tx_sequence_numbers = tx_global_order::table
                 .filter(tx_global_order::tx_digest.eq_any(&digests))
-                .filter(tx_global_order::chk_tx_sequence_number.is_not_null())
-                .select(tx_global_order::chk_tx_sequence_number.assume_not_null())
+                .filter(tx_global_order::tx_sequence_number.is_not_null())
+                .select(tx_global_order::tx_sequence_number.assume_not_null())
                 .load::<i64>(conn)?;
 
             if tx_sequence_numbers.is_empty() {
@@ -3588,7 +3588,7 @@ impl<'a> DBReader<'a> {
         let rows = run_query_async!(&pool, |conn| {
             tx_global_order::table
                 .filter(
-                    tx_global_order::chk_tx_sequence_number
+                    tx_global_order::tx_sequence_number
                         .eq_any(tx_sequence_numbers.into_iter().map(Some)),
                 )
                 .select(tx_global_order::tx_digest)

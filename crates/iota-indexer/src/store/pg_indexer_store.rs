@@ -63,7 +63,7 @@ use crate::{
         event_struct_name, event_struct_package, events, feature_flags, objects,
         objects_backward_history, objects_version, optimistic_transactions, packages,
         protocol_configs, pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod,
-        tx_calls_pkg, tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds,
+        tx_calls_pkg, tx_changed_objects, tx_global_order, tx_input_objects, tx_kinds,
         tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
     },
     store::{IndexerStore, diesel_macro::mark_in_blocking_pool},
@@ -734,15 +734,15 @@ impl PgIndexerStore {
             |conn| {
                 for tx_order_chunk in tx_order.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
                     // Upsert: on conflict (row already inserted by optimistic path),
-                    // set `chk_tx_sequence_number` so checkpoint data is available
+                    // set `tx_sequence_number` so checkpoint data is available
                     // immediately.
                     on_conflict_do_update_with_condition!(
                         tx_global_order::table,
                         tx_order_chunk,
                         tx_global_order::tx_digest,
-                        tx_global_order::chk_tx_sequence_number
-                            .eq(excluded(tx_global_order::chk_tx_sequence_number)),
-                        tx_global_order::chk_tx_sequence_number.is_null(),
+                        tx_global_order::tx_sequence_number
+                            .eq(excluded(tx_global_order::tx_sequence_number)),
+                        tx_global_order::tx_sequence_number.is_null(),
                         conn
                     );
                 }
@@ -1153,7 +1153,7 @@ impl PgIndexerStore {
     }
 
     /// Prunes tx_global_order table by transaction range using
-    /// chk_tx_sequence_number
+    /// tx_sequence_number
     fn prune_tx_global_order(
         &self,
         conn: &mut PgConnection,
@@ -1162,7 +1162,7 @@ impl PgIndexerStore {
     ) -> Result<(), IndexerError> {
         diesel::delete(
             tx_global_order::table
-                .filter(tx_global_order::chk_tx_sequence_number.between(min_tx, max_tx)),
+                .filter(tx_global_order::tx_sequence_number.between(min_tx, max_tx)),
         )
         .execute(conn)
         .map_err(IndexerError::from)
@@ -1321,15 +1321,6 @@ impl PgIndexerStore {
                             min_tx,
                             max_tx,
                             "Failed to prune tx_calls_fun table"
-                        );
-                    }
-                    PrunableTable::TxDigests => {
-                        prune_tx_or_event_indice_table!(
-                            tx_digests,
-                            conn,
-                            min_tx,
-                            max_tx,
-                            "Failed to prune tx_digests table"
                         );
                     }
                     PrunableTable::TxKinds => {
