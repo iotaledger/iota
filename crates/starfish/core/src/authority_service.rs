@@ -56,10 +56,8 @@ pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
 const MAX_FILTER_SIZE: u32 = 100000;
 
-/// The author, round and timestamp of a header whose digest is in
-/// [`FilterForHeaders`], recorded when the verified header was inserted so a
-/// re-delivered copy can be sampled for responsiveness without being
-/// deserialized again.
+/// Author, round and timestamp of a filtered header, recorded when it was
+/// inserted so a re-delivered copy is sampled without deserializing it again.
 type FilteredHeaderInfo = (AuthorityIndex, Round, BlockTimestampMs);
 
 fn filtered_header_info(header: &VerifiedBlockHeader) -> FilteredHeaderInfo {
@@ -296,12 +294,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     }
 
     /// Deserializes and verifies the additional headers of a bundle. Returns
-    /// the fresh headers, to be accepted into the DAG, and separately the
-    /// author, round and timestamp of each header received before (its digest
-    /// is in `received_block_headers`): those still count as deliveries for
-    /// the responsiveness sampling, but must not be re-accepted. The fields of
-    /// a duplicate come from the filter, recorded when the verified header was
-    /// inserted, so a duplicate costs a lookup, not a deserialization.
+    /// the fresh headers to accept into the DAG, plus the info of the already
+    /// received ones — still deliveries for the responsiveness sampling, but
+    /// not to be re-accepted.
     fn extract_additional_block_headers_from_bundle(
         &self,
         peer: AuthorityIndex,
@@ -326,11 +321,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .filtered_headers_in_bundles
                     .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
                     .inc();
-                // The in-bundle round bound applies to duplicates too:
-                // together with the connect ceiling on the primary block it
-                // keeps a far-future header, whose digest enters the filter
-                // when its block is dropped, from being replayed as a
-                // near-zero-latency sample.
+                // The round bound keeps a far-future header, filtered even
+                // when its block is dropped, from replaying as a near-zero
+                // sample.
                 if round < block_round {
                     duplicate_header_deliveries.push((author, round, timestamp_ms));
                 }
@@ -926,9 +919,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
-        // Sample the streaming responsiveness table from this bundle's
-        // headers, the duplicates the digest filter already saw included; the
-        // sampling rules live on `record_streaming_header_deliveries`.
+        // Sample streaming responsiveness from the delivered headers,
+        // duplicates included; see `record_streaming_header_deliveries`.
         if !additional_block_headers.is_empty() || !duplicate_header_deliveries.is_empty() {
             self.context
                 .peer_responsiveness
@@ -3105,10 +3097,8 @@ mod tests {
             .await
             .expect("bundle is expected to be processed successfully");
 
-        // THEN author 3 is sampled once, from its newest header, and author 2
-        // is sampled from the only header of it in the bundle - old headers are
-        // measured too, since how old the newest one is says how current the
-        // peer is on that author.
+        // THEN author 3 is sampled from its newest header, author 2 from its
+        // only one; old headers are measured too.
         let responsiveness = &context.peer_responsiveness;
         let expected = |header: &VerifiedBlockHeader| {
             (context.clock.timestamp_utc_ms() - header.timestamp_ms()) as f64
@@ -3140,9 +3130,8 @@ mod tests {
             .await
             .expect("bundle is expected to be processed successfully");
 
-        // THEN the re-delivery is sampled like any delivery, against the same
-        // header timestamp, so a peer that is consistently second is still
-        // measured — and cannot read faster than the first delivery did.
+        // THEN the re-delivery is sampled too, against the same header
+        // timestamp.
         let resampled = responsiveness
             .streaming_header_latency_ms(peer_2, author_3)
             .expect("a re-delivery is sampled");

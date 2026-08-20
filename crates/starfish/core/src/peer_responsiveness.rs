@@ -39,9 +39,7 @@
 //! a fetch succeeds again.
 //!
 //! The block-bundle streaming path is tracked separately, per (peer, author)
-//! pair, recorded for the upcoming selection of which peers to request a
-//! missing author's headers from; see
-//! [`PeerResponsiveness::record_streaming_header_deliveries`].
+//! pair; see [`PeerResponsiveness::record_streaming_header_deliveries`].
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
@@ -148,8 +146,8 @@ const HEADER_SYNC_NEUTRAL_LATENCY_MS: f64 = 500.0;
 /// trust".
 const ALPHA_SUCCESS: f64 = 0.3;
 
-/// Seeds or blends a smoothed latency with a new sample: the first sample
-/// becomes the value, later ones are blended with weight `alpha`.
+/// First sample seeds the value; later ones are EWMA-blended with weight
+/// `alpha`.
 fn blend_latency_ms(prev: Option<f64>, sample_ms: f64, alpha: f64) -> f64 {
     match prev {
         None => sample_ms,
@@ -181,11 +179,7 @@ pub(crate) struct PeerResponsiveness {
     metrics: Arc<Metrics>,
     committee_size: usize,
     inner: Mutex<Tracks>,
-    /// Smoothed latency of headers delivered through subscription bundles,
-    /// indexed `[peer][author]`, `None` until the first sample; see
-    /// [`Self::record_streaming_header_deliveries`]. Under its own lock: the
-    /// bundle path writes here on every received bundle and shares no data
-    /// with the per-source tracks.
+    /// Smoothed streaming-delivery latency, indexed `[peer][author]`.
     streaming_headers: Mutex<Vec<Vec<Option<f64>>>>,
 }
 
@@ -240,22 +234,12 @@ impl PeerResponsiveness {
         self.update_failure(source, peer, sample);
     }
 
-    /// Records the header deliveries of one bundle received through `peer`'s
-    /// subscription stream, given as the `(author, round, timestamp)` of each
-    /// delivered header. Duplicates of headers another peer already delivered
-    /// must be reported like any delivery: sampling only first deliveries
-    /// would record nothing for a peer that is consistently second and only
-    /// race-winning latencies for the rest.
-    ///
-    /// One sample per author is taken, from the newest header of that author
-    /// in the bundle — a bundle is one delivery event, and how old that
-    /// newest header is says how current the peer is on that author, while a
-    /// peer pushing a whole chain is not weighted by how much it sent. The
-    /// sample is the header's own timestamp to `now_ms`, so the author's
-    /// clock bias cancels when peers are compared for one author, and a
-    /// re-delivery cannot read faster than the genuine first delivery did.
-    /// The samples are folded before the lock, which is taken once per
-    /// bundle.
+    /// Records one bundle's header deliveries from `peer`, duplicates
+    /// included — sampling only first deliveries would leave a consistently
+    /// second peer unmeasured. One sample per author, from its newest header,
+    /// measured from the header's own timestamp to `now_ms`: the author's
+    /// clock bias cancels across peers and a re-delivery cannot read fast.
+    /// The lock is taken once per bundle.
     pub(crate) fn record_streaming_header_deliveries(
         &self,
         peer: AuthorityIndex,
@@ -416,11 +400,8 @@ impl PeerResponsiveness {
     }
 
     /// Writes the ranked order back into `candidates` from per-candidate
-    /// `(effective latency, last fetch failed)` stats: healthy peers sorted by
-    /// latency (ties broken by a random key so an all-equal set, e.g. cold
-    /// start, is ordered uniformly), the [`SELECTION_WINDOW`] best permuted by
-    /// draws with probability proportional to `1 / latency`, the rest in
-    /// latency order, and failed peers last, fastest first.
+    /// `(effective latency, last fetch failed)` stats; the ordering rules are
+    /// described on [`Self::prioritize`].
     fn reorder_by_latency<R: Rng>(
         candidates: &mut [AuthorityIndex],
         stats: &[(f64, bool)],
@@ -680,8 +661,7 @@ mod tests {
     #[test]
     fn streaming_delivery_samples_newest_header_per_author() {
         let pr = responsiveness(4);
-        // A chain of one author's headers in one bundle is one sample, from
-        // the newest header by round, regardless of order.
+        // One sample per author, from its newest header, regardless of order.
         pr.record_streaming_header_deliveries(idx(1), 1_000, [(idx(2), 5, 950), (idx(2), 2, 100)]);
         assert_eq!(pr.streaming_header_latency_ms(idx(1), idx(2)), Some(50.0));
     }
@@ -689,8 +669,7 @@ mod tests {
     #[test]
     fn streaming_cells_are_independent() {
         let pr = responsiveness(4);
-        // One bundle spreads over the peer's row; another peer's cell for the
-        // same author is a separate measurement.
+        // Each (peer, author) cell is a separate measurement.
         pr.record_streaming_header_deliveries(idx(1), 1_000, [(idx(2), 1, 700), (idx(3), 1, 950)]);
         pr.record_streaming_header_deliveries(idx(3), 1_000, [(idx(2), 1, 300)]);
 
