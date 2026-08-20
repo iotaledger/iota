@@ -170,10 +170,8 @@ impl TrafficController {
         let policy_config = { self.policy_config.read().await.clone() };
         Self::set_policy_config_metrics(&policy_config, self.metrics.clone());
         let (tx, rx) = mpsc::channel(policy_config.channel_capacity);
-        // Memoized drainfile existence state. This is passed into delegation
-        // functions to prevent them from continuing to populate blocklists
-        // if drain is set, as otherwise it will grow without bounds
-        // without the firewall running to periodically clear it.
+        // Drain file state, refreshed by the tally loop. While the firewall
+        // drains, the node blocks locally instead of delegating.
         let mem_drainfile_present = self
             .fw_config
             .as_ref()
@@ -528,15 +526,11 @@ async fn run_tally_loop(
             _ = tokio::time::sleep(tokio::time::Duration::from_secs(timeout)) => {
                 if let Some(fw_config) = &fw_config {
                     error!("No traffic tallies received in {} seconds.", timeout);
-                    if mem_drainfile_present {
-                        continue;
-                    }
                     if !fw_config.drain_path.exists() {
-                        mem_drainfile_present = true;
                         warn!("Draining Node firewall.");
-                        File::create(&fw_config.drain_path)
-                            .expect("Failed to touch nodefw drain file");
-                        metrics.deadmans_switch_enabled.set(1);
+                        if let Err(err) = File::create(&fw_config.drain_path) {
+                            error!("Failed to touch nodefw drain file: {err}");
+                        }
                     }
                 }
             }
@@ -545,6 +539,19 @@ async fn run_tally_loop(
         // every N seconds, we update metrics and logging that would be too
         // spammy to be handled while processing each tally
         if metric_timer.elapsed() > Duration::from_secs(METRICS_INTERVAL_SECS) {
+            // The operator can add or remove the drain file at any time. The
+            // loop reads it again, thus delegation restarts after a drain. An
+            // I/O error keeps the last known state, because `exists` cannot
+            // tell an error from a removal.
+            if let Some(fw_config) = &fw_config {
+                match fw_config.drain_path.try_exists() {
+                    Ok(drainfile_present) => mem_drainfile_present = drainfile_present,
+                    Err(err) => warn!("Failed to read the nodefw drain file: {err}"),
+                }
+                metrics
+                    .deadmans_switch_enabled
+                    .set(mem_drainfile_present as i64);
+            }
             if let TrafficControlPolicy::FreqThreshold(ref spam_policy) = *spam_policy.lock().await
             {
                 if let Some(highest_direct_rate) = spam_policy.highest_direct_rate() {
@@ -1090,13 +1097,14 @@ pub fn get_client_ip(
 
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
+    use std::{net::Ipv4Addr, path::PathBuf};
 
     use super::*;
 
     const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
 
     /// The policy that the request breaches.
+    #[derive(Clone, Copy)]
     enum PolicyKind {
         Spam,
         Error,
@@ -1109,11 +1117,11 @@ mod tests {
         delegated: u64,
     }
 
-    /// Tallies one breaching request. The controller delegates both policies.
-    async fn tally_one_breach(dry_run: bool, kind: PolicyKind) -> Outcome {
+    /// Blocks the direct client on every tally of the given policy.
+    fn policy_config(dry_run: bool, kind: PolicyKind) -> PolicyConfig {
         let error = matches!(kind, PolicyKind::Error);
         let blocking_policy = PolicyType::TestNConnIP(1);
-        let policy_config = PolicyConfig {
+        PolicyConfig {
             spam_policy_type: if error {
                 PolicyType::NoOp
             } else {
@@ -1129,27 +1137,39 @@ mod tests {
             connection_blocklist_ttl_sec: 120,
             dry_run,
             ..Default::default()
-        };
-        // Keep this directory. The tally loop reads `drain_path`.
-        let tmp_dir = iota_common::tempdir();
-        let fw_config = RemoteFirewallConfig {
-            // No server listens here. The metrics show if the node delegates a
-            // block.
+        }
+    }
+
+    /// Delegates both policies. No server listens on the firewall URL, thus the
+    /// metrics show if the node delegates a block.
+    fn fw_config(drain_path: PathBuf) -> RemoteFirewallConfig {
+        RemoteFirewallConfig {
             remote_fw_url: "http://127.0.0.1:1".to_string(),
             destination_port: 8080,
             delegate_spam_blocking: true,
             delegate_error_blocking: true,
-            drain_path: tmp_dir.path().join("drain"),
+            drain_path,
             drain_timeout_secs: 300,
-        };
-        let controller = TrafficController::init_for_test(policy_config, Some(fw_config)).await;
-        let error_info = error.then(|| (Weight::one(), "error".to_string()));
-        controller.tally(TrafficTally::new(
-            Some(CLIENT),
-            None,
-            error_info,
-            Weight::one(),
-        ));
+        }
+    }
+
+    fn breach(kind: PolicyKind) -> TrafficTally {
+        let error_info =
+            matches!(kind, PolicyKind::Error).then(|| (Weight::one(), "error".to_string()));
+        TrafficTally::new(Some(CLIENT), None, error_info, Weight::one())
+    }
+
+    /// Tallies one breaching request against a controller whose firewall config
+    /// delegates both policies.
+    async fn tally_one_breach(dry_run: bool, kind: PolicyKind) -> Outcome {
+        // Keep this directory. The tally loop reads `drain_path`.
+        let tmp_dir = iota_common::tempdir();
+        let controller = TrafficController::init_for_test(
+            policy_config(dry_run, kind),
+            Some(fw_config(tmp_dir.path().join("drain"))),
+        )
+        .await;
+        controller.tally(breach(kind));
 
         let metrics = &controller.metrics;
         for _ in 0..100 {
@@ -1168,6 +1188,41 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         panic!("the tally loop recorded no block in one second");
+    }
+
+    #[tokio::test]
+    async fn test_delegation_restarts_when_the_drain_file_goes_away() {
+        let tmp_dir = iota_common::tempdir();
+        let drain_path = tmp_dir.path().join("drain");
+        File::create(&drain_path).expect("the drain file is created");
+        let controller = TrafficController::init_for_test(
+            policy_config(false, PolicyKind::Spam),
+            Some(fw_config(drain_path.clone())),
+        )
+        .await;
+        let metrics = &controller.metrics;
+
+        // The firewall drains, thus the node blocks locally.
+        controller.tally(breach(PolicyKind::Spam));
+        for _ in 0..100 {
+            if metrics.connection_ip_blocklist_len.get() > 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(metrics.connection_ip_blocklist_len.get(), 1);
+        assert_eq!(metrics.blocks_delegated_to_firewall.get(), 0);
+
+        // The operator removes the drain file, thus delegation restarts.
+        fs::remove_file(&drain_path).expect("the drain file is removed");
+        for _ in 0..100 {
+            controller.tally(breach(PolicyKind::Spam));
+            if metrics.blocks_delegated_to_firewall.get() > 0 {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        panic!("the node delegated no block in ten seconds");
     }
 
     #[tokio::test]
