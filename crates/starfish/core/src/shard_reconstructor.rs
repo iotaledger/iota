@@ -884,17 +884,12 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         Ok(())
     }
 
-    /// Frees one budget place for the authority when it is at
-    /// `shard_budget_per_authority`, evicting its stalest retained shard: the
-    /// lowest-round one held in an accumulator that has collected fewer than
-    /// half of `info_length` shards, or the lowest-round one overall when none
-    /// is below that. Stuck accumulators can sit near-full by construction
-    /// (their relayer stake must stay below the validity threshold or they
-    /// would decode and free themselves), so fill level alone must not shield
-    /// a shard from eviction. Eviction never loses a decodable payload: an
-    /// accumulator that can reach the validity threshold has f+1 stake of
-    /// relayers each holding the full payload, which the transaction
-    /// synchronizer can fetch.
+    /// At the authority's shard budget, evicts its stalest retained shard:
+    /// the lowest-round one in an accumulator holding fewer than half of
+    /// `info_length` shards, or the lowest-round one overall — stuck
+    /// accumulators sit near-full by construction, so fill level alone must
+    /// not shield a shard. An evicted decodable payload stays fetchable via
+    /// the transaction synchronizer, since its relayers hold it in full.
     fn make_room_in_peer_budget(&mut self, shard_index: usize) {
         let retained = &self.retained_shards_by_authority[shard_index];
         if retained.len() < self.shard_budget_per_authority {
@@ -932,12 +927,10 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
     }
 
     /// Marks the slot of `tx_ref` resolved and releases every accumulator in
-    /// it. A resolved slot's payload is author-signed — a `FullTransaction`
-    /// comes from a verified block, and a decode reached f+1 relayer stake, so
-    /// an honest relayer erasure-coded it from the author's signed payload.
-    /// Any other commitment in the slot is fabricated, except an equivocating
-    /// twin, whose payload the transaction synchronizer can fetch in full from
-    /// the f+1 stake of relayers any decodable accumulator requires.
+    /// it. Both triggers pin an author-signed payload (a decode reached f+1
+    /// relayer stake, so an honest relayer coded it from the signed payload);
+    /// every other commitment in the slot is fabricated, except an
+    /// equivocating twin, which the transaction synchronizer can still fetch.
     fn resolve_slot(&mut self, tx_ref: TransactionRef) {
         self.resolved_slots.insert((tx_ref.round, tx_ref.author));
         let slot_start = TransactionRef {

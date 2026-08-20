@@ -482,10 +482,8 @@ impl Parameters {
     }
 
     pub(crate) fn default_shard_budget_per_authority() -> u32 {
-        // Honest need is the reconstruction pipeline depth: committee-size
-        // shards per round times a few rounds until decode. 1000 covers ~20
-        // rounds of full-committee reconstruction with a worst-case pool of
-        // ~1.5 MB × budget across all authorities.
+        // ~20 rounds of full-committee reconstruction depth (honest need is a
+        // few rounds); worst-case pool ≈ 1.5 MB × budget across authorities.
         1000
     }
 }
