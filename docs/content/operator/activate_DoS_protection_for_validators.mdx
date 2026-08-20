@@ -227,11 +227,12 @@ policy-config:
 
 After enabling the `TrafficController`, monitor your node's metrics to ensure legitimate traffic isn't being blocked. Key metrics to watch:
 
-- `traffic_controller_tallies`
-- `traffic_controller_connection_ip_blocklist_len`
-- `traffic_controller_proxy_ip_blocklist_len`
-- `traffic_controller_requests_blocked_at_protocol`
-- `traffic_controller_num_dry_run_blocked_requests`
+- `tallies`
+- `connection_ip_blocklist_len`
+- `proxy_ip_blocklist_len`
+- `requests_blocked_at_protocol`
+- `blocks_delegated_to_firewall`
+- `traffic_control_num_dry_run_blocked_requests`
 
 Start with `dry-run: true` to observe what would be blocked without actually blocking traffic, then adjust thresholds as needed before setting `dry-run: false`.
 
