@@ -212,6 +212,13 @@ impl ShardAccumulator {
     fn contains_shard_at_index(&self, shard_index: usize) -> bool {
         self.collected_shards[shard_index].is_some()
     }
+
+    /// Remove the shard collected at the given index, if any.
+    fn remove_shard_at_index(&mut self, shard_index: usize) {
+        if self.collected_shards[shard_index].take().is_some() {
+            self.number_shards -= 1;
+        }
+    }
 }
 
 /// Attributes a reconstructed payload that failed the transaction validity
@@ -388,6 +395,13 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     reconstruction_result_sender: Sender<ReconstructionResult>,
     /// Job results are received by this channel
     reconstruction_result_receiver: Receiver<ReconstructionResult>,
+    /// For each authority, the accumulators currently retaining a shard it
+    /// relayed. Enforces the per-authority shard budget: at the budget, the
+    /// authority's stalest retained shard is evicted to admit a new one.
+    retained_shards_by_authority: Vec<BTreeSet<TransactionRef>>,
+    /// Maximum number of shards from one relaying authority retained across
+    /// all accumulators.
+    shard_budget_per_authority: usize,
 }
 
 impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
@@ -400,6 +414,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
     ) -> (Self, Sender<Vec<TransactionMessage>>) {
         let info_length = context.committee.info_length();
         let total_length = context.committee.size();
+        let shard_budget_per_authority = context.parameters.shard_budget_per_authority as usize;
 
         let (transaction_message_sender, transaction_message_receiver) = mpsc::channel(1000);
         let (ready_sender, ready_receiver) = mpsc::channel(1000);
@@ -424,6 +439,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             reconstructed_transactions: BTreeMap::new(),
             shard_accumulators: BTreeMap::new(),
             transaction_message_receiver,
+            retained_shards_by_authority: vec![BTreeSet::new(); total_length],
+            shard_budget_per_authority,
         };
 
         (reconstructor, transaction_message_sender)
@@ -596,7 +613,12 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             .set(self.processed_transactions.len() as i64);
 
         let transaction_gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
+        self.evict_below(transaction_gc_round);
+    }
 
+    /// Evict accumulators, processed and reconstructed transactions, and
+    /// retained-shard bookkeeping below the given round.
+    fn evict_below(&mut self, transaction_gc_round: Round) {
         // Update the internal transaction_gc_round
         self.transaction_gc_round = transaction_gc_round;
 
@@ -610,6 +632,9 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         self.reconstructed_transactions = self.reconstructed_transactions.split_off(&lower_bound);
         self.shard_accumulators = self.shard_accumulators.split_off(&lower_bound);
         self.reconstruction_queue = self.reconstruction_queue.split_off(&lower_bound);
+        for retained in &mut self.retained_shards_by_authority {
+            *retained = retained.split_off(&lower_bound);
+        }
     }
 
     fn get_transactions_with_headers_in_dag_state(
@@ -743,8 +768,10 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                     return Ok(());
                 }
 
-                match self.shard_accumulators.entry(tx_ref) {
-                    Entry::Vacant(v) => {
+                let shard_index = shard_msg.shard_index;
+                let occupies_new_position = match self.shard_accumulators.get(&tx_ref) {
+                    Some(accumulator) => !accumulator.contains_shard_at_index(shard_index),
+                    None => {
                         // With one shard per (peer, slot), a slot holding
                         // `parity_length + 1` accumulators has too few
                         // uncommitted peers left for any further commitment to
@@ -763,6 +790,15 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                             );
                             return Ok(());
                         }
+                        true
+                    }
+                };
+                if occupies_new_position {
+                    self.make_room_in_peer_budget(shard_index);
+                    self.retained_shards_by_authority[shard_index].insert(tx_ref);
+                }
+                match self.shard_accumulators.entry(tx_ref) {
+                    Entry::Vacant(v) => {
                         v.insert(ShardAccumulator::new_with_shard(shard_msg, total_length));
                     }
                     Entry::Occupied(mut o) => {
@@ -776,7 +812,11 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                 // The full payload arrived through the direct path, so a
                 // partially filled accumulator for it can never be needed
                 // again — release it instead of waiting for round eviction.
-                self.shard_accumulators.remove(&tx_ref);
+                if let Some(accumulator) = self.shard_accumulators.remove(&tx_ref) {
+                    for shard_index in accumulator.collected_shard_indices() {
+                        self.retained_shards_by_authority[shard_index].remove(&tx_ref);
+                    }
+                }
                 return Ok(());
             }
         }
@@ -789,6 +829,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             self.info_length,
             &self.context.committee,
             &tx_ref,
+            &mut self.retained_shards_by_authority,
         )
         .await?;
 
@@ -804,6 +845,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         info_length: usize,
         committee: &Committee,
         tx_ref: &TransactionRef,
+        retained_shards_by_authority: &mut [BTreeSet<TransactionRef>],
     ) -> ConsensusResult<()> {
         if let Some(acc) = accumulators.get(tx_ref) {
             if acc.is_ready_to_reconstruct(info_length, committee) {
@@ -811,6 +853,9 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                 let acc = accumulators
                     .remove(tx_ref)
                     .expect("We should expect the shard accumulator to be present");
+                for shard_index in acc.collected_shard_indices() {
+                    retained_shards_by_authority[shard_index].remove(tx_ref);
+                }
                 sender
                     .send(acc)
                     .await
@@ -819,6 +864,53 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             }
         }
         Ok(())
+    }
+
+    /// Frees one budget place for the authority when it is at
+    /// `shard_budget_per_authority`, evicting its stalest retained shard: the
+    /// lowest-round one held in an accumulator that has collected fewer than
+    /// half of `info_length` shards, or the lowest-round one overall when none
+    /// is below that. Stuck accumulators can sit near-full by construction
+    /// (their relayer stake must stay below the validity threshold or they
+    /// would decode and free themselves), so fill level alone must not shield
+    /// a shard from eviction. Eviction never loses a decodable payload: an
+    /// accumulator that can reach the validity threshold has f+1 stake of
+    /// relayers each holding the full payload, which the transaction
+    /// synchronizer can fetch.
+    fn make_room_in_peer_budget(&mut self, shard_index: usize) {
+        let retained = &self.retained_shards_by_authority[shard_index];
+        if retained.len() < self.shard_budget_per_authority {
+            return;
+        }
+        let fill_cutoff = self.info_length / 2;
+        let Some(victim_ref) = retained
+            .iter()
+            .find(|tx_ref| {
+                self.shard_accumulators
+                    .get(tx_ref)
+                    .is_some_and(|accumulator| accumulator.number_shards < fill_cutoff)
+            })
+            .or_else(|| retained.iter().next())
+            .copied()
+        else {
+            return;
+        };
+        self.retained_shards_by_authority[shard_index].remove(&victim_ref);
+        if let Entry::Occupied(mut occupied) = self.shard_accumulators.entry(victim_ref) {
+            occupied.get_mut().remove_shard_at_index(shard_index);
+            if occupied.get().number_shards == 0 {
+                occupied.remove();
+            }
+        }
+        self.context
+            .metrics
+            .node_metrics
+            .shard_reconstructor_dropped_shards
+            .with_label_values(&["peer_budget_evicted"])
+            .inc();
+        debug!(
+            "Evicted the stalest retained shard of peer index {shard_index} ({victim_ref:?}) to admit a new one"
+        );
     }
 }
 
@@ -832,7 +924,7 @@ mod tests {
 
     use parking_lot::RwLock;
     use rand::{seq::SliceRandom, thread_rng};
-    use starfish_config::AuthorityIndex;
+    use starfish_config::{AuthorityIndex, Parameters};
     use tokio::sync::{Mutex, mpsc::Sender};
 
     use crate::{
@@ -2151,5 +2243,289 @@ mod tests {
             .stop()
             .await
             .expect("We should expect graceful shutdown");
+    }
+
+    /// Builds a reconstructor without starting its run loop, for tests that
+    /// drive `handle_transaction_message` directly and inspect internal state.
+    fn new_reconstructor_with_budget(
+        committee_size: usize,
+        shard_budget_per_authority: u32,
+    ) -> (Arc<Context>, ShardReconstructor<MockCoreThreadDispatcher>) {
+        let (context, _) = Context::new_for_test(committee_size);
+        let context = Arc::new(context.with_parameters(Parameters {
+            shard_budget_per_authority,
+            ..Default::default()
+        }));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let (reconstructor, _sender) = ShardReconstructor::new(
+            context.clone(),
+            dag_state,
+            Arc::new(MockCoreThreadDispatcher::new()),
+            Arc::new(NoopBlockVerifier),
+        );
+        (context, reconstructor)
+    }
+
+    /// A shard message for the (round, author) slot: `marker` selects the
+    /// payload (and thus the commitment), `shard_index` the relaying peer.
+    fn shard_for_slot(
+        context: &Arc<Context>,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+        round: Round,
+        author: u8,
+        marker: u8,
+        shard_index: usize,
+    ) -> TransactionMessage {
+        let block_ref =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build())
+                .reference();
+        let (commitment, shards) = encode_payload_for_slot(context, encoder, marker);
+        TransactionMessage::Shard(ShardMessage {
+            transaction_ref: TransactionRef::new(block_ref, commitment),
+            block_digest: Some(block_ref.digest),
+            shard: shards[shard_index].clone(),
+            shard_index,
+        })
+    }
+
+    /// At the per-authority budget, admitting a new shard evicts the
+    /// authority's stalest retained one instead of dropping the new one, and
+    /// other authorities' budgets are unaffected.
+    #[tokio::test]
+    async fn test_peer_budget_evicts_stalest_shard_to_admit_new_one() {
+        telemetry_subscribers::init_for_testing();
+        let (context, mut reconstructor) = new_reconstructor_with_budget(10, 2);
+        let mut encoder = create_encoder(&context);
+        let evicted_shards = context
+            .metrics
+            .node_metrics
+            .shard_reconstructor_dropped_shards
+            .with_label_values(&["peer_budget_evicted"]);
+
+        // Peer 0 fills its budget with single-shard accumulators at rounds 5, 6.
+        let old = shard_for_slot(&context, &mut encoder, 5, 1, 1, 0);
+        let old_ref = old.transaction_ref();
+        reconstructor.handle_transaction_message(old).await.unwrap();
+        let kept = shard_for_slot(&context, &mut encoder, 6, 1, 2, 0);
+        let kept_ref = kept.transaction_ref();
+        reconstructor
+            .handle_transaction_message(kept)
+            .await
+            .unwrap();
+        assert_eq!(evicted_shards.get(), 0);
+
+        // A further shard from peer 0 evicts the round-5 one, and the emptied
+        // accumulator with it.
+        let new = shard_for_slot(&context, &mut encoder, 7, 1, 3, 0);
+        let new_ref = new.transaction_ref();
+        reconstructor.handle_transaction_message(new).await.unwrap();
+        assert!(!reconstructor.shard_accumulators.contains_key(&old_ref));
+        assert!(reconstructor.shard_accumulators.contains_key(&kept_ref));
+        assert!(reconstructor.shard_accumulators.contains_key(&new_ref));
+        assert_eq!(
+            reconstructor.retained_shards_by_authority[0],
+            BTreeSet::from([kept_ref, new_ref])
+        );
+        assert_eq!(evicted_shards.get(), 1);
+
+        // Peer 1 is below its own budget: its shard for the evicted slot is
+        // admitted without an eviction.
+        let other_peer = shard_for_slot(&context, &mut encoder, 5, 1, 1, 1);
+        reconstructor
+            .handle_transaction_message(other_peer)
+            .await
+            .unwrap();
+        assert!(reconstructor.shard_accumulators.contains_key(&old_ref));
+        assert_eq!(
+            reconstructor.retained_shards_by_authority[1],
+            BTreeSet::from([old_ref])
+        );
+        assert_eq!(evicted_shards.get(), 1);
+    }
+
+    /// The eviction victim is the lowest-round shard in an accumulator below
+    /// the fill cutoff; a near-complete accumulator loses a shard only when
+    /// the peer has nothing below the cutoff, and then keeps the other peers'
+    /// shards.
+    #[tokio::test]
+    async fn test_peer_budget_victim_selection_prefers_low_fill_accumulators() {
+        telemetry_subscribers::init_for_testing();
+        // Committee of 10: info_length = 4, so the fill cutoff is 2 shards.
+        let (context, mut reconstructor) = new_reconstructor_with_budget(10, 2);
+        let mut encoder = create_encoder(&context);
+
+        // Peer 0's budget: a round-5 accumulator peer 1 also fills to the
+        // cutoff, and a single-shard round-6 one.
+        let protected = shard_for_slot(&context, &mut encoder, 5, 1, 1, 0);
+        let protected_ref = protected.transaction_ref();
+        reconstructor
+            .handle_transaction_message(protected)
+            .await
+            .unwrap();
+        reconstructor
+            .handle_transaction_message(shard_for_slot(&context, &mut encoder, 5, 1, 1, 1))
+            .await
+            .unwrap();
+        let below_cutoff = shard_for_slot(&context, &mut encoder, 6, 1, 2, 0);
+        let below_cutoff_ref = below_cutoff.transaction_ref();
+        reconstructor
+            .handle_transaction_message(below_cutoff)
+            .await
+            .unwrap();
+
+        // The younger round-6 shard is the victim, not the older
+        // near-complete round-5 one.
+        let admitted = shard_for_slot(&context, &mut encoder, 7, 1, 3, 0);
+        let admitted_ref = admitted.transaction_ref();
+        reconstructor
+            .handle_transaction_message(admitted)
+            .await
+            .unwrap();
+        assert!(
+            reconstructor
+                .shard_accumulators
+                .contains_key(&protected_ref)
+        );
+        assert!(
+            !reconstructor
+                .shard_accumulators
+                .contains_key(&below_cutoff_ref)
+        );
+
+        // With every accumulator of peer 0 at the cutoff, the lowest-round one
+        // loses peer 0's shard but keeps peer 1's.
+        reconstructor
+            .handle_transaction_message(shard_for_slot(&context, &mut encoder, 7, 1, 3, 1))
+            .await
+            .unwrap();
+        let fallback = shard_for_slot(&context, &mut encoder, 8, 1, 4, 0);
+        let fallback_ref = fallback.transaction_ref();
+        reconstructor
+            .handle_transaction_message(fallback)
+            .await
+            .unwrap();
+        let protected_accumulator = reconstructor
+            .shard_accumulators
+            .get(&protected_ref)
+            .expect("the accumulator keeps peer 1's shard");
+        assert!(!protected_accumulator.contains_shard_at_index(0));
+        assert!(protected_accumulator.contains_shard_at_index(1));
+        assert_eq!(
+            reconstructor.retained_shards_by_authority[0],
+            BTreeSet::from([admitted_ref, fallback_ref])
+        );
+    }
+
+    /// The retained-shard bookkeeping empties when accumulators leave the map
+    /// through reconstruction dequeue and through round eviction.
+    #[tokio::test]
+    async fn test_peer_budget_bookkeeping_cleared_when_accumulators_leave() {
+        telemetry_subscribers::init_for_testing();
+        let (context, mut reconstructor) = new_reconstructor_with_budget(10, 100);
+        let mut encoder = create_encoder(&context);
+        let info_length = context.committee.info_length();
+
+        // Reconstruction dequeue: info_length shards reach the validity
+        // threshold and the accumulator moves to the workers' queue.
+        let block_ref =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 1).build()).reference();
+        let (commitment, shards) = encode_payload_for_slot(&context, &mut encoder, 1);
+        for (i, shard) in shards.iter().enumerate().take(info_length) {
+            reconstructor
+                .handle_transaction_message(TransactionMessage::Shard(ShardMessage {
+                    transaction_ref: TransactionRef::new(block_ref, commitment),
+                    block_digest: Some(block_ref.digest),
+                    shard: shard.clone(),
+                    shard_index: i,
+                }))
+                .await
+                .unwrap();
+        }
+        assert!(reconstructor.shard_accumulators.is_empty());
+        assert!(
+            reconstructor
+                .retained_shards_by_authority
+                .iter()
+                .all(|retained| retained.is_empty())
+        );
+
+        // Round eviction: pending shards below the floor drop with their
+        // bookkeeping.
+        reconstructor
+            .handle_transaction_message(shard_for_slot(&context, &mut encoder, 6, 1, 2, 0))
+            .await
+            .unwrap();
+        reconstructor.evict_below(7);
+        assert!(reconstructor.shard_accumulators.is_empty());
+        assert!(
+            reconstructor
+                .retained_shards_by_authority
+                .iter()
+                .all(|retained| retained.is_empty())
+        );
+    }
+
+    /// Fresh slots still reconstruct while every relaying peer sits at its
+    /// budget: admission evicts the stale shard instead of dropping the new
+    /// one.
+    #[tokio::test]
+    async fn test_reconstruction_completes_while_peers_at_budget() {
+        telemetry_subscribers::init_for_testing();
+        let (context, _) = Context::new_for_test(10);
+        let context = Arc::new(context.with_parameters(Parameters {
+            shard_budget_per_authority: 1,
+            ..Default::default()
+        }));
+        let h = TestHarness::new_with_block_verifier(context.clone(), Arc::new(NoopBlockVerifier));
+        let tx = h.tx.clone();
+        let mut encoder = create_encoder(&context);
+        let info_length = context.committee.info_length();
+
+        // Each relaying peer's budget is filled by a shard stuck in its own
+        // undecodable slot (a distinct author per peer, one shard each).
+        let stuck: Vec<_> = (0..info_length)
+            .map(|i| shard_for_slot(&context, &mut encoder, 5, (i + 2) as u8, (10 + i) as u8, i))
+            .collect();
+        tx.send(stuck).await.unwrap();
+
+        // A fresh slot backed by the same peers reconstructs regardless.
+        let block_ref =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(6, 1).build()).reference();
+        let (commitment, shards) = encode_payload_for_slot(&context, &mut encoder, 1);
+        let batch: Vec<_> = (0..info_length)
+            .map(|i| {
+                TransactionMessage::Shard(ShardMessage {
+                    transaction_ref: TransactionRef::new(block_ref, commitment),
+                    block_digest: Some(block_ref.digest),
+                    shard: shards[i].clone(),
+                    shard_index: i,
+                })
+            })
+            .collect();
+        tx.send(batch).await.unwrap();
+
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        let fetched = h.core_dispatcher.get_and_drain_transactions().await;
+        assert_eq!(
+            fetched.len(),
+            1,
+            "a fresh slot must reconstruct while its relayers sit at their budgets"
+        );
+        assert_eq!(
+            fetched[0].transaction_ref().transactions_commitment,
+            commitment
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .shard_reconstructor_dropped_shards
+                .with_label_values(&["peer_budget_evicted"])
+                .get(),
+            info_length as u64,
+        );
+
+        h.handle.stop().await.unwrap();
     }
 }

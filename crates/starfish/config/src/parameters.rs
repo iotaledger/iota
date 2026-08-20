@@ -186,6 +186,14 @@ pub struct Parameters {
     /// bundles and restricts header fetching, until solidification catches up.
     #[serde(default = "Parameters::default_solid_commit_lag_threshold")]
     pub solid_commit_lag_threshold: u32,
+
+    /// Maximum number of shards from one relaying authority retained across
+    /// all pending shard accumulators. At the budget, admitting a new shard
+    /// from the authority evicts its stalest retained one, so reconstructor
+    /// memory stays bounded by `committee size × budget × shard size`
+    /// regardless of how far commits run ahead of solidification.
+    #[serde(default = "Parameters::default_shard_budget_per_authority")]
+    pub shard_budget_per_authority: u32,
 }
 
 impl Parameters {
@@ -316,6 +324,10 @@ impl Parameters {
             (
                 "tonic.keepalive_interval",
                 self.tonic.keepalive_interval.as_nanos(),
+            ),
+            (
+                "shard_budget_per_authority",
+                self.shard_budget_per_authority as u128,
             ),
         ];
         for (name, value) in positive_fields {
@@ -468,6 +480,14 @@ impl Parameters {
         // stall can keep widening the shard/payload retention window.
         500
     }
+
+    pub(crate) fn default_shard_budget_per_authority() -> u32 {
+        // Honest need is the reconstruction pipeline depth: committee-size
+        // shards per round times a few rounds until decode. 1000 covers ~20
+        // rounds of full-committee reconstruction with a worst-case pool of
+        // ~1.5 MB × budget across all authorities.
+        1000
+    }
 }
 
 impl Default for Parameters {
@@ -508,6 +528,7 @@ impl Default for Parameters {
                 Parameters::default_enable_peer_responsiveness_ranking(),
             dag_visualizer_port: None,
             solid_commit_lag_threshold: Parameters::default_solid_commit_lag_threshold(),
+            shard_budget_per_authority: Parameters::default_shard_budget_per_authority(),
         }
     }
 }
