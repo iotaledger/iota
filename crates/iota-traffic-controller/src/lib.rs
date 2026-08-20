@@ -1162,15 +1162,29 @@ mod tests {
     /// Tallies one breaching request against a controller whose firewall config
     /// delegates both policies.
     async fn tally_one_breach(dry_run: bool, kind: PolicyKind) -> Outcome {
-        // Keep this directory. The tally loop reads `drain_path`.
+        let (_tmp_dir, controller) = delegating_controller(dry_run, kind).await;
+        controller.tally(breach(kind));
+        wait_for_block(&controller).await
+    }
+
+    /// Makes a controller that delegates both policies. Keep the directory: the
+    /// tally loop reads `drain_path` in it.
+    async fn delegating_controller(
+        dry_run: bool,
+        kind: PolicyKind,
+    ) -> (impl Drop, TrafficController) {
         let tmp_dir = iota_common::tempdir();
         let controller = TrafficController::init_for_test(
             policy_config(dry_run, kind),
             Some(fw_config(tmp_dir.path().join("drain"))),
         )
         .await;
-        controller.tally(breach(kind));
+        (tmp_dir, controller)
+    }
 
+    /// Waits for the tally loop to record the block, then reports where it
+    /// went.
+    async fn wait_for_block(controller: &TrafficController) -> Outcome {
         let metrics = &controller.metrics;
         for _ in 0..100 {
             let outcome = Outcome {
@@ -1188,6 +1202,50 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         panic!("the tally loop recorded no block in one second");
+    }
+
+    #[tokio::test]
+    async fn test_dry_run_reports_the_block_it_does_not_apply() {
+        let (_tmp_dir, controller) = delegating_controller(true, PolicyKind::Spam).await;
+        controller.tally(breach(PolicyKind::Spam));
+        assert_eq!(
+            wait_for_block(&controller).await,
+            Outcome {
+                blocked_locally: 1,
+                delegated: 0,
+            }
+        );
+
+        // Dry run lets the request through, but it counts the client that the
+        // node would block.
+        assert!(controller.check(&Some(CLIENT), &None).await);
+        assert_eq!(controller.metrics.num_dry_run_blocked_requests.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_the_admin_api_turns_dry_run_off_at_once() {
+        let (_tmp_dir, controller) = delegating_controller(true, PolicyKind::Spam).await;
+        controller.tally(breach(PolicyKind::Spam));
+        assert_eq!(wait_for_block(&controller).await.delegated, 0);
+
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: Some(false),
+            })
+            .await
+            .expect("the request changes only the dry-run flag");
+
+        // The tally loop must read the new value, not the value it started with.
+        for _ in 0..100 {
+            controller.tally(breach(PolicyKind::Spam));
+            if controller.metrics.blocks_delegated_to_firewall.get() > 0 {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("the node delegated no block after the admin API turned dry run off");
     }
 
     #[tokio::test]
