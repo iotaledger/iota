@@ -691,16 +691,13 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
     /// retained, so ingestion pauses until the transactions synchronizer
     /// closes the gap.
     fn ensure_solid_commit_lag_within_threshold(&self, block_ref: BlockRef) -> ConsensusResult<()> {
-        let solid_commit_lag = self.dag_state.read().solid_commit_lag_rounds();
-        if solid_commit_lag <= self.context.parameters.solid_commit_lag_threshold {
-            return Ok(());
-        }
-        // During fast sync commits are applied in bulk while their payloads
-        // are still being fetched, so a large gap is expected. Checked only
-        // when the gap is already over the threshold: it reads the store.
-        if self.dag_state.read().fast_sync_ongoing() {
-            return Ok(());
-        }
+        let solid_commit_lag = {
+            let dag_state = self.dag_state.read();
+            if !dag_state.is_solidification_lagging() {
+                return Ok(());
+            }
+            dag_state.solid_commit_lag_rounds()
+        };
         self.context
             .metrics
             .node_metrics

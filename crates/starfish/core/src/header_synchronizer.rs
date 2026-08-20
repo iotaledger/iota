@@ -1386,7 +1386,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         // in which shards and payloads are retained (fetched headers raise the
         // accepted frontier), so the scheduler stands down entirely until the
         // transactions synchronizer closes the gap.
-        if self.is_solidification_lagging() {
+        if self.dag_state.read().is_solidification_lagging() {
             trace!(
                 "Scheduled synchronizer temporarily disabled as the last solid commit is lagging the last commit too much."
             );
@@ -1844,15 +1844,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         }
 
         results
-    }
-
-    /// Whether local commits run further ahead of the last solid commit than
-    /// `solid_commit_lag_threshold` allows. Ignored during fast sync, where
-    /// commits are applied in bulk before their payloads arrive.
-    fn is_solidification_lagging(&self) -> bool {
-        let dag_state = self.dag_state.read();
-        dag_state.solid_commit_lag_rounds() > self.context.parameters.solid_commit_lag_threshold
-            && !dag_state.fast_sync_ongoing()
     }
 }
 
