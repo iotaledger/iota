@@ -568,6 +568,13 @@ impl NodeMetrics {
                 "Number of dequeued core requests",
                 registry,
             ).unwrap(),
+            core_thread_command_queue_peak: PeakGauge::register(
+                "core_thread_command_queue_peak",
+                "The highest number of commands queued for the core thread over the last two minutes",
+                module_path!(),
+                registry,
+                MetricLevel::Warn,
+            ),
             core_lock_enqueued: register_int_counter_with_registry!(
                 "core_lock_enqueued",
                 "Number of enqueued core requests",
@@ -1068,13 +1075,6 @@ impl NodeMetrics {
                 "scope_processing_time",
                 "The processing time of a specific code scope",
                 &["scope"],
-                registry,
-                MetricLevel::Warn,
-            ),
-            core_thread_command_queue_peak: PeakGauge::register(
-                "core_thread_command_queue_peak",
-                "The highest number of commands queued for the core thread over the last two minutes",
-                module_path!(),
                 registry,
                 MetricLevel::Warn,
             ),

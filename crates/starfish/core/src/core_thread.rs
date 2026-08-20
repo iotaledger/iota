@@ -213,6 +213,15 @@ impl CoreThread {
             self.fast_sync_ongoing
         );
 
+        // The per-command `Core::*` scopes nest, so they cannot be summed; this
+        // times the whole dispatch instead.
+        let handle_command = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["CoreThread::handle_command"]);
+
         loop {
             tokio::select! {
                 command = self.receiver.recv() => {
@@ -220,24 +229,7 @@ impl CoreThread {
                         break;
                     };
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
-                    // Sampled on every dequeue and reported as a peak, because
-                    // the queue drains far faster than the scrape interval and
-                    // a plain gauge would miss the bursts entirely.
-                    self.context
-                        .metrics
-                        .node_metrics
-                        .core_thread_command_queue_peak
-                        .observe(self.receiver.len() as u64);
-                    // Times the whole dispatch rather than the individual core
-                    // operations, which nest and so cannot be summed. The rate
-                    // of this scope is the core thread's utilisation.
-                    let _handle_command = self
-                        .context
-                        .metrics
-                        .node_metrics
-                        .scope_processing_time
-                        .with_label_values(&["CoreThread::handle_command"])
-                        .start_timer();
+                    let _scope = handle_command.start_timer();
 
                     // During fast sync, ignore all commands except AddSubdagFromFastSync and ReinitializeComponents
                     if self.fast_sync_ongoing && !matches!(command, CoreThreadCommand::AddSubdagFromFastSync(..) | CoreThreadCommand::ReinitializeComponents { .. }) {
@@ -419,6 +411,13 @@ impl ChannelCoreThreadDispatcher {
     async fn send(&self, command: CoreThreadCommand) {
         self.context.metrics.node_metrics.core_lock_enqueued.inc();
         if let Some(sender) = self.sender.upgrade() {
+            // Sampled here rather than on dequeue so a stalled core thread,
+            // which stops dequeuing entirely, still reports its backlog.
+            self.context
+                .metrics
+                .node_metrics
+                .core_thread_command_queue_peak
+                .observe((CORE_THREAD_COMMANDS_CHANNEL_SIZE - sender.capacity()) as u64);
             if let Err(err) = sender.send(command).await {
                 warn!(
                     "Couldn't send command to core thread, probably is shutting down: {}",

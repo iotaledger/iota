@@ -62,7 +62,6 @@ fn new_histogram() -> Histogram<u64> {
 
 /// A sliding window of HDR histograms. Observations land in the newest slot;
 /// slots older than the window length are dropped on the next rotation.
-/// Latencies are stored in microseconds.
 struct Window {
     slots: VecDeque<Histogram<u64>>,
     newest_slot_start: Instant,
@@ -97,21 +96,30 @@ impl Window {
         }
     }
 
-    /// Records a raw value. The histogram's lower bound is 1, so a zero is
-    /// lifted to it; callers that must distinguish zero skip the observation.
     fn record_raw(&mut self, value: u64) {
         self.rotate(Instant::now());
         self.slots
             .back_mut()
             .expect("the window always holds at least one slot")
-            .saturating_record(value.max(1));
+            .saturating_record(value);
     }
 
     fn record(&mut self, seconds: f64) {
         self.record_raw((seconds * 1e6).max(1.0) as u64);
     }
 
-    fn merged(&mut self) -> Option<Histogram<u64>> {
+    /// The highest value recorded over the whole window, or zero when nothing
+    /// was recorded in it. Each slot tracks its own maximum, so this needs no
+    /// merge.
+    fn max_raw(&mut self) -> u64 {
+        self.rotate(Instant::now());
+        self.slots.iter().map(Histogram::max).max().unwrap_or(0)
+    }
+
+    /// Quantiles over the whole window, in seconds, aligned with [`QUANTILES`].
+    /// Returns `None` when no value was recorded in the window, so the caller
+    /// can drop the series (leaving a gap) rather than report a stale value.
+    fn quantiles_seconds(&mut self) -> Option<Vec<f64>> {
         self.rotate(Instant::now());
         let mut merged = new_histogram();
         for slot in &self.slots {
@@ -119,25 +127,15 @@ impl Window {
                 .add(slot)
                 .expect("all slot histograms share significant figures");
         }
-        (!merged.is_empty()).then_some(merged)
-    }
-
-    /// The highest value recorded over the whole window, or `None` when nothing
-    /// was recorded in it.
-    fn max_raw(&mut self) -> Option<u64> {
-        self.merged().map(|merged| merged.max())
-    }
-
-    /// Quantiles over the whole window, in seconds, aligned with [`QUANTILES`].
-    /// Returns `None` when no value was recorded in the window, so the caller
-    /// can drop the series (leaving a gap) rather than report a stale value.
-    fn quantiles_seconds(&mut self) -> Option<Vec<f64>> {
-        self.merged().map(|merged| {
+        if merged.is_empty() {
+            return None;
+        }
+        Some(
             QUANTILES
                 .iter()
                 .map(|(quantile, _)| merged.value_at_quantile(*quantile) as f64 / 1e6)
-                .collect()
-        })
+                .collect(),
+        )
     }
 }
 
@@ -303,12 +301,8 @@ impl PeakGauge {
             .expect("peak gauge registers without collision")
     }
 
-    /// Zero is skipped rather than recorded, because the histogram cannot hold
-    /// it; a window holding only zeroes is reported as a peak of zero.
     pub(crate) fn observe(&self, value: u64) {
-        if value > 0 {
-            self.window.lock().record_raw(value);
-        }
+        self.window.lock().record_raw(value);
     }
 }
 
@@ -318,8 +312,7 @@ impl Collector for PeakGauge {
     }
 
     fn collect(&self) -> Vec<MetricFamily> {
-        let peak = self.window.lock().max_raw().unwrap_or(0);
-        self.gauge.set(peak as i64);
+        self.gauge.set(self.window.lock().max_raw() as i64);
         self.gauge.collect()
     }
 }
@@ -329,9 +322,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn max_raw_is_none_before_any_observation() {
+    fn max_raw_is_zero_before_any_observation() {
         let mut window = Window::new(Instant::now());
-        assert_eq!(window.max_raw(), None);
+        assert_eq!(window.max_raw(), 0);
+    }
+
+    #[test]
+    fn max_raw_records_zero_without_lifting_it() {
+        let mut window = Window::new(Instant::now());
+        window.record_raw(0);
+        assert_eq!(window.max_raw(), 0);
     }
 
     #[test]
@@ -343,7 +343,7 @@ mod tests {
         window.record_raw(70);
         window.rotate(t0 + WINDOW_SLOT * 2);
         window.record_raw(5);
-        assert_eq!(window.max_raw(), Some(70));
+        assert_eq!(window.max_raw(), 70);
     }
 
     #[test]
@@ -353,7 +353,7 @@ mod tests {
         window.record_raw(90);
         window.rotate(t0 + WINDOW_SLOT * WINDOW_SLOTS as u32);
         window.record_raw(2);
-        assert_eq!(window.max_raw(), Some(2));
+        assert_eq!(window.max_raw(), 2);
     }
 
     #[test]
