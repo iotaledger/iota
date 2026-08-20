@@ -73,9 +73,6 @@ fastcrypto.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 
-# internal dependencies
-iota-sdk-transaction-builder.workspace = true
-
 [[example]]
 name = "offline_dev_inspect"
 path = "examples/offline_dev_inspect.rs"
@@ -94,11 +91,6 @@ required-features = ["grpc"]
 name = "stake_graphql"
 path = "examples/stake_graphql.rs"
 required-features = ["graphql"]
-
-[package.metadata.cargo-udeps.ignore]
-development = [
-  "iota-sdk-transaction-builder",
-]
 
 [lints]
 workspace = true
