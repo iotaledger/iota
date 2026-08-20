@@ -142,9 +142,9 @@ async fn main() -> Result<(), anyhow::Error> {
     // use SimpleKeypair to sign the digest.
     let iota_sig: SimpleSignature = ikp_determ_0.sign(&digest);
 
-    // if you would like to verify the signature locally before submission,
+    // If you would like to verify the signature locally before submission,
     // verify it against the transaction with the sender's public key, which
-    // also ensures the signature carries the matching public key. if it fails
+    // also ensures the signature carries the matching public key. If it fails
     // to verify locally, the transaction will fail to execute in IOTA.
     let iota_sig = UserSignature::Simple(iota_sig);
     let res = ikp_determ_0.public_key().verify_transaction(&tx, &iota_sig);
