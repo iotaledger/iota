@@ -780,6 +780,10 @@ impl Swarm {
     /// Apply the swarm's overrides to the config of a node spawned after the
     /// initial build. `validator-<N>` scoped overrides refer to positions in
     /// the initial network config, so they are skipped here.
+    ///
+    /// # Panics
+    ///
+    /// Panics on an override that fails to apply.
     fn apply_node_config_overrides_for_spawn(&self, config: &mut NodeConfig) {
         let overrides: Vec<&NodeConfigOverride> = if config.is_validator() {
             self.node_config_overrides

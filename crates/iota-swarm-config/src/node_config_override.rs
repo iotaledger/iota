@@ -148,12 +148,18 @@ pub fn winning_field_paths<'a>(
     let mut fields: Vec<String> = Vec::new();
     for config_override in overrides {
         for field_path in config_override.field_paths() {
-            fields
-                .retain(|path| *path != field_path && !path.starts_with(&format!("{field_path}.")));
+            fields.retain(|path| !path_is_at_or_under(path, &field_path));
             fields.push(field_path);
         }
     }
     fields
+}
+
+/// Whether the dot-joined `path` is `prefix` itself, or nested under it at
+/// a dot boundary.
+fn path_is_at_or_under(path: &str, prefix: &str) -> bool {
+    path.strip_prefix(prefix)
+        .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
 }
 
 impl NodeConfigOverride {
@@ -197,9 +203,7 @@ impl NodeConfigOverride {
     /// the override's own path.
     fn mentions(&self, field_path: &str) -> bool {
         let path = self.path.join(".");
-        field_path == path
-            || field_path.starts_with(&format!("{path}."))
-            || path.starts_with(&format!("{field_path}."))
+        path_is_at_or_under(field_path, &path) || path_is_at_or_under(&path, field_path)
     }
 }
 
@@ -379,14 +383,22 @@ fn merge_value(target: &mut Value, value: Value) {
 /// value: serde reads a number as a field index, which names no field and
 /// renders as a broken path in a list of overridden fields.
 fn ensure_string_mapping_keys(value: &Value) -> anyhow::Result<()> {
-    if let Value::Mapping(mapping) = value {
-        for (key, value) in mapping {
-            ensure!(
-                key.is_string(),
-                "mapping keys in an override value must be strings"
-            );
-            ensure_string_mapping_keys(value)?;
+    match value {
+        Value::Mapping(mapping) => {
+            for (key, value) in mapping {
+                ensure!(
+                    key.is_string(),
+                    "mapping keys in an override value must be strings"
+                );
+                ensure_string_mapping_keys(value)?;
+            }
         }
+        Value::Sequence(sequence) => {
+            for value in sequence {
+                ensure_string_mapping_keys(value)?;
+            }
+        }
+        _ => {}
     }
     Ok(())
 }
@@ -532,11 +544,9 @@ impl FromStr for NodeConfigOverride {
             let field_paths = config_override.field_paths();
             if let Some((field_path, genesis_field)) =
                 COMMITTEE_ADDRESS_FIELDS.iter().find(|(field_path, _)| {
-                    field_paths.iter().any(|path| {
-                        field_path
-                            .strip_prefix(path.as_str())
-                            .is_some_and(|rest| rest.is_empty() || rest.starts_with('.'))
-                    })
+                    field_paths
+                        .iter()
+                        .any(|path| path_is_at_or_under(field_path, path))
                 })
             {
                 bail!(
@@ -649,6 +659,30 @@ mod tests {
         let mapping = root.as_mapping().unwrap();
         for field in KEY_PAIR_FIELDS.iter().chain(PROTECTED_FIELDS) {
             assert!(mapping.contains_key(&Value::from(*field)), "{field}");
+        }
+    }
+
+    /// The parse-time guard matches the canonical field names only. A
+    /// future serde alias on a guarded field would slip past it and reach
+    /// the merge, so the merge must keep rejecting the alias spellings.
+    #[test]
+    fn guarded_fields_have_no_serde_alias() {
+        let mut config = test_config();
+        for field in KEY_PAIR_FIELDS.iter().chain(PROTECTED_FIELDS) {
+            let alias = field.replace('-', "_");
+            if alias == *field {
+                // A single-word alias equals the canonical name, which the
+                // parse-time guard already rejects.
+                continue;
+            }
+            let config_override: NodeConfigOverride = format!("{alias}=null").parse().unwrap();
+            let err = apply_node_config_overrides([&config_override], &mut config)
+                .unwrap_err()
+                .to_string();
+            assert!(
+                err.contains("not a known node config field"),
+                "{alias}: {err}"
+            );
         }
     }
 
@@ -1008,7 +1042,11 @@ mod tests {
     fn parse_rejects_non_string_mapping_keys() {
         // Serde reads an integer key as a field index, which would render
         // as a broken path in a list of overridden fields.
-        for input in ["metrics={0: 5}", "metrics={groups: {0: 5}}"] {
+        for input in [
+            "metrics={0: 5}",
+            "metrics={groups: {0: 5}}",
+            "p2p-config.seed-peers=[{0: 5}]",
+        ] {
             let err = input.parse::<NodeConfigOverride>().unwrap_err().to_string();
             assert!(err.contains("must be strings"), "{input}: {err}");
         }
