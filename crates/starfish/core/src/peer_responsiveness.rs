@@ -180,8 +180,9 @@ struct Tracks {
     /// Latency of headers delivered through subscription bundles, indexed
     /// `[peer][author]`: how fast a peer delivers an author's headers depends
     /// on the pair, not on the peer alone. A cell is sampled once per bundle
-    /// that first delivers a header of that author, from the newest such
-    /// header, so the reading is how current the peer is on that author.
+    /// carrying a header of that author, from the newest such header, whether
+    /// or not another peer delivered it first, so the reading is how current
+    /// the peer is on that author.
     streaming_headers: Vec<Vec<PeerStat>>,
 }
 
@@ -249,10 +250,13 @@ impl PeerResponsiveness {
     ///
     /// Callers must pass at most one sample per author, taken from the newest
     /// header of that author in the bundle, so that a peer pushing a whole
-    /// chain of one author's headers is not weighted by how much it sent. Only
-    /// genuinely first deliveries may be reported — a duplicate of a header
-    /// another peer already delivered must not be sampled, so a peer cannot
-    /// look fast by re-sending what is already known.
+    /// chain of one author's headers is not weighted by how much it sent.
+    /// Duplicates of headers another peer already delivered are reported like
+    /// any delivery: sampling only first deliveries would record nothing for
+    /// a peer that is consistently second and only race-winning latencies for
+    /// the rest. Callers must measure each sample against the header's own
+    /// timestamp, so a re-delivery cannot read faster than the genuine first
+    /// delivery did.
     pub(crate) fn record_streaming_header_deliveries(
         &self,
         peer: AuthorityIndex,

@@ -280,13 +280,20 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .record_faulty_block(peer, peer, error);
     }
 
+    /// Deserializes and verifies the additional headers of a bundle. Returns
+    /// the fresh headers, to be accepted into the DAG, and separately the
+    /// headers received before (their digest is in `received_block_headers`):
+    /// those still count as deliveries for the responsiveness sampling, but
+    /// must not be re-accepted. A filter hit proves byte-identity with a
+    /// header that passed verification before its digest entered the filter,
+    /// so a duplicate's fields are trusted without re-verifying its signature.
     fn extract_additional_block_headers_from_bundle(
         &self,
         peer: AuthorityIndex,
         peer_hostname: &str,
         mut serialized_headers: Vec<Bytes>,
         block_ref: BlockRef,
-    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
+    ) -> ConsensusResult<(Vec<VerifiedBlockHeader>, Vec<VerifiedBlockHeader>)> {
         let block_round = block_ref.round;
         if serialized_headers.len() > self.context.parameters.max_headers_per_bundle {
             warn!("BlockBundle: {block_ref} exceeds max_headers_per_bundle.");
@@ -294,6 +301,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         };
 
         let mut additional_block_headers = vec![];
+        let mut duplicate_block_headers = vec![];
         for serialized_header in serialized_headers {
             let digest = VerifiedBlockHeader::compute_digest(&serialized_header);
             if self.received_block_headers.contains(&digest) {
@@ -303,6 +311,26 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .filtered_headers_in_bundles
                     .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
                     .inc();
+                // The parse cannot fail — the filter hit proves these bytes
+                // were deserialized before; skip the sample if it somehow
+                // does. The in-bundle round bound applies to duplicates too:
+                // together with the connect ceiling on the primary block it
+                // keeps a far-future header, whose digest enters the filter
+                // when its block is dropped, from being replayed as a
+                // near-zero-latency sample.
+                if let Ok(signed_block_header) =
+                    bcs::from_bytes::<SignedBlockHeader>(&serialized_header)
+                {
+                    if signed_block_header.round() < block_round {
+                        duplicate_block_headers.push(
+                            VerifiedBlockHeader::new_verified_with_digest(
+                                signed_block_header,
+                                serialized_header,
+                                digest,
+                            ),
+                        );
+                    }
+                }
                 continue;
             }
 
@@ -361,7 +389,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .valid_headers_in_bundles
             .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(additional_block_headers.len() as u64);
-        Ok(additional_block_headers)
+        Ok((additional_block_headers, duplicate_block_headers))
     }
     fn extract_shards_from_bundle(
         &self,
@@ -787,12 +815,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let serialized_headers =
             std::mem::take(&mut serialized_block_bundle_parts.serialized_headers);
-        let mut additional_block_headers = self.extract_additional_block_headers_from_bundle(
-            peer,
-            peer_hostname,
-            serialized_headers,
-            block_ref,
-        )?;
+        let (mut additional_block_headers, duplicate_block_headers) = self
+            .extract_additional_block_headers_from_bundle(
+                peer,
+                peer_hostname,
+                serialized_headers,
+                block_ref,
+            )?;
 
         // 4. Observe headers and the block for the commit votes. When local commit is
         // lagging too much, commit sync loop will trigger fetching. Done before the
@@ -889,19 +918,20 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
-        // 8. Add digests to filter. Exclude from the vector those that are already
-        //    inserted
-        self.add_digests_to_filter(peer_hostname, &mut additional_block_headers, block_ref)
-            .await;
-
-        // The headers that survived the filter are first deliveries. Sample the
-        // streaming responsiveness table once per author, from the newest
-        // header of that author in this bundle: a bundle is one delivery event,
-        // and how old that newest header is says how current the peer is on
-        // that author.
+        // Sample the streaming responsiveness table once per author, from the
+        // newest header of that author in this bundle: a bundle is one
+        // delivery event, and how old that newest header is says how current
+        // the peer is on that author. Headers the digest filter already saw
+        // count too: sampling only first deliveries would record nothing for
+        // a peer that is consistently second and only race-winning latencies
+        // for the rest, while a re-delivery cannot make a peer look fast
+        // because the latency reference is the author's own timestamp.
         let mut newest_per_author: Vec<Option<&VerifiedBlockHeader>> =
             vec![None; self.context.committee.size()];
-        for header in &additional_block_headers {
+        for header in additional_block_headers
+            .iter()
+            .chain(duplicate_block_headers.iter())
+        {
             let newest = &mut newest_per_author[header.author()];
             if newest.is_none_or(|current| current.round() < header.round()) {
                 *newest = Some(header);
@@ -920,6 +950,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         self.context
             .peer_responsiveness
             .record_streaming_header_deliveries(peer, &deliveries);
+
+        // 8. Add digests to filter. Exclude from the vector those that are already
+        //    inserted
+        self.add_digests_to_filter(peer_hostname, &mut additional_block_headers, block_ref)
+            .await;
 
         // 9. Prepare transaction messages for shard reconstructor and send them.
         // Skipped for a dropped primary block (no shards were collected).
@@ -2914,7 +2949,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "current_thread")]
-    async fn test_streaming_responsiveness_samples_newest_first_delivery_per_author() {
+    async fn test_streaming_responsiveness_samples_newest_header_per_author() {
         // GIVEN a DAG deep enough that a round-1 header is far behind the
         // bundle's block round.
         let rounds: u32 = MAX_ROUND_GAP_FOR_USEFUL_PARTS + 4;
@@ -3103,18 +3138,19 @@ mod tests {
         authority_service
             .handle_subscribed_block_bundle(
                 peer_2,
-                send_bundle(2, vec![newest_of_author_3]),
+                send_bundle(2, vec![newest_of_author_3.clone()]),
                 &mut encoder,
             )
             .await
             .expect("bundle is expected to be processed successfully");
 
-        // THEN the duplicate is not sampled.
-        assert!(
-            responsiveness
-                .streaming_header_latency_ms(peer_2, author_3)
-                .is_none()
-        );
+        // THEN the re-delivery is sampled like any delivery, against the same
+        // header timestamp, so a peer that is consistently second is still
+        // measured — and cannot read faster than the first delivery did.
+        let resampled = responsiveness
+            .streaming_header_latency_ms(peer_2, author_3)
+            .expect("a re-delivery is sampled");
+        assert!((resampled - expected(&newest_of_author_3)).abs() < MARGIN_MS);
     }
 
     #[rstest]
