@@ -117,11 +117,6 @@ impl BoundAddress {
 /// This runs just before the network launches and reserves nothing. Each port
 /// is free again the moment the check probes it. A port that passes here can
 /// therefore still be taken by the time a node binds it.
-///
-/// The check turns the common case into a message that names the node and the
-/// field, instead of a bind failure from inside a node. That case is a second
-/// local network, another program on a fixed port, or one port given to two
-/// things of this run.
 pub fn check_ports_are_free(addresses: &[BoundAddress]) -> Result<(), anyhow::Error> {
     let mut clashes = Vec::new();
 
@@ -430,6 +425,32 @@ mod tests {
         assert!(v6_wildcard.clashes_with(&v4));
         assert!(v6_wildcard.clashes_with(&v4_wildcard));
         assert!(v6_wildcard.clashes_with(&v6));
+    }
+
+    /// Every override the clash advice suggests must stay a valid override,
+    /// or the report sends the user to a command the parser rejects.
+    #[test]
+    fn every_suggested_override_parses() {
+        let directory = tempfile::tempdir().unwrap();
+        let (validator_config, primary_address) = validator_config(directory.path(), 29260);
+        let mut addresses = validator_addresses("validator-0", &validator_config, primary_address);
+        addresses.extend(fullnode_addresses(&fullnode_config(directory.path())));
+
+        let mut parsed = 0;
+        for address in &addresses {
+            let Some(suggested) = address
+                .advice
+                .strip_prefix("override it with --node-config-override ")
+            else {
+                assert!(address.fixed_by_genesis, "{}", address.bound_by);
+                continue;
+            };
+            suggested
+                .parse::<iota_swarm_config::node_config_override::NodeConfigOverride>()
+                .unwrap_or_else(|err| panic!("{}: {err:#}", address.bound_by));
+            parsed += 1;
+        }
+        assert!(parsed > 0);
     }
 
     /// Two addresses of one run on one port never both bind, however free the

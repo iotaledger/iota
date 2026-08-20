@@ -523,24 +523,20 @@ async fn start(
     // starts. An unparsable one then fails before genesis, and the port check
     // knows every address this run binds.
     let faucet_address = with_faucet
-        .map(|input| {
-            parse_host_port(input, DEFAULT_FAUCET_PORT)
-                .map_err(|_| anyhow!("Invalid faucet host and port"))
-        })
+        .map(|input| service_address(input, DEFAULT_FAUCET_PORT, "faucet"))
         .transpose()?;
+    // The faucet builds its config from an `Ipv4Addr`.
+    ensure!(
+        faucet_address.is_none_or(|address| address.is_ipv4()),
+        "Invalid faucet host and port: the faucet needs an IPv4 address"
+    );
     #[cfg(feature = "indexer")]
     let indexer_address = with_indexer
-        .map(|input| {
-            parse_host_port(input, DEFAULT_INDEXER_PORT)
-                .map_err(|_| anyhow!("Invalid indexer host and port"))
-        })
+        .map(|input| service_address(input, DEFAULT_INDEXER_PORT, "indexer"))
         .transpose()?;
     #[cfg(feature = "indexer")]
     let graphql_address = with_graphql
-        .map(|input| {
-            parse_host_port(input, DEFAULT_GRAPHQL_PORT)
-                .map_err(|_| anyhow!("Invalid graphql host and port"))
-        })
+        .map(|input| service_address(input, DEFAULT_GRAPHQL_PORT, "graphql"))
         .transpose()?;
     // The GraphQL service binds a Prometheus listener beside its main port.
     // Its own default is the fullnode metrics port, so the address is pinned
@@ -881,9 +877,11 @@ async fn start(
         tracing::info!("Serving the GraphQL metrics at {graphql_metrics_address}");
         let graphql_connection_config = ConnectionConfig {
             port: graphql_address.port(),
-            host: graphql_address.ip().to_string(),
+            // The server joins host and port with `format!`, so an IPv6 host
+            // needs its brackets.
+            host: graphql_host(graphql_address),
             db_url: pg_address,
-            prom_host: graphql_metrics_address.ip().to_string(),
+            prom_host: graphql_host(graphql_metrics_address),
             prom_port: graphql_metrics_address.port(),
             ..Default::default()
         };
@@ -908,6 +906,7 @@ async fn start(
 
         let host_ip = match faucet_address {
             SocketAddr::V4(addr) => *addr.ip(),
+            // Rejected where the address is parsed, before genesis.
             _ => bail!("faucet configuration requires an IPv4 address"),
         };
 
@@ -1134,8 +1133,7 @@ async fn genesis(
     let admin_interface_address_with_port = admin_interface_address
         .map(|input| {
             let default_port = iota_config::node::default_admin_interface_address().port();
-            parse_host_port(input, default_port)
-                .map_err(|_| anyhow!("Invalid admin interface host and port"))
+            service_address(input, default_port, "admin interface")
         })
         .transpose()?;
 
@@ -1409,8 +1407,7 @@ fn write_node_config(config: &NodeConfig, path: &Path) -> Result<(), anyhow::Err
 /// replaces the whole section. The fields that value does not mention come
 /// out at their default.
 fn with_grpc_overrides(input: String) -> Result<[NodeConfigOverride; 2], anyhow::Error> {
-    let grpc_address = parse_host_port(input, DEFAULT_GRPC_PORT)
-        .map_err(|_| anyhow!("Invalid gRPC host and port"))?;
+    let grpc_address = service_address(input, DEFAULT_GRPC_PORT, "gRPC")?;
     Ok([
         "fullnode:enable-grpc-api=true".parse()?,
         // Quoted: an IPv6 address like `[::1]:50051` is YAML structure
@@ -1476,11 +1473,25 @@ fn log_applied_overrides_for_node<'a>(
     );
 }
 
-/// The addresses `--with-graphql` binds: the GraphQL server itself, and the
-/// Prometheus listener beside it.
+/// The host half of `address` in the form the GraphQL server accepts: it
+/// joins host and port with `format!("{host}:{port}")`, so an IPv6 host
+/// needs its brackets.
+#[cfg(feature = "indexer")]
+fn graphql_host(address: SocketAddr) -> String {
+    match address.ip() {
+        IpAddr::V6(ip) => format!("[{ip}]"),
+        ip => ip.to_string(),
+    }
+}
 
-/// The GraphQL service settings of a local network: the address the flag
-/// gave it, the indexer database at `db_url`, and its Prometheus listener.
+/// Parse a service address, with `default_port` when the input has none.
+fn service_address(
+    input: String,
+    default_port: u16,
+    service: &str,
+) -> Result<SocketAddr, anyhow::Error> {
+    parse_host_port(input, default_port).map_err(|_| anyhow!("Invalid {service} host and port"))
+}
 
 /// Parse the input string into a SocketAddr, with a default port if none is
 /// provided.
