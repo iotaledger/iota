@@ -1033,24 +1033,13 @@ pub type ExecutionErrorKind = ExecutionFailureStatus;
 
 #[derive(Debug)]
 pub struct ExecutionError {
-    inner: Box<ExecutionErrorInner>,
-}
-
-#[derive(Debug)]
-struct ExecutionErrorInner {
-    kind: ExecutionErrorKind,
-    source: Option<BoxError>,
-    command: Option<u64>,
+    inner: Box<iota_sdk_types::ExecutionFailure<BoxError>>,
 }
 
 impl ExecutionError {
     pub fn new(kind: ExecutionErrorKind, source: Option<BoxError>) -> Self {
         Self {
-            inner: Box::new(ExecutionErrorInner {
-                kind,
-                source,
-                command: None,
-            }),
+            inner: Box::new(iota_sdk_types::ExecutionFailure::new(kind, source, None)),
         }
     }
 
@@ -1067,6 +1056,15 @@ impl ExecutionError {
         self
     }
 
+    /// The client-facing view of this error, with the source stringified.
+    pub fn to_execution_failure(&self) -> iota_sdk_types::ExecutionFailure {
+        iota_sdk_types::ExecutionFailure::new(
+            self.kind().clone(),
+            self.source().as_ref().map(|source| source.to_string()),
+            self.command(),
+        )
+    }
+
     /// Rewrap this error, produced while executing a Move authenticator, as a
     /// [`ExecutionFailureStatus::MoveAuthentication`]. The command index
     /// is dropped: it referred to a command of the authenticator's own
@@ -1074,10 +1072,10 @@ impl ExecutionError {
     /// effects, where it would otherwise collide with the first command of the
     /// programmable transaction.
     pub fn into_move_authentication_error(self) -> Self {
-        let ExecutionErrorInner { kind, source, .. } = *self.inner;
+        let iota_sdk_types::ExecutionFailure { error, source, .. } = *self.inner;
         Self::new(
             ExecutionFailureStatus::MoveAuthentication {
-                error: Box::new(kind),
+                error: Box::new(error),
             },
             source,
         )
@@ -1088,7 +1086,7 @@ impl ExecutionError {
     }
 
     pub fn kind(&self) -> &ExecutionErrorKind {
-        &self.inner.kind
+        &self.inner.error
     }
 
     pub fn command(&self) -> Option<u64> {
@@ -1106,14 +1104,7 @@ impl ExecutionError {
 
 impl std::fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.inner.kind.as_ref(), self.inner.kind)?;
-        if let Some(source) = self.inner.source.as_ref() {
-            write!(f, "; caused by: {source}")?;
-        }
-        if let Some(command) = self.inner.command {
-            write!(f, "; at command index: {command}")?;
-        }
-        Ok(())
+        std::fmt::Display::fmt(&self.inner, f)
     }
 }
 
@@ -1134,4 +1125,17 @@ pub fn command_argument_error(e: CommandArgumentError, arg_idx: usize) -> Execut
         e,
         arg_idx as u16,
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn execution_failure_display_matches_execution_error() {
+        let error =
+            ExecutionError::new_with_source(ExecutionFailureStatus::InsufficientGas, "out of gas")
+                .with_command_index(2);
+        assert_eq!(error.to_execution_failure().to_string(), error.to_string());
+    }
 }
