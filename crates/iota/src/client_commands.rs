@@ -3515,7 +3515,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 .quorum_driver_api()
                 .execute_transaction_block(
                     transaction,
-                    opts_from_cli(display),
+                    opts_from_cli(&display),
                     Some(ExecuteTransactionRequestType::WaitForLocalExecution),
                 )
                 .await?;
@@ -3529,6 +3529,11 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             })?;
             if let IotaExecutionStatus::Failure { error } = effects.status() {
                 bail!("Error executing transaction '{}': {error}", response.digest);
+            }
+            // Effects are always requested for the status check above, so drop
+            // them here when the display selection excludes them.
+            if !display.is_empty() && !display.contains(&DisplayOption::Effects) {
+                response.effects = None;
             }
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }
@@ -3579,7 +3584,7 @@ pub(crate) async fn prerender_clever_errors(
     }
 }
 
-fn opts_from_cli(opts: HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {
+fn opts_from_cli(opts: &HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {
     if opts.is_empty() {
         IotaTransactionBlockResponseOptions::new()
             .with_input()
@@ -3591,6 +3596,9 @@ fn opts_from_cli(opts: HashSet<DisplayOption>) -> IotaTransactionBlockResponseOp
         IotaTransactionBlockResponseOptions {
             show_input: opts.contains(&DisplayOption::Input),
             show_raw_input: false,
+            // Effects are always requested because the execution status check
+            // needs them; they are dropped from the response afterwards when
+            // the display selection excludes them.
             show_effects: true,
             show_raw_effects: false,
             show_events: opts.contains(&DisplayOption::Events),
