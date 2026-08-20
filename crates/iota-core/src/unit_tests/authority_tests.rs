@@ -57,9 +57,10 @@ use iota_types::{
     randomness_state::get_randomness_state_obj_initial_shared_version,
     supported_protocol_versions::{SupportedProtocolVersions, SupportedProtocolVersionsWithHashes},
     transaction::{
-        CallArg, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
-        TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
-        TransactionEnvelope, VerifiedCertificate, VerifiedTransaction,
+        CallArg, CancelledObjects, SenderSignedTransactionAPI,
+        TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope, VerifiedCertificate,
+        VerifiedTransaction,
     },
     transaction_executor::{SimulateTransactionResult, VmChecks},
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
@@ -6903,7 +6904,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     let (cancelled_objects, cancellation_reason) = input_objects.get_cancelled_objects().unwrap();
     assert_eq!(
         cancelled_objects,
-        vec![shared_objects[0].id(), shared_objects[1].id()]
+        CancelledObjects::SharedObjects(vec![shared_objects[0].id(), shared_objects[1].id()])
     );
     assert_eq!(
         cancellation_reason,

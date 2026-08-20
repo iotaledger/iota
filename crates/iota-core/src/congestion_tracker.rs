@@ -149,6 +149,15 @@ fn get_congested_objects_and_feedback_suggested_gas_price(
                 },
             ..
         } => Some((congested_objects, Some(*suggested_gas_price))),
+        // Execution-worker congestion names no object, so there is no
+        // per-object congestion info to update.
+        ExecutionStatus::Failure {
+            error:
+                ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
+                    suggested_gas_price,
+                },
+            ..
+        } => Some((&[], Some(*suggested_gas_price))),
         _ => None,
     }
 }
