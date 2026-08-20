@@ -175,7 +175,9 @@ impl TrafficController {
         let mem_drainfile_present = self
             .fw_config
             .as_ref()
-            .map(|config| config.drain_path.exists())
+            // An unreadable path counts as a drain, thus the node does not
+            // delegate while it cannot tell.
+            .map(|config| config.drain_path.try_exists().unwrap_or(true))
             .unwrap_or(false);
         self.metrics
             .deadmans_switch_enabled
@@ -526,7 +528,7 @@ async fn run_tally_loop(
             _ = tokio::time::sleep(tokio::time::Duration::from_secs(timeout)) => {
                 if let Some(fw_config) = &fw_config {
                     error!("No traffic tallies received in {} seconds.", timeout);
-                    if !fw_config.drain_path.exists() {
+                    if !fw_config.drain_path.try_exists().unwrap_or(true) {
                         warn!("Draining Node firewall.");
                         if let Err(err) = File::create(&fw_config.drain_path) {
                             error!("Failed to touch nodefw drain file: {err}");
@@ -1246,6 +1248,30 @@ mod tests {
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
         panic!("the node delegated no block after the admin API turned dry run off");
+    }
+
+    #[tokio::test]
+    async fn test_an_unreadable_drain_path_stops_delegation() {
+        // The drain path goes through a file, thus `try_exists` gives an error
+        // and the node cannot tell if the firewall drains.
+        let tmp_dir = iota_common::tempdir();
+        let blocker = tmp_dir.path().join("blocker");
+        File::create(&blocker).expect("the file is created");
+        let controller = TrafficController::init_for_test(
+            policy_config(false, PolicyKind::Spam),
+            Some(fw_config(blocker.join("drain"))),
+        )
+        .await;
+        controller.tally(breach(PolicyKind::Spam));
+
+        // The node keeps the block, because the firewall possibly drains.
+        assert_eq!(
+            wait_for_block(&controller).await,
+            Outcome {
+                blocked_locally: 1,
+                delegated: 0,
+            }
+        );
     }
 
     #[tokio::test]
