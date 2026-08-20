@@ -257,7 +257,7 @@ impl TrafficController {
             self.metrics
                 .error_client_threshold
                 .set(error_threshold as i64);
-            Self::update_policy_threshold(policy, error_threshold, dry_run).await?;
+            Self::update_policy_threshold(policy, error_threshold).await?;
         }
         if let Some(spam_threshold) = spam_threshold {
             let policy = self.spam_policy.as_ref().ok_or_else(|| {
@@ -268,7 +268,7 @@ impl TrafficController {
             self.metrics
                 .spam_client_threshold
                 .set(spam_threshold as i64);
-            Self::update_policy_threshold(policy, spam_threshold, dry_run).await?;
+            Self::update_policy_threshold(policy, spam_threshold).await?;
         }
         if let Some(dry_run) = dry_run {
             self.metrics.dry_run_enabled.set(dry_run as i64);
@@ -281,21 +281,14 @@ impl TrafficController {
     async fn update_policy_threshold(
         policy: &Arc<Mutex<TrafficControlPolicy>>,
         threshold: u64,
-        dry_run: Option<bool>,
     ) -> Result<(), IotaError> {
         match *policy.lock().await {
             TrafficControlPolicy::FreqThreshold(ref mut policy) => {
                 policy.client_threshold = threshold;
-                if let Some(dry_run) = dry_run {
-                    policy.config.dry_run = dry_run;
-                }
                 Ok(())
             }
             TrafficControlPolicy::TestNConnIP(ref mut policy) => {
                 policy.threshold = threshold;
-                if let Some(dry_run) = dry_run {
-                    policy.config.dry_run = dry_run;
-                }
                 Ok(())
             }
             _ => Err(IotaError::InvalidAdminRequest(
