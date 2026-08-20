@@ -494,8 +494,10 @@ impl TestNConnIPPolicy {
 }
 
 async fn run_clear_frequencies(frequencies: Arc<RwLock<HashMap<IpAddr, u64>>>, window_secs: u64) {
+    // A window of zero seconds clears the counts in a busy loop.
+    let window = Duration::from_secs(window_secs.max(1));
     loop {
-        tokio::time::sleep(tokio::time::Duration::from_secs(window_secs)).await;
+        tokio::time::sleep(window).await;
         frequencies.write().clear();
     }
 }

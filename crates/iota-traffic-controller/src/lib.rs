@@ -1132,8 +1132,7 @@ mod tests {
                 PolicyType::NoOp
             },
             spam_sample_rate: Weight::one(),
-            // Do not use the default of zero. It makes the policy clear its
-            // counts in a busy loop.
+            // The default of zero clears the counts every second.
             connection_blocklist_ttl_sec: 120,
             dry_run,
             ..Default::default()
