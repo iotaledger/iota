@@ -189,7 +189,7 @@ pub struct Parameters {
 
     /// Maximum number of shards from one relaying authority retained across
     /// all pending shard accumulators. At the budget, admitting a new shard
-    /// from the authority evicts its stalest retained one, so reconstructor
+    /// from the authority evicts its oldest retained one, so reconstructor
     /// memory stays bounded by `committee size × budget × shard size`
     /// regardless of how far commits run ahead of solidification.
     #[serde(default = "Parameters::default_shard_budget_per_authority")]

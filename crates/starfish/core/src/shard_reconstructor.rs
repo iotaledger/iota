@@ -397,7 +397,7 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     reconstruction_result_receiver: Receiver<ReconstructionResult>,
     /// For each authority, the accumulators currently retaining a shard it
     /// relayed. Enforces the per-authority shard budget: at the budget, the
-    /// authority's stalest retained shard is evicted to admit a new one.
+    /// authority's oldest retained shard is evicted to admit a new one.
     retained_shards_by_authority: Vec<BTreeSet<TransactionRef>>,
     /// Slots whose genuine payload is already known, from a successful decode
     /// or a directly received full payload. Their accumulators are purged and
@@ -884,12 +884,12 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         Ok(())
     }
 
-    /// At the authority's shard budget, evicts its stalest retained shard:
-    /// the lowest-round one in an accumulator holding fewer than half of
-    /// `info_length` shards, or the lowest-round one overall — stuck
-    /// accumulators sit near-full by construction, so fill level alone must
-    /// not shield a shard. An evicted decodable payload stays fetchable via
-    /// the transaction synchronizer, since its relayers hold it in full.
+    /// At the authority's shard budget, evicts its oldest (lowest-round)
+    /// retained shard, preferring accumulators holding fewer than half of
+    /// `info_length` shards. Well-filled accumulators are not exempt: an
+    /// accumulator can hold stake just below the validity threshold yet never
+    /// decode. Whatever eviction costs stays fetchable via the transaction
+    /// synchronizer, since a decodable payload's relayers hold it in full.
     fn make_room_in_peer_budget(&mut self, shard_index: usize) {
         let retained = &self.retained_shards_by_authority[shard_index];
         if retained.len() < self.shard_budget_per_authority {
@@ -922,7 +922,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             .with_label_values(&["peer_budget_evicted"])
             .inc();
         debug!(
-            "Evicted the stalest retained shard of peer index {shard_index} ({victim_ref:?}) to admit a new one"
+            "Evicted the oldest retained shard of peer index {shard_index} ({victim_ref:?}) to admit a new one"
         );
     }
 
@@ -2334,10 +2334,10 @@ mod tests {
     }
 
     /// At the per-authority budget, admitting a new shard evicts the
-    /// authority's stalest retained one instead of dropping the new one, and
+    /// authority's oldest retained one instead of dropping the new one, and
     /// other authorities' budgets are unaffected.
     #[tokio::test]
-    async fn test_peer_budget_evicts_stalest_shard_to_admit_new_one() {
+    async fn test_peer_budget_evicts_oldest_shard_to_admit_new_one() {
         telemetry_subscribers::init_for_testing();
         let (context, mut reconstructor) = new_reconstructor_with_budget(10, 2);
         let mut encoder = create_encoder(&context);
