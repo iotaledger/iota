@@ -12,7 +12,7 @@ use std::{
 
 use async_trait::async_trait;
 use bytes::Bytes;
-use dashmap::DashSet;
+use dashmap::DashMap;
 use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
@@ -24,9 +24,9 @@ use tracing::{debug, error, info, warn};
 use crate::{
     CommitIndex, Round, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, GENESIS_ROUND,
-        ShardWithProof, ShardWithProofAPI, SignedBlockHeader, TransactionsCommitment,
-        VerifiedBlock, VerifiedOwnShard,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs,
+        CommitmentVerifiedTransactions, GENESIS_ROUND, ShardWithProof, ShardWithProofAPI,
+        SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
     },
     block_verifier::{BlockVerifier, max_shard_bytes},
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
@@ -56,15 +56,25 @@ pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
 const MAX_FILTER_SIZE: u32 = 100000;
 
+/// The author, round and timestamp of a header whose digest is in
+/// [`FilterForHeaders`], recorded when the verified header was inserted so a
+/// re-delivered copy can be sampled for responsiveness without being
+/// deserialized again.
+type FilteredHeaderInfo = (AuthorityIndex, Round, BlockTimestampMs);
+
+fn filtered_header_info(header: &VerifiedBlockHeader) -> FilteredHeaderInfo {
+    (header.author(), header.round(), header.timestamp_ms())
+}
+
 struct FilterForHeaders {
-    header_digests: DashSet<BlockHeaderDigest>,
+    header_digests: DashMap<BlockHeaderDigest, FilteredHeaderInfo>,
     queue: Mutex<VecDeque<BlockHeaderDigest>>,
 }
 
 impl FilterForHeaders {
     fn new() -> Self {
         Self {
-            header_digests: DashSet::new(),
+            header_digests: DashMap::new(),
             queue: Mutex::new(VecDeque::new()),
         }
     }
@@ -74,15 +84,18 @@ impl FilterForHeaders {
         self.header_digests.len()
     }
 
-    async fn add_batch(&self, digests: Vec<BlockHeaderDigest>) -> Vec<BlockHeaderDigest> {
+    async fn add_batch(
+        &self,
+        digests: Vec<(BlockHeaderDigest, FilteredHeaderInfo)>,
+    ) -> Vec<BlockHeaderDigest> {
         let mut already_inserted = vec![];
-        for digest in digests.iter() {
-            if !self.header_digests.insert(*digest) {
+        for (digest, info) in digests.iter() {
+            if self.header_digests.insert(*digest, *info).is_some() {
                 already_inserted.push(*digest);
             }
         }
         let mut queue = self.queue.lock().await;
-        for digest in digests {
+        for (digest, _) in digests {
             queue.push_back(digest);
         }
         while queue.len() > MAX_FILTER_SIZE as usize {
@@ -92,8 +105,10 @@ impl FilterForHeaders {
         }
         already_inserted
     }
-    fn contains(&self, header_digest: &BlockHeaderDigest) -> bool {
-        self.header_digests.contains(header_digest)
+    fn get(&self, header_digest: &BlockHeaderDigest) -> Option<FilteredHeaderInfo> {
+        self.header_digests
+            .get(header_digest)
+            .map(|info| *info.value())
     }
 }
 
@@ -282,18 +297,18 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
 
     /// Deserializes and verifies the additional headers of a bundle. Returns
     /// the fresh headers, to be accepted into the DAG, and separately the
-    /// headers received before (their digest is in `received_block_headers`):
-    /// those still count as deliveries for the responsiveness sampling, but
-    /// must not be re-accepted. A filter hit proves byte-identity with a
-    /// header that passed verification before its digest entered the filter,
-    /// so a duplicate's fields are trusted without re-verifying its signature.
+    /// author, round and timestamp of each header received before (its digest
+    /// is in `received_block_headers`): those still count as deliveries for
+    /// the responsiveness sampling, but must not be re-accepted. The fields of
+    /// a duplicate come from the filter, recorded when the verified header was
+    /// inserted, so a duplicate costs a lookup, not a deserialization.
     fn extract_additional_block_headers_from_bundle(
         &self,
         peer: AuthorityIndex,
         peer_hostname: &str,
         mut serialized_headers: Vec<Bytes>,
         block_ref: BlockRef,
-    ) -> ConsensusResult<(Vec<VerifiedBlockHeader>, Vec<VerifiedBlockHeader>)> {
+    ) -> ConsensusResult<(Vec<VerifiedBlockHeader>, Vec<FilteredHeaderInfo>)> {
         let block_round = block_ref.round;
         if serialized_headers.len() > self.context.parameters.max_headers_per_bundle {
             warn!("BlockBundle: {block_ref} exceeds max_headers_per_bundle.");
@@ -301,35 +316,23 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         };
 
         let mut additional_block_headers = vec![];
-        let mut duplicate_block_headers = vec![];
+        let mut duplicate_header_deliveries = vec![];
         for serialized_header in serialized_headers {
             let digest = VerifiedBlockHeader::compute_digest(&serialized_header);
-            if self.received_block_headers.contains(&digest) {
+            if let Some((author, round, timestamp_ms)) = self.received_block_headers.get(&digest) {
                 self.context
                     .metrics
                     .node_metrics
                     .filtered_headers_in_bundles
                     .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
                     .inc();
-                // The parse cannot fail — the filter hit proves these bytes
-                // were deserialized before; skip the sample if it somehow
-                // does. The in-bundle round bound applies to duplicates too:
+                // The in-bundle round bound applies to duplicates too:
                 // together with the connect ceiling on the primary block it
                 // keeps a far-future header, whose digest enters the filter
                 // when its block is dropped, from being replayed as a
                 // near-zero-latency sample.
-                if let Ok(signed_block_header) =
-                    bcs::from_bytes::<SignedBlockHeader>(&serialized_header)
-                {
-                    if signed_block_header.round() < block_round {
-                        duplicate_block_headers.push(
-                            VerifiedBlockHeader::new_verified_with_digest(
-                                signed_block_header,
-                                serialized_header,
-                                digest,
-                            ),
-                        );
-                    }
+                if round < block_round {
+                    duplicate_header_deliveries.push((author, round, timestamp_ms));
                 }
                 continue;
             }
@@ -389,7 +392,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .valid_headers_in_bundles
             .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(additional_block_headers.len() as u64);
-        Ok((additional_block_headers, duplicate_block_headers))
+        Ok((additional_block_headers, duplicate_header_deliveries))
     }
     fn extract_shards_from_bundle(
         &self,
@@ -534,12 +537,17 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         peer_hostname: &str,
         additional_block_headers: &mut Vec<VerifiedBlockHeader>,
         block_ref: BlockRef,
+        block_timestamp_ms: BlockTimestampMs,
     ) {
-        let mut digests_to_add_to_filter = vec![];
+        let mut digests_to_add_to_filter = Vec::with_capacity(additional_block_headers.len() + 1);
         for block_header in additional_block_headers.iter() {
-            digests_to_add_to_filter.push(block_header.digest())
+            digests_to_add_to_filter
+                .push((block_header.digest(), filtered_header_info(block_header)))
         }
-        digests_to_add_to_filter.push(block_ref.digest);
+        digests_to_add_to_filter.push((
+            block_ref.digest,
+            (block_ref.author, block_ref.round, block_timestamp_ms),
+        ));
         let digests_to_exclude = self
             .received_block_headers
             .add_batch(digests_to_add_to_filter)
@@ -789,8 +797,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let gen_transaction_ref = GenericTransactionRef::from(transaction_ref);
         // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
         let now = self.context.clock.timestamp_utc_ms();
-        let forward_time_drift =
-            Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
+        let block_timestamp_ms = verified_block.timestamp_ms();
+        let forward_time_drift = Duration::from_millis(block_timestamp_ms.saturating_sub(now));
         self.context
             .metrics
             .node_metrics
@@ -798,7 +806,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(forward_time_drift.as_millis() as u64);
         let latency_to_process_stream =
-            Duration::from_millis(now.saturating_sub(verified_block.timestamp_ms()));
+            Duration::from_millis(now.saturating_sub(block_timestamp_ms));
         self.context
             .metrics
             .node_metrics
@@ -815,7 +823,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let serialized_headers =
             std::mem::take(&mut serialized_block_bundle_parts.serialized_headers);
-        let (mut additional_block_headers, duplicate_block_headers) = self
+        let (mut additional_block_headers, duplicate_header_deliveries) = self
             .extract_additional_block_headers_from_bundle(
                 peer,
                 peer_hostname,
@@ -918,43 +926,31 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
-        // Sample the streaming responsiveness table once per author, from the
-        // newest header of that author in this bundle: a bundle is one
-        // delivery event, and how old that newest header is says how current
-        // the peer is on that author. Headers the digest filter already saw
-        // count too: sampling only first deliveries would record nothing for
-        // a peer that is consistently second and only race-winning latencies
-        // for the rest, while a re-delivery cannot make a peer look fast
-        // because the latency reference is the author's own timestamp.
-        let mut newest_per_author: Vec<Option<&VerifiedBlockHeader>> =
-            vec![None; self.context.committee.size()];
-        for header in additional_block_headers
-            .iter()
-            .chain(duplicate_block_headers.iter())
-        {
-            let newest = &mut newest_per_author[header.author()];
-            if newest.is_none_or(|current| current.round() < header.round()) {
-                *newest = Some(header);
-            }
+        // Sample the streaming responsiveness table from this bundle's
+        // headers, the duplicates the digest filter already saw included; the
+        // sampling rules live on `record_streaming_header_deliveries`.
+        if !additional_block_headers.is_empty() || !duplicate_header_deliveries.is_empty() {
+            self.context
+                .peer_responsiveness
+                .record_streaming_header_deliveries(
+                    peer,
+                    now,
+                    additional_block_headers
+                        .iter()
+                        .map(filtered_header_info)
+                        .chain(duplicate_header_deliveries),
+                );
         }
-        let deliveries = newest_per_author
-            .into_iter()
-            .flatten()
-            .map(|header| {
-                (
-                    header.author(),
-                    Duration::from_millis(now.saturating_sub(header.timestamp_ms())),
-                )
-            })
-            .collect::<Vec<_>>();
-        self.context
-            .peer_responsiveness
-            .record_streaming_header_deliveries(peer, &deliveries);
 
         // 8. Add digests to filter. Exclude from the vector those that are already
         //    inserted
-        self.add_digests_to_filter(peer_hostname, &mut additional_block_headers, block_ref)
-            .await;
+        self.add_digests_to_filter(
+            peer_hostname,
+            &mut additional_block_headers,
+            block_ref,
+            block_timestamp_ms,
+        )
+        .await;
 
         // 9. Prepare transaction messages for shard reconstructor and send them.
         // Skipped for a dropped primary block (no shards were collected).
@@ -3051,7 +3047,7 @@ mod tests {
             DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
         dag_builder.layers(1..=rounds).build();
         let mut all_headers: Vec<Vec<VerifiedBlockHeader>> = vec![];
-        let mut all_transactions: Vec<Vec<VerifiedTransactions>> = vec![];
+        let mut all_transactions: Vec<Vec<CommitmentVerifiedTransactions>> = vec![];
         for round in 0..=rounds {
             all_headers.push(dag_builder.block_headers(round..=round));
             all_transactions.push(dag_builder.transactions(round..=round));
