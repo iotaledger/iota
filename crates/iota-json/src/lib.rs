@@ -10,9 +10,7 @@ use std::{
 
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Encoding, Hex};
-use iota_sdk_types::{
-    Address, Identifier, ObjectId, StructTag, TypeTag, move_package::MovePackage,
-};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag};
 use iota_types::{
     base_types::{
         RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext, TxContextKind,
@@ -22,15 +20,13 @@ use iota_types::{
     id::{self, RESOLVED_IOTA_ID},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
     move_package::{
-        IotaAttributeV2, MovePackageExt, ProtocolBuildConfig, RuntimeModuleMetadata,
-        RuntimeModuleMetadataWrapper,
+        IotaAttributeV2, ProtocolBuildConfig, RuntimeModuleMetadata, RuntimeModuleMetadataWrapper,
     },
     object::bounded_visitor::BoundedVisitor,
     transfer::RESOLVED_RECEIVING_STRUCT,
 };
 use move_binary_format::{
-    CompiledModule, binary_config::BinaryConfig, file_format::SignatureToken,
-    file_format_common::IOTA_METADATA_KEY,
+    CompiledModule, file_format::SignatureToken, file_format_common::IOTA_METADATA_KEY,
 };
 use move_bytecode_utils::resolve_struct;
 pub use move_core_types::annotated_value::MoveTypeLayout;
@@ -858,51 +854,26 @@ fn is_view_function_from_module_metadata(
 }
 
 /// Resolve the JSON args of a function into the expected formats to make them
-/// usable by Move call This is because we have special types which we need to
-/// specify in other formats
-pub fn resolve_move_function_json_args(
-    package: &MovePackage,
-    module_ident: Identifier,
-    function: Identifier,
-    type_args: &[TypeTag],
-    combined_args_json: Vec<IotaJsonValue>,
-) -> Result<Vec<(ResolvedCallArg, SignatureToken)>, anyhow::Error> {
-    let module = package.deserialize_module(&module_ident, &BinaryConfig::standard())?;
-    let args = combined_args_json.into_iter().map(Into::into).collect();
-    resolve_move_function_args(&module, function.clone(), type_args, args, None).map_err(|e| {
-        anyhow::anyhow!("failed to resolve {module_ident}::{function} move function: {e}")
-    })
-}
-
-/// Resolve the JSON args of a function into the expected formats to make them
 /// usable by Move call. This is because we have special types which we need to
 /// specify in other formats. Additionally, it checks for `#[view]` attribute
 /// presence in function metadata if a view/non-view function is expected.
 pub fn resolve_move_function_args(
     module: &CompiledModule,
-    function: Identifier,
+    function: &Identifier,
     type_args: &[TypeTag],
     args: Vec<IotaMoveCallInputValue>,
-    is_view_function: Option<bool>,
+    require_view_function: bool,
 ) -> Result<Vec<(ResolvedCallArg, SignatureToken)>, anyhow::Error> {
     // Extract the expected function signature
     let fdef = module
         .find_function_def_by_name(function.as_str())
         .map(|(_, fdef)| fdef)
-        .ok_or_else(|| anyhow!("Could not resolve function {function}"))?;
+        .ok_or_else(|| anyhow!("Could not find function"))?;
 
-    if let Some(is_view_expected) = is_view_function {
+    if require_view_function {
         let has_view_attribute = is_view_function_from_module_metadata(module, function.as_str())?;
-        if is_view_expected != has_view_attribute {
-            bail!(
-                "expected {} function, but it {} #[view] attribute",
-                if is_view_expected { "view" } else { "non-view" },
-                if has_view_attribute {
-                    "has"
-                } else {
-                    "doesn't have"
-                },
-            );
+        if !has_view_attribute {
+            bail!("Function {function} is not declared as a #[view] function");
         }
     }
     let function_signature = module.function_handle_at(fdef.function);

@@ -439,7 +439,7 @@ async fn test_view_function_call() -> Result<(), anyhow::Error> {
         .view_function_call(format!("{package_id}::counter::nonexistent"), None, vec![])
         .await
         .unwrap_err();
-    assert!(err.to_string().contains("not found in module"), "{err}");
+    assert!(err.to_string().contains("Could not find function"), "{err}");
 
     Ok(())
 }

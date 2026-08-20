@@ -644,7 +644,7 @@ where
     Ok(normalized_modules)
 }
 
-fn runtime_module_metadata(
+pub fn runtime_module_metadata(
     module: &CompiledModule,
     protocol_config: Option<&ProtocolConfig>,
 ) -> IotaResult<RuntimeModuleMetadata> {

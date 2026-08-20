@@ -202,11 +202,17 @@ impl TransactionBuilder {
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
             &module,
-            function_ident.to_owned(),
+            function_ident,
             type_args,
-            json_args.into_iter().map(|arg| arg.into()).collect(),
-            None,
-        )?;
+            json_args.into_iter().map(Into::into).collect(),
+            true,
+        )
+        .map_err(|err| {
+            let package_id = &package.id;
+            anyhow!(
+                "Failed to resolve {package_id}::{module_ident}::{function_ident} move function: {err}"
+            )
+        })?;
 
         // Finally construct the input arguments for the builder.
         let mut args = Vec::new();
@@ -304,11 +310,17 @@ impl TransactionBuilder {
         // Then resolve the function parameters type.
         let json_args_and_tokens = resolve_move_function_args(
             &module,
-            function_ident.clone(),
+            function_ident,
             type_args,
-            json_args.into_iter().map(|arg| arg.into()).collect(),
-            Some(true),
-        )?;
+            json_args.into_iter().map(Into::into).collect(),
+            true,
+        )
+        .map_err(|err| {
+            let package_id = &package.id;
+            anyhow!(
+                "Failed to resolve {package_id}::{module_ident}::{function_ident} move function: {err}"
+            )
+        })?;
 
         // Finally construct the input arguments for the builder.
         let mut args = Vec::new();

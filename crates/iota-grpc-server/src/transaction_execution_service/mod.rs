@@ -136,6 +136,7 @@ impl grpc_tx_service::transaction_execution_service_server::TransactionExecution
         let response = view::view_function_calls(
             &self.reader,
             &self.executor,
+            &self.builder_client,
             &self.config,
             request.into_inner(),
         )
@@ -166,7 +167,7 @@ fn validate_batch_size(items_len: usize, max_batch: usize) -> Result<(), RpcErro
     if items_len == 0 {
         return Err(RpcError::new(
             tonic::Code::InvalidArgument,
-            "transactions list must not be empty",
+            "batch must not be empty",
         ));
     }
     if items_len > max_batch {

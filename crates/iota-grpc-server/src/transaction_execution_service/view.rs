@@ -30,6 +30,7 @@ use iota_sdk_types::{
     transaction::TransactionV1,
 };
 use iota_types::{
+    error::IotaError,
     move_package::MovePackageExt,
     parse_iota_fq_name,
     transaction_executor::{TransactionExecutor, VmChecks},
@@ -55,10 +56,11 @@ use crate::{error::RpcError, merge::Merge, types::GrpcReader, validation::valida
 ///
 /// The request's `read_mask` selects which fields of each result to populate,
 /// defaulting to [`VIEW_FUNCTION_CALLS_READ_MASK`].
-#[tracing::instrument(skip(reader, executor))]
+#[tracing::instrument(skip_all, fields(batch_size = request.view_function_calls.len()))]
 pub async fn view_function_calls(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
+    build_client: &NodeTransactionBuilderResolveClient,
     config: &iota_config::node::GrpcApiConfig,
     request: ViewFunctionCallsRequest,
 ) -> Result<ViewFunctionCallsResponse, RpcError> {
@@ -73,7 +75,16 @@ pub async fn view_function_calls(
 
     let mut call_results = Vec::with_capacity(request.view_function_calls.len());
     for item in &request.view_function_calls {
-        let result = match view_function_call(reader, executor, config, item, &read_mask).await {
+        let result = match view_function_call(
+            reader,
+            executor,
+            build_client,
+            config,
+            item,
+            &read_mask,
+        )
+        .await
+        {
             Ok(r) => r,
             Err(error) => ViewFunctionCallResult::default().with_error(error.into_status_proto()),
         };
@@ -93,19 +104,12 @@ pub async fn view_function_calls(
 async fn view_function_call(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
+    build_client: &NodeTransactionBuilderResolveClient,
     config: &iota_config::node::GrpcApiConfig,
     item: &ViewFunctionCallItem,
     read_mask: &FieldMaskTree,
 ) -> Result<ViewFunctionCallResult, RpcError> {
-    // The response carries only the call's outputs; if the client's read mask
-    // excludes them there is nothing to build.
-    let Some(outputs_mask) = read_mask.subtree(ViewFunctionCallOutputs::EXECUTION_RESULT_ONEOF)
-    else {
-        return Ok(ViewFunctionCallResult::default());
-    };
-
-    let resolve_client = NodeTransactionBuilderResolveClient::new(reader.state_reader());
-    let mut builder = TransactionBuilder::new(Address::ZERO).with_client(resolve_client);
+    let mut builder = TransactionBuilder::new(Address::ZERO).with_client(build_client.clone());
     add_view_function_call(reader, &mut builder, item)?;
 
     let kind = builder.finish_kind().await.map_err(|err| {
@@ -129,37 +133,59 @@ async fn view_function_call(
         expiration: TransactionExpiration::None,
     };
 
-    // Dev-inspect: no gas coins, VmChecks disabled; the executor mocks gas.
+    // Dev-inspect the transaction
     let simulation = executor
         .simulate_transaction(transaction.into(), VmChecks::Disabled)
         .map_err(|e| {
             RpcError::new(
-                tonic::Code::Internal,
+                if matches!(e, IotaError::UserInput { .. }) {
+                    Code::InvalidArgument
+                } else {
+                    Code::Internal
+                },
                 format!("transaction simulation failed: {e}"),
             )
         })?;
 
-    // The call ran either way; report its return values, or the reason it
-    // aborted, as the `execution_result` of the outputs.
-    let outputs = match simulation.execution_result {
-        Ok(command_results) => {
-            // The transaction holds exactly one `MoveCall` command, so the
-            // executor returns exactly one set of command results.
-            let [(_mutable_ref_outputs, return_values)] = command_results.as_slice() else {
-                return Err(RpcError::new(
-                    Code::Internal,
-                    format!(
-                        "expected exactly one command result, got {}",
-                        command_results.len()
-                    ),
-                ));
-            };
-            build_return_values(reader, config, &outputs_mask, return_values)?
-        }
-        Err(execution_error) => build_execution_error(&outputs_mask, &execution_error)?,
-    };
+    // Build the response
+    let mut response = ViewFunctionCallResult::default();
 
-    Ok(ViewFunctionCallResult::default().with_call_outputs(outputs))
+    // Only include the result if requested
+    if let Some(outputs_mask) = read_mask.subtree(ViewFunctionCallOutputs::EXECUTION_RESULT_ONEOF) {
+        // The call ran either way; report its return values, or the reason it
+        // aborted, as the `execution_result` of the outputs.
+        let outputs = match simulation.execution_result {
+            Ok(command_results) => {
+                // The transaction holds exactly one `MoveCall` command, so the
+                // executor returns exactly one set of command results.
+                let [(mutable_ref_outputs, return_values)] = command_results.as_slice() else {
+                    return Err(RpcError::new(
+                        Code::Internal,
+                        format!(
+                            "expected exactly one command result, got {}",
+                            command_results.len()
+                        ),
+                    ));
+                };
+                if !mutable_ref_outputs.is_empty() {
+                    return Err(RpcError::new(
+                        Code::Internal,
+                        format!(
+                            "expected no mutable ref outputs in command result, got {}",
+                            mutable_ref_outputs.len()
+                        ),
+                    ));
+                }
+                build_return_values(reader, config, &outputs_mask, return_values)?
+            }
+            Err(execution_error) => build_execution_error(&outputs_mask, &execution_error)?,
+        };
+        response.result = Some(super::view_function_call_result::Result::CallOutputs(
+            outputs,
+        ));
+    }
+
+    Ok(response)
 }
 
 /// Build the `return_values` of a call that ran to completion, honoring the
@@ -231,7 +257,7 @@ fn add_view_function_call(
 ) -> Result<(), RpcError> {
     let (package_id, module, function) = parse_fq_function_name(&item.fq_function_name)?;
     let type_args = convert_type_args(&item.type_args)?;
-    let view_args_vec = item
+    let args = item
         .inputs
         .iter()
         .map(proto_arg_to_call_arg)
@@ -256,14 +282,8 @@ fn add_view_function_call(
                 format!("failed to deserialize module {module}: {e}"),
             )
         })?;
-    let resolved = resolve_move_function_args(
-        &compiled_module,
-        function.clone(),
-        &type_args,
-        view_args_vec,
-        Some(true),
-    )
-    .map_err(|e| RpcError::new(Code::InvalidArgument, format!("{e}")))?;
+    let resolved = resolve_move_function_args(&compiled_module, &function, &type_args, args, true)
+        .map_err(|e| RpcError::new(Code::InvalidArgument, format!("{e}")))?;
 
     let mut args = Vec::with_capacity(resolved.len());
     for (resolved_arg, _) in resolved {
@@ -275,7 +295,7 @@ fn add_view_function_call(
             ResolvedCallArg::ObjVec(_) => {
                 return Err(RpcError::new(
                     Code::InvalidArgument,
-                    "view functions cannot take a vector of objects".to_string(),
+                    "vector of objects argument to view functions not supported".to_string(),
                 ));
             }
         };
@@ -318,8 +338,8 @@ fn convert_type_args(type_args: &[ProtoTypeTag]) -> Result<Vec<TypeTag>, RpcErro
         .collect()
 }
 
-/// Convert one request argument into a [`ViewArg`]. Exactly one of `bcs` /
-/// `json` must be set.
+/// Convert one request argument into a [`IotaMoveCallInputValue`]. Exactly one
+/// of `bcs` / `json` must be set.
 fn proto_arg_to_call_arg(arg: &InputArgument) -> Result<IotaMoveCallInputValue, RpcError> {
     match &arg.input {
         Some(input_argument::Input::Bcs(bcs)) => Ok(IotaMoveCallInputValue::Bcs(bcs.data.to_vec())),
