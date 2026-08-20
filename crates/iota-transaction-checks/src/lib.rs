@@ -561,7 +561,7 @@ mod checked {
                 ObjectReadResultKind::DeletedSharedObject(_, _) => (),
                 // We skip checking shared objects from cancelled transactions since we are not
                 // reading it.
-                ObjectReadResultKind::CancelledTransactionSharedObject(_) => (),
+                ObjectReadResultKind::CancelledTransactionObject(_) => (),
             }
         }
 
@@ -736,7 +736,7 @@ mod checked {
                 ObjectReadResultKind::DeletedSharedObject(_, _) => (),
                 // We skip checking shared objects from cancelled transactions since we are not
                 // reading it.
-                ObjectReadResultKind::CancelledTransactionSharedObject(_) => (),
+                ObjectReadResultKind::CancelledTransactionObject(_) => (),
             }
         }
 

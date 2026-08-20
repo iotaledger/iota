@@ -1453,6 +1453,14 @@ pub struct ProtocolConfig {
     /// be accounted for in subsequent commits.
     max_congestion_limit_overshoot_per_commit: Option<u64>,
 
+    /// Maximum number of transactions from a single consensus commit that may
+    /// be scheduled to execute concurrently (the execution-worker pool size).
+    /// `Some` activates execution-worker congestion control, under which
+    /// owned-object-only transactions are also scheduled, deferred and shed
+    /// by the congestion tracker; `None` disables it. Must be positive when
+    /// set. Requires `enable_pcool_flow`.
+    max_concurrent_execution_workers: Option<u16>,
+
     /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
     /// considered valid. When set to `Some(version)`, scores are included in
     /// the MisbehaviorReports messages, where `version` determines the scoring
@@ -1974,6 +1982,42 @@ impl ProtocolConfig {
             "report_move_authentication_error requires enable_move_authentication to be set"
         );
         report_move_authentication_error
+    }
+
+    /// Named to avoid colliding with the derive-generated
+    /// `max_concurrent_execution_workers[_as_option]()`, which bypass the
+    /// checks below — always read the parameter through this getter.
+    pub fn concurrent_execution_workers(&self) -> Option<u16> {
+        let res = self.max_concurrent_execution_workers;
+        assert!(
+            res.is_none() || self.enable_pcool_flow(),
+            "max_concurrent_execution_workers requires enable_pcool_flow to be enabled"
+        );
+        assert!(
+            res.is_none()
+                || self
+                    .max_accumulated_txn_cost_per_object_in_mysticeti_commit
+                    .is_some(),
+            "max_concurrent_execution_workers requires per-object congestion control \
+                (max_accumulated_txn_cost_per_object_in_mysticeti_commit) to be enabled"
+        );
+        assert!(
+            res.is_none() || self.congestion_control_gas_price_feedback_mechanism(),
+            "max_concurrent_execution_workers requires the gas price feedback mechanism \
+                (congestion_control_gas_price_feedback_mechanism), which carries the suggested \
+                gas price of an execution-worker congestion cancellation"
+        );
+        assert!(
+            res.is_none() || !self.separate_gas_price_feedback_mechanism_for_randomness(),
+            "max_concurrent_execution_workers implies a single congestion tracker and suggested \
+                gas price calculator for all transactions, which is incompatible with \
+                separate_gas_price_feedback_mechanism_for_randomness"
+        );
+        assert!(
+            res != Some(0),
+            "max_concurrent_execution_workers must be positive when set"
+        );
+        res
     }
 }
 
@@ -2563,6 +2607,8 @@ impl ProtocolConfig {
             consensus_max_acknowledgments_per_block: None,
 
             max_congestion_limit_overshoot_per_commit: None,
+
+            max_concurrent_execution_workers: None,
 
             scorer_version: None,
 

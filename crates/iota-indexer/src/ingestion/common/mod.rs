@@ -5,3 +5,5 @@ pub(crate) mod connection;
 pub(crate) mod orchestration;
 pub(crate) mod persist;
 pub mod prepare;
+
+pub use persist::CommitterTables;

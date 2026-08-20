@@ -231,7 +231,7 @@ mod tests {
         leader_timeout::LeaderTimeoutTask,
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
-        transaction_ref::GenericTransactionRef,
+        transaction_ref::TransactionRef,
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -252,7 +252,7 @@ mod tests {
         async fn fetch_transactions(
             &self,
             _peer: AuthorityIndex,
-            _block_refs: Vec<GenericTransactionRef>,
+            _transaction_refs: Vec<TransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
             unimplemented!("Unimplemented")
