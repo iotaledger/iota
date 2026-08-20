@@ -1829,7 +1829,9 @@ mod tests {
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
-        commit::{CertifiedCommits, CommitDigest, CommitRange, CommitRef},
+        commit::{
+            CertifiedCommits, CommitDigest, CommitRange, CommitRef, SubDagBase, TrustedCommit,
+        },
         commit_observer::CommitObserver,
         commit_syncer::CommitSyncType,
         commit_vote_monitor::CommitVoteMonitor,
@@ -2200,6 +2202,232 @@ mod tests {
         assert_eq!(
             counts.faulty_blocks_provable, 1,
             "two signed headers for one slot are provable equivocation"
+        );
+    }
+
+    /// A bundle is rejected while local commits run further ahead of the last
+    /// solid commit than `solid_commit_lag_threshold`, and accepted again once
+    /// solidification catches up to the threshold.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_rejects_when_solid_commit_lags() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context.with_parameters(Parameters {
+            solid_commit_lag_threshold: 10,
+            ..Default::default()
+        }));
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, mut tx_message_receiver) = mpsc::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+            Arc::new(MisbehaviorStore::new(&context)),
+            tx_message_sender,
+            cordial_knowledge,
+        ));
+        let mut encoder = create_encoder(&context);
+
+        // Commit up to leader round 12 with nothing solid yet, so the solid
+        // commit lag (12 rounds) exceeds the 10-round threshold.
+        {
+            let mut d = dag_state.write();
+            for index in 1..=12u32 {
+                d.add_commit(TrustedCommit::new_for_test(
+                    &context,
+                    index,
+                    CommitDigest::MIN,
+                    0,
+                    BlockRef::new(
+                        index,
+                        AuthorityIndex::new_for_test(0),
+                        BlockHeaderDigest::MIN,
+                    ),
+                    vec![],
+                    vec![],
+                ));
+            }
+        }
+
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
+        let bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
+
+        let result = authority_service
+            .handle_subscribed_block_bundle(peer, bundle.clone(), &mut encoder)
+            .await;
+        assert!(
+            matches!(result, Err(ConsensusError::BlockRejected { .. })),
+            "expected BlockRejected while solidification lags, got {result:?}"
+        );
+        assert!(
+            tx_message_receiver.try_recv().is_err(),
+            "a rejected bundle must not feed the shard reconstructor"
+        );
+        assert!(
+            core_dispatcher.get_blocks().is_empty(),
+            "a rejected block must not be forwarded to the core"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .rejected_blocks
+                .with_label_values(&["solid_commit_lagging"])
+                .get(),
+            1,
+        );
+
+        // Solidify up to leader round 2: the lag is exactly the threshold,
+        // which is accepted.
+        dag_state.write().update_last_solid_subdag_base(SubDagBase {
+            leader: BlockRef::new(2, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            headers: vec![],
+            committed_header_refs: vec![],
+            timestamp_ms: 0,
+            commit_ref: CommitRef::new(2, CommitDigest::MIN),
+            reputation_scores_desc: vec![],
+        });
+
+        authority_service
+            .handle_subscribed_block_bundle(peer, bundle, &mut encoder)
+            .await
+            .unwrap();
+        assert_eq!(core_dispatcher.get_blocks(), vec![input_block]);
+    }
+
+    /// During fast sync commits are applied in bulk before their payloads
+    /// arrive, so the solid commit lag does not reject bundles.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_allows_solid_commit_lag_during_fast_sync() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context.with_parameters(Parameters {
+            solid_commit_lag_threshold: 10,
+            ..Default::default()
+        }));
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store.clone(),
+            Arc::new(MisbehaviorStore::new(&context)),
+            tx_message_sender,
+            cordial_knowledge,
+        ));
+        let mut encoder = create_encoder(&context);
+
+        // Commit up to leader round 12 with nothing solid, but mark fast sync
+        // as ongoing.
+        {
+            let mut d = dag_state.write();
+            for index in 1..=12u32 {
+                d.add_commit(TrustedCommit::new_for_test(
+                    &context,
+                    index,
+                    CommitDigest::MIN,
+                    0,
+                    BlockRef::new(
+                        index,
+                        AuthorityIndex::new_for_test(0),
+                        BlockHeaderDigest::MIN,
+                    ),
+                    vec![],
+                    vec![],
+                ));
+            }
+        }
+        store
+            .write(WriteBatch {
+                fast_commit_sync_flag: Some(true),
+                ..WriteBatch::default()
+            })
+            .unwrap();
+
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
+        let bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
+
+        authority_service
+            .handle_subscribed_block_bundle(peer, bundle, &mut encoder)
+            .await
+            .unwrap();
+        assert_eq!(core_dispatcher.get_blocks(), vec![input_block]);
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .rejected_blocks
+                .with_label_values(&["solid_commit_lagging"])
+                .get(),
+            0,
         );
     }
 
