@@ -231,3 +231,26 @@ impl NetworkConfigLight {
             .map(|validator| &validator.genesis)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A `network.yaml` a hand edit left without validators is refused here,
+    /// rather than deeper in the launch of a network that has no committee.
+    #[test]
+    fn a_persisted_config_without_validators_is_rejected() {
+        let directory = tempfile::tempdir().unwrap();
+        let persisted = PersistedNetworkConfig {
+            version: PersistedNetworkConfig::VERSION,
+            genesis_config: GenesisConfig::for_local_testing(),
+            account_keys: vec![],
+        };
+
+        let err = persisted
+            .into_network_config(directory.path(), node::Genesis::new_empty())
+            .unwrap_err();
+
+        assert!(err.to_string().contains("at least one validator"), "{err}");
+    }
+}

@@ -493,6 +493,28 @@ async fn write_config_is_rejected_under_force_regenesis() {
     );
 }
 
+/// The faucet is a service of a running network, and `--write-config` starts
+/// no network to serve.
+#[tokio::test]
+async fn write_config_is_rejected_with_the_faucet() {
+    let tmp_dir = iota_common::tempdir();
+    let mut command = start_command(
+        tmp_dir.path(),
+        Some(tmp_dir.path().join("node-configs")),
+        vec![],
+    );
+    let LocalnetCommand::Start { with_faucet, .. } = &mut command else {
+        unreachable!("start_command builds a start command")
+    };
+    *with_faucet = Some("0.0.0.0:9123".to_owned());
+
+    let err = format!("{:#}", command.execute().await.unwrap_err());
+    assert!(
+        err.contains("`--with-faucet` and `--write-config`"),
+        "{err}"
+    );
+}
+
 /// A `--with-indexer` run without `--data-ingestion-dir` keeps the fullnode's
 /// data ingestion directory in a temporary directory that is gone once the
 /// command exits.
