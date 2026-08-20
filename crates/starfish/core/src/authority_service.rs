@@ -684,6 +684,39 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             }
         }
     }
+
+    /// Rejects the block when local commits run too far ahead of the last
+    /// solid commit, i.e. transaction payloads are not keeping up. New headers
+    /// would only widen the round window in which shards and payloads are
+    /// retained, so ingestion pauses until the transactions synchronizer
+    /// closes the gap.
+    fn ensure_solid_commit_lag_within_threshold(&self, block_ref: BlockRef) -> ConsensusResult<()> {
+        let solid_commit_lag = self.dag_state.read().solid_commit_lag_rounds();
+        if solid_commit_lag <= self.context.parameters.solid_commit_lag_threshold {
+            return Ok(());
+        }
+        // During fast sync commits are applied in bulk while their payloads
+        // are still being fetched, so a large gap is expected. Checked only
+        // when the gap is already over the threshold: it reads the store.
+        if self.dag_state.read().fast_sync_ongoing() {
+            return Ok(());
+        }
+        self.context
+            .metrics
+            .node_metrics
+            .rejected_blocks
+            .with_label_values(&["solid_commit_lagging"])
+            .inc();
+        debug!(
+            "Block {block_ref:?} is rejected because the last solid commit is lagging the last commit by {solid_commit_lag} rounds",
+        );
+        Err(ConsensusError::BlockRejected {
+            block_ref,
+            reason: format!(
+                "Last solid commit is lagging the last commit by {solid_commit_lag} rounds",
+            ),
+        })
+    }
 }
 
 /// Rejects a deserialized `ShardWithProof` that is not the current `V2`
@@ -876,11 +909,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         };
 
         // 7. Reject blocks when local commit index is lagging too far from quorum
-        //    commit index.
+        //    commit index, or when local commits run too far ahead of the last solid
+        //    commit.
         //
         // IMPORTANT: this must be done after observing votes from the block, otherwise
         // observed quorum commit will no longer progress.
         self.ensure_commit_lag_within_threshold(block_ref)?;
+        self.ensure_solid_commit_lag_within_threshold(block_ref)?;
 
         self.context
             .metrics

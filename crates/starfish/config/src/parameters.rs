@@ -180,6 +180,12 @@ pub struct Parameters {
     /// Disabled by default (None).
     #[serde(default)]
     pub dag_visualizer_port: Option<u16>,
+
+    /// Maximum number of rounds the last commit's leader may run ahead of the
+    /// last solid commit's leader before the node stops accepting new block
+    /// bundles and restricts header fetching, until solidification catches up.
+    #[serde(default = "Parameters::default_solid_commit_lag_threshold")]
+    pub solid_commit_lag_threshold: u32,
 }
 
 impl Parameters {
@@ -453,6 +459,13 @@ impl Parameters {
     pub(crate) fn default_enable_peer_responsiveness_ranking() -> bool {
         true
     }
+
+    pub(crate) fn default_solid_commit_lag_threshold() -> u32 {
+        // The healthy gap is a few rounds at most; 500 rounds (a few minutes of
+        // commits) is far above live jitter yet caps how long a solidification
+        // stall can keep widening the shard/payload retention window.
+        500
+    }
 }
 
 impl Default for Parameters {
@@ -492,6 +505,7 @@ impl Default for Parameters {
             enable_peer_responsiveness_ranking:
                 Parameters::default_enable_peer_responsiveness_ranking(),
             dag_visualizer_port: None,
+            solid_commit_lag_threshold: Parameters::default_solid_commit_lag_threshold(),
         }
     }
 }
