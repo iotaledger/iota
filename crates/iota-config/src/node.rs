@@ -831,9 +831,9 @@ impl NodeConfig {
     /// not start with. They also reject the known cases where a node would
     /// start and ignore part of the config.
     pub fn validate(&self) -> Result<()> {
-        // Validators do not expose the gRPC API. Only an explicit
-        // `grpc-api-config: null` reaches this. An absent key deserializes to
-        // the default config.
+        // Validators do not expose the gRPC API. In a file, an absent key
+        // deserializes to the default config. `None` here therefore means an
+        // explicit `null`, or a config built in code.
         if !self.is_validator() && self.enable_grpc_api && self.grpc_api_config.is_none() {
             anyhow::bail!(
                 "`enable-grpc-api` is set but `grpc-api-config` is missing; set \
@@ -866,8 +866,9 @@ impl NodeConfig {
             );
         }
         // The firewall is driven by the traffic controller, which only runs
-        // when a policy is set. An unmentioned `policy-config` deserializes to
-        // the default policy, so only an explicit `null` reaches this.
+        // when a policy is set. In a file, an absent `policy-config`
+        // deserializes to the default policy. `None` here therefore means an
+        // explicit `null`, or a config built in code.
         if self.firewall_config.is_some() && self.policy_config.is_none() {
             anyhow::bail!(
                 "`firewall-config` is set but `policy-config` is `null`; the firewall is driven \

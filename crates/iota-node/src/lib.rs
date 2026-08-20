@@ -2481,8 +2481,7 @@ fn build_kv_store(
 }
 
 /// Builds and starts the gRPC server for the IOTA node based on the node's
-/// configuration. Validators return early as they do not expose the gRPC
-/// API.
+/// configuration.
 ///
 /// Returns `None` on a validator and when the gRPC API is disabled.
 ///
