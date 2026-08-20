@@ -1219,7 +1219,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Highest number of commands queued for the consensus core thread, per validator. Recorded as a peak over a sliding minute because the queue drains far faster than the 60s scrape interval, so a plain gauge reports one arbitrary instant and misses the bursts. A queue that stays above zero means the core thread is not keeping up.",
+      "description": "Highest number of commands queued for the consensus core thread, per validator. Recorded as a peak over a sliding two minutes because the queue drains far faster than the 60s scrape interval, so a plain gauge reports one arbitrary instant and misses the bursts. A queue that stays above zero means the core thread is not keeping up.",
       "fieldConfig": {
         "defaults": {
           "color": {

@@ -227,7 +227,7 @@ impl CoreThread {
                         .metrics
                         .node_metrics
                         .core_thread_command_queue_peak
-                        .observe(self.receiver.len() as i64);
+                        .observe(self.receiver.len() as u64);
                     // Times the whole dispatch rather than the individual core
                     // operations, which nest and so cannot be summed. The rate
                     // of this scope is the core thread's utilisation.

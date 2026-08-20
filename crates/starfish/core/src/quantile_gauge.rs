@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Fixed-quantile gauges backed by a sliding-window HDR histogram.
+//! Gauges summarising a sliding-window HDR histogram.
 //!
 //! [`QuantileGauge`] exposes a small fixed set of latency quantiles as a
 //! `<name>{quantile="..."}` gauge series, computed at scrape time from a
@@ -11,7 +11,11 @@
 //! per-bucket series (and, for [`QuantileGaugeVec`], the per-label bucket
 //! expansion) down to one series per quantile.
 //!
-//! The quantiles are computed on each node over its own observations, so they
+//! [`PeakGauge`] shares the same window but reports its maximum, for values
+//! that move faster than the scrape interval and would otherwise only ever be
+//! sampled at one arbitrary instant.
+//!
+//! The summaries are computed on each node over its own observations, so they
 //! cannot be re-aggregated across nodes in PromQL; query them per host.
 
 use std::{
@@ -25,7 +29,7 @@ use parking_lot::Mutex;
 use prometheus_filtered::{
     MetricLevel, Opts, Registry,
     core::{Collector, Desc},
-    prometheus::{GaugeVec, proto::MetricFamily},
+    prometheus::{GaugeVec, IntGauge, proto::MetricFamily},
 };
 
 /// Quantiles exposed by every gauge, as `(quantile, series-label)` pairs.
@@ -43,16 +47,17 @@ const WINDOW_SLOT: Duration = Duration::from_secs(10);
 /// matching the `rate(..[2m])` range the replaced dashboard panels used.
 const WINDOW_SLOTS: usize = 12;
 
-/// Upper bound of the histograms, in microseconds (10 minutes). Latencies above
-/// this are clamped to it — far beyond any healthy value for these metrics.
-const MAX_TRACKED_MICROS: u64 = 600_000_000;
+/// Upper bound of the histograms — 10 minutes for the latency gauges, and far
+/// beyond any healthy value for the counts [`PeakGauge`] tracks. Observations
+/// above it are clamped.
+const MAX_TRACKED_VALUE: u64 = 600_000_000;
 
 fn new_histogram() -> Histogram<u64> {
     // Fixed bounds (not auto-resizing) so `saturating_record` clamps outliers to
-    // `MAX_TRACKED_MICROS` instead of leaving them out of range, and so the
+    // `MAX_TRACKED_VALUE` instead of leaving them out of range, and so the
     // per-authority × per-slot histograms have a bounded size. Two significant
     // figures (~1% quantile error) keeps that size small.
-    Histogram::new_with_bounds(1, MAX_TRACKED_MICROS, 2).expect("valid histogram bounds")
+    Histogram::new_with_bounds(1, MAX_TRACKED_VALUE, 2).expect("valid histogram bounds")
 }
 
 /// A sliding window of HDR histograms. Observations land in the newest slot;
@@ -92,19 +97,21 @@ impl Window {
         }
     }
 
-    fn record(&mut self, seconds: f64) {
+    /// Records a raw value. The histogram's lower bound is 1, so a zero is
+    /// lifted to it; callers that must distinguish zero skip the observation.
+    fn record_raw(&mut self, value: u64) {
         self.rotate(Instant::now());
-        let micros = (seconds * 1e6).max(1.0) as u64;
         self.slots
             .back_mut()
             .expect("the window always holds at least one slot")
-            .saturating_record(micros);
+            .saturating_record(value.max(1));
     }
 
-    /// Quantiles over the whole window, in seconds, aligned with [`QUANTILES`].
-    /// Returns `None` when no value was recorded in the window, so the caller
-    /// can drop the series (leaving a gap) rather than report a stale value.
-    fn quantiles_seconds(&mut self) -> Option<Vec<f64>> {
+    fn record(&mut self, seconds: f64) {
+        self.record_raw((seconds * 1e6).max(1.0) as u64);
+    }
+
+    fn merged(&mut self) -> Option<Histogram<u64>> {
         self.rotate(Instant::now());
         let mut merged = new_histogram();
         for slot in &self.slots {
@@ -112,15 +119,25 @@ impl Window {
                 .add(slot)
                 .expect("all slot histograms share significant figures");
         }
-        if merged.is_empty() {
-            return None;
-        }
-        Some(
+        (!merged.is_empty()).then_some(merged)
+    }
+
+    /// The highest value recorded over the whole window, or `None` when nothing
+    /// was recorded in it.
+    fn max_raw(&mut self) -> Option<u64> {
+        self.merged().map(|merged| merged.max())
+    }
+
+    /// Quantiles over the whole window, in seconds, aligned with [`QUANTILES`].
+    /// Returns `None` when no value was recorded in the window, so the caller
+    /// can drop the series (leaving a gap) rather than report a stale value.
+    fn quantiles_seconds(&mut self) -> Option<Vec<f64>> {
+        self.merged().map(|merged| {
             QUANTILES
                 .iter()
                 .map(|(quantile, _)| merged.value_at_quantile(*quantile) as f64 / 1e6)
-                .collect(),
-        )
+                .collect()
+        })
     }
 }
 
@@ -254,9 +271,90 @@ impl Collector for QuantileGaugeVec {
     }
 }
 
+/// The highest value observed over the window, exposed as `<name>`.
+///
+/// Register with [`PeakGauge::register`], feed it with [`observe`], and the
+/// registry's scrape reports the peak over the current window. A window with
+/// no observation reports zero rather than dropping the series, so an idle
+/// period is visible as such.
+///
+/// [`observe`]: PeakGauge::observe
+#[derive(Clone)]
+pub(crate) struct PeakGauge {
+    gauge: IntGauge,
+    window: Arc<Mutex<Window>>,
+}
+
+impl PeakGauge {
+    pub(crate) fn register(
+        name: &str,
+        help: &str,
+        module: &str,
+        registry: &Registry,
+        level: MetricLevel,
+    ) -> Self {
+        let gauge = IntGauge::with_opts(Opts::new(name, help)).expect("valid gauge options");
+        let this = Self {
+            gauge,
+            window: Arc::new(Mutex::new(Window::new(Instant::now()))),
+        };
+        registry
+            .register_filtered(name, module, level, this)
+            .expect("peak gauge registers without collision")
+    }
+
+    /// Zero is skipped rather than recorded, because the histogram cannot hold
+    /// it; a window holding only zeroes is reported as a peak of zero.
+    pub(crate) fn observe(&self, value: u64) {
+        if value > 0 {
+            self.window.lock().record_raw(value);
+        }
+    }
+}
+
+impl Collector for PeakGauge {
+    fn desc(&self) -> Vec<&Desc> {
+        self.gauge.desc()
+    }
+
+    fn collect(&self) -> Vec<MetricFamily> {
+        let peak = self.window.lock().max_raw().unwrap_or(0);
+        self.gauge.set(peak as i64);
+        self.gauge.collect()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn max_raw_is_none_before_any_observation() {
+        let mut window = Window::new(Instant::now());
+        assert_eq!(window.max_raw(), None);
+    }
+
+    #[test]
+    fn max_raw_is_the_highest_value_across_slots() {
+        let t0 = Instant::now();
+        let mut window = Window::new(t0);
+        window.record_raw(3);
+        window.rotate(t0 + WINDOW_SLOT);
+        window.record_raw(70);
+        window.rotate(t0 + WINDOW_SLOT * 2);
+        window.record_raw(5);
+        assert_eq!(window.max_raw(), Some(70));
+    }
+
+    #[test]
+    fn max_raw_drops_values_older_than_the_window() {
+        let t0 = Instant::now();
+        let mut window = Window::new(t0);
+        window.record_raw(90);
+        window.rotate(t0 + WINDOW_SLOT * WINDOW_SLOTS as u32);
+        window.record_raw(2);
+        assert_eq!(window.max_raw(), Some(2));
+    }
 
     #[test]
     fn rotate_keeps_slot_within_window_slot() {

@@ -30,7 +30,6 @@ mod misbehavior_store;
 mod network;
 #[cfg(msim)]
 pub mod network;
-mod peak_gauge;
 mod peer_responsiveness;
 mod quantile_gauge;
 mod sliding_window_schedule;

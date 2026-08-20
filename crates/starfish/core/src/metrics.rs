@@ -15,8 +15,7 @@ use prometheus_filtered::{
 
 use crate::{
     network::metrics::NetworkMetrics,
-    peak_gauge::PeakGauge,
-    quantile_gauge::{QuantileGauge, QuantileGaugeVec},
+    quantile_gauge::{PeakGauge, QuantileGauge, QuantileGaugeVec},
 };
 
 // starts from 1μs, 50μs, 100μs...
@@ -1074,7 +1073,7 @@ impl NodeMetrics {
             ),
             core_thread_command_queue_peak: PeakGauge::register(
                 "core_thread_command_queue_peak",
-                "The highest number of commands queued for the core thread over the last minute",
+                "The highest number of commands queued for the core thread over the last two minutes",
                 module_path!(),
                 registry,
                 MetricLevel::Warn,
