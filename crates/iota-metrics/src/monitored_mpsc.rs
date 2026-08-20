@@ -320,6 +320,16 @@ impl<T> Receiver<T> {
         self.inner.close()
     }
 
+    /// Number of messages queued and not yet received.
+    pub fn len(&self) -> usize {
+        self.inner.len()
+    }
+
+    /// Whether no message is queued.
+    pub fn is_empty(&self) -> bool {
+        self.inner.is_empty()
+    }
+
     /// Polls to receive the next message on this channel.
     /// Decrements the gauge in case of a successful `poll_recv`.
     pub fn poll_recv(&mut self, cx: &mut Context<'_>) -> Poll<Option<T>> {

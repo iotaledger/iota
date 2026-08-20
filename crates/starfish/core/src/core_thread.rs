@@ -220,6 +220,24 @@ impl CoreThread {
                         break;
                     };
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
+                    // Sampled on every dequeue and reported as a peak, because
+                    // the queue drains far faster than the scrape interval and
+                    // a plain gauge would miss the bursts entirely.
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .core_thread_command_queue_peak
+                        .observe(self.receiver.len() as i64);
+                    // Times the whole dispatch rather than the individual core
+                    // operations, which nest and so cannot be summed. The rate
+                    // of this scope is the core thread's utilisation.
+                    let _handle_command = self
+                        .context
+                        .metrics
+                        .node_metrics
+                        .scope_processing_time
+                        .with_label_values(&["CoreThread::handle_command"])
+                        .start_timer();
 
                     // During fast sync, ignore all commands except AddSubdagFromFastSync and ReinitializeComponents
                     if self.fast_sync_ongoing && !matches!(command, CoreThreadCommand::AddSubdagFromFastSync(..) | CoreThreadCommand::ReinitializeComponents { .. }) {
