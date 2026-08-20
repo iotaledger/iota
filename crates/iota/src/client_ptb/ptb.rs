@@ -6,9 +6,10 @@ use std::collections::HashSet;
 
 use anyhow::{Error, anyhow, bail, ensure};
 use clap::{Args, ValueHint, arg, builder::StyledStr};
+use iota_grpc_client::Client as GrpcClient;
 use iota_json_rpc_types::{DevInspectResults, IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
-use iota_sdk::{IotaClient, wallet_context::WalletContext};
+use iota_sdk::wallet_context::WalletContext;
 use iota_sdk_types::{
     Address, ProgrammableTransaction, TransactionDigest, TransactionKind, gas::GasCostSummary,
 };
@@ -19,7 +20,7 @@ use super::{ast::ProgramMetadata, lexer::Lexer, parser::ProgramParser};
 use crate::{
     client_commands::{
         DisplayOption, GasDataArgs, IotaClientCommandResult, TxProcessingArgs,
-        dry_run_or_execute_or_serialize, parse_display_option,
+        dry_run_or_execute_or_serialize, grpc_input_refs, parse_display_option,
     },
     client_ptb::{
         ast::{ParsedProgram, Program},
@@ -221,9 +222,9 @@ impl PTB {
             }));
         }
 
-        let client = context.get_client().await?;
+        let grpc_client = context.get_grpc_client().await?;
 
-        let (res, warnings) = Self::build_ptb(program, context, client.clone()).await;
+        let (res, warnings) = Self::build_ptb(program, context, grpc_client.clone()).await;
 
         // Render warnings
         if !warnings.is_empty() {
@@ -298,7 +299,7 @@ impl PTB {
             sponsor_auth_type_args,
         };
 
-        let gas_payment = client.transaction_builder().input_refs(&gas).await?;
+        let gas_payment = grpc_input_refs(&grpc_client, &gas).await?;
 
         let transaction_response = dry_run_or_execute_or_serialize(
             sender,
@@ -370,7 +371,7 @@ impl PTB {
     pub async fn build_ptb(
         program: Program,
         context: &WalletContext,
-        client: IotaClient,
+        grpc_client: GrpcClient,
     ) -> (
         Result<ProgrammableTransaction, Vec<PTBError>>,
         Vec<PTBError>,
@@ -382,7 +383,7 @@ impl PTB {
             .into_iter()
             .map(|(sa, alias)| (alias.alias.clone(), AccountAddress::new(sa.into_bytes())))
             .collect();
-        let builder = PTBBuilder::new(starting_addresses, client.read_api());
+        let builder = PTBBuilder::new(starting_addresses, context, &grpc_client);
         builder.build(program).await
     }
 
