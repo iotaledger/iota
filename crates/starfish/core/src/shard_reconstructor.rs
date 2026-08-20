@@ -885,26 +885,15 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
     }
 
     /// At the authority's shard budget, evicts its oldest (lowest-round)
-    /// shard held in an accumulator with fewer than half of `info_length`
-    /// shards; when the authority has no such shard, its oldest one overall.
-    /// Whatever eviction costs stays fetchable via the transaction
-    /// synchronizer, since a decodable payload's relayers hold it in full.
+    /// retained shard to admit the new one. Whatever eviction costs stays
+    /// fetchable via the transaction synchronizer, since a decodable
+    /// payload's relayers hold it in full.
     fn make_room_in_peer_budget(&mut self, shard_index: usize) {
         let retained = &self.retained_shards_by_authority[shard_index];
         if retained.len() < self.shard_budget_per_authority {
             return;
         }
-        let fill_cutoff = self.info_length / 2;
-        let Some(victim_ref) = retained
-            .iter()
-            .find(|tx_ref| {
-                self.shard_accumulators
-                    .get(tx_ref)
-                    .is_some_and(|accumulator| accumulator.number_shards < fill_cutoff)
-            })
-            .or_else(|| retained.iter().next())
-            .copied()
-        else {
+        let Some(victim_ref) = retained.first().copied() else {
             return;
         };
         self.retained_shards_by_authority[shard_index].remove(&victim_ref);
@@ -2387,76 +2376,54 @@ mod tests {
         assert_eq!(evicted_shards.get(), 1);
     }
 
-    /// The eviction victim is the lowest-round shard in an accumulator below
-    /// the fill cutoff; a near-complete accumulator loses a shard only when
-    /// the peer has nothing below the cutoff, and then keeps the other peers'
-    /// shards.
+    /// Evicting a shard from a multi-shard accumulator removes only the
+    /// evicted peer's shard; the accumulator keeps the other peers'.
     #[tokio::test]
-    async fn test_peer_budget_victim_selection_prefers_low_fill_accumulators() {
+    async fn test_peer_budget_eviction_keeps_other_peers_shards() {
         telemetry_subscribers::init_for_testing();
-        // Committee of 10: info_length = 4, so the fill cutoff is 2 shards.
         let (context, mut reconstructor) = new_reconstructor_with_budget(10, 2);
         let mut encoder = create_encoder(&context);
 
-        // Peer 0's budget: a round-5 accumulator peer 1 also fills to the
-        // cutoff, and a single-shard round-6 one.
-        let protected = shard_for_slot(&context, &mut encoder, 5, 1, 1, 0);
-        let protected_ref = protected.transaction_ref();
+        // Peers 0 and 1 share the round-5 accumulator; peer 0 also holds a
+        // round-6 shard, filling its budget.
+        let shared = shard_for_slot(&context, &mut encoder, 5, 1, 1, 0);
+        let shared_ref = shared.transaction_ref();
         reconstructor
-            .handle_transaction_message(protected)
+            .handle_transaction_message(shared)
             .await
             .unwrap();
         reconstructor
             .handle_transaction_message(shard_for_slot(&context, &mut encoder, 5, 1, 1, 1))
             .await
             .unwrap();
-        let below_cutoff = shard_for_slot(&context, &mut encoder, 6, 1, 2, 0);
-        let below_cutoff_ref = below_cutoff.transaction_ref();
+        let kept = shard_for_slot(&context, &mut encoder, 6, 1, 2, 0);
+        let kept_ref = kept.transaction_ref();
         reconstructor
-            .handle_transaction_message(below_cutoff)
+            .handle_transaction_message(kept)
             .await
             .unwrap();
 
-        // The younger round-6 shard is the victim, not the older
-        // near-complete round-5 one.
+        // Peer 0's next shard evicts its oldest — the round-5 one — while the
+        // accumulator keeps peer 1's shard.
         let admitted = shard_for_slot(&context, &mut encoder, 7, 1, 3, 0);
         let admitted_ref = admitted.transaction_ref();
         reconstructor
             .handle_transaction_message(admitted)
             .await
             .unwrap();
-        assert!(
-            reconstructor
-                .shard_accumulators
-                .contains_key(&protected_ref)
-        );
-        assert!(
-            !reconstructor
-                .shard_accumulators
-                .contains_key(&below_cutoff_ref)
-        );
-
-        // With every accumulator of peer 0 at the cutoff, the lowest-round one
-        // loses peer 0's shard but keeps peer 1's.
-        reconstructor
-            .handle_transaction_message(shard_for_slot(&context, &mut encoder, 7, 1, 3, 1))
-            .await
-            .unwrap();
-        let fallback = shard_for_slot(&context, &mut encoder, 8, 1, 4, 0);
-        let fallback_ref = fallback.transaction_ref();
-        reconstructor
-            .handle_transaction_message(fallback)
-            .await
-            .unwrap();
-        let protected_accumulator = reconstructor
+        let shared_accumulator = reconstructor
             .shard_accumulators
-            .get(&protected_ref)
+            .get(&shared_ref)
             .expect("the accumulator keeps peer 1's shard");
-        assert!(!protected_accumulator.contains_shard_at_index(0));
-        assert!(protected_accumulator.contains_shard_at_index(1));
+        assert!(!shared_accumulator.contains_shard_at_index(0));
+        assert!(shared_accumulator.contains_shard_at_index(1));
         assert_eq!(
             reconstructor.retained_shards_by_authority[0],
-            BTreeSet::from([admitted_ref, fallback_ref])
+            BTreeSet::from([kept_ref, admitted_ref])
+        );
+        assert_eq!(
+            reconstructor.retained_shards_by_authority[1],
+            BTreeSet::from([shared_ref])
         );
     }
 
