@@ -1446,6 +1446,33 @@ mod tests {
             );
         }
 
+        /// However large the shortfall, a delivering peer records no worse
+        /// than the loop's failure penalty, so it can never rank behind a peer
+        /// that failed outright.
+        #[tokio::test(start_paused = true)]
+        async fn success_records_no_worse_than_the_failure_penalty() {
+            let context = fast_sync_context(4);
+            let (commits, vote_headers, transactions) = two_commit_response(&context);
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, transactions)),
+                response_delay: Duration::from_millis(200),
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client.clone());
+
+            fetch_loop(inner, (1..=1_000).into(), 2, FastCommitSyncer::fetch_once).await;
+
+            // Two of a thousand commits delivered in 200ms would scale to
+            // 100s; the record is capped at the failure penalty of this loop.
+            let requested = network_client.requested_peers.lock().clone();
+            assert_eq!(
+                context
+                    .peer_responsiveness
+                    .effective_latency_ms(DataSource::FastCommitSyncer, requested[0]),
+                Some(1_000.0)
+            );
+        }
+
         /// The ranked order is what runs in production, so pin that the loop
         /// reaches it: a peer the tracker has never seen fail leads the rounds,
         /// which the plain committee order would never produce.

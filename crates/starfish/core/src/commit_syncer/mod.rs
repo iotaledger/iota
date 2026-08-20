@@ -655,13 +655,19 @@ where
             .await
             {
                 Ok(Ok(data)) => {
+                    // A failure is the ceiling of the scale: however short the
+                    // delivery, a peer that returned something never records
+                    // worse than one that failed.
                     inner.context.peer_responsiveness.record_success(
                         data_source,
                         authority,
-                        started.elapsed().mul_f64(shortfall_factor(
-                            commit_range.size(),
-                            data.delivered_commits(),
-                        )),
+                        started
+                            .elapsed()
+                            .mul_f64(shortfall_factor(
+                                commit_range.size(),
+                                data.delivered_commits(),
+                            ))
+                            .min(failure_penalty),
                     );
                     info!(
                         "[{}] Finished fetching commits in {commit_range:?}",
