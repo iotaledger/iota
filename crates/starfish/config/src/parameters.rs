@@ -482,8 +482,9 @@ impl Parameters {
     }
 
     pub(crate) fn default_shard_budget_per_authority() -> u32 {
-        // ~20 rounds of full-committee reconstruction depth (honest need is a
-        // few rounds); worst-case pool ≈ 1.5 MB × budget across authorities.
+        // Honest need per authority is one shard per slot times a few rounds
+        // until decode, well under the budget at any realistic committee size.
+        // Worst-case total pool ≈ 3 × budget × the maximum payload size.
         1000
     }
 }
