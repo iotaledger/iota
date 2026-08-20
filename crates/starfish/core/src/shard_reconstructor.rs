@@ -399,6 +399,10 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     /// relayed. Enforces the per-authority shard budget: at the budget, the
     /// authority's stalest retained shard is evicted to admit a new one.
     retained_shards_by_authority: Vec<BTreeSet<TransactionRef>>,
+    /// Slots whose genuine payload is already known, from a successful decode
+    /// or a directly received full payload. Their accumulators are purged and
+    /// further shards for them are dropped. Periodically evicted by round.
+    resolved_slots: BTreeSet<(Round, AuthorityIndex)>,
     /// Maximum number of shards from one relaying authority retained across
     /// all accumulators.
     shard_budget_per_authority: usize,
@@ -440,6 +444,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             shard_accumulators: BTreeMap::new(),
             transaction_message_receiver,
             retained_shards_by_authority: vec![BTreeSet::new(); total_length],
+            resolved_slots: BTreeSet::new(),
             shard_budget_per_authority,
         };
 
@@ -562,6 +567,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                         self.reconstruction_queue.remove(&tx_ref);
                         if let Ok(verified_transactions) = result {
                             self.reconstructed_transactions.insert(tx_ref, verified_transactions);
+                            self.resolve_slot(tx_ref);
                         }
                     }
 
@@ -616,8 +622,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         self.evict_below(transaction_gc_round);
     }
 
-    /// Evict accumulators, processed and reconstructed transactions, and
-    /// retained-shard bookkeeping below the given round.
+    /// Evict accumulators, processed and reconstructed transactions, resolved
+    /// slots, and retained-shard bookkeeping below the given round.
     fn evict_below(&mut self, transaction_gc_round: Round) {
         // Update the internal transaction_gc_round
         self.transaction_gc_round = transaction_gc_round;
@@ -632,6 +638,9 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         self.reconstructed_transactions = self.reconstructed_transactions.split_off(&lower_bound);
         self.shard_accumulators = self.shard_accumulators.split_off(&lower_bound);
         self.reconstruction_queue = self.reconstruction_queue.split_off(&lower_bound);
+        self.resolved_slots = self
+            .resolved_slots
+            .split_off(&(transaction_gc_round, AuthorityIndex::ZERO));
         for retained in &mut self.retained_shards_by_authority {
             *retained = retained.split_off(&lower_bound);
         }
@@ -722,6 +731,19 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
         match msg {
             TransactionMessage::Shard(shard_msg) => {
+                // The slot's genuine payload is already known, so this shard
+                // can only re-grow an accumulator the resolution purged.
+                if self.resolved_slots.contains(&(tx_ref.round, tx_ref.author)) {
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .shard_reconstructor_dropped_shards
+                        .with_label_values(&["slot_resolved"])
+                        .inc();
+                    debug!("Dropping shard for {tx_ref:?}: its slot is already resolved");
+                    return Ok(());
+                }
+
                 // Relaying two shards for one slot is the peer's own fault;
                 // exceeding the accumulator limit is not, as others may have
                 // filled the slot.
@@ -809,14 +831,10 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
             TransactionMessage::FullTransaction(tx_ref) => {
                 self.processed_transactions.insert(tx_ref);
-                // The full payload arrived through the direct path, so a
-                // partially filled accumulator for it can never be needed
-                // again — release it instead of waiting for round eviction.
-                if let Some(accumulator) = self.shard_accumulators.remove(&tx_ref) {
-                    for shard_index in accumulator.collected_shard_indices() {
-                        self.retained_shards_by_authority[shard_index].remove(&tx_ref);
-                    }
-                }
+                // The full payload arrived through the direct path, so no
+                // accumulator in the slot can ever be needed again — release
+                // them instead of waiting for round eviction.
+                self.resolve_slot(tx_ref);
                 return Ok(());
             }
         }
@@ -911,6 +929,39 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         debug!(
             "Evicted the stalest retained shard of peer index {shard_index} ({victim_ref:?}) to admit a new one"
         );
+    }
+
+    /// Marks the slot of `tx_ref` resolved and releases every accumulator in
+    /// it. A resolved slot's payload is author-signed — a `FullTransaction`
+    /// comes from a verified block, and a decode reached f+1 relayer stake, so
+    /// an honest relayer erasure-coded it from the author's signed payload.
+    /// Any other commitment in the slot is fabricated, except an equivocating
+    /// twin, whose payload the transaction synchronizer can fetch in full from
+    /// the f+1 stake of relayers any decodable accumulator requires.
+    fn resolve_slot(&mut self, tx_ref: TransactionRef) {
+        self.resolved_slots.insert((tx_ref.round, tx_ref.author));
+        let slot_start = TransactionRef {
+            round: tx_ref.round,
+            author: tx_ref.author,
+            transactions_commitment: TransactionsCommitment::MIN,
+        };
+        let slot_end = TransactionRef {
+            round: tx_ref.round,
+            author: tx_ref.author,
+            transactions_commitment: TransactionsCommitment::MAX,
+        };
+        let purged_refs: Vec<TransactionRef> = self
+            .shard_accumulators
+            .range(slot_start..=slot_end)
+            .map(|(purged_ref, _)| *purged_ref)
+            .collect();
+        for purged_ref in purged_refs {
+            if let Some(accumulator) = self.shard_accumulators.remove(&purged_ref) {
+                for shard_index in accumulator.collected_shard_indices() {
+                    self.retained_shards_by_authority[shard_index].remove(&purged_ref);
+                }
+            }
+        }
     }
 }
 
@@ -2464,6 +2515,150 @@ mod tests {
                 .iter()
                 .all(|retained| retained.is_empty())
         );
+    }
+
+    /// A directly received full payload resolves its whole slot: sibling
+    /// accumulators for other commitments are purged, later shards for the
+    /// slot are dropped, and the resolved slot is itself evicted by round.
+    #[tokio::test]
+    async fn test_full_transaction_resolves_slot_purging_and_rejecting_siblings() {
+        telemetry_subscribers::init_for_testing();
+        let (context, mut reconstructor) = new_reconstructor_with_budget(10, 100);
+        let mut encoder = create_encoder(&context);
+
+        let block_ref =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 1).build()).reference();
+        let (real_commitment, real_shards) = encode_payload_for_slot(&context, &mut encoder, 1);
+        let real_ref = TransactionRef::new(block_ref, real_commitment);
+
+        // A partially filled accumulator for the real commitment and a
+        // fabricated sibling in the same slot.
+        reconstructor
+            .handle_transaction_message(TransactionMessage::Shard(ShardMessage {
+                transaction_ref: real_ref,
+                block_digest: Some(block_ref.digest),
+                shard: real_shards[0].clone(),
+                shard_index: 0,
+            }))
+            .await
+            .unwrap();
+        reconstructor
+            .handle_transaction_message(shard_for_slot(&context, &mut encoder, 5, 1, 2, 1))
+            .await
+            .unwrap();
+        assert_eq!(reconstructor.shard_accumulators.len(), 2);
+
+        // The full payload resolves the slot: both accumulators are released.
+        reconstructor
+            .handle_transaction_message(TransactionMessage::FullTransaction(real_ref))
+            .await
+            .unwrap();
+        assert!(reconstructor.shard_accumulators.is_empty());
+        assert!(
+            reconstructor
+                .retained_shards_by_authority
+                .iter()
+                .all(|retained| retained.is_empty())
+        );
+        assert!(
+            reconstructor
+                .resolved_slots
+                .contains(&(5, block_ref.author))
+        );
+
+        // A later shard for a third commitment in the slot opens nothing.
+        reconstructor
+            .handle_transaction_message(shard_for_slot(&context, &mut encoder, 5, 1, 3, 2))
+            .await
+            .unwrap();
+        assert!(reconstructor.shard_accumulators.is_empty());
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .shard_reconstructor_dropped_shards
+                .with_label_values(&["slot_resolved"])
+                .get(),
+            1,
+        );
+
+        // Resolved slots below the gc floor are themselves evicted.
+        reconstructor.evict_below(6);
+        assert!(reconstructor.resolved_slots.is_empty());
+    }
+
+    /// A successful decode resolves the slot the same way: fabricated sibling
+    /// accumulators are purged and later shards for the slot are dropped.
+    #[tokio::test]
+    async fn test_decode_resolves_slot_and_purges_siblings() {
+        telemetry_subscribers::init_for_testing();
+        let h = TestHarness::new(10);
+        let context = h.context.clone();
+        let tx = h.tx.clone();
+        let mut encoder = create_encoder(&context);
+        let info_length = context.committee.info_length();
+
+        let block_ref =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 1).build()).reference();
+        let (real_commitment, real_shards) = encode_payload_for_slot(&context, &mut encoder, 1);
+        let (sibling_commitment, sibling_shards) =
+            encode_payload_for_slot(&context, &mut encoder, 2);
+
+        // A fabricated sibling accumulator first, then enough real shards to
+        // decode, from disjoint peers.
+        let mut batch = vec![TransactionMessage::Shard(ShardMessage {
+            transaction_ref: TransactionRef::new(block_ref, sibling_commitment),
+            block_digest: Some(block_ref.digest),
+            shard: sibling_shards[info_length].clone(),
+            shard_index: info_length,
+        })];
+        for (i, shard) in real_shards.iter().enumerate().take(info_length) {
+            batch.push(TransactionMessage::Shard(ShardMessage {
+                transaction_ref: TransactionRef::new(block_ref, real_commitment),
+                block_digest: Some(block_ref.digest),
+                shard: shard.clone(),
+                shard_index: i,
+            }));
+        }
+        tx.send(batch).await.unwrap();
+
+        // Wait past the eviction tick so the accumulator gauge refreshes.
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        assert_eq!(
+            h.core_dispatcher.get_and_drain_transactions().await.len(),
+            1,
+            "the real commitment must reconstruct"
+        );
+        assert_eq!(
+            context.metrics.node_metrics.shard_accumulators.get(),
+            0,
+            "the fabricated sibling must be purged when the slot's decode succeeds"
+        );
+
+        // A later shard for yet another commitment in the resolved slot is
+        // dropped without opening an accumulator.
+        let (third_commitment, third_shards) = encode_payload_for_slot(&context, &mut encoder, 3);
+        tx.send(vec![TransactionMessage::Shard(ShardMessage {
+            transaction_ref: TransactionRef::new(block_ref, third_commitment),
+            block_digest: Some(block_ref.digest),
+            shard: third_shards[info_length + 1].clone(),
+            shard_index: info_length + 1,
+        })])
+        .await
+        .unwrap();
+        tokio::time::sleep(Duration::from_millis(1500)).await;
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .shard_reconstructor_dropped_shards
+                .with_label_values(&["slot_resolved"])
+                .get(),
+            1,
+        );
+        assert_eq!(context.metrics.node_metrics.shard_accumulators.get(), 0);
+
+        h.handle.stop().await.unwrap();
     }
 
     /// Fresh slots still reconstruct while every relaying peer sits at its
