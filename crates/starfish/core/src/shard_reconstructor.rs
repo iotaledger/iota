@@ -887,11 +887,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
     /// At the authority's shard budget, evicts its oldest (lowest-round)
     /// shard held in an accumulator with fewer than half of `info_length`
     /// shards; when the authority has no such shard, its oldest one overall.
-    /// The fallback exists because an accumulator can hold stake just below
-    /// the validity threshold yet never decode, so well-filled accumulators
-    /// must remain evictable. Whatever eviction costs stays fetchable via the
-    /// transaction synchronizer, since a decodable payload's relayers hold it
-    /// in full.
+    /// Whatever eviction costs stays fetchable via the transaction
+    /// synchronizer, since a decodable payload's relayers hold it in full.
     fn make_room_in_peer_budget(&mut self, shard_index: usize) {
         let retained = &self.retained_shards_by_authority[shard_index];
         if retained.len() < self.shard_budget_per_authority {
