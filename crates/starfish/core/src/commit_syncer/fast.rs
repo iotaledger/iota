@@ -594,7 +594,12 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // 1. Fetch commits, voting headers, and transactions in the commit range from
         //    the target authority. Each transaction is serialized as
         //    SerializedTransactionsV2 which includes the TransactionRef.
-        let (serialized_commits, serialized_proof_for_last_commit, serialized_transactions) = inner
+        let (
+            serialized_commits,
+            serialized_proof_for_last_commit,
+            serialized_transactions,
+            stream_error,
+        ) = inner
             .network_client
             .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
             .await?;
@@ -659,12 +664,17 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // the scheduler requeues the range after the prefix.
         if !committed_tx_refs.is_empty() {
             let fetched_commits = commits.len();
-            truncate_to_fully_fetched_prefix(
+            if let Err(mismatch) = truncate_to_fully_fetched_prefix(
                 target_authority,
                 &mut commits,
                 &mut commits_tx_refs,
                 &mut fetched_transactions,
-            )?;
+            ) {
+                // A cut stream explains the empty covered prefix: report the
+                // connection failure rather than transactions the peer was
+                // never able to send.
+                return Err(stream_error.unwrap_or(mismatch));
+            }
             info!(
                 "[{}] Fetched transactions cover only {} out of {} commits received from {}, processing the covered prefix",
                 inner.sync_type.as_str(),
@@ -1406,6 +1416,36 @@ mod tests {
 
             assert!(
                 matches!(err, ConsensusError::FetchedTransactionsMismatch { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0; 4]);
+        }
+
+        /// When no commit is covered because the response stream was cut, the
+        /// fetch reports the connection failure, not a transaction mismatch
+        /// blamed on the peer.
+        #[tokio::test]
+        async fn cut_stream_covering_no_commit_reports_the_cut() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, _) = two_commit_response(&context);
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, vec![])),
+                stream_error_message: Some("stream cut".to_string()),
+                ..Default::default()
+            });
+            let inner = make_inner(context, network_client);
+
+            let err = FastCommitSyncer::fetch_once(
+                inner.clone(),
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap_err();
+
+            assert!(
+                matches!(err, ConsensusError::NetworkRequest(_)),
                 "unexpected error: {err:?}"
             );
             assert_unprovable_faults(&inner, vec![0; 4]);

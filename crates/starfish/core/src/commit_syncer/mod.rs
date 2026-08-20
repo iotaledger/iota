@@ -948,6 +948,9 @@ pub(crate) mod tests {
     #[derive(Default)]
     pub(crate) struct FakeNetworkClient {
         pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
+        /// When set, the canned response is served as a stream cut by this
+        /// error, the way the tonic client reports a mid-stream failure.
+        pub(crate) stream_error_message: Option<String>,
         /// Waited out before answering, so a test can pin the latency the fetch
         /// loop records.
         pub(crate) response_delay: Duration,
@@ -1015,11 +1018,18 @@ pub(crate) mod tests {
             peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
             self.requested_peers.lock().push(peer);
             sleep(self.response_delay).await;
             match &self.commits_and_transactions {
-                Some(response) => Ok(response.clone()),
+                Some((commits, headers, transactions)) => Ok((
+                    commits.clone(),
+                    headers.clone(),
+                    transactions.clone(),
+                    self.stream_error_message
+                        .clone()
+                        .map(ConsensusError::NetworkRequest),
+                )),
                 None => Err(ConsensusError::NoCommitReceived { peer }),
             }
         }
