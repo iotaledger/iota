@@ -276,6 +276,13 @@ impl PTB {
                 .map(|x| Address::new(x.value.into_bytes())),
         };
 
+        let mut display = self.display;
+        if program_metadata.summary_set {
+            // The summary is derived from the effects, so keep them in the
+            // response even when the display selection excludes them.
+            display.insert(DisplayOption::Effects);
+        }
+
         let processing = TxProcessingArgs {
             tx_digest: program_metadata.tx_digest_set,
             dry_run: program_metadata.dry_run_set,
@@ -285,7 +292,7 @@ impl PTB {
             sender: program_metadata
                 .sender
                 .map(|x| Address::new(x.value.into_bytes())),
-            display: self.display,
+            display,
             auth_call_args,
             auth_type_args,
             sponsor_auth_call_args,
@@ -330,33 +337,29 @@ impl PTB {
             }
         }
 
-        if program_metadata.json_set || program_metadata.summary_set {
-            let summary = {
-                let effects = transaction_response.effects.as_ref().ok_or_else(|| {
-                    anyhow!("Internal error: no transaction effects after PTB was executed.")
-                })?;
-                Summary {
-                    digest: transaction_response.digest,
-                    status: effects.status().clone(),
-                    gas_cost: effects.gas_cost_summary().clone(),
-                }
+        if program_metadata.summary_set {
+            let effects = transaction_response.effects.as_ref().ok_or_else(|| {
+                anyhow!("Internal error: no transaction effects after PTB was executed.")
+            })?;
+            let summary = Summary {
+                digest: transaction_response.digest,
+                status: effects.status().clone(),
+                gas_cost: effects.gas_cost_summary().clone(),
             };
 
             if program_metadata.json_set {
-                if program_metadata.summary_set {
-                    Ok(PTBCommandResult::Json(
-                        serde_json::to_value(&summary)
-                            .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?,
-                    ))
-                } else {
-                    Ok(PTBCommandResult::Json(
-                        serde_json::to_value(&transaction_response)
-                            .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?,
-                    ))
-                }
+                Ok(PTBCommandResult::Json(
+                    serde_json::to_value(&summary)
+                        .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?,
+                ))
             } else {
                 Ok(PTBCommandResult::Summary(summary))
             }
+        } else if program_metadata.json_set {
+            Ok(PTBCommandResult::Json(
+                serde_json::to_value(&transaction_response)
+                    .map_err(|_| anyhow!("Cannot serialize PTB result to json"))?,
+            ))
         } else {
             Ok(PTBCommandResult::CommandResult(Box::new(
                 IotaClientCommandResult::TransactionBlock(transaction_response),
