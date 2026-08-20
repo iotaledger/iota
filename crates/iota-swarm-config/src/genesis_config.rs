@@ -265,7 +265,9 @@ pub struct GenesisConfig {
     pub validator_config_info: Option<Vec<ValidatorGenesisConfig>>,
     /// The key pairs and addresses of the network's fullnode. Unlike the
     /// validators, a fullnode is not part of the genesis committee. The entry
-    /// exists so that its config is the same on every run.
+    /// exists so that its config is the same on every run. The derivation
+    /// reads only the key pairs and the addresses. The validator fields,
+    /// such as the stake and the gas price, are ignored.
     #[serde(default)]
     pub fullnode_config_info: Option<ValidatorGenesisConfig>,
     pub parameters: GenesisCeremonyParameters,

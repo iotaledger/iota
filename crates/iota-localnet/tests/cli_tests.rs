@@ -389,6 +389,40 @@ async fn a_network_config_this_build_cannot_read_is_rejected() -> Result<(), any
     Ok(())
 }
 
+/// A hand-edited config without the fullnode entry must not fall back to a
+/// fresh random fullnode identity, which would resync from genesis on every
+/// run. `genesis` always writes the entry.
+#[tokio::test]
+async fn a_network_config_without_a_fullnode_entry_is_rejected() -> Result<(), anyhow::Error> {
+    let tmp_dir = iota_common::tempdir();
+    let working_dir = tmp_dir.path();
+    genesis_command(working_dir, 1).execute().await?;
+
+    let network_config_path = working_dir.join(IOTA_NETWORK_CONFIG);
+    let mut network_config: serde_yaml::Value =
+        serde_yaml::from_str(&fs::read_to_string(&network_config_path)?)?;
+    let removed = network_config["genesis_config"]
+        .as_mapping_mut()
+        .unwrap()
+        .remove(&serde_yaml::Value::from("fullnode_config_info"));
+    assert!(removed.is_some());
+    fs::write(
+        &network_config_path,
+        serde_yaml::to_string(&network_config)?,
+    )?;
+
+    let err = start_command(working_dir, None, vec![])
+        .execute()
+        .await
+        .unwrap_err();
+    let err = format!("{err:#}");
+    assert!(err.contains("has no fullnode entry"), "{err}");
+    assert!(err.contains("iota-localnet genesis --force"), "{err}");
+
+    tmp_dir.close()?;
+    Ok(())
+}
+
 /// `--write-config` writes the configs the run would have started, and nothing
 /// else: no network, no database, no data ingestion directory.
 #[tokio::test]

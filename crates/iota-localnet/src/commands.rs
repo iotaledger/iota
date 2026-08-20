@@ -613,6 +613,13 @@ async fn start(
             .genesis_config
             .fullnode_config_info
             .take();
+        // Without the persisted entry the fullnode would get a fresh random
+        // identity, and so a fresh database, on every run.
+        ensure!(
+            no_full_node || fullnode_config_info.is_some(),
+            "the network config in {} has no fullnode entry. Re-create the configuration with `iota-localnet genesis --force`.",
+            config_path.display()
+        );
         // The genesis blob is read, never rebuilt: it is the network's
         // identity, and the node configs only point at it.
         let genesis = Genesis::new_from_file(config_path.join(IOTA_GENESIS_FILENAME));
