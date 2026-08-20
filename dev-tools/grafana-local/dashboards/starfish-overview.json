@@ -936,7 +936,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Time from a block's creation to the receiving validator processing it off the block stream, p33/p66 per validator. Rises when the network path between validators degrades.",
+      "description": "Time from a block's creation to the receiving validator processing it off the block stream, p33 per validator. Rises when the network path between validators degrades.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -990,7 +990,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 24,
+        "w": 12,
         "x": 0,
         "y": 22
       },
@@ -1017,10 +1017,93 @@
           },
           "editorMode": "code",
           "expr": "consensus_latency_to_process_stream{quantile=\"0.33\"}",
-          "legendFormat": "{{host}} p33",
+          "legendFormat": "{{host}}",
           "range": true,
           "refId": "A"
+        }
+      ],
+      "title": "Streaming Receive Latency per Validator (p33)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Time from a block's creation to the receiving validator processing it off the block stream, p66 per validator. Rises when the network path between validators degrades.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "axisMin": 0,
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
         },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 22
+      },
+      "id": 431,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
         {
           "datasource": {
             "type": "prometheus",
@@ -1028,12 +1111,12 @@
           },
           "editorMode": "code",
           "expr": "consensus_latency_to_process_stream{quantile=\"0.66\"}",
-          "legendFormat": "{{host}} p66",
+          "legendFormat": "{{host}}",
           "range": true,
-          "refId": "B"
+          "refId": "A"
         }
       ],
-      "title": "Streaming Receive Latency per Validator",
+      "title": "Streaming Receive Latency per Validator (p66)",
       "type": "timeseries"
     },
     {
