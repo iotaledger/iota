@@ -1739,6 +1739,42 @@ async fn test_v2_get_tx_status_unknown_digest_expires() {
     );
 }
 
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn v2_get_tx_status_stops_waiting_when_stream_is_dropped() {
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let epoch_store = authority_state.epoch_store_for_testing();
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
+        authority_state.name,
+    ));
+    let validator_service = Arc::new(ValidatorService::new_for_tests(
+        authority_state,
+        consensus_adapter,
+        Arc::new(ValidatorServiceMetrics::new_for_tests()),
+    ));
+
+    let response = validator_service
+        .get_tx_status(make_v2_get_tx_status_request(vec![(
+            TransactionDigest::random(),
+            false,
+        )]))
+        .await
+        .expect("get_tx_status should succeed");
+
+    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+    assert_eq!(epoch_store.pending_dropped_digest_requests_for_testing(), 1);
+
+    drop(response);
+    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+    assert_eq!(epoch_store.pending_dropped_digest_requests_for_testing(), 0);
+}
+
 // ── ValidatorV2 notify_capabilities tests
 // ─────────────────────────────────────
 

@@ -5566,7 +5566,7 @@ impl AuthorityState {
             // If the account object is not loaded because the transaction was canceled, we return
             // the error in the case in which we are not executing the transaction right
             // after.
-            (ObjectReadResultKind::CancelledTransactionSharedObject(version), false) => {
+            (ObjectReadResultKind::CancelledTransactionObject(version), false) => {
                 Err(UserInputError::AccountObjectInCanceledTransaction {
                     account_id: account_object.id(),
                     account_version: *version,
@@ -5582,7 +5582,7 @@ impl AuthorityState {
             // after. This version is used to read the authenticator function ref
             // dynamic field because it is greater than the version of the child dynamic
             // field.
-            (ObjectReadResultKind::CancelledTransactionSharedObject(version), true) => Ok(*version),
+            (ObjectReadResultKind::CancelledTransactionObject(version), true) => Ok(*version),
         }?;
 
         let authenticator_function_ref_field_id =

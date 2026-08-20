@@ -19,7 +19,10 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::read_mask_fields::{ObjectField, OwnedObjectReadMask};
+use iota_grpc_client::{
+    Client as GrpcClient,
+    read_mask_fields::{ObjectField, OwnedObjectReadMask},
+};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -3298,8 +3301,8 @@ pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
 }
 
 /// Fetch the current object references for the given object IDs over gRPC.
-async fn grpc_input_refs(
-    client: &iota_grpc_client::Client,
+pub(crate) async fn grpc_input_refs(
+    client: &GrpcClient,
     object_ids: &[ObjectId],
 ) -> Result<Vec<ObjectReference>, anyhow::Error> {
     if object_ids.is_empty() {
@@ -3321,7 +3324,7 @@ async fn grpc_input_refs(
 /// Fetch the coin with the given ID over gRPC, as a reference pinning the
 /// version its type was read at, and the `T` of its `Coin<T>`.
 async fn grpc_coin(
-    client: &iota_grpc_client::Client,
+    client: &GrpcClient,
     coin_id: ObjectId,
 ) -> Result<(ObjectReference, TypeTag), anyhow::Error> {
     let object = client
@@ -3515,7 +3518,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 .quorum_driver_api()
                 .execute_transaction_block(
                     transaction,
-                    opts_from_cli(display),
+                    opts_from_cli(&display),
                     Some(ExecuteTransactionRequestType::WaitForLocalExecution),
                 )
                 .await?;
@@ -3529,6 +3532,11 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             })?;
             if let IotaExecutionStatus::Failure { error } = effects.status() {
                 bail!("Error executing transaction '{}': {error}", response.digest);
+            }
+            // Effects are always requested for the status check above, so drop
+            // them here when the display selection excludes them.
+            if !display.is_empty() && !display.contains(&DisplayOption::Effects) {
+                response.effects = None;
             }
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }
@@ -3579,7 +3587,7 @@ pub(crate) async fn prerender_clever_errors(
     }
 }
 
-fn opts_from_cli(opts: HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {
+fn opts_from_cli(opts: &HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {
     if opts.is_empty() {
         IotaTransactionBlockResponseOptions::new()
             .with_input()
@@ -3591,6 +3599,9 @@ fn opts_from_cli(opts: HashSet<DisplayOption>) -> IotaTransactionBlockResponseOp
         IotaTransactionBlockResponseOptions {
             show_input: opts.contains(&DisplayOption::Input),
             show_raw_input: false,
+            // Effects are always requested because the execution status check
+            // needs them; they are dropped from the response afterwards when
+            // the display selection excludes them.
             show_effects: true,
             show_raw_effects: false,
             show_events: opts.contains(&DisplayOption::Events),

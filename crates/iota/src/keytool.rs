@@ -486,7 +486,8 @@ impl KeyToolCommand {
                         let tx = SenderSignedTransaction::from_base64(&sig).map_err(|e| {
                             anyhow!("Failed to decode as signature or transaction: {e}")
                         })?;
-                        tx.0.signatures
+                        tx.into_signed_transaction()
+                            .signatures
                             .into_iter()
                             .next()
                             .ok_or_else(|| anyhow!("Transaction has no signatures"))?
@@ -917,7 +918,7 @@ impl KeyToolCommand {
                     Ok(tx) => tx,
                     Err(_) => {
                         SenderSignedTransaction::from_base64(&tx_bytes)?
-                            .0
+                            .into_signed_transaction()
                             .transaction
                     }
                 };

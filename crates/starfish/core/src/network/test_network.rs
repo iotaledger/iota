@@ -16,7 +16,7 @@ use crate::{
     encoder::ShardEncoder,
     error::ConsensusResult,
     network::{BlockBundleStream, NetworkService, SerializedBlockBundle},
-    transaction_ref::GenericTransactionRef,
+    transaction_ref::TransactionRef,
 };
 
 pub(crate) struct TestService {
@@ -119,7 +119,7 @@ impl NetworkService for Mutex<TestService> {
     async fn handle_fetch_transactions(
         &self,
         _peer: AuthorityIndex,
-        _block_refs: Vec<GenericTransactionRef>,
+        _transaction_refs: Vec<TransactionRef>,
         _fetch_mode: crate::network::TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>> {
         unimplemented!("Unimplemented")

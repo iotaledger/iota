@@ -361,10 +361,11 @@ impl MovePackage {
     /// Note that objects that have been sent to a package become inaccessible.
     ///
     /// `scanLimit` restricts the number of candidate transactions scanned when
-    /// gathering a page of results. It is required for queries that apply
-    /// more than two complex filters (on function, kind, sender, recipient,
-    /// input object, changed object, or ids), and can be at most
-    /// `serviceConfig.maxScanLimit`.
+    /// gathering a page of results. It is required for queries that apply two
+    /// or more complex filters (on function, affected address, recipient, input
+    /// object, changed object, or wrapped or deleted object), and can be at
+    /// most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+    /// combined with any of them.
     ///
     /// When the scan limit is reached the page will be returned even if it has
     /// fewer than `first` results when paginating forward (`last` when
@@ -383,6 +384,10 @@ impl MovePackage {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    ///
+    /// DEPRECATION NOTICE: Support for the combination of two or more complex
+    /// filters as discussed above will stop with the v1.38 release. `scanLimit`
+    /// will thus become obsolete and will be removed as well.
     #[graphql(
         complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
     )]
@@ -394,6 +399,9 @@ impl MovePackage {
         last: Option<u64>,
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
+        #[graphql(
+            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
+        )]
         scan_limit: Option<u64>,
     ) -> Result<ScanConnection<String, TransactionBlock>> {
         ObjectImpl(&self.super_)

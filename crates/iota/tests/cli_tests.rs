@@ -5812,10 +5812,9 @@ async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
     if let Some(tx_block_response) = start_call_result.tx_block_response() {
         // Assert Balance Changes are present in the response
         assert!(tx_block_response.balance_changes.is_some());
-        // effects are always in the response
-        assert!(tx_block_response.effects.is_some());
 
         // Assert every other field is not present in the response
+        assert!(tx_block_response.effects.is_none());
         assert!(tx_block_response.object_changes.is_none());
         assert!(tx_block_response.events.is_none());
         assert!(tx_block_response.transaction.is_none());
@@ -5954,7 +5953,8 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
     };
 
     assert!(res.transaction.is_some());
-    assert!(res.effects.is_some());
+    // `DisplayOption::Effects` wasn't provided, so there are no effects
+    assert!(res.effects.is_none());
 
     let ptb_string = r#"
         --make-move-vec <u8> "[1]"
@@ -5974,7 +5974,45 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
     };
     // `DisplayOption::Input` wasn't provided, so there is no `Transaction Data`
     assert!(res.transaction.is_none());
+    assert!(res.effects.is_none());
+
+    let ptb_string = r#"
+        --make-move-vec <u8> "[1]"
+        "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Effects]),
+    }
+    .execute(context)
+    .await?
+    else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(res) = *res else {
+        panic!("unexpected PTB result");
+    };
+    // `DisplayOption::Effects` was provided, so the effects are present
+    assert!(res.transaction.is_none());
     assert!(res.effects.is_some());
+
+    // The summary is derived from the effects, so it works even when the
+    // display selection excludes them
+    let ptb_string = r#"
+        --make-move-vec <u8> "[1]"
+        --summary
+        "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let PTBCommandResult::Summary(summary) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Input]),
+    }
+    .execute(context)
+    .await?
+    else {
+        panic!("unexpected PTB result");
+    };
+    assert_eq!(summary.status, IotaExecutionStatus::Success);
 
     Ok(())
 }
