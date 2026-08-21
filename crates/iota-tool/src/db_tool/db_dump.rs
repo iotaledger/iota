@@ -21,6 +21,7 @@ use iota_core::{
         },
         authority_store_tables::AuthorityPerpetualTables,
         authority_store_types::{StoreData, StoreObject},
+        historic_ledger::HistoricLedger,
         historic_objects::HistoricObjects,
     },
     checkpoints::CheckpointStore,
@@ -255,11 +256,21 @@ pub fn dump_table(
                     .dump(table_name, page_size, page_number)
                     .map_err(|err| anyhow!(err.to_string()));
             }
-            // The historic object buckets and their retention floor are column
-            // families of the perpetual database that its table struct does
-            // not declare, so the dump derived from that struct cannot reach
-            // them.
-            HistoricObjects::dump_column_family(
+            // The historic object and ledger buckets and their retention
+            // floors are column families of the perpetual database that its
+            // table struct does not declare, so the dump derived from that
+            // struct cannot reach them.
+            if let Some(rows) = HistoricObjects::dump_column_family(
+                &perpetual_tables.objects.db,
+                table_name,
+                page_size,
+                page_number,
+            )
+            .map_err(|err| anyhow!(err.to_string()))?
+            {
+                return Ok(rows);
+            }
+            HistoricLedger::dump_column_family(
                 &perpetual_tables.objects.db,
                 table_name,
                 page_size,

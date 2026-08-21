@@ -452,7 +452,7 @@ impl IotaNode {
         // By default, only enable write stall on validators for perpetual db.
         let enable_write_stall = config.enable_db_write_stall.unwrap_or(is_validator);
         let perpetual_tables_options = AuthorityPerpetualTablesOptions { enable_write_stall };
-        let (perpetual_tables, historic_objects) =
+        let (perpetual_tables, historic_objects, _historic_ledger) =
             AuthorityPerpetualTables::open_with_historic_objects(
                 &config.db_path().join("store"),
                 Some(perpetual_tables_options),
