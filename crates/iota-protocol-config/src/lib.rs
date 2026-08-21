@@ -203,6 +203,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 // Version 33: Rebuild the framework binaries to add the Move stdlib `bool`
 //             module and vector sorting functions.
 // Version 34: Reject `<SELF>` as an identifier in published modules.
+//             Make the enum variant count limit explicit in the protocol
+//             config.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3226,6 +3228,7 @@ impl ProtocolConfig {
                 }
                 34 => {
                     cfg.feature_flags.disallow_self_identifier = true;
+                    cfg.max_move_enum_variants = Some(move_core_types::VARIANT_COUNT_MAX);
                 }
                 // Use this template when making changes:
                 //

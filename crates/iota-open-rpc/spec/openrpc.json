@@ -1942,7 +1942,9 @@
                 "max_modules_in_publish": {
                   "u32": "64"
                 },
-                "max_move_enum_variants": null,
+                "max_move_enum_variants": {
+                  "u64": "127"
+                },
                 "max_move_identifier_len": {
                   "u64": "128"
                 },

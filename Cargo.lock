@@ -7206,6 +7206,7 @@ dependencies = [
  "clap",
  "insta",
  "iota-protocol-config-macros",
+ "move-core-types",
  "move-vm-config",
  "schemars",
  "serde",
