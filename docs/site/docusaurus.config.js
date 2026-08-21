@@ -443,6 +443,9 @@ const config = {
             "current",
             "1.0.0",
           ],*/
+          beforeDefaultRemarkPlugins: [
+            require("./config/remark-sdk-rev.js"),
+          ],
           remarkPlugins: [
             [math,{singleDollarTextMath:false}],
             [
