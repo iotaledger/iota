@@ -35,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [python, go, kotlin, csharp, swift]
+        language: [python, go, kotlin, csharp, swift, wasm]
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -96,6 +96,19 @@ jobs:
         run: |
           make -C iota-rust-sdk install-uniffi-bindgen-cs
           dotnet tool install --global XMLDoc2Markdown
+
+      - uses: taiki-e/install-action@5b4d68e2e660441203ab128a23676f1e4faf1532 # v2.86.3
+        if: matrix.language == 'wasm'
+        with:
+          tool: wasm-pack
+
+      - name: Install WASM bindings prerequisites
+        if: matrix.language == 'wasm'
+        run: |
+          sudo apt-get install -y clang
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-bindgen-cli --version 0.2.122
+          npm install -g pnpm@10 typedoc typedoc-plugin-markdown
 
       - name: Generate the ${{ matrix.language }} reference
         run: cd iota-rust-sdk && ./scripts/reference-docs/generate.sh ${{ matrix.language }}

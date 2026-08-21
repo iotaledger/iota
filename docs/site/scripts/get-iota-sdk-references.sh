@@ -18,7 +18,7 @@ BASE_URL="https://s3.eu-central-1.amazonaws.com/files.iota.org/iota-wiki/iota-sd
 # abort immediately — retrying cannot fix an unreachable S3.
 all_present() {
     local status language
-    for language in python go kotlin csharp swift; do
+    for language in python go kotlin csharp swift wasm; do
         curl -sfIL -o /dev/null "${BASE_URL}/${language}.tar.gz"
         status=$?
         if [ "$status" -eq 22 ]; then
@@ -61,7 +61,7 @@ process() {
     rm -rf docs
 }
 
-for language in python go kotlin csharp swift; do
+for language in python go kotlin csharp swift wasm; do
     process "$language"
 done
 
