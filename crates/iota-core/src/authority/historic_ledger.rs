@@ -122,8 +122,28 @@ impl HistoricLedgerBucket {
 /// The buckets are column families of the perpetual database rather than a
 /// store of their own, so a transaction's outputs can be committed alongside
 /// the rest of that commit's batch.
+///
+/// A bucket's existence does **not** mean its epoch has been executed. State
+/// sync records a checkpoint's transactions and effects before this node
+/// executes them, in the bucket of the checkpoint's epoch, and it runs ahead
+/// of execution and across epoch boundaries — so the newest bucket here can
+/// belong to an epoch whose first transaction this node has yet to execute.
+/// [`crate::authority::historic_objects::HistoricObjects`] has no such
+/// bucket, since its rows only ever appear at commit.
+///
+/// Anything that decides how much history to keep must therefore count from
+/// the epoch being executed, not from the newest bucket:
+/// [`crate::epoch_buckets::EpochBuckets::prune`] derives its floor from the
+/// newest bucket, so retaining N epochs that way would spend part of N on
+/// epochs synced but not yet executed and drop the history of an epoch still
+/// being served.
 pub struct HistoricLedger {
     buckets: EpochBuckets<HistoricLedgerBucket>,
+
+    /// Counts the bucket walks this store has done, for the tests that assert
+    /// a read resolves one transaction's whole record in a single walk.
+    #[cfg(test)]
+    bucket_walks: std::sync::atomic::AtomicU64,
 }
 
 impl HistoricLedger {
@@ -203,7 +223,26 @@ impl HistoricLedger {
             buckets,
             HistoricLedgerBucket::reopen,
         )?;
-        Ok(Self { buckets })
+        Ok(Self {
+            buckets,
+            #[cfg(test)]
+            bucket_walks: std::sync::atomic::AtomicU64::new(0),
+        })
+    }
+
+    /// Records that a read walked the buckets.
+    #[cfg(test)]
+    fn count_walk(&self) {
+        self.bucket_walks
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    }
+
+    /// How many bucket walks this store has done. Reading one transaction's
+    /// effects, events and checkpoint must add exactly one, whichever of its
+    /// tables the caller touches.
+    #[cfg(test)]
+    pub(crate) fn bucket_walks(&self) -> u64 {
+        self.bucket_walks.load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// The oldest epoch this store still holds a bucket for, `None` when it
@@ -242,6 +281,8 @@ impl HistoricLedger {
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<(EpochId, Arc<HistoricLedgerBucket>)>> {
+        #[cfg(test)]
+        self.count_walk();
         for (epoch, bucket) in self.buckets.iter_with_epoch(true) {
             if bucket
                 .executed_effects
@@ -309,6 +350,8 @@ impl HistoricLedger {
         &self,
         digest: &TransactionDigest,
     ) -> IotaResult<Option<TrustedTransaction>> {
+        #[cfg(test)]
+        self.count_walk();
         for bucket in self.buckets.iter(true) {
             if let Some(transaction) = bucket
                 .transactions
@@ -332,6 +375,8 @@ impl HistoricLedger {
         &self,
         digest: &TransactionEffectsDigest,
     ) -> IotaResult<Option<TransactionEffects>> {
+        #[cfg(test)]
+        self.count_walk();
         for bucket in self.buckets.iter(true) {
             if let Some(effects) = bucket
                 .effects
@@ -346,6 +391,8 @@ impl HistoricLedger {
 
     /// Whether any bucket holds the effects under `digest`.
     pub fn contains_effects(&self, digest: &TransactionEffectsDigest) -> IotaResult<bool> {
+        #[cfg(test)]
+        self.count_walk();
         for bucket in self.buckets.iter(true) {
             if bucket
                 .effects
