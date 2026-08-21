@@ -165,8 +165,15 @@ impl From<Error> for RpcError {
                 let error_msg = err.to_error_message();
                 // Machine-readable discriminant: the codes below are shared
                 // between variants, so clients disambiguate via
-                // `data.reason` instead of parsing the message.
-                let reason = serde_json::json!({ "reason": err.reason() });
+                // `data.reason` instead of parsing the message. Overload
+                // hints are added as `data.retry_after_secs`.
+                let mut data = serde_json::json!({ "reason": err.reason() });
+                if let QuorumDriverError::SystemOverloadRetryAfter {
+                    retry_after_secs, ..
+                } = &err
+                {
+                    data["retry_after_secs"] = (*retry_after_secs).into();
+                }
 
                 match err {
                     QuorumDriverError::InvalidUserSignature { .. }
@@ -177,7 +184,7 @@ impl From<Error> for RpcError {
                         let error_object = ErrorObject::owned(
                             TRANSACTION_EXECUTION_CLIENT_ERROR_CODE,
                             error_msg,
-                            Some(reason),
+                            Some(data),
                         );
                         RpcError::Call(error_object)
                     }
@@ -204,7 +211,7 @@ impl From<Error> for RpcError {
                     | QuorumDriverError::SystemOverload { .. }
                     | QuorumDriverError::SystemOverloadRetryAfter { .. } => {
                         let error_object =
-                            ErrorObject::owned(TRANSIENT_ERROR_CODE, error_msg, Some(reason));
+                            ErrorObject::owned(TRANSIENT_ERROR_CODE, error_msg, Some(data));
                         RpcError::Call(error_object)
                     }
                     QuorumDriverError::QuorumDriverInternal(_) => {
@@ -590,6 +597,28 @@ mod tests {
             ];
             expected_message.assert_eq(error_object.message());
             let expected_data = expect![[r#"{"reason":"system_overload"}"#]];
+            expected_data.assert_eq(&error_object.data().unwrap().to_string());
+        }
+
+        #[test]
+        fn test_system_overload_retry_after() {
+            let quorum_driver_error = QuorumDriverError::SystemOverloadRetryAfter {
+                overload_stake: 4000,
+                errors: vec![(IotaError::UnexpectedMessage, 0, vec![])],
+                retry_after_secs: 30,
+            };
+
+            let rpc_error: RpcError = Error::QuorumDriver(quorum_driver_error).into();
+
+            let error_object = error_object_from_rpc(rpc_error);
+            let expected_code = expect!["-32050"];
+            expected_code.assert_eq(&error_object.code().to_string());
+            let expected_message = expect![
+                "Transaction is not processed because 4000 of validators are overloaded and asked client to retry after 30."
+            ];
+            expected_message.assert_eq(error_object.message());
+            let expected_data =
+                expect![[r#"{"reason":"system_overload_retry_after","retry_after_secs":30}"#]];
             expected_data.assert_eq(&error_object.data().unwrap().to_string());
         }
     }

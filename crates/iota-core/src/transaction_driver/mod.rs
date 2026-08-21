@@ -17,7 +17,7 @@ use std::{
 use arc_swap::ArcSwap;
 use effects_certifier::*;
 /// Exports
-pub use error::{AggregatedRequestErrors, TransactionDriverError};
+pub use error::{AggregatedEffectsDigests, AggregatedRequestErrors, TransactionDriverError};
 use iota_common::{backoff::ExponentialBackoff, debug_fatal};
 use iota_metrics::{monitored_future, spawn_logged_monitored_task};
 use iota_sdk_types::{TransactionDigest, TransactionEvents};
@@ -228,12 +228,9 @@ where
                     }
                 }
 
-                use iota_types::error::ErrorCategory;
-                let overload = if let Some(e) = &latest_retriable_error {
-                    e.categorize() == ErrorCategory::ValidatorOverloaded
-                } else {
-                    false
-                };
+                let overload = latest_retriable_error
+                    .as_ref()
+                    .is_some_and(|e| e.is_overload_dominated());
                 let delay = if overload {
                     // Increase delay during overload.
                     const OVERLOAD_ADDITIONAL_DELAY: Duration = Duration::from_secs(10);

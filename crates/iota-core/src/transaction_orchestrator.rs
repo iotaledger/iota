@@ -35,9 +35,9 @@ use iota_types::{
     messages_checkpoint::CheckpointSequenceNumber,
     quorum_driver_types::{
         EffectsFinalityInfo, ExecuteTransactionRequestType, ExecuteTransactionRequestV1,
-        ExecuteTransactionResponseV1, FinalizedEffects, IsTransactionExecutedLocally,
-        QuorumDriverEffectsQueueResult, QuorumDriverError, QuorumDriverResponse,
-        QuorumDriverResult,
+        ExecuteTransactionResponseV1, FinalizedEffects, GroupedErrors,
+        IsTransactionExecutedLocally, QuorumDriverEffectsQueueResult, QuorumDriverError,
+        QuorumDriverResponse, QuorumDriverResult,
     },
     transaction::{SenderSignedTransactionAPI, VerifiedTransaction},
     transaction_driver_types::{
@@ -1447,6 +1447,8 @@ fn convert_td_to_qd_effects(td: TdFinalizedEffects) -> FinalizedEffects {
 /// `QuorumDriverInternal`, `FailedWithTransientErrorAfterMaximumAttempts`,
 /// and `TimeoutBeforeFinality`, but treat `InvalidTransaction`,
 /// `InvalidUserSignature`, and `RejectedByValidators` as terminal.
+/// An overload-dominated timeout maps to the retriable `SystemOverload` or
+/// `SystemOverloadRetryAfter` instead of `TimeoutBeforeFinality`.
 /// Submission-time rejections that cannot succeed on resubmission must
 /// therefore not be reported as internal.
 fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
@@ -1455,7 +1457,9 @@ fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
         ValidationFailed { error } => {
             QuorumDriverError::InvalidUserSignature(IotaError::InvalidSignature { error })
         }
-        TimeoutWithLastRetriableError { .. } => QuorumDriverError::TimeoutBeforeFinality,
+        TimeoutWithLastRetriableError { last_error, .. } => last_error
+            .and_then(|e| map_overload_to_qd(&e))
+            .unwrap_or(QuorumDriverError::TimeoutBeforeFinality),
         RejectedByValidators {
             submission_non_retriable_errors,
             ..
@@ -1511,6 +1515,54 @@ fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
             QuorumDriverError::QuorumDriverInternal(IotaError::Unknown(msg))
         }
     }
+}
+
+/// Maps an overload-dominated aborted attempt to an overload error, so the
+/// validators' retry hints reach the client instead of a generic timeout.
+fn map_overload_to_qd(e: &TransactionDriverError) -> Option<QuorumDriverError> {
+    use iota_types::{base_types::ConciseableName, error::ErrorCategory};
+
+    if !e.is_overload_dominated() {
+        return None;
+    }
+    let TransactionDriverError::Aborted {
+        submission_retriable_errors,
+        submission_non_retriable_errors,
+        ..
+    } = e
+    else {
+        return None;
+    };
+    let mut overloaded_stake = 0;
+    let mut errors: GroupedErrors = Vec::new();
+    for (msg, names, stake, category) in submission_retriable_errors
+        .errors
+        .iter()
+        .chain(submission_non_retriable_errors.errors.iter())
+    {
+        if *category != ErrorCategory::ValidatorOverloaded {
+            continue;
+        }
+        overloaded_stake += *stake;
+        errors.push((
+            IotaError::Unknown(msg.clone()),
+            *stake,
+            names.iter().map(|n| n.concise_owned()).collect(),
+        ));
+    }
+    Some(
+        match submission_retriable_errors.median_retry_after_secs() {
+            Some(retry_after_secs) => QuorumDriverError::SystemOverloadRetryAfter {
+                overload_stake: overloaded_stake,
+                errors,
+                retry_after_secs,
+            },
+            None => QuorumDriverError::SystemOverload {
+                overloaded_stake,
+                errors,
+            },
+        },
+    )
 }
 
 fn count_validator_attempts(errors: &AggregatedRequestErrors) -> u32 {
@@ -2149,6 +2201,7 @@ mod tests {
                     ErrorCategory::LockConflict,
                 )],
                 total_stake: 3334,
+                stake_requested_retry_after: Default::default(),
             },
             submission_retriable_errors: AggregatedRequestErrors::default(),
         };
@@ -2159,5 +2212,147 @@ mod tests {
         };
         assert!(inner.to_string().contains("Object lock conflict"));
         assert_eq!(qd_error.reason(), "rejected_by_validators");
+    }
+
+    fn timeout_with_last_error(last_error: Option<TransactionDriverError>) -> QuorumDriverError {
+        map_td_error_to_qd(TransactionDriverError::TimeoutWithLastRetriableError {
+            last_error: last_error.map(Box::new),
+            attempts: 3,
+            timeout: std::time::Duration::from_secs(60),
+        })
+    }
+
+    fn aborted_with_retriable(retriable_errors: AggregatedRequestErrors) -> TransactionDriverError {
+        TransactionDriverError::Aborted {
+            submission_non_retriable_errors: AggregatedRequestErrors::default(),
+            submission_retriable_errors: retriable_errors,
+            observed_effects_digests: crate::transaction_driver::AggregatedEffectsDigests {
+                digests: vec![],
+            },
+        }
+    }
+
+    fn bucket(
+        msg: &str,
+        stake: u64,
+        category: iota_types::error::ErrorCategory,
+    ) -> (
+        String,
+        Vec<iota_types::base_types::AuthorityName>,
+        u64,
+        iota_types::error::ErrorCategory,
+    ) {
+        (msg.to_string(), vec![], stake, category)
+    }
+
+    /// Overload split across delays still beats a larger single bucket. The
+    /// 50/50 hint split resolves to the longer delay.
+    #[test]
+    fn map_overloaded_timeout_to_retry_after() {
+        use std::collections::BTreeMap;
+
+        use iota_types::error::ErrorCategory;
+
+        let qd_error =
+            timeout_with_last_error(Some(aborted_with_retriable(AggregatedRequestErrors {
+                errors: vec![
+                    bucket("validator unavailable", 4000, ErrorCategory::Unavailable),
+                    bucket("overloaded 10s", 2500, ErrorCategory::ValidatorOverloaded),
+                    bucket("overloaded 30s", 2500, ErrorCategory::ValidatorOverloaded),
+                ],
+                total_stake: 9000,
+                stake_requested_retry_after: BTreeMap::from([(10, 2500), (30, 2500)]),
+            })));
+        let QuorumDriverError::SystemOverloadRetryAfter {
+            overload_stake,
+            retry_after_secs,
+            ..
+        } = qd_error
+        else {
+            panic!("expected SystemOverloadRetryAfter, got {qd_error:?}");
+        };
+        assert_eq!(overload_stake, 5000);
+        assert_eq!(retry_after_secs, 30);
+    }
+
+    /// A low-stake validator must not dictate the retry hint.
+    #[test]
+    fn map_overloaded_timeout_ignores_low_stake_outlier() {
+        use std::collections::BTreeMap;
+
+        use iota_types::error::ErrorCategory;
+
+        let qd_error =
+            timeout_with_last_error(Some(aborted_with_retriable(AggregatedRequestErrors {
+                errors: vec![
+                    bucket("overloaded 10s", 7000, ErrorCategory::ValidatorOverloaded),
+                    bucket("overloaded 3600s", 1000, ErrorCategory::ValidatorOverloaded),
+                ],
+                total_stake: 8000,
+                stake_requested_retry_after: BTreeMap::from([(10, 7000), (3600, 1000)]),
+            })));
+        assert!(
+            matches!(
+                qd_error,
+                QuorumDriverError::SystemOverloadRetryAfter {
+                    retry_after_secs: 10,
+                    ..
+                }
+            ),
+            "expected the 10s majority hint, got {qd_error:?}"
+        );
+    }
+
+    /// Overload without hints maps to `SystemOverload`. Non-dominant or
+    /// absent overload keeps mapping to `TimeoutBeforeFinality`.
+    #[test]
+    fn map_overloaded_timeout_without_hint_and_non_overload() {
+        use iota_types::error::ErrorCategory;
+
+        let qd_error =
+            timeout_with_last_error(Some(aborted_with_retriable(AggregatedRequestErrors {
+                errors: vec![bucket(
+                    "too many transactions pending",
+                    5000,
+                    ErrorCategory::ValidatorOverloaded,
+                )],
+                total_stake: 5000,
+                stake_requested_retry_after: Default::default(),
+            })));
+        assert!(
+            matches!(qd_error, QuorumDriverError::SystemOverload { overloaded_stake, .. } if overloaded_stake == 5000),
+            "expected SystemOverload, got {qd_error:?}"
+        );
+
+        let qd_error =
+            timeout_with_last_error(Some(aborted_with_retriable(AggregatedRequestErrors {
+                errors: vec![
+                    bucket("overloaded 10s", 3500, ErrorCategory::ValidatorOverloaded),
+                    bucket("timed out submitting", 3000, ErrorCategory::Unavailable),
+                    bucket(
+                        "timed out getting effects",
+                        2500,
+                        ErrorCategory::Unavailable,
+                    ),
+                ],
+                total_stake: 9000,
+                stake_requested_retry_after: Default::default(),
+            })));
+        assert!(matches!(qd_error, QuorumDriverError::TimeoutBeforeFinality));
+
+        let qd_error =
+            timeout_with_last_error(Some(aborted_with_retriable(AggregatedRequestErrors {
+                errors: vec![bucket(
+                    "validator unavailable",
+                    5000,
+                    ErrorCategory::Unavailable,
+                )],
+                total_stake: 5000,
+                stake_requested_retry_after: Default::default(),
+            })));
+        assert!(matches!(qd_error, QuorumDriverError::TimeoutBeforeFinality));
+
+        let qd_error = timeout_with_last_error(None);
+        assert!(matches!(qd_error, QuorumDriverError::TimeoutBeforeFinality));
     }
 }
