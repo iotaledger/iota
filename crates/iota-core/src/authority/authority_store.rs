@@ -1453,30 +1453,19 @@ impl AuthorityStore {
     }
 
     /// Records a transaction and its effects ahead of executing them, in the
-    /// bucket of `epoch` — the epoch of the checkpoint that carries them,
-    /// which is also the epoch that will execute them.
+    /// bucket of the epoch the effects were produced in — the epoch that
+    /// executed the transaction, and the one whose commit will write the rest
+    /// of its record into the same bucket.
     ///
     /// This can be the first row of an epoch this node has not begun
     /// executing, since state sync runs ahead of execution; see
     /// [`HistoricLedger`] for what that means for retention.
-    ///
-    /// `epoch` must be the epoch the effects were produced in. Nothing reads
-    /// the wrong bucket if it is not — every read walks the buckets — so the
-    /// only symptom is a row expiring with the wrong epoch, which is why the
-    /// effects are asked for their own epoch here.
     pub fn insert_transaction_and_effects(
         &self,
-        epoch: EpochId,
         transaction: &VerifiedTransaction,
         transaction_effects: &TransactionEffects,
     ) -> IotaResult {
-        debug_assert_eq!(
-            transaction_effects.epoch(),
-            epoch,
-            "the effects of {:?} were produced in another epoch",
-            transaction.digest()
-        );
-        let bucket = self.historic_ledger.ensure(epoch)?;
+        let bucket = self.historic_ledger.ensure(transaction_effects.epoch())?;
         let mut write_batch = bucket.transactions.batch();
         write_batch
             .insert_batch_tagged(
@@ -1492,31 +1481,32 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// Records transactions and their effects ahead of executing them, in the
-    /// bucket of `epoch` — the epoch of the checkpoint that carries them,
-    /// which is also the epoch that will execute them.
+    /// Records transactions and their effects ahead of executing them, each in
+    /// the bucket of the epoch its own effects were produced in, as
+    /// [`Self::insert_transaction_and_effects`] does.
     ///
-    /// This can be the first row of an epoch this node has not begun
+    /// These can be the first rows of an epoch this node has not begun
     /// executing, since state sync runs ahead of execution; see
     /// [`HistoricLedger`] for what that means for retention.
-    ///
-    /// `epoch` must be the epoch every one of these effects was produced in,
-    /// which each is asked to confirm, for the reason
-    /// [`Self::insert_transaction_and_effects`] gives.
     pub fn multi_insert_transaction_and_effects<'a>(
         &self,
-        epoch: EpochId,
         transactions: impl Iterator<Item = &'a VerifiedExecutionData>,
     ) -> IotaResult {
-        let bucket = self.historic_ledger.ensure(epoch)?;
-        let mut write_batch = bucket.transactions.batch();
+        let mut write_batch = self.perpetual_tables.objects.batch();
+        // A checkpoint's transactions all executed in its epoch, so the bucket
+        // is looked up once for the run and again only if another epoch does
+        // turn up.
+        let mut current: Option<(EpochId, Arc<HistoricLedgerBucket>)> = None;
         for tx in transactions {
-            debug_assert_eq!(
-                tx.effects.epoch(),
-                epoch,
-                "the effects of {:?} were produced in another epoch",
-                tx.transaction.digest()
-            );
+            let epoch = tx.effects.epoch();
+            let bucket = match &current {
+                Some((current_epoch, bucket)) if *current_epoch == epoch => bucket.clone(),
+                _ => {
+                    let bucket = self.historic_ledger.ensure(epoch)?;
+                    current = Some((epoch, bucket.clone()));
+                    bucket
+                }
+            };
             write_batch
                 .insert_batch_tagged(
                     &bucket.transactions,

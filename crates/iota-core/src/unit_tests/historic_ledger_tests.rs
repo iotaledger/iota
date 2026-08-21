@@ -4,6 +4,7 @@
 use std::sync::Arc;
 
 use iota_sdk_types::TransactionDigest;
+use iota_types::{base_types::VerifiedExecutionData, effects::TestEffectsBuilder};
 use typed_store::{database::wait_for_database_close, traits::Map};
 
 use crate::{
@@ -238,43 +239,63 @@ async fn reading_a_committed_transactions_effects_walks_the_buckets_once() {
 }
 
 /// A transaction state sync records ahead of execution goes into the bucket of
-/// the epoch that will execute it, and into no other.
+/// the epoch that executed it — the epoch its effects record — and into no
+/// other, whether it arrives on its own or as part of a checkpoint's contents.
 #[tokio::test]
-async fn a_state_synced_transaction_lands_in_the_epochs_bucket() {
+async fn a_state_synced_transaction_lands_in_the_executing_epochs_bucket() {
     telemetry_subscribers::init_for_testing();
     Scenario::iterate(|mut s| async move {
-        // `Scenario`'s effects are built for epoch 0, and the insert requires
-        // the epoch it is given to be the one the effects were produced in.
-        let synced_epoch = 0;
-        let outputs = s.take_outputs();
-        let transaction = (*outputs.transaction).clone();
-        let effects = outputs.effects.clone();
-        let digest = *transaction.digest();
-        let effects_digest = effects.digest();
+        // An epoch of its own, so that landing in it cannot be confused with
+        // landing in the epoch `Scenario` commits in or the genesis epoch.
+        let executed_in = COMMIT_EPOCH + 4;
+        let ledger = s.store.get_historic_ledger().clone();
+        let other_bucket = ledger.ensure(executed_in + 1).unwrap();
 
-        let ledger = s.store.get_historic_ledger();
-        let other_bucket = ledger.ensure(synced_epoch + 1).unwrap();
+        let mut synced = Vec::new();
+        for _ in 0..2 {
+            let outputs = s.take_outputs();
+            let transaction = (*outputs.transaction).clone();
+            let effects = TestEffectsBuilder::new(transaction.inner())
+                .with_epoch(executed_in)
+                .build();
+            synced.push((transaction, effects));
+        }
+
+        // State sync inserts a checkpoint's whole contents; the change-epoch
+        // transaction arrives on its own.
+        let (transaction, effects) = synced.pop().unwrap();
         s.store
-            .insert_transaction_and_effects(synced_epoch, &transaction, &effects)
+            .insert_transaction_and_effects(&transaction, &effects)
+            .unwrap();
+        let mut inserted = vec![(*transaction.digest(), effects.digest())];
+
+        let (transaction, effects) = synced.pop().unwrap();
+        inserted.push((*transaction.digest(), effects.digest()));
+        s.store
+            .multi_insert_transaction_and_effects(
+                [VerifiedExecutionData::new(transaction, effects)].iter(),
+            )
             .unwrap();
 
-        let bucket = ledger.ensure(synced_epoch).unwrap();
-        assert!(
-            bucket.transactions.get(&digest).unwrap().is_some(),
-            "the transaction must be in the bucket of the epoch it was given"
-        );
-        assert!(
-            bucket.effects.get(&effects_digest).unwrap().is_some(),
-            "the effects must be in the bucket of the epoch they were given"
-        );
-        assert!(
-            other_bucket.transactions.get(&digest).unwrap().is_none()
-                && other_bucket.effects.get(&effects_digest).unwrap().is_none(),
-            "no other epoch's bucket may hold the transaction or its effects"
-        );
+        let bucket = ledger.ensure(executed_in).unwrap();
+        for (digest, effects_digest) in inserted {
+            assert!(
+                bucket.transactions.get(&digest).unwrap().is_some(),
+                "the transaction must be in the bucket of the epoch that executed it"
+            );
+            assert!(
+                bucket.effects.get(&effects_digest).unwrap().is_some(),
+                "the effects must be in the bucket of the epoch that produced them"
+            );
+            assert!(
+                other_bucket.transactions.get(&digest).unwrap().is_none()
+                    && other_bucket.effects.get(&effects_digest).unwrap().is_none(),
+                "no other epoch's bucket may hold the transaction or its effects"
+            );
 
-        // The record is not an execution record: nothing has executed it.
-        assert!(ledger.find_epoch(&digest).unwrap().is_none());
+            // The rows are not an execution record: nothing has executed it.
+            assert!(ledger.find_epoch(&digest).unwrap().is_none());
+        }
     })
     .await;
 }
