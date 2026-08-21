@@ -182,7 +182,7 @@ fn sync_eta(
 }
 
 /// Shared progress tracker for checkpoint operations. Updated by the
-/// checkpoint executor and pruner, periodically logs a one-line summary.
+/// checkpoint executor, periodically logs a one-line summary.
 ///
 /// Passed as `Option<Arc<CheckpointProgressTracker>>` — callers that don't need
 /// progress reporting (CLI tools, tests) simply pass `None`.
@@ -196,8 +196,6 @@ pub struct CheckpointProgressTracker {
     /// one checkpoint at a time, a stage accumulating close to one second
     /// per second is the throughput bottleneck.
     stage_time_ns: [AtomicU64; PipelineStage::COUNT],
-    /// Accumulated checkpoint/effects pruning time in nanoseconds.
-    checkpoint_pruning_time_ns: AtomicU64,
 }
 
 impl CheckpointProgressTracker {
@@ -205,7 +203,6 @@ impl CheckpointProgressTracker {
         Self {
             execution_time_ns: AtomicU64::new(0),
             stage_time_ns: std::array::from_fn(|_| AtomicU64::new(0)),
-            checkpoint_pruning_time_ns: AtomicU64::new(0),
         }
     }
 
@@ -216,11 +213,6 @@ impl CheckpointProgressTracker {
 
     pub(crate) fn add_stage_time(&self, stage: PipelineStage, duration: Duration) {
         self.stage_time_ns[stage as usize].fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
-    }
-
-    pub fn add_checkpoint_pruning_time(&self, duration: Duration) {
-        self.checkpoint_pruning_time_ns
-            .fetch_add(duration.as_nanos() as u64, Ordering::Relaxed);
     }
 
     /// Spawns a periodic logging task that prints a one-line checkpoint
@@ -296,19 +288,13 @@ impl CheckpointProgressTracker {
                     let exec_time_delta_ns = tracker.execution_time_ns.swap(0, Ordering::Relaxed);
                     let exec_time_delta = Duration::from_nanos(exec_time_delta_ns);
 
-                    let checkpoint_prune_time_delta_ns = tracker
-                        .checkpoint_pruning_time_ns
-                        .swap(0, Ordering::Relaxed);
-                    let checkpoint_prune_time_delta =
-                        Duration::from_nanos(checkpoint_prune_time_delta_ns);
-
                     // Only report pruning when there is some, to avoid cluttering the log
                     let pruning = if objects_expired_delta > 0 || checkpoint_prune_delta > 0 {
                         format!(
                             ", objs retained from {objects_retained_from} \
                              (+{objects_expired_delta}), \
                              ckpts pruned {checkpoint_pruned_seq_number} \
-                             (+{checkpoint_prune_delta}, {checkpoint_prune_time_delta:.2?})"
+                             (+{checkpoint_prune_delta})"
                         )
                     } else {
                         String::new()
