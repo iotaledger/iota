@@ -1850,8 +1850,8 @@ mod tests {
         CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
         block_header::{
-            BlockHeaderDigest, BlockRef, GENESIS_ROUND, Round, TestBlockHeader, VerifiedBlock,
-            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
+            BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, GENESIS_ROUND, Round,
+            TestBlockHeader, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
         },
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
@@ -3153,7 +3153,7 @@ mod tests {
 
         async fn add_transactions(
             &self,
-            _transactions: Vec<VerifiedTransactions>,
+            _transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")

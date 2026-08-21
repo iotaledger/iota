@@ -55,8 +55,8 @@ use tracing::{info, warn};
 use crate::{
     BlockRef, CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, GENESIS_ROUND, SignedBlockHeader, TransactionsCommitment,
-        VerifiedTransactions,
+        BlockHeaderAPI, CommitmentVerifiedTransactions, GENESIS_ROUND, SignedBlockHeader,
+        TransactionsCommitment,
     },
     block_verifier::{BlockVerifier, serialized_transactions_size_limit},
     commit::{
@@ -424,12 +424,13 @@ pub(crate) fn verify_commits(
     Ok((trusted_commits, verified_voting_headers))
 }
 
-/// Verifies transactions and returns them keyed by transaction reference.
-pub(crate) fn verify_transactions_with_transactions_refs(
+/// Verifies each payload against the transactions commitment in its ref and
+/// returns the payloads keyed by transaction reference.
+pub(crate) fn verify_transactions_commitments(
     context: &Arc<Context>,
     peer: AuthorityIndex,
     serialized_transactions: BTreeMap<TransactionRef, Bytes>,
-) -> ConsensusResult<BTreeMap<TransactionRef, VerifiedTransactions>> {
+) -> ConsensusResult<BTreeMap<TransactionRef, CommitmentVerifiedTransactions>> {
     let mut verified_transactions_map = BTreeMap::new();
     let mut encoder = create_encoder(context);
     let size_limit = serialized_transactions_size_limit(context);
@@ -472,8 +473,8 @@ pub(crate) fn verify_transactions_with_transactions_refs(
         let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
             .map_err(ConsensusError::MalformedTransactions)?;
 
-        // Step 3: Create a VerifiedTransactions instance and insert into map
-        let verified_transactions = VerifiedTransactions::new(
+        // Step 3: Create a CommitmentVerifiedTransactions instance and insert into map
+        let verified_transactions = CommitmentVerifiedTransactions::new(
             transactions,
             transaction_ref,
             None,
@@ -1099,7 +1100,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn verify_transactions_rejects_oversized_payload_before_encoding() {
+    async fn verify_transactions_commitments_rejects_oversized_payload_before_encoding() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let peer = AuthorityIndex::new_for_test(1);
@@ -1112,8 +1113,7 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, Bytes::from(vec![0u8; size_limit + 1]))]);
 
-        let result =
-            verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
         assert!(matches!(
             result,
             Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
@@ -1122,7 +1122,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn verify_transactions_rejects_out_of_range_author() {
+    async fn verify_transactions_commitments_rejects_out_of_range_author() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let peer = AuthorityIndex::new_for_test(1);
@@ -1145,8 +1145,7 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
-        let result =
-            verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
         assert!(matches!(
             result,
             Err(ConsensusError::InvalidAuthorityIndexRequested {
@@ -1158,7 +1157,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn verify_transactions_rejects_genesis_round() {
+    async fn verify_transactions_commitments_rejects_genesis_round() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let peer = AuthorityIndex::new_for_test(1);
@@ -1180,8 +1179,7 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
-        let result =
-            verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
         assert!(matches!(
             result,
             Err(ConsensusError::UnexpectedGenesisRequested { peer: error_peer })

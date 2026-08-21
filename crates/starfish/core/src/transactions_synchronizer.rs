@@ -29,7 +29,7 @@ use tracing::{debug, info, warn};
 
 use crate::{
     block_verifier::BlockVerifier,
-    commit_syncer::verify_transactions_with_transactions_refs,
+    commit_syncer::verify_transactions_commitments,
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, DataSource},
@@ -1132,7 +1132,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 let context_cloned = context.clone();
 
                 move || {
-                    verify_transactions_with_transactions_refs(
+                    verify_transactions_commitments(
                         &context_cloned,
                         peer_index,
                         serialized_transactions_map,
@@ -1172,9 +1172,7 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         // Run the same checks here so a payload violating them can't be
         // acknowledged and become committable via this route either.
         for verified_transactions in &transactions {
-            if let Err(err) =
-                block_verifier.check_and_verify_transactions(&verified_transactions.transactions())
-            {
+            if let Err(err) = block_verifier.verify_transactions_validity(verified_transactions) {
                 let author = verified_transactions.author();
                 metrics
                     .invalid_transactions
@@ -1255,8 +1253,8 @@ mod tests {
     use crate::{
         Round, TestBlockHeader, Transaction,
         block_header::{
-            BlockRef, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
-            VerifiedTransactions,
+            BlockRef, CommitmentVerifiedTransactions, TransactionsCommitment, VerifiedBlock,
+            VerifiedBlockHeader, VerifiedOwnShard,
         },
         block_verifier::{NoopBlockVerifier, SignedBlockVerifier, test::TxnSizeVerifier},
         commit::{CertifiedCommits, CommitRange},
@@ -1321,7 +1319,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(
+                CommitmentVerifiedTransactions::new(
                     transactions,
                     header.transaction_ref(),
                     Some(header.digest()),
@@ -1385,7 +1383,7 @@ mod tests {
     /// Core. Otherwise it could be acknowledged and become committable while
     /// diverging from nodes that received the same payload directly.
     #[tokio::test]
-    async fn live_syncing_rejects_transactions_failing_verification() {
+    async fn live_syncing_rejects_transactions_failing_validity_check() {
         telemetry_subscribers::init_for_testing();
         // GIVEN a block_verifier that rejects transactions shorter than 4
         // bytes.
@@ -1428,7 +1426,7 @@ mod tests {
                 .build(),
         );
 
-        let verified_transactions = VerifiedTransactions::new(
+        let verified_transactions = CommitmentVerifiedTransactions::new(
             transactions,
             header.transaction_ref(),
             Some(header.digest()),
@@ -1465,7 +1463,7 @@ mod tests {
         let fetched_transactions = core_dispatcher.get_and_drain_transactions().await;
         assert!(
             fetched_transactions.is_empty(),
-            "A fetched payload failing verification must never reach Core"
+            "A fetched payload failing the validity check must never reach Core"
         );
 
         let counts = dag_state.read().misbehavior_store().snapshot_totals();
@@ -1603,7 +1601,7 @@ mod tests {
 
             block_headers.push(header.clone());
 
-            let verified_transaction = VerifiedTransactions::new(
+            let verified_transaction = CommitmentVerifiedTransactions::new(
                 transactions,
                 header.transaction_ref(),
                 Some(header.digest()),
@@ -1728,7 +1726,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(
+                CommitmentVerifiedTransactions::new(
                     transactions,
                     header.transaction_ref(),
                     Some(header.digest()),
@@ -1856,7 +1854,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(
+                CommitmentVerifiedTransactions::new(
                     transactions,
                     header.transaction_ref(),
                     Some(header.digest()),
@@ -1973,7 +1971,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(
+                CommitmentVerifiedTransactions::new(
                     transactions,
                     header.transaction_ref(),
                     Some(header.digest()),
@@ -2092,7 +2090,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(
+                CommitmentVerifiedTransactions::new(
                     transactions,
                     header.transaction_ref(),
                     Some(header.digest()),
@@ -2230,7 +2228,7 @@ mod tests {
             &mut encoder,
         )
         .unwrap();
-        let unrequested_transaction = VerifiedTransactions::new(
+        let unrequested_transaction = CommitmentVerifiedTransactions::new(
             unrequested_txs,
             TransactionRef {
                 round: 9,
@@ -2336,7 +2334,7 @@ mod tests {
 
                 block_headers.push(header.clone());
 
-                VerifiedTransactions::new(
+                CommitmentVerifiedTransactions::new(
                     transactions,
                     header.transaction_ref(),
                     Some(header.digest()),
@@ -2544,7 +2542,7 @@ mod tests {
                         .build(),
                 );
                 block_headers.push(header.clone());
-                VerifiedTransactions::new(
+                CommitmentVerifiedTransactions::new(
                     transactions,
                     header.transaction_ref(),
                     Some(header.digest()),
@@ -2790,7 +2788,7 @@ mod tests {
 
         async fn stub_fetch_transactions(
             &self,
-            transactions: Vec<VerifiedTransactions>,
+            transactions: Vec<CommitmentVerifiedTransactions>,
             peer: AuthorityIndex,
         ) {
             let mut transactions_map = self.transactions.lock().await;
@@ -2833,7 +2831,7 @@ mod tests {
         // are not requested
         async fn stub_unrequested_transactions(
             &self,
-            transactions: Vec<VerifiedTransactions>,
+            transactions: Vec<CommitmentVerifiedTransactions>,
             peer: AuthorityIndex,
         ) {
             let mut unrequested = self.unrequested_transactions.lock().await;
@@ -2860,7 +2858,7 @@ mod tests {
     // TransactionsSynchronizer tests
     #[derive(Default)]
     struct MockCoreThreadDispatcher {
-        transactions: Mutex<Vec<VerifiedTransactions>>,
+        transactions: Mutex<Vec<CommitmentVerifiedTransactions>>,
         missing_transactions: Mutex<BTreeMap<GenericTransactionRef, BTreeSet<AuthorityIndex>>>,
     }
 
@@ -2872,7 +2870,7 @@ mod tests {
             }
         }
 
-        async fn get_and_drain_transactions(&self) -> Vec<VerifiedTransactions> {
+        async fn get_and_drain_transactions(&self) -> Vec<CommitmentVerifiedTransactions> {
             let mut transactions = self.transactions.lock().await;
             transactions.drain(0..).collect()
         }
@@ -2918,7 +2916,7 @@ mod tests {
 
         async fn add_transactions(
             &self,
-            transactions: Vec<VerifiedTransactions>,
+            transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
             let mut txns = self.transactions.lock().await;

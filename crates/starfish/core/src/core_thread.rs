@@ -20,7 +20,9 @@ use tracing::{info, warn};
 
 use crate::{
     VerifiedBlockHeader,
-    block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
+    block_header::{
+        BlockRef, CommitmentVerifiedTransactions, Round, VerifiedBlock, VerifiedOwnShard,
+    },
     commit::CertifiedCommits,
     commit_syncer::fast::FastSyncOutput,
     context::Context,
@@ -74,7 +76,11 @@ enum CoreThreadCommand {
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
     /// Add transactions to be processed and accepted
-    AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>, DataSource),
+    AddTransactions(
+        Vec<CommitmentVerifiedTransactions>,
+        oneshot::Sender<()>,
+        DataSource,
+    ),
     /// Add shards to the dag_state
     AddShards(Vec<VerifiedOwnShard>, oneshot::Sender<()>),
     /// Get missing transaction data that need to be synced
@@ -132,7 +138,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
 
     async fn add_transactions(
         &self,
-        transactions: Vec<VerifiedTransactions>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
         source: DataSource,
     ) -> Result<(), CoreError>;
 
@@ -470,7 +476,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
     async fn add_transactions(
         &self,
-        transactions: Vec<VerifiedTransactions>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
         source: DataSource,
     ) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
@@ -681,7 +687,7 @@ pub(crate) mod tests {
 
         async fn add_transactions(
             &self,
-            _transactions: Vec<VerifiedTransactions>,
+            _transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!()

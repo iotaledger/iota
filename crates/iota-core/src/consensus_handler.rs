@@ -938,8 +938,8 @@ mod tests {
     };
     use prometheus_filtered::Registry;
     use starfish_core::{
-        BlockHeaderAPI, CommitDigest, CommitRef, CommittedSubDag, TestBlockHeader,
-        VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI, CommitDigest, CommitRef, CommitmentVerifiedTransactions, CommittedSubDag,
+        TestBlockHeader, VerifiedBlockHeader,
     };
 
     use super::*;
@@ -1010,7 +1010,7 @@ mod tests {
                 TestBlockHeader::new(100 + i as u32, (i % consensus_committee.size()) as u8)
                     .build(),
             );
-            let tx_batch = VerifiedTransactions::new_for_test(
+            let tx_batch = CommitmentVerifiedTransactions::new_for_test(
                 &header,
                 vec![starfish_core::Transaction::new(transaction_bytes)],
             );
@@ -1172,7 +1172,7 @@ mod tests {
                 TestBlockHeader::new(100 + i as u32, (i % consensus_committee.size()) as u8)
                     .build(),
             );
-            let tx_batch = VerifiedTransactions::new_for_test(
+            let tx_batch = CommitmentVerifiedTransactions::new_for_test(
                 &header,
                 vec![starfish_core::Transaction::new(transaction_bytes)],
             );
