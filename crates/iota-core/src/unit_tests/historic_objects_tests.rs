@@ -33,13 +33,14 @@ fn test_store() -> (
     TempDir,
 ) {
     let dir = iota_common::tempdir();
-    let (perpetual, historic, _historic_ledger) =
+    let (perpetual, historic, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     let perpetual = Arc::new(perpetual);
     let historic = Arc::new(historic);
     let store = AuthorityStore::open_no_genesis(
         perpetual.clone(),
         historic.clone(),
+        Arc::new(historic_ledger),
         false,
         &Registry::new(),
     )
