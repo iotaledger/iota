@@ -164,6 +164,17 @@ impl HistoricCheckpoints {
         Ok(Self { buckets })
     }
 
+    /// The oldest epoch this store still holds a bucket for, `None` when it
+    /// holds none at all. No checkpoint closed before this epoch is readable
+    /// any more.
+    ///
+    /// This is what the store holds, not what its retention would keep: a node
+    /// restored from a formal snapshot starts with no bucket at all, whatever
+    /// the retention says.
+    pub fn earliest_bucket_epoch(&self) -> Option<EpochId> {
+        self.buckets.earliest_epoch()
+    }
+
     /// The bucket holding `epoch`'s checkpoint history, created if absent.
     pub fn ensure(&self, epoch: EpochId) -> IotaResult<Arc<HistoricCheckpointsBucket>> {
         self.buckets
