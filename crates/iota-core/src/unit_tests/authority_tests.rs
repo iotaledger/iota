@@ -9296,6 +9296,76 @@ async fn reconfiguration_expires_ledger_buckets_beyond_the_retention() {
     }
 }
 
+/// Expiring the checkpoint buckets must move `HighestPruned` up to the last
+/// checkpoint of the epoch below the oldest bucket retained, so that
+/// `try_get_lowest_available_checkpoint` stops offering state-sync peers and
+/// RPC clients a range whose contents have been dropped.
+#[tokio::test]
+async fn expiring_the_checkpoint_buckets_moves_the_pruned_watermark() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+
+    // Two checkpoints per epoch, so that the watermark lands on the epoch's
+    // last one rather than on whichever of its checkpoints comes to hand.
+    for epoch in 0..=3 {
+        for sequence in [epoch * 2, epoch * 2 + 1] {
+            let full_contents = FullCheckpointContents::random_for_testing();
+            let checkpoint = test_checkpoint_with_contents(epoch, sequence, &full_contents);
+            checkpoint_store
+                .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+                .unwrap();
+            checkpoint_store
+                .insert_certified_checkpoint(&checkpoint)
+                .unwrap();
+            if sequence == epoch * 2 + 1 {
+                checkpoint_store
+                    .insert_epoch_last_checkpoint(epoch, &checkpoint)
+                    .unwrap();
+            }
+        }
+    }
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        None,
+    );
+
+    // Entering epoch 4 leaves epoch 3, and retaining two epochs from there
+    // keeps 2 and 3, so everything up to epoch 1's last checkpoint is gone.
+    authority.advance_historic_buckets(4).await.unwrap();
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        Some(3),
+    );
+
+    // A watermark already standing higher — where a formal-snapshot restore
+    // leaves it — must not be walked back by a later expiry pass.
+    let restored = checkpoint_store
+        .get_checkpoint_by_sequence_number(5)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_pruned_checkpoint(&restored)
+        .unwrap();
+    authority.advance_historic_buckets(4).await.unwrap();
+    assert_eq!(
+        checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()
+            .unwrap(),
+        Some(5),
+    );
+}
+
 /// Once epoch 0's checkpoint bucket has been expired, the genesis checkpoint
 /// is no longer readable by digest. A restart must still recognise that the
 /// database holds it: writing it again would refuse to reopen the expired
