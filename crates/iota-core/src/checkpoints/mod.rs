@@ -7,6 +7,7 @@ pub mod checkpoint_executor;
 mod checkpoint_output;
 mod epoch_info;
 mod full_checkpoint_contents_cache;
+pub mod historic_checkpoints;
 mod metrics;
 
 use std::{
