@@ -1606,7 +1606,8 @@ fn load_checkpoint_transactions(
         .iter()
         .map(|digests| {
             let transaction = authority_store
-                .get_transaction_block(&digests.transaction)?
+                .get_transaction_block(&digests.transaction)
+                .map_err(|e| StorageError::custom(e.to_string()))?
                 .ok_or_else(|| {
                     StorageError::missing(format!("missing transaction {}", digests.transaction))
                 })?
@@ -1620,7 +1621,8 @@ fn load_checkpoint_transactions(
             let events = if effects.events_digest().is_some() {
                 Some(
                     authority_store
-                        .get_events(&digests.transaction)?
+                        .get_events(&digests.transaction)
+                        .map_err(|e| StorageError::custom(e.to_string()))?
                         .ok_or_else(|| {
                             StorageError::missing(format!("missing events {}", digests.transaction))
                         })?,
