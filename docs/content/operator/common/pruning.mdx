@@ -1,7 +1,7 @@
 
 Sustainable disk usage requires IOTA full nodes to prune the information about historic object versions as well as historic transactions with the corresponding effects and events, including old checkpoint data.
 
-Both transaction and object pruners run in the background. The logical deletion of entries from RocksDB ultimately triggers the physical compaction of data on disk, which is governed by RocksDB background jobs: the pruning effect on disk usage is not immediate and might take multiple days.
+All three kinds of pruning below run at the epoch boundary, where an expired epoch's data is dropped as a whole set of RocksDB column families. Disk space is reclaimed as those files go, rather than after a delayed background compaction of individually deleted rows.
 
 :::tip
 
@@ -13,11 +13,11 @@ Testing indicates that aggressive pruning results in more efficient full node op
 
 ### Object Pruning
 
-IOTA adds new object versions to the database as part of transaction execution, which makes previous versions ready for garbage collection. Without pruning, this would result in database performance degradation and require large amounts of storage space. IOTA identifies the objects that are eligible for pruning in each checkpoint, and then performs the pruning in the background.
+IOTA adds new object versions to the database as part of transaction execution, which makes previous versions ready for garbage collection. Without pruning, this would result in database performance degradation and require large amounts of storage space. A superseded version is moved into its epoch's store as it is superseded, and the whole epoch is dropped once it falls outside the retention window.
 
 ### Transaction Pruning
 
-Transaction pruning removes previous transactions and their effects from the database. IOTA periodically creates checkpoints, and each checkpoint contains the transactions that occurred during the checkpoint and their associated effects. IOTA performs transaction pruning in the background after checkpoints complete.
+Transaction pruning removes previous transactions, their effects and events, and the corresponding checkpoint data from the database. Each is written into the store of the epoch that executed it, and the whole epoch is dropped once it falls outside the retention window.
 
 ### Index Pruning
 
@@ -88,11 +88,8 @@ authority-store-pruning-config:
   periodic-compaction-threshold-days: 1
 ```
 
-Transaction and index pruning are driven by checkpoint execution: after each
-executed checkpoint the node prunes data that has aged past the retention
-window, pacing the work against on-chain checkpoint timestamps. Object pruning
-runs at the epoch boundary instead, where it drops the expired epochs' object
-versions wholesale.
+All three run at the epoch boundary, where the node drops the epochs that have
+fallen outside each retention window.
 
 ## Configuration Examples
 
