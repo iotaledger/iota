@@ -33,7 +33,7 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
 
         PasskeyVerifier::new()
             .with_address(author)
-            .verify(&*digest, self)
+            .verify(&digest, self)
             .map_err(|e| IotaError::InvalidSignature {
                 error: format!("Invalid passkey authentication: {e}"),
             })

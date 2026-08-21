@@ -25,7 +25,7 @@ use crate::{
     committee::Committee,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
-        IotaAuthoritySignature, IotaSignature, PublicKey, VerificationObligation,
+        IotaAuthoritySignature, PublicKey, VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
     },
@@ -716,8 +716,8 @@ fn signature_from_signer(
     intent: Intent,
     signer: &impl Signer<SimpleSignature>,
 ) -> SimpleSignature {
-    let intent_msg = IntentMessage::new(intent, tx);
-    SimpleSignature::new_secure(&intent_msg, signer)
+    let digest = IntentMessage::new(intent, tx).signing_digest();
+    signer.sign(&digest)
 }
 
 #[test]

@@ -12,7 +12,7 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_crypto::ToFromBytes as _;
+use iota_sdk_crypto::{Signer as _, ToFromBytes as _};
 use iota_sdk_types::{
     Address, Digest, Owner, TransactionDigest,
     crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
@@ -24,13 +24,13 @@ use crate::{
     base_types::TypeTag,
     crypto::{
         AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature,
         bcs_signable_test::{Bar, Foo},
         get_key_pair,
     },
     dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
     object::Object,
+    signature::{AuthenticatorTrait, VerifyParams},
 };
 
 #[test]
@@ -55,31 +55,33 @@ fn test_signatures() {
     let foox = IntentMessage::new(Intent::iota_transaction(), Foo("hellox".into()));
     let bar = IntentMessage::new(Intent::iota_transaction(), Bar("hello".into()));
 
-    let s = SimpleSignature::new_secure(&foo, &sec1);
-    assert!(s.verify_secure(&foo, addr1).is_ok());
-    assert!(s.verify_secure(&foo, addr2).is_err());
-    assert!(s.verify_secure(&foox, addr1).is_err());
+    let aux = VerifyParams::default();
+    let s: SimpleSignature = sec1.sign(&foo.signing_digest());
+    assert!(s.verify_claims(&foo, addr1, &aux).is_ok());
+    assert!(s.verify_claims(&foo, addr2, &aux).is_err());
+    assert!(s.verify_claims(&foox, addr1, &aux).is_err());
     assert!(
-        s.verify_secure(
+        s.verify_claims(
             &IntentMessage::new(
                 Intent::iota_app(IntentScope::SenderSignedTransaction),
                 Foo("hello".into())
             ),
             addr1,
+            &aux,
         )
         .is_err()
     );
 
     // The struct type is different, but the serialization is the same.
-    assert!(s.verify_secure(&bar, addr1).is_ok());
+    assert!(s.verify_claims(&bar, addr1, &aux).is_ok());
 }
 
 #[test]
 fn test_signatures_serde() {
     let sec1 = AccountKeyPair::random();
     let foo = Foo("hello".into());
-    let s =
-        SimpleSignature::new_secure(&IntentMessage::new(Intent::iota_transaction(), foo), &sec1);
+    let s: SimpleSignature =
+        sec1.sign(&IntentMessage::new(Intent::iota_transaction(), foo).signing_digest());
 
     let serialized = bcs::to_bytes(&s).unwrap();
     println!("{serialized:?}");

@@ -3383,16 +3383,27 @@ impl AuthorityState {
     /// It doesn't properly reconfigure the node, hence should be only used for
     /// testing.
     pub async fn reconfigure_for_testing(&self) {
+        self.reconfigure_for_testing_impl(None).await;
+    }
+
+    /// Like [`Self::reconfigure_for_testing`], but the next epoch uses the
+    /// given protocol config.
+    pub async fn reconfigure_for_testing_with_protocol_config(
+        &self,
+        protocol_config: ProtocolConfig,
+    ) {
+        self.reconfigure_for_testing_impl(Some(protocol_config))
+            .await;
+    }
+
+    async fn reconfigure_for_testing_impl(&self, protocol_config: Option<ProtocolConfig>) {
         let mut execution_lock = self.execution_lock_for_reconfiguration().await;
         let epoch_store = self.epoch_store_for_testing().clone();
-        let protocol_config = epoch_store.protocol_config().clone();
-        // The current protocol config used in the epoch store may have been overridden
-        // and diverged from the protocol config definitions. That override may
-        // have now been dropped when the initial guard was dropped. We reapply
-        // the override before creating the new epoch store, to make sure that
-        // the new epoch store has the same protocol config as the current one.
-        // Since this is for testing only, we mostly like to keep the protocol config
-        // the same across epochs.
+        // Default to the epoch store's config, whose override guard may have
+        // been dropped. Read it under the lock so config and epoch store are
+        // one snapshot.
+        let protocol_config =
+            protocol_config.unwrap_or_else(|| epoch_store.protocol_config().clone());
         let _guard =
             ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
         let new_epoch_store = epoch_store.new_at_next_epoch_for_testing(

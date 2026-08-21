@@ -52,7 +52,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderClient, unresolved};
+use iota_sdk_transaction_builder::{TransactionBuilderClient, unresolved};
 use iota_sdk_types::{
     Address, Identifier, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference, Owner,
     SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
@@ -1011,7 +1011,7 @@ impl IotaClientCommands {
                 }
 
                 let grpc_client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
+                let mut builder = grpc_client.transaction_builder(sender);
                 builder.upgrade_package(
                     package_id,
                     package_data,
@@ -1135,7 +1135,7 @@ impl IotaClientCommands {
                 );
 
                 let grpc_client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
+                let mut builder = grpc_client.transaction_builder(sender);
                 let upgrade_cap = builder.publish_package(package_data).result();
                 builder.transfer_objects(sender, [upgrade_cap]);
                 let tx_kind = builder.finish_kind().await?;
@@ -1362,7 +1362,7 @@ impl IotaClientCommands {
                 let signer = context.get_object_owner(&object_id).await?;
                 let to = get_identity_address(Some(to), context).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.transfer_objects(to, [object_id]);
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
@@ -1412,7 +1412,7 @@ impl IotaClientCommands {
                     .await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.pay(input_coins.clone(), recipients.into_iter().zip(amounts));
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
@@ -1458,7 +1458,7 @@ impl IotaClientCommands {
                 let signer =
                     get_identity_address(processing.sender.map(Into::into), context).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.pay_iota(recipients.into_iter().zip(amounts.iter().copied()));
                 let tx_kind = builder.finish_kind().await?;
 
@@ -1515,7 +1515,7 @@ impl IotaClientCommands {
                 let recipient = get_identity_address(Some(recipient), context).await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.transfer_objects(recipient, [unresolved::Argument::Gas]);
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &input_coins).await?;
@@ -1677,7 +1677,7 @@ impl IotaClientCommands {
                     && iota_coins.next_page_token.is_none()
                     && iota_coins.items[0].id() == &coin_id;
 
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 let (coin, coin_type) = if split_from_gas {
                     (
                         builder.apply_argument(unresolved::Argument::Gas),
@@ -1734,7 +1734,7 @@ impl IotaClientCommands {
                 let signer = context.get_object_owner(&primary_coin).await?;
                 let client = context.get_grpc_client().await?;
 
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.merge_coins(primary_coin, [coin_to_merge]);
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;

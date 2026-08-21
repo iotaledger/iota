@@ -10,14 +10,15 @@ use std::{
 use fastcrypto::traits::KeyPair;
 use iota_macros::sim_test;
 use iota_protocol_config::{Chain, OverrideGuard, ProtocolConfig, ProtocolVersion};
+use iota_sdk_crypto::IotaSigner as _;
 use iota_sdk_types::{
     Address, ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, GenesisTransaction,
     Identifier, SenderSignedTransaction, SharedObjectReference, TransactionKind,
-    crypto::{IntentScope, SimpleSignature},
+    crypto::IntentScope,
 };
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
-    crypto::{AccountKeyPair, IotaSignature, get_key_pair},
+    crypto::{AccountKeyPair, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     transaction::TransactionAPI,
@@ -75,8 +76,8 @@ async fn test_handle_transfer_transaction_bad_signature() {
         |mut_tx| {
             let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
             let data = mut_tx.data_mut_for_testing();
-            let signature = SimpleSignature::new_secure(&data.intent_message(), &unknown_key);
-            *data.tx_signatures_mut_for_testing() = vec![signature.into()];
+            let signature = unknown_key.sign_transaction(data.transaction()).unwrap();
+            *data.tx_signatures_mut_for_testing() = vec![signature];
         },
         |err| {
             assert_matches!(err, IotaError::SignerSignatureAbsent { .. });
@@ -805,8 +806,8 @@ async fn test_handle_certificate_errors() {
     let mut absent_sig_tx = transfer_transaction.clone();
     let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
     let data = absent_sig_tx.data_mut_for_testing();
-    let signature = SimpleSignature::new_secure(&data.intent_message(), &unknown_key);
-    *data.tx_signatures_mut_for_testing() = vec![signature.into()];
+    let signature = unknown_key.sign_transaction(data.transaction()).unwrap();
+    *data.tx_signatures_mut_for_testing() = vec![signature];
     let ct = CertifiedTransaction::new(
         data.clone(),
         vec![signed_transaction.auth_sig().clone()],

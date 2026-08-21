@@ -24,6 +24,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
+use iota_sdk_crypto::IotaSigner as _;
 use iota_sdk_types::{
     Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
@@ -31,14 +32,14 @@ use iota_sdk_types::{
     ProgrammableTransaction, SharedObjectReference, StructTag, Transaction, TransactionDigest,
     TransactionEffects, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
     TransactionV1, TypeTag, Version, VersionAssignment,
-    crypto::{Intent, IntentScope, SimpleSignature},
+    crypto::{Intent, IntentScope},
 };
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, AuthoritySignInfo, IotaSignature,
-        get_key_pair, random_committee_key_pairs_of_size,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, AuthoritySignInfo, get_key_pair,
+        random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExt},
@@ -1369,8 +1370,9 @@ async fn test_handle_transfer_transaction_bad_signature() {
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
         .tx_signatures_mut_for_testing() = vec![
-        SimpleSignature::new_secure(&transfer_transaction.data().intent_message(), &unknown_key)
-            .into(),
+        unknown_key
+            .sign_transaction(transfer_transaction.data().transaction())
+            .unwrap(),
     ];
 
     assert!(
