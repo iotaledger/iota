@@ -15,7 +15,7 @@ use iota_json_rpc_types::{
 };
 use iota_move_build::{BuildConfig, CompiledPackage, IotaPackageHooks};
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_transaction_builder::{TransactionBuilder, assigned};
+use iota_sdk_transaction_builder::assigned;
 use iota_sdk_types::{Address, MovePackageData, ObjectId, ObjectReference, TransactionDigest};
 use iota_test_transaction_builder::{make_publish_transaction, make_publish_transaction_with_deps};
 use iota_types::{
@@ -879,7 +879,7 @@ pub async fn upgrade_package_with_wallet(
     let transaction = {
         let package_data = MovePackageData::new(all_module_bytes, dep_ids);
 
-        let mut builder = TransactionBuilder::new(sender).with_client(&grpc_client);
+        let mut builder = grpc_client.transaction_builder(sender);
         builder.gas_price(gas_price);
         builder.gas_budget(TEST_ONLY_GAS_UNIT_FOR_PUBLISH * 2 * gas_price);
 
