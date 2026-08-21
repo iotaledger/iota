@@ -11,8 +11,8 @@ use iota_sdk_types::{
     Version,
 };
 use iota_types::{
-    base_types::EpochId, programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::CallArg,
+    base_types::EpochId, effects::TransactionEffectsAPI,
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
 };
 use rand::random;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -254,17 +254,13 @@ async fn create_test_env() -> TestEnv {
         .await
         .publish(path)
         .build();
-    let effects = test_cluster
-        .sign_and_execute_transaction(&tx_data)
-        .await
-        .effects
-        .unwrap();
+    let effects = test_cluster.sign_and_execute_transaction(&tx_data).await;
     let mut coin_id = None;
     let mut coin_type = None;
     let mut coin_owner = None;
     let mut deny_cap = None;
-    for created in effects.created() {
-        let object_id = created.reference.object_id;
+    for (obj_ref, owner) in effects.created() {
+        let object_id = obj_ref.object_id;
         let object = test_cluster
             .get_object_from_fullnode_store(&object_id)
             .await
@@ -274,7 +270,7 @@ async fn create_test_env() -> TestEnv {
         } else if object.is_coin() {
             coin_id = Some(object_id);
             coin_type = object.coin_type_opt().cloned();
-            coin_owner = Some(*created.owner.as_address());
+            coin_owner = owner.address_or_object().copied();
         } else if object.type_().unwrap().is_deny_cap_v1() {
             deny_cap = Some(object_id);
         }

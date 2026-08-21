@@ -30,6 +30,7 @@ use iota_test_transaction_builder::{
     publish_nfts_package,
 };
 use iota_types::{
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     messages_grpc::TransactionInfoRequest,
     object::{Object, ObjectRead, PastObjectRead},
@@ -618,7 +619,7 @@ async fn do_test_full_node_sync_flood() {
                     test_cluster.execute_transaction(tx).await
                 };
 
-                owned_tx_digest = Some(res.digest);
+                owned_tx_digest = Some(*res.transaction_digest());
                 shared_tx_digest = Some(
                     increment_counter(
                         &test_cluster.wallet,
@@ -1216,10 +1217,8 @@ async fn test_access_old_object_pruned() {
     let gas_object = tx_builder.gas_object();
     let effects = test_cluster
         .sign_and_execute_transaction(&tx_builder.transfer_iota(None, sender).build())
-        .await
-        .effects
-        .unwrap();
-    let new_gas_version = effects.gas_object().reference.version;
+        .await;
+    let new_gas_version = effects.gas_object().0.version;
     test_cluster.force_new_epoch().await;
     // Construct a new transaction that uses the old gas object reference.
     let tx = test_cluster.sign_transaction(

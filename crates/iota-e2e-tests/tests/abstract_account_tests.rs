@@ -20,9 +20,7 @@ use fastcrypto::{
     traits::Authenticator,
 };
 use iota_core::authority_client::validator::ValidatorAPI;
-use iota_json_rpc_types::{
-    DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-};
+use iota_json_rpc_types::{DryRunTransactionBlockResponse, IotaTransactionBlockEffectsAPI};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
@@ -2860,18 +2858,9 @@ impl TestEnvironment {
         &self,
         tx: TransactionEnvelope,
     ) -> anyhow::Result<()> {
-        let transaction_response = self.test_cluster.execute_transaction(tx).await;
-
-        // Check correctness
-        let IotaTransactionBlockResponse {
-            confirmed_local_execution,
-            errors,
-            ..
-        } = transaction_response;
-
-        // The transaction must be successful
-        assert!(confirmed_local_execution.unwrap());
-        assert!(errors.is_empty(), "unexpected errors: {errors:?}");
+        // `execute_transaction` panics unless execution succeeded on the
+        // fullnode.
+        self.test_cluster.execute_transaction(tx).await;
         Ok(())
     }
 
