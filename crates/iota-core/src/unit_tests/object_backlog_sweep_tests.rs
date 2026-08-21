@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{ObjectId, Owner, Version};
 use iota_types::{committee::EpochId, object::Object, storage::ObjectKey};
 use prometheus_filtered::Registry;
 use tempfile::TempDir;
@@ -117,6 +117,18 @@ fn recorded_tombstones(store: &AuthorityStore, epoch: EpochId) -> Vec<ObjectKey>
         .collect()
 }
 
+/// The keys of the versions relocated into `epoch`'s bucket.
+fn relocated_keys(store: &AuthorityStore, epoch: EpochId) -> Vec<ObjectKey> {
+    store
+        .get_historic_objects()
+        .ensure(epoch)
+        .unwrap()
+        .objects
+        .safe_iter()
+        .map(|row| row.unwrap().0)
+        .collect()
+}
+
 fn progress(store: &AuthorityStore) -> Option<ObjectBacklogSweepProgress> {
     store
         .perpetual_tables
@@ -127,9 +139,9 @@ fn progress(store: &AuthorityStore) -> Option<ObjectBacklogSweepProgress> {
 
 /// The live table is left with the newest version of every object and with
 /// every tombstone, including the one an unwrap left below a newer version.
-/// Each tombstone is recorded in the current epoch's bucket, so that
-/// ordinary retention deletes it later, and nothing is relocated into that
-/// bucket.
+/// Every superseded version is relocated into the current epoch's bucket, and
+/// each tombstone is recorded there too, so that ordinary retention deletes
+/// the two together later.
 #[tokio::test]
 async fn the_sweep_keeps_the_latest_version_and_the_tombstones() {
     let dir = iota_common::tempdir();
@@ -148,25 +160,81 @@ async fn the_sweep_keeps_the_latest_version_and_the_tombstones() {
         ]
     );
     assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        vec![
+            ObjectKey(live_id(), 1.into()),
+            ObjectKey(live_id(), 2.into()),
+            ObjectKey(deleted_id(), 1.into()),
+            ObjectKey(deleted_id(), 2.into()),
+            ObjectKey(wrapped_id(), 1.into()),
+        ]
+    );
+    assert_eq!(
         recorded_tombstones(&store, SWEEP_EPOCH),
         vec![
             ObjectKey(deleted_id(), 3.into()),
             ObjectKey(wrapped_id(), 2.into()),
         ]
     );
-    assert!(
+    assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
+}
+
+/// A relocated version is the object it was in the live table, and the
+/// bounded read serves it from the bucket once it is no longer live. A
+/// version relocated from under a tombstone is served below that tombstone
+/// and never above it.
+#[tokio::test]
+async fn a_relocated_version_is_readable_from_the_current_epoch_bucket() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    seed(&store);
+
+    sweep_all(&store, 5_000);
+
+    let key = ObjectKey(live_id(), 2.into());
+    let object = Object::with_id_owner_version_for_testing(live_id(), 2.into(), Owner::Immutable);
+    assert_eq!(
         store
             .get_historic_objects()
             .ensure(SWEEP_EPOCH)
             .unwrap()
             .objects
-            .is_empty()
+            .get(&key)
+            .unwrap(),
+        Some(object.clone())
     );
-    assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
+    assert_eq!(
+        store.get_historic_objects().get(&key).unwrap(),
+        Some(object)
+    );
+
+    for (id, bound, expected) in [
+        // Relocated out of the live table, and answered from the bucket.
+        (live_id(), 1, Some(1)),
+        (live_id(), 2, Some(2)),
+        // Still the newest live version.
+        (live_id(), 3, Some(3)),
+        // Below the tombstone the deletion left in the live table.
+        (deleted_id(), 2, Some(2)),
+        // At and above it the object is gone, and the versions relocated
+        // from beneath it are not served in its place.
+        (deleted_id(), 3, None),
+        (deleted_id(), 4, None),
+    ] {
+        assert_eq!(
+            store
+                .find_object_lt_or_eq_version_with_historic_fallback(id, bound.into())
+                .unwrap()
+                .map(|object| object.version()),
+            expected.map(Version::from),
+            "object {id} bounded at {bound}"
+        );
+    }
 }
 
 /// One call walks the whole table, however many slices that takes, so a
-/// caller that awaits it is left with no backlog at all.
+/// caller that awaits it is left with no backlog at all: the versions the
+/// slices after the first one decide on are relocated too.
 #[tokio::test]
 async fn one_call_drives_the_walk_past_the_slice_boundary() {
     let dir = iota_common::tempdir();
@@ -178,28 +246,19 @@ async fn one_call_drives_the_walk_past_the_slice_boundary() {
         .multi_insert((1..=last_version).map(|version| value(live_id(), version)))
         .unwrap();
 
-    sweep(store.clone(), SWEEP_EPOCH, 2).await.unwrap();
+    sweep(store.clone(), SWEEP_EPOCH).await.unwrap();
 
     assert_eq!(
         live_keys(&store),
         vec![ObjectKey(live_id(), last_version.into())]
     );
+    assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        (1..last_version)
+            .map(|version| ObjectKey(live_id(), version.into()))
+            .collect::<Vec<_>>()
+    );
     assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
-}
-
-/// A node that retains every epoch's superseded versions keeps the
-/// pre-upgrade ones too: it expires no bucket, so the live table is the only
-/// place that history still exists.
-#[tokio::test]
-async fn retaining_every_epoch_leaves_the_backlog_in_the_live_table() {
-    let dir = iota_common::tempdir();
-    let store = open_store(&dir);
-    seed(&store);
-
-    sweep(store.clone(), SWEEP_EPOCH, u64::MAX).await.unwrap();
-
-    assert_eq!(live_keys(&store).len(), 9);
-    assert_eq!(progress(&store), None);
 }
 
 /// A walk stopped part-way resumes from the key it recorded, across a
@@ -226,6 +285,10 @@ async fn the_sweep_resumes_from_its_watermark() {
         )))
     );
     assert_eq!(live_keys(&interrupted).len(), 8);
+    assert_eq!(
+        relocated_keys(&interrupted, SWEEP_EPOCH),
+        vec![ObjectKey(live_id(), 1.into())]
+    );
 
     // Release every handle on the database before reopening the same path,
     // as a restart does.
@@ -238,6 +301,10 @@ async fn the_sweep_resumes_from_its_watermark() {
     sweep_all(&resumed, 1);
 
     assert_eq!(live_keys(&resumed), live_keys(&uninterrupted));
+    assert_eq!(
+        relocated_keys(&resumed, SWEEP_EPOCH),
+        relocated_keys(&uninterrupted, SWEEP_EPOCH)
+    );
     assert_eq!(
         recorded_tombstones(&resumed, SWEEP_EPOCH),
         recorded_tombstones(&uninterrupted, SWEEP_EPOCH)
@@ -268,5 +335,9 @@ async fn a_finished_sweep_leaves_later_starts_nothing_to_do() {
             .get(&superseded)
             .unwrap()
             .is_some()
+    );
+    assert!(
+        !relocated_keys(&store, SWEEP_EPOCH).contains(&superseded),
+        "a version superseded after the walk finished is the commit's to relocate"
     );
 }

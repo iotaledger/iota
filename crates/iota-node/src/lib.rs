@@ -602,15 +602,11 @@ impl IotaNode {
         // its latest versions.
         // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
         // call once every database has swept the pre-bucket backlog.
-        object_backlog_sweep::sweep(
-            store.clone(),
-            epoch_store.epoch(),
-            config.authority_store_pruning_config.num_epochs_to_retain,
-        )
-        .await
-        .map_err(|e| {
-            anyhow!("failed to sweep the object versions superseded before this build: {e}")
-        })?;
+        object_backlog_sweep::sweep(store.clone(), epoch_store.epoch())
+            .await
+            .map_err(|e| {
+                anyhow!("failed to sweep the object versions superseded before this build: {e}")
+            })?;
 
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(

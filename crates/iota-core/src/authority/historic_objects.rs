@@ -425,12 +425,12 @@ impl HistoricObjects {
     ///
     /// A bucket's heads may only be deleted once every version beneath them is
     /// out of reach, which for a relocated version follows from expiring
-    /// oldest epoch first. A version superseded before this build was never
-    /// relocated and sits in the live `objects` table until
-    /// [`crate::authority::object_backlog_sweep::sweep`] deletes it, and
-    /// deleting a tombstone above one would leave that version as the newest
-    /// row of a deleted object; that walk finishes at node startup, before
-    /// anything that reaches this.
+    /// oldest epoch first. A version superseded before this build sits in the
+    /// live `objects` table until
+    /// [`crate::authority::object_backlog_sweep::sweep`] relocates it, and
+    /// deleting a tombstone above one still in the live table would leave it
+    /// as the newest row of a deleted object; that walk finishes at node
+    /// startup, before anything that reaches this.
     ///
     /// Blocks queries for the duration, so an async caller must use
     /// `spawn_blocking`.
