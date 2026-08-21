@@ -238,7 +238,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             Some(store) => store,
             None => {
                 // unwrap ok - for testing only.
-                let (perpetual_tables, historic_objects) =
+                let (perpetual_tables, historic_objects, _historic_ledger) =
                     AuthorityPerpetualTables::open_with_historic_objects(
                         &storage_dir.join("store"),
                         None,

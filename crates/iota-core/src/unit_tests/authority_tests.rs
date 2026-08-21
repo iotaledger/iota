@@ -3072,7 +3072,7 @@ async fn test_authority_persist() {
     let tmp_dir = iota_common::tempdir();
     let path = tmp_dir.path().to_path_buf();
 
-    let (perpetual_tables, historic_objects) =
+    let (perpetual_tables, historic_objects, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
     // Create an authority
     let store = AuthorityStore::open_with_committee_for_testing(
@@ -3095,6 +3095,9 @@ async fn test_authority_persist() {
 
     // Close the authority
     drop(authority);
+    // The ledger buckets are not part of `AuthorityStore`, so they hold their
+    // own reference to the database and must be released before reopening it.
+    drop(historic_ledger);
 
     // TODO: The right fix is to invoke some function on DBMap and release the
     // rocksdb arc references being held in the background thread but this will
@@ -3105,7 +3108,7 @@ async fn test_authority_persist() {
     let seed = [1u8; 32];
     let (genesis, authority_key) = init_state_parameters_from_rng(&mut StdRng::from_seed(seed));
     let committee = genesis.committee().unwrap();
-    let (perpetual_tables, historic_objects) =
+    let (perpetual_tables, historic_objects, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
     let store = AuthorityStore::open_with_committee_for_testing(
         Arc::new(perpetual_tables),
