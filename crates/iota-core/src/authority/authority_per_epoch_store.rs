@@ -3342,6 +3342,7 @@ impl AuthorityPerEpochStore {
     ///
     /// In addition to the early termination guarantee, this function also
     /// prevents epoch_terminated() if future is being executed.
+    #[allow(clippy::result_unit_err)]
     pub async fn within_alive_epoch<F: Future + Send>(&self, f: F) -> Result<F::Output, ()> {
         // This guard is kept in the future until it resolves, preventing
         // `epoch_terminated` to acquire a write lock
