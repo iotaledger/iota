@@ -3074,10 +3074,12 @@ async fn test_authority_persist() {
 
     let (perpetual_tables, historic_objects, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
+    let historic_ledger = Arc::new(historic_ledger);
     // Create an authority
     let store = AuthorityStore::open_with_committee_for_testing(
         Arc::new(perpetual_tables),
         Arc::new(historic_objects),
+        historic_ledger.clone(),
         &committee,
         &genesis,
     )
@@ -3108,11 +3110,12 @@ async fn test_authority_persist() {
     let seed = [1u8; 32];
     let (genesis, authority_key) = init_state_parameters_from_rng(&mut StdRng::from_seed(seed));
     let committee = genesis.committee().unwrap();
-    let (perpetual_tables, historic_objects, _historic_ledger) =
+    let (perpetual_tables, historic_objects, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
     let store = AuthorityStore::open_with_committee_for_testing(
         Arc::new(perpetual_tables),
         Arc::new(historic_objects),
+        Arc::new(historic_ledger),
         &committee,
         &genesis,
     )

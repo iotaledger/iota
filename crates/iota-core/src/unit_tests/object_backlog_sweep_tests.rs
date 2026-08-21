@@ -57,11 +57,12 @@ fn wrapped_id() -> ObjectId {
 }
 
 fn open_store(dir: &TempDir) -> Arc<AuthorityStore> {
-    let (perpetual, historic, _historic_ledger) =
+    let (perpetual, historic, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     AuthorityStore::open_no_genesis(
         Arc::new(perpetual),
         Arc::new(historic),
+        Arc::new(historic_ledger),
         false,
         &Registry::new(),
     )

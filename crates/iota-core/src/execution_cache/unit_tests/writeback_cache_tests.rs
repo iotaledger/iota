@@ -1447,6 +1447,11 @@ async fn test_transaction_cache_race() {
         txns.push((tx, effects));
     }
 
+    // Create the bucket the inserts below write into here rather than leaving
+    // it to the first insert: creating a column family registers its metrics
+    // on the tokio runtime, which the plain threads below do not run on.
+    s.store.get_historic_ledger().ensure(1).unwrap();
+
     let barrier = Arc::new(std::sync::Barrier::new(2));
 
     let t1 = {
@@ -1458,11 +1463,12 @@ async fn test_transaction_cache_race() {
                 barrier.wait();
                 // test both single and multi insert
                 if i % 2 == 0 {
-                    cache.insert_transaction_and_effects(&tx, &effects);
+                    cache.insert_transaction_and_effects(1, &tx, &effects);
                 } else {
-                    cache.multi_insert_transaction_and_effects(&[VerifiedExecutionData::new(
-                        tx, effects,
-                    )]);
+                    cache.multi_insert_transaction_and_effects(
+                        1,
+                        &[VerifiedExecutionData::new(tx, effects)],
+                    );
                 }
             }
         })

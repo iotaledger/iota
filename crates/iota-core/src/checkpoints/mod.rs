@@ -3273,7 +3273,9 @@ mod tests {
         let digest = *tx.digest();
         state
             .database_for_testing()
-            .perpetual_tables
+            .get_historic_ledger()
+            .ensure(0)
+            .unwrap()
             .transactions
             .insert(&digest, tx.serializable_ref())
             .unwrap();
@@ -3431,10 +3433,13 @@ mod tests {
         // large (15..20) pools, so index order implies digest order per pool.
         let d = |i: u8| digests[i as usize];
 
+        let ledger_bucket = state
+            .database_for_testing()
+            .get_historic_ledger()
+            .ensure(0)
+            .unwrap();
         for (tx, digest) in txns.iter().zip(&digests) {
-            state
-                .database_for_testing()
-                .perpetual_tables
+            ledger_bucket
                 .transactions
                 .insert(digest, tx.serializable_ref())
                 .unwrap();
@@ -3698,10 +3703,13 @@ mod tests {
         // Digest for test index `i` (1-based).
         let d = |i: u8| digests[(i - 1) as usize];
 
+        let ledger_bucket = state
+            .database_for_testing()
+            .get_historic_ledger()
+            .ensure(0)
+            .unwrap();
         for tx in &txns {
-            state
-                .database_for_testing()
-                .perpetual_tables
+            ledger_bucket
                 .transactions
                 .insert(tx.digest(), tx.serializable_ref())
                 .unwrap();

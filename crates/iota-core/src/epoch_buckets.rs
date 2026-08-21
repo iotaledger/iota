@@ -173,6 +173,22 @@ impl<B> EpochBuckets<B> {
         }
     }
 
+    /// The retained buckets with the epoch each holds, in scan order:
+    /// ascending epochs for forward scans, descending for reverse scans. For
+    /// a caller that has to report which epoch answered, rather than only
+    /// read the rows.
+    pub(crate) fn iter_with_epoch(&self, reverse: bool) -> Vec<(EpochId, Arc<B>)> {
+        let buckets = self.buckets.read();
+        let rows = buckets
+            .iter()
+            .map(|(&epoch, bucket)| (epoch, bucket.clone()));
+        if reverse {
+            rows.rev().collect()
+        } else {
+            rows.collect()
+        }
+    }
+
     /// The newest epoch holding a bucket, `None` when there is none.
     pub(crate) fn newest_epoch(&self) -> Option<EpochId> {
         self.buckets

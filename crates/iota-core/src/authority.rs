@@ -5250,7 +5250,7 @@ impl AuthorityState {
         // able to deliver to the transaction to CheckpointExecutor after it is
         // included in a certified checkpoint.
         self.get_state_sync_store()
-            .try_insert_transaction_and_effects(&tx, &effects)?;
+            .try_insert_transaction_and_effects(epoch_store.epoch(), &tx, &effects)?;
 
         info!(
             "Effects summary of the change epoch transaction: {:?}",

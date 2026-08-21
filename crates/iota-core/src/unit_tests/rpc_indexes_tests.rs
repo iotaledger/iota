@@ -70,13 +70,14 @@ async fn reopen_index_store(
 /// An empty authority store under `dir`, for driving the rebuild and
 /// backfill paths.
 fn open_authority_store(dir: &std::path::Path) -> std::sync::Arc<super::AuthorityStore> {
-    let (perpetual_tables, historic_objects, _historic_ledger) =
+    let (perpetual_tables, historic_objects, historic_ledger) =
         crate::authority::authority_store_tables::AuthorityPerpetualTables::
             open_with_historic_objects(dir, None)
             .unwrap();
     crate::authority::AuthorityStore::open_no_genesis(
         std::sync::Arc::new(perpetual_tables),
         std::sync::Arc::new(historic_objects),
+        std::sync::Arc::new(historic_ledger),
         false,
         &Registry::default(),
     )
@@ -2860,7 +2861,9 @@ async fn test_backfill_stops_at_deleted_checkpoint_data() {
     let checkpoint_store = &authority_state.checkpoint_store;
     let authority_store = authority_state.database_for_testing();
     authority_store
-        .perpetual_tables
+        .get_historic_ledger()
+        .ensure(0)
+        .unwrap()
         .transactions
         .remove(&genesis_tx_digest)
         .unwrap();

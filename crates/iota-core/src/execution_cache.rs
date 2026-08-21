@@ -1182,8 +1182,11 @@ pub trait ExecutionCacheReconfigAPI: Send + Sync {
 // sync implies that it is certified output, and can be immediately persisted to
 // the store.
 pub trait StateSyncAPI: Send + Sync {
+    /// Records a transaction and its effects, which will be executed in
+    /// `epoch` - the epoch of the checkpoint that carries them.
     fn try_insert_transaction_and_effects(
         &self,
+        epoch: EpochId,
         transaction: &VerifiedTransaction,
         transaction_effects: &TransactionEffects,
     ) -> IotaResult;
@@ -1191,24 +1194,29 @@ pub trait StateSyncAPI: Send + Sync {
     /// Non-fallible version of `try_insert_transaction_and_effects`.
     fn insert_transaction_and_effects(
         &self,
+        epoch: EpochId,
         transaction: &VerifiedTransaction,
         transaction_effects: &TransactionEffects,
     ) {
-        self.try_insert_transaction_and_effects(transaction, transaction_effects)
+        self.try_insert_transaction_and_effects(epoch, transaction, transaction_effects)
             .expect("storage access failed")
     }
 
+    /// Records transactions and their effects, which will be executed in
+    /// `epoch` - the epoch of the checkpoint that carries them.
     fn try_multi_insert_transaction_and_effects(
         &self,
+        epoch: EpochId,
         transactions_and_effects: &[VerifiedExecutionData],
     ) -> IotaResult;
 
     /// Non-fallible version of `try_multi_insert_transaction_and_effects`.
     fn multi_insert_transaction_and_effects(
         &self,
+        epoch: EpochId,
         transactions_and_effects: &[VerifiedExecutionData],
     ) {
-        self.try_multi_insert_transaction_and_effects(transactions_and_effects)
+        self.try_multi_insert_transaction_and_effects(epoch, transactions_and_effects)
             .expect("storage access failed");
     }
 }

@@ -479,33 +479,6 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    pub fn get_transaction(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<TrustedTransaction>> {
-        let Some(transaction) = self.transactions.get(digest)? else {
-            return Ok(None);
-        };
-        Ok(Some(transaction))
-    }
-
-    pub fn get_effects(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<TransactionEffects>> {
-        let Some(effect_digest) = self.executed_effects.get(digest)? else {
-            return Ok(None);
-        };
-        Ok(self.effects.get(&effect_digest)?)
-    }
-
-    pub fn get_checkpoint_sequence_number(
-        &self,
-        digest: &TransactionDigest,
-    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
-        Ok(self.executed_transactions_to_checkpoint.get(digest)?)
-    }
-
     pub fn get_newer_object_keys(
         &self,
         object: &(ObjectId, Version),
