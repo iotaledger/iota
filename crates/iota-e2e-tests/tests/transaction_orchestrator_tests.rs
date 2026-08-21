@@ -971,8 +971,8 @@ async fn test_pcool_duplicate_submission_inherits_failure() -> Result<(), anyhow
     let first_err = first.expect_err("transaction spending a stale gas object must fail");
     let second_err = second.expect_err("transaction spending a stale gas object must fail");
     assert!(
-        matches!(first_err, QuorumDriverError::InvalidTransaction(_)),
-        "expected the submission to be rejected as invalid, got {first_err:?}"
+        matches!(first_err, QuorumDriverError::RejectedByValidators(_)),
+        "expected the submission to be rejected by validators, got {first_err:?}"
     );
     assert_eq!(
         first_err, second_err,
