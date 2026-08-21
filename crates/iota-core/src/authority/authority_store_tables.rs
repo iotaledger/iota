@@ -25,6 +25,7 @@ use crate::authority::{
         StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
     },
     epoch_start_configuration::EpochStartConfiguration,
+    historic_ledger::HistoricLedger,
     historic_objects::HistoricObjects,
     object_backlog_sweep::ObjectBacklogSweepProgress,
 };
@@ -235,13 +236,14 @@ impl AuthorityPerpetualTables {
         Self::open_with_db_options(parent_path, db_options_override).0
     }
 
-    /// The perpetual tables together with the historic object buckets. The
-    /// buckets are column families of this same database, so they are opened
-    /// from its handle, with options cloned from the ones its own tables use.
+    /// The perpetual tables together with the historic object and ledger
+    /// buckets. Both bucket sets are column families of this same database,
+    /// so they are opened from its handle, with options cloned from the ones
+    /// its own tables use.
     pub fn open_with_historic_objects(
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
-    ) -> Result<(Self, HistoricObjects), TypedStoreError> {
+    ) -> Result<(Self, HistoricObjects, HistoricLedger), TypedStoreError> {
         let (tables, db_options) = Self::open_with_db_options(parent_path, db_options_override);
         let mut historic_objects = HistoricObjects::open(
             tables.objects.db.clone(),
@@ -249,7 +251,8 @@ impl AuthorityPerpetualTables {
             tables.objects.clone(),
         )?;
         historic_objects.objects_pruned_through = tables.object_backlog_sweep_bound.get(&())?;
-        Ok((tables, historic_objects))
+        let historic_ledger = HistoricLedger::open(tables.objects.db.clone(), &db_options)?;
+        Ok((tables, historic_objects, historic_ledger))
     }
 
     /// The perpetual tables and the base options their column families were
@@ -283,9 +286,14 @@ impl AuthorityPerpetualTables {
                 effects_table_config(db_options.clone()),
             ),
         ]);
-        // The historic object buckets are column families of this database, so
-        // they are opened here together with the tables declared above.
+        // The historic object and ledger buckets are column families of this
+        // database, so they are opened here together with the tables declared
+        // above.
         table_options.extend(HistoricObjects::extra_column_family_options(
+            &path,
+            &db_options,
+        ));
+        table_options.extend(HistoricLedger::extra_column_family_options(
             &path,
             &db_options,
         ));
