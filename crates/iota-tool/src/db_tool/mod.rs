@@ -247,16 +247,17 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
 }
 
 pub fn print_transaction(path: &Path, opt: PrintTransactionOptions) -> anyhow::Result<()> {
-    let perpetual_db = AuthorityPerpetualTables::open(&path.join("store"), None);
+    let (_perpetual_db, _historic_objects, historic_ledger) =
+        AuthorityPerpetualTables::open_with_historic_objects(&path.join("store"), None)?;
     if let Some((epoch, checkpoint_seq_num)) =
-        perpetual_db.get_checkpoint_sequence_number(&opt.digest)?
+        historic_ledger.get_transaction_checkpoint(&opt.digest)?
     {
         println!(
             "Transaction {:?} executed in epoch {} checkpoint {}",
             opt.digest, epoch, checkpoint_seq_num
         );
     };
-    if let Some(effects) = perpetual_db.get_effects(&opt.digest)? {
+    if let Some(effects) = historic_ledger.get_executed_effects(&opt.digest)? {
         println!(
             "Transaction {:?} dependencies: {:#?}",
             opt.digest,

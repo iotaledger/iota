@@ -2469,11 +2469,12 @@ impl GlobalStateHashStore for WritebackCache {
 impl StateSyncAPI for WritebackCache {
     fn try_insert_transaction_and_effects(
         &self,
+        epoch: EpochId,
         transaction: &VerifiedTransaction,
         transaction_effects: &TransactionEffects,
     ) -> IotaResult {
         self.store
-            .insert_transaction_and_effects(transaction, transaction_effects)?;
+            .insert_transaction_and_effects(epoch, transaction, transaction_effects)?;
 
         // Cache operations should not fail the entire operation after DB write succeeds
         // Use .ok() to ignore cache failures and avoid data inconsistency
@@ -2499,10 +2500,11 @@ impl StateSyncAPI for WritebackCache {
 
     fn try_multi_insert_transaction_and_effects(
         &self,
+        epoch: EpochId,
         transactions_and_effects: &[VerifiedExecutionData],
     ) -> IotaResult {
         self.store
-            .multi_insert_transaction_and_effects(transactions_and_effects.iter())?;
+            .multi_insert_transaction_and_effects(epoch, transactions_and_effects.iter())?;
         for VerifiedExecutionData {
             transaction,
             effects,

@@ -224,6 +224,140 @@ impl HistoricLedger {
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
+    /// The bucket holding `digest`'s history, newest epoch first, with the
+    /// epoch it was found in.
+    ///
+    /// Everything a transaction wrote is in one bucket, so a caller resolves
+    /// the epoch once here and then reads its effects, events and checkpoint
+    /// straight from the returned bucket instead of probing again. A digest
+    /// no bucket holds was never executed or has been dropped, and both
+    /// answer `None`.
+    ///
+    /// The probe is `executed_effects`, the one table of a bucket that the
+    /// commit batch writes for every transaction this node executed. A
+    /// transaction body alone — synced ahead of execution, or persisted
+    /// before it — is not an execution record, so it is found through
+    /// [`Self::get_transaction`] instead.
+    pub fn find_epoch(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<(EpochId, Arc<HistoricLedgerBucket>)>> {
+        for (epoch, bucket) in self.buckets.iter_with_epoch(true) {
+            if bucket
+                .executed_effects
+                .contains_key(digest)
+                .map_err(|e| IotaError::Storage(e.to_string()))?
+            {
+                return Ok(Some((epoch, bucket)));
+            }
+        }
+        Ok(None)
+    }
+
+    /// The effects of `digest` as this node executed it, `None` if no bucket
+    /// holds an execution record for it.
+    ///
+    /// The hop from the execution record to the effects stays inside the
+    /// bucket [`Self::find_epoch`] returned, since the commit batch writes
+    /// both.
+    pub fn get_executed_effects(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<TransactionEffects>> {
+        let Some((_, bucket)) = self.find_epoch(digest)? else {
+            return Ok(None);
+        };
+        let effects = bucket
+            .executed_effects
+            .get(digest)
+            .map_err(|e| IotaError::Storage(e.to_string()))?
+            .map(|effects_digest| bucket.effects.get(&effects_digest))
+            .transpose()
+            .map_err(|e| IotaError::Storage(e.to_string()))?
+            .flatten();
+        Ok(effects)
+    }
+
+    /// The checkpoint that finalized `digest`, with the epoch that checkpoint
+    /// belongs to, `None` while the transaction is executed but not yet
+    /// finalized, and for a transaction no bucket holds.
+    pub fn get_transaction_checkpoint(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<(EpochId, CheckpointSequenceNumber)>> {
+        let Some((epoch, bucket)) = self.find_epoch(digest)? else {
+            return Ok(None);
+        };
+        // The bucket's epoch is the epoch of the checkpoint, which is why the
+        // row itself holds only the sequence number.
+        Ok(bucket
+            .tx_to_checkpoint
+            .get(digest)
+            .map_err(|e| IotaError::Storage(e.to_string()))?
+            .map(|sequence| (epoch, sequence)))
+    }
+
+    /// The transaction stored under `digest`, newest bucket first, `None` if
+    /// no bucket holds it.
+    ///
+    /// Keyed on its own rather than resolved through [`Self::find_epoch`],
+    /// because a transaction body is also written before the transaction
+    /// executes — synced from a peer, or persisted so that a re-execution
+    /// after a crash can find it — and at that point there is no execution
+    /// record to find it by.
+    pub fn get_transaction(
+        &self,
+        digest: &TransactionDigest,
+    ) -> IotaResult<Option<TrustedTransaction>> {
+        for bucket in self.buckets.iter(true) {
+            if let Some(transaction) = bucket
+                .transactions
+                .get(digest)
+                .map_err(|e| IotaError::Storage(e.to_string()))?
+            {
+                return Ok(Some(transaction));
+            }
+        }
+        Ok(None)
+    }
+
+    /// The effects stored under `digest`, newest bucket first, `None` if no
+    /// bucket holds them.
+    ///
+    /// Keyed by effects digest, which is not a transaction digest, so this
+    /// cannot go through [`Self::find_epoch`]. A caller that has the
+    /// transaction digest reads the effects from the bucket that call
+    /// returned instead.
+    pub fn get_effects(
+        &self,
+        digest: &TransactionEffectsDigest,
+    ) -> IotaResult<Option<TransactionEffects>> {
+        for bucket in self.buckets.iter(true) {
+            if let Some(effects) = bucket
+                .effects
+                .get(digest)
+                .map_err(|e| IotaError::Storage(e.to_string()))?
+            {
+                return Ok(Some(effects));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Whether any bucket holds the effects under `digest`.
+    pub fn contains_effects(&self, digest: &TransactionEffectsDigest) -> IotaResult<bool> {
+        for bucket in self.buckets.iter(true) {
+            if bucket
+                .effects
+                .contains_key(digest)
+                .map_err(|e| IotaError::Storage(e.to_string()))?
+            {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     /// One page of the rows `cf_name` holds, if it is one of this store's
     /// column families: a bucket of transaction history, or the
     /// retention-floor family. `None` for any other name, leaving the caller

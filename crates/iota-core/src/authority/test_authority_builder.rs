@@ -238,7 +238,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             Some(store) => store,
             None => {
                 // unwrap ok - for testing only.
-                let (perpetual_tables, historic_objects, _historic_ledger) =
+                let (perpetual_tables, historic_objects, historic_ledger) =
                     AuthorityPerpetualTables::open_with_historic_objects(
                         &storage_dir.join("store"),
                         None,
@@ -247,6 +247,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                 AuthorityStore::open_with_committee_for_testing(
                     Arc::new(perpetual_tables),
                     Arc::new(historic_objects),
+                    Arc::new(historic_ledger),
                     &genesis_committee,
                     genesis,
                 )
