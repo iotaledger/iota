@@ -1,5 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2026 IOTA Stiftung
+// Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Sampling routines whose results depend only on the bytes an RNG produces,
