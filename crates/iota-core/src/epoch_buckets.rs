@@ -264,9 +264,10 @@ impl<B> EpochBuckets<B> {
     /// The newest bucket is what `epochs_to_retain` counts back from, so a
     /// store whose buckets can exist for epochs it has not yet executed —
     /// [`crate::authority::historic_ledger::HistoricLedger`], whose rows state
-    /// sync writes ahead of execution — must not pass its retention through
-    /// unchanged: part of it would be spent on epochs that are only synced,
-    /// dropping the history of the epoch still being executed and served.
+    /// sync writes ahead of execution — must call [`Self::prune_from_epoch`]
+    /// instead: part of the retention would otherwise be spent on epochs that
+    /// are only synced, dropping the history of the epoch still being
+    /// executed and served.
     ///
     /// Returns the earliest epoch to retain, `None` when there is no history
     /// at all. It is persisted before the drops and never moves backwards,
@@ -294,6 +295,35 @@ impl<B> EpochBuckets<B> {
     pub(crate) fn prune(
         &self,
         epochs_to_retain: u64,
+        before_drop: impl FnMut(EpochId, &Arc<B>) -> Result<(), TypedStoreError>,
+    ) -> Result<Option<EpochId>, TypedStoreError> {
+        self.prune_anchored(None, epochs_to_retain, before_drop)
+    }
+
+    /// [`Self::prune`], counting `epochs_to_retain` back from `anchor_epoch`
+    /// instead of from the newest bucket: the buckets of `anchor_epoch` and
+    /// of the `epochs_to_retain - 1` epochs below it are kept, older ones are
+    /// dropped, and the buckets above `anchor_epoch` are left alone.
+    ///
+    /// For a store whose buckets can exist for epochs the node has not
+    /// executed — [`crate::authority::historic_ledger::HistoricLedger`] and
+    /// [`crate::checkpoints::historic_checkpoints::HistoricCheckpoints`],
+    /// whose rows state sync writes ahead of execution and across epoch
+    /// boundaries. Pass an epoch the node has executed, so that the epochs it
+    /// has only synced cannot spend part of the retention.
+    pub(crate) fn prune_from_epoch(
+        &self,
+        anchor_epoch: EpochId,
+        epochs_to_retain: u64,
+        before_drop: impl FnMut(EpochId, &Arc<B>) -> Result<(), TypedStoreError>,
+    ) -> Result<Option<EpochId>, TypedStoreError> {
+        self.prune_anchored(Some(anchor_epoch), epochs_to_retain, before_drop)
+    }
+
+    fn prune_anchored(
+        &self,
+        anchor_epoch: Option<EpochId>,
+        epochs_to_retain: u64,
         mut before_drop: impl FnMut(EpochId, &Arc<B>) -> Result<(), TypedStoreError>,
     ) -> Result<Option<EpochId>, TypedStoreError> {
         // Runs once per executed checkpoint, where there is usually nothing
@@ -303,7 +333,7 @@ impl<B> EpochBuckets<B> {
             let buckets = self.buckets.read();
             let persisted = self.earliest_retained();
             let Some(earliest_retained) =
-                Self::earliest_epoch_to_retain(&buckets, epochs_to_retain, persisted)
+                Self::earliest_epoch_to_retain(&buckets, anchor_epoch, epochs_to_retain, persisted)
             else {
                 return Ok(None);
             };
@@ -319,7 +349,7 @@ impl<B> EpochBuckets<B> {
         let mut buckets = self.buckets.write();
         let persisted = self.earliest_retained();
         let Some(earliest_retained) =
-            Self::earliest_epoch_to_retain(&buckets, epochs_to_retain, persisted)
+            Self::earliest_epoch_to_retain(&buckets, anchor_epoch, epochs_to_retain, persisted)
         else {
             return Ok(None);
         };
@@ -363,21 +393,24 @@ impl<B> EpochBuckets<B> {
         Ok(Some(earliest_retained))
     }
 
-    /// The earliest epoch to retain when the newest bucket in `buckets` is
-    /// kept together with the `epochs_to_retain - 1` buckets below it, never
-    /// below `persisted`. `None` when there is no bucket at all.
+    /// The earliest epoch to retain when `anchor_epoch` — the newest bucket
+    /// in `buckets` when there is none — is kept together with the
+    /// `epochs_to_retain - 1` epochs below it, never below `persisted`.
+    /// `None` when there is no bucket at all.
     ///
     /// Raising `epochs_to_retain` must not move the earliest retained epoch
     /// back down over epochs whose buckets are already gone: they would be
     /// backfilled and recreated, contradicting what queries were told.
     fn earliest_epoch_to_retain(
         buckets: &BTreeMap<EpochId, Arc<B>>,
+        anchor_epoch: Option<EpochId>,
         epochs_to_retain: u64,
         persisted: EpochId,
     ) -> Option<EpochId> {
         let (&newest, _) = buckets.last_key_value()?;
         Some(
-            newest
+            anchor_epoch
+                .unwrap_or(newest)
                 .saturating_sub(epochs_to_retain.saturating_sub(1))
                 .max(persisted),
         )
@@ -476,6 +509,22 @@ mod tests {
             .unwrap();
         assert_eq!(earliest, Some(5));
         assert_eq!(*seen.lock().unwrap(), vec![3, 4]);
+    }
+
+    /// Counting back from an anchor below the newest bucket must neither
+    /// spend the retention on the buckets above the anchor nor drop them:
+    /// those are the epochs a store fed by state sync has run ahead into.
+    #[tokio::test]
+    async fn prune_from_epoch_ignores_the_buckets_above_the_anchor() {
+        let (buckets, _dir) = test_buckets(&[3, 4, 5, 6]);
+        let earliest = buckets.prune_from_epoch(4, 2, |_, _| Ok(())).unwrap();
+        assert_eq!(earliest, Some(3));
+        assert_eq!(buckets.iter(false).len(), 4);
+
+        let earliest = buckets.prune_from_epoch(5, 2, |_, _| Ok(())).unwrap();
+        assert_eq!(earliest, Some(4));
+        assert_eq!(buckets.earliest_epoch(), Some(4));
+        assert_eq!(buckets.newest_epoch(), Some(6));
     }
 
     /// A callback error must abort that epoch's drop instead of leaving the
