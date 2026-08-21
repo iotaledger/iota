@@ -11170,9 +11170,6 @@ async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[T
         ),
     );
     let checkpoint_store = s.authority.get_checkpoint_store();
-    checkpoint_store
-        .insert_checkpoint_contents(contents.clone().into_checkpoint_contents())
-        .unwrap();
     let fixture = iota_swarm_config::test_utils::CommitteeFixture::generate(
         rand::rand_core::UnwrapErr(rand::rngs::SysRng),
         epoch,
@@ -11184,6 +11181,9 @@ async fn execute_checkpoint_and_prune(s: &HandlerObjectStateSetup, executed: &[T
     for checkpoint in checkpoints.iter().skip(1) {
         checkpoint_store
             .insert_certified_checkpoint(checkpoint)
+            .unwrap();
+        checkpoint_store
+            .insert_checkpoint_contents(checkpoint, contents.clone().into_checkpoint_contents())
             .unwrap();
         checkpoint_store
             .update_highest_executed_checkpoint(checkpoint)
