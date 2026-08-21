@@ -49,7 +49,7 @@ tonic:
   subscribe_request_timeout:
     secs: 30
     nanos: 0
-fast_commit_sync_batch_size: 1000
+fast_commit_sync_batch_size: 400
 commit_sync_gap_threshold: 1000
 enable_fast_commit_syncer: true
 enable_commit_sync_peer_selection_by_commit_votes: true

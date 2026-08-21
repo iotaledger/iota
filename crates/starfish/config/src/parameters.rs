@@ -418,9 +418,11 @@ impl Parameters {
             // Exercise fast commit sync.
             5
         } else {
-            // With ~10KB per commit and 4MB max message size, 1000 commits (~10MB) requires
-            // chunking. The server will chunk commits across multiple response messages.
-            1000
+            // Sized so that commit_sync_parallel_fetches ranges fit under the
+            // unhandled-commits threshold (8 x 400 <= 3200), letting fast sync
+            // actually run its fetches in parallel. The server chunks larger
+            // responses across multiple messages either way.
+            400
         }
     }
 
