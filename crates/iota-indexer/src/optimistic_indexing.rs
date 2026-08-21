@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::{collections::BTreeMap, time::Duration};
 
-use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
+use diesel::{
+    PgConnection, QueryDsl, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types,
+};
 use downcast::Any;
 use fastcrypto::encoding::Base64;
 use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
@@ -31,6 +33,7 @@ use crate::{
         transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
     },
     read::{IndexerReader, InputObjectsStatus},
+    schema::tx_global_order,
     store::{IndexerStore, PgIndexerStore},
     transactional_blocking_with_retry_with_conditional_abort,
     types::{IndexedDeletedObject, IndexedObject, IndexerResult, grpc_conversion},
@@ -416,8 +419,19 @@ impl OptimisticTransactionExecutor {
                     &self.metrics,
                 );
 
-                let tx_data_to_commit = extractor
-                    .to_transaction_data_to_commit(assigned_global_order.global_sequence_number)?;
+                let global_sequence_number = tx_global_order::table
+                    .select(diesel::dsl::max(tx_global_order::tx_sequence_number))
+                    .first::<Option<i64>>(conn)
+                    .map_err(IndexerError::from)?
+                    .ok_or_else(|| {
+                        IndexerError::PostgresRead(
+                            "cannot assign global order, no checkpointed transactions in tx_global_order"
+                                .into(),
+                        )
+                    })?;
+
+                let tx_data_to_commit =
+                    extractor.to_transaction_data_to_commit(global_sequence_number)?;
 
                 let optimistic_tx = self.persist_optimistic_tx(conn, tx_data_to_commit)?;
                 Ok(Some(optimistic_tx))
@@ -435,8 +449,8 @@ impl OptimisticTransactionExecutor {
 
         sql_query(
             r#"
-                INSERT INTO tx_global_order (tx_digest, global_sequence_number, tx_sequence_number)
-                SELECT $1, MAX(tx_sequence_number), NULL FROM tx_global_order
+                INSERT INTO tx_global_order (tx_digest, tx_sequence_number)
+                VALUES ($1, NULL)
                 RETURNING *;
             "#,
         )

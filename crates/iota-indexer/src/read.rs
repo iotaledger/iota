@@ -15,9 +15,8 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use cached::{Cached, SizedCache};
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
-    OptionalExtension, PgConnection, QueryDsl, QueryableByName, RunQueryDsl, SelectableHelper,
-    TextExpressionMethods,
+    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
+    QueryDsl, QueryableByName, RunQueryDsl, SelectableHelper, TextExpressionMethods,
     dsl::sql,
     r2d2::ConnectionManager,
     sql_query,
@@ -99,9 +98,6 @@ use crate::{
 };
 
 pub const TX_SEQUENCE_NUMBER_STR: &str = "tx_sequence_number";
-pub const GLOBAL_SEQUENCE_NUMBER_STR: &str = "global_sequence_number";
-pub const OPTIMISTIC_SEQUENCE_NUMBER_STR: &str = "optimistic_sequence_number";
-pub const TX_DIGEST_STR: &str = "tx_digest";
 pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 
 /// Result of checking input object dependencies.
@@ -3200,12 +3196,8 @@ impl<'a> DBReader<'a> {
         run_query_async!(&pool, move |conn| {
             optimistic_transactions::table
                 .inner_join(
-                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
-                        .eq(tx_global_order::global_sequence_number)
-                        .and(
-                            optimistic_transactions::optimistic_sequence_number
-                                .eq(tx_global_order::optimistic_sequence_number),
-                        )),
+                    tx_global_order::table.on(optimistic_transactions::optimistic_sequence_number
+                        .eq(tx_global_order::optimistic_sequence_number)),
                 )
                 // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not
@@ -3450,12 +3442,8 @@ impl<'a> DBReader<'a> {
         run_query_async!(&pool, |conn| {
             optimistic_transactions::table
                 .inner_join(
-                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
-                        .eq(tx_global_order::global_sequence_number)
-                        .and(
-                            optimistic_transactions::optimistic_sequence_number
-                                .eq(tx_global_order::optimistic_sequence_number),
-                        )),
+                    tx_global_order::table.on(optimistic_transactions::optimistic_sequence_number
+                        .eq(tx_global_order::optimistic_sequence_number)),
                 )
                 // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not
@@ -3509,12 +3497,8 @@ impl<'a> DBReader<'a> {
         run_query_async!(&pool, |conn| {
             optimistic_transactions::table
                 .inner_join(
-                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
-                        .eq(tx_global_order::global_sequence_number)
-                        .and(
-                            optimistic_transactions::optimistic_sequence_number
-                                .eq(tx_global_order::optimistic_sequence_number),
-                        )),
+                    tx_global_order::table.on(optimistic_transactions::optimistic_sequence_number
+                        .eq(tx_global_order::optimistic_sequence_number)),
                 )
                 // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not

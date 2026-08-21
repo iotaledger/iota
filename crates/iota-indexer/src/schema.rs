@@ -414,7 +414,6 @@ diesel::table! {
 diesel::table! {
     tx_global_order (tx_digest) {
         tx_digest -> Bytea,
-        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         tx_sequence_number -> Nullable<Int8>,
     }

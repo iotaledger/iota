@@ -225,10 +225,7 @@ mod ingestion_tests {
         })
         .context("failed reading `tx_global_order` from PostgresDB")?;
 
-        assert_eq!(
-            stored_global_order.tx_sequence_number,
-            Some(stored_global_order.global_sequence_number)
-        );
+        assert!(stored_global_order.tx_sequence_number.is_some());
         let expected_optimistic_sequence_number = -1;
         assert_eq!(
             stored_global_order.optimistic_sequence_number,
@@ -253,7 +250,6 @@ mod ingestion_tests {
         sim.create_checkpoint();
         let digest = *effects.transaction_digest();
 
-        let global_sequence_number = 123;
         let emulate_insertion_order_set_earlier_by_optimistic_indexing =
             move |pg_store: &PgIndexerStore| {
                 transactional_blocking_with_retry!(
@@ -261,7 +257,6 @@ mod ingestion_tests {
                     |conn| {
                         let insertable = TxGlobalOrder {
                             tx_digest: digest.inner().to_vec(),
-                            global_sequence_number,
                             optimistic_sequence_number: None,
                             tx_sequence_number: None,
                         };
@@ -294,7 +289,9 @@ mod ingestion_tests {
         })
         .context("failed reading `tx_global_order` from PostgresDB")?;
 
-        assert_eq!(stored.global_sequence_number, global_sequence_number);
+        // The checkpoint upsert must fill in the sequence number without
+        // replacing the row inserted by the optimistic path.
+        assert!(stored.tx_sequence_number.is_some());
         let expected_optimistic_sequence_number = 1;
         assert_eq!(
             stored.optimistic_sequence_number,
