@@ -228,6 +228,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             scoring and absolute-score bad-node selection) in Starfish
 //             consensus on mainnet.
 // Version 36: Reject `<SELF>` as an identifier in published modules.
+//             Make the enum variant count limit explicit in the protocol
+//             config.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3483,6 +3485,7 @@ impl ProtocolConfig {
                 }
                 36 => {
                     cfg.feature_flags.disallow_self_identifier = true;
+                    cfg.max_move_enum_variants = Some(move_core_types::VARIANT_COUNT_MAX);
                 }
                 // Use this template when making changes:
                 //
