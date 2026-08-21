@@ -271,9 +271,13 @@ impl CheckpointStoreTables {
             None,
             Some(table_options),
         );
-        let historic_checkpoints =
-            HistoricCheckpoints::open(tables.certified_checkpoints.db.clone(), &db_options)
-                .expect("cannot open the historic checkpoint buckets");
+        let historic_checkpoints = HistoricCheckpoints::open(
+            tables.certified_checkpoints.db.clone(),
+            &db_options,
+            tables.checkpoint_content.clone(),
+            tables.checkpoint_by_digest.clone(),
+        )
+        .expect("cannot open the historic checkpoint buckets");
         (tables, historic_checkpoints)
     }
 
@@ -927,9 +931,12 @@ impl CheckpointStore {
     }
 
     /// Persists the checkpoint contents in digest form, in the bucket of the
-    /// epoch `checkpoint` belongs to. `checkpoint` is the checkpoint these
-    /// contents belong to; it is what says which epoch's history they are
-    /// part of.
+    /// epoch `checkpoint` belongs to.
+    ///
+    /// `checkpoint` must be the checkpoint whose contents these are: it is
+    /// what says which epoch's history they are part of, and passing another
+    /// one would file them under an epoch that expires at the wrong time.
+    /// Asserted against its `contents_digest`.
     pub fn insert_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -939,15 +946,22 @@ impl CheckpointStore {
             checkpoint_seq = ?contents.digest(),
             "Inserting checkpoint contents",
         );
+        assert_eq!(checkpoint.contents_digest, contents.digest());
         self.historic_checkpoints
             .ensure(checkpoint.epoch())?
             .checkpoint_content
             .insert(&contents.digest(), &contents)
     }
 
-    /// Persists the checkpoint contents in digest form and caches the full
-    /// contents in memory, where they serve the checkpoint executor's bulk
-    /// transaction loads and contents requests from state-sync peers.
+    /// Persists the checkpoint contents in digest form, in the bucket of the
+    /// epoch `checkpoint` belongs to, and caches the full contents in memory,
+    /// where they serve the checkpoint executor's bulk transaction loads and
+    /// contents requests from state-sync peers.
+    ///
+    /// This is the call state sync makes, so it can be the write that creates
+    /// the bucket of an epoch whose first checkpoint has not been executed
+    /// yet: state sync runs ahead of execution and across epoch boundaries.
+    /// See [`HistoricCheckpoints`] for what that means for retention.
     ///
     /// INVARIANT: See [`Self::cache_full_checkpoint_contents`].
     pub fn insert_verified_checkpoint_contents(
