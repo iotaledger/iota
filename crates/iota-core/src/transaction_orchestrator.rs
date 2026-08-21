@@ -1445,10 +1445,10 @@ fn convert_td_to_qd_effects(td: TdFinalizedEffects) -> FinalizedEffects {
 /// Map a `TransactionDriverError` to a `QuorumDriverError` for client
 /// reporting. The variant choice signals retriability: clients retry on
 /// `QuorumDriverInternal`, `FailedWithTransientErrorAfterMaximumAttempts`,
-/// and `TimeoutBeforeFinality`, but treat `InvalidTransaction` /
-/// `InvalidUserSignature` as terminal. Submission-time rejections that
-/// cannot succeed on resubmission must therefore not be reported as
-/// internal.
+/// and `TimeoutBeforeFinality`, but treat `InvalidTransaction`,
+/// `InvalidUserSignature`, and `RejectedByValidators` as terminal.
+/// Submission-time rejections that cannot succeed on resubmission must
+/// therefore not be reported as internal.
 fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
     use TransactionDriverError::*;
     match e {
@@ -1462,15 +1462,17 @@ fn map_td_error_to_qd(e: TransactionDriverError) -> QuorumDriverError {
         } => {
             // f+1 stake of validators returned non-retriable errors during
             // submission (bad signature, malformed tx, lock conflict, ...).
-            // f+1 means at least one honest validator considered this tx
-            // invalid, so resubmitting the same bytes cannot succeed.
+            // Some verdicts depend on validator-local state, so this does not
+            // prove the transaction can never execute; the variant is kept
+            // distinct from `InvalidTransaction` so clients can tell the two
+            // apart.
             let representative = submission_non_retriable_errors
                 .errors
                 .into_iter()
                 .next()
                 .map(|(msg, _, _, _)| msg)
                 .unwrap_or_else(|| "transaction rejected as invalid during submission".to_string());
-            QuorumDriverError::InvalidTransaction(IotaError::Unknown(format!(
+            QuorumDriverError::RejectedByValidators(IotaError::Unknown(format!(
                 "Transaction was rejected as invalid by more than 1/3 of validator stake \
                  during submission (non-retriable): {representative}"
             )))
@@ -2126,5 +2128,36 @@ mod tests {
             Err(QuorumDriverError::QuorumDriverInternal(_))
         ));
         assert!(orchestrator.subscribe_to_effects_queue().is_none());
+    }
+
+    /// Validator rejections must map to `RejectedByValidators`, not
+    /// `InvalidTransaction`: the verdicts can be validator-local, so clients
+    /// must be able to tell them apart from a locally proven invalid
+    /// transaction.
+    #[test]
+    fn map_validator_rejections_to_distinct_variant() {
+        use iota_types::error::ErrorCategory;
+
+        use crate::transaction_driver::AggregatedRequestErrors;
+
+        let td_error = TransactionDriverError::RejectedByValidators {
+            submission_non_retriable_errors: AggregatedRequestErrors {
+                errors: vec![(
+                    "Object lock conflict".to_string(),
+                    vec![],
+                    3334,
+                    ErrorCategory::LockConflict,
+                )],
+                total_stake: 3334,
+            },
+            submission_retriable_errors: AggregatedRequestErrors::default(),
+        };
+
+        let qd_error = map_td_error_to_qd(td_error);
+        let QuorumDriverError::RejectedByValidators(inner) = &qd_error else {
+            panic!("expected RejectedByValidators, got {qd_error:?}");
+        };
+        assert!(inner.to_string().contains("Object lock conflict"));
+        assert_eq!(qd_error.reason(), "rejected_by_validators");
     }
 }

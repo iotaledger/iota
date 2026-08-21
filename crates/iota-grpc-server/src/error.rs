@@ -156,6 +156,11 @@ impl ErrorDetails {
         self
     }
 
+    pub fn with_error_info(mut self, error_info: ErrorInfo) -> Self {
+        self.error_info = Some(error_info);
+        self
+    }
+
     pub fn with_retry_info(mut self, retry_info: RetryInfo) -> Self {
         self.retry_info = Some(retry_info);
         self
@@ -282,6 +287,9 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
         use iota_types::{error::IotaError, quorum_driver_types::QuorumDriverError::*};
         use itertools::Itertools;
 
+        // gRPC mirror of the JSON-RPC `data.reason` discriminant.
+        let reason = error.reason().to_uppercase();
+
         match error {
             InvalidUserSignature(err) => {
                 let message = {
@@ -293,7 +301,7 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                 };
                 RpcError::new(Code::InvalidArgument, message)
             }
-            InvalidTransaction(err) => {
+            InvalidTransaction(err) | RejectedByValidators(err) => {
                 let message = {
                     let err = match err {
                         IotaError::UserInput { error } => error.to_string(),
@@ -301,7 +309,16 @@ impl From<iota_types::quorum_driver_types::QuorumDriverError> for RpcError {
                     };
                     format!("Invalid transaction: {err}")
                 };
-                RpcError::new(Code::InvalidArgument, message)
+                let details = ErrorDetails::new().with_error_info(ErrorInfo {
+                    reason,
+                    domain: "iota.grpc".to_string(),
+                    ..Default::default()
+                });
+                RpcError {
+                    code: Code::InvalidArgument,
+                    message: Some(message),
+                    details: Some(Box::new(details)),
+                }
             }
             QuorumDriverInternal(err) => RpcError::new(Code::Internal, err.to_string()),
             ObjectsDoubleUsed { conflicting_txes } => {
