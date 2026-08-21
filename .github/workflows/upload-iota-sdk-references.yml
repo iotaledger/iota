@@ -37,8 +37,12 @@ jobs:
       matrix:
         language: [python, go, kotlin, csharp, swift, wasm]
     steps:
+      # Only the pin file is needed from this repository.
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: docs/site/iota-sdk-references.rev
+          sparse-checkout-cone-mode: false
 
       - name: Read the pinned iota-rust-sdk revision
         id: pin
