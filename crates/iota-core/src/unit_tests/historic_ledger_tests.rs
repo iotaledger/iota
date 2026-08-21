@@ -8,7 +8,7 @@ use typed_store::{database::wait_for_database_close, traits::Map};
 
 use crate::{
     authority::authority_store_tables::AuthorityPerpetualTables,
-    execution_cache::writeback_cache::writeback_cache_tests::Scenario,
+    execution_cache::{TransactionCacheRead, writeback_cache::writeback_cache_tests::Scenario},
 };
 
 /// The epoch `Scenario` writes and commits its transactions in.
@@ -187,6 +187,94 @@ async fn one_probe_resolves_every_table_for_a_transaction() {
                 "epoch {epoch}'s bucket must hold no part of the transaction's record"
             );
         }
+    })
+    .await;
+}
+
+/// Reading a committed transaction's effects through the cache walks the
+/// buckets once, not once for the execution record and again for the effects.
+#[tokio::test]
+async fn reading_a_committed_transactions_effects_walks_the_buckets_once() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        s.with_created(&[1]);
+        let digest = s.do_tx().await;
+        s.commit(digest).await;
+
+        // Every later epoch is another bucket a walk has to visit, so the
+        // count below is the walk count, not the bucket count.
+        for epoch in [COMMIT_EPOCH + 1, COMMIT_EPOCH + 2] {
+            s.store.get_historic_ledger().ensure(epoch).unwrap();
+        }
+
+        // Both reads must reach the store rather than the cache the commit
+        // populated.
+        s.evict_caches();
+        let before = s.store.get_historic_ledger().bucket_walks();
+        assert!(
+            s.cache.multi_get_executed_effects(&[digest])[0].is_some(),
+            "the committed effects must be readable"
+        );
+        assert_eq!(
+            s.store.get_historic_ledger().bucket_walks() - before,
+            1,
+            "reading a transaction's effects must walk the buckets once"
+        );
+
+        s.evict_caches();
+        let before = s.store.get_historic_ledger().bucket_walks();
+        s.cache
+            .try_notify_read_executed_effects("test", &[digest])
+            .await
+            .unwrap();
+        assert_eq!(
+            s.store.get_historic_ledger().bucket_walks() - before,
+            1,
+            "waiting on an already-executed transaction's effects must walk \
+             the buckets once"
+        );
+    })
+    .await;
+}
+
+/// A transaction state sync records ahead of execution goes into the bucket of
+/// the epoch that will execute it, and into no other.
+#[tokio::test]
+async fn a_state_synced_transaction_lands_in_the_epochs_bucket() {
+    telemetry_subscribers::init_for_testing();
+    Scenario::iterate(|mut s| async move {
+        // `Scenario`'s effects are built for epoch 0, and the insert requires
+        // the epoch it is given to be the one the effects were produced in.
+        let synced_epoch = 0;
+        let outputs = s.take_outputs();
+        let transaction = (*outputs.transaction).clone();
+        let effects = outputs.effects.clone();
+        let digest = *transaction.digest();
+        let effects_digest = effects.digest();
+
+        let ledger = s.store.get_historic_ledger();
+        let other_bucket = ledger.ensure(synced_epoch + 1).unwrap();
+        s.store
+            .insert_transaction_and_effects(synced_epoch, &transaction, &effects)
+            .unwrap();
+
+        let bucket = ledger.ensure(synced_epoch).unwrap();
+        assert!(
+            bucket.transactions.get(&digest).unwrap().is_some(),
+            "the transaction must be in the bucket of the epoch it was given"
+        );
+        assert!(
+            bucket.effects.get(&effects_digest).unwrap().is_some(),
+            "the effects must be in the bucket of the epoch they were given"
+        );
+        assert!(
+            other_bucket.transactions.get(&digest).unwrap().is_none()
+                && other_bucket.effects.get(&effects_digest).unwrap().is_none(),
+            "no other epoch's bucket may hold the transaction or its effects"
+        );
+
+        // The record is not an execution record: nothing has executed it.
+        assert!(ledger.find_epoch(&digest).unwrap().is_none());
     })
     .await;
 }

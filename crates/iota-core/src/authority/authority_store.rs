@@ -1455,12 +1455,27 @@ impl AuthorityStore {
     /// Records a transaction and its effects ahead of executing them, in the
     /// bucket of `epoch` — the epoch of the checkpoint that carries them,
     /// which is also the epoch that will execute them.
+    ///
+    /// This can be the first row of an epoch this node has not begun
+    /// executing, since state sync runs ahead of execution; see
+    /// [`HistoricLedger`] for what that means for retention.
+    ///
+    /// `epoch` must be the epoch the effects were produced in. Nothing reads
+    /// the wrong bucket if it is not — every read walks the buckets — so the
+    /// only symptom is a row expiring with the wrong epoch, which is why the
+    /// effects are asked for their own epoch here.
     pub fn insert_transaction_and_effects(
         &self,
         epoch: EpochId,
         transaction: &VerifiedTransaction,
         transaction_effects: &TransactionEffects,
     ) -> IotaResult {
+        debug_assert_eq!(
+            transaction_effects.epoch(),
+            epoch,
+            "the effects of {:?} were produced in another epoch",
+            transaction.digest()
+        );
         let bucket = self.historic_ledger.ensure(epoch)?;
         let mut write_batch = bucket.transactions.batch();
         write_batch
@@ -1480,6 +1495,14 @@ impl AuthorityStore {
     /// Records transactions and their effects ahead of executing them, in the
     /// bucket of `epoch` — the epoch of the checkpoint that carries them,
     /// which is also the epoch that will execute them.
+    ///
+    /// This can be the first row of an epoch this node has not begun
+    /// executing, since state sync runs ahead of execution; see
+    /// [`HistoricLedger`] for what that means for retention.
+    ///
+    /// `epoch` must be the epoch every one of these effects was produced in,
+    /// which each is asked to confirm, for the reason
+    /// [`Self::insert_transaction_and_effects`] gives.
     pub fn multi_insert_transaction_and_effects<'a>(
         &self,
         epoch: EpochId,
@@ -1488,6 +1511,12 @@ impl AuthorityStore {
         let bucket = self.historic_ledger.ensure(epoch)?;
         let mut write_batch = bucket.transactions.batch();
         for tx in transactions {
+            debug_assert_eq!(
+                tx.effects.epoch(),
+                epoch,
+                "the effects of {:?} were produced in another epoch",
+                tx.transaction.digest()
+            );
             write_batch
                 .insert_batch_tagged(
                     &bucket.transactions,

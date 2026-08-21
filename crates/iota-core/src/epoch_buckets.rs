@@ -261,6 +261,13 @@ impl<B> EpochBuckets<B> {
     /// so a caller that clamps its own retention to at least 1 changes
     /// nothing here.
     ///
+    /// The newest bucket is what `epochs_to_retain` counts back from, so a
+    /// store whose buckets can exist for epochs it has not yet executed —
+    /// [`crate::authority::historic_ledger::HistoricLedger`], whose rows state
+    /// sync writes ahead of execution — must not pass its retention through
+    /// unchanged: part of it would be spent on epochs that are only synced,
+    /// dropping the history of the epoch still being executed and served.
+    ///
     /// Returns the earliest epoch to retain, `None` when there is no history
     /// at all. It is persisted before the drops and never moves backwards,
     /// so dropped epochs are never backfilled or recreated, even across a
