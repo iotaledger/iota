@@ -70,7 +70,7 @@ async fn reopen_index_store(
 /// An empty authority store under `dir`, for driving the rebuild and
 /// backfill paths.
 fn open_authority_store(dir: &std::path::Path) -> std::sync::Arc<super::AuthorityStore> {
-    let (perpetual_tables, historic_objects) =
+    let (perpetual_tables, historic_objects, _historic_ledger) =
         crate::authority::authority_store_tables::AuthorityPerpetualTables::
             open_with_historic_objects(dir, None)
             .unwrap();
