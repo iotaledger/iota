@@ -15,7 +15,7 @@ use prometheus_filtered::{
 
 use crate::{
     network::metrics::NetworkMetrics,
-    quantile_gauge::{QuantileGauge, QuantileGaugeVec},
+    quantile_gauge::{PeakGauge, QuantileGauge, QuantileGaugeVec},
 };
 
 // starts from 1μs, 50μs, 100μs...
@@ -214,6 +214,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_add_blocks_batch_size: SumCount,
     pub(crate) core_add_block_headers_batch_size: SumCount,
     pub(crate) core_lock_dequeued: IntCounter,
+    pub(crate) core_thread_command_queue_peak: PeakGauge,
     pub(crate) reconstruction_jobs_started: IntCounter,
     pub(crate) reconstruction_jobs_finished: IntCounter,
     pub(crate) accepted_transactions_source: IntCounterVec,
@@ -567,6 +568,13 @@ impl NodeMetrics {
                 "Number of dequeued core requests",
                 registry,
             ).unwrap(),
+            core_thread_command_queue_peak: PeakGauge::register(
+                "core_thread_command_queue_peak",
+                "The highest number of commands queued for the core thread over the last two minutes",
+                module_path!(),
+                registry,
+                MetricLevel::Warn,
+            ),
             core_lock_enqueued: register_int_counter_with_registry!(
                 "core_lock_enqueued",
                 "Number of enqueued core requests",

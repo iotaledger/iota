@@ -213,6 +213,15 @@ impl CoreThread {
             self.fast_sync_ongoing
         );
 
+        // The per-command `Core::*` scopes nest, so they cannot be summed; this
+        // times the whole dispatch instead.
+        let handle_command = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["CoreThread::handle_command"]);
+
         loop {
             tokio::select! {
                 command = self.receiver.recv() => {
@@ -220,6 +229,7 @@ impl CoreThread {
                         break;
                     };
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
+                    let _scope = handle_command.start_timer();
 
                     // During fast sync, ignore all commands except AddSubdagFromFastSync and ReinitializeComponents
                     if self.fast_sync_ongoing && !matches!(command, CoreThreadCommand::AddSubdagFromFastSync(..) | CoreThreadCommand::ReinitializeComponents { .. }) {
@@ -401,6 +411,13 @@ impl ChannelCoreThreadDispatcher {
     async fn send(&self, command: CoreThreadCommand) {
         self.context.metrics.node_metrics.core_lock_enqueued.inc();
         if let Some(sender) = self.sender.upgrade() {
+            // Sampled here rather than on dequeue so a stalled core thread,
+            // which stops dequeuing entirely, still reports its backlog.
+            self.context
+                .metrics
+                .node_metrics
+                .core_thread_command_queue_peak
+                .observe((CORE_THREAD_COMMANDS_CHANNEL_SIZE - sender.capacity()) as u64);
             if let Err(err) = sender.send(command).await {
                 warn!(
                     "Couldn't send command to core thread, probably is shutting down: {}",
