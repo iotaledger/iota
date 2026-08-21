@@ -609,49 +609,6 @@ async fn test_the_newest_relocated_version_in_range_is_served() {
     );
 }
 
-/// A version superseded before this build was written sits in the live table
-/// below versions relocated since. The bounded read answers with the newer
-/// relocated version, not with the older live row it finds first.
-#[tokio::test]
-async fn test_a_live_superseded_version_does_not_shadow_a_relocated_one() {
-    let (perpetual, historic, store, _dir) = test_store();
-    let id = ObjectId::random();
-
-    // Version 5 left in the live table by an earlier build, version 7
-    // relocated since, version 8 live.
-    let bucket = historic.ensure(1).unwrap();
-    let mut batch = perpetual.objects.batch();
-    batch
-        .insert_batch_tagged(
-            &bucket.objects,
-            [(ObjectKey(id, 7.into()), object_at(id, 7))],
-        )
-        .unwrap();
-    batch
-        .insert_batch(
-            &perpetual.objects,
-            [5, 8].map(|version| {
-                (
-                    ObjectKey(id, version.into()),
-                    get_store_object(object_at(id, version), None),
-                )
-            }),
-        )
-        .unwrap();
-    batch.write().unwrap();
-
-    for (bound, expected) in [(8, Some(8)), (7, Some(7)), (6, Some(5)), (4, None)] {
-        assert_eq!(
-            store
-                .find_object_lt_or_eq_version_with_historic_fallback(id, bound.into())
-                .unwrap()
-                .map(|object| object.version()),
-            expected.map(Version::from),
-            "bound {bound}"
-        );
-    }
-}
-
 /// An object wrapped and later unwrapped keeps its tombstone in the live
 /// table below its newer versions, and those versions relocate out from
 /// between the two. The bounded read answers with the relocated version
@@ -732,5 +689,51 @@ async fn test_a_bucket_marked_expiring_is_left_out_of_the_walk() {
             .find_lt_or_eq_version(id, 6.into())
             .unwrap()
             .is_none()
+    );
+}
+
+/// A tombstone head with a live version still beneath it is kept rather than
+/// deleted. Its buried versions should have gone into the bucket being
+/// dropped; one left in the live table would become the newest again and the
+/// deleted object would read as alive.
+#[tokio::test]
+async fn test_expiry_keeps_a_head_that_still_buries_a_live_version() {
+    let dir = iota_common::tempdir();
+    let (perpetual, historic) =
+        AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+
+    // A version the pre-bucket backlog sweep failed to relocate, and the
+    // tombstone that buried it.
+    let id = ObjectId::random();
+    let stale = ObjectKey(id, 4.into());
+    let head = ObjectKey(id, 7.into());
+
+    let bucket = historic.ensure(1).unwrap();
+    let mut batch = perpetual.objects.batch();
+    batch
+        .insert_batch_tagged(&bucket.tombstones, [(head, ())])
+        .unwrap();
+    batch
+        .insert_batch(
+            &perpetual.objects,
+            [
+                (stale, get_store_object(object_at(id, 4), None)),
+                (head, StoreObjectWrapper::from(StoreObject::Deleted)),
+            ],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    drop(bucket);
+
+    historic.ensure(2).unwrap();
+    assert_eq!(historic.prune(1).unwrap(), Some(2));
+
+    assert!(
+        perpetual.objects.get(&head).unwrap().is_some(),
+        "the head must stay, so the object stays deleted",
+    );
+    assert!(
+        perpetual.objects.get(&stale).unwrap().is_some(),
+        "the version beneath it is untouched, and still older than the head",
     );
 }

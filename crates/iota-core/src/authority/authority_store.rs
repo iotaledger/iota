@@ -1299,50 +1299,20 @@ impl AuthorityStore {
         Ok(())
     }
 
-    /// The newest version of `object_id` at or below `version`, taken from the
-    /// live `objects` table and the historic buckets together: whichever of
-    /// the two answers is the newer one wins.
+    /// The newest version of `object_id` at or below `version`, from the live
+    /// `objects` table and the historic buckets together: the newer of the two
+    /// answers wins. Both are asked every time, because an unwrap leaves a
+    /// tombstone in the live table below a newer relocated version.
     ///
-    /// Both are asked every time, because either can hold the newer row. A
-    /// version superseded before this build was written still sits in the live
-    /// table below versions that have since been relocated, and a tombstone
-    /// left below a newer version by an unwrap stays there for good. Taking
-    /// the live answer whenever there is one would return those rows in place
-    /// of a newer relocated version.
+    /// `None` means the object was deleted or wrapped at or below the bound,
+    /// or has no version in range. A live tombstone newer than every relocated
+    /// version in range is the answer, so a deleted object stays deleted.
     ///
-    /// `None` covers both an object deleted or wrapped at or below the bound
-    /// and an object with no version in range at all. A live tombstone newer
-    /// than anything the buckets hold in range is still the answer, and a
-    /// relocated version from underneath it is never served in its place, so a
-    /// deleted object stays deleted.
-    ///
-    /// Reading the live table first is required, and is what keeps a
-    /// concurrent bucket expiry from being observed out of order, as
-    /// `HistoricObjects::readable_buckets` explains: either the live read runs
-    /// before the expiry deletes the tombstone head and finds the tombstone,
-    /// or the bucket is out of the map by the time the buckets are asked.
-    ///
-    /// Execution reads this way too, and its answer does not depend on
-    /// `num_epochs_to_retain`. An answer taken from the buckets means a
-    /// transaction that superseded the version being asked for has already
-    /// executed and is ordered after this reader — consensus assignment for a
-    /// shared root, the owned-object lock for an owned one — so that
-    /// relocation is in the current epoch's bucket. Buckets are expired only
-    /// at reconfiguration, with execution halted, and the newest bucket is
-    /// retained at every retention setting, so the current epoch's bucket is
-    /// present on every node. Keep both halves true: an
-    /// expiry that could run while transactions execute, or a retention that
-    /// could drop the newest bucket, would make execution's answer differ
-    /// between nodes. The two other places that expire — `HistoricObjects`'s
-    /// own open, which finishes an interrupted expiry before any transaction
-    /// can execute, and the test-only
-    /// [`Self::expire_historic_objects_and_compact_for_testing`] — leave both
-    /// halves standing.
-    ///
-    /// This is used to find the correct version of a dynamic field child
-    /// object. We do not store the version of the child object, but because of
-    /// lamport timestamp, we know the child must have version number less then
-    /// or eq to the parent.
+    /// Read the live table first; see the `tombstones` table on
+    /// [`HistoricObjectsBucket`] for why. Execution's answer never depends on
+    /// retention: a relocation it can observe is in the current epoch's
+    /// bucket, which every retention setting keeps, and expiry runs only at
+    /// reconfiguration with execution halted.
     pub fn find_object_lt_or_eq_version_with_historic_fallback(
         &self,
         object_id: ObjectId,
