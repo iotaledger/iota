@@ -227,6 +227,7 @@ pub mod authority_store_pruner;
 pub mod authority_store_tables;
 pub mod authority_store_types;
 pub mod epoch_start_configuration;
+pub mod historic_ledger;
 pub mod historic_objects;
 pub mod object_backlog_sweep;
 pub mod shared_object_congestion_tracker;

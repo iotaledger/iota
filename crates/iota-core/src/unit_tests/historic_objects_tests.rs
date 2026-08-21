@@ -33,7 +33,7 @@ fn test_store() -> (
     TempDir,
 ) {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     let perpetual = Arc::new(perpetual);
     let historic = Arc::new(historic);
@@ -56,7 +56,7 @@ fn object_at(id: ObjectId, version: u64) -> Object {
 #[tokio::test]
 async fn test_relocated_version_is_readable_from_its_bucket() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let object = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -83,7 +83,7 @@ async fn test_relocated_version_is_readable_from_its_bucket() {
 #[tokio::test]
 async fn test_lookup_spans_epoch_buckets() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let older = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -109,7 +109,7 @@ async fn test_lookup_spans_epoch_buckets() {
 #[tokio::test]
 async fn test_relocated_version_survives_a_reopen() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let object = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -127,10 +127,11 @@ async fn test_relocated_version_survives_a_reopen() {
     let weak_db = Arc::downgrade(&perpetual.objects.db);
     drop(bucket);
     drop(historic);
+    drop(historic_ledger);
     drop(perpetual);
     assert!(wait_for_database_close(weak_db).await);
 
-    let (_perpetual, historic) =
+    let (_perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     assert_eq!(historic.get(&key).unwrap().as_ref(), Some(&object));
 }
@@ -141,7 +142,7 @@ async fn test_relocated_version_survives_a_reopen() {
 #[tokio::test]
 async fn test_tombstone_heads_survive_a_reopen() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let object = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -157,10 +158,11 @@ async fn test_tombstone_heads_survive_a_reopen() {
     let weak_db = Arc::downgrade(&perpetual.objects.db);
     drop(bucket);
     drop(historic);
+    drop(historic_ledger);
     drop(perpetual);
     assert!(wait_for_database_close(weak_db).await);
 
-    let (_perpetual, historic) =
+    let (_perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     let bucket = historic.ensure(3).unwrap();
     assert!(bucket.tombstones.get(&key).unwrap().is_some());
@@ -176,7 +178,7 @@ async fn test_tombstone_heads_survive_a_reopen() {
 #[tokio::test]
 async fn test_dump_reads_a_bucket_and_the_retention_floor() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let object = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -226,7 +228,7 @@ async fn test_dump_reads_a_bucket_and_the_retention_floor() {
 #[tokio::test]
 async fn test_expiry_deletes_the_epochs_tombstone_heads() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let object = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -263,7 +265,7 @@ async fn test_expiry_deletes_the_epochs_tombstone_heads() {
 #[tokio::test]
 async fn test_expiry_deletes_heads_past_the_batch_boundary() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let deleted: Vec<ObjectKey> = (0..TOMBSTONE_DELETE_BATCH_SIZE + 1)
@@ -303,7 +305,7 @@ async fn test_expiry_deletes_heads_past_the_batch_boundary() {
 #[tokio::test]
 async fn test_a_bucket_marked_expiring_is_skipped_by_reads() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let object = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -330,7 +332,7 @@ async fn test_a_bucket_marked_expiring_is_skipped_by_reads() {
 #[tokio::test]
 async fn test_an_interrupted_expiry_is_finished_at_open() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let object = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -359,10 +361,11 @@ async fn test_an_interrupted_expiry_is_finished_at_open() {
     let weak_db = Arc::downgrade(&perpetual.objects.db);
     drop(bucket);
     drop(historic);
+    drop(historic_ledger);
     drop(perpetual);
     assert!(wait_for_database_close(weak_db).await);
 
-    let (perpetual, historic) =
+    let (perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     assert!(perpetual.objects.get(&deleted).unwrap().is_none());
     assert_eq!(historic.get(&relocated).unwrap(), None);
@@ -376,7 +379,7 @@ async fn test_an_interrupted_expiry_is_finished_at_open() {
 #[tokio::test]
 async fn test_a_bucket_below_the_retention_floor_is_expired_at_open() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let object = Object::immutable_with_id_for_testing(ObjectId::random());
@@ -416,10 +419,11 @@ async fn test_a_bucket_below_the_retention_floor_is_expired_at_open() {
     drop(earliest_retained_table);
     drop(bucket);
     drop(historic);
+    drop(historic_ledger);
     drop(perpetual);
     assert!(wait_for_database_close(weak_db).await);
 
-    let (perpetual, historic) =
+    let (perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     assert!(perpetual.objects.get(&deleted).unwrap().is_none());
     assert_eq!(historic.get(&relocated).unwrap(), None);
@@ -433,7 +437,7 @@ async fn test_a_bucket_below_the_retention_floor_is_expired_at_open() {
 #[tokio::test]
 async fn test_interrupted_expiries_are_resumed_oldest_first() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let older_tombstone = ObjectKey(ObjectId::random(), 4.into());
