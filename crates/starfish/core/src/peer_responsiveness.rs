@@ -188,7 +188,10 @@ impl PeerResponsiveness {
     /// a response that returned nothing (or a small fraction of what was
     /// requested) should be reported via [`Self::record_failure_with_timeout`]
     /// (or with a latency scaled up by the shortfall), so a peer cannot look
-    /// fast by replying quickly with little.
+    /// fast by replying quickly with little. A shortfall-scaled latency must be
+    /// capped at the operation's failure penalty: the failure is the ceiling of
+    /// the scale, and a peer that delivered something must never record worse
+    /// than one that failed.
     pub(crate) fn record_success(
         &self,
         source: DataSource,

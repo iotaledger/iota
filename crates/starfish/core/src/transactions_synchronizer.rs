@@ -865,10 +865,15 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
                 Ok(stats) if stats.matched_requested > 0 => {
                     let shortfall_factor =
                         (stats.requested as f64 / stats.matched_requested as f64).max(1.0);
+                    // Capped at the failure penalty: a partial delivery never
+                    // records worse than a failed fetch.
                     context.peer_responsiveness.record_success(
                         DataSource::TransactionSynchronizer,
                         peer,
-                        stats.latency.mul_f64(shortfall_factor),
+                        stats
+                            .latency
+                            .mul_f64(shortfall_factor)
+                            .min(FETCH_REQUEST_TIMEOUT),
                     );
                 }
                 Ok(_) => {
