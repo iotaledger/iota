@@ -2851,10 +2851,9 @@ async fn test_concurrent_prune_and_queries_never_panic() {
     );
 }
 
-/// The store pruner deletes a checkpoint's transactions before it
-/// advances the watermark the backfill checks, so a replay can find them
-/// already gone. That must end the backfill instead of failing the task
-/// for the rest of the process.
+/// Expiry drops a checkpoint's transactions before it advances the watermark
+/// the backfill checks, so a replay can find them already gone. That must end
+/// the backfill instead of failing the task for the rest of the process.
 #[tokio::test]
 async fn test_backfill_stops_at_deleted_checkpoint_data() {
     let (authority_state, genesis_tx_digest) = genesis_authority_state().await;

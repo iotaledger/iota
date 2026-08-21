@@ -9,9 +9,9 @@
 //! A superseded version now leaves the live `objects` table in the batch
 //! that supersedes it, and arrives in the epoch's historic bucket. A
 //! database written by an earlier build still holds roughly one retention
-//! window of superseded versions in the live table, and the pruner that used
-//! to drain them is gone, so they are walked once and relocated here, into
-//! the bucket of the epoch the walk runs in.
+//! window of superseded versions in the live table, and nothing drains them
+//! any more, so they are walked once and relocated here, into the bucket of
+//! the epoch the walk runs in.
 //!
 //! They go into that bucket even though they are older than the versions an
 //! earlier epoch's bucket holds. [`HistoricObjects::find_lt_or_eq_version`]

@@ -395,7 +395,6 @@ impl<'a> TestAuthorityBuilder<'a> {
             config.clone(),
             None,
             chain_identifier,
-            None,
             policy_config,
             firewall_config,
         )

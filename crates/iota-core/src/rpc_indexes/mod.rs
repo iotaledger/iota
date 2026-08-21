@@ -174,12 +174,12 @@ pub struct RpcIndexesStore {
     history_backfill_task: Mutex<Option<tokio::task::JoinHandle<()>>>,
     /// Stops the startup rebuild and the background history backfill.
     cancelled: Arc<AtomicBool>,
-    /// How many historic epochs of history the pruner is configured to
-    /// retain on top of the current one (`num_epochs_to_retain_for_indexes`);
-    /// bounds the history backfill so it does not replay epochs the next
-    /// prune pass would drop again, and is the retention `prune` enforces.
-    /// Governs every history table, digests included, since they all live in
-    /// the one bucket family. `None` when index pruning is off.
+    /// How many historic epochs of history to retain on top of the current
+    /// one (`num_epochs_to_retain_for_indexes`); bounds the history backfill
+    /// so it does not replay epochs the next prune pass would drop again, and
+    /// is the retention `prune` enforces. Governs every history table,
+    /// digests included, since they all live in the one bucket family.
+    /// `None` when index pruning is off.
     epochs_to_retain: Option<u64>,
 }
 
@@ -518,7 +518,7 @@ impl RpcIndexesStore {
     /// returns; until it finishes, history-backed queries cover a growing
     /// range of recent checkpoints, as on a pruned node. When index pruning
     /// is configured, `epochs_to_retain` bounds the replay to the epochs
-    /// the pruner would retain.
+    /// [`Self::prune`] would retain.
     ///
     /// Setting `cancelled` abandons a rebuild running here and the
     /// background replay, and fails the open: the store is left unadopted
@@ -1136,9 +1136,10 @@ impl RpcIndexesStore {
     }
 
     /// Fills the history tables for the checkpoints below
-    /// `history_watermark`, newest first, until it reaches the
-    /// checkpoint-contents pruner, an epoch [`Self::prune`] removed from the
-    /// index, or the configured index retention. The marker commits
+    /// `history_watermark`, newest first, until it reaches the lowest
+    /// checkpoint whose contents the node still holds, an epoch
+    /// [`Self::prune`] removed from the index, or the configured index
+    /// retention. The marker commits
     /// atomically with each checkpoint's rows, so an interrupted run resumes
     /// where it stopped.
     /// No-op when the marker is absent (the history was indexed continuously
@@ -1170,9 +1171,9 @@ impl RpcIndexesStore {
                 info!("Stopping the RPC index history backfill at checkpoint {next}: shutdown");
                 break;
             }
-            // The pruner advances while the backfill runs; re-check the
-            // bound so the replay stops before data that is about to
-            // disappear.
+            // The epoch boundary expires history while the backfill runs;
+            // re-check the bound so the replay stops before data that is
+            // about to disappear.
             let lowest = checkpoint_store
                 .get_highest_pruned_checkpoint_seq_number()?
                 .map(|c| c.saturating_add(1))
@@ -1183,8 +1184,8 @@ impl RpcIndexesStore {
             let summary = match checkpoint_store.get_checkpoint_by_sequence_number(next)? {
                 Some(summary) => summary,
                 None => {
-                    // The checkpoint pruner can pass the bound check above
-                    // mid-iteration; reaching pruned data is a terminal
+                    // The retained range can move past the bound checked
+                    // above mid-iteration; reaching pruned data is a terminal
                     // condition, not a failure.
                     if self.backfill_reached_pruned_data(checkpoint_store, next, None)? {
                         break;
@@ -1214,13 +1215,14 @@ impl RpcIndexesStore {
             if let Err(e) =
                 self.replay_checkpoint_history(authority_store, checkpoint_store, &summary)
             {
-                // See above: the pruners advance while the backfill runs.
+                // See above: the retained ranges move up while the backfill
+                // runs.
                 if self.backfill_reached_pruned_data(checkpoint_store, next, Some(summary.epoch))? {
                     break;
                 }
-                // A pruner deletes a checkpoint's data before it advances
-                // the watermark checked above, so the replay can find the
-                // data already gone. That is the end of the locally
+                // Expiry drops a checkpoint's data before it advances the
+                // watermark checked above, so the replay can find the data
+                // already gone. That is the end of the locally
                 // available history, not a failure.
                 if e.kind() == StorageErrorKind::Missing {
                     info!(
@@ -1279,7 +1281,7 @@ impl RpcIndexesStore {
         Some(newest.saturating_sub(epochs_to_retain))
     }
 
-    /// Whether a pruner removed checkpoint `next`, or the history bucket of
+    /// Whether expiry removed checkpoint `next`, or the history bucket of
     /// its epoch, while the backfill was working on it — the same bounds the
     /// loop checks before each checkpoint, re-read once the work on it has
     /// failed. `epoch` is the checkpoint's epoch, where it is known. Logs

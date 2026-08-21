@@ -18,7 +18,6 @@ use iota_types::{
     committee::EpochId,
     error::{IotaError, IotaResult},
     messages_checkpoint::CheckpointSequenceNumber,
-    storage::ObjectKey,
     transaction::TrustedTransaction,
 };
 use typed_store::{
@@ -41,8 +40,7 @@ const DB_PREFIX_HISTORIC_TRANSACTIONS: u8 = 0;
 const DB_PREFIX_HISTORIC_EFFECTS: u8 = 1;
 const DB_PREFIX_HISTORIC_EXECUTED_EFFECTS: u8 = 2;
 const DB_PREFIX_HISTORIC_EVENTS: u8 = 3;
-const DB_PREFIX_HISTORIC_UNCHANGED_LOADED_RUNTIME_OBJECTS: u8 = 4;
-const DB_PREFIX_HISTORIC_TX_TO_CHECKPOINT: u8 = 5;
+const DB_PREFIX_HISTORIC_TX_TO_CHECKPOINT: u8 = 4;
 
 /// Column family holding the earliest-retained-epoch marker
 /// [`EpochBuckets`] persists on a prune. It is empty until the first prune,
@@ -63,7 +61,6 @@ pub struct HistoricLedgerBucket {
     pub(crate) effects: TaggedDBMap<TransactionEffectsDigest, TransactionEffects>,
     pub(crate) executed_effects: TaggedDBMap<TransactionDigest, TransactionEffectsDigest>,
     pub(crate) events: TaggedDBMap<TransactionDigest, TransactionEvents>,
-    pub(crate) unchanged_loaded_runtime_objects: TaggedDBMap<TransactionDigest, Vec<ObjectKey>>,
     pub(crate) tx_to_checkpoint: TaggedDBMap<TransactionDigest, CheckpointSequenceNumber>,
 }
 
@@ -95,13 +92,6 @@ impl HistoricLedgerBucket {
                 db,
                 cf_name,
                 DB_PREFIX_HISTORIC_EVENTS,
-                &ReadWriteOptions::default(),
-                true,
-            )?,
-            unchanged_loaded_runtime_objects: TaggedDBMap::reopen(
-                db,
-                cf_name,
-                DB_PREFIX_HISTORIC_UNCHANGED_LOADED_RUNTIME_OBJECTS,
                 &ReadWriteOptions::default(),
                 true,
             )?,
@@ -470,9 +460,6 @@ impl HistoricLedger {
             bucket.effects.try_catch_up_with_primary()?;
             bucket.executed_effects.try_catch_up_with_primary()?;
             bucket.events.try_catch_up_with_primary()?;
-            bucket
-                .unchanged_loaded_runtime_objects
-                .try_catch_up_with_primary()?;
             bucket.tx_to_checkpoint.try_catch_up_with_primary()?;
             let rows = format_rows("transaction:", bucket.transactions.safe_iter())
                 .chain(format_rows("effects:", bucket.effects.safe_iter()))
@@ -481,10 +468,6 @@ impl HistoricLedger {
                     bucket.executed_effects.safe_iter(),
                 ))
                 .chain(format_rows("events:", bucket.events.safe_iter()))
-                .chain(format_rows(
-                    "unchanged_loaded_runtime_objects:",
-                    bucket.unchanged_loaded_runtime_objects.safe_iter(),
-                ))
                 .chain(format_rows(
                     "tx_to_checkpoint:",
                     bucket.tx_to_checkpoint.safe_iter(),

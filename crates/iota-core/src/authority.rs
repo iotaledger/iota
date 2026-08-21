@@ -135,9 +135,7 @@ use tokio::{
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::TypedStoreError;
 
-use self::{
-    authority_store::ExecutionLockWriteGuard, authority_store_pruner::AuthorityStorePruningMetrics,
-};
+use self::authority_store::ExecutionLockWriteGuard;
 #[cfg(msim)]
 pub use crate::checkpoints::checkpoint_executor::utils::{
     CheckpointTimeoutConfig, init_checkpoint_timeout_config,
@@ -147,14 +145,12 @@ use crate::{
         authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
-        authority_store_pruner::{AuthorityStorePruner, EPOCH_DURATION_MS_FOR_TESTING},
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
         historic_ledger::HistoricLedger,
         historic_objects::HistoricObjects,
         shared_object_version_manager::{AssignedVersions, Schedulable},
     },
     authority_client::NetworkAuthorityClient,
-    checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointBuilderError, CheckpointBuilderResult, CheckpointStore},
     congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
@@ -224,7 +220,6 @@ pub mod authority_test_utils;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
 
-pub mod authority_store_pruner;
 pub mod authority_store_tables;
 pub mod authority_store_types;
 pub mod epoch_start_configuration;
@@ -299,6 +294,10 @@ pub struct AuthorityMetrics {
 
     pub(crate) skipped_consensus_txns: IntCounter,
     pub(crate) skipped_consensus_txns_cache_hit: IntCounter,
+
+    /// Oldest epoch whose RPC index history the node still holds, published
+    /// each time the epoch boundary expires the buckets below it.
+    pub(crate) earliest_retained_indexes_epoch: IntGauge,
 
     pub(crate) authority_overload_status: IntGauge,
     /// Percentage of transactions shed due to consensus queue length.
@@ -581,6 +580,13 @@ impl AuthorityMetrics {
                 registry,
             )
                 .unwrap(),
+            earliest_retained_indexes_epoch: register_int_gauge_with_registry!(
+                "earliest_retained_indexes_epoch",
+                "Earliest epoch whose JSON-RPC index history is retained",
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
             authority_overload_status: register_int_gauge_with_registry!(
                 "authority_overload_status",
                 "Whether authority is current experiencing overload and enters load shedding mode.",
@@ -951,11 +957,7 @@ pub struct AuthorityState {
     tx_execution_shutdown: Mutex<Option<oneshot::Sender<()>>>,
 
     pub metrics: Arc<AuthorityMetrics>,
-    /// The store pruner. The checkpoint executor uses it to nudge the pruner
-    /// after each checkpoint.
-    pruner: AuthorityStorePruner,
     authority_per_epoch_pruner: AuthorityPerEpochStorePruner,
-    checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
 
     pub config: NodeConfig,
 
@@ -2751,7 +2753,6 @@ impl AuthorityState {
         config: NodeConfig,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
-        checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         policy_config: Option<PolicyConfig>,
         firewall_config: Option<RemoteFirewallConfig>,
     ) -> Arc<Self> {
@@ -2789,15 +2790,12 @@ impl AuthorityState {
                  span in one epoch boundary. Set 0 to retain none beyond the current epoch."
             );
         }
-        let pruner = AuthorityStorePruner::new(
-            store.perpetual_tables.clone(),
-            checkpoint_store.clone(),
-            rpc_indexes_store.clone(),
-            config.authority_store_pruning_config.clone(),
-            epoch_store.epoch_start_state().epoch_duration_ms(),
-            prometheus_registry,
-            checkpoint_progress_tracker.clone(),
-        );
+        if let Some(delay_days) = config
+            .authority_store_pruning_config
+            .periodic_compaction_threshold_days
+        {
+            store.perpetual_tables.spawn_periodic_compaction(delay_days);
+        }
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
         let epoch = epoch_store.epoch();
@@ -2827,9 +2825,7 @@ impl AuthorityState {
             execution_scheduler,
             tx_execution_shutdown: Mutex::new(Some(tx_execution_shutdown)),
             metrics,
-            pruner,
             authority_per_epoch_pruner,
-            checkpoint_progress_tracker,
             config,
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
@@ -2922,22 +2918,6 @@ impl AuthorityState {
         self.execution_cache_trait_pointers
             .testing_api
             .clear_caches_for_testing()
-    }
-
-    pub async fn prune_checkpoints_for_eligible_epochs_for_testing(
-        &self,
-        config: NodeConfig,
-        metrics: Arc<AuthorityStorePruningMetrics>,
-    ) -> anyhow::Result<()> {
-        AuthorityStorePruner::prune_checkpoints_for_eligible_epochs(
-            &self.database_for_testing().perpetual_tables,
-            &self.checkpoint_store,
-            config.authority_store_pruning_config,
-            metrics,
-            EPOCH_DURATION_MS_FOR_TESTING,
-            self.checkpoint_progress_tracker.as_ref(),
-        )
-        .await
     }
 
     pub fn execution_scheduler(&self) -> &Arc<ExecutionSchedulerWrapper> {
@@ -3193,7 +3173,8 @@ impl AuthorityState {
     /// Opens `new_epoch`'s bucket in each of the three per-epoch histories —
     /// the superseded object versions, the checkpoint-keyed ledger and the
     /// checkpoint summaries and contents — and expires the buckets that have
-    /// fallen outside the retention configured for each.
+    /// fallen outside the retention configured for each, the RPC index
+    /// history included.
     ///
     /// Creating the buckets is done here, while execution is stopped, because
     /// creating a column family is a blocking RocksDB operation the epoch's
@@ -3205,9 +3186,9 @@ impl AuthorityState {
     /// here — and it is not fatal. An object bucket it fails to finish keeps
     /// its durable expiring marker, so its versions stay unreadable and its
     /// tombstones stay in the live table, and the next open finishes the job;
-    /// a ledger or checkpoint bucket it fails to drop is served for another
-    /// epoch. Failing the reconfiguration instead would halt the node at a
-    /// boundary it would then fail again on every retry.
+    /// a ledger, checkpoint or index bucket it fails to drop is served for
+    /// another epoch. Failing the reconfiguration instead would halt the node
+    /// at a boundary it would then fail again on every retry.
     async fn advance_historic_buckets(&self, new_epoch: EpochId) -> IotaResult<()> {
         self.historic_objects.ensure(new_epoch)?;
         self.historic_ledger.ensure(new_epoch)?;
@@ -3223,9 +3204,7 @@ impl AuthorityState {
             .num_epochs_to_retain;
         let objects_to_retain =
             (num_epochs_to_retain != u64::MAX).then(|| num_epochs_to_retain + 1);
-        // The same retention the checkpoint pruner applies to the flat tables
-        // this history was moved out of, and it counts the epoch it is
-        // measured from as one of the epochs kept.
+        // Counts the epoch it is measured from as one of the epochs kept.
         let checkpoints_to_retain = self
             .config
             .authority_store_pruning_config
@@ -3244,6 +3223,8 @@ impl AuthorityState {
         let historic_objects = self.historic_objects.clone();
         let historic_ledger = self.historic_ledger.clone();
         let checkpoint_store = self.checkpoint_store.clone();
+        let rpc_indexes_store = self.rpc_indexes_store.clone();
+        let metrics = self.metrics.clone();
         let expired = tokio::task::spawn_blocking(move || {
             if let Some(epochs_to_retain) = objects_to_retain {
                 if let Err(err) = historic_objects.prune(epochs_to_retain) {
@@ -3254,11 +3235,34 @@ impl AuthorityState {
                 if let Err(err) = historic_ledger.prune(executed_epoch, epochs_to_retain) {
                     error!("Failed to expire historic ledger buckets: {err:?}");
                 }
-                if let Err(err) = checkpoint_store
+                match checkpoint_store
                     .historic_checkpoints
                     .prune(executed_epoch, epochs_to_retain)
                 {
-                    error!("Failed to expire historic checkpoint buckets: {err:?}");
+                    // What the node still holds is what it may advertise:
+                    // dropping an epoch's contents makes every checkpoint
+                    // below the oldest retained bucket unavailable to
+                    // state-sync peers and RPC clients.
+                    Ok(Some(earliest_retained_epoch)) => {
+                        if let Err(err) = checkpoint_store
+                            .advance_highest_pruned_checkpoint(earliest_retained_epoch)
+                        {
+                            error!("Failed to record the pruned checkpoint range: {err:?}");
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(err) => error!("Failed to expire historic checkpoint buckets: {err:?}"),
+                }
+            }
+            // The index history has its own retention, and dropping a bucket
+            // blocks the queries reading it.
+            if let Some(indexes) = rpc_indexes_store {
+                match indexes.prune() {
+                    Ok(Some(earliest_retained_epoch)) => metrics
+                        .earliest_retained_indexes_epoch
+                        .set(earliest_retained_epoch as i64),
+                    Ok(None) => {}
+                    Err(err) => error!("Failed to expire the RPC index history: {err:?}"),
                 }
             }
         })
@@ -4106,12 +4110,6 @@ impl AuthorityState {
 
     pub fn get_checkpoint_store(&self) -> &Arc<CheckpointStore> {
         &self.checkpoint_store
-    }
-
-    /// The store pruner; the checkpoint executor uses it to nudge the pruner
-    /// after each checkpoint.
-    pub fn pruner(&self) -> &AuthorityStorePruner {
-        &self.pruner
     }
 
     pub fn get_latest_checkpoint_sequence_number(&self) -> IotaResult<CheckpointSequenceNumber> {

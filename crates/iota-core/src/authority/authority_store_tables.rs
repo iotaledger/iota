@@ -2,8 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::path::Path;
+use std::{
+    collections::{BTreeSet, HashMap},
+    path::Path,
+    sync::Mutex,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
+use iota_metrics::spawn_monitored_task;
 use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_types::{global_state_hash::GlobalStateHash, storage::MarkerValue};
 use serde::{Deserialize, Serialize};
@@ -15,6 +21,7 @@ use typed_store::{
         DBMap, DBMapTableConfigMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
         read_size_from_env,
     },
+    rocksdb::LiveFile,
     traits::Map,
 };
 
@@ -526,6 +533,125 @@ impl AuthorityPerpetualTables {
         self.objects.checkpoint_db(path).map_err(Into::into)
     }
 
+    /// Compacts the whole key range of the live `objects` table, blocking
+    /// until RocksDB has rewritten it.
+    pub fn compact(&self) -> Result<(), TypedStoreError> {
+        self.objects.compact_range(
+            &ObjectKey(ObjectId::ZERO, Version::MIN_VALID_INCL),
+            &ObjectKey(ObjectId::MAX, Version::MAX_VALID_EXCL),
+        )
+    }
+
+    /// The column families whose aged SST files
+    /// [`Self::spawn_periodic_compaction`] rewrites: the ones rows are
+    /// deleted from. The live `objects` table loses the tombstone heads of a
+    /// historic object bucket when that bucket expires; the rest hold the
+    /// pre-bucket ledger history, which the one-time migration into the
+    /// per-epoch buckets drains.
+    fn periodically_compacted_tables(&self) -> BTreeSet<&str> {
+        [
+            self.objects.cf_name(),
+            self.transactions.cf_name(),
+            self.effects.cf_name(),
+            self.executed_effects.cf_name(),
+            self.events_2.cf_name(),
+            self.executed_transactions_to_checkpoint.cf_name(),
+        ]
+        .into_iter()
+        .collect()
+    }
+
+    /// Compacts the largest SST file that has gone untouched for `delay_days`
+    /// and belongs to one of [`Self::periodically_compacted_tables`], and
+    /// returns it. `None` when no file qualifies.
+    ///
+    /// Blocks for as long as the compaction takes, so a caller on an async
+    /// runtime must use `spawn_blocking`. `last_processed` carries the files
+    /// already compacted from one call to the next, so that the same file is
+    /// not picked again within the delay.
+    fn compact_next_sst_file(
+        &self,
+        delay_days: usize,
+        last_processed: &Mutex<HashMap<String, SystemTime>>,
+    ) -> Result<Option<LiveFile>, anyhow::Error> {
+        let compacted_tables = self.periodically_compacted_tables();
+        let db_path = self.objects.db.path_for_pruning();
+        let mut state = last_processed
+            .lock()
+            .expect("failed to obtain a lock for last processed SST files");
+        let mut sst_file_for_compaction: Option<LiveFile> = None;
+        let time_threshold =
+            SystemTime::now() - Duration::from_secs(delay_days as u64 * 24 * 60 * 60);
+        for sst_file in self.objects.db.live_files()? {
+            let file_path = db_path.join(sst_file.name.clone().trim_matches('/'));
+            let last_modified = std::fs::metadata(file_path)?.modified()?;
+            if !compacted_tables.contains(sst_file.column_family_name.as_str())
+                || sst_file.level < 1
+                || sst_file.start_key.is_none()
+                || sst_file.end_key.is_none()
+                || last_modified > time_threshold
+                || state.get(&sst_file.name).unwrap_or(&UNIX_EPOCH) > &time_threshold
+            {
+                continue;
+            }
+            if let Some(candidate) = &sst_file_for_compaction {
+                if candidate.size > sst_file.size {
+                    continue;
+                }
+            }
+            sst_file_for_compaction = Some(sst_file);
+        }
+        let Some(sst_file) = sst_file_for_compaction else {
+            return Ok(None);
+        };
+        info!(
+            "Manual compaction of sst file {:?}. Size: {:?}, level: {:?}",
+            sst_file.name, sst_file.size, sst_file.level
+        );
+        self.objects.compact_range_raw(
+            &sst_file.column_family_name,
+            sst_file.start_key.clone().unwrap(),
+            sst_file.end_key.clone().unwrap(),
+        )?;
+        state.insert(sst_file.name.clone(), SystemTime::now());
+        Ok(Some(sst_file))
+    }
+
+    /// Spawns a task that keeps compacting SST files older than `delay_days`,
+    /// one at a time, until these tables are dropped.
+    ///
+    /// RocksDB's own background compaction leaves files that stop being
+    /// written to alone, so rows deleted from them are never reclaimed
+    /// without this.
+    pub fn spawn_periodic_compaction(self: &Arc<Self>, delay_days: usize) {
+        // The task holds the tables weakly so that it cannot keep a dropped
+        // node's database open, and exits once they are gone.
+        let perpetual_tables = Arc::downgrade(self);
+        spawn_monitored_task!(async move {
+            let last_processed = Arc::new(Mutex::new(HashMap::new()));
+            loop {
+                let Some(tables) = perpetual_tables.upgrade() else {
+                    break;
+                };
+                let state = last_processed.clone();
+                let result = tokio::task::spawn_blocking(move || {
+                    tables.compact_next_sst_file(delay_days, &state)
+                })
+                .await;
+                let mut sleep_interval_secs = 1;
+                match result {
+                    Err(err) => error!("Failed to compact sst file: {:?}", err),
+                    Ok(Err(err)) => error!("Failed to compact sst file: {:?}", err),
+                    Ok(Ok(None)) => {
+                        sleep_interval_secs = 3600;
+                    }
+                    _ => {}
+                }
+                tokio::time::sleep(Duration::from_secs(sleep_interval_secs)).await;
+            }
+        });
+    }
+
     pub fn get_root_state_hash(
         &self,
         epoch: EpochId,
@@ -1034,5 +1160,58 @@ mod tests {
             perpetual_db.object_backlog_sweep_progress.get(&()).unwrap(),
             Some(ObjectBacklogSweepProgress::Done)
         );
+    }
+
+    /// [`AuthorityPerpetualTables::compact`] must let RocksDB reclaim the
+    /// space of deleted object versions, so that a caller that has just
+    /// removed rows can shrink the database on demand.
+    #[cfg(not(target_env = "msvc"))]
+    #[tokio::test]
+    async fn compact_reclaims_the_space_of_deleted_object_versions() {
+        fn sst_size(path: &Path) -> u64 {
+            let mut size = 0;
+            for entry in std::fs::read_dir(path).unwrap() {
+                let path = entry.unwrap().path();
+                if path.extension().is_some_and(|ext| ext == "sst") {
+                    size += std::fs::metadata(path).unwrap().len();
+                }
+            }
+            size
+        }
+
+        let tmp_dir = iota_common::tempdir();
+        let perpetual_db = AuthorityPerpetualTables::open(tmp_dir.path(), None);
+        let total_unique_object_ids = 10_000;
+        let num_versions_per_object = 10;
+        let mut id = ObjectId::ZERO;
+        let mut to_delete = vec![];
+        for _ in 0..total_unique_object_ids {
+            for i in (0..num_versions_per_object).rev() {
+                if i < num_versions_per_object - 2 {
+                    to_delete.push(ObjectKey(id, Version::from(i)));
+                }
+                let object = get_store_object(Object::immutable_with_id_for_testing(id), None);
+                perpetual_db
+                    .objects
+                    .insert(&ObjectKey(id, Version::from(i)), &object)
+                    .unwrap();
+            }
+            id = id.next_lexicographical();
+        }
+
+        let db_path = tmp_dir.path().join("perpetual");
+        perpetual_db.compact().unwrap();
+        let before_compaction_size = sst_size(&db_path);
+
+        let mut batch = perpetual_db.objects.batch();
+        batch
+            .delete_batch(&perpetual_db.objects, to_delete.into_iter())
+            .unwrap();
+        batch.write().unwrap();
+
+        perpetual_db.compact().unwrap();
+        let after_compaction_size = sst_size(&db_path);
+
+        more_asserts::assert_le!(after_compaction_size, before_compaction_size);
     }
 }

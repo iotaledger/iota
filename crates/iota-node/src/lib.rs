@@ -734,7 +734,6 @@ impl IotaNode {
             config.clone(),
             validator_tx_finalizer,
             chain_identifier,
-            Some(checkpoint_progress_tracker.clone()),
             config.policy_config.clone(),
             config.firewall_config.clone(),
         )
@@ -2181,22 +2180,6 @@ impl IotaNode {
             // accumulation of RocksDB instances during fast catch-up sync
             // (e.g. syncing from genesis).
             self.state.epoch_db_pruner().prune_old_epoch_dbs().await;
-
-            if cfg!(msim)
-                && !matches!(
-                    self.config
-                        .authority_store_pruning_config
-                        .num_epochs_to_retain_for_checkpoints(),
-                    None | Some(u64::MAX) | Some(0)
-                )
-            {
-                self.state
-                    .prune_checkpoints_for_eligible_epochs_for_testing(
-                        self.config.clone(),
-                        iota_core::authority::authority_store_pruner::AuthorityStorePruningMetrics::new_for_test(),
-                    )
-                    .await?;
-            }
 
             epoch_store = new_epoch_store;
             info!("Reconfiguration finished");
