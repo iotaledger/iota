@@ -56,6 +56,7 @@ feature_flags:
   max_ptb_value_size_v2: true
   allow_unbounded_system_objects: true
   validate_input_object_versions: true
+  disallow_self_identifier: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
