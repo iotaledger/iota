@@ -2027,7 +2027,7 @@ async fn fetch_package_id_by_module_and_name(
         .get_dynamic_fields(names_config.object_id, None, None)
         .await?;
     for dynamic_field in dynamic_fields_page.data {
-        if let TypeTag::Struct(ref tag) = dynamic_field.name.tag {
+        if let TypeTag::Struct(ref tag) = dynamic_field.name.type_tag {
             for param in tag.type_params() {
                 if let TypeTag::Struct(ref param_tag) = param {
                     if param_tag.module() == module_name && param_tag.name() == struct_name {

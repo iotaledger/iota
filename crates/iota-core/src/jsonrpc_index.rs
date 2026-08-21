@@ -1716,7 +1716,7 @@ mod tests {
                     object_id: object.id(),
                     version: object.version(),
                     digest: object.digest(),
-                    tag: ObjectType::Struct(object.data.opt_object_type().unwrap().clone()),
+                    object_type: ObjectType::Struct(object.data.opt_object_type().unwrap().clone()),
                     owner: Owner::Address(address),
                     previous_transaction: object.previous_transaction,
                 },

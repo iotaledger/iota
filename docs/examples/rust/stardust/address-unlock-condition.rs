@@ -92,7 +92,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // object.
     // The dynamic field name for the Alias object is "alias", of type vector<u8>
     let df_name = DynamicFieldName {
-        tag: TypeTag::Vector(Box::new(TypeTag::U8)),
+        type_tag: TypeTag::Vector(Box::new(TypeTag::U8)),
         value: serde_json::Value::String("alias".to_string()),
     };
     let alias_object = iota_client

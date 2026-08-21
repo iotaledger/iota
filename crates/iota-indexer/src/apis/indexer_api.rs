@@ -112,7 +112,7 @@ impl IndexerApi {
         // Try as Dynamic Field
         let id = iota_types::dynamic_field::derive_dynamic_field_id(
             parent_object_id,
-            &name.tag,
+            &name.type_tag,
             &name_bcs_value,
         )
         .map_err(internal_error)?;
@@ -131,7 +131,9 @@ impl IndexerApi {
 
         // Try as Dynamic Field Object
         let dynamic_object_field_struct =
-            iota_types::dynamic_field::DynamicFieldInfo::dynamic_object_field_wrapper(name.tag);
+            iota_types::dynamic_field::DynamicFieldInfo::dynamic_object_field_wrapper(
+                name.type_tag,
+            );
         let dynamic_object_field_type = TypeTag::Struct(Box::new(dynamic_object_field_struct));
         let dynamic_object_field_id = iota_types::dynamic_field::derive_dynamic_field_id(
             parent_object_id,

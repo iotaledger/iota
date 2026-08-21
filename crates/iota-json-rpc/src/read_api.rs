@@ -1287,7 +1287,7 @@ fn get_value_from_move_struct(
     for part in parts {
         match current_value {
             IotaMoveValue::Struct(move_struct) => {
-                if let IotaMoveStruct::WithTypes { tag: _, fields }
+                if let IotaMoveStruct::WithTypes { type_tag: _, fields }
                 | IotaMoveStruct::WithFields(fields) = move_struct
                 {
                     if let Some(value) = fields.get(part) {

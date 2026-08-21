@@ -697,7 +697,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
     let bag_object_ref = objects.data.first().unwrap().object().unwrap().object_ref();
 
     let name = DynamicFieldName {
-        tag: TypeTag::U64,
+        type_tag: TypeTag::U64,
         value: IotaMoveValue::from(MoveValue::U64(0u64)).to_json_value(),
     };
 

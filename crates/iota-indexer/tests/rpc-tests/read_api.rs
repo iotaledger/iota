@@ -1082,7 +1082,7 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
             &result_optimistic[0].package_id,
             &result_optimistic[0].transaction_module,
             &result_optimistic[0].sender,
-            &result_optimistic[0].tag,
+            &result_optimistic[0].type_tag,
             &result_optimistic[0].parsed_json,
             &result_optimistic[0].bcs,
         );
@@ -1097,7 +1097,7 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
             &result_checkpointed[0].package_id,
             &result_checkpointed[0].transaction_module,
             &result_checkpointed[0].sender,
-            &result_checkpointed[0].tag,
+            &result_checkpointed[0].type_tag,
             &result_checkpointed[0].parsed_json,
             &result_checkpointed[0].bcs,
         );

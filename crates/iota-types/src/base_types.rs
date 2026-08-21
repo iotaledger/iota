@@ -168,7 +168,7 @@ pub struct ObjectInfo {
     pub object_id: ObjectId,
     pub version: Version,
     pub digest: ObjectDigest,
-    pub tag: ObjectType,
+    pub object_type: ObjectType,
     pub owner: Owner,
     pub previous_transaction: TransactionDigest,
 }
@@ -179,7 +179,7 @@ impl ObjectInfo {
             object_id: oref.object_id,
             version: oref.version,
             digest: oref.digest,
-            tag: o.into(),
+            object_type: o.into(),
             owner: o.owner,
             previous_transaction: o.previous_transaction,
         }
@@ -190,7 +190,7 @@ impl ObjectInfo {
             object_id: object.id(),
             version: object.version(),
             digest: object.digest(),
-            tag: object.into(),
+            object_type: object.into(),
             owner: object.owner,
             previous_transaction: object.previous_transaction,
         }

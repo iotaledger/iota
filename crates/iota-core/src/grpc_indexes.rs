@@ -1116,7 +1116,7 @@ impl iota_node_storage::GrpcIndexes for GrpcIndexesStore {
                         owner: key.owner,
                         object_id: key.object_id,
                         version: info.version,
-                        tag: info.object_type.into(),
+                        object_type: info.object_type.into(),
                     };
                     (obj_info, cursor)
                 })

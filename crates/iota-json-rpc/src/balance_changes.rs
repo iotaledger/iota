@@ -134,8 +134,8 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
     for (id, version, digest_opt) in objects {
         // TODO: use multi get object
         let o = object_provider.get_object(id, version).await?;
-        if let Some(struct_tag) = o.data.opt_object_type() {
-            if struct_tag.is_coin() {
+        if let Some(object_type) = o.data.opt_object_type() {
+            if object_type.is_coin() {
                 if let Some(digest) = digest_opt {
                     // TODO: can we return Err here instead?
                     assert_eq!(
@@ -144,7 +144,7 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
                         "Object digest mismatch--got bad data from object_provider?"
                     )
                 }
-                let coin_type = struct_tag.type_params()[0].clone();
+                let coin_type = object_type.type_params()[0].clone();
                 all_mutated_coins.push((
                     o.owner,
                     coin_type,

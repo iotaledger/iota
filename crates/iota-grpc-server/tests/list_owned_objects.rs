@@ -92,7 +92,7 @@ fn make_owned_entry(
         owner,
         object_id,
         version: OBJECT_START_VERSION,
-        tag,
+        object_type: tag,
     };
     let cursor = OwnedObjectCursor {
         object_type_identifier: type_id_hash,

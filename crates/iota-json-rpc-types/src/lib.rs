@@ -88,7 +88,7 @@ pub struct DynamicFieldNameSchema {
     #[serde(rename = "type")]
     #[schemars(with = "TypeTagSchema")]
     #[serde_as(as = "TypeTagSchema")]
-    pub tag: TypeTag,
+    pub type_tag: TypeTag,
     // Bincode does not like serde_json::Value, rocksdb will not insert the value without
     // serializing value as string. TODO: investigate if this can be removed after switch to
     // BCS.
@@ -118,7 +118,7 @@ impl<'de> DeserializeAs<'de, DynamicFieldName> for DynamicFieldNameSchema {
 impl From<DynamicFieldName> for DynamicFieldNameSchema {
     fn from(name: DynamicFieldName) -> Self {
         Self {
-            tag: name.tag,
+            type_tag: name.type_tag,
             value: name.value,
         }
     }
@@ -127,7 +127,7 @@ impl From<DynamicFieldName> for DynamicFieldNameSchema {
 impl From<DynamicFieldNameSchema> for DynamicFieldName {
     fn from(name: DynamicFieldNameSchema) -> Self {
         Self {
-            tag: name.tag,
+            type_tag: name.type_tag,
             value: name.value,
         }
     }

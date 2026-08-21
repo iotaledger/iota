@@ -2861,7 +2861,7 @@ pub struct ObjectOutput {
 
 impl From<&IotaObjectData> for ObjectOutput {
     fn from(obj: &IotaObjectData) -> Self {
-        let obj_type = match obj.tag.as_ref() {
+        let obj_type = match obj.object_type.as_ref() {
             Some(x) => x.to_string(),
             None => "unknown".to_string(),
         };
@@ -2909,7 +2909,7 @@ impl ObjectsOutput {
     fn from(obj: IotaObjectResponse) -> Result<Self, anyhow::Error> {
         let obj = obj.into_object()?;
         // this replicates the object type display as in the iota explorer
-        let object_type = match obj.tag {
+        let object_type = match obj.object_type {
             Some(iota_types::base_types::ObjectType::Struct(x)) => {
                 let address = x.address().to_string();
                 // check if the address has length of 64 characters
