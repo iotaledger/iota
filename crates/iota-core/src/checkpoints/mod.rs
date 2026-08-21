@@ -349,11 +349,15 @@ impl CheckpointStore {
         );
 
         // Only insert the genesis checkpoint if the DB is empty and doesn't have it
-        // already
+        // already. Asked of `certified_checkpoints`, which is keyed by
+        // sequence number and never pruned: once epoch 0's history has been
+        // expired the genesis checkpoint is no longer readable by digest, and
+        // inserting it a second time would refuse to reopen the expired epoch
+        // and would drag the synced watermark back to zero.
         if self
-            .get_checkpoint_by_digest(checkpoint.digest())
+            .get_checkpoint_by_sequence_number(0)
             .unwrap()
-            .is_none()
+            .is_none_or(|stored| stored.digest() != checkpoint.digest())
         {
             if epoch_store.epoch() == checkpoint.epoch {
                 epoch_store
