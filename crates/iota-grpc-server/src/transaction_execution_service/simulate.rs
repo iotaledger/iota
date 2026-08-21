@@ -298,32 +298,26 @@ async fn simulate_single_transaction(
                 if let Some(error_mask) =
                     result_mask.subtree(SimulatedTransaction::EXECUTION_ERROR_FIELD.name)
                 {
+                    let failure = execution_error.to_execution_failure();
                     let mut exec_error = ExecutionError::default();
 
                     // Serialize the execution error kind as BCS
                     if error_mask.contains(ExecutionError::BCS_KIND_FIELD.name) {
-                        exec_error.bcs_kind = Some(
-                            grpc_bcs::BcsData::serialize(execution_error.kind()).map_err(|e| {
+                        exec_error.bcs_kind =
+                            Some(grpc_bcs::BcsData::serialize(&failure.error).map_err(|e| {
                                 RpcError::new(
                                     tonic::Code::Internal,
                                     format!("failed to serialize execution error kind: {e}"),
                                 )
-                            })?,
-                        );
+                            })?);
                     }
 
                     if error_mask.contains(ExecutionError::SOURCE_FIELD.name) {
-                        exec_error.source = execution_error
-                            .source()
-                            .as_ref()
-                            .map(|source| source.to_string());
+                        exec_error.source = failure.source;
                     }
 
-                    // Set the command index if available
                     if error_mask.contains(ExecutionError::COMMAND_INDEX_FIELD.name) {
-                        if let Some(command_idx) = execution_error.command() {
-                            exec_error.command_index = Some(command_idx);
-                        }
+                        exec_error.command_index = failure.command;
                     }
 
                     response.execution_result = Some(
