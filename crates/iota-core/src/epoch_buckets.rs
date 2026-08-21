@@ -173,15 +173,6 @@ impl<B> EpochBuckets<B> {
         }
     }
 
-    /// The oldest epoch whose bucket satisfies `keep`, `None` when none does.
-    pub(crate) fn earliest_epoch_where(&self, keep: impl Fn(&B) -> bool) -> Option<EpochId> {
-        self.buckets
-            .read()
-            .iter()
-            .find(|(_, bucket)| keep(bucket))
-            .map(|(&epoch, _)| epoch)
-    }
-
     /// The newest epoch holding a bucket, `None` when there is none.
     pub(crate) fn newest_epoch(&self) -> Option<EpochId> {
         self.buckets

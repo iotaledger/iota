@@ -506,13 +506,13 @@ impl AuthorityPerpetualTables {
 
     /// Marks the one-time object-backlog sweep as already done, so that a
     /// later node start does not walk `objects` looking for versions to
-    /// delete.
+    /// relocate.
     ///
     /// Call this only on a database that cannot hold a backlog to begin
     /// with, such as one just populated by a formal-snapshot restore: a
     /// snapshot is taken at an epoch boundary and carries only the live
     /// object set, so there are no superseded versions for the sweep to
-    /// find, and recording `Done` up front skips a walk that would delete
+    /// find, and recording `Done` up front skips a walk that would relocate
     /// nothing.
     pub fn mark_object_backlog_swept(&self) -> IotaResult {
         self.object_backlog_sweep_progress
