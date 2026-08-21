@@ -60,7 +60,7 @@ use iota_types::{
     storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
     transaction::{TransactionAPI, TransactionEnvelope, VerifiedTransaction},
 };
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
 pub use self::store::{SimulatorStore, in_mem_store::InMemoryStore};
 use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
@@ -74,7 +74,7 @@ use self::{epoch_state::EpochState, store::in_mem_store::KeyStore};
 /// See [module level][mod] documentation for more details.
 ///
 /// [mod]: index.html
-pub struct Simulacrum<R = OsRng, Store: SimulatorStore = InMemoryStore> {
+pub struct Simulacrum<R = UnwrapErr<SysRng>, Store: SimulatorStore = InMemoryStore> {
     // Mutable state protected by RwLock for thread-safe interior mutability
     inner: RwLock<SimulacrumInner<R, Store>>,
     // Immutable config - can be accessed directly
@@ -100,13 +100,13 @@ impl Simulacrum {
     /// of randomness.
     #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
-        Self::new_with_rng(OsRng)
+        Self::new_with_rng(UnwrapErr(SysRng))
     }
 }
 
 impl<R> Simulacrum<R>
 where
-    R: rand::RngCore + rand::CryptoRng,
+    R: rand::CryptoRng,
 {
     /// Create a new Simulacrum instance using the provided `rng`.
     ///

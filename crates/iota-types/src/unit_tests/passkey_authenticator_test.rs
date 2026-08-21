@@ -372,7 +372,7 @@ async fn test_passkey_wrong_challenge_fails_verification() {
     let res = sig.verify_claims(&response.intent_msg, response.sender, &Default::default());
     let err = res.unwrap_err();
     assert!(
-        err.to_string()
-            .contains("passkey challenge does not match expected message")
+        err.to_string().contains("Invalid passkey authentication"),
+        "expected Invalid passkey authentication error, got {err:?}"
     );
 }

@@ -265,7 +265,7 @@ impl ValidatorConfigBuilder {
         config
     }
 
-    pub fn build_new_validator<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_new_validator<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -461,7 +461,7 @@ impl FullnodeConfigBuilder {
     /// # Panics
     ///
     /// Panics if [`Self::try_build_from_parts`] returns an error.
-    pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build_from_parts<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         validator_configs: &[NodeConfig],
@@ -481,7 +481,7 @@ impl FullnodeConfigBuilder {
     /// Panics on failures the config cannot be built without: creating the
     /// temporary config directory, allocating a local port, or parsing a
     /// generated network address.
-    pub fn try_build_from_parts<R: rand::RngCore + rand::CryptoRng>(
+    pub fn try_build_from_parts<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         validator_configs: &[NodeConfig],
@@ -684,7 +684,7 @@ impl FullnodeConfigBuilder {
     /// # Panics
     ///
     /// Panics if [`Self::try_build`] returns an error.
-    pub fn build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn build<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -703,7 +703,7 @@ impl FullnodeConfigBuilder {
     /// Panics on failures the config cannot be built without: creating the
     /// temporary config directory, allocating a local port, or parsing a
     /// generated network address.
-    pub fn try_build<R: rand::RngCore + rand::CryptoRng>(
+    pub fn try_build<R: rand::CryptoRng>(
         self,
         rng: &mut R,
         network_config: &NetworkConfig,
@@ -733,7 +733,7 @@ fn get_key_path(key_pair: &AuthorityKeyPair) -> String {
 mod tests {
     use std::net::SocketAddr;
 
-    use rand::rngs::OsRng;
+    use rand::{rand_core::UnwrapErr, rngs::SysRng};
 
     use super::{FullnodeConfigBuilder, Genesis};
 
@@ -741,7 +741,7 @@ mod tests {
     fn deterministic_ports_fill_the_three_slots_of_a_fullnode() {
         let config = FullnodeConfigBuilder::new()
             .with_deterministic_ports(9184)
-            .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
+            .build_from_parts(&mut UnwrapErr(SysRng), &[], Genesis::new_empty());
         let ip = config.network_address.to_socket_addr().unwrap().ip();
 
         assert_eq!(config.metrics_address, SocketAddr::new(ip, 9184));
@@ -758,7 +758,7 @@ mod tests {
         let config = FullnodeConfigBuilder::new()
             .with_deterministic_ports(9184)
             .with_admin_interface_address(Some(([127, 0, 0, 1], 1337)))
-            .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
+            .build_from_parts(&mut UnwrapErr(SysRng), &[], Genesis::new_empty());
         let ip = config.network_address.to_socket_addr().unwrap().ip();
 
         assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:1337");

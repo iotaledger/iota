@@ -43,7 +43,7 @@ use iota_swarm_config::{
     node_config_builder::FullnodeConfigBuilder,
 };
 use iota_types::traffic_control::PolicyConfig;
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use tempfile::tempdir;
 use tracing::{info, warn};
 
@@ -1024,7 +1024,11 @@ async fn genesis(
         .with_admin_interface_address(admin_interface_address_with_port)
         .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
         .with_deterministic_ports(FULLNODE_PORT_BASE)
-        .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
+        .try_build_from_parts(
+            &mut UnwrapErr(SysRng),
+            network_config.validator_configs(),
+            genesis,
+        )?;
 
     fullnode_config.save(iota_config_dir.join(IOTA_FULLNODE_CONFIG))?;
     let mut ssfn_nodes = vec![];
@@ -1046,7 +1050,11 @@ async fn genesis(
                 .with_json_rpc_address(([0, 0, 0, 0], 9000))
                 .with_genesis(genesis.clone())
                 .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
-                .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
+                .try_build_from_parts(
+                    &mut UnwrapErr(SysRng),
+                    network_config.validator_configs(),
+                    genesis,
+                )?;
             ssfn_nodes.push(ssfn_config.clone());
             ssfn_config.save(path)?;
         }

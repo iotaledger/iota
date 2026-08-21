@@ -29,7 +29,7 @@ use iota_types::{
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
 use once_cell::sync::OnceCell;
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use serde::{Deserialize, Serialize};
 use starfish_config::Parameters as StarfishParameters;
 use tracing::info;
@@ -694,7 +694,9 @@ fn default_grpc_address() -> Multiaddr {
     "/ip4/0.0.0.0/tcp/8080".parse().unwrap()
 }
 fn default_authority_key_pair() -> AuthorityKeyPairWithPath {
-    AuthorityKeyPairWithPath::new(get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut OsRng).1)
+    AuthorityKeyPairWithPath::new(
+        get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut UnwrapErr(SysRng)).1,
+    )
 }
 
 fn default_key_pair() -> KeyPairWithPath {

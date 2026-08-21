@@ -11,21 +11,22 @@ use futures::{
 use iota_macros::*;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
 use rand::{
-    Rng,
-    distributions::{Distribution, Uniform},
-    rngs::OsRng,
+    RngExt,
+    distr::{Distribution, Uniform},
+    rand_core::UnwrapErr,
+    rngs::SysRng,
 };
 use test_cluster::TestClusterBuilder;
 use tokio::time::{Duration, Instant, sleep};
 use tracing::{debug, trace};
 
 async fn make_fut(i: usize) -> usize {
-    let count_dist = Uniform::from(1..5);
-    let sleep_dist = Uniform::from(1000..10000);
+    let count_dist = Uniform::new(1, 5).unwrap();
+    let sleep_dist = Uniform::new(1000, 10000).unwrap();
 
-    let count = count_dist.sample(&mut OsRng);
+    let count = count_dist.sample(&mut UnwrapErr(SysRng));
     for _ in 0..count {
-        let dur = Duration::from_millis(sleep_dist.sample(&mut OsRng));
+        let dur = Duration::from_millis(sleep_dist.sample(&mut UnwrapErr(SysRng)));
         trace!("sleeping for {:?}", dur);
         sleep(dur).await;
     }
@@ -42,9 +43,9 @@ async fn test_futures_ordered() {
 
     while (futures.next().await).is_some() {
         // mix rng state as futures finish
-        OsRng.gen::<u32>();
+        UnwrapErr(SysRng).random::<u32>();
     }
-    debug!("final rng state: {}", OsRng.gen::<u32>());
+    debug!("final rng state: {}", UnwrapErr(SysRng).random::<u32>());
 }
 
 #[sim_test(check_determinism)]
@@ -56,10 +57,10 @@ async fn test_futures_unordered() {
     while let Some(i) = futures.next().await {
         // mix rng state depending on the order futures finish in
         for _ in 0..i {
-            OsRng.gen::<u32>();
+            UnwrapErr(SysRng).random::<u32>();
         }
     }
-    debug!("final rng state: {}", OsRng.gen::<u32>());
+    debug!("final rng state: {}", UnwrapErr(SysRng).random::<u32>());
 }
 
 #[sim_test(check_determinism)]
@@ -72,15 +73,15 @@ async fn test_select_unbiased() {
 
             Some(i) = f1.next() => {
                 for _ in 0..i {
-                    OsRng.gen::<u32>();
+                    UnwrapErr(SysRng).random::<u32>();
                 }
             }
 
             Some(i) = f2.next() => {
                 for _ in 0..i {
                     // mix differently when f2 yields.
-                    OsRng.gen::<u32>();
-                    OsRng.gen::<u32>();
+                    UnwrapErr(SysRng).random::<u32>();
+                    UnwrapErr(SysRng).random::<u32>();
                 }
             }
 
@@ -90,7 +91,7 @@ async fn test_select_unbiased() {
 
     assert!(f1.is_empty());
     assert!(f2.is_empty());
-    debug!("final rng state: {}", OsRng.gen::<u32>());
+    debug!("final rng state: {}", UnwrapErr(SysRng).random::<u32>());
 }
 
 #[sim_test(check_determinism)]
@@ -109,17 +110,17 @@ async fn test_hash_collections() {
     // so that if iteration order changes, we get different results.
     for (i, _) in map.iter().take(500) {
         for _ in 0..*i {
-            OsRng.gen::<u32>();
+            UnwrapErr(SysRng).random::<u32>();
         }
     }
 
     for i in set.iter().take(500) {
         for _ in 0..*i {
-            OsRng.gen::<u32>();
+            UnwrapErr(SysRng).random::<u32>();
         }
     }
 
-    debug!("final rng state: {}", OsRng.gen::<u32>());
+    debug!("final rng state: {}", UnwrapErr(SysRng).random::<u32>());
 }
 
 // Test that starting up a network + fullnode, and sending one transaction

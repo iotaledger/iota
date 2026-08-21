@@ -350,11 +350,11 @@ mod test {
         let validators = (0..10)
             .map(|i| {
                 let authority_keypair: AuthorityKeyPair =
-                    get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+                    get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
                 let protocol_keypair: NetworkKeyPair =
-                    get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+                    get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
                 let network_keypair: NetworkKeyPair =
-                    get_key_pair_from_rng(&mut rand::rngs::OsRng).1;
+                    get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
                 let account_keypair = AccountKeyPair::random();
                 let info = ValidatorInfo {
                     name: format!("validator-{i}"),

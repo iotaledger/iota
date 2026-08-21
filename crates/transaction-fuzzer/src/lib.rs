@@ -20,7 +20,7 @@ use iota_types::{
     object::{MoveStructExt, OBJECT_START_VERSION, Object},
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
-use rand::{Rng, SeedableRng, rngs::StdRng};
+use rand::{RngExt, SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
@@ -48,7 +48,7 @@ fn generate_random_gas_data(
     let mut gas_objects = vec![];
     let mut object_refs = vec![];
 
-    let total_gas_balance = rng.gen_range(0..=MAX_GAS_BALANCE);
+    let total_gas_balance = rng.random_range(0..=MAX_GAS_BALANCE);
     let mut remaining_gas_balance = total_gas_balance;
     let num_gas_objects = gas_coin_owners.len();
     let gas_coin_owners = gas_coin_owners
@@ -59,7 +59,7 @@ fn generate_random_gas_data(
         })
         .collect::<Vec<_>>();
     for owner in gas_coin_owners.iter().take(num_gas_objects - 1) {
-        let gas_balance = rng.gen_range(0..=remaining_gas_balance);
+        let gas_balance = rng.random_range(0..=remaining_gas_balance);
         let gas_object = new_gas_coin_with_balance_and_owner(gas_balance, *owner);
         remaining_gas_balance -= gas_balance;
         object_refs.push(gas_object.object_ref());
@@ -86,8 +86,9 @@ fn generate_random_gas_data(
         gas_data: GasPayment {
             objects: object_refs,
             owner: sender,
-            price: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price()),
-            budget: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas()),
+            price: rng
+                .random_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price()),
+            budget: rng.random_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_tx_gas()),
         },
         objects: gas_objects,
         sender_key,

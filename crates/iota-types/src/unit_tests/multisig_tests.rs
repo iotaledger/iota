@@ -55,9 +55,9 @@ fn verify_rejects_signature_pubkey_scheme_mismatch() {
         matches!(
             &err,
             IotaError::InvalidSignature { error }
-                if error.contains("signature/pubkey type mismatch")
+                if error.contains("Invalid multisig")
         ),
-        "expected a signature/pubkey type mismatch error, got {err:?}"
+        "expected an Invalid multisig error, got {err:?}"
     );
 
     // The check is gated behind `additional_multisig_checks`: with it disabled

@@ -37,13 +37,13 @@ use iota_types::{
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
-use rand::rngs::OsRng;
+use rand::{rand_core::UnwrapErr, rngs::SysRng};
 use tempfile::TempDir;
 use tracing::info;
 
 use super::Node;
 
-pub struct SwarmBuilder<R = OsRng> {
+pub struct SwarmBuilder<R = UnwrapErr<SysRng>> {
     rng: R,
     // template: NodeConfig,
     dir: Option<PathBuf>,
@@ -83,7 +83,7 @@ impl SwarmBuilder {
     #[expect(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            rng: OsRng,
+            rng: UnwrapErr(SysRng),
             dir: None,
             committee: CommitteeConfig::Size(NonZeroUsize::new(1).unwrap()),
             genesis_config: None,
@@ -119,7 +119,7 @@ impl SwarmBuilder {
 }
 
 impl<R> SwarmBuilder<R> {
-    pub fn rng<N: rand::RngCore + rand::CryptoRng>(self, rng: N) -> SwarmBuilder<N> {
+    pub fn rng<N: rand::CryptoRng>(self, rng: N) -> SwarmBuilder<N> {
         SwarmBuilder {
             rng,
             dir: self.dir,
@@ -403,7 +403,7 @@ impl<R> SwarmBuilder<R> {
     }
 }
 
-impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
+impl<R: rand::CryptoRng> SwarmBuilder<R> {
     /// Create the configured Swarm.
     ///
     /// # Panics
@@ -592,7 +592,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                 }
             }
             let config = builder
-                .try_build(&mut OsRng, &network_config)
+                .try_build(&mut UnwrapErr(SysRng), &network_config)
                 .context("failed to build the fullnode config")?;
             info!(
                 "SwarmBuilder configuring full node with name {}",

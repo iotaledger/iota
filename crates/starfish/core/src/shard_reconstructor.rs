@@ -824,7 +824,7 @@ mod tests {
     };
 
     use parking_lot::RwLock;
-    use rand::{seq::SliceRandom, thread_rng};
+    use rand::{rng, seq::SliceRandom};
     use starfish_config::AuthorityIndex;
     use tokio::sync::{Mutex, mpsc::Sender};
 
@@ -1077,7 +1077,7 @@ mod tests {
             .unwrap();
 
         // Shuffle shard indices
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut indices: Vec<usize> = (0..all_shards.len()).collect();
         indices.shuffle(&mut rng);
 
@@ -1259,7 +1259,7 @@ mod tests {
             .unwrap();
 
         // Shuffle shard indices so it's not always the same missing one
-        let mut rng = thread_rng();
+        let mut rng = rng();
         let mut indices: Vec<usize> = (0..all_shards.len()).collect();
         indices.shuffle(&mut rng);
 

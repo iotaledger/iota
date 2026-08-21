@@ -32,7 +32,7 @@ use iota_types::{
 };
 use parking_lot::Mutex as ParkingLotMutex;
 use prometheus_filtered::IntGauge;
-use rand::Rng;
+use rand::RngExt;
 use tokio::{
     sync::{Mutex, RwLock, mpsc, mpsc::error::TrySendError},
     time,
@@ -899,7 +899,7 @@ impl TrafficSim {
         // Do an initial sleep for a random amount of time to smooth
         // out the traffic. This shouldn't be strictly necessary and
         // we can remove if we want more determinism
-        let sleep_time = Duration::from_micros(rand::thread_rng().gen_range(0..100));
+        let sleep_time = Duration::from_micros(rand::rng().random_range(0..100));
         tokio::time::sleep(sleep_time).await;
 
         // collectors

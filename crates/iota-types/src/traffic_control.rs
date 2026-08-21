@@ -14,7 +14,7 @@ use serde_with::serde_as;
 pub const DEFAULT_SKETCH_CAPACITY: usize = 50_000;
 pub const DEFAULT_SKETCH_PROBABILITY: f64 = 0.999;
 pub const DEFAULT_SKETCH_TOLERANCE: f64 = 0.2;
-use rand::distributions::Distribution;
+use rand::distr::Distribution;
 
 const TRAFFIC_SINK_TIMEOUT_SEC: u64 = 300;
 
@@ -107,8 +107,10 @@ impl Weight {
     }
 
     pub fn is_sampled(&self) -> bool {
-        let mut rng = rand::thread_rng();
-        let sample = rand::distributions::Uniform::new(0.0, 1.0).sample(&mut rng);
+        let mut rng = rand::rng();
+        let sample = rand::distr::Uniform::new(0.0, 1.0)
+            .unwrap()
+            .sample(&mut rng);
         sample <= self.value()
     }
 }

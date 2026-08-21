@@ -270,13 +270,13 @@ impl StateSyncConfig {
     }
 
     pub fn randomized_for_testing() -> Self {
-        use rand::Rng;
-        let mut rng = rand::thread_rng();
+        use rand::RngExt;
+        let mut rng = rand::rng();
         let config = Self {
-            mailbox_capacity: Some(rng.gen_range(16..=2048)),
-            synced_checkpoint_broadcast_channel_capacity: Some(rng.gen_range(16..=2048)),
-            checkpoint_header_download_concurrency: Some(rng.gen_range(10..=500)),
-            checkpoint_content_download_concurrency: Some(rng.gen_range(10..=500)),
+            mailbox_capacity: Some(rng.random_range(16..=2048)),
+            synced_checkpoint_broadcast_channel_capacity: Some(rng.random_range(16..=2048)),
+            checkpoint_header_download_concurrency: Some(rng.random_range(10..=500)),
+            checkpoint_content_download_concurrency: Some(rng.random_range(10..=500)),
             ..Default::default()
         };
         tracing::info!(

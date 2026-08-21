@@ -81,7 +81,7 @@ pub(crate) fn init_state_parameters_from_rng<R>(
     rng: &mut R,
 ) -> (iota_config::genesis::Genesis, AuthorityKeyPair)
 where
-    R: rand::CryptoRng + rand::RngCore,
+    R: rand::CryptoRng,
 {
     let dir = iota_macros::nondeterministic!(tempfile::TempDir::new().unwrap());
     let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)

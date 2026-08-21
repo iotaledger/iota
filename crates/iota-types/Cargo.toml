@@ -36,6 +36,7 @@ passkey-types.workspace = true
 proptest = { workspace = true, optional = true }
 prost-types.workspace = true
 rand.workspace = true
+rand08.workspace = true
 roaring.workspace = true
 serde.workspace = true
 serde-name = "0.2.1"

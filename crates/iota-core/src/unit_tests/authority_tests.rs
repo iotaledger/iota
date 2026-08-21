@@ -71,8 +71,8 @@ use move_binary_format::{
 };
 use move_core_types::account_address::AccountAddress;
 use rand::{
-    Rng, SeedableRng,
-    distributions::{Distribution, Uniform},
+    RngExt, SeedableRng,
+    distr::{Distribution, Uniform},
     prelude::StdRng,
     seq::SliceRandom,
 };
@@ -5159,7 +5159,7 @@ async fn test_consensus_message_processed() {
             &[(shared_object_id, initial_shared_version, true)],
             &gas_object_ref,
             &[&authority1, &authority2],
-            Uniform::from(0..100000).sample(&mut rng),
+            Uniform::new(0, 100000).unwrap().sample(&mut rng),
             None,
             None,
         )
@@ -5173,12 +5173,12 @@ async fn test_consensus_message_processed() {
         // now, on authority2, we send 0 or 1 consensus messages, then we either
         // sequence and execute via effects or via handle_certificate_v1, then
         // send 0 or 1 consensus messages.
-        let send_first = rng.gen_bool(0.5);
+        let send_first = rng.random_bool(0.5);
         if send_first {
             send_consensus(&authority2, &certificate).await;
         }
 
-        let effects2 = if send_first && rng.gen_bool(0.5) {
+        let effects2 = if send_first && rng.random_bool(0.5) {
             authority2.execute_for_test(&certificate).0.into_message()
         } else {
             let epoch_store = authority2.epoch_store_for_testing();
@@ -5205,7 +5205,7 @@ async fn test_consensus_message_processed() {
         }
 
         // Sometimes send one more consensus message.
-        if rng.gen_bool(0.5) {
+        if rng.random_bool(0.5) {
             send_consensus(&authority2, &certificate).await;
         }
 
@@ -6588,7 +6588,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     // We shuffle the transactions so that transactions in the list do not have any
     // order in terms of gas price.
-    certificates.shuffle(&mut rand::thread_rng());
+    certificates.shuffle(&mut rand::rng());
 
     // Sends the first batch of transactions. We should expect that 2 transactions
     // operate on the expensive object should go through, and all transactions
@@ -6812,7 +6812,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
 
     // We shuffle the transactions so that transactions in the list do not have any
     // order in terms of gas price.
-    certificates.shuffle(&mut rand::thread_rng());
+    certificates.shuffle(&mut rand::rng());
 
     // Sends all transactions to consensus. Expect first 2 rounds with 1 user
     // transaction per round going through.

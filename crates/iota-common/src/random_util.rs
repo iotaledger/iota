@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_macros::nondeterministic;
-use rand::{Rng, seq::SliceRandom};
+use rand::{RngExt, seq::IteratorRandom};
 
 use crate::{in_test_configuration, random::get_rng};
 
 pub fn randomize_cache_capacity_in_tests<T>(size: T) -> T
 where
-    T: Copy + PartialOrd + rand::distributions::uniform::SampleUniform + TryFrom<usize>,
+    T: Copy + PartialOrd + rand::distr::uniform::SampleUniform + TryFrom<usize>,
 {
     if !in_test_configuration() {
         return size;
@@ -33,9 +33,9 @@ where
         panic!("Failed to convert 2 to T");
     };
 
-    let random_size = rng.gen_range(two..size);
+    let random_size = rng.random_range(two..size);
     let choices = [two, size, random_size];
-    *choices.choose(&mut rng).unwrap()
+    *choices.iter().choose(&mut rng).unwrap()
 }
 
 pub type TempDir = tempfile::TempDir;

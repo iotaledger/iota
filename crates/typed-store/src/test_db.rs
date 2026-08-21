@@ -15,7 +15,7 @@ use std::{
 use bincode::Options;
 use collectable::TryExtend;
 use ouroboros::self_referencing;
-use rand::distributions::{Alphanumeric, DistString};
+use rand::distr::{Alphanumeric, SampleString};
 use rocksdb::Direction;
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -36,7 +36,7 @@ impl<K, V> TestDB<K, V> {
     pub fn open() -> Self {
         TestDB {
             rows: Arc::new(RwLock::new(BTreeMap::new())),
-            name: Alphanumeric.sample_string(&mut rand::thread_rng(), 16),
+            name: Alphanumeric.sample_string(&mut rand::rng(), 16),
             _phantom: PhantomData,
         }
     }

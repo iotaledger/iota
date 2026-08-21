@@ -26,7 +26,7 @@ use iota_types::{
 };
 pub use metrics::*;
 use parking_lot::Mutex;
-use rand::Rng;
+use rand::RngExt;
 use tokio::{
     task::JoinSet,
     time::{interval, sleep},
@@ -442,7 +442,7 @@ where
 
         for name in validators {
             let display_name = auth_agg.get_display_name(&name);
-            let delay_ms = rand::thread_rng().gen_range(0..max_jitter.as_millis()) as u64;
+            let delay_ms = rand::rng().random_range(0..max_jitter.as_millis()) as u64;
             let self_clone = self.clone();
 
             let task = async move {

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::TransactionKind;
-use rand::{SeedableRng, seq::SliceRandom};
+use rand::{SeedableRng, seq::IndexedMutRandom};
 
 use crate::fuzz::TransactionKindMutator;
 

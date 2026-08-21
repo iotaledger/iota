@@ -16,7 +16,7 @@ use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
 #[cfg(not(test))]
 use rand::prelude::SliceRandom as _;
-use rand::{SeedableRng as _, rngs::StdRng, thread_rng};
+use rand::{SeedableRng as _, rng, rngs::StdRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
@@ -811,7 +811,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 }
             })
             .collect();
-        let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
+        let mut rng = StdRng::from_rng(&mut rng());
         // Without ranking, one shuffle for load balancing covers every chunk.
         #[cfg(not(test))]
         if !inner.context.parameters.enable_peer_responsiveness_ranking {

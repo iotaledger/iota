@@ -1182,7 +1182,7 @@ async fn test_address_spoofing_prevention() -> Result<()> {
 
     for i in 0..5 {
         // Create different keypairs (different private keys) for each malicious peer
-        let malicious_key = NetworkKeyPair::generate(&mut rand::thread_rng());
+        let malicious_key = NetworkKeyPair::generate(&mut rand08::thread_rng());
         let malicious_peer_id =
             anemo::PeerId(malicious_key.public().as_bytes().try_into().unwrap());
         let timestamp_malicious = start_timestamp_ms + i + 100;
@@ -1203,7 +1203,7 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     // Malicious actor claims to be a legitimate peer but at a fake
     // non-existing/non-reachable address
     let fake_address: Multiaddr = "/dns/localhost/udp/54321".parse()?;
-    let key_malicious_2 = NetworkKeyPair::generate(&mut rand::thread_rng());
+    let key_malicious_2 = NetworkKeyPair::generate(&mut rand08::thread_rng());
     let peer_id_malicious_2 =
         anemo::PeerId(key_malicious_2.public().as_bytes().try_into().unwrap());
     let timestamp_malicious_2 = start_timestamp_ms + 1000; // Newer timestamp
@@ -1615,8 +1615,8 @@ async fn test_peer_deduplication() -> Result<()> {
     // each field in NodeInfo individually
 
     // Create test keypairs
-    let key1 = NetworkKeyPair::generate(&mut rand::thread_rng());
-    let key2 = NetworkKeyPair::generate(&mut rand::thread_rng());
+    let key1 = NetworkKeyPair::generate(&mut rand08::thread_rng());
+    let key2 = NetworkKeyPair::generate(&mut rand08::thread_rng());
 
     let peer_id1 = anemo::PeerId(key1.public().as_bytes().try_into().unwrap());
     let peer_id2 = anemo::PeerId(key2.public().as_bytes().try_into().unwrap());
@@ -1908,7 +1908,7 @@ async fn test_private_address_filtering() -> Result<()> {
 
     // Create peers with private/unroutable addresses (should be filtered)
     for (i, address_str) in filtered_addresses.iter().enumerate() {
-        let key = NetworkKeyPair::generate(&mut rand::thread_rng());
+        let key = NetworkKeyPair::generate(&mut rand08::thread_rng());
         let peer_id = anemo::PeerId(key.public().0.to_bytes());
 
         let peer_info = NodeInfo {
@@ -1928,7 +1928,7 @@ async fn test_private_address_filtering() -> Result<()> {
 
     // Create peers with public addresses (should reach verification)
     for (i, address_str) in public_addresses.iter().enumerate() {
-        let key = NetworkKeyPair::generate(&mut rand::thread_rng());
+        let key = NetworkKeyPair::generate(&mut rand08::thread_rng());
         let peer_id = anemo::PeerId(key.public().0.to_bytes());
 
         let peer_info = NodeInfo {

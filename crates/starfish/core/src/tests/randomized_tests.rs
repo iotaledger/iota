@@ -5,7 +5,7 @@
 use std::{env, sync::Arc};
 
 use parking_lot::RwLock;
-use rand::{Rng, SeedableRng, prelude::SliceRandom, rngs::StdRng};
+use rand::{RngExt, SeedableRng, prelude::SliceRandom, rngs::StdRng};
 use rstest::rstest;
 use starfish_config::AuthorityIndex;
 
@@ -37,8 +37,8 @@ async fn test_randomized_dag_all_direct_commit(#[values(false, true)] starfish_s
     let mut random_test_setup = random_test_setup();
 
     for _ in 0..NUM_RUNS {
-        let seed = random_test_setup.seeded_rng.gen_range(0..10000);
-        let num_authorities = random_test_setup.seeded_rng.gen_range(4..10);
+        let seed = random_test_setup.seeded_rng.random_range(0..10000);
+        let num_authorities = random_test_setup.seeded_rng.random_range(4..10);
         let authority = authority_setup(num_authorities, 0, starfish_speed);
 
         let include_leader_percentage = 100;
@@ -93,8 +93,8 @@ async fn test_randomized_dag_and_decision_sequence(#[values(false, true)] starfi
     let mut random_test_setup = random_test_setup();
 
     for _ in 0..NUM_RUNS {
-        let seed = random_test_setup.seeded_rng.gen_range(0..10000);
-        let num_authorities = random_test_setup.seeded_rng.gen_range(4..10);
+        let seed = random_test_setup.seeded_rng.random_range(0..10000);
+        let num_authorities = random_test_setup.seeded_rng.random_range(4..10);
 
         // Setup for Authority 1
         let mut authority_1 = authority_setup(num_authorities, 1, starfish_speed);
@@ -125,7 +125,7 @@ async fn test_randomized_dag_and_decision_sequence(#[values(false, true)] starfi
         while i < all_blocks.len() {
             let chunk_size = random_test_setup
                 .seeded_rng
-                .gen_range(1..=(all_blocks.len() - i));
+                .random_range(1..=(all_blocks.len() - i));
             let chunk = &all_blocks[i..i + chunk_size];
             seen_so_far.extend(chunk.iter().cloned());
             let _ = authority_1
@@ -167,7 +167,7 @@ async fn test_randomized_dag_and_decision_sequence(#[values(false, true)] starfi
         while i < all_blocks.len() {
             let chunk_size = random_test_setup
                 .seeded_rng
-                .gen_range(1..=(all_blocks.len() - i));
+                .random_range(1..=(all_blocks.len() - i));
             let chunk = &all_blocks[i..i + chunk_size];
             seen_so_far.extend(chunk.iter().cloned());
 
@@ -266,17 +266,17 @@ struct RandomTestFixture {
 
 fn random_test_setup() -> RandomTestFixture {
     telemetry_subscribers::init_for_testing();
-    let mut rng = StdRng::from_entropy();
+    let mut rng = rand::make_rng::<StdRng>();
     let seed = match env::var("DAG_TEST_SEED") {
         Ok(seed_str) => {
             if let Ok(seed) = seed_str.parse::<u64>() {
                 seed
             } else {
                 tracing::warn!("Invalid DAG_TEST_SEED format. Using random seed.");
-                rng.gen_range(0..10000)
+                rng.random_range(0..10000)
             }
         }
-        Err(_) => rng.gen_range(0..10000),
+        Err(_) => rng.random_range(0..10000),
     };
     tracing::warn!("Using Random Seed: {seed}");
 

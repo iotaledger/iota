@@ -73,7 +73,7 @@ use iota_types::{
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use rand::{distributions::*, rngs::OsRng, seq::SliceRandom};
+use rand::{distr::*, rand_core::UnwrapErr, rngs::SysRng, seq::IndexedRandom};
 use tokio::{
     task::JoinHandle,
     time::{Instant, sleep, timeout},
@@ -230,7 +230,7 @@ impl TestCluster {
     pub async fn spawn_new_fullnode(&mut self) -> FullNodeHandle {
         self.start_fullnode_from_config(
             self.fullnode_config_builder()
-                .build(&mut OsRng, self.swarm.config()),
+                .build(&mut UnwrapErr(SysRng), self.swarm.config()),
         )
         .await
     }
@@ -1015,19 +1015,19 @@ impl RandomNodeRestarter {
     fn new(test_cluster: Arc<TestCluster>) -> Self {
         Self {
             test_cluster,
-            kill_interval: Uniform::new(Duration::from_secs(10), Duration::from_secs(11)),
-            restart_delay: Uniform::new(Duration::from_secs(1), Duration::from_secs(2)),
+            kill_interval: Uniform::new(Duration::from_secs(10), Duration::from_secs(11)).unwrap(),
+            restart_delay: Uniform::new(Duration::from_secs(1), Duration::from_secs(2)).unwrap(),
             task_handle: Default::default(),
         }
     }
 
     pub fn with_kill_interval_secs(mut self, a: u64, b: u64) -> Self {
-        self.kill_interval = Uniform::new(Duration::from_secs(a), Duration::from_secs(b));
+        self.kill_interval = Uniform::new(Duration::from_secs(a), Duration::from_secs(b)).unwrap();
         self
     }
 
     pub fn with_restart_delay_secs(mut self, a: u64, b: u64) -> Self {
-        self.restart_delay = Uniform::new(Duration::from_secs(a), Duration::from_secs(b));
+        self.restart_delay = Uniform::new(Duration::from_secs(a), Duration::from_secs(b)).unwrap();
         self
     }
 
@@ -1040,15 +1040,15 @@ impl RandomNodeRestarter {
         assert!(task_handle.is_none());
         task_handle.replace(tokio::task::spawn(async move {
             loop {
-                let delay = kill_interval.sample(&mut OsRng);
+                let delay = kill_interval.sample(&mut UnwrapErr(SysRng));
                 info!("Sleeping {delay:?} before killing a validator");
                 sleep(delay).await;
 
-                let validator = validators.choose(&mut OsRng).unwrap();
+                let validator = validators.choose(&mut UnwrapErr(SysRng)).unwrap();
                 info!("Killing validator {:?}", validator.concise());
                 test_cluster.stop_node(validator);
 
-                let delay = restart_delay.sample(&mut OsRng);
+                let delay = restart_delay.sample(&mut UnwrapErr(SysRng));
                 info!("Sleeping {delay:?} before restarting");
                 sleep(delay).await;
                 info!("Starting validator {:?}", validator.concise());

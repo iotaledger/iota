@@ -23,7 +23,8 @@ type EncG = bls12381::G2Element;
 #[sim_test]
 async fn test_multiple_epochs() {
     telemetry_subscribers::init_for_testing();
-    let committee_fixture = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+    let committee_fixture =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
     let committee = committee_fixture.committee();
 
     let mut randomness_rxs = Vec::new();
@@ -144,7 +145,8 @@ async fn test_multiple_epochs() {
 #[sim_test]
 async fn test_record_own_partial_sigs() {
     telemetry_subscribers::init_for_testing();
-    let committee_fixture = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+    let committee_fixture =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
     let committee = committee_fixture.committee();
 
     let mut randomness_rxs = Vec::new();
@@ -220,7 +222,8 @@ async fn test_record_own_partial_sigs() {
 #[sim_test]
 async fn test_receive_full_sig() {
     telemetry_subscribers::init_for_testing();
-    let committee_fixture = CommitteeFixture::generate(rand::rngs::OsRng, 0, 8);
+    let committee_fixture =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 8);
     let committee = committee_fixture.committee();
 
     let mut randomness_rxs = Vec::new();
@@ -304,7 +307,8 @@ async fn test_receive_full_sig() {
 #[sim_test]
 async fn test_restart_recovery() {
     telemetry_subscribers::init_for_testing();
-    let committee_fixture = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+    let committee_fixture =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
     let committee = committee_fixture.committee();
 
     let mut randomness_rxs = Vec::new();
@@ -374,7 +378,8 @@ async fn test_restart_recovery() {
 #[sim_test]
 async fn test_byzantine_peer_handling() {
     telemetry_subscribers::init_for_testing();
-    let committee_fixture = CommitteeFixture::generate(rand::rngs::OsRng, 0, 4);
+    let committee_fixture =
+        CommitteeFixture::generate(rand::rand_core::UnwrapErr(rand::rngs::SysRng), 0, 4);
     let committee = committee_fixture.committee();
 
     let mut randomness_rxs = Vec::new();
