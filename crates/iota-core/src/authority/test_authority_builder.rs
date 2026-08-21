@@ -68,6 +68,7 @@ pub struct TestAuthorityBuilder<'a> {
     disable_execute_genesis_transactions: bool,
     chain_override: Option<Chain>,
     num_epochs_to_retain: Option<u64>,
+    num_epochs_to_retain_for_checkpoints: Option<u64>,
 }
 
 impl<'a> TestAuthorityBuilder<'a> {
@@ -181,6 +182,18 @@ impl<'a> TestAuthorityBuilder<'a> {
     pub fn with_num_epochs_to_retain(mut self, num_epochs_to_retain: u64) -> Self {
         assert!(
             self.num_epochs_to_retain
+                .replace(num_epochs_to_retain)
+                .is_none()
+        );
+        self
+    }
+
+    /// The number of epochs of transaction and checkpoint history retained,
+    /// counting the epoch the node has last executed. Left unset, the
+    /// pruning config's own default applies.
+    pub fn with_num_epochs_to_retain_for_checkpoints(mut self, num_epochs_to_retain: u64) -> Self {
+        assert!(
+            self.num_epochs_to_retain_for_checkpoints
                 .replace(num_epochs_to_retain)
                 .is_none()
         );
@@ -354,6 +367,9 @@ impl<'a> TestAuthorityBuilder<'a> {
         let mut pruning_config = AuthorityStorePruningConfig::default();
         if let Some(num_epochs_to_retain) = self.num_epochs_to_retain {
             pruning_config.set_num_epochs_to_retain(num_epochs_to_retain);
+        }
+        if let Some(num_epochs_to_retain) = self.num_epochs_to_retain_for_checkpoints {
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(Some(num_epochs_to_retain));
         }
 
         config.transaction_deny_config = transaction_deny_config;

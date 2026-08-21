@@ -9170,7 +9170,7 @@ async fn reconfiguration_expires_buckets_beyond_the_retention() {
         .collect();
 
     // Retaining one epoch beyond epoch 3 keeps the buckets of 3 and 2.
-    authority.advance_historic_objects(3).await.unwrap();
+    authority.advance_historic_buckets(3).await.unwrap();
     assert_eq!(historic.earliest_bucket_epoch(), Some(2));
     assert_eq!(historic.get(&relocated[0]).unwrap(), None);
     assert_eq!(historic.get(&relocated[1]).unwrap(), None);
@@ -9201,10 +9201,158 @@ async fn reconfiguration_retains_every_bucket_when_expiry_is_disabled() {
     batch.write().unwrap();
 
     for epoch in 1..=3 {
-        authority.advance_historic_objects(epoch).await.unwrap();
+        authority.advance_historic_buckets(epoch).await.unwrap();
     }
     assert_eq!(historic.earliest_bucket_epoch(), Some(0));
     assert!(historic.get(&relocated).unwrap().is_some());
+}
+
+/// The epoch boundary expires the ledger and checkpoint buckets that have
+/// fallen outside the configured retention, which is counted back from the
+/// epoch just executed. A bucket above that epoch — state sync writes both
+/// histories ahead of execution and across epoch boundaries — must neither be
+/// dropped nor spend part of the retention.
+#[tokio::test]
+async fn reconfiguration_expires_ledger_buckets_beyond_the_retention() {
+    use iota_sdk_types::TransactionEffectsDigest;
+    use iota_types::messages_checkpoint::{FullCheckpointContents, VerifiedCheckpoint};
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    const SYNCED_AHEAD_EPOCH: EpochId = 5;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let ledger = authority.get_historic_ledger();
+    let checkpoint_store = &authority.checkpoint_store;
+    let historic_checkpoints = &checkpoint_store.historic_checkpoints;
+
+    // One transaction and one certified checkpoint per epoch, so an expired
+    // bucket is observable by the record it no longer serves.
+    let epochs = [0, 1, 2, 3, SYNCED_AHEAD_EPOCH];
+    let seeded: Vec<(TransactionDigest, VerifiedCheckpoint)> = epochs
+        .iter()
+        .map(|&epoch| {
+            let digest = TransactionDigest::random();
+            let bucket = ledger.ensure(epoch).unwrap();
+            let mut batch = bucket.executed_effects.batch();
+            batch
+                .insert_batch_tagged(
+                    &bucket.executed_effects,
+                    [(digest, TransactionEffectsDigest::random())],
+                )
+                .unwrap()
+                .insert_batch_tagged(&bucket.tx_to_checkpoint, [(digest, epoch)])
+                .unwrap();
+            batch.write().unwrap();
+
+            let full_contents = FullCheckpointContents::random_for_testing();
+            let checkpoint = test_checkpoint_with_contents(epoch, epoch, &full_contents);
+            checkpoint_store
+                .insert_checkpoint_contents(&checkpoint, full_contents.checkpoint_contents())
+                .unwrap();
+            checkpoint_store
+                .insert_certified_checkpoint(&checkpoint)
+                .unwrap();
+            (digest, checkpoint)
+        })
+        .collect();
+
+    // Entering epoch 4 leaves epoch 3, and retaining two epochs from there
+    // keeps 2 and 3.
+    authority.advance_historic_buckets(4).await.unwrap();
+    assert_eq!(ledger.earliest_bucket_epoch(), Some(2));
+    assert_eq!(historic_checkpoints.earliest_bucket_epoch(), Some(2));
+
+    for (&epoch, (digest, checkpoint)) in epochs.iter().zip(&seeded) {
+        let retained = epoch >= 2;
+        assert_eq!(
+            ledger
+                .get_transaction_checkpoint(digest)
+                .unwrap()
+                .map(|(_, sequence)| sequence),
+            retained.then_some(epoch),
+            "epoch {epoch}'s transaction history",
+        );
+        assert_eq!(
+            checkpoint_store
+                .get_checkpoint_by_digest(checkpoint.digest())
+                .unwrap()
+                .is_some(),
+            retained,
+            "epoch {epoch}'s checkpoint history",
+        );
+        assert_eq!(
+            checkpoint_store
+                .get_checkpoint_contents(&checkpoint.contents_digest)
+                .unwrap()
+                .is_some(),
+            retained,
+            "epoch {epoch}'s checkpoint contents",
+        );
+    }
+}
+
+/// Once epoch 0's checkpoint bucket has been expired, the genesis checkpoint
+/// is no longer readable by digest. A restart must still recognise that the
+/// database holds it: writing it again would refuse to reopen the expired
+/// epoch and would drag the synced watermark back to zero.
+#[tokio::test]
+async fn a_restart_leaves_the_genesis_checkpoint_alone_once_its_epoch_expired() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .with_num_epochs_to_retain_for_checkpoints(2)
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+    let genesis = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis.contents_digest)
+        .unwrap()
+        .unwrap();
+
+    // A later checkpoint the node has synced, so that a reset of the synced
+    // watermark to genesis is observable.
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let synced = test_checkpoint_with_contents(1, 9, &full_contents);
+    checkpoint_store
+        .insert_certified_checkpoint(&synced)
+        .unwrap();
+    checkpoint_store
+        .update_highest_synced_checkpoint(&synced)
+        .unwrap();
+
+    for epoch in 1..=3 {
+        authority.advance_historic_buckets(epoch).await.unwrap();
+    }
+    assert!(
+        checkpoint_store
+            .get_checkpoint_by_digest(genesis.digest())
+            .unwrap()
+            .is_none(),
+        "epoch 0's bucket must have been expired for this to model a restart",
+    );
+
+    checkpoint_store.insert_genesis_checkpoint(
+        genesis,
+        genesis_contents,
+        &authority.epoch_store_for_testing(),
+    );
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap(),
+        Some(9),
+    );
 }
 
 /// The gRPC read store advertises object availability from the oldest bucket
@@ -9302,7 +9450,7 @@ async fn a_failed_expiry_does_not_fail_reconfiguration() {
         .unwrap();
 
     authority
-        .advance_historic_objects(3)
+        .advance_historic_buckets(3)
         .await
         .expect("a failed expiry must not fail the epoch boundary");
 

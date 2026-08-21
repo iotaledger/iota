@@ -136,7 +136,7 @@ impl HistoricLedgerBucket {
 /// [`crate::epoch_buckets::EpochBuckets::prune`] derives its floor from the
 /// newest bucket, so retaining N epochs that way would spend part of N on
 /// epochs synced but not yet executed and drop the history of an epoch still
-/// being served.
+/// being served. [`Self::prune`] takes the executed epoch for that reason.
 pub struct HistoricLedger {
     buckets: EpochBuckets<HistoricLedgerBucket>,
 
@@ -264,6 +264,26 @@ impl HistoricLedger {
     pub fn ensure(&self, epoch: EpochId) -> IotaResult<Arc<HistoricLedgerBucket>> {
         self.buckets
             .ensure(epoch)
+            .map_err(|e| IotaError::Storage(e.to_string()))
+    }
+
+    /// Drops the buckets of the epochs that have fallen outside
+    /// `epochs_to_retain`, counted back from `executed_epoch` and including
+    /// it, and returns the earliest epoch retained.
+    ///
+    /// `executed_epoch` must be an epoch this node has executed rather than
+    /// the newest bucket, for the reason given on [`HistoricLedger`]; the
+    /// buckets above it are left alone. Blocks for as long as the drops take,
+    /// so a caller on an async runtime must use `spawn_blocking`.
+    pub fn prune(
+        &self,
+        executed_epoch: EpochId,
+        epochs_to_retain: u64,
+    ) -> IotaResult<Option<EpochId>> {
+        self.buckets
+            // Nothing here lives in a live table, so a drop has no side
+            // effect to prepare.
+            .prune_from_epoch(executed_epoch, epochs_to_retain, |_, _| Ok(()))
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
