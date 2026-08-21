@@ -439,13 +439,10 @@ impl WriteStore for RocksDbStore {
 
         // Transactions and effects must be durable before their contents
         // rows (see `CheckpointStore::cache_full_checkpoint_contents`).
-        for (checkpoint, contents) in &checkpoints {
+        for (_, contents) in &checkpoints {
             self.cache_traits
                 .state_sync_store
-                .try_multi_insert_transaction_and_effects(
-                    checkpoint.epoch(),
-                    contents.transactions(),
-                )
+                .try_multi_insert_transaction_and_effects(contents.transactions())
                 .map_err(iota_types::storage::error::Error::custom)?;
         }
         self.checkpoint_store

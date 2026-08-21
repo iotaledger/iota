@@ -70,7 +70,7 @@ use tokio::{
 use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
-    rocks::{DBMap, MetricConf},
+    rocks::{DBMap, DBMapTableConfigMap, MetricConf, default_db_options},
 };
 
 pub use crate::checkpoints::{
@@ -93,6 +93,7 @@ use crate::{
     checkpoints::{
         causal_order::CausalOrder,
         checkpoint_output::{CertifiedCheckpointOutput, CheckpointOutput},
+        historic_checkpoints::HistoricCheckpoints,
     },
     consensus_handler::SequencedConsensusTransactionKey,
     consensus_manager::ReplayWaiter,
@@ -166,9 +167,10 @@ pub struct BuilderCheckpointSummary {
 pub struct CheckpointStoreTables {
     /// Maps checkpoint contents digest to checkpoint contents.
     ///
-    /// Prunes with the ledger: peer sync reconstructs full checkpoint
-    /// contents from this plus the transaction and effects stores, so it is
-    /// sync-critical.
+    /// Superseded by [`HistoricCheckpoints`]: contents are written to and read
+    /// from the bucket of the epoch that closed the checkpoint, so that
+    /// retiring an epoch is one column-family drop rather than a delete per
+    /// row. Rows written before the move are still on disk here.
     pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
     /// Deprecated: the contents-digest to sequence-number mapping moved to
@@ -199,9 +201,11 @@ pub struct CheckpointStoreTables {
     /// Map from checkpoint digest to certified checkpoint.
     ///
     /// The digest-keyed lookup used to resolve a checkpoint by digest during
-    /// peer sync, alongside `checkpoint_content`. Prunes with the ledger,
-    /// following `checkpoint_content`, even though `certified_checkpoints`
-    /// (the same data keyed by sequence number) is kept forever.
+    /// peer sync, alongside `checkpoint_content`. Superseded by
+    /// [`HistoricCheckpoints`] the same way, so it retires with its epoch even
+    /// though `certified_checkpoints` — the same summaries keyed by sequence
+    /// number — is kept forever. Rows written before the move are still on
+    /// disk here.
     pub(crate) checkpoint_by_digest: DBMap<CheckpointDigest, TrustedCheckpoint>,
 
     /// Store locally computed checkpoint summaries so that we can detect forks
@@ -243,9 +247,36 @@ pub struct CheckpointStoreTables {
 }
 
 impl CheckpointStoreTables {
-    pub fn new(path: &Path, metric_name: &'static str) -> Self {
-        Self::open_tables_read_write(path.to_path_buf(), MetricConf::new(metric_name), None, None)
+    /// The checkpoint store's tables together with the historic checkpoint
+    /// buckets. The buckets are column families of this same database, so
+    /// they are opened from its handle, with options cloned from the ones its
+    /// own tables use.
+    fn open_with_historic_checkpoints(
+        path: &Path,
+        metric_name: &'static str,
+    ) -> (Self, HistoricCheckpoints) {
+        let db_options = default_db_options();
+        // The historic checkpoint buckets are column families of this
+        // database, so they are listed here together with the declared
+        // tables; one left out would be reopened with default options and a
+        // block cache of its own.
+        let table_options = DBMapTableConfigMap::new(
+            HistoricCheckpoints::extra_column_family_options(path, &db_options)
+                .into_iter()
+                .collect(),
+        );
+        let tables = Self::open_tables_read_write(
+            path.to_path_buf(),
+            MetricConf::new(metric_name),
+            None,
+            Some(table_options),
+        );
+        let historic_checkpoints =
+            HistoricCheckpoints::open(tables.certified_checkpoints.db.clone(), &db_options)
+                .expect("cannot open the historic checkpoint buckets");
+        (tables, historic_checkpoints)
     }
+
     pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
         Self::get_read_only_handle(
             path.to_path_buf(),
@@ -258,6 +289,9 @@ impl CheckpointStoreTables {
 
 pub struct CheckpointStore {
     pub(crate) tables: CheckpointStoreTables,
+    /// Checkpoint contents and digest-keyed summaries, bucketed by the epoch
+    /// that closed the checkpoint.
+    pub(crate) historic_checkpoints: HistoricCheckpoints,
     full_checkpoint_contents_cache: FullCheckpointContentsCache,
     synced_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
     executed_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
@@ -272,9 +306,11 @@ impl CheckpointStore {
         path: &Path,
         contents_cache: FullCheckpointContentsCache,
     ) -> Arc<Self> {
-        let tables = CheckpointStoreTables::new(path, "checkpoint");
+        let (tables, historic_checkpoints) =
+            CheckpointStoreTables::open_with_historic_checkpoints(path, "checkpoint");
         Arc::new(Self {
             tables,
+            historic_checkpoints,
             full_checkpoint_contents_cache: contents_cache,
             synced_checkpoint_notify_read: NotifyRead::new(),
             executed_checkpoint_notify_read: NotifyRead::new(),
@@ -326,7 +362,8 @@ impl CheckpointStore {
                     "Not inserting checkpoint builder data for genesis checkpoint",
                 );
             }
-            self.insert_checkpoint_contents(contents).unwrap();
+            self.insert_checkpoint_contents(&checkpoint, contents)
+                .unwrap();
             self.insert_verified_checkpoint(&checkpoint).unwrap();
             self.update_highest_synced_checkpoint(&checkpoint).unwrap();
         }
@@ -336,9 +373,8 @@ impl CheckpointStore {
         &self,
         digest: &CheckpointDigest,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
-        self.tables
-            .checkpoint_by_digest
-            .get(digest)
+        self.historic_checkpoints
+            .find_by_digest(digest)
             .map(|maybe_checkpoint| maybe_checkpoint.map(|c| c.into()))
     }
 
@@ -413,11 +449,18 @@ impl CheckpointStore {
         Ok(checkpoints)
     }
 
+    /// The contents of each digest, in the order given.
+    ///
+    /// Each digest is looked up on its own, since the buckets holding them are
+    /// not known up front and different digests can sit in different epochs.
     pub fn multi_get_checkpoint_content(
         &self,
         contents_digest: &[CheckpointContentsDigest],
     ) -> Result<Vec<Option<CheckpointContents>>, TypedStoreError> {
-        self.tables.checkpoint_content.multi_get(contents_digest)
+        contents_digest
+            .iter()
+            .map(|digest| self.historic_checkpoints.find_contents(digest))
+            .collect()
     }
 
     /// The row `watermark` holds — a sequence number and a digest — and `None`
@@ -505,7 +548,7 @@ impl CheckpointStore {
         &self,
         digest: &CheckpointContentsDigest,
     ) -> Result<Option<CheckpointContents>, TypedStoreError> {
-        self.tables.checkpoint_content.get(digest)
+        self.historic_checkpoints.find_contents(digest)
     }
 
     /// Get full checkpoint contents from the in-memory contents cache.
@@ -627,6 +670,8 @@ impl CheckpointStore {
             count = checkpoints.len(),
             "Inserting certified checkpoints",
         );
+        // The buckets are column families of this same database, so the
+        // digest-keyed summaries and the sequence-keyed ones land in one batch.
         let mut batch = self.tables.certified_checkpoints.batch();
         batch
             .insert_batch(
@@ -636,18 +681,24 @@ impl CheckpointStore {
                     .map(|c| (c.sequence_number(), c.serializable_ref())),
             )?
             .insert_batch(
-                &self.tables.checkpoint_by_digest,
-                checkpoints
-                    .iter()
-                    .map(|c| (c.digest(), c.serializable_ref())),
-            )?
-            .insert_batch(
                 &self.tables.epoch_last_checkpoint_map,
                 checkpoints
                     .iter()
                     .filter(|c| c.next_epoch_committee().is_some())
                     .map(|c| (c.epoch(), c.sequence_number())),
             )?;
+        // State sync certifies checkpoints ahead of execution and across epoch
+        // boundaries, so one batch can span two epochs, and this can be the
+        // write that creates the bucket of an epoch whose first checkpoint has
+        // not been executed yet. See [`HistoricCheckpoints`] for what that
+        // means for retention.
+        for checkpoint in checkpoints {
+            let bucket = self.historic_checkpoints.ensure(checkpoint.epoch())?;
+            batch.insert_batch_tagged(
+                &bucket.checkpoint_by_digest,
+                [(checkpoint.digest(), checkpoint.serializable_ref())],
+            )?;
+        }
         batch.write()?;
 
         for checkpoint in checkpoints {
@@ -875,15 +926,21 @@ impl CheckpointStore {
         )
     }
 
+    /// Persists the checkpoint contents in digest form, in the bucket of the
+    /// epoch `checkpoint` belongs to. `checkpoint` is the checkpoint these
+    /// contents belong to; it is what says which epoch's history they are
+    /// part of.
     pub fn insert_checkpoint_contents(
         &self,
+        checkpoint: &VerifiedCheckpoint,
         contents: CheckpointContents,
     ) -> Result<(), TypedStoreError> {
         debug!(
             checkpoint_seq = ?contents.digest(),
             "Inserting checkpoint contents",
         );
-        self.tables
+        self.historic_checkpoints
+            .ensure(checkpoint.epoch())?
             .checkpoint_content
             .insert(&contents.digest(), &contents)
     }
@@ -919,10 +976,9 @@ impl CheckpointStore {
         for (checkpoint, full_contents) in &checkpoints {
             let contents = full_contents.checkpoint_contents();
             assert_eq!(checkpoint.contents_digest, contents.digest());
-            batch.insert_batch(
-                &self.tables.checkpoint_content,
-                [(contents.digest(), contents)],
-            )?;
+            let bucket = self.historic_checkpoints.ensure(checkpoint.epoch())?;
+            batch
+                .insert_batch_tagged(&bucket.checkpoint_content, [(contents.digest(), contents)])?;
         }
         batch.write()?;
 
@@ -1597,7 +1653,7 @@ impl CheckpointBuilder {
         mut new_checkpoints: NonEmpty<BuiltCheckpoint>,
     ) -> IotaResult {
         let _scope = monitored_scope("CheckpointBuilder::write_checkpoints");
-        let mut batch = self.store.tables.checkpoint_content.batch();
+        let mut batch = self.store.tables.locally_computed_checkpoints.batch();
         let mut all_tx_digests =
             Vec::with_capacity(new_checkpoints.iter().map(|c| c.contents.len()).sum());
 
@@ -1638,10 +1694,9 @@ impl CheckpointBuilder {
                 .last_constructed_checkpoint
                 .set(sequence_number as i64);
 
-            batch.insert_batch(
-                &self.store.tables.checkpoint_content,
-                [(contents.digest(), contents)],
-            )?;
+            let bucket = self.store.historic_checkpoints.ensure(summary.epoch)?;
+            batch
+                .insert_batch_tagged(&bucket.checkpoint_content, [(contents.digest(), contents)])?;
 
             batch.insert_batch(
                 &self.store.tables.locally_computed_checkpoints,
@@ -3106,17 +3161,18 @@ fn poll_count<Fut>(future: Fut) -> PollCounter<Fut> {
     PollCounter::new(future)
 }
 
-/// A verified checkpoint over the given contents at the given sequence
-/// number, with a placeholder signature; usable wherever verification is
-/// not re-run and no committee is needed.
+/// A verified checkpoint over the given contents in the given epoch at the
+/// given sequence number, with a placeholder signature; usable wherever
+/// verification is not re-run and no committee is needed.
 #[cfg(test)]
 pub(crate) fn test_checkpoint_with_contents(
+    epoch: EpochId,
     sequence_number: CheckpointSequenceNumber,
     full_contents: &FullCheckpointContents,
 ) -> VerifiedCheckpoint {
     let contents = full_contents.checkpoint_contents();
     let summary = CheckpointSummary {
-        epoch: 0,
+        epoch,
         sequence_number,
         network_total_transactions: full_contents.size() as u64,
         contents_digest: contents.digest(),
@@ -3128,7 +3184,7 @@ pub(crate) fn test_checkpoint_with_contents(
         checkpoint_commitments: Vec::new(),
     };
     let sig = AuthorityStrongQuorumSignInfo {
-        epoch: 0,
+        epoch,
         signature: Default::default(),
         signers_map: Default::default(),
     };
@@ -3167,7 +3223,7 @@ mod tests {
         let path = tempdir.path();
 
         let full_contents = FullCheckpointContents::random_for_testing();
-        let checkpoint = test_checkpoint_with_contents(0, &full_contents);
+        let checkpoint = test_checkpoint_with_contents(0, 0, &full_contents);
         let contents_digest = checkpoint.contents_digest;
 
         {
@@ -3229,7 +3285,7 @@ mod tests {
     async fn cache_full_checkpoint_contents_serves_reads_without_disk_writes() {
         let store = CheckpointStore::new_for_tests();
         let full_contents = FullCheckpointContents::random_for_testing();
-        let checkpoint = test_checkpoint_with_contents(0, &full_contents);
+        let checkpoint = test_checkpoint_with_contents(0, 0, &full_contents);
         let contents_digest = checkpoint.contents_digest;
 
         store.cache_full_checkpoint_contents(

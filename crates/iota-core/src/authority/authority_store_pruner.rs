@@ -833,7 +833,10 @@ mod tests {
         // All empty checkpoints share the same content digest, so a single
         // insert covers every checkpoint's content lookup during pruning.
         checkpoint_store
-            .insert_checkpoint_contents(empty_contents().into_inner().into_checkpoint_contents())
+            .insert_checkpoint_contents(
+                &checkpoints[0],
+                empty_contents().into_inner().into_checkpoint_contents(),
+            )
             .unwrap();
         for checkpoint in &checkpoints {
             checkpoint_store

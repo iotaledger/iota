@@ -112,7 +112,7 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
     // Simulate the state-sync frontier far ahead of the executor.
     let frontier_seq = 10_000;
     let frontier_contents = FullCheckpointContents::random_for_testing();
-    let frontier_checkpoint = test_checkpoint_with_contents(frontier_seq, &frontier_contents);
+    let frontier_checkpoint = test_checkpoint_with_contents(0, frontier_seq, &frontier_contents);
     checkpoint_store.cache_full_checkpoint_contents(
         frontier_checkpoint.sequence_number(),
         frontier_checkpoint.contents_digest,
@@ -596,7 +596,7 @@ fn sync_checkpoint(
         .insert_verified_checkpoint(checkpoint)
         .unwrap();
     checkpoint_store
-        .insert_checkpoint_contents(contents.clone().into_checkpoint_contents())
+        .insert_checkpoint_contents(checkpoint, contents.clone().into_checkpoint_contents())
         .unwrap();
     checkpoint_store
         .update_highest_synced_checkpoint(checkpoint)
