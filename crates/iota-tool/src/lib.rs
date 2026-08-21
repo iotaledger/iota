@@ -565,7 +565,10 @@ fn insert_genesis_checkpoint(
         .get_checkpoint_by_digest(genesis.checkpoint().digest())?
         .is_none()
     {
-        checkpoint_store.insert_checkpoint_contents(genesis.checkpoint_contents().clone())?;
+        checkpoint_store.insert_checkpoint_contents(
+            &genesis.checkpoint(),
+            genesis.checkpoint_contents().clone(),
+        )?;
         checkpoint_store.insert_verified_checkpoint(&genesis.checkpoint())?;
         checkpoint_store.update_highest_synced_checkpoint(&genesis.checkpoint())?;
     }

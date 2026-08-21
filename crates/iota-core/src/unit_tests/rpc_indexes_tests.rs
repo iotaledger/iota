@@ -318,15 +318,14 @@ async fn test_highest_checkpoint_with_committed_outputs() {
             .create_owned_object(object_idx)
             .finish_transaction();
         let checkpoint = builder.build_checkpoint();
+        let verified = iota_types::messages_checkpoint::VerifiedCheckpoint::new_unchecked(
+            checkpoint.checkpoint_summary.clone(),
+        );
         checkpoint_store
-            .insert_verified_checkpoint(
-                &iota_types::messages_checkpoint::VerifiedCheckpoint::new_unchecked(
-                    checkpoint.checkpoint_summary.clone(),
-                ),
-            )
+            .insert_verified_checkpoint(&verified)
             .unwrap();
         checkpoint_store
-            .insert_checkpoint_contents(checkpoint.checkpoint_contents.clone())
+            .insert_checkpoint_contents(&verified, checkpoint.checkpoint_contents.clone())
             .unwrap();
         digests.push(*checkpoint.transactions[0].effects.transaction_digest());
     }
