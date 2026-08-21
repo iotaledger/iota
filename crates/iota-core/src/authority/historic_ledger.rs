@@ -237,9 +237,13 @@ impl HistoricLedger {
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
-    /// How many bucket walks this store has done. Reading one transaction's
-    /// effects, events and checkpoint must add exactly one, whichever of its
-    /// tables the caller touches.
+    /// How many bucket walks this store has done.
+    ///
+    /// Reading a transaction's effects, events and checkpoint adds one, since
+    /// [`Self::find_epoch`] names the bucket and the rest are exact-key reads
+    /// on it. Its body and its effects-by-digest are separate walks of their
+    /// own — see [`Self::get_transaction`] and [`Self::get_effects`] for why
+    /// they cannot go through `find_epoch`.
     #[cfg(test)]
     pub(crate) fn bucket_walks(&self) -> u64 {
         self.bucket_walks.load(std::sync::atomic::Ordering::Relaxed)
