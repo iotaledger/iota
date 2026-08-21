@@ -80,6 +80,16 @@ pub struct HistoricObjectsBucket {
     /// tombstone has to outlive every version beneath it, and a tombstone
     /// written in this epoch can only sit above versions relocated in this
     /// epoch or an earlier one.
+    ///
+    /// This is why expiry goes oldest epoch first, and why a reader that
+    /// consults the live `objects` table as well must read it **before**
+    /// asking the buckets. Bucket handles outlive the buckets read lock, so a
+    /// reader holding one from before an expiry started would keep reading a
+    /// bucket whose tombstone heads are being deleted meanwhile, and a live
+    /// read taken afterwards would no longer find the tombstone covering
+    /// those rows. Reading live first closes that window: either the live
+    /// read precedes the deletion and finds the tombstone, or the bucket read
+    /// waits on the lock until the expiry has taken the bucket out of the map.
     pub(crate) tombstones: TaggedDBMap<ObjectKey, ()>,
 
     /// Present once this bucket has been scheduled for expiry. A bucket
@@ -252,12 +262,11 @@ impl HistoricObjects {
         // have its column family dropped with its tombstone heads still in
         // the live `objects` table, which nothing would ever delete.
         //
-        // Ascending, as `BTreeMap` iterates, and the buckets below the floor
-        // are the oldest of the two kinds: an expiring bucket's tombstone
-        // heads are already deleted while its versions still exist, so a scan
-        // bounded at one of those tombstones falls through to the buckets
-        // below it, and is only answered correctly because every one of them
-        // is gone by then.
+        // Ascending, oldest first. A bucket below the floor may have its
+        // marker written (heads already deleted, versions still on disk) or
+        // not. A bounded read that stops at one of those deleted heads falls
+        // through to the older buckets, so every older bucket must be gone
+        // before this one is finished.
         let interrupted: Vec<(EpochId, Arc<HistoricObjectsBucket>)> = buckets
             .iter()
             .filter(|(&epoch, bucket)| epoch < earliest_retained || bucket.is_expiring())
@@ -364,12 +373,10 @@ impl HistoricObjects {
     /// relocated in increasing version order, so the first bucket holding
     /// anything within the bound holds the newest such version.
     ///
-    /// A caller must read the live `objects` table before calling this, for
-    /// the ordering [`Self::readable_buckets`] requires, and must then take
-    /// whichever of the two answers is the newer one. This one knows nothing
-    /// of tombstones, and a live tombstone below a relocated version is not
-    /// the object's end: an unwrap leaves one there for good. Only a live
-    /// tombstone newer than what this returns means the object is gone.
+    /// A caller must read the live `objects` table first, for the ordering
+    /// [`Self::readable_buckets`] requires, and take whichever of the two
+    /// answers is the newer one: this knows nothing of tombstones, so only a
+    /// live tombstone newer than what it returns means the object is gone.
     pub fn find_lt_or_eq_version(
         &self,
         id: ObjectId,
@@ -390,23 +397,12 @@ impl HistoricObjects {
     }
 
     /// The buckets a query may read, in scan order: ascending epochs for
-    /// forward scans, descending for reverse scans.
-    ///
-    /// A bucket marked expiring is left out. Its rows are dropped with its
-    /// column family a moment later, but the marker is what a reader has to
-    /// go by: an expiry that failed after the marker leaves the bucket in the
-    /// map until the caller retries, and its tombstone heads may already be
-    /// gone from the live `objects` table by then.
+    /// forward scans, descending for reverse scans. A bucket marked expiring
+    /// is left out.
     ///
     /// A caller that consults the live `objects` table as well must read it
-    /// **before** calling this. The returned handles outlive the buckets read
-    /// lock, so a caller holding them from before an expiry started keeps
-    /// reading a bucket whose tombstone heads are being deleted meanwhile,
-    /// and a live read taken afterwards no longer finds the tombstone that
-    /// covers those rows. Reading live first closes that window: either the
-    /// live read precedes the deletion and finds the tombstone, or this call
-    /// waits on the read lock until the expiry has taken the bucket out of
-    /// the map.
+    /// **before** calling this. See
+    /// [`HistoricObjectsBucket::tombstones`] for why.
     fn readable_buckets(&self, reverse: bool) -> Vec<Arc<HistoricObjectsBucket>> {
         self.buckets
             .iter(reverse)
@@ -420,14 +416,9 @@ impl HistoricObjects {
     /// each dropped epoch recorded. Returns the earliest epoch still
     /// retained, `None` when there is no bucket at all.
     ///
-    /// A bucket's heads may only be deleted once every version beneath them is
-    /// out of reach, which for a relocated version follows from expiring
-    /// oldest epoch first. A version superseded before this build was never
-    /// relocated and sits in the live `objects` table until
-    /// [`crate::authority::object_backlog_sweep::sweep`] deletes it, and
-    /// deleting a tombstone above one would leave that version as the newest
-    /// row of a deleted object; that walk finishes at node startup, before
-    /// anything that reaches this.
+    /// A head is only deleted once nothing of that object is left beneath it,
+    /// which for a relocated version follows from expiring oldest epoch
+    /// first; [`Self::expire_bucket`] checks the live table for the rest.
     ///
     /// Blocks queries for the duration, so an async caller must use
     /// `spawn_blocking`.
@@ -444,20 +435,8 @@ impl HistoricObjects {
     /// Marks `bucket` expiring, then deletes the tombstone heads it recorded
     /// from the live `objects` table.
     ///
-    /// The marker is written and made durable first, since a tombstone head
-    /// may only be deleted once the versions beneath it are out of reach.
-    /// [`EpochBuckets::prune`] holds the buckets write lock while this runs,
-    /// so a query that has not yet taken the read lock cannot reach the
-    /// bucket at all, and one that reaches it after the marker is written
-    /// skips it; a crash between the marker and the drop is resumed at open.
-    /// A query still holding the handles it took before the marker was
-    /// written does keep reading this bucket, which is the window
-    /// [`Self::readable_buckets`] tells its callers how to close.
-    ///
     /// Safe to run again on the same bucket: the marker is rewritten as it
-    /// was and a tombstone head already deleted is deleted again. That also
-    /// covers a run that failed part-way through the deletion, since the heads
-    /// stay in the bucket and are read again from there.
+    /// was and a head already deleted is deleted again.
     fn expire_bucket(
         objects: &DBMap<ObjectKey, StoreObjectWrapper>,
         epoch: EpochId,
@@ -475,10 +454,30 @@ impl HistoricObjects {
             batch.write_opt(&synced_write_options())
         };
 
+        // A head may only go if nothing of that object is left beneath it.
+        // The versions it buried belong to this bucket and are dropped with
+        // it, so the head is the last trace of the object; one version left
+        // in the live table would become the newest again and the deleted
+        // object would come back. That can only happen where the pre-bucket
+        // backlog was not swept through, so the head stays — the object stays
+        // deleted — and the count says how often it happened.
+        let buried_alive = |head: &ObjectKey| -> Result<bool, TypedStoreError> {
+            let Some(row) = objects.safe_range_iter_reversed(..*head).next() else {
+                return Ok(false);
+            };
+            let (below, _) = row?;
+            Ok(below.0 == head.0)
+        };
+
         let mut deleted = 0;
+        let mut kept = 0;
         let mut heads = Vec::with_capacity(TOMBSTONE_DELETE_BATCH_SIZE);
         for row in bucket.tombstones.safe_iter() {
             let (key, ()) = row?;
+            if buried_alive(&key)? {
+                kept += 1;
+                continue;
+            }
             heads.push(key);
             if heads.len() == TOMBSTONE_DELETE_BATCH_SIZE {
                 deleted += heads.len();
@@ -491,7 +490,21 @@ impl HistoricObjects {
         deleted += heads.len();
         delete(heads)?;
 
-        info!(epoch, tombstones = deleted, "expired a historic bucket");
+        if kept > 0 {
+            error!(
+                epoch,
+                kept,
+                "kept tombstone heads that still have a live version beneath them: those \
+                 objects were superseded before this build and the backlog sweep did not \
+                 relocate them. They stay deleted, which is why the heads stay too"
+            );
+        }
+        info!(
+            epoch,
+            tombstones = deleted,
+            kept,
+            "expired a historic bucket"
+        );
         Ok(())
     }
 
