@@ -1888,6 +1888,7 @@
                 "max_committee_members_count": {
                   "u64": "100"
                 },
+                "max_concurrent_execution_workers": null,
                 "max_congestion_limit_overshoot_per_commit": {
                   "u64": "100"
                 },

@@ -441,16 +441,20 @@ impl ValidatorService {
             let epoch_store = epoch_store.clone();
             let tx_sender = tx_sender.clone();
             spawn_monitored_task!(async move {
-                let (update, weight) = Self::wait_for_tx_finality(
-                    &state,
-                    &epoch_store,
-                    query.transaction_digest,
-                    query.include_details,
-                )
-                .await;
-                let _ = tx_sender
-                    .send(Ok(((query.transaction_digest, update), weight)))
-                    .await;
+                tokio::select! {
+                    biased;
+                    _ = tx_sender.closed() => {}
+                    (update, weight) = Self::wait_for_tx_finality(
+                        &state,
+                        &epoch_store,
+                        query.transaction_digest,
+                        query.include_details,
+                    ) => {
+                        let _ = tx_sender
+                            .send(Ok(((query.transaction_digest, update), weight)))
+                            .await;
+                    }
+                }
             });
         }
 
