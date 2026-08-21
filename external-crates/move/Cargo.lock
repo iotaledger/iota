@@ -1877,7 +1877,6 @@ dependencies = [
  "move-core-types",
  "proptest",
  "proptest-derive",
- "ref-cast",
  "serde",
  "variant_count",
 ]

@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 33;
+pub const MAX_PROTOCOL_VERSION: u64 = 34;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -202,6 +202,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Enable the P-COOL flow on devnet.
 // Version 33: Rebuild the framework binaries to add the Move stdlib `bool`
 //             module and vector sorting functions.
+// Version 34: Reject `<SELF>` as an identifier in published modules.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -431,6 +432,10 @@ struct FeatureFlags {
     // Validate identifier inputs separately
     #[serde(skip_serializing_if = "is_false")]
     validate_identifier_inputs: bool,
+
+    // Disallow self identifier
+    #[serde(skip_serializing_if = "is_false")]
+    disallow_self_identifier: bool,
 
     // If true, enables the optimizations for child object mutations, removing unnecessary
     // mutations
@@ -3219,6 +3224,9 @@ impl ProtocolConfig {
                     // `bool` module and vector sorting functions.
                     cfg.feature_flags.max_ptb_value_size_v2 = true;
                 }
+                34 => {
+                    cfg.feature_flags.disallow_self_identifier = true;
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -3287,6 +3295,7 @@ impl ProtocolConfig {
             max_identifier_len: self.max_move_identifier_len_as_option(), /* Before protocol
                                                                            * version 9, there was
                                                                            * no limit */
+            disallow_self_identifier: self.feature_flags.disallow_self_identifier,
             bytecode_version: self.move_binary_format_version(),
             max_variants_in_enum: self.max_move_enum_variants_as_option(),
             additional_borrow_checks,

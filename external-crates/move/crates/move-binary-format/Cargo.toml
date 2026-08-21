@@ -16,7 +16,6 @@ getrandom = { workspace = true, features = ["js"], optional = true }
 indexmap.workspace = true
 proptest = { workspace = true, optional = true }
 proptest-derive = { workspace = true, optional = true }
-ref-cast.workspace = true
 serde.workspace = true
 variant_count.workspace = true
 
