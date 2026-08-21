@@ -229,7 +229,7 @@ pub struct CheckpointStoreTables {
     /// Intentionally not pruned: callers (the snapshot writer, the gRPC API,
     /// etc.) need full `[0, snapshot_epoch]` coverage, so
     /// this table grows unboundedly with epoch count (one row per epoch, ever)
-    /// by design. Do not add it to `prune_checkpoints`.
+    /// by design. Do not move it into the per-epoch checkpoint buckets.
     ///
     /// Completeness is tracked by `epoch_info_watermark`.
     epoch_info: DBMap<EpochId, EpochInfoV2>,
@@ -885,6 +885,43 @@ impl CheckpointStore {
             &CheckpointWatermark::HighestPruned,
             &(checkpoint.sequence_number(), *checkpoint.digest()),
         )
+    }
+
+    /// Moves `HighestPruned` up to the last checkpoint of the epoch below
+    /// `earliest_retained_epoch`, after that epoch's checkpoint history has
+    /// been dropped. Does nothing when the watermark already stands at or
+    /// above it, so a caller cannot walk it backwards.
+    ///
+    /// The checkpoint history is held per epoch, so the lowest checkpoint
+    /// still served is the first of `earliest_retained_epoch` — one past the
+    /// watermark this sets, which is what
+    /// [`iota_types::storage::ReadStore::try_get_lowest_available_checkpoint`]
+    /// answers with.
+    pub fn advance_highest_pruned_checkpoint(
+        &self,
+        earliest_retained_epoch: EpochId,
+    ) -> IotaResult<()> {
+        let Some(previous_epoch) = earliest_retained_epoch.checked_sub(1) else {
+            return Ok(());
+        };
+        let Some(seq) = self.get_epoch_last_checkpoint_seq_number(previous_epoch)? else {
+            return Ok(());
+        };
+        if self
+            .get_highest_pruned_checkpoint_seq_number()?
+            .is_some_and(|pruned| pruned >= seq)
+        {
+            return Ok(());
+        }
+        // Reading the summary rather than the sequence number alone, because
+        // the watermark stores the digest with it. `certified_checkpoints` is
+        // never pruned, and an epoch's last checkpoint is one a
+        // formal-snapshot restore keeps too.
+        let Some(checkpoint) = self.get_epoch_last_checkpoint(previous_epoch)? else {
+            return Ok(());
+        };
+        self.update_highest_pruned_checkpoint(&checkpoint)?;
+        Ok(())
     }
 
     /// Sets the verified watermark to `checkpoint` whether or not that moves

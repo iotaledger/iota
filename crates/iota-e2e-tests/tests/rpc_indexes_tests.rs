@@ -87,9 +87,9 @@ async fn indexes_chain_across_epoch_buckets_on_a_live_node() {
 /// advance past it, large enough that recent history survives.
 const EPOCHS_TO_RETAIN: u64 = 2;
 
-/// With `num_epochs_to_retain_for_indexes` configured, the pruner drops
-/// expired epochs' history on a running node while recent history and the
-/// live-state tables keep serving.
+/// With `num_epochs_to_retain_for_indexes` configured, the epoch boundary
+/// drops expired epochs' history on a running node while recent history and
+/// the live-state tables keep serving.
 #[sim_test]
 async fn index_pruning_drops_expired_epochs_on_a_live_node() {
     let cluster = TestClusterBuilder::new()
@@ -113,7 +113,7 @@ async fn index_pruning_drops_expired_epochs_on_a_live_node() {
         .clone()
         .unwrap();
 
-    // The pruner runs on its own schedule; wait for it to drop epoch 0.
+    // Expiry runs at the epoch boundary; wait for it to drop epoch 0.
     let mut pruned = false;
     for _ in 0..60 {
         if indexes.lookup_digest(&old_digest).unwrap().is_none() {
@@ -205,7 +205,7 @@ async fn transaction_checkpoint_survives_a_shorter_index_window() {
         .with_fullnode_num_epochs_to_retain_for_indexes(Some(1))
         // The ledger must outlive the index window for the test to say
         // anything, so keep every transaction rather than leaving that to
-        // how far the transaction pruner happens to have got.
+        // which epochs the boundary happens to have expired.
         .disable_fullnode_pruning()
         .with_fullnode_enable_grpc_api(true)
         .build()

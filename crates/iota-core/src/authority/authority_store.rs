@@ -42,8 +42,6 @@ use super::{
     authority_store_tables::{AuthorityPerpetualTables, LiveObject},
     *,
 };
-#[cfg(any(test, feature = "test-utils"))]
-use crate::authority::authority_store_pruner::AuthorityStorePruner;
 use crate::{
     authority::{
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
@@ -1777,7 +1775,8 @@ impl AuthorityStore {
         self.historic_objects
             .prune(1)
             .expect("expiring the historic buckets should not fail");
-        AuthorityStorePruner::compact(&self.perpetual_tables)
+        self.perpetual_tables
+            .compact()
             .expect("compacting the live objects table should not fail");
     }
 
