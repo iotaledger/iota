@@ -36,6 +36,7 @@ async fn ledger_rows_survive_a_reopen() {
 
     let (_perpetual, _historic_objects, reopened) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
+    assert_eq!(reopened.earliest_bucket_epoch(), Some(3));
     assert_eq!(
         reopened
             .ensure(3)
