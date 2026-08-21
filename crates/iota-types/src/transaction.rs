@@ -119,14 +119,13 @@ pub fn type_tag_validity_check(
                 let next_depth = depth + 1;
                 if config.validate_identifier_inputs() {
                     fp_ensure!(
-                        Identifier::is_valid(s.module().as_str())
-                            && s.module().as_str() != "<SELF>",
+                        Identifier::is_valid(s.module().as_str()),
                         UserInputError::InvalidIdentifier {
                             error: s.module().as_str().to_owned()
                         }
                     );
                     fp_ensure!(
-                        Identifier::is_valid(s.name().as_str()) && s.name().as_str() != "<SELF>",
+                        Identifier::is_valid(s.name().as_str()),
                         UserInputError::InvalidIdentifier {
                             error: s.name().as_str().to_owned()
                         }
