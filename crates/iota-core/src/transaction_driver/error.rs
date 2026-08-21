@@ -43,6 +43,17 @@ pub(crate) enum TransactionRequestError {
 }
 
 impl TransactionRequestError {
+    /// Retry delay requested by an overloaded validator.
+    fn retry_after_secs(&self) -> Option<u64> {
+        match self {
+            TransactionRequestError::RejectedAtValidator(error)
+            | TransactionRequestError::Aborted(error) => error
+                .is_retryable_overload()
+                .then(|| error.retry_after_secs()),
+            _ => None,
+        }
+    }
+
     pub(crate) fn categorize(&self) -> ErrorCategory {
         match self {
             TransactionRequestError::TimedOutSubmittingTransaction => ErrorCategory::Unavailable,
@@ -116,6 +127,36 @@ pub enum TransactionDriverError {
 impl TransactionDriverError {
     pub(crate) fn is_submission_retriable(&self) -> bool {
         self.categorize().is_submission_retriable()
+    }
+
+    /// True when the overloaded stake of an aborted attempt exceeds all
+    /// other error stake combined. Single rule shared by the driver's
+    /// overload backoff and the client-facing overload mapping. `categorize`
+    /// is unsuitable here: it reads only the largest message bucket and must
+    /// keep preferring retriable errors for retriability.
+    pub(crate) fn is_overload_dominated(&self) -> bool {
+        let TransactionDriverError::Aborted {
+            submission_non_retriable_errors,
+            submission_retriable_errors,
+            ..
+        } = self
+        else {
+            return false;
+        };
+        let mut overloaded = 0;
+        let mut other = 0;
+        for (_, _, stake, category) in submission_retriable_errors
+            .errors
+            .iter()
+            .chain(submission_non_retriable_errors.errors.iter())
+        {
+            if *category == ErrorCategory::ValidatorOverloaded {
+                overloaded += *stake;
+            } else {
+                other += *stake;
+            }
+        }
+        overloaded > 0 && overloaded > other
     }
 
     pub fn categorize(&self) -> ErrorCategory {
@@ -298,6 +339,28 @@ pub struct AggregatedRequestErrors {
     pub errors: Vec<(String, Vec<AuthorityName>, StakeUnit, ErrorCategory)>,
     // The total stake of all errors.
     pub total_stake: StakeUnit,
+    /// Stake per requested retry delay in seconds. Mirrors the aggregator's
+    /// `RetryableOverloadInfo`.
+    pub stake_requested_retry_after: BTreeMap<u64, StakeUnit>,
+}
+
+impl AggregatedRequestErrors {
+    /// Upper stake-weighted median of the requested retry delays. A minority
+    /// of the hinting stake cannot dictate the result.
+    pub fn median_retry_after_secs(&self) -> Option<u64> {
+        let total: StakeUnit = self.stake_requested_retry_after.values().sum();
+        if total == 0 {
+            return None;
+        }
+        let mut cumulative = 0;
+        for (secs, stake) in &self.stake_requested_retry_after {
+            cumulative += stake;
+            if cumulative * 2 > total {
+                return Some(*secs);
+            }
+        }
+        None
+    }
 }
 
 impl std::fmt::Display for AggregatedRequestErrors {
@@ -335,9 +398,13 @@ pub(crate) fn aggregate_request_errors(
     let mut total_stake = 0;
     let mut aggregated_errors =
         BTreeMap::<String, (Vec<AuthorityName>, StakeUnit, ErrorCategory)>::new();
+    let mut stake_requested_retry_after = BTreeMap::new();
 
     for (name, stake, error) in errors {
         total_stake += stake;
+        if let Some(secs) = error.retry_after_secs() {
+            *stake_requested_retry_after.entry(secs).or_default() += stake;
+        }
         let key = format_transaction_request_error(&error);
         let entry = aggregated_errors
             .entry(key)
@@ -355,6 +422,7 @@ pub(crate) fn aggregate_request_errors(
     AggregatedRequestErrors {
         errors,
         total_stake,
+        stake_requested_retry_after,
     }
 }
 
@@ -386,5 +454,99 @@ impl AggregatedEffectsDigests {
     #[cfg(test)]
     pub fn total_stake(&self) -> StakeUnit {
         self.digests.iter().map(|(_, _, stake)| stake).sum()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_types::crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes};
+
+    use super::*;
+
+    /// Aggregation records stake per requested delay. The median ignores
+    /// low-stake outliers.
+    #[test]
+    fn aggregation_records_stake_per_retry_hint() {
+        use fastcrypto::traits::VerifyingKey;
+
+        let name = |i: u8| AuthorityPublicKeyBytes([i; AuthorityPublicKey::LENGTH]);
+        let overloaded = |secs| {
+            TransactionRequestError::RejectedAtValidator(IotaError::ValidatorOverloadedRetryAfter {
+                retry_after_secs: secs,
+            })
+        };
+        let aggregated = aggregate_request_errors(vec![
+            (name(0), 4000, overloaded(10)),
+            (name(1), 3000, overloaded(10)),
+            (name(2), 1000, overloaded(3600)),
+            (
+                name(3),
+                1000,
+                TransactionRequestError::TimedOutSubmittingTransaction,
+            ),
+        ]);
+        assert_eq!(
+            aggregated.stake_requested_retry_after,
+            BTreeMap::from([(10, 7000), (3600, 1000)])
+        );
+        assert_eq!(aggregated.total_stake, 9000);
+        assert_eq!(aggregated.median_retry_after_secs(), Some(10));
+
+        let aggregated = aggregate_request_errors(vec![(
+            name(0),
+            1000,
+            TransactionRequestError::TimedOutSubmittingTransaction,
+        )]);
+        assert!(aggregated.stake_requested_retry_after.is_empty());
+        assert_eq!(aggregated.median_retry_after_secs(), None);
+    }
+
+    /// Dominance requires overloaded stake to exceed all other error stake
+    /// combined.
+    #[test]
+    fn overload_dominance_sums_stake_per_category() {
+        use fastcrypto::traits::VerifyingKey;
+
+        let name = |i: u8| AuthorityPublicKeyBytes([i; AuthorityPublicKey::LENGTH]);
+        let overloaded = |secs| {
+            TransactionRequestError::RejectedAtValidator(IotaError::ValidatorOverloadedRetryAfter {
+                retry_after_secs: secs,
+            })
+        };
+        let aborted = |retriable: Vec<_>| TransactionDriverError::Aborted {
+            submission_non_retriable_errors: AggregatedRequestErrors::default(),
+            submission_retriable_errors: aggregate_request_errors(retriable),
+            observed_effects_digests: AggregatedEffectsDigests { digests: vec![] },
+        };
+
+        // Overload split across delays still outweighs a larger single
+        // bucket.
+        let dominated = aborted(vec![
+            (
+                name(0),
+                4000,
+                TransactionRequestError::TimedOutSubmittingTransaction,
+            ),
+            (name(1), 2500, overloaded(10)),
+            (name(2), 2500, overloaded(30)),
+        ]);
+        assert!(dominated.is_overload_dominated());
+
+        // An overload plurality that is an aggregate minority does not
+        // dominate.
+        let not_dominated = aborted(vec![
+            (name(0), 3500, overloaded(10)),
+            (
+                name(1),
+                3000,
+                TransactionRequestError::TimedOutSubmittingTransaction,
+            ),
+            (
+                name(2),
+                2500,
+                TransactionRequestError::TimedOutGettingFullEffectsAtValidator,
+            ),
+        ]);
+        assert!(!not_dominated.is_overload_dominated());
     }
 }
