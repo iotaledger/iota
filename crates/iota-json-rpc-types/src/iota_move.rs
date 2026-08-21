@@ -623,7 +623,11 @@ impl IotaMoveStruct {
             }
             // We only care about values here, assuming struct type information is known at the
             // client side.
-            IotaMoveStruct::WithTypes { type_tag: _, fields } | IotaMoveStruct::WithFields(fields) => {
+            IotaMoveStruct::WithTypes {
+                type_tag: _,
+                fields,
+            }
+            | IotaMoveStruct::WithFields(fields) => {
                 let fields = fields
                     .into_iter()
                     .map(|(key, value)| (key, value.to_json_value()))
@@ -636,7 +640,10 @@ impl IotaMoveStruct {
     pub fn read_dynamic_field_value(&self, field_name: &str) -> Option<IotaMoveValue> {
         match self {
             IotaMoveStruct::WithFields(fields) => fields.get(field_name).cloned(),
-            IotaMoveStruct::WithTypes { type_tag: _, fields } => fields.get(field_name).cloned(),
+            IotaMoveStruct::WithTypes {
+                type_tag: _,
+                fields,
+            } => fields.get(field_name).cloned(),
             _ => None,
         }
     }
@@ -652,7 +659,10 @@ impl Display for IotaMoveStruct {
                     writeln!(writer, "{}: {value}", name.bold().bright_black())?;
                 }
             }
-            IotaMoveStruct::WithTypes { type_tag: tag, fields } => {
+            IotaMoveStruct::WithTypes {
+                type_tag: tag,
+                fields,
+            } => {
                 writeln!(writer)?;
                 writeln!(writer, "  {}: {tag}", "type".bold().bright_black())?;
                 for (name, value) in fields {
