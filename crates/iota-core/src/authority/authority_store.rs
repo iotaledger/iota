@@ -1301,12 +1301,10 @@ impl AuthorityStore {
     /// live `objects` table and the historic buckets together: whichever of
     /// the two answers is the newer one wins.
     ///
-    /// Both are asked every time, because either can hold the newer row. A
-    /// version superseded before this build was written still sits in the live
-    /// table below versions that have since been relocated, and a tombstone
-    /// left below a newer version by an unwrap stays there for good. Taking
-    /// the live answer whenever there is one would return those rows in place
-    /// of a newer relocated version.
+    /// Both are asked every time, because either can hold the newer row: a
+    /// tombstone left below a newer version by an unwrap stays in the live
+    /// table for good, so taking the live answer whenever there is one would
+    /// return that tombstone in place of a newer relocated version.
     ///
     /// `None` covers both an object deleted or wrapped at or below the bound
     /// and an object with no version in range at all. A live tombstone newer
