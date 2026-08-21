@@ -13,11 +13,7 @@
 use std::{collections::BTreeMap, fmt::Debug, path::Path, sync::Arc};
 
 use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, checkpoint::CheckpointContents};
-use iota_types::{
-    committee::EpochId,
-    error::{IotaError, IotaResult},
-    messages_checkpoint::TrustedCheckpoint,
-};
+use iota_types::{committee::EpochId, messages_checkpoint::TrustedCheckpoint};
 use typed_store::{
     DbIterator, TypedStoreError,
     database::Database,
@@ -78,6 +74,21 @@ impl HistoricCheckpointsBucket {
 /// The buckets are column families of the checkpoint store's database
 /// rather than a store of their own, so a checkpoint's rows can be committed
 /// alongside the rest of that commit's batch.
+///
+/// A bucket's existence does **not** mean its epoch has been executed. State
+/// sync inserts a certified checkpoint and its contents before this node
+/// executes them, in the bucket of the checkpoint's epoch, and it runs ahead
+/// of execution and across epoch boundaries — so the newest bucket here can
+/// belong to an epoch whose first checkpoint this node has yet to execute.
+/// [`crate::authority::historic_ledger::HistoricLedger`] has the same
+/// property, for the same reason.
+///
+/// Anything that decides how much history to keep must therefore count from
+/// the epoch being executed, not from the newest bucket:
+/// [`crate::epoch_buckets::EpochBuckets::prune`] derives its floor from the
+/// newest bucket, so retaining N epochs that way would spend part of N on
+/// epochs synced but not yet executed and drop the history of an epoch still
+/// being served.
 pub struct HistoricCheckpoints {
     buckets: EpochBuckets<HistoricCheckpointsBucket>,
 }
@@ -176,10 +187,46 @@ impl HistoricCheckpoints {
     }
 
     /// The bucket holding `epoch`'s checkpoint history, created if absent.
-    pub fn ensure(&self, epoch: EpochId) -> IotaResult<Arc<HistoricCheckpointsBucket>> {
-        self.buckets
-            .ensure(epoch)
-            .map_err(|e| IotaError::Storage(e.to_string()))
+    pub fn ensure(
+        &self,
+        epoch: EpochId,
+    ) -> Result<Arc<HistoricCheckpointsBucket>, TypedStoreError> {
+        self.buckets.ensure(epoch)
+    }
+
+    /// The contents stored under `digest`, newest bucket first, `None` if no
+    /// bucket holds them.
+    ///
+    /// A digest no bucket holds belongs to a checkpoint this node never had,
+    /// or to one whose epoch has been dropped, and both answer `None`.
+    pub fn find_contents(
+        &self,
+        digest: &CheckpointContentsDigest,
+    ) -> Result<Option<CheckpointContents>, TypedStoreError> {
+        for bucket in self.buckets.iter(true) {
+            if let Some(contents) = bucket.checkpoint_content.get(digest)? {
+                return Ok(Some(contents));
+            }
+        }
+        Ok(None)
+    }
+
+    /// The certified summary stored under `digest`, newest bucket first,
+    /// `None` if no bucket holds it.
+    ///
+    /// Keyed by checkpoint digest. A caller that has the sequence number
+    /// reads `certified_checkpoints` instead, which holds the same summaries
+    /// and is never pruned.
+    pub fn find_by_digest(
+        &self,
+        digest: &CheckpointDigest,
+    ) -> Result<Option<TrustedCheckpoint>, TypedStoreError> {
+        for bucket in self.buckets.iter(true) {
+            if let Some(checkpoint) = bucket.checkpoint_by_digest.get(digest)? {
+                return Ok(Some(checkpoint));
+            }
+        }
+        Ok(None)
     }
 
     /// One page of the rows `cf_name` holds, if it is one of this store's
@@ -240,3 +287,7 @@ impl HistoricCheckpoints {
         Ok(None)
     }
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/historic_checkpoints_tests.rs"]
+mod tests;
