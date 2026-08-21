@@ -67,7 +67,6 @@ serde-wasm-bindgen = { version = "0.6", optional = true }
 wasm-bindgen = { version = "0.2", optional = true }
 
 [dev-dependencies]
-# external dependencies
 anyhow.workspace = true
 fastcrypto.workspace = true
 serde.workspace = true
