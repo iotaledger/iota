@@ -231,6 +231,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             assigned to canceled transactions, or one below it, from the
 //             transaction bytes, before any object is loaded.
 //             Reject `<SELF>` as an identifier in published modules.
+//             Make the enum variant count limit explicit in the protocol
+//             config.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3502,6 +3504,7 @@ impl ProtocolConfig {
                     // loaded, by consulting the transaction bytes only.
                     cfg.feature_flags.validate_input_object_versions = true;
                     cfg.feature_flags.disallow_self_identifier = true;
+                    cfg.max_move_enum_variants = Some(move_core_types::VARIANT_COUNT_MAX);
                 }
                 // Use this template when making changes:
                 //
