@@ -589,17 +589,19 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                             timeout,
                         )
                         .await?;
-                    // 5. Verify headers: count matches and each reference matches requested.
-                    // TODO: verify_fetched_headers currently only returns fetch-shape
-                    // errors (wrong count/ref) which classify as Untracked. When
-                    // per-header faults become observable here, record them as peer
-                    // misbehavior via
-                    // `inner.misbehavior_store.record_faulty_block`.
+                    // 5. Verify the returned headers are the requested ones.
                     verify_fetched_headers(
                         target_authority,
                         request_block_refs,
                         serialized_block_headers,
                     )
+                    .inspect_err(|e| {
+                        inner.misbehavior_store.record_faulty_block(
+                            target_authority,
+                            target_authority,
+                            e,
+                        );
+                    })
                 }
             })
             .collect();
@@ -641,6 +643,11 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         //     TransactionSynchronizer will take care of fetching missing
                         //     transactions later.
                         if request_tx_refs.len() < serialized_transactions.len() {
+                            inner.misbehavior_store.record_faulty_transactions(
+                                target_authority,
+                                false,
+                                [target_authority],
+                            );
                             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                                 target_authority,
                             ));
@@ -651,14 +658,29 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                         // directly
                         let mut result = BTreeMap::new();
                         for serialized_bytes in serialized_transactions {
+                            // Truncation drops whole entries and never
+                            // corrupts one, so a malformed or unrequested
+                            // entry is the peer's fault.
                             let serialized_tx: SerializedTransactionsV2 =
                                 bcs::from_bytes(&serialized_bytes)
+                                    .inspect_err(|_| {
+                                        inner.misbehavior_store.record_faulty_transactions(
+                                            target_authority,
+                                            false,
+                                            [target_authority],
+                                        )
+                                    })
                                     .map_err(ConsensusError::MalformedTransactions)?;
 
                             // 11. Verify the returned transactions match the requested transaction
                             //     refs.
                             let committed_transaction_ref = serialized_tx.transaction_ref;
                             if !requested_tx_refs_set.contains(&committed_transaction_ref) {
+                                inner.misbehavior_store.record_faulty_transactions(
+                                    target_authority,
+                                    false,
+                                    [target_authority],
+                                );
                                 return Err(ConsensusError::UnexpectedTransactionForCommit {
                                     peer: target_authority,
                                     received: committed_transaction_ref,
@@ -712,7 +734,16 @@ impl<C: NetworkClient> RegularCommitSyncer<C> {
                     }
                 })
                 .await
-                .expect("Spawn blocking should not fail")?
+                .expect("Spawn blocking should not fail")
+                .inspect_err(|_| {
+                    // Not provable against the author, whose commitment the
+                    // peer may have forged.
+                    inner.misbehavior_store.record_faulty_transactions(
+                        target_authority,
+                        false,
+                        [target_authority],
+                    );
+                })?
         } else {
             BTreeMap::new()
         };
@@ -1023,5 +1054,302 @@ mod tests {
             "expected no ranges scheduled while fast sync is active"
         );
         assert_eq!(paused, 1);
+    }
+
+    mod fetch_once {
+        use std::{sync::Arc, time::Duration};
+
+        use bytes::Bytes;
+        use parking_lot::RwLock;
+        use starfish_config::AuthorityIndex;
+
+        use crate::{
+            CommitConsumerMonitor, Transaction,
+            block_header::{TestBlockHeader, TransactionsCommitment, VerifiedBlockHeader},
+            block_verifier::NoopBlockVerifier,
+            commit::{CertifiedCommits, CommitDigest, TrustedCommit},
+            commit_syncer::{Inner, regular::RegularCommitSyncer, tests::FakeNetworkClient},
+            commit_vote_monitor::CommitVoteMonitor,
+            context::Context,
+            core_thread::tests::MockCoreThreadDispatcher,
+            dag_state::DagState,
+            encoder::create_encoder,
+            error::{ConsensusError, ConsensusResult},
+            header_synchronizer::HeaderSynchronizer,
+            misbehavior_store::MisbehaviorStore,
+            network::SerializedTransactionsV2,
+            storage::{Store, mem_store::MemStore},
+            transaction_ref::{GenericTransactionRef, TransactionRef},
+            transactions_synchronizer::TransactionsSynchronizer,
+        };
+
+        fn make_inner(
+            context: Arc<Context>,
+            network_client: Arc<FakeNetworkClient>,
+        ) -> Arc<Inner<FakeNetworkClient>> {
+            let block_verifier = Arc::new(NoopBlockVerifier {});
+            let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+            let store: Arc<dyn Store> = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+            let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+            let transactions_synchronizer = TransactionsSynchronizer::start(
+                network_client.clone(),
+                context.clone(),
+                core_thread_dispatcher.clone(),
+                dag_state.clone(),
+                block_verifier.clone(),
+            );
+            let header_synchronizer = HeaderSynchronizer::start(
+                network_client.clone(),
+                context.clone(),
+                core_thread_dispatcher.clone(),
+                commit_vote_monitor.clone(),
+                transactions_synchronizer,
+                block_verifier.clone(),
+                dag_state.clone(),
+                false,
+                None,
+                misbehavior_store.clone(),
+            );
+            RegularCommitSyncer::new(
+                context,
+                core_thread_dispatcher,
+                commit_vote_monitor,
+                Arc::new(CommitConsumerMonitor::new(0)),
+                network_client,
+                block_verifier,
+                dag_state,
+                header_synchronizer,
+                misbehavior_store,
+                None,
+            )
+            .inner
+        }
+
+        /// A complete regular-sync response set for commit range 1..=2: two
+        /// chained commits whose leader refs point at the returned headers,
+        /// vote headers from a quorum certifying the last commit, and both
+        /// committed transactions.
+        fn two_commit_response(
+            context: &Arc<Context>,
+        ) -> ((Vec<Bytes>, Vec<Bytes>), Vec<Bytes>, Vec<Bytes>) {
+            let mut encoder = create_encoder(context);
+
+            let mut transaction_refs = Vec::new();
+            let mut serialized_transactions = Vec::new();
+            for round in 1..=2u32 {
+                let serialized =
+                    Transaction::serialize(&[Transaction::new(vec![round as u8; 16])]).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    context,
+                    &mut encoder,
+                )
+                .unwrap();
+                transaction_refs.push(TransactionRef {
+                    round,
+                    author: AuthorityIndex::new_for_test(0),
+                    transactions_commitment: commitment,
+                });
+                serialized_transactions.push(serialized);
+            }
+
+            let leader_header_1 =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, 0).build());
+            let leader_header_2 =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(2, 1).build());
+            let commit_1 = TrustedCommit::new_for_test(
+                context,
+                1,
+                CommitDigest::MIN,
+                0,
+                leader_header_1.reference(),
+                vec![leader_header_1.reference()],
+                vec![GenericTransactionRef::TransactionRef(transaction_refs[0])],
+            );
+            let commit_2 = TrustedCommit::new_for_test(
+                context,
+                2,
+                commit_1.digest(),
+                0,
+                leader_header_2.reference(),
+                vec![leader_header_2.reference()],
+                vec![GenericTransactionRef::TransactionRef(transaction_refs[1])],
+            );
+
+            let vote_headers: Vec<Bytes> = (0..3)
+                .map(|author| {
+                    let header = TestBlockHeader::new(3, author)
+                        .set_commit_votes(vec![commit_2.reference()])
+                        .build();
+                    VerifiedBlockHeader::new_for_test(header)
+                        .serialized()
+                        .clone()
+                })
+                .collect();
+
+            let response_transactions: Vec<Bytes> = transaction_refs
+                .iter()
+                .zip(&serialized_transactions)
+                .map(|(transaction_ref, serialized)| {
+                    bcs::to_bytes(&SerializedTransactionsV2 {
+                        transaction_ref: *transaction_ref,
+                        serialized_transactions: serialized.clone(),
+                    })
+                    .unwrap()
+                    .into()
+                })
+                .collect();
+
+            (
+                (
+                    vec![commit_1.serialized().clone(), commit_2.serialized().clone()],
+                    vote_headers,
+                ),
+                vec![
+                    leader_header_1.serialized().clone(),
+                    leader_header_2.serialized().clone(),
+                ],
+                response_transactions,
+            )
+        }
+
+        /// Runs `fetch_once` against the preset responses served by
+        /// authority 1 and returns the result and the `Inner` whose
+        /// misbehavior store the fetch recorded into.
+        async fn run_fetch_once(
+            commits: (Vec<Bytes>, Vec<Bytes>),
+            block_headers: Vec<Bytes>,
+            transactions: Vec<Bytes>,
+            context: Arc<Context>,
+        ) -> (
+            ConsensusResult<CertifiedCommits>,
+            Arc<Inner<FakeNetworkClient>>,
+        ) {
+            let network_client = Arc::new(FakeNetworkClient {
+                commits: Some(commits),
+                block_headers: Some(block_headers),
+                transactions: Some(transactions),
+                ..Default::default()
+            });
+            let inner = make_inner(context, network_client);
+            let result = RegularCommitSyncer::fetch_once(
+                inner.clone(),
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await;
+            (result, inner)
+        }
+
+        /// Asserts the peers' unprovable fault counts and that no provable
+        /// fault was recorded.
+        fn assert_unprovable_faults(inner: &Inner<FakeNetworkClient>, expected: Vec<u64>) {
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                expected
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
+            );
+        }
+
+        /// Missing transactions are tolerated (the transaction synchronizer
+        /// fetches them later) and record no misbehavior.
+        #[tokio::test]
+        async fn tolerates_missing_transactions_without_misbehavior() {
+            let context = Arc::new(Context::new_for_test(4).0);
+            let (commits, block_headers, mut transactions) = two_commit_response(&context);
+            transactions.truncate(1);
+
+            let (result, inner) =
+                run_fetch_once(commits, block_headers, transactions, context).await;
+
+            let certified = result.unwrap();
+            assert_eq!(certified.commits().len(), 2);
+            assert_unprovable_faults(&inner, vec![0; 4]);
+        }
+
+        /// An entry referencing a transaction that was not requested is
+        /// charged to the serving peer.
+        #[tokio::test]
+        async fn records_misbehavior_for_unrequested_transaction() {
+            let context = Arc::new(Context::new_for_test(4).0);
+            let (commits, block_headers, _) = two_commit_response(&context);
+            // Serve a transaction for a round no commit in the range commits to.
+            let serialized = Transaction::serialize(&[Transaction::new(vec![9u8; 16])]).unwrap();
+            let mut encoder = create_encoder(&context);
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized,
+                &context,
+                &mut encoder,
+            )
+            .unwrap();
+            let transactions = vec![
+                bcs::to_bytes(&SerializedTransactionsV2 {
+                    transaction_ref: TransactionRef {
+                        round: 3,
+                        author: AuthorityIndex::new_for_test(0),
+                        transactions_commitment: commitment,
+                    },
+                    serialized_transactions: serialized,
+                })
+                .unwrap()
+                .into(),
+            ];
+
+            let (result, inner) =
+                run_fetch_once(commits, block_headers, transactions, context).await;
+
+            let err = result.unwrap_err();
+            assert!(
+                matches!(err, ConsensusError::UnexpectedTransactionForCommit { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
+        }
+
+        /// A header outside the requested set is charged to the serving peer.
+        #[tokio::test]
+        async fn records_misbehavior_for_unrequested_header() {
+            let context = Arc::new(Context::new_for_test(4).0);
+            let (commits, mut block_headers, transactions) = two_commit_response(&context);
+            block_headers[1] =
+                VerifiedBlockHeader::new_for_test(TestBlockHeader::new(3, 2).build())
+                    .serialized()
+                    .clone();
+
+            let (result, inner) =
+                run_fetch_once(commits, block_headers, transactions, context).await;
+
+            let err = result.unwrap_err();
+            assert!(
+                matches!(err, ConsensusError::UnexpectedBlockHeaderForCommit { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
+        }
+
+        /// A response missing a header fails the fetch but records no
+        /// misbehavior, since an honest response can arrive incomplete.
+        #[tokio::test]
+        async fn does_not_record_misbehavior_for_missing_headers() {
+            let context = Arc::new(Context::new_for_test(4).0);
+            let (commits, mut block_headers, transactions) = two_commit_response(&context);
+            block_headers.truncate(1);
+
+            let (result, inner) =
+                run_fetch_once(commits, block_headers, transactions, context).await;
+
+            let err = result.unwrap_err();
+            assert!(
+                matches!(err, ConsensusError::NotEnoughHeadersFetched { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0; 4]);
+        }
     }
 }

@@ -300,10 +300,10 @@ impl NetworkClient for TonicClient {
                         .len()
                         .saturating_add(vec_serialized_block_headers.len());
                     if received_headers > max_headers {
-                        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-                            authority: peer,
+                        return Err(ConsensusError::TooManyFetchedHeadersReturned {
+                            peer,
                             requested: max_headers,
-                            received_headers,
+                            received: received_headers,
                         });
                     }
                     for b in &vec_serialized_block_headers {
