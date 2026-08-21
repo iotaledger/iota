@@ -112,7 +112,7 @@ pub async fn test_fallback_load_skips_contents_cache_below_window() {
     // Simulate the state-sync frontier far ahead of the executor.
     let frontier_seq = 10_000;
     let frontier_contents = FullCheckpointContents::random_for_testing();
-    let frontier_checkpoint = test_checkpoint_with_contents(frontier_seq, &frontier_contents);
+    let frontier_checkpoint = test_checkpoint_with_contents(0, frontier_seq, &frontier_contents);
     checkpoint_store.cache_full_checkpoint_contents(
         frontier_checkpoint.sequence_number(),
         frontier_checkpoint.contents_digest,
@@ -599,7 +599,7 @@ fn sync_checkpoint(
         .insert_verified_checkpoint(checkpoint)
         .unwrap();
     checkpoint_store
-        .insert_checkpoint_contents(contents.clone().into_checkpoint_contents())
+        .insert_checkpoint_contents(checkpoint, contents.clone().into_checkpoint_contents())
         .unwrap();
     checkpoint_store
         .update_highest_synced_checkpoint(checkpoint)
@@ -628,7 +628,10 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
     }
     for i in [0, 2] {
         checkpoint_store
-            .insert_checkpoint_contents(contents[i].clone().into_checkpoint_contents())
+            .insert_checkpoint_contents(
+                &checkpoints[i],
+                contents[i].clone().into_checkpoint_contents(),
+            )
             .unwrap();
     }
     assert!(
@@ -669,7 +672,10 @@ async fn the_synced_watermark_does_not_pass_a_checkpoint_the_write_skips() {
 
     // The contents arrive, and the checkpoints are marked synced in order.
     checkpoint_store
-        .insert_checkpoint_contents(contents[1].clone().into_checkpoint_contents())
+        .insert_checkpoint_contents(
+            &checkpoints[1],
+            contents[1].clone().into_checkpoint_contents(),
+        )
         .unwrap();
     assert!(
         checkpoint_store
