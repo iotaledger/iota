@@ -87,15 +87,16 @@ impl FilterForHeaders {
         digests: Vec<(BlockHeaderDigest, FilteredHeaderInfo)>,
     ) -> Vec<BlockHeaderDigest> {
         let mut already_inserted = vec![];
-        for (digest, info) in digests.iter() {
-            if self.header_digests.insert(*digest, *info).is_some() {
-                already_inserted.push(*digest);
+        let mut newly_inserted = vec![];
+        for (digest, info) in digests {
+            if self.header_digests.insert(digest, info).is_some() {
+                already_inserted.push(digest);
+            } else {
+                newly_inserted.push(digest);
             }
         }
         let mut queue = self.queue.lock().await;
-        for (digest, _) in digests {
-            queue.push_back(digest);
-        }
+        queue.extend(newly_inserted);
         while queue.len() > MAX_FILTER_SIZE as usize {
             if let Some(removed) = queue.pop_front() {
                 self.header_digests.remove(&removed);
@@ -293,6 +294,32 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .record_faulty_block(peer, peer, error);
     }
 
+    fn validate_additional_header_round(
+        &self,
+        peer: AuthorityIndex,
+        peer_hostname: &str,
+        header_round: Round,
+        block_round: Round,
+    ) -> ConsensusResult<()> {
+        if header_round < block_round {
+            return Ok(());
+        }
+        let error = ConsensusError::TooBigHeaderRoundInABundle {
+            header_round,
+            block_round,
+        };
+        self.context
+            .metrics
+            .node_metrics
+            .bundles_with_invalid_parts
+            .with_label_values(&[peer_hostname, "header", "invalid round in header"])
+            .inc();
+        self.misbehavior_store
+            .record_faulty_block(peer, peer, &error);
+        info!("Invalid additional block header from {}: {}", peer, error);
+        Err(error)
+    }
+
     /// Deserializes and verifies the additional headers of a bundle. Returns
     /// the fresh headers to accept into the DAG, plus the info of the already
     /// received ones — still deliveries for the responsiveness sampling, but
@@ -321,12 +348,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .filtered_headers_in_bundles
                     .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
                     .inc();
-                // The round bound keeps a far-future header, filtered even
-                // when its block is dropped, from replaying as a near-zero
-                // sample.
-                if round < block_round {
-                    duplicate_header_deliveries.push((author, round, timestamp_ms));
-                }
+                self.validate_additional_header_round(peer, peer_hostname, round, block_round)?;
+                duplicate_header_deliveries.push((author, round, timestamp_ms));
                 continue;
             }
 
@@ -337,22 +360,12 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     self.misbehavior_store.record_faulty_block(peer, peer, e);
                 })?;
 
-            let header_round = signed_block_header.round();
-            if header_round >= block_round {
-                let e = ConsensusError::TooBigHeaderRoundInABundle {
-                    header_round,
-                    block_round,
-                };
-                self.context
-                    .metrics
-                    .node_metrics
-                    .bundles_with_invalid_parts
-                    .with_label_values(&[peer_hostname, "header", "invalid round in header"])
-                    .inc();
-                self.misbehavior_store.record_faulty_block(peer, peer, &e);
-                info!("Invalid additional block header from {}: {}", peer, e);
-                return Err(e);
-            }
+            self.validate_additional_header_round(
+                peer,
+                peer_hostname,
+                signed_block_header.round(),
+                block_round,
+            )?;
 
             if let Err(e) = self.block_verifier.verify(&signed_block_header) {
                 self.context
@@ -1835,7 +1848,8 @@ mod tests {
     use crate::{
         CommitConsumer, Round, Transaction, TransactionClient,
         authority_service::{
-            AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
+            AuthorityService, BroadcastedBlockStream, FilterForHeaders, MAX_FILTER_SIZE,
+            SubscriptionCounter, filtered_header_info,
         },
         block_header::{
             BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions,
@@ -1871,6 +1885,18 @@ mod tests {
         transaction_ref::{GenericTransactionRef, TransactionRef},
         transactions_synchronizer::TransactionsSynchronizer,
     };
+
+    #[tokio::test]
+    async fn test_filter_for_headers_queues_only_new_digests() {
+        let filter = FilterForHeaders::new();
+        let digest = BlockHeaderDigest::MIN;
+        let info = (AuthorityIndex::new_for_test(0), 1, 0);
+
+        assert!(filter.add_batch(vec![(digest, info)]).await.is_empty());
+        assert_eq!(filter.add_batch(vec![(digest, info)]).await, vec![digest]);
+        assert_eq!(filter.size(), 1);
+        assert_eq!(filter.queue.lock().await.len(), 1);
+    }
 
     #[derive(Default)]
     struct FakeNetworkClient {}
@@ -2440,6 +2466,48 @@ mod tests {
         // The relaying peer (authority 0) is charged for the invalid header.
         let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
         assert_eq!(counts.faulty_blocks_unprovable, 1);
+
+        let cached_header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 1, &context, &mut encoder)
+                .set_timestamp_ms(1)
+                .build(),
+        );
+        authority_service
+            .received_block_headers
+            .add_batch(vec![(
+                cached_header.digest(),
+                filtered_header_info(&cached_header),
+            )])
+            .await;
+        let block_bundle_with_invalid_cached_header = BlockBundle {
+            verified_block: input_block.clone(),
+            verified_headers: vec![cached_header],
+            serialized_shards: vec![],
+            useful_headers_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
+            useful_shards_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
+        };
+        let serialized_block_bundle = SerializedBlockBundle::try_from(
+            SerializedBlockBundleParts::try_from(block_bundle_with_invalid_cached_header).unwrap(),
+        )
+        .unwrap();
+
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                serialized_block_bundle,
+                &mut encoder,
+            )
+            .await;
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooBigHeaderRoundInABundle {
+                header_round: 1,
+                block_round: 1,
+            })
+        ));
+        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
+        assert_eq!(counts.faulty_blocks_unprovable, 2);
 
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
