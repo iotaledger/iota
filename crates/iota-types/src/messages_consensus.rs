@@ -521,6 +521,8 @@ pub struct MisbehaviorObservationsV1 {
     pub faulty_blocks_provable: Vec<u64>,
     pub faulty_blocks_unprovable: Vec<u64>,
     pub missing_proposals: Vec<u64>,
+    /// Per-authority count of rounds in which the authority signed more than
+    /// one block header, however many extra headers each round held.
     pub equivocations: Vec<u64>,
 }
 
@@ -553,6 +555,8 @@ pub struct MisbehaviorObservationsV2 {
     pub faulty_blocks_provable: Vec<u64>,
     pub faulty_blocks_unprovable: Vec<u64>,
     pub missing_proposals: Vec<u64>,
+    /// Per-authority count of rounds in which the authority signed more than
+    /// one block header, however many extra headers each round held.
     pub equivocations: Vec<u64>,
     pub invalid_bundle_parts: Vec<u64>,
 }

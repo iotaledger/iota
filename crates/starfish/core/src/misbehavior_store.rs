@@ -27,6 +27,11 @@ use crate::{
 pub(crate) struct MisbehaviorStore {
     in_memory: CommitteeMisbehaviorCounts,
     persisted: CommitteeMisbehaviorCounts,
+    /// Per-authority rounds in which a second verified header for an occupied
+    /// slot was dropped at ingest. Counted into the in-memory equivocations on
+    /// each flush and folded into the persisted count when the round is
+    /// evicted.
+    equivocating_rounds: Vec<Mutex<BTreeSet<Round>>>,
 }
 
 impl MisbehaviorStore {
@@ -35,6 +40,9 @@ impl MisbehaviorStore {
         Self {
             in_memory: CommitteeMisbehaviorCounts::new(&context.committee, metrics, "in_memory"),
             persisted: CommitteeMisbehaviorCounts::new(&context.committee, metrics, "persisted"),
+            equivocating_rounds: (0..context.committee.size())
+                .map(|_| Mutex::new(BTreeSet::new()))
+                .collect(),
         }
     }
 
@@ -42,6 +50,21 @@ impl MisbehaviorStore {
     pub(crate) fn reset(&self) {
         self.in_memory.reset();
         self.persisted.reset();
+        for rounds in &self.equivocating_rounds {
+            rounds.lock().unwrap().clear();
+        }
+    }
+
+    /// Records that `author` signed more than one header for `round`: a second
+    /// verified header for an occupied slot was dropped at ingest. Idempotent —
+    /// repeated arrivals and further distinct headers for the same slot
+    /// collapse into one equivocation. `author` comes from a verified header,
+    /// so it is within the committee.
+    pub(crate) fn record_equivocating_slot(&self, author: AuthorityIndex, round: Round) {
+        self.equivocating_rounds[author.value()]
+            .lock()
+            .unwrap()
+            .insert(round);
     }
 
     /// Restores persisted counts from storage and computes in-memory counts
@@ -97,8 +120,11 @@ impl MisbehaviorStore {
                     .iter()
                     .map(|r| r.round)
                     .collect();
+                // Equivocation flags are volatile: after a restart only the
+                // cache surplus is visible until new drops are recorded.
                 let (eq, missing) = calculate_misbehavior_counts_for_range(
                     cached_rounds,
+                    &BTreeSet::new(),
                     eviction_round + 1,
                     threshold_clock_round.saturating_sub(1),
                 );
@@ -129,6 +155,8 @@ impl MisbehaviorStore {
         // Move buffered faulty block counts to persisted.
         let had_faulty = self.flush_faulty_block_buffer(idx);
 
+        let mut equivocating_rounds = self.equivocating_rounds[idx].lock().unwrap();
+
         // Recompute in-memory window from blocks still in cache.
         let in_memory_block_rounds: Vec<Round> = recent_refs
             .iter()
@@ -137,6 +165,7 @@ impl MisbehaviorStore {
             .collect();
         let (in_memory_eq, in_memory_missing) = calculate_misbehavior_counts_for_range(
             in_memory_block_rounds,
+            &equivocating_rounds,
             eviction_round + 1,
             threshold_clock_round.saturating_sub(1),
         );
@@ -153,11 +182,15 @@ impl MisbehaviorStore {
                 .collect();
             let (evicted_eq, evicted_missing) = calculate_misbehavior_counts_for_range(
                 evicted_block_rounds,
+                &equivocating_rounds,
                 last_eviction_round + 1,
                 eviction_round,
             );
             self.persisted
                 .add_dag_faults(idx, evicted_missing, evicted_eq);
+            // Evicted rounds are folded into persisted above; drop their flags.
+            let live_rounds = equivocating_rounds.split_off(&(eviction_round + 1));
+            *equivocating_rounds = live_rounds;
         }
 
         if eviction_advanced || had_faulty {
@@ -358,8 +391,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TransactionTooLarge { .. }
         | ConsensusError::TooManyTransactions { .. }
         | ConsensusError::TooManyTransactionBytes { .. }
-        | ConsensusError::InvalidTransaction(_)
-        | ConsensusError::BlockHeaderEquivocation { .. } => FaultType::Provable,
+        | ConsensusError::InvalidTransaction(_) => FaultType::Provable,
 
         // Not attributable as misbehavior from a signed block alone: subjective
         // rejections, commit-chain and commit-sync inconsistencies, fetch-shape
@@ -577,22 +609,33 @@ impl CommitteeMisbehaviorCounts {
     }
 }
 
-/// Given block rounds for one authority in [start, end], returns
-/// (equivocations, missing_proposals).
+/// Given one authority's cached block rounds in [start, end] and the rounds
+/// flagged as equivocating at ingest, returns (equivocations,
+/// missing_proposals). An equivocation is a round with more than one signed
+/// header observed: more than one cached header, or a flag recorded when a
+/// second header for the slot was dropped. A flagged round with no cached
+/// header still counts as missing — none of its headers was accepted.
 fn calculate_misbehavior_counts_for_range(
     mut block_rounds: Vec<Round>,
+    flagged_rounds: &BTreeSet<Round>,
     start: Round,
     end: Round,
 ) -> (u64, u64) {
+    if start > end {
+        return (0, 0);
+    }
     block_rounds.retain(|&round| round >= start && round <= end);
     block_rounds.sort();
-    let number_of_blocks = block_rounds.len();
+    let mut equivocating_rounds: BTreeSet<Round> = block_rounds
+        .windows(2)
+        .filter_map(|pair| (pair[0] == pair[1]).then_some(pair[0]))
+        .collect();
+    equivocating_rounds.extend(flagged_rounds.range(start..=end).copied());
     block_rounds.dedup();
     let unique_block_rounds = block_rounds.len();
-    let number_of_equivocations = number_of_blocks.saturating_sub(unique_block_rounds) as u64;
     let number_of_missing_blocks =
         (end + 1).saturating_sub(start + unique_block_rounds as u32) as u64;
-    (number_of_equivocations, number_of_missing_blocks)
+    (equivocating_rounds.len() as u64, number_of_missing_blocks)
 }
 
 /// Versioned envelope for persisted scoring metrics. New versions are added as
@@ -614,6 +657,8 @@ pub struct MisbehaviorCountsV1 {
     pub faulty_blocks_provable: u64,
     pub faulty_blocks_unprovable: u64,
     pub missing_proposals: u64,
+    /// Rounds in which the authority signed more than one block header,
+    /// however many extra headers each round held.
     pub equivocations: u64,
 }
 
@@ -624,6 +669,8 @@ pub struct MisbehaviorCountsV2 {
     pub faulty_blocks_provable: u64,
     pub faulty_blocks_unprovable: u64,
     pub missing_proposals: u64,
+    /// Rounds in which the authority signed more than one block header,
+    /// however many extra headers each round held.
     pub equivocations: u64,
     pub invalid_bundle_parts: u64,
 }
@@ -666,6 +713,15 @@ impl MisbehaviorStore {
 
     pub(crate) fn in_memory_faulty_blocks_unprovable(&self) -> Vec<u64> {
         self.in_memory.collect(|c| c.faulty_blocks_unprovable)
+    }
+
+    pub(crate) fn equivocating_rounds(&self, author: AuthorityIndex) -> Vec<Round> {
+        self.equivocating_rounds[author.value()]
+            .lock()
+            .unwrap()
+            .iter()
+            .copied()
+            .collect()
     }
 }
 
@@ -721,7 +777,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        block_header::BlockRef,
+        block_header::{BlockHeaderDigest, BlockRef},
         context::Context,
         dag_state::{DagState, DataSource},
         error::ConsensusError,
@@ -731,77 +787,116 @@ mod tests {
 
     #[test]
     fn test_calculate_misbehavior_counts_for_range_basic() {
+        let no_flags = BTreeSet::new();
+
         // No blocks in range → all missing, no equivocations
-        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![], 1, 5);
+        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![], &no_flags, 1, 5);
         assert_eq!(eq, 0);
         assert_eq!(missing, 5);
 
         // All rounds present, no equivocations
-        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![1, 2, 3, 4, 5], 1, 5);
+        let (eq, missing) =
+            calculate_misbehavior_counts_for_range(vec![1, 2, 3, 4, 5], &no_flags, 1, 5);
         assert_eq!(eq, 0);
         assert_eq!(missing, 0);
 
-        // One equivocation (duplicate round 3)
-        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![1, 2, 3, 3, 4, 5], 1, 5);
+        // One equivocating round (duplicate round 3)
+        let (eq, missing) =
+            calculate_misbehavior_counts_for_range(vec![1, 2, 3, 3, 4, 5], &no_flags, 1, 5);
         assert_eq!(eq, 1);
         assert_eq!(missing, 0);
 
-        // One missing (round 3) + one equivocation (round 2)
-        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![1, 2, 2, 4, 5], 1, 5);
+        // One missing (round 3) + one equivocating round (round 2)
+        let (eq, missing) =
+            calculate_misbehavior_counts_for_range(vec![1, 2, 2, 4, 5], &no_flags, 1, 5);
         assert_eq!(eq, 1);
         assert_eq!(missing, 1);
     }
 
     #[test]
     fn test_calculate_misbehavior_counts_for_range_filters_out_of_range() {
-        // Rounds outside [2, 4] are filtered
-        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![1, 2, 3, 4, 5], 2, 4);
+        // Rounds outside [2, 4] are filtered, in the cached rounds and in the
+        // flags alike
+        let flags = BTreeSet::from([1, 5]);
+        let (eq, missing) =
+            calculate_misbehavior_counts_for_range(vec![1, 2, 3, 4, 5], &flags, 2, 4);
         assert_eq!(eq, 0);
         assert_eq!(missing, 0);
     }
 
     #[test]
     fn test_calculate_misbehavior_counts_for_range_empty_range() {
-        // start > end → no missing, no equivocations (saturating_sub handles it)
-        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![], 5, 3);
+        // start > end → no missing, no equivocations
+        let (eq, missing) =
+            calculate_misbehavior_counts_for_range(vec![], &BTreeSet::from([4]), 5, 3);
         assert_eq!(eq, 0);
         assert_eq!(missing, 0);
     }
 
     #[test]
     fn test_calculate_misbehavior_counts_for_range_unsorted_input() {
-        // Unsorted with one equivocation (round 3 appears twice) and one missing (round
-        // 5)
-        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![4, 1, 3, 2, 3], 1, 5);
+        // Unsorted with one equivocating round (round 3 appears twice) and one
+        // missing (round 5)
+        let (eq, missing) =
+            calculate_misbehavior_counts_for_range(vec![4, 1, 3, 2, 3], &BTreeSet::new(), 1, 5);
         assert_eq!(eq, 1);
         assert_eq!(missing, 1);
     }
 
     #[test]
     fn test_calculate_misbehavior_counts_for_range_multiple_equivocations() {
-        // Round 2 appears 3 times (2 equivocations), round 4 appears twice (1
-        // equivocation)
-        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![1, 2, 2, 2, 3, 4, 4], 1, 4);
-        assert_eq!(eq, 3);
+        // Round 2 appears 3 times and round 4 twice — two equivocating rounds,
+        // however many extra headers each holds
+        let (eq, missing) = calculate_misbehavior_counts_for_range(
+            vec![1, 2, 2, 2, 3, 4, 4],
+            &BTreeSet::new(),
+            1,
+            4,
+        );
+        assert_eq!(eq, 2);
         assert_eq!(missing, 0);
     }
 
     #[test]
     fn test_calculate_misbehavior_counts_for_range_single_round() {
+        let no_flags = BTreeSet::new();
+
         // Single-round range with block present
-        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![5], 5, 5);
+        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![5], &no_flags, 5, 5);
         assert_eq!(eq, 0);
         assert_eq!(missing, 0);
 
         // Single-round range with no block
-        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![], 5, 5);
+        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![], &no_flags, 5, 5);
         assert_eq!(eq, 0);
         assert_eq!(missing, 1);
 
         // Single-round range with equivocation
-        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![5, 5], 5, 5);
+        let (eq, missing) = calculate_misbehavior_counts_for_range(vec![5, 5], &no_flags, 5, 5);
         assert_eq!(eq, 1);
         assert_eq!(missing, 0);
+    }
+
+    #[test]
+    fn test_calculate_misbehavior_counts_for_range_flagged_rounds() {
+        // A flag alone marks the round as equivocating
+        let (eq, missing) =
+            calculate_misbehavior_counts_for_range(vec![1, 2, 3], &BTreeSet::from([2]), 1, 3);
+        assert_eq!(eq, 1);
+        assert_eq!(missing, 0);
+
+        // A flag and a cached surplus on the same round count once
+        let (eq, missing) =
+            calculate_misbehavior_counts_for_range(vec![1, 2, 2, 3], &BTreeSet::from([2]), 1, 3);
+        assert_eq!(eq, 1);
+        assert_eq!(missing, 0);
+
+        // A flagged round with no cached header counts as both equivocating
+        // and missing: two headers were signed, none was accepted
+        let (eq, missing) =
+            calculate_misbehavior_counts_for_range(vec![1, 3], &BTreeSet::from([2]), 1, 3);
+        assert_eq!(eq, 1);
+        assert_eq!(missing, 1);
     }
 
     #[tokio::test]
@@ -854,6 +949,54 @@ mod tests {
         let result =
             store.update_misbehavior_counts_on_eviction(oob, &recent_refs, 2, 1, 3, &context);
         assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_equivocating_slot_flags() {
+        let context = Arc::new(Context::new_for_test(4).0);
+        let store = MisbehaviorStore::new(&context);
+        let author = AuthorityIndex::new_for_test(1);
+        let idx = author.value();
+
+        // One cached header per round 1..=9.
+        let recent_refs: BTreeSet<BlockRef> = (1..=9)
+            .map(|round| BlockRef::new(round, author, BlockHeaderDigest::MIN))
+            .collect();
+
+        // Repeated arrivals and a further distinct header collapse per slot.
+        store.record_equivocating_slot(author, 5);
+        store.record_equivocating_slot(author, 5);
+        store.record_equivocating_slot(author, 7);
+
+        // No eviction advance: the flags show up in the in-memory window and
+        // no block fault is charged.
+        let result =
+            store.update_misbehavior_counts_on_eviction(author, &recent_refs, 0, 0, 10, &context);
+        assert!(result.is_none());
+        assert_eq!(store.in_memory_equivocations()[idx], 2);
+        assert_eq!(store.in_memory_faulty_blocks_provable()[idx], 0);
+
+        // Eviction advances to round 6: the flag at round 5 folds into
+        // persisted and is pruned; round 7 stays in the in-memory window.
+        let result =
+            store.update_misbehavior_counts_on_eviction(author, &recent_refs, 6, 0, 10, &context);
+        assert!(result.is_some());
+        assert_eq!(store.persisted_equivocations()[idx], 1);
+        assert_eq!(store.in_memory_equivocations()[idx], 1);
+        assert_eq!(store.equivocating_rounds(author), vec![7]);
+
+        // The next advance folds the remaining flag; nothing is counted twice.
+        let result =
+            store.update_misbehavior_counts_on_eviction(author, &recent_refs, 9, 6, 10, &context);
+        assert!(result.is_some());
+        assert_eq!(store.persisted_equivocations()[idx], 2);
+        assert_eq!(store.in_memory_equivocations()[idx], 0);
+        assert!(store.equivocating_rounds(author).is_empty());
+
+        // Reset clears the flags.
+        store.record_equivocating_slot(author, 12);
+        store.reset();
+        assert!(store.equivocating_rounds(author).is_empty());
     }
 
     #[tokio::test]

@@ -874,8 +874,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // 5b. Two signed headers from the author's own stream for one slot are
-        // provable equivocation, so drop the block before its shards and payload
-        // are processed, and charge the author. A same-slot header still only
+        // equivocation, so drop the block before its shards and payload are
+        // processed, and flag the slot. A same-slot header still only
         // suspended is caught by the equivalent cap in the block manager.
         let primary_block_equivocates = !primary_block_far_future
             && self
@@ -883,11 +883,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .read()
                 .contains_other_block_header_at_slot(&block_ref);
         if primary_block_equivocates {
-            let e = ConsensusError::BlockHeaderEquivocation {
-                authority: peer,
-                round: block_ref.round,
-            };
-            self.misbehavior_store.record_faulty_block(peer, peer, &e);
+            self.misbehavior_store
+                .record_equivocating_slot(peer, block_ref.round);
             self.context
                 .metrics
                 .node_metrics
@@ -2141,9 +2138,9 @@ mod tests {
     }
 
     /// A second streamed block for a slot we already accepted a header for is
-    /// provable equivocation by its author: the block is dropped before shard
+    /// equivocation by its author: the block is dropped before shard
     /// extraction, its payload and own shard never reach the core, and the
-    /// author is charged.
+    /// slot is flagged.
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_drops_slot_equivocation() {
         let (context, _keys) = Context::new_for_test(4);
@@ -2239,11 +2236,16 @@ mod tests {
                 .get(),
             1,
         );
+        assert_eq!(
+            misbehavior_store.equivocating_rounds(peer),
+            vec![1],
+            "two signed headers for one slot flag the slot as equivocating"
+        );
         let totals = misbehavior_store.snapshot_totals();
         let counts = totals[peer.value()].as_v2();
         assert_eq!(
-            counts.faulty_blocks_provable, 1,
-            "two signed headers for one slot are provable equivocation"
+            counts.faulty_blocks_provable, 0,
+            "an equivocation is not charged as a block fault"
         );
     }
 
