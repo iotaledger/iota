@@ -1137,6 +1137,15 @@ mod tests {
                 author: AuthorityIndex::new_for_test(0),
                 peer: AuthorityIndex::new_for_test(0),
             },
+            ConsensusError::UnexpectedBlockHeaderForCommit {
+                peer: AuthorityIndex::new_for_test(0),
+                received: BlockRef::MIN,
+            },
+            ConsensusError::TooManyFetchedHeadersReturned {
+                peer: AuthorityIndex::new_for_test(0),
+                requested: 2,
+                received: 3,
+            },
         ];
         for e in cases {
             let (prov, unprov, bundle) = classify_via_record(e);
