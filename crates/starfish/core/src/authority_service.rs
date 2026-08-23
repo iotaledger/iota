@@ -864,8 +864,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     last_round: previous.round,
                 }
             };
-            self.misbehavior_store.record_faulty_block(peer, peer, &e);
             if equivocation {
+                self.misbehavior_store
+                    .record_equivocating_slot(peer, block_ref.round);
                 self.context
                     .metrics
                     .node_metrics
@@ -876,6 +877,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     ])
                     .inc();
             } else {
+                self.misbehavior_store.record_faulty_block(peer, peer, &e);
                 self.context
                     .metrics
                     .node_metrics
@@ -2418,8 +2420,13 @@ mod tests {
             "the repeated block and the lower round are charged to the peer"
         );
         assert_eq!(
-            counts.faulty_blocks_provable, 1,
-            "a second digest for a streamed round is equivocation"
+            counts.faulty_blocks_provable, 0,
+            "an equivocation is flagged per slot, not charged as a block fault"
+        );
+        assert_eq!(
+            fixture.misbehavior_store.equivocating_rounds(peer),
+            vec![4],
+            "a second digest for a streamed round flags that slot"
         );
         assert_eq!(
             context
@@ -2493,9 +2500,10 @@ mod tests {
         ));
 
         assert!(fixture.core_dispatcher.get_blocks().is_empty());
+        assert_eq!(fixture.misbehavior_store.equivocating_rounds(peer), vec![1]);
         let totals = fixture.misbehavior_store.snapshot_totals();
         let counts = totals[peer.value()].as_v2();
-        assert_eq!(counts.faulty_blocks_provable, 1);
+        assert_eq!(counts.faulty_blocks_provable, 0);
         assert_eq!(counts.faulty_blocks_unprovable, 0);
         assert_eq!(
             context
@@ -2594,9 +2602,10 @@ mod tests {
             result,
             Err(ConsensusError::BlockHeaderEquivocation { .. })
         ));
+        assert_eq!(fixture.misbehavior_store.equivocating_rounds(peer), vec![4]);
         let totals = fixture.misbehavior_store.snapshot_totals();
         let counts = totals[peer.value()].as_v2();
-        assert_eq!(counts.faulty_blocks_provable, 1);
+        assert_eq!(counts.faulty_blocks_provable, 0);
         assert_eq!(counts.faulty_blocks_unprovable, 2);
     }
 
