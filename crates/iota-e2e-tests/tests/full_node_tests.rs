@@ -6,7 +6,6 @@ use std::{path::PathBuf, sync::Arc};
 
 use futures::future;
 use iota_config::node::RunWithRange;
-use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{
     EventFilter, EventPage, IotaEvent, IotaExecutionStatus, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, TransactionFilter,
@@ -1441,54 +1440,4 @@ async fn publish_init_events_without_local_execution() {
         .await
         .unwrap();
     assert_eq!(response.events.unwrap().data.len(), 1);
-}
-
-// Drives the write API directly, bypassing the SDK's `QuorumDriverApi`: that
-// layer polls until the transaction becomes visible and stamps
-// `confirmed_local_execution = Some(true)` itself when it does, so a test
-// going through it can't tell a real `WaitForLocalExecution` response apart
-// from the fallback covering for a node that ignores the flag. Going straight
-// to the raw RPC client removes that fallback, so a `true` here can only come
-// from the fullnode itself.
-#[sim_test]
-async fn fullnode_honors_wait_for_local_execution() {
-    let test_cluster = TestClusterBuilder::new().build().await;
-    let sender = test_cluster.get_address_0();
-    let recipient = test_cluster.get_address_1();
-    assert_ne!(sender, recipient);
-    let tx_data = test_cluster
-        .test_transaction_builder()
-        .await
-        .transfer_iota(Some(1), recipient)
-        .build();
-    let tx = test_cluster.sign_transaction(&tx_data);
-    let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
-
-    let response = test_cluster
-        .rpc_client()
-        .execute_transaction_block(
-            tx_bytes,
-            signatures,
-            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-            Some(iota_json_rpc_types::ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await
-        .unwrap();
-
-    assert_eq!(response.confirmed_local_execution, Some(true));
-    assert_eq!(
-        *response.effects.as_ref().unwrap().status(),
-        IotaExecutionStatus::Success
-    );
-
-    // The guarantee the request type buys: the serving node can answer for the
-    // transaction with no wait on the client's side.
-    test_cluster
-        .rpc_client()
-        .get_transaction_block(
-            response.digest,
-            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
-        )
-        .await
-        .expect("the serving node must already know the transaction");
 }

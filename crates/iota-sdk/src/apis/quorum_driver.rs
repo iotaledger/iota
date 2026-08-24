@@ -17,6 +17,7 @@ use iota_types::{
 use crate::{
     RpcClient,
     error::{Error, IotaRpcResult},
+    json_rpc_error,
 };
 
 const WAIT_FOR_LOCAL_EXECUTION_MIN_INTERVAL: Duration = Duration::from_millis(100);
@@ -41,19 +42,15 @@ impl QuorumDriverApi {
     /// [`IotaTransactionBlockResponseOptions::require_effects`]), and to
     /// [`ExecuteTransactionRequestType::WaitForEffectsCert`] otherwise.
     ///
-    /// Under `WaitForLocalExecution` the returned response is guaranteed to be
-    /// queryable on the node that served the request. Whenever the node does
-    /// not confirm local execution — whether because it does not honor the
-    /// request type, or because it honors it but cannot confirm in time — the
-    /// client polls until the transaction becomes visible; if that does not
-    /// happen within the timeout, the call fails with
-    /// [`Error::FailToConfirmTransactionStatus`].
+    /// Under `WaitForLocalExecution` the client polls the read API before
+    /// returning, whenever the node either does not confirm local execution
+    /// or fails with a transient error. If that poll times out, the call
+    /// returns whichever the node already gave it: the response, with
+    /// `confirmed_local_execution` left as the node reported it, or the
+    /// node's error.
     ///
-    /// `checkpoint` and `timestamp_ms` are never populated on the returned
-    /// response, on either path; only the read API populates them. Errors
-    /// from the node are propagated to the caller as-is, including a
-    /// finality timeout the node itself may raise while waiting for local
-    /// execution.
+    /// `checkpoint` and `timestamp_ms` are not populated on a response that
+    /// came from the execute call; only the read API sets them.
     pub async fn execute_transaction_block(
         &self,
         tx: TransactionEnvelope,
@@ -70,7 +67,7 @@ impl QuorumDriverApi {
         );
 
         let start = Instant::now();
-        let mut response = self
+        let response = match self
             .api
             .http
             .execute_transaction_block(
@@ -79,27 +76,47 @@ impl QuorumDriverApi {
                 Some(options.clone()),
                 Some(request_type.into()),
             )
-            .await?;
+            .await
+        {
+            Ok(response) => {
+                if !wait_for_local_execution || response.confirmed_local_execution == Some(true) {
+                    return Ok(response);
+                }
+                Ok(response)
+            }
+            Err(err) => {
+                if !wait_for_local_execution || !is_transient_error(&err) {
+                    return Err(err.into());
+                }
+                // A transient error carries no effects to fall back on, but the
+                // transaction may still land; poll for it rather than failing a
+                // call the network is going to finalize anyway.
+                Err(err)
+            }
+        };
 
-        if !wait_for_local_execution || response.confirmed_local_execution == Some(true) {
-            return Ok(response);
+        // Both remaining cases wait for the transaction to become locally
+        // readable. A poll timeout is not itself a failure: the caller gets
+        // back whichever answer the node already gave.
+        let poll_response = self.wait_until_visible(*tx.digest(), &options, start).await;
+        match (response, poll_response) {
+            (Ok(mut response), Ok(_)) | (Err(_), Ok(mut response)) => {
+                response.confirmed_local_execution = Some(true);
+                Ok(response)
+            }
+            (Ok(response), Err(_)) => Ok(response),
+            (Err(e), Err(_)) => Err(e.into()),
         }
-
-        self.wait_until_visible(*tx.digest(), &options, start)
-            .await?;
-        response.confirmed_local_execution = Some(true);
-        Ok(response)
     }
 
-    /// Waits for `digest` to become queryable on the node, for nodes that
-    /// answer `WaitForLocalExecution` without confirming local execution.
-    /// The response is discarded; this is a barrier, not a data source.
+    /// Polls the read API until `digest` can be read back on the node that
+    /// served the request.
     async fn wait_until_visible(
         &self,
         digest: TransactionDigest,
         options: &IotaTransactionBlockResponseOptions,
         start: Instant,
-    ) -> IotaRpcResult<()> {
+    ) -> IotaRpcResult<IotaTransactionBlockResponse> {
         // In simtests, fullnodes can stop receiving checkpoints for > 30s.
         let wait_for_local_execution_timeout: Duration = if cfg!(msim) {
             Duration::from_secs(120)
@@ -117,18 +134,29 @@ impl QuorumDriverApi {
                 // propagate to the full node, and get executed.
                 tokio::time::sleep(backoff.next().unwrap()).await;
 
-                if self
+                if let Ok(poll_response) = self
                     .api
                     .http
                     .get_transaction_block(digest, Some(options.clone()))
                     .await
-                    .is_ok()
                 {
-                    return;
+                    return poll_response;
                 }
             }
         })
         .await
         .map_err(|_| Error::FailToConfirmTransactionStatus(digest, start.elapsed().as_secs()))
+    }
+}
+
+/// Whether `err` is a node-side error worth polling past rather than
+/// surfacing immediately.
+fn is_transient_error(err: &jsonrpsee::core::ClientError) -> bool {
+    match err {
+        jsonrpsee::core::ClientError::Call(object) => {
+            json_rpc_error::Error::from(jsonrpsee::core::ClientError::Call(object.clone()))
+                .is_transient_error()
+        }
+        _ => false,
     }
 }
