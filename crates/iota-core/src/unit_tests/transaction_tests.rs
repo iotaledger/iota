@@ -844,13 +844,13 @@ async fn test_handle_soft_bundle_certificates() {
     let mut senders = Vec::new();
     let mut gas_object_ids = Vec::new();
     for _i in 0..4 {
-        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
         let gas_object_id = ObjectId::random();
 
         let obj = Object::with_id_owner_for_testing(gas_object_id, address);
         authority.insert_genesis_object(obj);
 
-        senders.push((address, keypair));
+        senders.push((address, key));
         gas_object_ids.push(gas_object_id);
     }
 
@@ -999,9 +999,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
     let mut gas_objects = Vec::new();
     let mut owned_objects = Vec::new();
     for _i in 0..15 {
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let mut objects = create_gas_objects(2, sender);
-        senders.push((sender, keypair));
+        senders.push((sender, sender_key));
         gas_objects.push(objects.remove(0));
         owned_objects.push(objects.remove(0));
     }

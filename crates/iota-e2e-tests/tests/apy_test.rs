@@ -62,7 +62,7 @@ async fn test_apy() {
     let pool_stake = 3_500_000_000 * NANOS_PER_IOTA / 4;
     let mut rng = rand::thread_rng();
     let mut genesis_config = GenesisConfig::for_local_testing();
-    let (address, keypair): (_, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
+    let (address, key): (_, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
     genesis_config.accounts.extend([AccountConfig {
         address: Some(address),
         gas_amounts: vec![DEFAULT_GAS_AMOUNT, pool_stake],
@@ -81,7 +81,7 @@ async fn test_apy() {
         .wallet
         .config_mut()
         .keystore_mut()
-        .add_key(None, keypair)
+        .add_key(None, key)
         .unwrap();
 
     let ref_gas_price = test_cluster.get_reference_gas_price().await;

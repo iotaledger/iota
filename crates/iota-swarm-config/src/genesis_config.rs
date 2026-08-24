@@ -268,8 +268,8 @@ impl GenesisConfig {
             let address = if let Some(address) = account.address {
                 address
             } else {
-                let (address, keypair) = get_key_pair_from_rng(&mut rng);
-                keys.push(keypair);
+                let (address, key) = get_key_pair_from_rng(&mut rng);
+                keys.push(key);
                 address
             };
 

@@ -49,7 +49,7 @@ fn transfer_object() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
@@ -66,7 +66,7 @@ fn transfer_object() {
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
 
         let transferred_object = client
             .get_object(object_to_send, Some(IotaObjectDataOptions::full_content()))
@@ -87,7 +87,7 @@ fn transfer_iota() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 1).await;
@@ -104,7 +104,7 @@ fn transfer_iota() {
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
 
         let receiver_balances = get_address_balances(client, receiver).await;
 
@@ -122,7 +122,7 @@ fn pay() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let receiver_1 = Address::random();
         let receiver_2 = Address::random();
 
@@ -145,7 +145,7 @@ fn pay() {
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
 
         let receiver_1_balances = get_address_balances(client, receiver_1).await;
         let receiver_2_balances = get_address_balances(client, receiver_2).await;
@@ -165,7 +165,7 @@ fn pay_iota() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let receiver_1 = Address::random();
         let receiver_2 = Address::random();
 
@@ -188,7 +188,7 @@ fn pay_iota() {
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
 
         let receiver_1_balances = get_address_balances(client, receiver_1).await;
         let receiver_2_balances = get_address_balances(client, receiver_2).await;
@@ -208,7 +208,7 @@ fn pay_all_iota() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let input_coins: u64 = 3;
@@ -220,7 +220,7 @@ fn pay_all_iota() {
             .pay_all_iota(sender, sender_coins, receiver, gas_budget.into())
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
 
         let receiver_balances = get_address_balances(client, receiver).await;
         let expected_minimum_receiver_balance = FUNDED_BALANCE_PER_COIN * input_coins - gas_budget;
@@ -241,7 +241,7 @@ fn move_call() {
 
     runtime
         .block_on(async move {
-            let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+            let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
             let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 3).await;
             let gas = sender_coins[0];
@@ -260,7 +260,7 @@ fn move_call() {
                 )
                 .await
                 .unwrap();
-            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
 
             let mut sender_balances = get_address_balances(client, sender).await;
             sender_balances.sort();
@@ -282,7 +282,7 @@ fn split_coin() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
         let split_amount_1 = 100_000;
@@ -304,7 +304,7 @@ fn split_coin() {
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
 
         let mut sender_balances = get_address_balances(client, sender).await;
         sender_balances.sort();
@@ -326,7 +326,7 @@ fn split_coin_equal() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
         let gas_budget = 100_000_000;
@@ -335,7 +335,7 @@ fn split_coin_equal() {
             .split_coin_equal(sender, sender_coins[0], 3.into(), None, gas_budget.into())
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
 
         let mut sender_balances = get_address_balances(client, sender).await;
         sender_balances.sort();
@@ -357,7 +357,7 @@ fn merge_coin() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 3).await;
         let gas_budget = 100_000_000;
@@ -372,7 +372,7 @@ fn merge_coin() {
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+        execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
 
         let mut sender_balances = get_address_balances(client, sender).await;
         sender_balances.sort();
@@ -393,7 +393,7 @@ fn batch_transaction() {
 
     runtime
         .block_on(async move {
-            let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+            let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
             let receiver = Address::random();
 
             let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 3).await;
@@ -429,7 +429,7 @@ fn batch_transaction() {
                     None,
                 )
                 .await?;
-            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &sender_key).await;
 
             let mut sender_balances = get_address_balances(client, sender).await;
             let receiver_balances = get_address_balances(client, receiver).await;
@@ -456,7 +456,7 @@ fn request_add_stake() {
                 None,
             )
             .await;
-            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
+            let (address, key): (_, AccountPrivateKey) = get_key_pair();
             let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
             let gas = coins[3];
             let coins_to_stake = coins[..3].to_vec();
@@ -476,7 +476,7 @@ fn request_add_stake() {
                 )
                 .await
                 .unwrap();
-            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &key).await;
 
             let staked_iota = client.get_stakes(address).await.unwrap();
 
@@ -511,7 +511,7 @@ fn request_withdraw_stake_from_pending() {
 
     runtime
         .block_on(async move {
-            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
+            let (address, key): (_, AccountPrivateKey) = get_key_pair();
             let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
             let gas = coins[3];
             let coins_to_stake = coins[..3].to_vec();
@@ -531,7 +531,7 @@ fn request_withdraw_stake_from_pending() {
                 )
                 .await
                 .unwrap();
-            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &key).await;
 
             let staked_iota = client.get_stakes(address).await.unwrap();
             let stake = &staked_iota[0].stakes[0];
@@ -546,7 +546,7 @@ fn request_withdraw_stake_from_pending() {
                 )
                 .await
                 .unwrap();
-            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &key).await;
 
             let staked_iota = client.get_stakes(address).await.unwrap();
             assert!(staked_iota.is_empty());
@@ -568,7 +568,7 @@ fn request_withdraw_stake_from_active() {
                 None,
             )
             .await;
-            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
+            let (address, key): (_, AccountPrivateKey) = get_key_pair();
             let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
             let gas = coins[3];
             let coins_to_stake = coins[..3].to_vec();
@@ -588,7 +588,7 @@ fn request_withdraw_stake_from_active() {
                 )
                 .await
                 .unwrap();
-            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &key).await;
 
             cluster.force_new_epoch().await;
             indexer_wait_for_latest_checkpoint(store, cluster).await;
@@ -605,7 +605,7 @@ fn request_withdraw_stake_from_active() {
                 )
                 .await
                 .unwrap();
-            execute_tx_must_succeed(client, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(client, tx_bytes, &key).await;
 
             let staked_iota = client.get_stakes(address).await.unwrap();
             assert!(staked_iota.is_empty());
@@ -621,7 +621,7 @@ fn request_add_timelocked_stake() {
 
     runtime
         .block_on(async move {
-            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
+            let (address, key): (_, AccountPrivateKey) = get_key_pair();
             let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
                 address,
                 "transaction_builder_request_add_timelocked_stake",
@@ -642,7 +642,7 @@ fn request_add_timelocked_stake() {
                 )
                 .await
                 .unwrap();
-            execute_tx_must_succeed(&client, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(&client, tx_bytes, &key).await;
 
             let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
 
@@ -671,7 +671,7 @@ fn request_withdraw_timelocked_stake_from_pending() {
 
     runtime
         .block_on(async move {
-            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
+            let (address, key): (_, AccountPrivateKey) = get_key_pair();
             let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
                 address,
                 "transaction_builder_request_withdraw_timelocked_stake_from_pending",
@@ -696,7 +696,7 @@ fn request_withdraw_timelocked_stake_from_pending() {
                 cluster.rpc_client(),
                 &store,
                 tx_bytes,
-                &keypair,
+                &key,
             )
             .await;
 
@@ -713,7 +713,7 @@ fn request_withdraw_timelocked_stake_from_pending() {
                 )
                 .await
                 .unwrap();
-            execute_tx_and_wait_for_indexer_checkpoint(&client, &store, tx_bytes, &keypair).await;
+            execute_tx_and_wait_for_indexer_checkpoint(&client, &store, tx_bytes, &key).await;
 
             let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
             assert!(staked_iota.is_empty());
@@ -729,7 +729,7 @@ fn request_withdraw_timelocked_stake_from_active() {
 
     runtime
         .block_on(async move {
-            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
+            let (address, key): (_, AccountPrivateKey) = get_key_pair();
             let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
                 address,
                 "transaction_builder_request_withdraw_timelocked_stake_from_active",
@@ -750,7 +750,7 @@ fn request_withdraw_timelocked_stake_from_active() {
                 )
                 .await
                 .unwrap();
-            execute_tx_must_succeed(&client, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(&client, tx_bytes, &key).await;
 
             cluster.force_new_epoch().await;
             indexer_wait_for_latest_checkpoint(&store, &cluster).await;
@@ -767,7 +767,7 @@ fn request_withdraw_timelocked_stake_from_active() {
                 )
                 .await
                 .unwrap();
-            execute_tx_must_succeed(&client, tx_bytes, &keypair).await;
+            execute_tx_must_succeed(&client, tx_bytes, &key).await;
 
             let staked_iota = client.get_timelocked_stakes(address).await.unwrap();
             assert!(staked_iota.is_empty());

@@ -88,10 +88,10 @@ fn make_transaction_for_epoch(
 ) -> VerifiedExecutableTransaction {
     // Fake module/function/gas price: irrelevant to scheduling.
     let rgp = 100;
-    let (sender, keypair) = deterministic_random_account_private_key();
+    let (sender, sender_key) = deterministic_random_account_private_key();
     let transaction = TestTransactionBuilder::new(sender, gas_object.object_ref(), rgp)
         .move_call(ObjectId::FRAMEWORK, "counter", "assert_value", input)
-        .build_and_sign(&keypair);
+        .build_and_sign(&sender_key);
     VerifiedExecutableTransaction::new_system(
         VerifiedTransaction::new_unchecked(transaction),
         epoch,
@@ -105,7 +105,7 @@ fn make_transaction_for_epoch(
 /// reach.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn execution_scheduler_waits_for_missing_owned_input() {
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let owned_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
 
@@ -221,7 +221,7 @@ async fn schedulers_wait_for_authenticator_inputs() {
     // ExecutionScheduler: released by writing the shared object into the cache,
     // which the scheduler observes through `notify_read_input_objects`.
     {
-        let (owner, _keypair) = deterministic_random_account_private_key();
+        let (owner, _key) = deterministic_random_account_private_key();
         let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
         let shared_object = Object::shared_for_testing();
         let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
@@ -257,7 +257,7 @@ async fn schedulers_wait_for_authenticator_inputs() {
 
     // TransactionManager: released by an explicit `objects_available` push.
     {
-        let (owner, _keypair) = deterministic_random_account_private_key();
+        let (owner, _key) = deterministic_random_account_private_key();
         let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
         let shared_object = Object::shared_for_testing();
         let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
@@ -298,7 +298,7 @@ async fn schedulers_wait_for_authenticator_inputs() {
 /// and confirms the pending/executing gauges return to 0 afterwards.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn execution_scheduler_releases_all_waiters_on_one_object() {
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_objects: Vec<Object> = (0..3)
         .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), owner))
         .collect();
@@ -371,7 +371,7 @@ async fn execution_scheduler_releases_all_waiters_on_one_object() {
 /// checkpoint, with no metric or log to notice.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn scheduler_propagates_expected_effects_digest_fast_path() {
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let state = init_state_with_objects(vec![gas_object.clone()]).await;
     let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
@@ -396,7 +396,7 @@ async fn scheduler_propagates_expected_effects_digest_fast_path() {
 /// fork detection for exactly the synced transactions whose inputs arrive late.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn scheduler_propagates_expected_effects_digest_wait_path() {
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let owned_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let state = init_state_with_objects(vec![gas_object.clone(), owned_object.clone()]).await;
@@ -440,7 +440,7 @@ async fn scheduler_propagates_expected_effects_digest_wait_path() {
 /// uncovered.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn execution_scheduler_awaits_all_missing_inputs() {
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let owned_a = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let owned_b = Object::with_id_owner_for_testing(ObjectId::random(), owner);
@@ -506,7 +506,7 @@ async fn execution_scheduler_awaits_all_missing_inputs() {
 /// swap must not introduce.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn enqueue_wrong_epoch_transaction_is_dropped() {
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let state = init_state_with_objects(vec![gas_object.clone()]).await;
     let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
@@ -533,7 +533,7 @@ async fn enqueue_wrong_epoch_transaction_is_dropped() {
 /// the next epoch and permanently reject transactions.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn execution_scheduler_reconfigure_clears_pending_and_overload() {
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_objects: Vec<Object> = (0..2)
         .map(|_| Object::with_id_owner_for_testing(ObjectId::random(), owner))
         .collect();
@@ -641,7 +641,7 @@ async fn schedulers_record_ready_transaction_accounting() {
         );
     }
 
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
 
     // Inputs (gas + framework package) are already available, so the transaction
     // is dispatched right away by either scheduler.

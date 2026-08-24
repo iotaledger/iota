@@ -194,17 +194,17 @@ pub fn make_upgraded_multisig_tx() -> TransactionEnvelope {
 /// Returns the transaction together with the sender's and sponsor's addresses
 /// so callers can locate each signature within the transaction.
 pub fn make_sponsored_regular_sig_tx() -> (TransactionEnvelope, Address, Address) {
-    let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
-    let (sponsor, sponsor_kp): (_, AccountPrivateKey) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (sponsor, sponsor_key): (_, AccountPrivateKey) = get_key_pair();
     let tx_data = make_sponsored_transaction_data(sender, sponsor);
     let sender_sig: UserSignature = TransactionEnvelope::signature_from_signer(
         tx_data.clone(),
         Intent::iota_transaction(),
-        &sender_kp,
+        &sender_key,
     )
     .into();
     let tx =
-        to_sender_signed_transaction_with_optional_sponsor(tx_data, sender_sig, Some(&sponsor_kp));
+        to_sender_signed_transaction_with_optional_sponsor(tx_data, sender_sig, Some(&sponsor_key));
     (tx, sender, sponsor)
 }
 

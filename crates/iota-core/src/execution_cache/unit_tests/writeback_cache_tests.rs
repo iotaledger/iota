@@ -157,14 +157,14 @@ impl Scenario {
 
     fn new_outputs() -> TransactionOutputs {
         let mut rng = StdRng::from_seed([0; 32]);
-        let (sender, keypair): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
+        let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
         let receiver = Address::random();
 
         // Tx is opaque to the cache, so we just build a dummy tx. The only requirement
         // is that it has a unique digest every time.
         let tx = TestTransactionBuilder::new(sender, random_object_ref(), 100)
             .transfer(random_object_ref(), receiver)
-            .build_and_sign(&keypair);
+            .build_and_sign(&sender_key);
 
         let tx = VerifiedTransaction::new_unchecked(tx);
         let events: TransactionEvents = Default::default();

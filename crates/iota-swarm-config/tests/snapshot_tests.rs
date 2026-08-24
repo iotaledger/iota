@@ -37,8 +37,8 @@ use rand::{SeedableRng, rngs::StdRng};
 #[test]
 #[cfg_attr(msim, ignore)]
 fn genesis_config_snapshot_matches() {
-    let ed_kp1: AccountPrivateKey = get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
-    let fake_addr = ed_kp1.public_key().derive_address();
+    let ed_key1: AccountPrivateKey = get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
+    let fake_addr = ed_key1.public_key().derive_address();
 
     let mut genesis_config = GenesisConfig::for_local_testing();
     genesis_config.parameters.chain_start_timestamp_ms = 0;

@@ -367,7 +367,7 @@ impl Cluster for Box<dyn Cluster + Send + Sync> {
 
 pub fn new_wallet_context_from_cluster(
     cluster: &(dyn Cluster + Sync + Send),
-    key_pair: AccountPrivateKey,
+    private_key: AccountPrivateKey,
 ) -> WalletContext {
     let config_dir = cluster.config_directory();
     let wallet_config_path = config_dir.join("client.yaml");
@@ -375,8 +375,8 @@ pub fn new_wallet_context_from_cluster(
     info!("Use RPC: {fullnode_url}");
     let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    let address = key_pair.public_key().derive_address();
-    keystore.add_key(None, key_pair).unwrap();
+    let address = private_key.public_key().derive_address();
+    keystore.add_key(None, private_key).unwrap();
     IotaClientConfig::new(keystore)
         .with_envs([IotaEnv::new("localnet", fullnode_url)])
         .with_active_address(address)

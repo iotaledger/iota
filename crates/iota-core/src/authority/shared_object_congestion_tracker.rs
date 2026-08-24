@@ -1098,7 +1098,7 @@ pub mod shared_object_test_utils {
         gas_budget: u64,
         gas_price: u64,
     ) -> VerifiedExecutableTransaction {
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_object = random_object_ref();
         VerifiedExecutableTransaction::new_system(
             VerifiedTransaction::new_unchecked(
@@ -1119,7 +1119,7 @@ pub mod shared_object_test_utils {
                             })
                             .collect(),
                     )
-                    .build_and_sign(&keypair),
+                    .build_and_sign(&sender_key),
             ),
             0,
         )

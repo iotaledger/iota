@@ -506,7 +506,7 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     // Create a cluster
-    let (address, keypair) = deterministic_random_account_private_key();
+    let (address, key) = deterministic_random_account_private_key();
 
     let principal = 100_000_000_000;
     let expiration_timestamp_ms = u64::MAX;
@@ -599,7 +599,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    let signed_transaction = to_sender_signed_transaction(transaction_bytes.to_data()?, &keypair);
+    let signed_transaction = to_sender_signed_transaction(transaction_bytes.to_data()?, &key);
 
     let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
 
@@ -663,7 +663,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     // Create a cluster
-    let (address, keypair) = deterministic_random_account_private_key();
+    let (address, key) = deterministic_random_account_private_key();
 
     let principal = 100_000_000_000;
     let expiration_timestamp_ms = u64::MAX;
@@ -758,7 +758,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
         )
         .await?;
 
-    let signed_transaction = to_sender_signed_transaction(transaction_bytes.to_data()?, &keypair);
+    let signed_transaction = to_sender_signed_transaction(transaction_bytes.to_data()?, &key);
 
     let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
 
@@ -793,7 +793,7 @@ async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
             100_000_000.into(),
         )
         .await?;
-    let signed_transaction = to_sender_signed_transaction(transaction_bytes.to_data()?, &keypair);
+    let signed_transaction = to_sender_signed_transaction(transaction_bytes.to_data()?, &key);
 
     let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
 

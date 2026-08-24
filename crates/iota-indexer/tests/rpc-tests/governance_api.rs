@@ -33,7 +33,7 @@ fn test_staking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -85,7 +85,7 @@ fn test_staking() {
             .await
             .unwrap();
 
-        let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &keypair);
+        let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &sender_key);
 
         let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
         indexer_wait_for_transaction(res.digest, store, client).await;
@@ -116,7 +116,7 @@ fn test_unstaking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -168,7 +168,7 @@ fn test_unstaking() {
             .await
             .unwrap();
 
-        let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &keypair);
+        let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &sender_key);
 
         let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
         indexer_wait_for_transaction(res.digest, store, client).await;
@@ -197,7 +197,7 @@ fn test_unstaking() {
             .await
             .unwrap();
 
-        let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &keypair);
+        let txn = to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), &sender_key);
 
         let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
         indexer_wait_for_transaction(res.digest, store, client).await;
@@ -230,7 +230,7 @@ fn test_timelocked_staking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -312,7 +312,7 @@ fn test_timelocked_staking() {
         let gas_price = context.get_reference_gas_price().await.unwrap();
 
         let tx_builder = TestTransactionBuilder::new(sender, gas, gas_price);
-        let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
+        let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &sender_key);
 
         let res = context.execute_transaction_must_succeed(txn).await;
         indexer_wait_for_transaction(res.digest, store, client).await;
@@ -348,7 +348,7 @@ fn test_timelocked_unstaking() {
 
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -430,7 +430,7 @@ fn test_timelocked_unstaking() {
         let gas_price = context.get_reference_gas_price().await.unwrap();
 
         let tx_builder = TestTransactionBuilder::new(sender, gas, gas_price);
-        let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
+        let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &sender_key);
 
         let res = context.execute_transaction_must_succeed(txn).await;
         indexer_wait_for_transaction(res.digest, store, client).await;
@@ -478,7 +478,7 @@ fn test_timelocked_unstaking() {
 
         let gas = cluster.wallet.get_object_ref(gas.object_id).await.unwrap();
         let tx_builder = TestTransactionBuilder::new(sender, gas, gas_price);
-        let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &keypair);
+        let txn = to_sender_signed_transaction(tx_builder.programmable(pt).build(), &sender_key);
 
         let res = context.execute_transaction_must_succeed(txn).await;
         indexer_wait_for_transaction(res.digest, store, client).await;

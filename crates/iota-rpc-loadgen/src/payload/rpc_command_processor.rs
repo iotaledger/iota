@@ -593,8 +593,8 @@ async fn prepare_new_signer_and_coins(
     // having a million coin objects in our address. We can also fetch directly
     // from the faucet, but in some environment that might not be possible when
     // faucet resource is scarce
-    let (burner_address, burner_keypair): (_, AccountPrivateKey) = get_key_pair();
-    let burner_keypair = SimpleKeypair::from(burner_keypair);
+    let (burner_address, burner_key): (_, AccountPrivateKey) = get_key_pair();
+    let burner_keypair = SimpleKeypair::from(burner_key);
     let pay_amounts = split_amounts
         .iter()
         .map(|(amount, _)| *amount)

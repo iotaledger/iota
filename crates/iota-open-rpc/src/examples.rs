@@ -667,7 +667,7 @@ impl RpcExampleProvider {
         ObjectId,
         IotaTransactionBlockResponse,
     ) {
-        let (signer, kp): (_, AccountPrivateKey) = get_key_pair_from_rng(&mut self.rng);
+        let (signer, key): (_, AccountPrivateKey) = get_key_pair_from_rng(&mut self.rng);
         let recipient = Address::from(ObjectId::new(self.rng.gen()));
         let obj_id = ObjectId::new(self.rng.gen());
         let gas_ref = ObjectReference::new(
@@ -692,7 +692,7 @@ impl RpcExampleProvider {
         let data1 = tx.clone();
         let data2 = tx.clone();
 
-        let tx = to_sender_signed_transaction(tx, &kp);
+        let tx = to_sender_signed_transaction(tx, &key);
         let signatures = tx.data().signatures().to_vec();
         let raw_transaction = bcs::to_bytes(tx.data()).unwrap();
 

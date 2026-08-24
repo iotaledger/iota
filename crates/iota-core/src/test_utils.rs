@@ -169,7 +169,7 @@ pub fn make_transfer_iota_transaction(
     recipient: Address,
     amount: Option<u64>,
     sender: Address,
-    keypair: &AccountPrivateKey,
+    private_key: &AccountPrivateKey,
     gas_price: u64,
 ) -> TransactionEnvelope {
     let tx = Transaction::new_transfer_iota(
@@ -180,7 +180,7 @@ pub fn make_transfer_iota_transaction(
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
-    to_sender_signed_transaction(tx, keypair)
+    to_sender_signed_transaction(tx, private_key)
 }
 
 pub fn make_pay_iota_transaction(
@@ -189,7 +189,7 @@ pub fn make_pay_iota_transaction(
     recipients: Vec<Address>,
     amounts: Vec<u64>,
     sender: Address,
-    keypair: &AccountPrivateKey,
+    private_key: &AccountPrivateKey,
     gas_price: u64,
     gas_budget: u64,
 ) -> TransactionEnvelope {
@@ -197,14 +197,14 @@ pub fn make_pay_iota_transaction(
         sender, coins, recipients, amounts, gas_object, gas_budget, gas_price,
     )
     .unwrap();
-    to_sender_signed_transaction(tx, keypair)
+    to_sender_signed_transaction(tx, private_key)
 }
 
 pub fn make_transfer_object_transaction(
     object_ref: ObjectReference,
     gas_object: ObjectReference,
     sender: Address,
-    keypair: &AccountPrivateKey,
+    private_key: &AccountPrivateKey,
     recipient: Address,
     gas_price: u64,
 ) -> TransactionEnvelope {
@@ -216,12 +216,12 @@ pub fn make_transfer_object_transaction(
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
         gas_price,
     );
-    to_sender_signed_transaction(tx, keypair)
+    to_sender_signed_transaction(tx, private_key)
 }
 
 pub fn make_transfer_object_move_transaction(
     src: Address,
-    keypair: &AccountPrivateKey,
+    private_key: &AccountPrivateKey,
     dest: Address,
     object_ref: ObjectReference,
     framework_obj_id: ObjectId,
@@ -247,7 +247,7 @@ pub fn make_transfer_object_move_transaction(
             gas_price,
         )
         .unwrap(),
-        keypair,
+        private_key,
     )
 }
 

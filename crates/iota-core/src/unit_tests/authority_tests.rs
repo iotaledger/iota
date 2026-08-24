@@ -159,7 +159,7 @@ async fn construct_shared_object_transaction_with_version(
     ObjectId,
     ObjectId,
 ) {
-    let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     // Initialize an authority with a (owned) gas object and a shared object.
     let gas_object_id = ObjectId::random();
@@ -171,7 +171,7 @@ async fn construct_shared_object_transaction_with_version(
             None,
             &gas_object_id,
             &sender,
-            &keypair,
+            &sender_key,
             &package.object_id,
             "object_basics",
             "share",
@@ -229,7 +229,7 @@ async fn construct_shared_object_transaction_with_version(
     (
         validator,
         fullnode,
-        VerifiedTransaction::new_unchecked(to_sender_signed_transaction(tx, &keypair)),
+        VerifiedTransaction::new_unchecked(to_sender_signed_transaction(tx, &sender_key)),
         gas_object_id,
         shared_object_id,
     )
@@ -4904,7 +4904,7 @@ async fn make_test_transaction(
 
 async fn prepare_authority_and_shared_object_cert()
 -> (Arc<AuthorityState>, VerifiedCertificate, ObjectId) {
-    let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     // Initialize an authority with a (owned) gas object and a shared object.
     let gas_object_id = ObjectId::random();
@@ -4923,7 +4923,7 @@ async fn prepare_authority_and_shared_object_cert()
 
     let certificate = make_test_transaction(
         &sender,
-        &keypair,
+        &sender_key,
         &[],
         &[(shared_object_id, initial_shared_version, true)],
         &gas_object_ref,
@@ -5141,7 +5141,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
 async fn test_consensus_message_processed() {
     telemetry_subscribers::init_for_testing();
 
-    let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
@@ -5187,7 +5187,7 @@ async fn test_consensus_message_processed() {
     for _ in 0..50 {
         let certificate = make_test_transaction(
             &sender,
-            &keypair,
+            &sender_key,
             &[],
             &[(shared_object_id, initial_shared_version, true)],
             &gas_object_ref,
@@ -6524,7 +6524,7 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
 async fn test_consensus_handler_per_object_congestion_control(
     mode: PerObjectCongestionControlMode,
 ) {
-    let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     // In this test, we tests transactions that operate on 2 shared objects. The
     // idea is that one of them is more expensive to operate on than the other.
@@ -6590,7 +6590,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     for (index, gas_object) in gas_objects_commit_1.iter().enumerate() {
         let certificate = make_test_transaction(
             &sender,
-            &keypair,
+            &sender_key,
             &[],
             &[(
                 if index < 5 {
@@ -6667,7 +6667,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     for gas_object in gas_objects_commit_2.iter() {
         let certificate = make_test_transaction(
             &sender,
-            &keypair,
+            &sender_key,
             &[],
             &[(shared_objects[1].id(), OBJECT_START_VERSION, true)],
             &gas_object.object_ref(),
@@ -6758,7 +6758,7 @@ async fn test_consensus_handler_per_object_congestion_control_using_tx_count() {
 async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     telemetry_subscribers::init_for_testing();
 
-    let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     // Test setup. We will create some shared object transactions with one that will
     // be cancelled at round 3.
@@ -6809,7 +6809,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     for gas_object in gas_objects.iter() {
         let certificate = make_test_transaction(
             &sender,
-            &keypair,
+            &sender_key,
             &[],
             &[(shared_objects[0].id(), OBJECT_START_VERSION, true)],
             &gas_object.object_ref(),
@@ -6828,7 +6828,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // congested object.
     let cancelled_txn = make_test_transaction(
         &sender,
-        &keypair,
+        &sender_key,
         &owned_objects_cancelled_txn,
         &[
             (shared_objects[0].id(), OBJECT_START_VERSION, true),
@@ -7814,7 +7814,7 @@ async fn test_single_authority_reconfigure() {
 async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     telemetry_subscribers::init_for_testing();
 
-    let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     // One shared object both transactions contend on, plus a distinct gas coin
     // each so the only contention is the shared object (congestion), not the gas.
@@ -7872,7 +7872,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
             rgp,
         )
         .unwrap();
-        let tx = to_sender_signed_transaction(tx, &keypair);
+        let tx = to_sender_signed_transaction(tx, &sender_key);
         epoch_store.verify_transaction(tx).unwrap()
     };
     let tx1 = make_user_tx(&gas_objects[0]);

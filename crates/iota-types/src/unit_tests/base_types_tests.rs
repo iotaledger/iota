@@ -384,13 +384,13 @@ const SAMPLE_ADDRESS_VEC: [u8; 32] = [
 
 // Derive a sample address and public key tuple from private key bytes.
 fn derive_sample_address() -> (Address, AccountPrivateKey) {
-    let key_pair = AccountPrivateKey::from_bytes([
+    let key = AccountPrivateKey::from_bytes([
         10, 112, 5, 142, 174, 127, 187, 146, 251, 68, 22, 191, 128, 68, 84, 13, 102, 71, 77, 57,
         92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214,
     ])
     .unwrap();
-    let address = key_pair.public_key().derive_address();
-    (address, key_pair)
+    let address = key.public_key().derive_address();
+    (address, key)
 }
 
 // Required to capture address derivation algorithm updates that break some

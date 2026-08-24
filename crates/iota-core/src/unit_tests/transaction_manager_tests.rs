@@ -47,10 +47,10 @@ fn make_transaction(gas_object: Object, input: Vec<CallArg>) -> VerifiedExecutab
     // Use fake module, function, package and gas prices since they are irrelevant
     // for testing transaction manager.
     let rgp = 100;
-    let (sender, keypair) = deterministic_random_account_private_key();
+    let (sender, sender_key) = deterministic_random_account_private_key();
     let transaction = TestTransactionBuilder::new(sender, gas_object.object_ref(), rgp)
         .move_call(ObjectId::FRAMEWORK, "counter", "assert_value", input)
-        .build_and_sign(&keypair);
+        .build_and_sign(&sender_key);
     VerifiedExecutableTransaction::new_system(VerifiedTransaction::new_unchecked(transaction), 0)
 }
 
@@ -70,7 +70,7 @@ fn get_input_keys(objects: &[Object]) -> Vec<InputKey> {
 /// (all internal maps empty, inflight count 0) that the scheduler tests target.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn transaction_manager_reconfigure_drops_all_pending_and_executing_state() {
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let state = init_state_with_objects(vec![gas_object.clone()]).await;
     let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
@@ -111,7 +111,7 @@ async fn transaction_manager_reconfigure_drops_all_pending_and_executing_state()
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn transaction_manager_basics() {
     // Initialize an authority state.
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_objects: Vec<Object> = (0..10)
         .map(|_| {
             let gas_object_id = ObjectId::random();
@@ -243,7 +243,7 @@ async fn transaction_manager_basics() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn transaction_manager_object_dependency() {
     // Initialize an authority state, with gas objects and a shared object.
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_objects: Vec<Object> = (0..10)
         .map(|_| {
             let gas_object_id = ObjectId::random();
@@ -415,7 +415,7 @@ async fn transaction_manager_object_dependency() {
 async fn transaction_manager_receiving_notify_commit() {
     telemetry_subscribers::init_for_testing();
     // Initialize an authority state.
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_objects: Vec<Object> = (0..10)
         .map(|_| {
             let gas_object_id = ObjectId::random();
@@ -508,7 +508,7 @@ async fn transaction_manager_receiving_notify_commit() {
 async fn transaction_manager_receiving_object_ready_notifications() {
     telemetry_subscribers::init_for_testing();
     // Initialize an authority state.
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_objects: Vec<Object> = (0..10)
         .map(|_| {
             let gas_object_id = ObjectId::random();
@@ -590,7 +590,7 @@ async fn transaction_manager_receiving_object_ready_notifications() {
 async fn transaction_manager_receiving_object_ready_notifications_multiple_of_same_receiving() {
     telemetry_subscribers::init_for_testing();
     // Initialize an authority state.
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_objects: Vec<Object> = (0..10)
         .map(|_| {
             let gas_object_id = ObjectId::random();
@@ -693,7 +693,7 @@ async fn transaction_manager_receiving_object_ready_notifications_multiple_of_sa
 async fn transaction_manager_receiving_object_ready_if_current_version_greater() {
     telemetry_subscribers::init_for_testing();
     // Initialize an authority state.
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let mut gas_objects: Vec<Object> = (0..10)
         .map(|_| {
             let gas_object_id = ObjectId::random();
@@ -763,7 +763,7 @@ async fn transaction_manager_receiving_object_ready_if_current_version_greater()
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn transaction_manager_with_cancelled_transactions() {
     // Initialize an authority state, with gas objects and 3 shared objects.
-    let (owner, _keypair) = deterministic_random_account_private_key();
+    let (owner, _key) = deterministic_random_account_private_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let shared_object_1 = Object::shared_for_testing();
     let shared_object_2 = Object::shared_for_testing();

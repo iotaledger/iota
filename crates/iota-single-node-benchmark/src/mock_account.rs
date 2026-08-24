@@ -14,7 +14,7 @@ use iota_types::{
 #[derive(Clone)]
 pub struct Account {
     pub sender: Address,
-    pub keypair: Arc<AccountPrivateKey>,
+    pub private_key: Arc<AccountPrivateKey>,
     pub gas_objects: Arc<Vec<ObjectReference>>,
 }
 
@@ -28,24 +28,24 @@ pub async fn batch_create_account_and_gas(
     let tasks: FuturesUnordered<_> = (0..num_accounts)
         .map(|_| {
             tokio::spawn(async move {
-                let (sender, keypair) = get_account_private_key();
+                let (sender, private_key) = get_account_private_key();
                 let objects = (0..gas_object_num_per_account)
                     .map(|_| Object::with_owner_for_testing(sender))
                     .collect::<Vec<_>>();
-                (sender, keypair, objects)
+                (sender, private_key, objects)
             })
         })
         .collect();
     let mut accounts = BTreeMap::new();
     let mut genesis_gas_objects = vec![];
     for task in tasks {
-        let (sender, keypair, gas_objects) = task.await.unwrap();
+        let (sender, private_key, gas_objects) = task.await.unwrap();
         let gas_object_refs: Vec<_> = gas_objects.iter().map(|o| o.object_ref()).collect();
         accounts.insert(
             sender,
             Account {
                 sender,
-                keypair: Arc::new(keypair),
+                private_key: Arc::new(private_key),
                 gas_objects: Arc::new(gas_object_refs),
             },
         );

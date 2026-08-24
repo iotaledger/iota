@@ -254,10 +254,10 @@ async fn test_package_publish_disabled() {
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/data/object_basics");
-    let (sender, keypair, gas_object) = (accounts[0].0, &accounts[0].1, accounts[0].2[0]);
+    let (sender, key, gas_object) = (accounts[0].0, &accounts[0].1, accounts[0].2[0]);
     let tx = TestTransactionBuilder::new(sender, gas_object, rgp)
         .publish(path)
-        .build_and_sign(keypair);
+        .build_and_sign(key);
     let epoch_store = state.epoch_store_for_testing();
     let tx = epoch_store.verify_transaction(tx).unwrap();
     let result = state.handle_transaction(&epoch_store, tx).await;

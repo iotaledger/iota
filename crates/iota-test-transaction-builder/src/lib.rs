@@ -700,7 +700,7 @@ pub async fn emit_new_random_u128(
 pub async fn publish_example_package(
     context: &WalletContext,
     example_subpath: &'static str,
-    sender_key_pair: &AccountPrivateKey,
+    sender_key: &AccountPrivateKey,
     sender: Address,
     gas: ObjectReference,
 ) -> (ObjectId, TransactionDigest) {
@@ -709,7 +709,7 @@ pub async fn publish_example_package(
         TestTransactionBuilder::new(sender, gas, gas_price)
             .publish_examples(example_subpath)
             .build(),
-        sender_key_pair,
+        sender_key,
     );
 
     let resp = context.execute_transaction_must_succeed(tx).await;
@@ -739,11 +739,11 @@ pub async fn publish_nfts_package(
 /// the package id and the digest of the transaction.
 pub async fn publish_simple_warrior_package(
     context: &WalletContext,
-    sender_key_pair: &AccountPrivateKey,
+    sender_key: &AccountPrivateKey,
     sender: Address,
     gas: ObjectReference,
 ) -> (ObjectId, TransactionDigest) {
-    publish_example_package(context, "simple_warrior", sender_key_pair, sender, gas).await
+    publish_example_package(context, "simple_warrior", sender_key, sender, gas).await
 }
 
 /// Pre-requisite: `publish_nfts_package` must be called before this function.
