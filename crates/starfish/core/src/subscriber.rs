@@ -322,13 +322,16 @@ mod test {
 
     struct SubscriberTestClient {
         last_received_rounds: Mutex<Vec<Round>>,
+        subscription_attempts_sender: watch::Sender<usize>,
         pending_stream: bool,
     }
 
     impl SubscriberTestClient {
         fn new(pending_stream: bool) -> Self {
+            let (subscription_attempts_sender, _) = watch::channel(0);
             Self {
                 last_received_rounds: Mutex::new(Vec::new()),
+                subscription_attempts_sender,
                 pending_stream,
             }
         }
@@ -346,7 +349,12 @@ mod test {
             last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockBundleStream> {
-            self.last_received_rounds.lock().push(last_received);
+            let attempts = {
+                let mut last_received_rounds = self.last_received_rounds.lock();
+                last_received_rounds.push(last_received);
+                last_received_rounds.len()
+            };
+            self.subscription_attempts_sender.send_replace(attempts);
             if self.pending_stream {
                 Ok(Box::pin(stream::pending()))
             } else {
@@ -413,13 +421,17 @@ mod test {
         network_client: &SubscriberTestClient,
         expected: usize,
     ) {
-        for _ in 0..100 {
-            if network_client.last_received_rounds().len() >= expected {
-                return;
+        let mut attempts = network_client.subscription_attempts_sender.subscribe();
+        timeout(Duration::from_secs(5), async {
+            loop {
+                if *attempts.borrow() >= expected {
+                    return;
+                }
+                attempts.changed().await.unwrap();
             }
-            sleep(Duration::from_millis(1)).await;
-        }
-        panic!("subscriber did not make {expected} subscription attempts");
+        })
+        .await
+        .unwrap_or_else(|_| panic!("subscriber did not make {expected} subscription attempts"));
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -517,6 +529,50 @@ mod test {
 
         wait_for_subscription_attempts(&network_client, 2).await;
         assert_eq!(network_client.last_received_rounds(), vec![0, 11]);
+        subscriber.stop();
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn subscriber_finishes_bundle_handler_before_reset() {
+        telemetry_subscribers::init_for_testing();
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let handler_started = Arc::new(tokio::sync::Notify::new());
+        let handler_release = Arc::new(tokio::sync::Notify::new());
+        let mut service = TestService::new();
+        service.block_bundle_handler_started = Some(handler_started.clone());
+        service.block_bundle_handler_release = Some(handler_release.clone());
+        let authority_service = Arc::new(Mutex::new(service));
+        let network_client = Arc::new(SubscriberTestClient::new(false));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let (block_stream_reset_sender, _) = watch::channel(0_u64);
+        let subscriber = Subscriber::new(
+            context.clone(),
+            network_client.clone(),
+            authority_service,
+            dag_state,
+            block_stream_reset_sender.clone(),
+        );
+
+        let peer = context.committee.to_authority_index(2).unwrap();
+        subscriber.subscribe(peer);
+        handler_started.notified().await;
+
+        block_stream_reset_sender.send_modify(|generation| {
+            *generation += 1;
+        });
+        assert!(
+            timeout(
+                Duration::from_secs(1),
+                wait_for_subscription_attempts(&network_client, 2)
+            )
+            .await
+            .is_err()
+        );
+
+        handler_release.notify_one();
+        wait_for_subscription_attempts(&network_client, 2).await;
         subscriber.stop();
     }
 }

@@ -274,40 +274,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
 
                 match Self::fetch_headers_for_reinitialization(self.inner.clone()).await {
                     Ok(headers) => {
-                        if let Err(e) = self
-                            .inner
-                            .core_thread_dispatcher
-                            .reinitialize_components(headers)
-                            .await
-                        {
-                            warn!(
-                                "[{}] Failed to reinitialize components: {}",
-                                self.inner.sync_type.as_str(),
-                                e
-                            );
-                        } else {
-                            self.inner
-                                .header_synchronizer
-                                .clear_verified_headers_cache();
-                            if self
-                                .inner
-                                .context
-                                .parameters
-                                .enable_block_stream_reset_on_fast_sync_exit
-                            {
-                                self.block_stream_reset_sender.send_modify(|generation| {
-                                    *generation = generation.wrapping_add(1);
-                                });
-                                info!(
-                                    "[{}] Signaled block stream reset",
-                                    self.inner.sync_type.as_str()
-                                );
-                            }
-                            info!(
-                                "[{}] Components reinitialized, fast sync complete",
-                                self.inner.sync_type.as_str()
-                            );
-                        }
+                        self.reinitialize_components(headers).await;
                     }
                     Err(e) => {
                         warn!(
@@ -343,6 +310,44 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 flag.store(active, Ordering::Relaxed);
             }
         }
+    }
+
+    async fn reinitialize_components(&self, headers: Vec<VerifiedBlockHeader>) {
+        if let Err(e) = self
+            .inner
+            .core_thread_dispatcher
+            .reinitialize_components(headers)
+            .await
+        {
+            warn!(
+                "[{}] Failed to reinitialize components: {}",
+                self.inner.sync_type.as_str(),
+                e
+            );
+            return;
+        }
+
+        self.inner
+            .header_synchronizer
+            .clear_verified_headers_cache();
+        if self
+            .inner
+            .context
+            .parameters
+            .enable_block_stream_reset_on_fast_sync_exit
+        {
+            self.block_stream_reset_sender.send_modify(|generation| {
+                *generation = generation.wrapping_add(1);
+            });
+            info!(
+                "[{}] Signaled block stream reset",
+                self.inner.sync_type.as_str()
+            );
+        }
+        info!(
+            "[{}] Components reinitialized, fast sync complete",
+            self.inner.sync_type.as_str()
+        );
     }
 
     fn try_schedule_once(&mut self) {
@@ -1106,7 +1111,8 @@ mod tests {
 
     use crate::{
         authority_node::tests::make_authority_with_params, commit::CommittedSubDag,
-        commit_consumer::CommitConsumerMonitor,
+        commit_consumer::CommitConsumerMonitor, commit_syncer::tests::FakeNetworkClient,
+        context::Context, core_thread::tests::MockCoreThreadDispatcher,
     };
 
     mod fetch_once {
@@ -1132,7 +1138,7 @@ mod tests {
             },
             commit_vote_monitor::CommitVoteMonitor,
             context::Context,
-            core_thread::tests::MockCoreThreadDispatcher,
+            core_thread::{CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
             dag_state::DagState,
             encoder::create_encoder,
             error::ConsensusError,
@@ -1148,8 +1154,24 @@ mod tests {
             context: Arc<Context>,
             network_client: Arc<FakeNetworkClient>,
         ) -> Arc<Inner<FakeNetworkClient>> {
-            let block_verifier = Arc::new(NoopBlockVerifier {});
             let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+            let (block_stream_reset_sender, _) = tokio::sync::watch::channel(0_u64);
+            make_syncer(
+                context,
+                network_client,
+                core_thread_dispatcher,
+                block_stream_reset_sender,
+            )
+            .inner
+        }
+
+        pub(crate) fn make_syncer<D: CoreThreadDispatcher>(
+            context: Arc<Context>,
+            network_client: Arc<FakeNetworkClient>,
+            core_thread_dispatcher: Arc<D>,
+            block_stream_reset_sender: tokio::sync::watch::Sender<u64>,
+        ) -> FastCommitSyncer<FakeNetworkClient> {
+            let block_verifier = Arc::new(NoopBlockVerifier {});
             let store: Arc<dyn Store> = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
             let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1173,7 +1195,6 @@ mod tests {
                 None,
                 misbehavior_store.clone(),
             );
-            let (block_stream_reset_sender, _) = tokio::sync::watch::channel(0_u64);
             FastCommitSyncer::new(
                 context,
                 core_thread_dispatcher,
@@ -1187,7 +1208,6 @@ mod tests {
                 Arc::new(AtomicBool::new(false)),
                 block_stream_reset_sender,
             )
-            .inner
         }
 
         /// A complete `fetch_commits_and_transactions` response for commit
@@ -1534,6 +1554,43 @@ mod tests {
                 "unexpected error: {err:?}"
             );
             assert_unprovable_faults(&inner, vec![0; 4]);
+        }
+    }
+
+    #[tokio::test]
+    async fn block_stream_reset_requires_successful_reinitialization_and_enabled_flag() {
+        for (enabled, should_fail, expected_generation) in
+            [(true, false, 1), (false, false, 0), (true, true, 0)]
+        {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context
+                .parameters
+                .enable_block_stream_reset_on_fast_sync_exit = enabled;
+            let context = Arc::new(context);
+            let network_client = Arc::new(FakeNetworkClient::default());
+            let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+            core_thread_dispatcher.set_reinitialize_components_should_fail(should_fail);
+            let (block_stream_reset_sender, block_stream_reset_receiver) =
+                tokio::sync::watch::channel(0_u64);
+            let syncer = fetch_once::make_syncer(
+                context,
+                network_client,
+                core_thread_dispatcher.clone(),
+                block_stream_reset_sender,
+            );
+
+            syncer.reinitialize_components(Vec::new()).await;
+
+            assert_eq!(core_thread_dispatcher.reinitialize_components_calls(), 1);
+            assert_eq!(
+                *block_stream_reset_receiver.borrow(),
+                expected_generation,
+                "enabled={enabled}, should_fail={should_fail}"
+            );
+            syncer.inner.header_synchronizer.stop().await.unwrap();
         }
     }
 

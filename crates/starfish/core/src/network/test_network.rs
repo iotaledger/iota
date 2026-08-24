@@ -2,11 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream;
 use parking_lot::Mutex;
 use starfish_config::AuthorityIndex;
+use tokio::sync::Notify;
 
 use crate::{
     Round,
@@ -25,6 +28,8 @@ pub(crate) struct TestService {
     pub(crate) handle_fetch_block_headers: Vec<(AuthorityIndex, Vec<BlockRef>)>,
     pub(crate) handle_fetch_commits: Vec<(AuthorityIndex, CommitRange)>,
     pub(crate) own_block_bundles: Vec<SerializedBlockBundle>,
+    pub(crate) block_bundle_handler_started: Option<Arc<Notify>>,
+    pub(crate) block_bundle_handler_release: Option<Arc<Notify>>,
 }
 
 impl TestService {
@@ -35,6 +40,8 @@ impl TestService {
             handle_subscribed_block_bundle_requests: Vec::new(),
             handle_fetch_block_headers: Vec::new(),
             handle_fetch_commits: Vec::new(),
+            block_bundle_handler_started: None,
+            block_bundle_handler_release: None,
         }
     }
 
@@ -52,10 +59,19 @@ impl NetworkService for Mutex<TestService> {
         serialized_block_bundle: SerializedBlockBundle,
         _encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()> {
-        let mut state = self.lock();
-        state
-            .handle_subscribed_block_bundle
-            .push((peer, serialized_block_bundle));
+        let block_bundle_handler_release = {
+            let mut state = self.lock();
+            state
+                .handle_subscribed_block_bundle
+                .push((peer, serialized_block_bundle));
+            if let Some(started) = &state.block_bundle_handler_started {
+                started.notify_one();
+            }
+            state.block_bundle_handler_release.clone()
+        };
+        if let Some(release) = block_bundle_handler_release {
+            release.notified().await;
+        }
         Ok(())
     }
 

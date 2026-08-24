@@ -575,7 +575,10 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::time::Duration;
+    use std::{
+        sync::atomic::{AtomicBool, Ordering},
+        time::Duration,
+    };
 
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
@@ -605,6 +608,8 @@ pub(crate) mod tests {
         last_known_proposed_round: Mutex<Vec<Round>>,
         new_block_calls: Arc<Mutex<Vec<(Round, ReasonToCreateBlock, Instant)>>>,
         quorum_subscribers_exists: Mutex<bool>,
+        reinitialize_components_calls: Mutex<Vec<Vec<VerifiedBlockHeader>>>,
+        reinitialize_components_should_fail: AtomicBool,
     }
 
     impl MockCoreThreadDispatcher {
@@ -644,6 +649,15 @@ pub(crate) mod tests {
             let mut binding = self.new_block_calls.lock();
             let all_calls = binding.drain(0..);
             all_calls.into_iter().collect()
+        }
+
+        pub(crate) fn set_reinitialize_components_should_fail(&self, should_fail: bool) {
+            self.reinitialize_components_should_fail
+                .store(should_fail, Ordering::Relaxed);
+        }
+
+        pub(crate) fn reinitialize_components_calls(&self) -> usize {
+            self.reinitialize_components_calls.lock().len()
         }
     }
 
@@ -725,9 +739,19 @@ pub(crate) mod tests {
 
         async fn reinitialize_components(
             &self,
-            _block_headers: Vec<VerifiedBlockHeader>,
+            block_headers: Vec<VerifiedBlockHeader>,
         ) -> Result<(), CoreError> {
-            unimplemented!()
+            self.reinitialize_components_calls
+                .lock()
+                .push(block_headers);
+            if self
+                .reinitialize_components_should_fail
+                .load(Ordering::Relaxed)
+            {
+                Err(CoreError::Shutdown("test failure".to_owned()))
+            } else {
+                Ok(())
+            }
         }
 
         async fn new_block(
