@@ -31,10 +31,11 @@ use crate::{
 /// newest epoch the seed below writes history for.
 const RUNNING_EPOCH: EpochId = 3;
 
-/// The narrowest window a node can really be given: 1 keeps the epoch the
-/// migration is running in and the one below it, so with the migration
-/// running in epoch 3 it keeps epochs 2 and 3 and leaves epoch 1 behind.
-const NARROWEST_RETENTION: u64 = 1;
+/// The two values that give the narrowest window a node can really be given:
+/// both keep the epoch the migration is running in and the one below it, so
+/// with the migration running in epoch 3 they keep epochs 2 and 3 and leave
+/// epoch 1 behind.
+const NARROWEST_RETENTIONS: [u64; 2] = [0, 1];
 
 /// The epoch the executed and synced watermarks are seeded in. A node
 /// restarted between publishing the new epoch and executing its first
@@ -454,38 +455,41 @@ async fn rows_land_in_their_true_epoch() {
 /// A node whose retention has already left epochs behind deletes their rows
 /// rather than building buckets the next reconfiguration would drop again,
 /// and it reports the checkpoint range it no longer holds.
+///
+/// Run at both of the values that give the narrowest window there is, since
+/// the two must leave the same epochs behind: expiry counts `retained - 1`
+/// epochs below its anchor and 0 saturates there, so 0 and 1 both keep the
+/// anchor epoch and the running one.
 #[tokio::test]
 async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
-    let store_dir = iota_common::tempdir();
-    let checkpoint_dir = iota_common::tempdir();
-    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
-    let seeded = seed(&store, &checkpoint_store);
+    for retained in NARROWEST_RETENTIONS {
+        let store_dir = iota_common::tempdir();
+        let checkpoint_dir = iota_common::tempdir();
+        let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+        let seeded = seed(&store, &checkpoint_store);
 
-    migration(
-        &store,
-        checkpoint_store.clone(),
-        Some(NARROWEST_RETENTION),
-        5_000,
-    )
-    .run()
-    .unwrap();
+        migration(&store, checkpoint_store.clone(), Some(retained), 5_000)
+            .run()
+            .unwrap();
 
-    // With retention 1, the floor the last boundary applied is the epoch
-    // below the running one, so only epoch 1 left no bucket behind in either
-    // store.
-    assert_migrated(&store, &checkpoint_store, &seeded, WATERMARK_EPOCH);
+        // The floor the last boundary applied is the epoch below the running
+        // one, so only epoch 1 left no bucket behind in either store.
+        assert_migrated(&store, &checkpoint_store, &seeded, WATERMARK_EPOCH);
 
-    // Epoch 1's last checkpoint is the highest the node no longer holds, so
-    // that a state-sync peer is not told a dropped checkpoint is available.
-    assert_eq!(
-        checkpoint_store
-            .tables
-            .watermarks
-            .get(&CheckpointWatermark::HighestPruned)
-            .unwrap()
-            .map(|(sequence, _)| sequence),
-        Some(10)
-    );
+        // Epoch 1's last checkpoint is the highest the node no longer holds,
+        // so that a state-sync peer is not told a dropped checkpoint is
+        // available.
+        assert_eq!(
+            checkpoint_store
+                .tables
+                .watermarks
+                .get(&CheckpointWatermark::HighestPruned)
+                .unwrap()
+                .map(|(sequence, _)| sequence),
+            Some(10),
+            "retention {retained} must report epoch 1 as pruned"
+        );
+    }
 }
 
 /// Two checkpoints in different epochs can name one contents row — every
