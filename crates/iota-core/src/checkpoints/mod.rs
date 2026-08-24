@@ -677,11 +677,18 @@ impl CheckpointStore {
         }
     }
 
-    // Called by consensus (ConsensusAggregator).
-    // Different from `insert_verified_checkpoint`, it does not touch
-    // the highest_verified_checkpoint watermark such that state sync
-    // will have a chance to process this checkpoint and perform some
-    // state-sync only things.
+    /// Called by consensus (ConsensusAggregator). Different from
+    /// [`Self::insert_verified_checkpoint`], it does not touch the
+    /// `HighestVerified` watermark, such that state sync will have a chance to
+    /// process this checkpoint and perform some state-sync only things.
+    ///
+    /// Fails for a checkpoint whose epoch has been expired, since that epoch's
+    /// bucket cannot be reopened. Callers must only pass checkpoints of an
+    /// epoch the node has not left behind: consensus and state sync both move
+    /// forwards from the highest checkpoint the store already holds, and
+    /// [`WriteStore::insert_checkpoint`](iota_types::storage::WriteStore::insert_checkpoint),
+    /// which turns any failure here into a panic, is reached only through
+    /// those two.
     pub fn insert_certified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -1027,7 +1034,9 @@ impl CheckpointStore {
     /// This is the call state sync makes, so it can be the write that creates
     /// the bucket of an epoch whose first checkpoint has not been executed
     /// yet: state sync runs ahead of execution and across epoch boundaries.
-    /// See [`HistoricCheckpoints`] for what that means for retention.
+    /// See [`HistoricCheckpoints`] for what that means for retention. Fails
+    /// for a checkpoint whose epoch has been expired, under the same caller
+    /// invariant as [`Self::insert_certified_checkpoint`].
     ///
     /// INVARIANT: See [`Self::cache_full_checkpoint_contents`].
     pub fn insert_verified_checkpoint_contents(
