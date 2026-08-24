@@ -217,12 +217,14 @@ impl LedgerBacklogMigration {
         epoch: EpochId,
         epochs_to_retain_for_checkpoints: Option<u64>,
     ) -> Self {
-        // The next reconfiguration counts its retention back from the epoch it
-        // leaves — this one — and keeps that epoch as one of the retained, so
-        // this is the floor that boundary will apply.
-        let floor = epochs_to_retain_for_checkpoints.map_or(0, |retained| {
-            epoch.saturating_sub(retained.saturating_sub(1))
-        });
+        // The floor the last reconfiguration applied: it counted its retention
+        // back from the epoch it left, one below the epoch the node is now
+        // running in. Counting back from the running epoch instead would
+        // delete an epoch this node still serves — including the one the
+        // executed and synced watermarks name while the running epoch's first
+        // checkpoint has yet to be executed.
+        let floor =
+            epochs_to_retain_for_checkpoints.map_or(0, |retained| epoch.saturating_sub(retained));
         Self {
             perpetual_tables: store.perpetual_tables.clone(),
             historic_ledger: store.get_historic_ledger().clone(),
