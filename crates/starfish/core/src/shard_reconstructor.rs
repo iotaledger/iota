@@ -729,106 +729,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
         let total_length = self.total_length;
 
-        match msg {
-            TransactionMessage::Shard(shard_msg) => {
-                // The slot's genuine payload is already known, so this shard
-                // can only re-grow an accumulator the resolution purged.
-                if self.resolved_slots.contains(&(tx_ref.round, tx_ref.author)) {
-                    self.context
-                        .metrics
-                        .node_metrics
-                        .shard_reconstructor_dropped_shards
-                        .with_label_values(&["slot_resolved"])
-                        .inc();
-                    debug!("Dropping shard for {tx_ref:?}: its slot is already resolved");
-                    return Ok(());
-                }
-
-                // Relaying two shards for one slot is the peer's own fault;
-                // exceeding the accumulator limit is not, as others may have
-                // filled the slot.
-                // TODO: charge the peer for the former once every validator
-                // runs the per-slot header cap.
-                let slot_start = TransactionRef {
-                    round: tx_ref.round,
-                    author: tx_ref.author,
-                    transactions_commitment: TransactionsCommitment::MIN,
-                };
-                let slot_end = TransactionRef {
-                    round: tx_ref.round,
-                    author: tx_ref.author,
-                    transactions_commitment: TransactionsCommitment::MAX,
-                };
-                let mut accumulators_in_slot = 0usize;
-                let mut peer_in_other_accumulator = false;
-                for (existing_ref, accumulator) in
-                    self.shard_accumulators.range(slot_start..=slot_end)
-                {
-                    accumulators_in_slot += 1;
-                    if *existing_ref != tx_ref
-                        && accumulator.contains_shard_at_index(shard_msg.shard_index)
-                    {
-                        peer_in_other_accumulator = true;
-                    }
-                }
-
-                // One shard per (relaying peer, slot), across all accumulators:
-                // an honest peer holds exactly one shard per slot, so a peer
-                // whose index already appears in another accumulator of the
-                // slot has spent the contribution it was entitled to.
-                if peer_in_other_accumulator {
-                    self.context
-                        .metrics
-                        .node_metrics
-                        .shard_reconstructor_dropped_shards
-                        .with_label_values(&["peer_already_in_slot"])
-                        .inc();
-                    debug!(
-                        "Dropping shard for {tx_ref:?}: peer index {} already contributed a shard in this slot",
-                        shard_msg.shard_index
-                    );
-                    return Ok(());
-                }
-
-                let shard_index = shard_msg.shard_index;
-                let occupies_new_position = match self.shard_accumulators.get(&tx_ref) {
-                    Some(accumulator) => !accumulator.contains_shard_at_index(shard_index),
-                    None => {
-                        // With one shard per (peer, slot), a slot holding
-                        // `parity_length + 1` accumulators has too few
-                        // uncommitted peers left for any further commitment to
-                        // ever gather `info_length` contributors — a new
-                        // accumulator would be dead weight by construction.
-                        let max_accumulators_per_slot = self.context.committee.parity_length() + 1;
-                        if accumulators_in_slot >= max_accumulators_per_slot {
-                            self.context
-                                .metrics
-                                .node_metrics
-                                .shard_reconstructor_dropped_shards
-                                .with_label_values(&["slot_full"])
-                                .inc();
-                            debug!(
-                                "Dropping shard for {tx_ref:?}: slot already holds {accumulators_in_slot} accumulators"
-                            );
-                            return Ok(());
-                        }
-                        true
-                    }
-                };
-                if occupies_new_position {
-                    self.make_room_in_peer_budget(shard_index);
-                    self.retained_shards_by_authority[shard_index].insert(tx_ref);
-                }
-                match self.shard_accumulators.entry(tx_ref) {
-                    Entry::Vacant(v) => {
-                        v.insert(ShardAccumulator::new_with_shard(shard_msg, total_length));
-                    }
-                    Entry::Occupied(mut o) => {
-                        o.get_mut().update_with_shard(shard_msg);
-                    }
-                }
-            }
-
+        let shard_msg = match msg {
             TransactionMessage::FullTransaction(tx_ref) => {
                 self.processed_transactions.insert(tx_ref);
                 // The full payload arrived through the direct path, so no
@@ -836,6 +737,101 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                 // them instead of waiting for round eviction.
                 self.resolve_slot(tx_ref);
                 return Ok(());
+            }
+            TransactionMessage::Shard(shard_msg) => shard_msg,
+        };
+
+        // The slot's genuine payload is already known, so this shard
+        // can only re-grow an accumulator the resolution purged.
+        if self.resolved_slots.contains(&(tx_ref.round, tx_ref.author)) {
+            self.context
+                .metrics
+                .node_metrics
+                .shard_reconstructor_dropped_shards
+                .with_label_values(&["slot_resolved"])
+                .inc();
+            debug!("Dropping shard for {tx_ref:?}: its slot is already resolved");
+            return Ok(());
+        }
+
+        // Relaying two shards for one slot is the peer's own fault;
+        // exceeding the accumulator limit is not, as others may have
+        // filled the slot.
+        // TODO: charge the peer for the former once every validator
+        // runs the per-slot header cap.
+        let slot_start = TransactionRef {
+            round: tx_ref.round,
+            author: tx_ref.author,
+            transactions_commitment: TransactionsCommitment::MIN,
+        };
+        let slot_end = TransactionRef {
+            round: tx_ref.round,
+            author: tx_ref.author,
+            transactions_commitment: TransactionsCommitment::MAX,
+        };
+        let mut accumulators_in_slot = 0usize;
+        let mut peer_in_other_accumulator = false;
+        for (existing_ref, accumulator) in self.shard_accumulators.range(slot_start..=slot_end) {
+            accumulators_in_slot += 1;
+            if *existing_ref != tx_ref && accumulator.contains_shard_at_index(shard_msg.shard_index)
+            {
+                peer_in_other_accumulator = true;
+            }
+        }
+
+        // One shard per (relaying peer, slot), across all accumulators:
+        // an honest peer holds exactly one shard per slot, so a peer
+        // whose index already appears in another accumulator of the
+        // slot has spent the contribution it was entitled to.
+        if peer_in_other_accumulator {
+            self.context
+                .metrics
+                .node_metrics
+                .shard_reconstructor_dropped_shards
+                .with_label_values(&["peer_already_in_slot"])
+                .inc();
+            debug!(
+                "Dropping shard for {tx_ref:?}: peer index {} already contributed a shard in this slot",
+                shard_msg.shard_index
+            );
+            return Ok(());
+        }
+
+        let shard_index = shard_msg.shard_index;
+        let occupies_new_position = match self.shard_accumulators.get(&tx_ref) {
+            Some(accumulator) => !accumulator.contains_shard_at_index(shard_index),
+            None => {
+                // With one shard per (peer, slot), a slot holding
+                // `parity_length + 1` accumulators has too few
+                // uncommitted peers left for any further commitment to
+                // ever gather `info_length` contributors — a new
+                // accumulator would be dead weight by construction.
+                let max_accumulators_per_slot = self.context.committee.parity_length() + 1;
+                if accumulators_in_slot >= max_accumulators_per_slot {
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .shard_reconstructor_dropped_shards
+                        .with_label_values(&["slot_full"])
+                        .inc();
+                    debug!(
+                        "Dropping shard for {tx_ref:?}: slot already holds {accumulators_in_slot} accumulators"
+                    );
+                    return Ok(());
+                }
+                true
+            }
+        };
+        if occupies_new_position {
+            self.make_room_in_peer_budget(shard_index);
+            self.retained_shards_by_authority[shard_index].insert(tx_ref);
+        }
+        match self.shard_accumulators.entry(tx_ref) {
+            Entry::Vacant(v) => {
+                v.insert(ShardAccumulator::new_with_shard(shard_msg, total_length));
+            }
+            Entry::Occupied(mut o) => {
+                o.get_mut().update_with_shard(shard_msg);
             }
         }
 
