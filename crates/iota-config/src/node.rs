@@ -1171,11 +1171,16 @@ pub struct AuthorityStorePruningConfig {
     )]
     pub periodic_compaction_threshold_days: Option<usize>,
     /// Number of historic epochs of transactions, effects, events, and
-    /// checkpoint data to keep. Controls transaction pruning.
+    /// checkpoint data to keep, on top of the epoch the node is in. Controls
+    /// transaction pruning.
+    ///
+    /// Expiry counts back from the epoch the node has just finished
+    /// executing, one below the epoch it is entering, so during epoch `E` the
+    /// node holds the buckets of `[E - N, E]`.
     ///   None    — keep every epoch's bucket; transaction pruning is off.
-    ///   N       — keep the N most recent epochs, counting the epoch this
-    ///             retention is measured from as one of the N.
-    ///   0 and 1 — identical: both keep that epoch alone.
+    ///   N       — keep the epoch the node is in plus the N epochs before it.
+    ///   0 and 1 — identical: both keep the epoch the node is in plus the one
+    ///             before it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
