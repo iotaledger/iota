@@ -19,7 +19,7 @@ use iota_sdk_types::{Address, Event, Identifier, MoveStruct, ObjectId, Owner, St
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
-    crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
+    crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     object::{MoveStructExt, OBJECT_START_VERSION},
     storage::ChildObjectResolver,
@@ -157,7 +157,7 @@ impl Scenario {
 
     fn new_outputs() -> TransactionOutputs {
         let mut rng = StdRng::from_seed([0; 32]);
-        let (sender, keypair): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let (sender, keypair): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
         let receiver = Address::random();
 
         // Tx is opaque to the cache, so we just build a dummy tx. The only requirement
@@ -186,7 +186,7 @@ impl Scenario {
 
     fn new_object() -> Object {
         let id = ObjectId::random();
-        let (owner, _) = deterministic_random_account_key();
+        let (owner, _) = deterministic_random_account_private_key();
         Object::new_move(
             MoveStruct::new_gas_coin(OBJECT_START_VERSION, id, 100),
             Owner::Address(owner),

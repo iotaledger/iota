@@ -24,7 +24,7 @@ use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor}
 use crate::{
     balance::Balance,
     coin::{Coin, CoinMetadata, TreasuryCap},
-    crypto::deterministic_random_account_key,
+    crypto::deterministic_random_account_private_key,
     error::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
@@ -735,7 +735,7 @@ impl Object {
     /// Generate a new gas coin object with default balance and random owner.
     pub fn new_gas_for_testing() -> Self {
         let gas_object_id = ObjectId::random();
-        let (owner, _) = deterministic_random_account_key();
+        let (owner, _) = deterministic_random_account_private_key();
         Object::with_id_owner_for_testing(gas_object_id, owner)
     }
 }
@@ -746,7 +746,7 @@ pub fn generate_test_gas_objects() -> Vec<Object> {
         static GAS_OBJECTS: Vec<Object> = (0..50)
             .map(|_| {
                 let gas_object_id = ObjectId::random();
-                let (owner, _) = deterministic_random_account_key();
+                let (owner, _) = deterministic_random_account_private_key();
                 Object::with_id_owner_for_testing(gas_object_id, owner)
             })
             .collect();

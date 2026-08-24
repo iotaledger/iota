@@ -42,7 +42,7 @@ use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     base_types::{IOTA_ADDRESS_LENGTH, VersionNumber},
     committee::EpochId,
-    crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
+    crypto::{AccountPrivateKey, get_authority_key_pair, get_key_pair_from_rng},
     effects::TransactionEffectsAPI,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
@@ -279,7 +279,7 @@ impl AdapterInitConfig {
 #[derive(Debug)]
 struct TestAccount {
     address: Address,
-    key_pair: Option<AccountKeyPair>,
+    key_pair: Option<AccountPrivateKey>,
     gas: ObjectId,
 }
 
@@ -2680,7 +2680,7 @@ async fn init_sim_executor(
     let (mut validator_addr, mut validator_key, mut key_copy) = (None, None, None);
     if custom_validator_account {
         // Make a validator account with a gas object
-        let (a, b): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let (a, b): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
 
         key_copy = Some(b.clone());
         validator_addr = Some(a);

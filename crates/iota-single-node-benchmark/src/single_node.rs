@@ -26,7 +26,7 @@ use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};
 use iota_types::{
     base_types::AuthorityName,
     committee::Committee,
-    crypto::{AccountKeyPair, AuthoritySignature, Signer},
+    crypto::{AccountPrivateKey, AuthoritySignature, Signer},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     executable_transaction::VerifiedExecutableTransaction,
     messages_checkpoint::{VerifiedCheckpoint, VerifiedCheckpointContents},
@@ -112,7 +112,7 @@ impl SingleValidator {
         &self,
         publish_data: PublishData,
         sender: Address,
-        keypair: &AccountKeyPair,
+        keypair: &AccountPrivateKey,
         gas: ObjectReference,
     ) -> (ObjectReference, ObjectReference) {
         let tx_builder = TestTransactionBuilder::new(sender, gas, DEFAULT_VALIDATOR_GAS_PRICE)

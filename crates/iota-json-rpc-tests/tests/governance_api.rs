@@ -20,7 +20,7 @@ use iota_swarm_config::genesis_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::deterministic_random_account_key,
+    crypto::deterministic_random_account_private_key,
     id::UID,
     iota_system_state::{IotaSystemStateTrait, iota_system_state_summary::IotaSystemStateSummary},
     object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
@@ -506,7 +506,7 @@ async fn test_unstaking() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
     // Create a cluster
-    let (address, keypair) = deterministic_random_account_key();
+    let (address, keypair) = deterministic_random_account_private_key();
 
     let principal = 100_000_000_000;
     let expiration_timestamp_ms = u64::MAX;
@@ -663,7 +663,7 @@ async fn test_timelocked_staking() -> Result<(), anyhow::Error> {
 #[sim_test]
 async fn test_timelocked_unstaking() -> Result<(), anyhow::Error> {
     // Create a cluster
-    let (address, keypair) = deterministic_random_account_key();
+    let (address, keypair) = deterministic_random_account_private_key();
 
     let principal = 100_000_000_000;
     let expiration_timestamp_ms = u64::MAX;

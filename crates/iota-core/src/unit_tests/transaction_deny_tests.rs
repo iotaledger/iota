@@ -17,7 +17,7 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::AccountKeyPair,
+    crypto::AccountPrivateKey,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     messages_grpc::HandleTransactionResponse,
@@ -77,7 +77,7 @@ async fn reload_state_with_new_deny_config(
         .await
 }
 
-type Account = (Address, AccountKeyPair, Vec<ObjectReference>);
+type Account = (Address, AccountPrivateKey, Vec<ObjectReference>);
 
 fn get_accounts_and_coins(
     network_config: &NetworkConfig,

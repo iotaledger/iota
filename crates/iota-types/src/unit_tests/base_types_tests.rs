@@ -23,7 +23,7 @@ use super::*;
 use crate::{
     base_types::TypeTag,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
+        AccountPrivateKey, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         bcs_signable_test::{Bar, Foo},
         get_key_pair,
     },
@@ -48,7 +48,7 @@ fn test_bcs_enum() {
 
 #[test]
 fn test_signatures() {
-    let (addr1, sec1): (_, AccountKeyPair) = get_key_pair();
+    let (addr1, sec1): (_, AccountPrivateKey) = get_key_pair();
     let addr2 = Address::random();
 
     let foo = IntentMessage::new(Intent::iota_transaction(), Foo("hello".into()));
@@ -78,7 +78,7 @@ fn test_signatures() {
 
 #[test]
 fn test_signatures_serde() {
-    let sec1 = AccountKeyPair::random();
+    let sec1 = AccountPrivateKey::random();
     let foo = Foo("hello".into());
     let s: SimpleSignature = sec1.sign(
         IntentMessage::new(Intent::iota_transaction(), foo)
@@ -383,8 +383,8 @@ const SAMPLE_ADDRESS_VEC: [u8; 32] = [
 ];
 
 // Derive a sample address and public key tuple from private key bytes.
-fn derive_sample_address() -> (Address, AccountKeyPair) {
-    let key_pair = AccountKeyPair::from_bytes([
+fn derive_sample_address() -> (Address, AccountPrivateKey) {
+    let key_pair = AccountPrivateKey::from_bytes([
         10, 112, 5, 142, 174, 127, 187, 146, 251, 68, 22, 191, 128, 68, 84, 13, 102, 71, 77, 57,
         92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214,
     ])

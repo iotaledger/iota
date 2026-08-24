@@ -28,7 +28,7 @@ use iota_sdk_types::{
 };
 use iota_test_transaction_builder::{TestTransactionBuilder, split_coin_equal_tx};
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -125,7 +125,7 @@ fn query_events_by_sender() -> Result<(), IndexerError> {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -200,7 +200,7 @@ fn query_events_by_tx_digest() -> Result<(), IndexerError> {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -276,7 +276,7 @@ fn query_events_by_package() -> Result<(), IndexerError> {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -549,7 +549,7 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -663,7 +663,7 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
     .await;
     indexer_wait_for_checkpoint(store, 1).await;
 
-    let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
 
     let gas_ref = cluster
         .fund_address_and_return_gas(
@@ -756,7 +756,7 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -901,7 +901,7 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
         let recipient_1 = Address::random();
         let recipient_2 = Address::random();
 
@@ -964,7 +964,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
         let recipient = Address::random();
         let gas = cluster
             .fund_address_and_return_gas(
@@ -1043,7 +1043,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
         let recipient_1 = Address::random();
         let recipient_2 = Address::random();
 
@@ -1242,7 +1242,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -1355,7 +1355,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -1468,7 +1468,7 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(

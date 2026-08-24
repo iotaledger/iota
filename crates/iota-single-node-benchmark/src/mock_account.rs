@@ -7,14 +7,14 @@ use std::{collections::BTreeMap, sync::Arc};
 use futures::stream::FuturesUnordered;
 use iota_sdk_types::{Address, ObjectReference};
 use iota_types::{
-    crypto::{AccountKeyPair, get_account_key_pair},
+    crypto::{AccountPrivateKey, get_account_private_key},
     object::Object,
 };
 
 #[derive(Clone)]
 pub struct Account {
     pub sender: Address,
-    pub keypair: Arc<AccountKeyPair>,
+    pub keypair: Arc<AccountPrivateKey>,
     pub gas_objects: Arc<Vec<ObjectReference>>,
 }
 
@@ -28,7 +28,7 @@ pub async fn batch_create_account_and_gas(
     let tasks: FuturesUnordered<_> = (0..num_accounts)
         .map(|_| {
             tokio::spawn(async move {
-                let (sender, keypair) = get_account_key_pair();
+                let (sender, keypair) = get_account_private_key();
                 let objects = (0..gas_object_num_per_account)
                     .map(|_| Object::with_owner_for_testing(sender))
                     .collect::<Vec<_>>();

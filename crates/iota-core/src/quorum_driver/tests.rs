@@ -15,7 +15,7 @@ use iota_common::sync::notify_read::{NotifyRead, Registration};
 use iota_macros::{register_fail_point, sim_test};
 use iota_sdk_types::{Address, TransactionDigest};
 use iota_types::{
-    crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair},
+    crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair},
     effects::TransactionEffectsAPI,
     object::{Object, generate_test_gas_objects},
     quorum_driver_types::{
@@ -39,7 +39,7 @@ async fn setup() -> (
     AuthorityAggregator<LocalAuthorityClient>,
     TransactionEnvelope,
 ) {
-    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
     let gas_object = Object::with_owner_for_testing(sender);
     let (aggregator, authorities, genesis, _) =
         init_local_authorities(4, vec![gas_object.clone()]).await;
@@ -61,7 +61,7 @@ async fn setup() -> (
 fn make_tx(
     gas: &Object,
     sender: Address,
-    keypair: &AccountKeyPair,
+    keypair: &AccountPrivateKey,
     gas_price: u64,
 ) -> TransactionEnvelope {
     make_transfer_iota_transaction(
@@ -249,7 +249,8 @@ async fn test_quorum_driver_update_validators_and_max_retry_times() {
 #[tokio::test]
 async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let gas_objects = generate_test_gas_objects();
-    let (sender, keypair): (Address, AccountKeyPair) = deterministic_random_account_key();
+    let (sender, keypair): (Address, AccountPrivateKey) =
+        deterministic_random_account_private_key();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
     let (aggregator, authorities, genesis, _) =
@@ -560,7 +561,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
     telemetry_subscribers::init_for_testing();
 
     // Setup
-    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
     let gas_object = Object::with_owner_for_testing(sender);
     let (mut aggregator, authorities, genesis, _) =
         init_local_authorities(4, vec![gas_object.clone()]).await;

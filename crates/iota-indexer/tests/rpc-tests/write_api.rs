@@ -32,7 +32,7 @@ use iota_sdk_types::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
@@ -62,7 +62,7 @@ const NON_DETERMINISTIC_TESTS_REPETITIONS: usize = 20;
 
 async fn prepare_and_sign_object_transfer_tx(
     sender: Address,
-    sender_key_pair: AccountKeyPair,
+    sender_key_pair: AccountPrivateKey,
     receiver: Address,
     object_to_transfer: ObjectReference,
     gas: ObjectReference,
@@ -123,7 +123,7 @@ fn dry_run_transaction_block() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, key_pair): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let gas_ref = cluster
@@ -316,7 +316,7 @@ fn dry_run_publish_resolves_events_of_the_published_package() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, _): (_, AccountKeyPair) = get_key_pair();
+        let (address, _): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -469,7 +469,7 @@ fn execute_transaction_block() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, key_pair): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let gas_ref = cluster
@@ -558,7 +558,7 @@ fn optimistic_objects_are_finalized() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, key_pair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, key_pair): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let gas_ref = cluster
@@ -654,7 +654,7 @@ fn test_consecutive_modifications_of_owned_object() -> Result<(), anyhow::Error>
         ..
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -719,7 +719,7 @@ fn test_consecutive_wrap_unwrap() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -806,7 +806,7 @@ fn test_execute_transactions_with_shared_objects() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -851,7 +851,7 @@ fn test_parallel_shared_object_updates() {
         .block_on(async {
             indexer_wait_for_checkpoint(store, 1).await;
 
-            let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+            let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
             let rgp = cluster.get_reference_gas_price().await;
             let range = 0..NON_DETERMINISTIC_TESTS_REPETITIONS;
             let gas_objs: Vec<_> = range
@@ -918,7 +918,7 @@ fn test_repeated_tx_execution() {
         .block_on(async {
             indexer_wait_for_checkpoint(store, 1).await;
 
-            let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+            let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
 
             let gas_ref = cluster
                 .fund_address_and_return_gas(
@@ -996,7 +996,7 @@ fn test_parallel_repeated_tx_execution() {
         .block_on(async {
             indexer_wait_for_checkpoint(store, 1).await;
 
-            let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+            let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
 
             let gas_ref = cluster
                 .fund_address_and_return_gas(
@@ -1077,7 +1077,7 @@ fn test_repeatedly_update_display() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1163,7 +1163,7 @@ fn test_display_indexed_without_version_update() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1204,7 +1204,7 @@ fn test_version_update_overrides_display_indexed_from_object() {
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1269,7 +1269,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
 
     let txs_per_epoch = [16u64, 22, 18];
 
-    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_kp): (_, AccountPrivateKey) = get_key_pair();
 
     let gas = cluster
         .fund_address_and_return_gas(
@@ -1327,7 +1327,7 @@ async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
 
 pub(crate) async fn create_basic_object(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
 ) -> Result<ObjectId, anyhow::Error> {
@@ -1357,7 +1357,7 @@ pub(crate) async fn create_basic_object(
 
 async fn wrap_basic_object(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
     object_id: &ObjectId,
@@ -1390,7 +1390,7 @@ async fn wrap_basic_object(
 
 async fn unwrap_basic_object(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
     object_id: &ObjectId,
@@ -1411,7 +1411,7 @@ async fn unwrap_basic_object(
 
 async fn update_display_object(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
     display_object_id: &ObjectId,
     display_obj_type_tag: TypeTag,
@@ -1439,7 +1439,7 @@ async fn update_display_object(
 
 async fn bump_display_object_version(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
     display_object_id: &ObjectId,
     display_obj_type_tag: TypeTag,
@@ -1460,7 +1460,7 @@ async fn bump_display_object_version(
 
 async fn create_counter_object(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
 ) -> Result<(IotaTransactionBlockResponse, ObjectId), anyhow::Error> {
@@ -1491,7 +1491,7 @@ async fn create_counter_object(
 
 async fn increment_counter(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
     counter_id: &ObjectId,
@@ -1513,7 +1513,7 @@ async fn increment_counter(
 
 async fn create_new_bear(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
     package_id: &ObjectId,
     name: &str,
@@ -1572,7 +1572,7 @@ async fn create_new_bear(
 
 pub(crate) async fn deploy_basics_pkg(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
 ) -> (IotaTransactionBlockResponse, ObjectId) {
     deploy_package(address, address_kp, client, "../../examples/move/basics").await
@@ -1580,7 +1580,7 @@ pub(crate) async fn deploy_basics_pkg(
 
 async fn deploy_bear_pkg(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
 ) -> (IotaTransactionBlockResponse, ObjectId) {
     deploy_package(
@@ -1599,7 +1599,7 @@ async fn deploy_bear_pkg(
 /// Returns the package id, the `Display<Nft>` object id and the `Nft` id.
 async fn deploy_display_no_version_update_pkg_and_mint_nft(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
     name: &str,
 ) -> Result<(ObjectId, ObjectId, ObjectId), anyhow::Error> {
@@ -1652,7 +1652,7 @@ async fn deploy_display_no_version_update_pkg_and_mint_nft(
 
 async fn deploy_package(
     address: Address,
-    address_kp: &AccountKeyPair,
+    address_kp: &AccountPrivateKey,
     client: &HttpClient,
     pkg_path: &str,
 ) -> (IotaTransactionBlockResponse, ObjectId) {
@@ -1714,7 +1714,7 @@ fn move_view_function_call() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
         let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1835,7 +1835,7 @@ fn clever_errors() {
 
     runtime.block_on(async {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
         let keypair = SimpleKeypair::from(keypair);
         let gas_ref = cluster
             .fund_address_and_return_gas(

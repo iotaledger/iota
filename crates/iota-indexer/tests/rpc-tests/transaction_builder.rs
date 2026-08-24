@@ -19,7 +19,7 @@ use iota_sdk_types::{
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     gas_coin::GAS,
     id::UID,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
@@ -49,7 +49,7 @@ fn transfer_object() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
@@ -87,7 +87,7 @@ fn transfer_iota() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 1).await;
@@ -122,7 +122,7 @@ fn pay() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
         let receiver_1 = Address::random();
         let receiver_2 = Address::random();
 
@@ -165,7 +165,7 @@ fn pay_iota() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
         let receiver_1 = Address::random();
         let receiver_2 = Address::random();
 
@@ -208,7 +208,7 @@ fn pay_all_iota() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let input_coins: u64 = 3;
@@ -241,7 +241,7 @@ fn move_call() {
 
     runtime
         .block_on(async move {
-            let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+            let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
 
             let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 3).await;
             let gas = sender_coins[0];
@@ -282,7 +282,7 @@ fn split_coin() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
         let split_amount_1 = 100_000;
@@ -326,7 +326,7 @@ fn split_coin_equal() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 2).await;
         let gas_budget = 100_000_000;
@@ -357,7 +357,7 @@ fn merge_coin() {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
 
         let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 3).await;
         let gas_budget = 100_000_000;
@@ -393,7 +393,7 @@ fn batch_transaction() {
 
     runtime
         .block_on(async move {
-            let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+            let (sender, keypair): (_, AccountPrivateKey) = get_key_pair();
             let receiver = Address::random();
 
             let sender_coins = create_coins_and_wait_for_indexer(cluster, client, sender, 3).await;
@@ -456,7 +456,7 @@ fn request_add_stake() {
                 None,
             )
             .await;
-            let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
             let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
             let gas = coins[3];
             let coins_to_stake = coins[..3].to_vec();
@@ -511,7 +511,7 @@ fn request_withdraw_stake_from_pending() {
 
     runtime
         .block_on(async move {
-            let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
             let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
             let gas = coins[3];
             let coins_to_stake = coins[..3].to_vec();
@@ -568,7 +568,7 @@ fn request_withdraw_stake_from_active() {
                 None,
             )
             .await;
-            let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
             let coins = create_coins_and_wait_for_indexer(cluster, client, address, 4).await;
             let gas = coins[3];
             let coins_to_stake = coins[..3].to_vec();
@@ -621,7 +621,7 @@ fn request_add_timelocked_stake() {
 
     runtime
         .block_on(async move {
-            let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
             let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
                 address,
                 "transaction_builder_request_add_timelocked_stake",
@@ -671,7 +671,7 @@ fn request_withdraw_timelocked_stake_from_pending() {
 
     runtime
         .block_on(async move {
-            let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
             let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
                 address,
                 "transaction_builder_request_withdraw_timelocked_stake_from_pending",
@@ -729,7 +729,7 @@ fn request_withdraw_timelocked_stake_from_active() {
 
     runtime
         .block_on(async move {
-            let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+            let (address, keypair): (_, AccountPrivateKey) = get_key_pair();
             let (cluster, store, client, timelocked_balance) = create_cluster_with_timelocked_iota(
                 address,
                 "transaction_builder_request_withdraw_timelocked_stake_from_active",

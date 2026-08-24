@@ -300,7 +300,7 @@ mod tests {
     use iota_types::{
         base_types::AuthorityName,
         committee::{CommitteeTrait, StakeUnit},
-        crypto::{AccountKeyPair, get_account_key_pair},
+        crypto::{AccountPrivateKey, get_account_private_key},
         effects::TransactionEffectsAPI,
         error::IotaError,
         executable_transaction::VerifiedExecutableTransaction,
@@ -475,7 +475,7 @@ mod tests {
     #[sim_test]
     async fn test_validator_tx_finalizer_basic_flow() {
         telemetry_subscribers::init_for_testing();
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, keypair) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
@@ -506,7 +506,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validator_tx_finalizer_new_epoch() {
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, keypair) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
@@ -539,7 +539,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validator_tx_finalizer_auth_agg_reconfig() {
-        let (sender, _) = get_account_key_pair();
+        let (sender, _) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let (states, auth_agg, _clients) = create_validators(gas_object).await;
         let finalizer1 = ValidatorTxFinalizer::new_for_testing(auth_agg.clone(), states[0].name);
@@ -558,7 +558,7 @@ mod tests {
     #[tokio::test]
     async fn test_validator_tx_finalizer_already_executed() {
         telemetry_subscribers::init_for_testing();
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, keypair) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
@@ -597,7 +597,7 @@ mod tests {
     #[tokio::test]
     async fn test_validator_tx_finalizer_timeout() {
         telemetry_subscribers::init_for_testing();
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, keypair) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
@@ -718,7 +718,7 @@ mod tests {
         clients: &BTreeMap<AuthorityName, MockAuthorityClient>,
         state: &Arc<AuthorityState>,
         sender: Address,
-        keypair: &AccountKeyPair,
+        keypair: &AccountPrivateKey,
         gas_object_id: ObjectId,
     ) -> VerifiedSignedTransaction {
         let gas_object_ref = state.get_object(&gas_object_id).unwrap().object_ref();

@@ -21,7 +21,7 @@ use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     collection_types::VecMap,
-    crypto::deterministic_random_account_key,
+    crypto::deterministic_random_account_private_key,
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     id::UID,
@@ -37,7 +37,7 @@ use test_cluster::TestClusterBuilder;
 #[sim_test]
 async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     // Create a cluster
-    let (address, _) = deterministic_random_account_key();
+    let (address, _) = deterministic_random_account_private_key();
 
     let nft = Nft {
         id: UID::new(ObjectId::random()),

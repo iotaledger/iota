@@ -10,7 +10,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
 use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionDigest, Version};
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     error::{IotaError, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
@@ -77,7 +77,7 @@ async fn test_valid_user_transaction_passes() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_id = ObjectId::random();
@@ -166,7 +166,7 @@ async fn test_duplicate_transaction_deduplicated() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_id = ObjectId::random();
@@ -226,7 +226,7 @@ async fn test_mixed_batch_filtering() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let obj1_id = ObjectId::random();
@@ -304,7 +304,7 @@ async fn test_simple_conflict() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
     let recipient2 = Address::random();
 
@@ -397,7 +397,7 @@ async fn test_stale_version_dropped_fresh_kept() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_id = ObjectId::random();
@@ -509,7 +509,7 @@ async fn test_no_conflict() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
     let recipient2 = Address::random();
 
@@ -596,7 +596,7 @@ async fn test_chain_conflict() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
     let recipient2 = Address::random();
     let recipient3 = Address::random();
@@ -707,7 +707,7 @@ async fn test_multiple_conflicts_in_batch() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_a_id = ObjectId::random();
@@ -825,7 +825,7 @@ async fn test_gas_object_conflict() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
     let recipient2 = Address::random();
 
@@ -912,7 +912,7 @@ async fn test_winner_blocks_multiple_losers() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_a_id = ObjectId::random();
@@ -1034,7 +1034,7 @@ async fn test_dropped_tx_does_not_acquire_locks() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_a_id = ObjectId::random();
@@ -1187,7 +1187,7 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_id = ObjectId::random();
@@ -1283,7 +1283,7 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     // One owned object spent by both transactions, plus a distinct gas object each
@@ -1406,7 +1406,7 @@ struct LockTierSetup {
     authority: Arc<crate::authority::AuthorityState>,
     epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
     sender: Address,
-    sender_key: AccountKeyPair,
+    sender_key: AccountPrivateKey,
     recipient: Address,
     object_ref: ObjectReference,
     gas_ref: ObjectReference,
@@ -1420,7 +1420,7 @@ async fn setup_lock_tier() -> LockTierSetup {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1773,7 +1773,7 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1831,7 +1831,7 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1884,7 +1884,7 @@ async fn post_consensus_validation_uses_local_config_when_disabled() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1934,7 +1934,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
