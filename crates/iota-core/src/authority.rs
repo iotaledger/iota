@@ -225,6 +225,7 @@ pub mod authority_store_types;
 pub mod epoch_start_configuration;
 pub mod historic_ledger;
 pub mod historic_objects;
+pub mod ledger_backlog_migration;
 pub mod object_backlog_sweep;
 pub mod shared_object_congestion_tracker;
 pub mod shared_object_version_manager;

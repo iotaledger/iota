@@ -33,7 +33,7 @@ use iota_core::{
         authority_store_tables::{AuthorityPerpetualTables, AuthorityPerpetualTablesOptions},
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
-        object_backlog_sweep,
+        ledger_backlog_migration, object_backlog_sweep,
         shared_object_version_manager::Schedulable,
     },
     authority_aggregator::{
@@ -617,6 +617,28 @@ impl IotaNode {
         .await
         .map_err(|e| {
             anyhow!("failed to sweep the object versions superseded before this build: {e}")
+        })?;
+
+        // Before any service starts: the ledger and checkpoint history written
+        // before this build is in the flat tables until this returns, where
+        // nothing reads it, so a checkpoint written then cannot be resolved by
+        // digest and the checkpoint executor would panic on it.
+        // TODO(https://github.com/iotaledger/iota/issues/12763): remove
+        // this call once every database has migrated its pre-bucket ledger and
+        // checkpoint history.
+        ledger_backlog_migration::migrate(
+            store.clone(),
+            checkpoint_store.clone(),
+            epoch_store.epoch(),
+            config
+                .authority_store_pruning_config
+                .num_epochs_to_retain_for_checkpoints(),
+        )
+        .await
+        .map_err(|e| {
+            anyhow!(
+                "failed to migrate the ledger and checkpoint history written before this build: {e}"
+            )
         })?;
 
         info!("creating state sync store");

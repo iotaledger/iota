@@ -86,6 +86,7 @@ use crate::{
     authority::{
         AuthorityState,
         authority_per_epoch_store::{AuthorityPerEpochStore, scorer::MAX_SCORE},
+        ledger_backlog_migration::CheckpointBacklogMigrationProgress,
     },
     authority_client::{
         make_network_authority_clients_with_network_config, validator_peer::ValidatorPeerAPI,
@@ -244,6 +245,14 @@ pub struct CheckpointStoreTables {
     /// Watermarks used to determine the highest verified, fully synced, and
     /// fully executed checkpoints
     pub(crate) watermarks: DBMap<CheckpointWatermark, (CheckpointSequenceNumber, CheckpointDigest)>,
+
+    /// Which of the two flat checkpoint tables the one-time migration into the
+    /// per-epoch buckets is draining, and how far through it. Empty until the
+    /// migration first writes a slice.
+    /// TODO: remove this table once every database has migrated its
+    /// pre-bucket checkpoint history,
+    /// <https://github.com/iotaledger/iota/issues/12763>
+    pub(crate) checkpoint_backlog_migration_progress: DBMap<(), CheckpointBacklogMigrationProgress>,
 }
 
 impl CheckpointStoreTables {
@@ -328,6 +337,24 @@ impl CheckpointStore {
 
     pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
         CheckpointStoreTables::open_readonly(path)
+    }
+
+    /// Marks the one-time migration of the flat checkpoint tables into the
+    /// per-epoch buckets as already done, so that a later node start does not
+    /// walk them for nothing.
+    ///
+    /// Call this only on a database that cannot hold pre-bucket checkpoint
+    /// rows to begin with, such as one just populated by a formal-snapshot
+    /// restore: the summaries and contents a restore inserts go through
+    /// [`Self::insert_verified_checkpoint`] and
+    /// [`Self::insert_checkpoint_contents`], which already place them by the
+    /// checkpoint's own epoch.
+    /// TODO: remove this together with the migration,
+    /// <https://github.com/iotaledger/iota/issues/12763>
+    pub fn mark_checkpoint_backlog_migrated(&self) -> Result<(), TypedStoreError> {
+        self.tables
+            .checkpoint_backlog_migration_progress
+            .insert(&(), &CheckpointBacklogMigrationProgress::Done)
     }
 
     #[instrument(level = "info", skip_all)]

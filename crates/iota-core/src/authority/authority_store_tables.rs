@@ -33,6 +33,7 @@ use crate::authority::{
     epoch_start_configuration::EpochStartConfiguration,
     historic_ledger::HistoricLedger,
     historic_objects::HistoricObjects,
+    ledger_backlog_migration::LedgerBacklogMigrationProgress,
     object_backlog_sweep::ObjectBacklogSweepProgress,
 };
 
@@ -127,8 +128,10 @@ pub struct AuthorityPerpetualTables {
     /// have been executed locally, or it may have been synced through
     /// state-sync but hasn't been executed yet.
     ///
-    /// Prunes with the ledger: this is half of the `ExecutionData` peers
-    /// sync, and it is also the transaction body every API read returns.
+    /// Superseded by [`HistoricLedger`]: a transaction body is written to and
+    /// read from the bucket of the epoch that executes it. Rows written before
+    /// the move are still on disk here, and the one-time migration into the
+    /// buckets is their only reader.
     pub(crate) transactions: DBMap<TransactionDigest, TrustedTransaction>,
 
     /// A map between the transaction digest of a certificate to the effects of
@@ -144,9 +147,8 @@ pub struct AuthorityPerpetualTables {
     /// It's also possible for the effects to be reverted if the transaction
     /// didn't make it into the epoch.
     ///
-    /// Prunes with the ledger: this is the other half of the `ExecutionData`
-    /// peers sync, and it carries `events_digest`, the only marker that
-    /// distinguishes "produced no events" from "events missing".
+    /// Superseded by [`HistoricLedger`] the same way `transactions` is, and
+    /// with the same one reader left for the rows written before the move.
     pub(crate) effects: DBMap<TransactionEffectsDigest, TransactionEffects>,
 
     /// Transactions that have been executed locally on this node. We need this
@@ -155,30 +157,26 @@ pub struct AuthorityPerpetualTables {
     /// transactions to be executed, we wait for them to appear in this
     /// table. When we revert transactions, we remove them from both tables.
     ///
-    /// Prunes with the ledger, in the same batch as `transactions` and
-    /// `effects`, since it tracks the same execution record.
+    /// Superseded by [`HistoricLedger`] the same way `transactions` is, and
+    /// with the same one reader left for the rows written before the move.
     pub(crate) executed_effects: DBMap<TransactionDigest, TransactionEffectsDigest>,
 
     /// Events produced by each transaction, keyed by the transaction's
     /// digest.
     ///
-    /// Only the APIs read this — peers never receive events, since state
-    /// sync carries `(transaction, effects)` and each node re-executes to
-    /// produce its own. It is nonetheless pruned with the ledger rather
-    /// than with the RPC index, for two reasons: the event indexes are
-    /// rebuilt from it and have no other source, and a read of a
-    /// transaction whose events were pruned cannot currently be told from
-    /// one racing execution, so the two must disappear together.
+    /// Superseded by [`HistoricLedger`] the same way `transactions` is, and
+    /// with the same one reader left for the rows written before the move.
     pub(crate) events_2: DBMap<TransactionDigest, TransactionEvents>,
 
     /// Epoch and checkpoint of transactions finalized by checkpoint
     /// executor.
     ///
-    /// Only the APIs read this, but it prunes with the transaction record
-    /// rather than with the RPC index: it answers whether a transaction was
-    /// confirmed, and a missing answer cannot be told from "not confirmed".
-    /// A finality answer must not be able to expire before the transaction
-    /// it describes, so it is deleted in the same batch as `transactions`.
+    /// Superseded by [`HistoricLedger`], which keys the same answer by
+    /// transaction digest inside the bucket of the epoch that finalized it, so
+    /// the epoch is the bucket's and the row holds only the sequence number.
+    /// Rows written before the move are still on disk here; besides the
+    /// one-time migration into the buckets, they are also what tells that
+    /// migration which epoch a transaction's other rows belong to.
     ///
     /// Note, there is a table with the same name in
     /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
@@ -248,6 +246,14 @@ pub struct AuthorityPerpetualTables {
     /// TODO: remove this table once every database has swept the pre-bucket
     /// backlog, <https://github.com/iotaledger/iota/issues/12712>
     pub(crate) object_backlog_sweep_checkpoint: DBMap<(), CheckpointSequenceNumber>,
+
+    /// Which of the flat ledger tables the one-time migration into the
+    /// per-epoch buckets is draining, and how far through it. Empty until the
+    /// migration first writes a slice.
+    /// TODO: remove this table once every database has migrated its
+    /// pre-bucket ledger history,
+    /// <https://github.com/iotaledger/iota/issues/12763>
+    pub(crate) ledger_backlog_migration_progress: DBMap<(), LedgerBacklogMigrationProgress>,
 }
 
 /// The total IOTA supply used during conservation checks.
@@ -683,6 +689,23 @@ impl AuthorityPerpetualTables {
     pub fn mark_object_backlog_swept(&self) -> IotaResult {
         self.object_backlog_sweep_progress
             .insert(&(), &ObjectBacklogSweepProgress::Done)?;
+        Ok(())
+    }
+
+    /// Marks the one-time migration of the flat ledger tables into the
+    /// per-epoch buckets as already done, so that a later node start does not
+    /// walk them for nothing.
+    ///
+    /// Call this only on a database that cannot hold pre-bucket ledger rows to
+    /// begin with, such as one just populated by a formal-snapshot restore: a
+    /// restore writes no ledger row at all, since a snapshot carries the live
+    /// object set and the epochs' closing summaries and no transaction
+    /// history.
+    /// TODO: remove this together with the migration,
+    /// <https://github.com/iotaledger/iota/issues/12763>
+    pub fn mark_ledger_backlog_migrated(&self) -> IotaResult {
+        self.ledger_backlog_migration_progress
+            .insert(&(), &LedgerBacklogMigrationProgress::Done)?;
         Ok(())
     }
 
