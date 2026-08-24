@@ -704,7 +704,7 @@ async fn test_a_bucket_marked_expiring_is_left_out_of_the_walk() {
 #[tokio::test]
 async fn test_expiry_keeps_a_head_that_still_buries_a_live_version() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic) =
+    let (perpetual, historic, _historic_ledger) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     // A version the pre-bucket backlog sweep failed to relocate, and the
@@ -731,7 +731,7 @@ async fn test_expiry_keeps_a_head_that_still_buries_a_live_version() {
     drop(bucket);
 
     historic.ensure(2).unwrap();
-    assert_eq!(historic.prune(1).unwrap(), Some(2));
+    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
 
     assert!(
         perpetual.objects.get(&head).unwrap().is_some(),
