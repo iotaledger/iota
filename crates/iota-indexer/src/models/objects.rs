@@ -84,7 +84,7 @@ impl TryFrom<IndexedObject> for StoredCheckpointedObject {
         } else {
             None
         };
-        let tag = object.data.opt_object_type();
+        let object_type = object.data.opt_object_type();
 
         Ok(Self {
             object_id: object.id().as_bytes().to_vec(),
@@ -94,10 +94,10 @@ impl TryFrom<IndexedObject> for StoredCheckpointedObject {
             checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
             owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
-            object_type: tag.map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: tag.map(|t| t.address().as_bytes().to_vec()),
-            object_type_module: tag.map(|t| t.module().to_string()),
-            object_type_name: tag.map(|t| t.name().to_string()),
+            object_type: object_type.map(|t| t.to_canonical_string(/* with_prefix */ true)),
+            object_type_package: object_type.map(|t| t.address().as_bytes().to_vec()),
+            object_type_module: object_type.map(|t| t.module().to_string()),
+            object_type_name: object_type.map(|t| t.name().to_string()),
             serialized_object: Some(bcs::to_bytes(&object).unwrap()),
             coin_type,
             coin_balance: coin_balance.map(|b| b as i64),

@@ -171,7 +171,7 @@ impl TryFrom<IotaObjectResponse> for ObjectInfo {
             object_id,
             version,
             digest,
-            object_type: tag,
+            object_type,
             owner,
             previous_transaction,
             ..
@@ -181,7 +181,7 @@ impl TryFrom<IotaObjectResponse> for ObjectInfo {
             object_id,
             version,
             digest,
-            object_type: tag.ok_or_else(|| anyhow!("Object type not found for object."))?,
+            object_type: object_type.ok_or_else(|| anyhow!("Object type not found for object."))?,
             owner: owner.ok_or_else(|| anyhow!("Owner not found for object."))?,
             previous_transaction: previous_transaction
                 .ok_or_else(|| anyhow!("Transaction digest not found for object."))?,
