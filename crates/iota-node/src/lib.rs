@@ -360,6 +360,9 @@ impl IotaNode {
     ) -> Result<Arc<IotaNode>> {
         config.check_renamed_keys()?;
         config.validate()?;
+        config
+            .authority_store_pruning_config
+            .check_index_retention_within_ledger()?;
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         if config.supported_protocol_versions.is_none() {
             info!(
@@ -2874,11 +2877,13 @@ mod runtime_split_tests {
 
 #[cfg(test)]
 mod config_tests {
+    use std::sync::{Arc, atomic::AtomicBool};
+
     use iota_config::NodeConfig;
     use iota_metrics::RegistryService;
     use prometheus_filtered::Registry;
 
-    use super::IotaNode;
+    use super::{IotaNode, ServerVersion};
 
     /// `start_async` validates the config before it does anything else. That
     /// keeps the `expect` in `build_grpc_server` and the `debug_assert` in
@@ -2905,5 +2910,37 @@ genesis:
 
         let err = format!("{err:#}");
         assert!(err.contains("`grpc-api-config` is `null`"), "{err}");
+    }
+
+    /// `start_async` must refuse a config whose index retention outlives its
+    /// ledger retention before it opens a database or reads genesis, the way
+    /// it already refuses a config carrying a renamed key.
+    #[tokio::test]
+    async fn index_retention_beyond_ledger_retention_refuses_to_start() {
+        const TEMPLATE: &str = include_str!("../../iota-config/data/fullnode-template.yaml");
+        let mut config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        config
+            .authority_store_pruning_config
+            .num_epochs_to_retain_for_checkpoints = Some(2);
+        config
+            .authority_store_pruning_config
+            .num_epochs_to_retain_for_indexes = Some(3);
+
+        let err = IotaNode::start_async(
+            config,
+            RegistryService::new(Registry::new()),
+            ServerVersion::new("test", "0.0.0"),
+            tokio::runtime::Handle::current(),
+            Arc::new(AtomicBool::new(false)),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+
+        assert!(err.contains("num-epochs-to-retain-for-indexes"), "{err}");
+        assert!(
+            err.contains("num-epochs-to-retain-for-checkpoints"),
+            "{err}"
+        );
     }
 }
