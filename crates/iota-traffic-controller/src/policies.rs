@@ -46,9 +46,9 @@ type ClientRateLimiter =
     RateLimiter<NotKeyed, InMemoryState, MonotonicClock, NoOpMiddleware<Instant>>;
 
 /// Sustained `threshold` tallies per second, tolerating `threshold *
-/// window_size_secs` back to back.
-fn sustained_quota(threshold: u64, window_size_secs: u64) -> Quota {
-    let burst = threshold.saturating_mul(window_size_secs);
+/// burst_secs` back to back.
+fn sustained_quota(threshold: u64, burst_secs: u64) -> Quota {
+    let burst = threshold.saturating_mul(burst_secs);
     if burst > u32::MAX as u64 {
         warn!(
             "freq-threshold burst {burst} exceeds {} cells, clamping",
@@ -120,15 +120,15 @@ pub(super) struct PolicyResponse {
 /// How a threshold maps to a quota.
 #[derive(Clone, Copy)]
 enum QuotaKind {
-    Sustained { window_size_secs: u64 },
+    Sustained { burst_secs: u64 },
     ExactCount { reset_period: Duration },
 }
 
 impl QuotaKind {
     fn limiter(&self, threshold: u64, evictions: &IntCounter) -> Limiter {
         let quota = match self {
-            Self::Sustained { window_size_secs } if threshold >= 1 => {
-                sustained_quota(threshold, *window_size_secs)
+            Self::Sustained { burst_secs } if threshold >= 1 => {
+                sustained_quota(threshold, *burst_secs)
             }
             Self::ExactCount { reset_period } if threshold >= 2 => {
                 exact_count_quota(threshold, *reset_period)
@@ -282,14 +282,14 @@ impl TrafficControlPolicy {
             PolicyType::FreqThreshold(FreqThresholdConfig {
                 client_threshold,
                 proxied_client_threshold,
-                window_size_secs,
+                burst_secs,
             }) => {
-                if *window_size_secs == 0 {
-                    fatal!("freq-threshold window-size-secs must be non-zero");
+                if *burst_secs == 0 {
+                    fatal!("freq-threshold burst-secs must be more than zero");
                 }
                 Policy::Limit(RateLimitPolicy::new(
                     QuotaKind::Sustained {
-                        window_size_secs: *window_size_secs,
+                        burst_secs: *burst_secs,
                     },
                     clamp_threshold(*client_threshold, "client-threshold"),
                     Some(clamp_threshold(
@@ -359,13 +359,13 @@ mod tests {
     fn freq_threshold(
         client_threshold: u64,
         proxied_client_threshold: u64,
-        window_size_secs: u64,
+        burst_secs: u64,
     ) -> TrafficControlPolicy {
         TrafficControlPolicy::from_policy_type(
             &PolicyType::FreqThreshold(FreqThresholdConfig {
                 client_threshold,
                 proxied_client_threshold,
-                window_size_secs,
+                burst_secs,
             }),
             0,
             evictions(),

@@ -52,7 +52,7 @@ policy-config:
     freq-threshold:
       client-threshold: 1000  # Sustained tallies per second per direct client; requests are sampled by spam-sample-rate, so the tolerated request rate is proportionally higher
       proxied-client-threshold: 10  # Sustained tallies per second per proxied client
-      window-size-secs: 30  # Burst allowance: client-threshold * window-size-secs tallies back to back
+      burst-secs: 30  # Burst allowance: a client can send client-threshold * burst-secs tallies back to back
   
   # Policy for handling error traffic
   error-policy-type: NoOp  # NoOp, or a freq-threshold map like the spam policy above
@@ -96,6 +96,8 @@ firewall-config:
 
 While `dry-run` is enabled, the node sends no blocks to the firewall. Set `dry-run: false` in `policy-config` to start delegating.
 
+The `burst-secs` key had the name `window-size-secs` before. The node continues to accept the old name, but the old name is deprecated. Change your configuration to `burst-secs`.
+
 ## Non-Proxy Mode Configuration
 
 If your validator node receives traffic directly from clients (no proxy or load balancer in front), use this configuration:
@@ -109,7 +111,7 @@ policy-config:
     freq-threshold:
       client-threshold: 100  # Sustained tallies per second
       proxied-client-threshold: 10  # Currently ignored, as proxied client tallies are not reported; 0 would block every proxied client
-      window-size-secs: 30
+      burst-secs: 30
   error-policy-type: NoOp
   spam-sample-rate: 0.2
   dry-run: false  # Set to true initially to monitor without blocking
@@ -132,7 +134,7 @@ policy-config:
     freq-threshold:
       client-threshold: 1000  # Higher threshold for proxies that aggregate traffic
       proxied-client-threshold: 10  # Threshold for individual clients behind proxies
-      window-size-secs: 30
+      burst-secs: 30
   error-policy-type: NoOp
   spam-sample-rate: 0.2
   dry-run: false
@@ -200,14 +202,14 @@ policy-config:
       # Adjust these thresholds based on your expected legitimate traffic
       client-threshold: 50  # Sustained tallies per second
       proxied-client-threshold: 10  # Sustained tallies per second per client behind proxy
-      window-size-secs: 30
+      burst-secs: 30
   
   # Consider enabling error policy for production
   error-policy-type:
     freq-threshold:
       client-threshold: 20  # Error tallies per second
       proxied-client-threshold: 5
-      window-size-secs: 30
+      burst-secs: 30
   
   spam-sample-rate: 0.5  # Sample half of all requests
   dry-run: false  # Ensure this is false for actual protection
@@ -233,7 +235,7 @@ If legitimate traffic is being blocked:
 
 1. Increase the `client-threshold` and `proxied-client-threshold` values.
 2. Decrease the `connection-blocklist-ttl-sec` and `proxy-blocklist-ttl-sec` values.
-3. Increase `window-size-secs` to tolerate larger bursts.
+3. Increase `burst-secs` to permit larger bursts.
 
 If you're still experiencing DoS attacks:
 

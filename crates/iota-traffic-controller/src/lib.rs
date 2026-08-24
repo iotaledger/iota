@@ -1166,7 +1166,7 @@ mod tests {
         PolicyType::FreqThreshold(FreqThresholdConfig {
             client_threshold,
             proxied_client_threshold: client_threshold,
-            window_size_secs: 5,
+            burst_secs: 5,
         })
     }
 

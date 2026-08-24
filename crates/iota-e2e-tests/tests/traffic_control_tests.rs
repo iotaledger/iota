@@ -737,7 +737,7 @@ async fn test_traffic_sim_no_blocks() {
         spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
             client_threshold: 5_050,
             proxied_client_threshold: 5_050,
-            window_size_secs: 4,
+            burst_secs: 4,
         }),
         error_policy_type: PolicyType::NoOp,
         spam_sample_rate: Weight::one(),
@@ -771,7 +771,7 @@ async fn test_traffic_sim_with_blocks() {
         spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
             client_threshold: 5_000,
             proxied_client_threshold: 5_000,
-            window_size_secs: 1,
+            burst_secs: 1,
         }),
         error_policy_type: PolicyType::NoOp,
         spam_sample_rate: Weight::one(),
@@ -808,7 +808,7 @@ async fn test_traffic_sim_with_sampled_spam() {
         spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
             client_threshold: 250,
             proxied_client_threshold: 250,
-            window_size_secs: 1,
+            burst_secs: 1,
         }),
         spam_sample_rate: Weight::new(0.5).unwrap(),
         dry_run: false,

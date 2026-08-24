@@ -124,6 +124,13 @@ mod tests {
     fn full_weight_accepts_the_highest_sample() {
         assert!(Weight::one().accepts(1.0 - f32::EPSILON));
     }
+
+    #[test]
+    fn the_former_burst_key_still_parses() {
+        let config: super::FreqThresholdConfig =
+            serde_json::from_str(r#"{"window-size-secs": 7}"#).unwrap();
+        assert_eq!(config.burst_secs, 7);
+    }
 }
 
 fn validate_sample_rate<'de, D>(deserializer: D) -> Result<Weight, D::Error>
@@ -178,12 +185,13 @@ pub struct FreqThresholdConfig {
     /// Sustained tallies per second allowed from a single proxied client.
     #[serde(default = "default_proxied_client_threshold")]
     pub proxied_client_threshold: u64,
-    /// Burst allowance, expressed in seconds of the sustained rate: a client
-    /// may send up to `threshold * window_size_secs` tallies back to back
-    /// before being blocked, with the total burst clamped at `u32::MAX`. Zero
-    /// is rejected at startup.
-    #[serde(default = "default_window_size_secs")]
-    pub window_size_secs: u64,
+    /// The burst allowance, in seconds of the sustained rate. A client can
+    /// send `threshold * burst_secs` tallies back to back before the node
+    /// blocks it. The node limits the burst to `u32::MAX` tallies. A value of
+    /// zero stops the node at startup. The former name `window-size-secs` is
+    /// deprecated, but the node continues to accept it.
+    #[serde(default = "default_burst_secs", alias = "window-size-secs")]
+    pub burst_secs: u64,
 }
 
 impl Default for FreqThresholdConfig {
@@ -191,7 +199,7 @@ impl Default for FreqThresholdConfig {
         Self {
             client_threshold: default_client_threshold(),
             proxied_client_threshold: default_proxied_client_threshold(),
-            window_size_secs: default_window_size_secs(),
+            burst_secs: default_burst_secs(),
         }
     }
 }
@@ -207,7 +215,7 @@ fn default_proxied_client_threshold() -> u64 {
     10
 }
 
-fn default_window_size_secs() -> u64 {
+fn default_burst_secs() -> u64 {
     30
 }
 
@@ -220,7 +228,7 @@ pub enum PolicyType {
     NoOp,
 
     /// Rate limits each client IP to `threshold` tallies per second, tolerating
-    /// a burst of `threshold * window_size_secs` tallies.
+    /// a burst of `threshold * burst_secs` tallies.
     #[serde(rename = "freq-threshold", alias = "FreqThreshold")]
     FreqThreshold(FreqThresholdConfig),
 
@@ -289,12 +297,12 @@ impl PolicyConfig {
             client_id_source: ClientIdSource::SocketAddr,
             spam_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
                 client_threshold: 1000,
-                window_size_secs: 5,
+                burst_secs: 5,
                 ..FreqThresholdConfig::default()
             }),
             error_policy_type: PolicyType::FreqThreshold(FreqThresholdConfig {
                 client_threshold: 50,
-                window_size_secs: 5,
+                burst_secs: 5,
                 ..FreqThresholdConfig::default()
             }),
             spam_sample_rate: Weight::new(1.0).unwrap(),
