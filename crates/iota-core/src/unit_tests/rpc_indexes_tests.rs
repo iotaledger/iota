@@ -482,7 +482,9 @@ async fn test_pruned_epochs_are_not_recreated() {
     let tmp_dir = iota_common::tempdir();
     let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
     index_store.epochs_to_retain = Some(1);
-    seed_history_buckets(&index_store, 2);
+    // One historic epoch retained on top of the current one (epoch 2), so
+    // three epochs must exist for the oldest, epoch 0, to fall out of it.
+    seed_history_buckets(&index_store, 3);
     assert_eq!(index_store.prune().unwrap(), Some(1));
     assert!(index_store.ensure_history_bucket(0).is_err());
     assert!(index_store.ensure_history_bucket(1).is_ok());
@@ -502,17 +504,17 @@ async fn test_the_earliest_retained_epoch_never_moves_backwards() {
     let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
     index_store.epochs_to_retain = Some(2);
     seed_history_buckets(&index_store, 4);
-    assert_eq!(index_store.prune().unwrap(), Some(2));
+    assert_eq!(index_store.prune().unwrap(), Some(1));
 
     let mut index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
     index_store.epochs_to_retain = Some(52);
     assert_eq!(
         index_store.prune().unwrap(),
-        Some(2),
+        Some(1),
         "a retention reaching below the dropped epochs must not lower the floor"
     );
-    assert!(index_store.ensure_history_bucket(1).is_err());
-    assert!(index_store.ensure_history_bucket(2).is_ok());
+    assert!(index_store.ensure_history_bucket(0).is_err());
+    assert!(index_store.ensure_history_bucket(1).is_ok());
 }
 
 /// With index pruning configured, the backfill must stop at the
@@ -527,7 +529,7 @@ async fn test_backfill_stops_at_the_retention_horizon() {
 
     let index_dir = iota_common::tempdir();
     let mut index_store = open_index_store(index_dir.path().to_path_buf());
-    index_store.epochs_to_retain = Some(7);
+    index_store.epochs_to_retain = Some(6);
     // Buckets for epochs 0..=7: genesis' epoch 0 lies below the
     // retention horizon (epoch 1), while no pruning has run yet.
     seed_history_buckets(&index_store, 8);
@@ -767,9 +769,9 @@ async fn test_history_epoch_buckets_chain_and_prune() {
         vec![tx_0, tx_1]
     );
 
-    // Pruning to one retained epoch drops epoch 0's bucket wholesale,
-    // and pruning again is a no-op.
-    index_store.epochs_to_retain = Some(1);
+    // Pruning with no historic epochs retained keeps the current epoch
+    // only, dropping epoch 0's bucket wholesale; pruning again is a no-op.
+    index_store.epochs_to_retain = Some(0);
     assert_eq!(index_store.prune().unwrap(), Some(1));
     assert_eq!(index_store.lookup_digest(&tx_0).unwrap(), None);
     assert_eq!(
@@ -1641,13 +1643,13 @@ async fn test_digest_buckets_survive_a_reopen() {
     );
 }
 
-/// Pruning the one indexes retention drops whole epoch buckets, digests
-/// included, and the floor survives a reopen.
+/// Pruning with no historic epochs retained drops whole epoch buckets below
+/// the current one, digests included, and the floor survives a reopen.
 #[tokio::test]
 async fn test_digest_pruning_drops_expired_epoch_buckets() {
     let tmp_dir = iota_common::tempdir();
     let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
-    index_store.epochs_to_retain = Some(1);
+    index_store.epochs_to_retain = Some(0);
     let old_digest = TransactionDigest::random();
     let old_bucket = index_store.ensure_history_bucket(0).unwrap();
     let mut batch = index_store.tables.meta.batch();
@@ -2732,7 +2734,7 @@ async fn test_live_scan_gates_the_grpc_tables() {
 async fn test_prune_racing_a_reader_reports_an_error() {
     let tmp_dir = iota_common::tempdir();
     let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
-    index_store.epochs_to_retain = Some(1);
+    index_store.epochs_to_retain = Some(0);
     seed_history_buckets(&index_store, 2);
 
     // Every digest probe and range scan reads through such a snapshot.
@@ -2787,7 +2789,7 @@ async fn test_prune_racing_a_reader_reports_an_error() {
 async fn test_a_failed_drop_still_removes_the_bucket() {
     let tmp_dir = iota_common::tempdir();
     let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
-    index_store.epochs_to_retain = Some(1);
+    index_store.epochs_to_retain = Some(0);
     seed_history_buckets(&index_store, 2);
 
     // Makes the pruner's own drop fail: the column family is already gone.
@@ -2817,7 +2819,7 @@ async fn test_a_failed_drop_still_removes_the_bucket() {
 async fn test_a_bucket_below_the_floor_is_dropped_at_open() {
     let tmp_dir = iota_common::tempdir();
     let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
-    index_store.epochs_to_retain = Some(1);
+    index_store.epochs_to_retain = Some(0);
     seed_history_buckets(&index_store, 2);
     assert_eq!(index_store.prune().unwrap(), Some(1));
 
@@ -3004,7 +3006,7 @@ async fn test_backfill_stops_at_pruned_epochs() {
 
     let index_dir = iota_common::tempdir();
     let mut index_store = open_index_store(index_dir.path().to_path_buf());
-    index_store.epochs_to_retain = Some(1);
+    index_store.epochs_to_retain = Some(0);
     seed_history_buckets(&index_store, 2);
     assert_eq!(index_store.prune().unwrap(), Some(1));
     index_store
@@ -3555,31 +3557,20 @@ async fn test_account_owned_objects_walk_returns_each_row_once() {
     );
 }
 
-/// A retention of one epoch keeps the current epoch's history and drops
-/// every older epoch, with no floor raising it.
+/// Retention counts historic epochs on top of the current one: `N` keeps the
+/// current epoch and the `N` epochs before it.
 #[tokio::test]
-async fn test_retention_of_one_epoch_keeps_only_the_current_epoch() {
-    let path = iota_common::tempdir();
-    let store = open_index_store_with_retention(path.path(), Some(1));
+async fn test_retention_keeps_the_configured_historic_epochs() {
+    for (epochs_to_retain, earliest_retained) in [(0, 3), (1, 2), (2, 1)] {
+        let path = iota_common::tempdir();
+        let store = open_index_store_with_retention(path.path(), Some(epochs_to_retain));
 
-    for epoch in 0..4 {
-        store.ensure_history_bucket(epoch).unwrap();
+        for epoch in 0..4 {
+            store.ensure_history_bucket(epoch).unwrap();
+        }
+        assert_eq!(store.prune().unwrap(), Some(earliest_retained));
+        assert_eq!(store.history.earliest_retained(), earliest_retained);
     }
-    assert_eq!(store.prune().unwrap(), Some(3));
-    assert_eq!(store.history.earliest_retained(), 3);
-}
-
-/// A retention of two epochs keeps the current epoch and the one before it.
-#[tokio::test]
-async fn test_retention_of_two_epochs_keeps_the_previous_epoch() {
-    let path = iota_common::tempdir();
-    let store = open_index_store_with_retention(path.path(), Some(2));
-
-    for epoch in 0..4 {
-        store.ensure_history_bucket(epoch).unwrap();
-    }
-    assert_eq!(store.prune().unwrap(), Some(2));
-    assert_eq!(store.history.earliest_retained(), 2);
 }
 
 /// Pruning never drops the newest epoch's bucket, whatever a caller asks
