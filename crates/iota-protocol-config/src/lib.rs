@@ -210,6 +210,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Add the `iota::transaction_deny_rules` framework module and its
 //             reserved object ID 0xDE9 (dormant until deny-rule governance
 //             activates).
+//             Stop locking immutable objects in post-consensus conflict
+//             resolution.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3348,10 +3350,6 @@ impl ProtocolConfig {
                         cfg.feature_flags
                             .consensus_enable_absolute_score_leader_schedule = true;
                     }
-                    // Stop locking immutable objects in post-consensus conflict
-                    // resolution. Set on all chains; inert where the P-COOL flow
-                    // is off.
-                    cfg.feature_flags.pcool_skip_immutable_object_locks = true;
                 }
                 34 => {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
@@ -3360,6 +3358,10 @@ impl ProtocolConfig {
                         // unprovable block-fault counter.
                         cfg.scorer_version = Some(2);
                     }
+                    // Stop locking immutable objects in post-consensus conflict
+                    // resolution. Set on all chains; inert where the P-COOL flow
+                    // is off.
+                    cfg.feature_flags.pcool_skip_immutable_object_locks = true;
                 }
                 // Use this template when making changes:
                 //
