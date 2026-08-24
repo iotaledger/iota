@@ -270,7 +270,7 @@ async fn create_test_env() -> TestEnv {
         } else if object.is_coin() {
             coin_id = Some(object_id);
             coin_type = object.coin_type_opt().cloned();
-            coin_owner = owner.address_or_object().copied();
+            coin_owner = Some(*owner.as_address());
         } else if object.type_().unwrap().is_deny_cap_v1() {
             deny_cap = Some(object_id);
         }
