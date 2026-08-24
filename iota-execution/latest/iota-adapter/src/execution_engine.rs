@@ -1351,6 +1351,18 @@ mod checked {
                             )?;
                             return Ok(Mode::empty_results());
                         }
+                        EndOfEpochTransactionKind::TransactionDenyRulesCreate => {
+                            // Execution of the create arrives with the on-chain
+                            // deny rule governance wiring; nothing injects this
+                            // kind until then.
+                            return Err(ExecutionError::new(
+                                ExecutionErrorKind::VmInvariantViolation,
+                                Some(
+                                    "TransactionDenyRulesCreate cannot be executed at this protocol version"
+                                        .into(),
+                                ),
+                            ));
+                        }
                         _ => unimplemented!(
                             "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
                         ),
@@ -1382,6 +1394,17 @@ mod checked {
                     trace_builder_opt,
                 )?;
                 Ok(Mode::empty_results())
+            }
+            TransactionKind::TransactionDenyRulesUpdate(_) => {
+                // Execution of the update arrives with the on-chain deny rule
+                // governance wiring; nothing injects this kind until then.
+                Err(ExecutionError::new(
+                    ExecutionErrorKind::VmInvariantViolation,
+                    Some(
+                        "TransactionDenyRulesUpdate cannot be executed at this protocol version"
+                            .into(),
+                    ),
+                ))
             }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"

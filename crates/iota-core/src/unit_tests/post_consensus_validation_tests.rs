@@ -1748,7 +1748,7 @@ async fn already_executed_tx_locked_by_different_digest_is_fatal() {
 /// higher `generation` supersedes a previously activated set.
 fn activate_deny_rules(
     epoch_store: &Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
-    rules: iota_types::deny_rule_governance::DenyRuleSet,
+    rules: iota_sdk_types::DenyRuleSet,
     generation: u64,
 ) {
     let mut output = ConsensusCommitOutput::new(0);
@@ -1786,7 +1786,7 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
 
     activate_deny_rules(
         &epoch_store,
-        iota_types::deny_rule_governance::DenyRuleSet {
+        iota_sdk_types::DenyRuleSet {
             denied_addresses: [sender].into(),
             ..Default::default()
         },
@@ -1844,7 +1844,7 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
 
     activate_deny_rules(
         &epoch_store,
-        iota_types::deny_rule_governance::DenyRuleSet {
+        iota_sdk_types::DenyRuleSet {
             denied_addresses: [Address::random()].into(),
             ..Default::default()
         },
@@ -1897,7 +1897,7 @@ async fn post_consensus_validation_uses_local_config_when_disabled() {
 
     activate_deny_rules(
         &epoch_store,
-        iota_types::deny_rule_governance::DenyRuleSet {
+        iota_sdk_types::DenyRuleSet {
             denied_addresses: [sender].into(),
             ..Default::default()
         },
@@ -1947,7 +1947,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
 
     activate_deny_rules(
         &epoch_store,
-        iota_types::deny_rule_governance::DenyRuleSet {
+        iota_sdk_types::DenyRuleSet {
             denied_addresses: [sender].into(),
             ..Default::default()
         },

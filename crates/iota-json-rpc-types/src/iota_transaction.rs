@@ -474,6 +474,9 @@ pub enum IotaTransactionBlockKind {
     ProgrammableTransaction(IotaProgrammableTransactionBlock),
     /// A transaction which updates global randomness state
     RandomnessStateUpdate(IotaRandomnessStateUpdate),
+    /// A transaction which applies an add/remove delta to the on-chain
+    /// transaction deny rules
+    TransactionDenyRulesUpdate(IotaTransactionDenyRulesUpdate),
     /// The transaction which occurs only at the end of the epoch
     EndOfEpochTransaction(IotaEndOfEpochTransaction),
     // .. more transaction types go here
@@ -504,6 +507,9 @@ impl Display for IotaTransactionBlockKind {
             }
             Self::RandomnessStateUpdate(_) => {
                 writeln!(writer, "Transaction Kind: Randomness State Update")?;
+            }
+            Self::TransactionDenyRulesUpdate(_) => {
+                writeln!(writer, "Transaction Kind: Transaction Deny Rules Update")?;
             }
             Self::EndOfEpochTransaction(_) => {
                 writeln!(writer, "Transaction Kind: End of Epoch Transaction")?;
@@ -562,6 +568,24 @@ impl IotaTransactionBlockKind {
                     random_bytes: update.random_bytes,
                 }))
             }
+            TransactionKind::TransactionDenyRulesUpdate(update) => Ok(
+                Self::TransactionDenyRulesUpdate(IotaTransactionDenyRulesUpdate {
+                    epoch: update.epoch,
+                    round: update.round,
+                    added_addresses: update.added_addresses.into_iter().collect(),
+                    removed_addresses: update.removed_addresses.into_iter().collect(),
+                    added_objects: update.added_objects.into_iter().collect(),
+                    removed_objects: update.removed_objects.into_iter().collect(),
+                    added_packages: update.added_packages.into_iter().collect(),
+                    removed_packages: update.removed_packages.into_iter().collect(),
+                    package_publish_disabled: update.package_publish_disabled,
+                    package_upgrade_disabled: update.package_upgrade_disabled,
+                    shared_object_disabled: update.shared_object_disabled,
+                    user_transaction_disabled: update.user_transaction_disabled,
+                    receiving_objects_disabled: update.receiving_objects_disabled,
+                    move_authenticator_disabled: update.move_authenticator_disabled,
+                }),
+            ),
             TransactionKind::EndOfEpoch(end_of_epoch_tx) => {
                 Ok(Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
                     transactions: end_of_epoch_tx
@@ -578,6 +602,9 @@ impl IotaTransactionBlockKind {
                             }
                             EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                            }
+                            EndOfEpochTransactionKind::TransactionDenyRulesCreate => {
+                                IotaEndOfEpochTransactionKind::TransactionDenyRulesCreate
                             }
                             _ => unimplemented!(
                                 "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
@@ -635,6 +662,7 @@ impl IotaTransactionBlockKind {
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
+            Self::TransactionDenyRulesUpdate(_) => "TransactionDenyRulesUpdate",
             Self::EndOfEpochTransaction(_) => "EndOfEpochTransaction",
         }
     }
@@ -1950,6 +1978,45 @@ pub struct IotaRandomnessStateUpdate {
     pub random_bytes: Vec<u8>,
 }
 
+/// The add/remove delta a `TransactionDenyRulesUpdate` system transaction
+/// applies to the on-chain transaction deny rules; the switch states are
+/// absolute.
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct IotaTransactionDenyRulesUpdate {
+    #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
+    pub epoch: u64,
+
+    #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
+    pub round: u64,
+    #[schemars(with = "Vec<AddressSchema>")]
+    #[serde_as(as = "Vec<AddressSchema>")]
+    pub added_addresses: Vec<Address>,
+    #[schemars(with = "Vec<AddressSchema>")]
+    #[serde_as(as = "Vec<AddressSchema>")]
+    pub removed_addresses: Vec<Address>,
+    #[schemars(with = "Vec<ObjectIdSchema>")]
+    #[serde_as(as = "Vec<ObjectIdSchema>")]
+    pub added_objects: Vec<ObjectId>,
+    #[schemars(with = "Vec<ObjectIdSchema>")]
+    #[serde_as(as = "Vec<ObjectIdSchema>")]
+    pub removed_objects: Vec<ObjectId>,
+    #[schemars(with = "Vec<ObjectIdSchema>")]
+    #[serde_as(as = "Vec<ObjectIdSchema>")]
+    pub added_packages: Vec<ObjectId>,
+    #[schemars(with = "Vec<ObjectIdSchema>")]
+    #[serde_as(as = "Vec<ObjectIdSchema>")]
+    pub removed_packages: Vec<ObjectId>,
+    pub package_publish_disabled: bool,
+    pub package_upgrade_disabled: bool,
+    pub shared_object_disabled: bool,
+    pub user_transaction_disabled: bool,
+    pub receiving_objects_disabled: bool,
+    pub move_authenticator_disabled: bool,
+}
+
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaEndOfEpochTransaction {
@@ -1961,6 +2028,7 @@ pub struct IotaEndOfEpochTransaction {
 pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     ChangeEpochV2(IotaChangeEpochV2),
+    TransactionDenyRulesCreate,
 }
 
 #[serde_as]
@@ -2949,6 +3017,7 @@ pub enum IotaTransactionKind {
     ConsensusCommitPrologueV1 = 3,
     RandomnessStateUpdate = 5,
     EndOfEpochTransaction = 6,
+    TransactionDenyRulesUpdate = 7,
 }
 
 impl IotaTransactionKind {
@@ -2966,6 +3035,7 @@ impl From<&TransactionKind> for IotaTransactionKind {
             #[allow(deprecated)]
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => Self::SystemTransaction,
             TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
+            TransactionKind::TransactionDenyRulesUpdate(_) => Self::TransactionDenyRulesUpdate,
             TransactionKind::EndOfEpoch(_) => Self::EndOfEpochTransaction,
             TransactionKind::Programmable(_) => Self::ProgrammableTransaction,
             _ => unimplemented!(

@@ -850,9 +850,7 @@ impl DagState {
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
     }
 
-    /// Returns the leader round of the last solid commit (backward
-    /// compatibility).
-    #[cfg_attr(not(test), expect(dead_code))]
+    /// Returns the leader round of the last solid commit.
     pub(crate) fn last_solid_commit_leader_round(&self) -> Option<Round> {
         self.last_solid_subdag_base.as_ref().map(|s| s.leader.round)
     }
@@ -2999,6 +2997,27 @@ impl DagState {
             // empty blocks.
             GenericTransactionRef::BlockRef(_) => None,
         }
+    }
+
+    /// Rounds the last commit's leader is ahead of the last solid commit's
+    /// leader. Zero before anything is committed; while nothing is solid yet,
+    /// the whole committed range counts as lag.
+    pub(crate) fn solid_commit_lag_rounds(&self) -> Round {
+        let last_solid_leader_round = self
+            .last_solid_commit_leader_round()
+            .unwrap_or(GENESIS_ROUND);
+        self.last_commit_round()
+            .saturating_sub(last_solid_leader_round)
+    }
+
+    /// Whether local commits run further ahead of the last solid commit than
+    /// `solid_commit_lag_threshold` allows. Ignored during fast sync, where
+    /// commits are applied in bulk before their payloads arrive.
+    pub(crate) fn is_solidification_lagging(&self) -> bool {
+        // The fast-sync flag reads the store, so check it only when the gap
+        // is already over the threshold.
+        self.solid_commit_lag_rounds() > self.context.parameters.solid_commit_lag_threshold
+            && !self.fast_sync_ongoing()
     }
 }
 #[cfg(test)]
