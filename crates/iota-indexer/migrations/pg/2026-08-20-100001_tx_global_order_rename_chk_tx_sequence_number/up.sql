@@ -1,2 +1,0 @@
-ALTER TABLE tx_global_order RENAME COLUMN chk_tx_sequence_number TO tx_sequence_number;
-ALTER INDEX tx_global_order_chk_tx_seq_num RENAME TO tx_global_order_tx_seq_num;
