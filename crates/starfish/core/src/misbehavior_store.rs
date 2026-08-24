@@ -61,11 +61,26 @@ impl MisbehaviorStore {
             // future MisbehaviorCounts variant trips the compiler here.
             let storage_metrics = recovered.get(&authority_index).cloned().unwrap_or_default();
             match storage_metrics {
+                // V1 rows carry no bundle-part count; restore it as zero.
                 MisbehaviorCounts::V1(inner) => {
                     self.persisted.set_block_faults(
                         idx,
                         inner.faulty_blocks_provable,
                         inner.faulty_blocks_unprovable,
+                        0,
+                    );
+                    self.persisted.set_dag_faults(
+                        idx,
+                        inner.missing_proposals,
+                        inner.equivocations,
+                    );
+                }
+                MisbehaviorCounts::V2(inner) => {
+                    self.persisted.set_block_faults(
+                        idx,
+                        inner.faulty_blocks_provable,
+                        inner.faulty_blocks_unprovable,
+                        inner.invalid_bundle_parts,
                     );
                     self.persisted.set_dag_faults(
                         idx,
@@ -146,7 +161,12 @@ impl MisbehaviorStore {
         }
 
         if eviction_advanced || had_faulty {
-            Some(MisbehaviorCounts::V1(self.persisted.snapshot(idx)))
+            let counts = self.persisted.snapshot(idx);
+            let persisted = match context.protocol_config.scorer_version_as_option() {
+                Some(2) => MisbehaviorCounts::V2(counts),
+                _ => MisbehaviorCounts::V1(counts.fold_into_v1()),
+            };
+            Some(persisted)
         } else {
             None
         }
@@ -155,11 +175,11 @@ impl MisbehaviorStore {
     /// Flush buffered faulty block counts from in_memory to persisted
     /// for one authority. Returns true if any counts were moved.
     fn flush_faulty_block_buffer(&self, idx: usize) -> bool {
-        let (prov, unprov) = self.in_memory.drain_block_faults(idx);
-        if prov == 0 && unprov == 0 {
+        let (prov, unprov, bundle) = self.in_memory.drain_block_faults(idx);
+        if prov == 0 && unprov == 0 && bundle == 0 {
             return false;
         }
-        self.persisted.add_block_faults(idx, prov, unprov);
+        self.persisted.add_block_faults(idx, prov, unprov, bundle);
         true
     }
 
@@ -173,13 +193,15 @@ impl MisbehaviorStore {
             .map(|i| {
                 let persisted = self.persisted.snapshot(i);
                 let in_memory = self.in_memory.snapshot(i);
-                MisbehaviorCounts::V1(MisbehaviorCountsV1 {
+                MisbehaviorCounts::V2(MisbehaviorCountsV2 {
                     faulty_blocks_provable: persisted.faulty_blocks_provable
                         + in_memory.faulty_blocks_provable,
                     faulty_blocks_unprovable: persisted.faulty_blocks_unprovable
                         + in_memory.faulty_blocks_unprovable,
                     missing_proposals: persisted.missing_proposals + in_memory.missing_proposals,
                     equivocations: persisted.equivocations + in_memory.equivocations,
+                    invalid_bundle_parts: persisted.invalid_bundle_parts
+                        + in_memory.invalid_bundle_parts,
                 })
             })
             .collect()
@@ -201,6 +223,8 @@ impl MisbehaviorStore {
     ///   distributing a block they could have verified themselves.
     /// - Unprovable faults (bad/missing signature): charged to `peer` only — we
     ///   can't verify the author field, but we know who sent it to us.
+    /// - Bundle-part faults (corrupt framing, metadata, or shard): charged to
+    ///   `peer` only, under the dedicated bundle-part counter.
     pub(crate) fn record_faulty_block(
         &self,
         peer: AuthorityIndex,
@@ -229,6 +253,9 @@ impl MisbehaviorStore {
             }
             FaultType::Unprovable => {
                 self.in_memory.record_block_fault_unprovable(peer_idx);
+            }
+            FaultType::BundlePart => {
+                self.in_memory.record_bundle_part_fault(peer_idx);
             }
             FaultType::Untracked => {}
         }
@@ -269,12 +296,13 @@ enum FaultType {
     /// The signed block header itself is proof of misbehavior.
     Provable,
     /// Can't prove authorship — either because the signature is bad or
-    /// missing, because the header is rejected by a pre-signature check
+    /// missing, or because the header is rejected by a pre-signature check
     /// (epoch / genesis / author-vs-peer mismatch) so its `author` field
-    /// can't be trusted, or because the fault is in a relayed bundle part
-    /// (framing, metadata, or shard) that isn't tied to a verified author.
-    /// Charged to the sending peer, not the claimed author.
+    /// can't be trusted. Charged to the sending peer, not the claimed author.
     Unprovable,
+    /// Corrupt or invalid relayed bundle part (framing, metadata, or shard)
+    /// that isn't tied to a verified author. Charged to the sending peer.
+    BundlePart,
     /// Not counted as misbehavior.
     Untracked,
 }
@@ -298,16 +326,17 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::SerializedTransactionsTooLarge { .. }
         | ConsensusError::TransactionCommitmentFailure { .. }
         | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
-        | ConsensusError::TooManyFetchedHeadersReturned { .. }
+        | ConsensusError::TooManyFetchedHeadersReturned { .. } => FaultType::Unprovable,
+
         // Corrupt or invalid relayed bundle parts (framing, additional-header
         // round, and shard structure/proof). We know which peer relayed them
         // but can't tie them to a verified author.
-        | ConsensusError::MalformedShard(_)
+        ConsensusError::MalformedShard(_)
         | ConsensusError::TooBigHeaderRoundInABundle { .. }
         | ConsensusError::TooBigShardRoundInABundle { .. }
         | ConsensusError::IncorrectShardProof { .. }
         | ConsensusError::UnrequestedHeaderOutOfWindow { .. }
-        | ConsensusError::SerializedShardTooLarge { .. } => FaultType::Unprovable,
+        | ConsensusError::SerializedShardTooLarge { .. } => FaultType::BundlePart,
 
         // Checks that run only after the author's signature is verified, so the
         // signed header itself proves the author produced a block that violates
@@ -391,7 +420,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
     }
 }
 
-/// The four Prometheus gauges that mirror `MisbehaviorCountsV1` for one
+/// The five Prometheus gauges that mirror `MisbehaviorCountsV2` for one
 /// `(authority, source)` pair, pre-resolved at construction so per-call
 /// methods don't repeat `with_label_values` lookups and don't have to
 /// thread `&NodeMetrics` and `hostname` through every call site.
@@ -400,6 +429,7 @@ struct AuthorityGauges {
     block_fault_unprovable: IntGauge,
     missing_proposals: IntGauge,
     equivocations: IntGauge,
+    invalid_bundle_parts: IntGauge,
 }
 
 /// Per-authority misbehavior counters and matching Prometheus gauges.
@@ -407,7 +437,7 @@ struct AuthorityGauges {
 /// per-authority `Mutex` lock, so concurrent observers see counter and gauge
 /// agree.
 struct CommitteeMisbehaviorCounts {
-    authorities: Vec<Mutex<MisbehaviorCountsV1>>,
+    authorities: Vec<Mutex<MisbehaviorCountsV2>>,
     gauges: Vec<AuthorityGauges>,
 }
 
@@ -430,12 +460,15 @@ impl CommitteeMisbehaviorCounts {
                         .missing_proposals_by_authority
                         .with_label_values(labels),
                     equivocations: metrics.equivocations_by_authority.with_label_values(labels),
+                    invalid_bundle_parts: metrics
+                        .invalid_bundle_parts_by_peer
+                        .with_label_values(labels),
                 }
             })
             .collect();
         Self {
             authorities: (0..committee.size())
-                .map(|_| Mutex::new(MisbehaviorCountsV1::default()))
+                .map(|_| Mutex::new(MisbehaviorCountsV2::default()))
                 .collect(),
             gauges,
         }
@@ -453,36 +486,48 @@ impl CommitteeMisbehaviorCounts {
         self.gauges[idx].block_fault_unprovable.inc();
     }
 
-    /// Atomically take both block-fault counters AND zero the matching gauges.
-    /// The caller transfers the returned `(provable, unprovable)` into the
-    /// persisted bucket via `add_block_faults`.
-    fn drain_block_faults(&self, idx: usize) -> (u64, u64) {
+    fn record_bundle_part_fault(&self, idx: usize) {
+        let mut c = self.authorities[idx].lock().unwrap();
+        c.invalid_bundle_parts += 1;
+        self.gauges[idx].invalid_bundle_parts.inc();
+    }
+
+    /// Atomically take all block-fault counters AND zero the matching gauges.
+    /// The caller transfers the returned `(provable, unprovable,
+    /// bundle_parts)` into the persisted bucket via `add_block_faults`.
+    fn drain_block_faults(&self, idx: usize) -> (u64, u64, u64) {
         let mut c = self.authorities[idx].lock().unwrap();
         let prov = std::mem::take(&mut c.faulty_blocks_provable);
         let unprov = std::mem::take(&mut c.faulty_blocks_unprovable);
+        let bundle = std::mem::take(&mut c.invalid_bundle_parts);
         self.gauges[idx].block_fault_provable.set(0);
         self.gauges[idx].block_fault_unprovable.set(0);
-        (prov, unprov)
+        self.gauges[idx].invalid_bundle_parts.set(0);
+        (prov, unprov, bundle)
     }
 
     /// Receive a `drain_block_faults` payload — additive on counters and
     /// gauges.
-    fn add_block_faults(&self, idx: usize, prov: u64, unprov: u64) {
+    fn add_block_faults(&self, idx: usize, prov: u64, unprov: u64, bundle: u64) {
         let mut c = self.authorities[idx].lock().unwrap();
         c.faulty_blocks_provable += prov;
         c.faulty_blocks_unprovable += unprov;
+        c.invalid_bundle_parts += bundle;
         self.gauges[idx].block_fault_provable.add(prov as i64);
         self.gauges[idx].block_fault_unprovable.add(unprov as i64);
+        self.gauges[idx].invalid_bundle_parts.add(bundle as i64);
     }
 
-    /// Overwrite both block-fault counters and gauges. Used to restore from
+    /// Overwrite all block-fault counters and gauges. Used to restore from
     /// storage on startup.
-    fn set_block_faults(&self, idx: usize, prov: u64, unprov: u64) {
+    fn set_block_faults(&self, idx: usize, prov: u64, unprov: u64, bundle: u64) {
         let mut c = self.authorities[idx].lock().unwrap();
         c.faulty_blocks_provable = prov;
         c.faulty_blocks_unprovable = unprov;
+        c.invalid_bundle_parts = bundle;
         self.gauges[idx].block_fault_provable.set(prov as i64);
         self.gauges[idx].block_fault_unprovable.set(unprov as i64);
+        self.gauges[idx].invalid_bundle_parts.set(bundle as i64);
     }
 
     /// Overwrite the DAG-observed faults (`missing_proposals` +
@@ -507,23 +552,24 @@ impl CommitteeMisbehaviorCounts {
     }
 
     /// Stable read clone of one authority's counters.
-    fn snapshot(&self, idx: usize) -> MisbehaviorCountsV1 {
+    fn snapshot(&self, idx: usize) -> MisbehaviorCountsV2 {
         self.authorities[idx].lock().unwrap().clone()
     }
 
     fn reset(&self) {
         for (m, g) in self.authorities.iter().zip(self.gauges.iter()) {
             let mut c = m.lock().unwrap();
-            *c = MisbehaviorCountsV1::default();
+            *c = MisbehaviorCountsV2::default();
             g.block_fault_provable.set(0);
             g.block_fault_unprovable.set(0);
             g.missing_proposals.set(0);
             g.equivocations.set(0);
+            g.invalid_bundle_parts.set(0);
         }
     }
 
     #[cfg(test)]
-    fn collect<F: Fn(&MisbehaviorCountsV1) -> u64>(&self, field: F) -> Vec<u64> {
+    fn collect<F: Fn(&MisbehaviorCountsV2) -> u64>(&self, field: F) -> Vec<u64> {
         self.authorities
             .iter()
             .map(|m| field(&m.lock().unwrap()))
@@ -554,11 +600,12 @@ fn calculate_misbehavior_counts_for_range(
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MisbehaviorCounts {
     V1(MisbehaviorCountsV1),
+    V2(MisbehaviorCountsV2),
 }
 
 impl Default for MisbehaviorCounts {
     fn default() -> Self {
-        Self::V1(MisbehaviorCountsV1::default())
+        Self::V2(MisbehaviorCountsV2::default())
     }
 }
 
@@ -568,6 +615,31 @@ pub struct MisbehaviorCountsV1 {
     pub faulty_blocks_unprovable: u64,
     pub missing_proposals: u64,
     pub equivocations: u64,
+}
+
+/// Extends `MisbehaviorCountsV1` with a dedicated counter for invalid relayed
+/// bundle parts (framing, metadata, or shard faults).
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+pub struct MisbehaviorCountsV2 {
+    pub faulty_blocks_provable: u64,
+    pub faulty_blocks_unprovable: u64,
+    pub missing_proposals: u64,
+    pub equivocations: u64,
+    pub invalid_bundle_parts: u64,
+}
+
+impl MisbehaviorCountsV2 {
+    /// Folds the bundle-part count into `faulty_blocks_unprovable`.
+    fn fold_into_v1(&self) -> MisbehaviorCountsV1 {
+        MisbehaviorCountsV1 {
+            faulty_blocks_provable: self.faulty_blocks_provable,
+            faulty_blocks_unprovable: self
+                .faulty_blocks_unprovable
+                .saturating_add(self.invalid_bundle_parts),
+            missing_proposals: self.missing_proposals,
+            equivocations: self.equivocations,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -612,12 +684,39 @@ impl MisbehaviorCounts {
             equivocations,
         })
     }
+
+    pub(crate) fn new_v2_for_test(
+        faulty_blocks_provable: u64,
+        faulty_blocks_unprovable: u64,
+        missing_proposals: u64,
+        equivocations: u64,
+        invalid_bundle_parts: u64,
+    ) -> Self {
+        Self::V2(MisbehaviorCountsV2 {
+            faulty_blocks_provable,
+            faulty_blocks_unprovable,
+            missing_proposals,
+            equivocations,
+            invalid_bundle_parts,
+        })
+    }
+
+    /// Test accessor for the V2 payload; panics on any other variant. All
+    /// counts produced by a running store are V2 (V1 exists only for reading
+    /// old persisted rows).
+    pub(crate) fn as_v2(&self) -> &MisbehaviorCountsV2 {
+        match self {
+            Self::V2(inner) => inner,
+            other => panic!("expected MisbehaviorCounts::V2, got {other:?}"),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
+    use fastcrypto::error::FastCryptoError;
     use starfish_config::Parameters;
 
     use super::*;
@@ -745,13 +844,54 @@ mod tests {
             2,
             &context,
         );
-        assert_eq!(result, Some(MisbehaviorCounts::new_v1_for_test(0, 0, 3, 0)));
+        assert_eq!(
+            result,
+            Some(MisbehaviorCounts::new_v2_for_test(0, 0, 3, 0, 0))
+        );
 
         // Out-of-bounds authority → None
         let oob = AuthorityIndex::new_for_test(4);
         let result =
             store.update_misbehavior_counts_on_eviction(oob, &recent_refs, 2, 1, 3, &context);
         assert!(result.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_persisted_variant_follows_scorer_version() {
+        // With scorer version 2 inactive, persisted rows use the V1 format so a
+        // rollback to a binary without the V2 variant can still read them, and
+        // the bundle-part count folds into `faulty_blocks_unprovable`.
+        let mut context = Context::new_for_test(4).0;
+        context.protocol_config.set_scorer_version_for_testing(1);
+        let context = Arc::new(context);
+        let store = MisbehaviorStore::new(&context);
+        let authority = AuthorityIndex::new_for_test(0);
+
+        store.record_faulty_block(
+            authority,
+            authority,
+            &ConsensusError::WrongEpoch {
+                expected: 1,
+                actual: 2,
+            },
+        );
+        store.record_faulty_block(
+            authority,
+            authority,
+            &ConsensusError::MalformedShard(bcs::Error::Custom("bad".to_string())),
+        );
+
+        let result = store.update_misbehavior_counts_on_eviction(
+            authority,
+            &BTreeSet::new(),
+            0,
+            0,
+            1,
+            &context,
+        );
+
+        // V1 row: the one bundle part folds into unprovable (1 + 1).
+        assert_eq!(result, Some(MisbehaviorCounts::new_v1_for_test(0, 2, 0, 0)));
     }
 
     #[tokio::test]
@@ -910,10 +1050,10 @@ mod tests {
 
     // ── Error classification tests ────────────────────────────────────────────
 
-    /// Classifies `error` and returns `(provable_delta, unprovable_delta)` for
-    /// authority 0 (used as both peer and author so there is no peer-vs-author
-    /// split to consider).
-    fn classify_via_record(error: &ConsensusError) -> (u64, u64) {
+    /// Classifies `error` and returns `(provable_delta, unprovable_delta,
+    /// bundle_part_delta)` for authority 0 (used as both peer and author so
+    /// there is no peer-vs-author split to consider).
+    fn classify_via_record(error: &ConsensusError) -> (u64, u64, u64) {
         let context = Arc::new(Context::new_for_test(4).0);
         let store = MisbehaviorStore::new(&context);
         let authority = AuthorityIndex::new_for_test(0);
@@ -922,6 +1062,7 @@ mod tests {
         (
             counts.faulty_blocks_provable,
             counts.faulty_blocks_unprovable,
+            counts.invalid_bundle_parts,
         )
     }
 
@@ -969,9 +1110,10 @@ mod tests {
             },
         ];
         for e in cases {
-            let (prov, unprov) = classify_via_record(e);
+            let (prov, unprov, bundle) = classify_via_record(e);
             assert_eq!(prov, 1, "expected provable for {e:?}");
             assert_eq!(unprov, 0, "expected no unprovable for {e:?}");
+            assert_eq!(bundle, 0, "expected no bundle-part for {e:?}");
         }
     }
 
@@ -987,8 +1129,37 @@ mod tests {
                 AuthorityIndex::new_for_test(0),
                 AuthorityIndex::new_for_test(1),
             ),
-            // Corrupt or invalid relayed bundle parts: charged to the relaying
-            // peer, not to a verified author.
+            ConsensusError::MalformedHeader(bcs::Error::Custom("bad".to_string())),
+            ConsensusError::MalformedSignature(FastCryptoError::InvalidSignature),
+            ConsensusError::SignatureVerificationFailure(FastCryptoError::InvalidSignature),
+            ConsensusError::TransactionCommitmentFailure {
+                round: 3,
+                author: AuthorityIndex::new_for_test(0),
+                peer: AuthorityIndex::new_for_test(0),
+            },
+            ConsensusError::UnexpectedBlockHeaderForCommit {
+                peer: AuthorityIndex::new_for_test(0),
+                received: BlockRef::MIN,
+            },
+            ConsensusError::TooManyFetchedHeadersReturned {
+                peer: AuthorityIndex::new_for_test(0),
+                requested: 2,
+                received: 3,
+            },
+        ];
+        for e in cases {
+            let (prov, unprov, bundle) = classify_via_record(e);
+            assert_eq!(prov, 0, "expected no provable for {e:?}");
+            assert_eq!(unprov, 1, "expected unprovable for {e:?}");
+            assert_eq!(bundle, 0, "expected no bundle-part for {e:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_bundle_part_errors() {
+        // Corrupt or invalid relayed bundle parts: charged to the relaying
+        // peer under the dedicated bundle-part counter.
+        let cases: &[ConsensusError] = &[
             ConsensusError::MalformedShard(bcs::Error::Custom("bad".to_string())),
             ConsensusError::TooBigHeaderRoundInABundle {
                 header_round: 5,
@@ -1002,22 +1173,22 @@ mod tests {
                 peer: AuthorityIndex::new_for_test(0),
                 round: 3,
             },
-            // A fetched header outside the requested set: charged to the
-            // serving peer.
-            ConsensusError::UnexpectedBlockHeaderForCommit {
+            ConsensusError::UnrequestedHeaderOutOfWindow {
                 peer: AuthorityIndex::new_for_test(0),
-                received: BlockRef::MIN,
+                author: AuthorityIndex::new_for_test(1),
+                round: 10,
             },
-            ConsensusError::TooManyFetchedHeadersReturned {
+            ConsensusError::SerializedShardTooLarge {
                 peer: AuthorityIndex::new_for_test(0),
-                requested: 2,
-                received: 3,
+                size: 100,
+                limit: 50,
             },
         ];
         for e in cases {
-            let (prov, unprov) = classify_via_record(e);
+            let (prov, unprov, bundle) = classify_via_record(e);
             assert_eq!(prov, 0, "expected no provable for {e:?}");
-            assert_eq!(unprov, 1, "expected unprovable for {e:?}");
+            assert_eq!(unprov, 0, "expected no unprovable for {e:?}");
+            assert_eq!(bundle, 1, "expected bundle-part for {e:?}");
         }
     }
 
@@ -1051,9 +1222,10 @@ mod tests {
             ConsensusError::WrongShardVersion { actual: "V1" },
         ];
         for e in cases {
-            let (prov, unprov) = classify_via_record(e);
+            let (prov, unprov, bundle) = classify_via_record(e);
             assert_eq!(prov, 0, "expected no provable for {e:?}");
             assert_eq!(unprov, 0, "expected no unprovable (untracked) for {e:?}");
+            assert_eq!(bundle, 0, "expected no bundle-part (untracked) for {e:?}");
         }
     }
 
@@ -1088,11 +1260,60 @@ mod tests {
         // Untouched authorities are zero across both buckets.
         let provable_totals: Vec<u64> = snapshot
             .iter()
-            .map(|c| match c {
-                MisbehaviorCounts::V1(v1) => v1.faulty_blocks_provable,
-            })
+            .map(|c| c.as_v2().faulty_blocks_provable)
             .collect();
         assert_eq!(provable_totals, vec![5, 1, 0, 0]);
+    }
+
+    #[tokio::test]
+    async fn test_recovery_upgrades_v1_rows() {
+        // Persisted V1 rows (written before the bundle-part counter existed)
+        // restore with `invalid_bundle_parts` at zero; V2 rows restore fully.
+        let committee_size = 4;
+        let context = Arc::new(Context::new_for_test(committee_size).0);
+        let store = MisbehaviorStore::new(&context);
+
+        let recovered = BTreeMap::from([
+            (
+                AuthorityIndex::new_for_test(0),
+                MisbehaviorCounts::new_v1_for_test(1, 2, 3, 4),
+            ),
+            (
+                AuthorityIndex::new_for_test(1),
+                MisbehaviorCounts::new_v2_for_test(5, 6, 7, 8, 9),
+            ),
+        ]);
+        let recent_refs_by_authority = vec![BTreeSet::new(); committee_size];
+        let evicted_rounds = vec![0; committee_size];
+        store.initialize_misbehavior_counts(
+            recovered,
+            &recent_refs_by_authority,
+            &evicted_rounds,
+            0,
+            &context,
+        );
+
+        let totals = store.snapshot_totals();
+        assert_eq!(
+            *totals[0].as_v2(),
+            MisbehaviorCountsV2 {
+                faulty_blocks_provable: 1,
+                faulty_blocks_unprovable: 2,
+                missing_proposals: 3,
+                equivocations: 4,
+                invalid_bundle_parts: 0,
+            }
+        );
+        assert_eq!(
+            *totals[1].as_v2(),
+            MisbehaviorCountsV2 {
+                faulty_blocks_provable: 5,
+                faulty_blocks_unprovable: 6,
+                missing_proposals: 7,
+                equivocations: 8,
+                invalid_bundle_parts: 9,
+            }
+        );
     }
 
     #[tokio::test]

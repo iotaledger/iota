@@ -682,9 +682,10 @@ async fn scan_misbehavior_counts(
         .expect("scan should not fail");
     assert!(scanned.is_empty());
 
+    // One entry per envelope version so both round-trip through storage.
     let metrics_updates = [
         MisbehaviorCounts::new_v1_for_test(1, 2, 4, 3),
-        MisbehaviorCounts::new_v1_for_test(0, 0, 0, 0),
+        MisbehaviorCounts::new_v2_for_test(5, 6, 7, 8, 9),
     ];
     let authorities = [
         AuthorityIndex::new_for_test(0),

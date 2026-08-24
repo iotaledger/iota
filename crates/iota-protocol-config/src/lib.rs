@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 33;
+pub const MAX_PROTOCOL_VERSION: u64 = 34;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -204,6 +204,9 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             on mainnet.
 //             Enable the sliding-window reputation scoring and absolute-score
 //             bad-node selection on testnet
+// Version 34: Bump the scorer version to 2 on devnet: misbehavior reports
+//             carry a dedicated counter for invalid bundle parts, previously
+//             folded into the unprovable block-fault counter.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -3266,6 +3269,14 @@ impl ProtocolConfig {
                             .consensus_enable_sliding_window_leader_schedule = true;
                         cfg.feature_flags
                             .consensus_enable_absolute_score_leader_schedule = true;
+                    }
+                }
+                34 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Misbehavior reports carry a dedicated counter for
+                        // invalid bundle parts, previously folded into the
+                        // unprovable block-fault counter.
+                        cfg.scorer_version = Some(2);
                     }
                 }
                 // Use this template when making changes:
