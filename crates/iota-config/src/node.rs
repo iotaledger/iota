@@ -1172,9 +1172,10 @@ pub struct AuthorityStorePruningConfig {
     pub periodic_compaction_threshold_days: Option<usize>,
     /// Number of historic epochs of transactions, effects, events, and
     /// checkpoint data to keep. Controls transaction pruning.
-    ///   None — keep every epoch's bucket; transaction pruning is off.
-    ///   N    — keep the N most recent epochs, counting the epoch this
-    ///          retention is measured from as one of the N.
+    ///   None    — keep every epoch's bucket; transaction pruning is off.
+    ///   N       — keep the N most recent epochs, counting the epoch this
+    ///             retention is measured from as one of the N.
+    ///   0 and 1 — identical: both keep that epoch alone.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1227,11 +1228,19 @@ impl AuthorityStorePruningConfig {
     /// pruning off rather than choosing a bound to compare, so it is not
     /// treated as a violation either — only two explicit numbers where the
     /// index outlives the ledger are.
+    ///
+    /// Compares the *effective* retention rather than the raw configured
+    /// numbers: `epoch_buckets`'s `saturating_sub(n - 1)` and the RPC index
+    /// history's own `epochs_to_retain.max(1)` both keep just the anchor
+    /// epoch for either `0` or `1`, so the two configured values are
+    /// normalised through the same `max(1)` before they are compared —
+    /// otherwise `checkpoints: 0` with `indexes: 1`, which retains the same
+    /// single epoch on both sides, would be refused for no reason.
     pub fn check_index_retention_within_ledger(&self) -> Result<()> {
         let index = self.num_epochs_to_retain_for_indexes;
         let ledger = self.num_epochs_to_retain_for_checkpoints();
         if let (Some(index), Some(ledger)) = (index, ledger) {
-            if index > ledger {
+            if index.max(1) > ledger.max(1) {
                 anyhow::bail!(
                     "num-epochs-to-retain-for-indexes ({index}) must not exceed \
                      num-epochs-to-retain-for-checkpoints ({ledger}): a longer index retention \
@@ -1820,6 +1829,31 @@ mod tests {
         );
         assert!(err.contains('3'), "{err}");
         assert!(err.contains('2'), "{err}");
+    }
+
+    #[test]
+    fn a_zero_ledger_retention_accepts_a_one_index_retention() {
+        // Both keep exactly the anchor epoch: 0 and 1 are the same effective
+        // retention, so this must not be refused as "index exceeds ledger".
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(0),
+            num_epochs_to_retain_for_indexes: Some(1),
+            ..Default::default()
+        };
+        assert!(config.check_index_retention_within_ledger().is_ok());
+    }
+
+    #[test]
+    fn a_genuinely_larger_index_retention_is_still_refused_at_the_zero_one_boundary() {
+        // Ledger retention 0 is effectively 1 epoch, same as 1 would be; an
+        // index retention of 2 is still strictly larger than that and must
+        // still be refused.
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(0),
+            num_epochs_to_retain_for_indexes: Some(2),
+            ..Default::default()
+        };
+        assert!(config.check_index_retention_within_ledger().is_err());
     }
 
     #[test]
