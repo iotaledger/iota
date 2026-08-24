@@ -330,6 +330,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         self.inner
             .header_synchronizer
             .clear_verified_headers_cache();
+        info!(
+            "[{}] Components reinitialized, fast sync complete",
+            self.inner.sync_type.as_str()
+        );
         if self
             .inner
             .context
@@ -344,10 +348,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 self.inner.sync_type.as_str()
             );
         }
-        info!(
-            "[{}] Components reinitialized, fast sync complete",
-            self.inner.sync_type.as_str()
-        );
     }
 
     fn try_schedule_once(&mut self) {

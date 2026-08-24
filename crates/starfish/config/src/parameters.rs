@@ -147,7 +147,9 @@ pub struct Parameters {
 
     /// Reconnect block streams after fast commit sync reinitializes consensus,
     /// discarding bundles buffered against the previous state. Enabled by
-    /// default; operators can disable it locally.
+    /// default; operators can disable it locally. Has no effect unless
+    /// `enable_fast_commit_syncer` is also enabled, since only fast sync
+    /// signals the reset.
     #[serde(default = "Parameters::default_enable_block_stream_reset_on_fast_sync_exit")]
     pub enable_block_stream_reset_on_fast_sync_exit: bool,
 
