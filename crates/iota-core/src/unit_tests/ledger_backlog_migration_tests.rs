@@ -31,10 +31,16 @@ use crate::{
 /// newest epoch the seed below writes history for.
 const RUNNING_EPOCH: EpochId = 3;
 
-/// The narrowest window a node can really be given: 1 keeps only the epoch
-/// the migration is running in, so with the migration running in epoch 3 it
-/// keeps epoch 3 alone and leaves epochs 1 and 2 behind.
+/// The narrowest window a node can really be given: 1 keeps the epoch the
+/// migration is running in and the one below it, so with the migration
+/// running in epoch 3 it keeps epochs 2 and 3 and leaves epoch 1 behind.
 const NARROWEST_RETENTION: u64 = 1;
+
+/// The epoch the executed and synced watermarks are seeded in. A node
+/// restarted between publishing the new epoch and executing its first
+/// checkpoint carries watermarks from the epoch below, which is the case the
+/// migration's floor has to leave resolvable.
+const WATERMARK_EPOCH: EpochId = RUNNING_EPOCH - 1;
 
 /// Where a seeded transaction's epoch is recorded, which is what the
 /// migration has to read it back from.
@@ -183,6 +189,11 @@ fn seed_checkpoint(
 /// that the validator shape — no `executed_transactions_to_checkpoint` row at
 /// all — is covered, and the running epoch gets a body with no effects, which
 /// nothing on disk places.
+///
+/// The executed and synced watermarks are left in [`WATERMARK_EPOCH`], as they
+/// are on a node restarted before the running epoch's first checkpoint has
+/// been executed. Both resolve their checkpoint by digest through the buckets,
+/// so a migration that dropped that epoch would leave them unresolvable.
 fn seed(store: &AuthorityStore, checkpoint_store: &CheckpointStore) -> Seeded {
     let transactions = vec![
         seed_transaction(store, 1, 10, EpochSource::FinalizingCheckpoint),
@@ -203,6 +214,17 @@ fn seed(store: &AuthorityStore, checkpoint_store: &CheckpointStore) -> Seeded {
         .tables
         .checkpoint_content
         .insert(&contents_without_summary, &stray.checkpoint_contents())
+        .unwrap();
+
+    let watermarked = checkpoints
+        .iter()
+        .find(|checkpoint| checkpoint.epoch() == WATERMARK_EPOCH)
+        .expect("the seed must hold a checkpoint of the watermark epoch");
+    checkpoint_store
+        .set_highest_executed_checkpoint_subtle(watermarked)
+        .unwrap();
+    checkpoint_store
+        .update_highest_synced_checkpoint(watermarked)
         .unwrap();
 
     Seeded {
@@ -259,8 +281,9 @@ fn flat_rows(store: &AuthorityStore, checkpoint_store: &CheckpointStore) -> usiz
 }
 
 /// Asserts that every row of `seeded` whose epoch is at or above `floor` is in
-/// that epoch's bucket, that the rows below `floor` are gone, and that no flat
-/// row is left in either store.
+/// that epoch's bucket, that the rows below `floor` are gone, that the
+/// executed and synced watermarks still resolve, and that no flat row is left
+/// in either store.
 ///
 /// `earliest_bucket_epoch` is read before anything calls `ensure`, since
 /// `ensure` would create the very bucket an absent one is asserted by.
@@ -373,6 +396,32 @@ fn assert_migrated(
             .is_some()
     );
 
+    // Whatever the retention, the migration must not delete the epoch the
+    // executed and synced watermarks name: both resolve their checkpoint by
+    // digest through the buckets, and the checkpoint executor turns an
+    // unresolvable executed watermark into a panic on every start.
+    let watermarked = seeded
+        .checkpoints
+        .iter()
+        .find(|checkpoint| checkpoint.epoch() == WATERMARK_EPOCH)
+        .expect("the seed must hold a checkpoint of the watermark epoch");
+    assert_eq!(
+        checkpoint_store
+            .get_highest_executed_checkpoint()
+            .unwrap()
+            .map(|checkpoint| *checkpoint.digest()),
+        Some(*watermarked.digest()),
+        "the executed watermark must still resolve after the migration"
+    );
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint()
+            .unwrap()
+            .map(|checkpoint| *checkpoint.digest()),
+        Some(*watermarked.digest()),
+        "the synced watermark must still resolve after the migration"
+    );
+
     assert_eq!(flat_rows(store, checkpoint_store), 0);
     assert_eq!(
         ledger_progress(store),
@@ -421,11 +470,12 @@ async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
     .run()
     .unwrap();
 
-    // With retention 1, the running epoch is the floor the next boundary
-    // will apply, so epochs 1 and 2 left no bucket behind in either store.
-    assert_migrated(&store, &checkpoint_store, &seeded, RUNNING_EPOCH);
+    // With retention 1, the floor the last boundary applied is the epoch
+    // below the running one, so only epoch 1 left no bucket behind in either
+    // store.
+    assert_migrated(&store, &checkpoint_store, &seeded, WATERMARK_EPOCH);
 
-    // Epoch 2's last checkpoint is the highest the node no longer holds, so
+    // Epoch 1's last checkpoint is the highest the node no longer holds, so
     // that a state-sync peer is not told a dropped checkpoint is available.
     assert_eq!(
         checkpoint_store
@@ -434,7 +484,7 @@ async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
             .get(&CheckpointWatermark::HighestPruned)
             .unwrap()
             .map(|(sequence, _)| sequence),
-        Some(21)
+        Some(10)
     );
 }
 
