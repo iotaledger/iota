@@ -190,7 +190,7 @@ impl From<EventEnvelope> for IotaEvent {
             package_id: ev.event.package_id,
             transaction_module: ev.event.module,
             sender: ev.event.sender,
-            struct_tag: ev.event.type_,
+            struct_tag: ev.event.struct_tag,
             parsed_json: ev.parsed_json,
             bcs: BcsEvent::Base64 {
                 bcs: ev.event.contents,
@@ -206,7 +206,7 @@ impl From<IotaEvent> for Event {
             package_id: val.package_id,
             module: val.transaction_module,
             sender: val.sender,
-            type_: val.struct_tag,
+            struct_tag: val.struct_tag,
             contents: val.bcs.into_bytes(),
         }
     }
@@ -224,7 +224,7 @@ impl IotaEvent {
             package_id,
             module,
             sender,
-            type_: _,
+            struct_tag: _,
             contents,
         } = event;
 

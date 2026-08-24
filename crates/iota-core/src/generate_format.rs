@@ -277,7 +277,7 @@ fn get_registry() -> Result<Registry> {
         package_id: ObjectId::random(),
         module: Identifier::from_static("foo"),
         sender: Address::ZERO,
-        type_: struct_tag.clone(),
+        struct_tag: struct_tag.clone(),
         contents: vec![0],
     };
     tracer.trace_value(&mut samples, &event).unwrap();
@@ -461,7 +461,7 @@ fn get_registry() -> Result<Registry> {
         package_id: ObjectId::ZERO,
         module: Identifier::from_static("foo"),
         sender: Address::ZERO,
-        type_: struct_tag.clone(),
+        struct_tag: struct_tag.clone(),
         contents: vec![0],
     }]);
     tracer.trace_value(&mut samples, &sample_events).unwrap();

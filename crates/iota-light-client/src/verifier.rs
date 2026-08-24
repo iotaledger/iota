@@ -291,7 +291,7 @@ mod tests {
             package_id: ObjectId::random(),
             module: Identifier::from_static("test"),
             sender: Address::random(),
-            type_: StructTag::new(
+            struct_tag: StructTag::new(
                 Address::random(),
                 Identifier::from_static("test"),
                 Identifier::from_static("test"),

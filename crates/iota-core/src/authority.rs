@@ -4421,7 +4421,7 @@ impl AuthorityState {
                 tx_digest,
                 event_seq as u64,
                 Some(timestamp),
-                layout_resolver.get_annotated_layout(&e.type_)?,
+                layout_resolver.get_annotated_layout(&e.struct_tag)?,
             )?)
         }
         Ok(events)

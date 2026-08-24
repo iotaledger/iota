@@ -142,7 +142,7 @@ impl Event {
     #[graphql(flatten)]
     async fn move_value(&self) -> Result<MoveValue> {
         Ok(MoveValue::new(
-            self.native.type_.clone().into(),
+            self.native.struct_tag.clone().into(),
             Base64::from(self.native.contents.clone()),
         ))
     }
@@ -401,7 +401,7 @@ impl Event {
             NativeAddress::from_bytes(sender_bytes).map_err(|e| Error::Internal(e.to_string()))?;
         let package_id =
             ObjectId::from_bytes(&stored.package).map_err(|e| Error::Internal(e.to_string()))?;
-        let type_ = parse_iota_struct_tag(&stored.event_type)
+        let struct_tag = parse_iota_struct_tag(&stored.event_type)
             .map_err(|e| Error::Internal(e.to_string()))?;
         let module = Identifier::new(&stored.module).map_err(|e| Error::Internal(e.to_string()))?;
         let contents = stored.bcs.clone();
@@ -411,7 +411,7 @@ impl Event {
                 sender,
                 package_id,
                 module,
-                type_,
+                struct_tag,
                 contents,
             },
             checkpoint_viewed_at,
