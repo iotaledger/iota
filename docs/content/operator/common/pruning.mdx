@@ -58,11 +58,16 @@ authority-store-pruning-config:
   # object pruning never reads a checkpoint's contents.
   num-epochs-to-retain: 0
 
-  # Number of epochs to keep historic transactions, effects, events, and
-  # checkpoint data. Controls transaction pruning.
-  #   unset — transaction pruning disabled (default keeps everything).
-  #   N     — keeps the N most recent epochs, counting the current one as
-  #           one of them. 0 and 1 both keep the current epoch only.
+  # Number of historic epochs of transactions, effects, events, and checkpoint
+  # data to keep, on top of the epoch the node is in. Controls transaction
+  # pruning. Counted the same way as num-epochs-to-retain above.
+  #   unset   — transaction pruning disabled (default keeps everything).
+  #   N       — keeps the epoch the node is in plus the N epochs before it,
+  #             so N + 1 epochs in total.
+  #   0 and 1 — identical: both keep the epoch the node is in plus the one
+  #             before it. The epoch before it is needed because a node
+  #             restarted at a reconfiguration has not yet executed a
+  #             checkpoint of the epoch it is entering.
   # num-epochs-to-retain-for-checkpoints: 2
 
   # Number of historic epochs to retain in the rpc_indexes store, on top of
@@ -96,8 +101,24 @@ authority-store-pruning-config:
 ```
 
 All three run at the epoch boundary, where the node drops the epochs that have
-fallen outside each retention window. Each retention value counts the epoch the
-node is entering as one of the epochs it keeps.
+fallen outside each retention window. The two window rules differ, so read each
+parameter's own description above:
+
+- `num-epochs-to-retain` and `num-epochs-to-retain-for-checkpoints` count `N`
+  historic epochs on top of the epoch the node is in, keeping `N + 1` epochs in
+  total.
+- `num-epochs-to-retain-for-indexes` counts `N` epochs in total, the epoch the
+  node is entering being one of them.
+
+:::info
+
+`num-epochs-to-retain-for-checkpoints` keeps one epoch more than it did in
+earlier releases, where the same value kept `N` epochs in total. Transaction
+and checkpoint history therefore takes roughly 50% more disk at the commonly
+used value of `2` — size disks accordingly, or lower the value by one to keep
+the previous window.
+
+:::
 
 ## Configuration Examples
 
