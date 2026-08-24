@@ -575,10 +575,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{
-        sync::atomic::{AtomicBool, Ordering},
-        time::Duration,
-    };
+    use std::time::Duration;
 
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
@@ -608,8 +605,8 @@ pub(crate) mod tests {
         last_known_proposed_round: Mutex<Vec<Round>>,
         new_block_calls: Arc<Mutex<Vec<(Round, ReasonToCreateBlock, Instant)>>>,
         quorum_subscribers_exists: Mutex<bool>,
-        reinitialize_components_calls: Mutex<Vec<Vec<VerifiedBlockHeader>>>,
-        reinitialize_components_should_fail: AtomicBool,
+        reinitialize_components_calls: Mutex<usize>,
+        reinitialize_components_should_fail: Mutex<bool>,
     }
 
     impl MockCoreThreadDispatcher {
@@ -652,12 +649,11 @@ pub(crate) mod tests {
         }
 
         pub(crate) fn set_reinitialize_components_should_fail(&self, should_fail: bool) {
-            self.reinitialize_components_should_fail
-                .store(should_fail, Ordering::Relaxed);
+            *self.reinitialize_components_should_fail.lock() = should_fail;
         }
 
         pub(crate) fn reinitialize_components_calls(&self) -> usize {
-            self.reinitialize_components_calls.lock().len()
+            *self.reinitialize_components_calls.lock()
         }
     }
 
@@ -739,15 +735,10 @@ pub(crate) mod tests {
 
         async fn reinitialize_components(
             &self,
-            block_headers: Vec<VerifiedBlockHeader>,
+            _block_headers: Vec<VerifiedBlockHeader>,
         ) -> Result<(), CoreError> {
-            self.reinitialize_components_calls
-                .lock()
-                .push(block_headers);
-            if self
-                .reinitialize_components_should_fail
-                .load(Ordering::Relaxed)
-            {
+            *self.reinitialize_components_calls.lock() += 1;
+            if *self.reinitialize_components_should_fail.lock() {
                 Err(CoreError::Shutdown("test failure".to_owned()))
             } else {
                 Ok(())

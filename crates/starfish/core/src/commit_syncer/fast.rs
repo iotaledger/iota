@@ -141,7 +141,7 @@ pub(crate) struct FastCommitSyncer<C: NetworkClient> {
     // Shared components wrapper.
     inner: Arc<Inner<C>>,
 
-    block_stream_reset_sender: watch::Sender<u64>,
+    block_stream_reset_sender: watch::Sender<()>,
 
     // States only used by the scheduler.
 
@@ -181,7 +181,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         header_synchronizer: Arc<HeaderSynchronizerHandle>,
         misbehavior_store: Arc<MisbehaviorStore>,
         fast_sync_active: Arc<AtomicBool>,
-        block_stream_reset_sender: watch::Sender<u64>,
+        block_stream_reset_sender: watch::Sender<()>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -273,9 +273,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 );
 
                 match Self::fetch_headers_for_reinitialization(self.inner.clone()).await {
-                    Ok(headers) => {
-                        self.reinitialize_components(headers).await;
-                    }
+                    Ok(headers) => self.reinitialize_components(headers).await,
                     Err(e) => {
                         warn!(
                             "[{}] Failed to fetch headers for cached rounds: {}",
@@ -340,9 +338,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .parameters
             .enable_block_stream_reset_on_fast_sync_exit
         {
-            self.block_stream_reset_sender.send_modify(|generation| {
-                *generation = generation.wrapping_add(1);
-            });
+            self.block_stream_reset_sender.send_replace(());
             info!(
                 "[{}] Signaled block stream reset",
                 self.inner.sync_type.as_str()
@@ -1155,7 +1151,7 @@ mod tests {
             network_client: Arc<FakeNetworkClient>,
         ) -> Arc<Inner<FakeNetworkClient>> {
             let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
-            let (block_stream_reset_sender, _) = tokio::sync::watch::channel(0_u64);
+            let (block_stream_reset_sender, _) = tokio::sync::watch::channel(());
             make_syncer(
                 context,
                 network_client,
@@ -1169,7 +1165,7 @@ mod tests {
             context: Arc<Context>,
             network_client: Arc<FakeNetworkClient>,
             core_thread_dispatcher: Arc<D>,
-            block_stream_reset_sender: tokio::sync::watch::Sender<u64>,
+            block_stream_reset_sender: tokio::sync::watch::Sender<()>,
         ) -> FastCommitSyncer<FakeNetworkClient> {
             let block_verifier = Arc::new(NoopBlockVerifier {});
             let store: Arc<dyn Store> = Arc::new(MemStore::new());
@@ -1559,9 +1555,11 @@ mod tests {
 
     #[tokio::test]
     async fn block_stream_reset_requires_successful_reinitialization_and_enabled_flag() {
-        for (enabled, should_fail, expected_generation) in
-            [(true, false, 1), (false, false, 0), (true, true, 0)]
-        {
+        for (enabled, should_fail, expect_reset) in [
+            (true, false, true),
+            (false, false, false),
+            (true, true, false),
+        ] {
             let (mut context, _) = Context::new_for_test(4);
             context
                 .protocol_config
@@ -1574,7 +1572,7 @@ mod tests {
             let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
             core_thread_dispatcher.set_reinitialize_components_should_fail(should_fail);
             let (block_stream_reset_sender, block_stream_reset_receiver) =
-                tokio::sync::watch::channel(0_u64);
+                tokio::sync::watch::channel(());
             let syncer = fetch_once::make_syncer(
                 context,
                 network_client,
@@ -1586,8 +1584,8 @@ mod tests {
 
             assert_eq!(core_thread_dispatcher.reinitialize_components_calls(), 1);
             assert_eq!(
-                *block_stream_reset_receiver.borrow(),
-                expected_generation,
+                block_stream_reset_receiver.has_changed().unwrap(),
+                expect_reset,
                 "enabled={enabled}, should_fail={should_fail}"
             );
             syncer.inner.header_synchronizer.stop().await.unwrap();

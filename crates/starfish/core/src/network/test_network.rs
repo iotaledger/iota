@@ -22,17 +22,37 @@ use crate::{
     transaction_ref::TransactionRef,
 };
 
+/// Parks the bundle handler so a test can act while one bundle is in flight.
+#[derive(Clone)]
+pub(crate) struct BundleHandlerGate {
+    pub(crate) started: Arc<Notify>,
+    pub(crate) release: Arc<Notify>,
+}
+
 pub(crate) struct TestService {
     pub(crate) handle_subscribed_block_bundle: Vec<(AuthorityIndex, SerializedBlockBundle)>,
     pub(crate) handle_subscribed_block_bundle_requests: Vec<(AuthorityIndex, Round)>,
     pub(crate) handle_fetch_block_headers: Vec<(AuthorityIndex, Vec<BlockRef>)>,
     pub(crate) handle_fetch_commits: Vec<(AuthorityIndex, CommitRange)>,
     pub(crate) own_block_bundles: Vec<SerializedBlockBundle>,
-    pub(crate) block_bundle_handler_started: Option<Arc<Notify>>,
-    pub(crate) block_bundle_handler_release: Option<Arc<Notify>>,
+    pub(crate) block_bundle_handler_gate: Option<BundleHandlerGate>,
 }
 
 impl TestService {
+    /// A service whose bundle handler parks until the returned gate releases
+    /// it.
+    pub(crate) fn with_bundle_handler_gate() -> (Self, BundleHandlerGate) {
+        let gate = BundleHandlerGate {
+            started: Arc::new(Notify::new()),
+            release: Arc::new(Notify::new()),
+        };
+        let service = Self {
+            block_bundle_handler_gate: Some(gate.clone()),
+            ..Self::new()
+        };
+        (service, gate)
+    }
+
     pub(crate) fn new() -> Self {
         Self {
             own_block_bundles: Vec::new(),
@@ -40,8 +60,7 @@ impl TestService {
             handle_subscribed_block_bundle_requests: Vec::new(),
             handle_fetch_block_headers: Vec::new(),
             handle_fetch_commits: Vec::new(),
-            block_bundle_handler_started: None,
-            block_bundle_handler_release: None,
+            block_bundle_handler_gate: None,
         }
     }
 
@@ -59,17 +78,17 @@ impl NetworkService for Mutex<TestService> {
         serialized_block_bundle: SerializedBlockBundle,
         _encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()> {
-        let block_bundle_handler_release = {
+        let release = {
             let mut state = self.lock();
             state
                 .handle_subscribed_block_bundle
                 .push((peer, serialized_block_bundle));
-            if let Some(started) = &state.block_bundle_handler_started {
-                started.notify_one();
-            }
-            state.block_bundle_handler_release.clone()
+            state.block_bundle_handler_gate.as_ref().map(|gate| {
+                gate.started.notify_one();
+                gate.release.clone()
+            })
         };
-        if let Some(release) = block_bundle_handler_release {
+        if let Some(release) = release {
             release.notified().await;
         }
         Ok(())

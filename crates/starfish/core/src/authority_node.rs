@@ -263,7 +263,7 @@ impl ConsensusAuthority {
             .parameters
             .enable_fast_commit_syncer
             .then(|| Arc::new(AtomicBool::new(fast_sync_ongoing)));
-        let (block_stream_reset_sender, _) = tokio::sync::watch::channel(0_u64);
+        let (block_stream_reset_sender, _) = tokio::sync::watch::channel(());
 
         let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
