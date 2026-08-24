@@ -1287,15 +1287,15 @@
           "params": [
             {
               "name": "version",
-              "value": 33
+              "value": 34
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "33",
-              "protocolVersion": "33",
+              "maxSupportedProtocolVersion": "34",
+              "protocolVersion": "34",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -1325,6 +1325,7 @@
                 "dependency_linkage_error": true,
                 "disable_invariant_violation_check_in_swap_loc": true,
                 "disallow_new_modules_in_deps_only_packages": true,
+                "disallow_self_identifier": true,
                 "enable_group_ops_native_function_msm": true,
                 "enable_move_authentication": true,
                 "enable_move_authentication_for_sponsor": true,
@@ -1941,7 +1942,9 @@
                 "max_modules_in_publish": {
                   "u32": "64"
                 },
-                "max_move_enum_variants": null,
+                "max_move_enum_variants": {
+                  "u64": "127"
+                },
                 "max_move_identifier_len": {
                   "u64": "128"
                 },
