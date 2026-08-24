@@ -744,7 +744,7 @@ async fn test_expiry_keeps_a_head_that_still_buries_a_live_version() {
     drop(bucket);
 
     historic.ensure(2).unwrap();
-    assert_eq!(historic.prune(1).unwrap(), Some(2));
+    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
 
     assert!(
         perpetual.objects.get(&head).unwrap().is_some(),
