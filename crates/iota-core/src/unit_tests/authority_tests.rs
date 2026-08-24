@@ -5987,7 +5987,7 @@ async fn test_for_inc_201_dev_inspect() {
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
-        events.data[0].type_tag.name().to_string()
+        events.data[0].struct_tag.name().to_string()
     );
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }
@@ -6032,7 +6032,7 @@ async fn test_for_inc_201_dry_run() {
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
-        events.data[0].type_tag.name().to_string()
+        events.data[0].struct_tag.name().to_string()
     );
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }

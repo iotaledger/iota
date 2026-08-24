@@ -126,7 +126,7 @@ async fn compare_local_vm_staking_against_test_cluster() {
         .iter()
         .map(|e| {
             (
-                e.type_tag.clone(),
+                e.struct_tag.clone(),
                 e.package_id,
                 e.sender,
                 e.bcs.bytes().to_vec(),
