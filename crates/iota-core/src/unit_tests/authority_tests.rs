@@ -9397,6 +9397,89 @@ async fn expiring_the_checkpoint_buckets_moves_the_pruned_watermark() {
     );
 }
 
+/// On a database written before the checkpoint history was bucketed, the
+/// genesis checkpoint is in the flat table alone, which no read reaches, so it
+/// is not readable by digest either. A restart must still recognise that the
+/// database holds it — the guard asks `certified_checkpoints`, which is never
+/// bucketed — because `update_highest_synced_checkpoint` has no monotonic
+/// guard of its own: a guard that missed would drag the synced watermark back
+/// to zero, and the node would re-request the whole chain and advertise
+/// highest-synced 0 to its peers.
+#[tokio::test]
+async fn a_restart_leaves_the_genesis_checkpoint_alone_when_only_a_flat_row_holds_it() {
+    use iota_types::messages_checkpoint::FullCheckpointContents;
+
+    use crate::checkpoints::test_checkpoint_with_contents;
+
+    let authority = TestAuthorityBuilder::new()
+        .insert_genesis_checkpoint()
+        .build()
+        .await;
+    let checkpoint_store = &authority.checkpoint_store;
+    let genesis = checkpoint_store
+        .get_checkpoint_by_sequence_number(0)
+        .unwrap()
+        .unwrap();
+    let genesis_contents = checkpoint_store
+        .get_checkpoint_contents(&genesis.contents_digest)
+        .unwrap()
+        .unwrap();
+
+    // Move epoch 0's history back where the binary before the buckets kept
+    // it: the flat tables hold it and no bucket does.
+    let bucket = checkpoint_store.historic_checkpoints.ensure(0).unwrap();
+    let mut batch = checkpoint_store.tables.checkpoint_by_digest.batch();
+    batch
+        .delete_batch_tagged(&bucket.checkpoint_by_digest, [*genesis.digest()])
+        .unwrap();
+    batch
+        .delete_batch_tagged(&bucket.checkpoint_content, [genesis.contents_digest])
+        .unwrap();
+    batch
+        .insert_batch(
+            &checkpoint_store.tables.checkpoint_by_digest,
+            [(genesis.digest(), genesis.serializable_ref())],
+        )
+        .unwrap();
+    batch
+        .insert_batch(
+            &checkpoint_store.tables.checkpoint_content,
+            [(&genesis.contents_digest, &genesis_contents)],
+        )
+        .unwrap();
+    batch.write().unwrap();
+    assert!(
+        checkpoint_store
+            .get_checkpoint_by_digest(genesis.digest())
+            .unwrap()
+            .is_none(),
+        "the flat row must be the only one for this to model an unmigrated database",
+    );
+
+    // A later checkpoint the node has synced, so that a reset of the synced
+    // watermark to genesis is observable.
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let synced = test_checkpoint_with_contents(1, 9, &full_contents);
+    checkpoint_store
+        .insert_certified_checkpoint(&synced)
+        .unwrap();
+    checkpoint_store
+        .update_highest_synced_checkpoint(&synced)
+        .unwrap();
+
+    checkpoint_store.insert_genesis_checkpoint(
+        genesis,
+        genesis_contents,
+        &authority.epoch_store_for_testing(),
+    );
+    assert_eq!(
+        checkpoint_store
+            .get_highest_synced_checkpoint_seq_number()
+            .unwrap(),
+        Some(9),
+    );
+}
+
 /// Once epoch 0's checkpoint bucket has been expired, the genesis checkpoint
 /// is no longer readable by digest. A restart must still recognise that the
 /// database holds it: writing it again would refuse to reopen the expired
