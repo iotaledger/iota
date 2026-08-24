@@ -219,12 +219,17 @@ impl LedgerBacklogMigration {
     ) -> Self {
         // The floor the last reconfiguration applied: it counted its retention
         // back from the epoch it left, one below the epoch the node is now
-        // running in. Counting back from the running epoch instead would
-        // delete an epoch this node still serves — including the one the
-        // executed and synced watermarks name while the running epoch's first
-        // checkpoint has yet to be executed.
-        let floor =
-            epochs_to_retain_for_checkpoints.map_or(0, |retained| epoch.saturating_sub(retained));
+        // running in, and kept that epoch as one of the retained. Counting
+        // back from the running epoch instead would delete an epoch this node
+        // still serves — including the one the executed and synced watermarks
+        // name while the running epoch's first checkpoint has yet to be
+        // executed, which leaves both unresolvable by digest.
+        //
+        // `max(1)` because 0 and 1 keep the same epochs: expiry counts
+        // `retained - 1` epochs below its anchor and 0 saturates there, so
+        // both leave the anchor as the floor.
+        let floor = epochs_to_retain_for_checkpoints
+            .map_or(0, |retained| epoch.saturating_sub(retained.max(1)));
         Self {
             perpetual_tables: store.perpetual_tables.clone(),
             historic_ledger: store.get_historic_ledger().clone(),
@@ -600,14 +605,26 @@ impl LedgerBacklogMigration {
     /// got.
     ///
     /// A contents row carries neither an epoch nor a sequence number, and the
-    /// summary that names it is what places it — so a row still here once
-    /// every flat summary has moved cannot be placed at all. State sync, which
-    /// writes almost all of this history, writes the summary first and the
-    /// contents after, so its rows always have a summary to be placed by; only
+    /// digest-keyed summary that names it is what places it — so a row still
+    /// here once every flat summary has moved cannot be placed at all. State
+    /// sync, which writes almost all of this history, writes the summary first
+    /// and the contents after, so its rows always have a summary to be placed
+    /// by. Two writers go the other way round:
     /// [`CheckpointStore::insert_genesis_checkpoint`] writes the contents
-    /// first, leaving one unplaceable row if the node stopped between the two.
-    /// Filing such a row under the running epoch keeps it rather than dropping
-    /// contents a summary already in a bucket may still name.
+    /// first, leaving a row unplaceable if the node stopped between the two,
+    /// and on a validator
+    /// [`CheckpointBuilder::write_checkpoints`](crate::checkpoints::CheckpointBuilder)
+    /// writes the contents of every checkpoint it builds while only the
+    /// sequence-keyed `locally_computed_checkpoints` row goes with them — the
+    /// digest-keyed summary arrives at
+    /// [`CheckpointStore::insert_certified_checkpoint`], so every built but
+    /// not yet certified checkpoint leaves one behind.
+    ///
+    /// The running epoch is where such a row belongs: a checkpoint this node
+    /// built and has not yet certified is one of the running epoch's, and the
+    /// genesis case is a single row that is cheaper to keep than to reason
+    /// about. Filing them keeps contents that a summary already in a bucket
+    /// may still name.
     fn move_contents_without_summary(
         &self,
         from: Option<CheckpointContentsDigest>,
