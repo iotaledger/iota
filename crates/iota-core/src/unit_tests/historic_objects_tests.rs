@@ -744,7 +744,7 @@ async fn test_expiry_keeps_a_tombstone_with_a_live_version_below_it() {
     drop(bucket);
 
     historic.ensure(2).unwrap();
-    assert_eq!(historic.prune(1).unwrap(), Some(2));
+    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
 
     assert!(
         perpetual.objects.get(&tombstone).unwrap().is_some(),
