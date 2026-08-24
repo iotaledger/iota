@@ -61,16 +61,17 @@ authority-store-pruning-config:
   #                          the current and immediately prior epoch.
   # num-epochs-to-retain-for-checkpoints: 2
 
-  # Number of epochs to retain entries in the rpc_indexes store, which serves
-  # both the JSON-RPC and the gRPC API. Controls index pruning. Relevant
-  # whenever the node maintains that store (enable-jsonrpc-api: true or
-  # enable-grpc-api: true).
+  # Number of historic epochs to retain in the rpc_indexes store, on top of
+  # the current one. The store serves both the JSON-RPC and the gRPC API.
+  # Controls index pruning. Relevant whenever the node maintains that store
+  # (enable-jsonrpc-api: true or enable-grpc-api: true).
   #   unset    — index pruning disabled (default).
-  #   N (>= 1) — retains N epochs of history, counting the current one, and
-  #              prunes everything older. 1 keeps the current epoch only.
-  #   0        — rejected at startup: the running epoch's history is written
-  #              whatever the retention, because checkpoint ingest reads its
-  #              transaction digests.
+  #   0        — keeps the current epoch only, prunes everything older.
+  #   N (>= 1) — also keeps the N epochs before the current one.
+  # The epoch currently being executed is always retained, whatever this is
+  # set to: a client that submits a transaction needs to read it back — the
+  # transaction, its effects, and the index rows behind queries — seconds
+  # later. Only at an epoch boundary is dropping that data acceptable.
   # num-epochs-to-retain-for-indexes: 2
 
   # Number of recent per-epoch RocksDB databases to keep. Default: 3.
