@@ -57,3 +57,4 @@ enable_starfish_speed_adaptive_acknowledgments: true
 enable_peer_responsiveness_ranking: true
 dag_visualizer_port: ~
 solid_commit_lag_threshold: 500
+shard_budget_per_authority: 1000
