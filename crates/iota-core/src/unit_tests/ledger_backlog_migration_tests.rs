@@ -1,0 +1,594 @@
+// Copyright (c) 2026 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use std::{path::Path, sync::Arc};
+
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, TransactionDigest, TransactionEffectsDigest,
+    TransactionEvents,
+};
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::{
+    base_types::random_object_ref,
+    committee::EpochId,
+    crypto::{AccountKeyPair, deterministic_random_account_key},
+    effects::TestEffectsBuilder,
+    messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint},
+    transaction::VerifiedTransaction,
+};
+use prometheus_filtered::Registry;
+use typed_store::{database::wait_for_database_close, traits::Map};
+
+use super::{
+    CheckpointBacklogMigrationProgress, LedgerBacklogMigration, LedgerBacklogMigrationProgress,
+};
+use crate::{
+    authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
+    checkpoints::{CheckpointStore, CheckpointWatermark, test_checkpoint_with_contents},
+};
+
+/// The epoch the node is starting in while the migration runs, and so the
+/// newest epoch the seed below writes history for.
+const RUNNING_EPOCH: EpochId = 3;
+
+/// The retention the finite-floor test runs with. The node config coerces
+/// anything below 2 up to 2, so 2 is the narrowest window a node can really
+/// be given: with the migration running in epoch 3 it keeps epochs 2 and 3
+/// and leaves epoch 1 behind.
+const NARROWEST_RETENTION: u64 = 2;
+
+/// Where a seeded transaction's epoch is recorded, which is what the
+/// migration has to read it back from.
+#[derive(Clone, Copy)]
+enum EpochSource {
+    /// `executed_transactions_to_checkpoint` holds it, as it does on a
+    /// fullnode.
+    FinalizingCheckpoint,
+    /// Only the effects hold it, as on a validator, which never writes that
+    /// table.
+    Effects,
+    /// Nothing on disk holds it: a body persisted or synced but never
+    /// executed.
+    Nothing,
+}
+
+/// One transaction's worth of seeded flat rows, and the epoch the migration
+/// must file every one of them under.
+struct SeededTransaction {
+    digest: TransactionDigest,
+    effects_digest: Option<TransactionEffectsDigest>,
+    epoch: EpochId,
+}
+
+/// What the seed wrote, so the assertions can name it back.
+struct Seeded {
+    transactions: Vec<SeededTransaction>,
+    checkpoints: Vec<VerifiedCheckpoint>,
+    /// A contents row the seed deliberately left without a summary, standing
+    /// for the crash window between the two writes.
+    contents_without_summary: CheckpointContentsDigest,
+}
+
+fn open(store_dir: &Path, checkpoint_dir: &Path) -> (Arc<AuthorityStore>, Arc<CheckpointStore>) {
+    let (perpetual, historic_objects, historic_ledger) =
+        AuthorityPerpetualTables::open_with_historic_objects(store_dir, None).unwrap();
+    let store = AuthorityStore::open_no_genesis(
+        Arc::new(perpetual),
+        Arc::new(historic_objects),
+        Arc::new(historic_ledger),
+        false,
+        &Registry::new(),
+    )
+    .unwrap();
+    (store, CheckpointStore::new(checkpoint_dir))
+}
+
+fn random_transaction() -> VerifiedTransaction {
+    let (sender, keypair): (Address, AccountKeyPair) = deterministic_random_account_key();
+    // The gas object reference is random on every call, so every transaction
+    // built here has a digest of its own.
+    let transaction = TestTransactionBuilder::new(sender, random_object_ref(), 100)
+        .transfer(random_object_ref(), sender)
+        .build_and_sign(&keypair);
+    VerifiedTransaction::new_unchecked(transaction)
+}
+
+/// Writes one transaction's flat rows the way the build before the buckets
+/// wrote them.
+fn seed_transaction(
+    store: &AuthorityStore,
+    epoch: EpochId,
+    sequence: CheckpointSequenceNumber,
+    source: EpochSource,
+) -> SeededTransaction {
+    let tables = &store.perpetual_tables;
+    let transaction = random_transaction();
+    let digest = *transaction.digest();
+    tables
+        .transactions
+        .insert(&digest, transaction.serializable_ref())
+        .unwrap();
+
+    if matches!(source, EpochSource::Nothing) {
+        return SeededTransaction {
+            digest,
+            effects_digest: None,
+            epoch,
+        };
+    }
+
+    let effects = TestEffectsBuilder::new(transaction.inner())
+        .with_epoch(epoch)
+        .build();
+    let effects_digest = effects.digest();
+    tables.effects.insert(&effects_digest, &effects).unwrap();
+    tables
+        .executed_effects
+        .insert(&digest, &effects_digest)
+        .unwrap();
+    tables
+        .events_2
+        .insert(&digest, &TransactionEvents::default())
+        .unwrap();
+    if matches!(source, EpochSource::FinalizingCheckpoint) {
+        tables
+            .executed_transactions_to_checkpoint
+            .insert(&digest, &(epoch, sequence))
+            .unwrap();
+    }
+
+    SeededTransaction {
+        digest,
+        effects_digest: Some(effects_digest),
+        epoch,
+    }
+}
+
+/// Writes one checkpoint's summary and contents into the flat tables the way
+/// the build before the buckets wrote them, together with the sequence-keyed
+/// summary and the epoch boundary — both of which that build wrote in the same
+/// batch as the digest-keyed summary, and neither of which is ever bucketed.
+fn seed_checkpoint(
+    checkpoint_store: &CheckpointStore,
+    epoch: EpochId,
+    sequence: CheckpointSequenceNumber,
+) -> VerifiedCheckpoint {
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let checkpoint = test_checkpoint_with_contents(epoch, sequence, &full_contents);
+    let tables = &checkpoint_store.tables;
+    tables
+        .checkpoint_content
+        .insert(
+            &checkpoint.contents_digest,
+            &full_contents.checkpoint_contents(),
+        )
+        .unwrap();
+    tables
+        .checkpoint_by_digest
+        .insert(checkpoint.digest(), checkpoint.serializable_ref())
+        .unwrap();
+    tables
+        .certified_checkpoints
+        .insert(&sequence, checkpoint.serializable_ref())
+        .unwrap();
+    checkpoint_store
+        .insert_epoch_last_checkpoint(epoch, &checkpoint)
+        .unwrap();
+    checkpoint
+}
+
+/// Writes the flat tables an earlier build would have left behind: three
+/// epochs of transaction and checkpoint history, with none of it in a bucket.
+///
+/// Epoch 2 gets a second transaction whose epoch only its effects record, so
+/// that the validator shape — no `executed_transactions_to_checkpoint` row at
+/// all — is covered, and the running epoch gets a body with no effects, which
+/// nothing on disk places.
+fn seed(store: &AuthorityStore, checkpoint_store: &CheckpointStore) -> Seeded {
+    let transactions = vec![
+        seed_transaction(store, 1, 10, EpochSource::FinalizingCheckpoint),
+        seed_transaction(store, 2, 20, EpochSource::FinalizingCheckpoint),
+        seed_transaction(store, 2, 21, EpochSource::Effects),
+        seed_transaction(store, RUNNING_EPOCH, 30, EpochSource::FinalizingCheckpoint),
+        seed_transaction(store, RUNNING_EPOCH, 31, EpochSource::Nothing),
+    ];
+    let checkpoints = vec![
+        seed_checkpoint(checkpoint_store, 1, 10),
+        seed_checkpoint(checkpoint_store, 2, 21),
+        seed_checkpoint(checkpoint_store, RUNNING_EPOCH, 30),
+    ];
+
+    let stray = FullCheckpointContents::random_for_testing();
+    let contents_without_summary = stray.checkpoint_contents().digest();
+    checkpoint_store
+        .tables
+        .checkpoint_content
+        .insert(&contents_without_summary, &stray.checkpoint_contents())
+        .unwrap();
+
+    Seeded {
+        transactions,
+        checkpoints,
+        contents_without_summary,
+    }
+}
+
+fn migration(
+    store: &AuthorityStore,
+    checkpoint_store: Arc<CheckpointStore>,
+    epochs_to_retain: Option<u64>,
+    keys_per_slice: usize,
+) -> LedgerBacklogMigration {
+    let mut migration =
+        LedgerBacklogMigration::new(store, checkpoint_store, RUNNING_EPOCH, epochs_to_retain);
+    migration.keys_per_slice = keys_per_slice;
+    migration
+}
+
+fn ledger_progress(store: &AuthorityStore) -> Option<LedgerBacklogMigrationProgress> {
+    store
+        .perpetual_tables
+        .ledger_backlog_migration_progress
+        .get(&())
+        .unwrap()
+}
+
+fn checkpoint_progress(
+    checkpoint_store: &CheckpointStore,
+) -> Option<CheckpointBacklogMigrationProgress> {
+    checkpoint_store
+        .tables
+        .checkpoint_backlog_migration_progress
+        .get(&())
+        .unwrap()
+}
+
+/// How many rows are left in the eight flat tables the migration drains.
+fn flat_rows(store: &AuthorityStore, checkpoint_store: &CheckpointStore) -> usize {
+    let ledger = &store.perpetual_tables;
+    let checkpoints = &checkpoint_store.tables;
+    ledger.transactions.safe_iter().count()
+        + ledger.effects.safe_iter().count()
+        + ledger.executed_effects.safe_iter().count()
+        + ledger.events_2.safe_iter().count()
+        + ledger
+            .executed_transactions_to_checkpoint
+            .safe_iter()
+            .count()
+        + checkpoints.checkpoint_content.safe_iter().count()
+        + checkpoints.checkpoint_by_digest.safe_iter().count()
+}
+
+/// Asserts that every row of `seeded` whose epoch is at or above `floor` is in
+/// that epoch's bucket, that the rows below `floor` are gone, and that no flat
+/// row is left in either store.
+///
+/// `earliest_bucket_epoch` is read before anything calls `ensure`, since
+/// `ensure` would create the very bucket an absent one is asserted by.
+fn assert_migrated(
+    store: &AuthorityStore,
+    checkpoint_store: &CheckpointStore,
+    seeded: &Seeded,
+    floor: EpochId,
+) {
+    let historic_ledger = store.get_historic_ledger();
+    let historic_checkpoints = &checkpoint_store.historic_checkpoints;
+    // The seed's oldest epoch is 1, so the oldest bucket either store should
+    // be left holding is the floor, or 1 when there is no floor.
+    let oldest_bucket = Some(floor.max(1));
+    assert_eq!(historic_ledger.earliest_bucket_epoch(), oldest_bucket);
+    assert_eq!(historic_checkpoints.earliest_bucket_epoch(), oldest_bucket);
+
+    for transaction in &seeded.transactions {
+        let digest = &transaction.digest;
+        if transaction.epoch < floor {
+            assert_eq!(
+                historic_ledger.find_epoch(digest).unwrap().map(|(e, _)| e),
+                None,
+                "the record of a transaction below the floor must be gone"
+            );
+            assert!(historic_ledger.get_transaction(digest).unwrap().is_none());
+            continue;
+        }
+
+        let bucket = historic_ledger.ensure(transaction.epoch).unwrap();
+        assert!(
+            bucket.transactions.get(digest).unwrap().is_some(),
+            "the body of {digest} belongs in epoch {}'s bucket",
+            transaction.epoch
+        );
+        let Some(effects_digest) = transaction.effects_digest else {
+            // A body nothing places is filed under the running epoch, and the
+            // seed gave it that epoch, so the bucket above is the right one.
+            continue;
+        };
+        assert_eq!(
+            historic_ledger.find_epoch(digest).unwrap().map(|(e, _)| e),
+            Some(transaction.epoch),
+            "the execution record of {digest} names the wrong epoch"
+        );
+        assert!(bucket.effects.get(&effects_digest).unwrap().is_some());
+        assert_eq!(
+            bucket.executed_effects.get(digest).unwrap(),
+            Some(effects_digest)
+        );
+        assert!(bucket.events.get(digest).unwrap().is_some());
+        assert!(
+            historic_ledger
+                .get_executed_effects(digest)
+                .unwrap()
+                .is_some(),
+            "the store's own read must resolve {digest} out of one bucket"
+        );
+    }
+
+    for checkpoint in &seeded.checkpoints {
+        let epoch = checkpoint.epoch();
+        if epoch < floor {
+            assert!(
+                historic_checkpoints
+                    .find_by_digest(checkpoint.digest())
+                    .unwrap()
+                    .is_none(),
+                "a summary below the floor must be gone"
+            );
+            assert!(
+                historic_checkpoints
+                    .find_contents(&checkpoint.contents_digest)
+                    .unwrap()
+                    .is_none(),
+                "the contents of a summary below the floor must go with it"
+            );
+            continue;
+        }
+        let bucket = historic_checkpoints.ensure(epoch).unwrap();
+        assert!(
+            bucket
+                .checkpoint_by_digest
+                .get(checkpoint.digest())
+                .unwrap()
+                .is_some(),
+            "the summary of checkpoint {} belongs in epoch {epoch}'s bucket",
+            checkpoint.sequence_number()
+        );
+        assert!(
+            bucket
+                .checkpoint_content
+                .get(&checkpoint.contents_digest)
+                .unwrap()
+                .is_some(),
+            "the contents of checkpoint {} belong in its summary's bucket",
+            checkpoint.sequence_number()
+        );
+    }
+
+    // A contents row no summary names cannot be placed, so it is kept under
+    // the epoch the migration ran in rather than dropped.
+    assert!(
+        historic_checkpoints
+            .ensure(RUNNING_EPOCH)
+            .unwrap()
+            .checkpoint_content
+            .get(&seeded.contents_without_summary)
+            .unwrap()
+            .is_some()
+    );
+
+    assert_eq!(flat_rows(store, checkpoint_store), 0);
+    assert_eq!(
+        ledger_progress(store),
+        Some(LedgerBacklogMigrationProgress::Done)
+    );
+    assert_eq!(
+        checkpoint_progress(checkpoint_store),
+        Some(CheckpointBacklogMigrationProgress::Done)
+    );
+}
+
+/// With no retention limit every row lands in the bucket of the epoch it
+/// belongs to — the epoch its finalizing checkpoint recorded, the epoch its
+/// effects recorded where no such row exists, and the running epoch where
+/// nothing on disk places it — and the flat tables are left empty.
+#[tokio::test]
+async fn rows_land_in_their_true_epoch() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let seeded = seed(&store, &checkpoint_store);
+
+    migration(&store, checkpoint_store.clone(), None, 5_000)
+        .run()
+        .unwrap();
+
+    assert_migrated(&store, &checkpoint_store, &seeded, 0);
+}
+
+/// A node whose retention has already left an epoch behind deletes that
+/// epoch's rows rather than building a bucket the next reconfiguration would
+/// drop again, and it reports the checkpoint range it no longer holds.
+#[tokio::test]
+async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let seeded = seed(&store, &checkpoint_store);
+
+    migration(
+        &store,
+        checkpoint_store.clone(),
+        Some(NARROWEST_RETENTION),
+        5_000,
+    )
+    .run()
+    .unwrap();
+
+    // Epoch 1 is one below the floor the next boundary will apply, so it left
+    // no bucket behind in either store.
+    assert_migrated(&store, &checkpoint_store, &seeded, 2);
+
+    // Epoch 1's last checkpoint is the highest the node no longer holds, so
+    // that a state-sync peer is not told a dropped checkpoint is available.
+    assert_eq!(
+        checkpoint_store
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestPruned)
+            .unwrap()
+            .map(|(sequence, _)| sequence),
+        Some(10)
+    );
+}
+
+/// With the retention unset there is no floor, so every seeded epoch keeps its
+/// own bucket and nothing is deleted.
+#[tokio::test]
+async fn unlimited_retention_buckets_every_epoch() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let seeded = seed(&store, &checkpoint_store);
+
+    migration(&store, checkpoint_store.clone(), None, 5_000)
+        .run()
+        .unwrap();
+
+    let historic_ledger = store.get_historic_ledger();
+    assert_eq!(historic_ledger.earliest_bucket_epoch(), Some(1));
+    for epoch in 1..=RUNNING_EPOCH {
+        assert!(
+            historic_ledger
+                .ensure(epoch)
+                .unwrap()
+                .transactions
+                .safe_iter()
+                .next()
+                .is_some(),
+            "epoch {epoch} must hold the transactions it executed"
+        );
+    }
+    assert_eq!(
+        checkpoint_store
+            .historic_checkpoints
+            .earliest_bucket_epoch(),
+        Some(1)
+    );
+    for checkpoint in &seeded.checkpoints {
+        assert!(
+            checkpoint_store
+                .historic_checkpoints
+                .ensure(checkpoint.epoch())
+                .unwrap()
+                .checkpoint_by_digest
+                .get(checkpoint.digest())
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    // Nothing was deleted, so the node claims no pruned range at all.
+    assert_eq!(
+        checkpoint_store
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestPruned)
+            .unwrap(),
+        None
+    );
+}
+
+/// A run stopped part-way resumes from the watermark it recorded, across a
+/// restart, and leaves the same state an uninterrupted run does — the state
+/// [`assert_migrated`] describes, which the uninterrupted tests above assert
+/// as well.
+#[tokio::test]
+async fn the_migration_resumes_from_its_watermark() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    let seeded = seed(&store, &checkpoint_store);
+
+    // One slice of one row, so the run stops in the middle of the first of
+    // the eight tables: the seed holds five transaction bodies, so four are
+    // left for the resumed run to find in that table alone.
+    let interrupted = migration(&store, checkpoint_store.clone(), None, 1);
+    interrupted.move_transactions(None).unwrap();
+    let watermark = match ledger_progress(&store) {
+        Some(LedgerBacklogMigrationProgress::Transactions(Some(digest))) => digest,
+        other => panic!("the interrupted run must have recorded a watermark, got {other:?}"),
+    };
+    assert_eq!(
+        store.perpetual_tables.transactions.safe_iter().count(),
+        4,
+        "one row moved and four left, or the slice size is not being honoured"
+    );
+    assert!(
+        store
+            .get_historic_ledger()
+            .get_transaction(&watermark)
+            .unwrap()
+            .is_some(),
+        "the row the watermark names must already be in a bucket"
+    );
+
+    // Release every handle on both databases before reopening the same paths,
+    // as a restart does.
+    let weak_ledger = Arc::downgrade(&store.perpetual_tables.objects.db);
+    let weak_checkpoints = Arc::downgrade(&checkpoint_store.tables.certified_checkpoints.db);
+    drop(interrupted);
+    drop(store);
+    drop(checkpoint_store);
+    assert!(wait_for_database_close(weak_ledger).await);
+    assert!(wait_for_database_close(weak_checkpoints).await);
+
+    let (resumed_store, resumed_checkpoints) = open(store_dir.path(), checkpoint_dir.path());
+    migration(&resumed_store, resumed_checkpoints.clone(), None, 1)
+        .run()
+        .unwrap();
+
+    assert_migrated(&resumed_store, &resumed_checkpoints, &seeded, 0);
+}
+
+/// Once both stores' flat tables are drained, a later start does nothing: from
+/// then on every row of this history is written straight into its epoch's
+/// bucket.
+#[tokio::test]
+async fn a_finished_migration_leaves_later_starts_nothing_to_do() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+    seed(&store, &checkpoint_store);
+
+    migration(&store, checkpoint_store.clone(), None, 5_000)
+        .run()
+        .unwrap();
+
+    // A row an earlier build could not have written, standing for one a later
+    // write puts in the flat table by mistake: a finished migration must not
+    // pick it up.
+    let stray = random_transaction();
+    store
+        .perpetual_tables
+        .transactions
+        .insert(stray.digest(), stray.serializable_ref())
+        .unwrap();
+
+    migration(&store, checkpoint_store, None, 5_000)
+        .run()
+        .unwrap();
+
+    assert!(
+        store
+            .perpetual_tables
+            .transactions
+            .get(stray.digest())
+            .unwrap()
+            .is_some()
+    );
+    assert!(
+        store
+            .get_historic_ledger()
+            .get_transaction(stray.digest())
+            .unwrap()
+            .is_none()
+    );
+}
