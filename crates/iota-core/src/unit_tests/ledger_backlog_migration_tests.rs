@@ -439,6 +439,64 @@ async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
     );
 }
 
+/// Two checkpoints in different epochs can name one contents row — every
+/// checkpoint carrying no transaction has the same contents digest — and the
+/// flat table holds a single row for the pair. Each epoch's bucket must end up
+/// with a copy of its own, or expiring the older epoch would leave the
+/// retained checkpoint with a summary and no contents.
+///
+/// A slice of one puts the two summaries in different slices, so whichever is
+/// processed first takes the flat row and the other has to read the contents
+/// back out of the bucket that first one went into. Which of the two comes
+/// first is decided by the digest order the summaries are walked in, so the
+/// assertion covers both.
+#[tokio::test]
+async fn two_epochs_naming_one_contents_row_each_keep_a_copy() {
+    let store_dir = iota_common::tempdir();
+    let checkpoint_dir = iota_common::tempdir();
+    let (store, checkpoint_store) = open(store_dir.path(), checkpoint_dir.path());
+
+    let full_contents = FullCheckpointContents::random_for_testing();
+    let older = test_checkpoint_with_contents(1, 10, &full_contents);
+    let newer = test_checkpoint_with_contents(2, 20, &full_contents);
+    let contents_digest = older.contents_digest;
+    assert_eq!(
+        newer.contents_digest, contents_digest,
+        "the two checkpoints must name one contents row for this to model the case"
+    );
+    let tables = &checkpoint_store.tables;
+    tables
+        .checkpoint_content
+        .insert(&contents_digest, &full_contents.checkpoint_contents())
+        .unwrap();
+    for checkpoint in [&older, &newer] {
+        tables
+            .checkpoint_by_digest
+            .insert(checkpoint.digest(), checkpoint.serializable_ref())
+            .unwrap();
+    }
+
+    migration(&store, checkpoint_store.clone(), None, 1)
+        .run()
+        .unwrap();
+
+    for checkpoint in [&older, &newer] {
+        assert!(
+            checkpoint_store
+                .historic_checkpoints
+                .ensure(checkpoint.epoch())
+                .unwrap()
+                .checkpoint_content
+                .get(&contents_digest)
+                .unwrap()
+                .is_some(),
+            "epoch {} must hold its own copy of the shared contents",
+            checkpoint.epoch()
+        );
+    }
+    assert_eq!(tables.checkpoint_content.safe_iter().count(), 0);
+}
+
 /// With the retention unset there is no floor, so every seeded epoch keeps its
 /// own bucket and nothing is deleted.
 #[tokio::test]
