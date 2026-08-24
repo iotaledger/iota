@@ -1268,7 +1268,6 @@ mod tests {
         core_thread::CoreError,
         dag_state::{DagState, DataSource},
         encoder::create_encoder,
-        misbehavior_store::MisbehaviorCounts,
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
         transaction_ref::TransactionRef,
@@ -1472,7 +1471,7 @@ mod tests {
         );
 
         let counts = dag_state.read().misbehavior_store().snapshot_totals();
-        let MisbehaviorCounts::V1(author_counts) = &counts[author.value()];
+        let author_counts = counts[author.value()].as_v2();
         assert_eq!(
             author_counts.faulty_blocks_provable, 1,
             "The author should be charged for the provably invalid payload"
@@ -1545,7 +1544,7 @@ mod tests {
                 .is_empty()
         );
         let counts = dag_state.read().misbehavior_store().snapshot_totals();
-        let MisbehaviorCounts::V1(peer_counts) = &counts[peer.value()];
+        let peer_counts = counts[peer.value()].as_v2();
         assert!(
             peer_counts.faulty_blocks_unprovable >= 1,
             "The serving peer must be charged for returning too many transactions"
@@ -2165,7 +2164,7 @@ mod tests {
         // undeserializable bytes. Peers are tried in a stable order in tests, so
         // peer 1 is always reached before the fetch succeeds from peer 2.
         let counts = dag_state.read().misbehavior_store().snapshot_totals();
-        let MisbehaviorCounts::V1(peer_counts) = &counts[AuthorityIndex::new_for_test(1).value()];
+        let peer_counts = counts[AuthorityIndex::new_for_test(1).value()].as_v2();
         assert!(
             peer_counts.faulty_blocks_unprovable >= 1,
             "The corrupted peer must be charged for serving undeserializable bytes"
@@ -2273,12 +2272,12 @@ mod tests {
         // AND the serving peer is charged an unprovable fault for relaying the
         // unrequested payload, while the author it named is not blamed.
         let counts = dag_state.read().misbehavior_store().snapshot_totals();
-        let MisbehaviorCounts::V1(peer_counts) = &counts[AuthorityIndex::new_for_test(1).value()];
+        let peer_counts = counts[AuthorityIndex::new_for_test(1).value()].as_v2();
         assert!(
             peer_counts.faulty_blocks_unprovable >= 1,
             "The serving peer must be charged for the unrequested payload"
         );
-        let MisbehaviorCounts::V1(framed_author) = &counts[AuthorityIndex::new_for_test(3).value()];
+        let framed_author = counts[AuthorityIndex::new_for_test(3).value()].as_v2();
         assert_eq!(
             framed_author.faulty_blocks_provable, 0,
             "The author named by the peer must not be blamed"

@@ -1873,7 +1873,7 @@ mod tests {
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::HeaderSynchronizer,
         leader_schedule::LeaderSchedule,
-        misbehavior_store::{MisbehaviorCounts, MisbehaviorStore},
+        misbehavior_store::MisbehaviorStore,
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
@@ -2239,7 +2239,8 @@ mod tests {
                 .get(),
             1,
         );
-        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[peer.value()];
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[peer.value()].as_v2();
         assert_eq!(
             counts.faulty_blocks_provable, 1,
             "two signed headers for one slot are provable equivocation"
@@ -2330,7 +2331,7 @@ mod tests {
         }
 
         let counts = misbehavior_store.snapshot_totals();
-        let MisbehaviorCounts::V1(counts) = &counts[0];
+        let counts = counts[0].as_v2();
         assert_eq!(counts.faulty_blocks_unprovable, 1);
 
         let input_block = VerifiedBlock::new_for_test(
@@ -2360,7 +2361,7 @@ mod tests {
         ));
 
         let counts = misbehavior_store.snapshot_totals();
-        let MisbehaviorCounts::V1(counts) = &counts[0];
+        let counts = counts[0].as_v2();
         assert_eq!(counts.faulty_blocks_unprovable, 2);
     }
 
@@ -2464,8 +2465,9 @@ mod tests {
         }
 
         // The relaying peer (authority 0) is charged for the invalid header.
-        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
-        assert_eq!(counts.faulty_blocks_unprovable, 1);
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[0].as_v2();
+        assert_eq!(counts.invalid_bundle_parts, 1);
 
         let cached_header = VerifiedBlockHeader::new_for_test(
             TestBlockHeader::new_with_commitment(1, 1, &context, &mut encoder)
@@ -2506,8 +2508,9 @@ mod tests {
                 block_round: 1,
             })
         ));
-        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
-        assert_eq!(counts.faulty_blocks_unprovable, 2);
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[0].as_v2();
+        assert_eq!(counts.invalid_bundle_parts, 2);
 
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
@@ -2639,7 +2642,8 @@ mod tests {
         assert_eq!(authority_service.received_block_headers.size(), 0);
 
         // The relaying peer (authority 0) is charged for the invalid metadata.
-        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[0].as_v2();
         assert_eq!(counts.faulty_blocks_unprovable, 1);
     }
 
@@ -4831,8 +4835,9 @@ mod tests {
             ),
             "an oversized shard must be refused, got {result:?}"
         );
-        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[peer.value()];
-        assert_eq!(counts.faulty_blocks_unprovable, 1);
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[peer.value()].as_v2();
+        assert_eq!(counts.invalid_bundle_parts, 1);
 
         // At exactly the maximum length the size gate passes, so the shard is
         // only rejected by the following proof check.

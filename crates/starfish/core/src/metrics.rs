@@ -354,6 +354,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) faulty_blocks_unprovable_by_peer: IntGaugeVec,
     pub(crate) equivocations_by_authority: IntGaugeVec,
     pub(crate) missing_proposals_by_authority: IntGaugeVec,
+    pub(crate) invalid_bundle_parts_by_peer: IntGaugeVec,
     pub(crate) strong_vote_extra_wait_seconds: Histogram,
     pub(crate) strong_vote_missing_authorities: Histogram,
     pub(crate) strong_blames_emitted_for_leader: IntCounterVec,
@@ -1413,6 +1414,13 @@ impl NodeMetrics {
                 "missing_proposals_by_authority",
                 "Missing proposals per authority (source: persisted or in_memory)",
                 &["authority", "source"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            invalid_bundle_parts_by_peer: register_int_gauge_vec_with_registry!(
+                "invalid_bundle_parts_by_peer",
+                "Invalid relayed bundle parts per peer (source: persisted or in_memory)",
+                &["peer", "source"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),

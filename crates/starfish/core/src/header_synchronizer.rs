@@ -4058,9 +4058,9 @@ mod tests {
                 .get(),
             1
         );
-        let crate::misbehavior_store::MisbehaviorCounts::V1(counts) =
-            &misbehavior_store.snapshot_totals()[peer_index.value()];
-        assert_eq!(counts.faulty_blocks_unprovable, 1);
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[peer_index.value()].as_v2();
+        assert_eq!(counts.invalid_bundle_parts, 1);
     }
 
     /// A header dropped as an unrequested extra stays fetchable: a later
