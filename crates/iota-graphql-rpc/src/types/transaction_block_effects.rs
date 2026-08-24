@@ -11,11 +11,16 @@ use iota_indexer::{
     optimistic_indexing::IngestionPath,
 };
 use iota_json_rpc_types::IotaExecutionStatus;
+use iota_package_resolver::CleverError;
 use iota_sdk_types::{
-    Event as NativeEvent, ExecutionStatus as NativeExecutionStatus,
-    Transaction as NativeTransactionData, TransactionEffects as NativeTransactionEffects,
+    Event as NativeEvent, ExecutionError as ExecutionFailureStatus,
+    ExecutionStatus as NativeExecutionStatus, Transaction as NativeTransactionData,
+    TransactionEffects as NativeTransactionEffects,
 };
-use iota_types::effects::TransactionEffectsAPI;
+use iota_types::{
+    effects::TransactionEffectsAPI, iota_sdk_types_conversions::identifier_sdk_to_core,
+};
+use move_core_types::{account_address::AccountAddress, language_storage::ModuleId};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -25,6 +30,7 @@ use crate::{
     types::{
         balance_change::BalanceChange,
         base64::Base64,
+        big_int::BigInt,
         checkpoint::{Checkpoint, CheckpointId},
         cursor::{JsonCursor, Page},
         date_time::DateTime,
@@ -140,6 +146,36 @@ impl TransactionBlockEffects {
             IotaExecutionStatus::Success => Ok(None),
             IotaExecutionStatus::Failure { error } => Ok(Some(error)),
         }
+    }
+
+    /// The error code of the Move abort, populated if this transaction failed
+    /// with a Move abort.
+    #[graphql(complexity = 0)]
+    async fn abort_code(&self, ctx: &Context<'_>) -> Result<Option<BigInt>> {
+        let resolver: &PackageResolver = ctx.data_unchecked();
+
+        let NativeExecutionStatus::Failure {
+            error: ExecutionFailureStatus::MoveAbort { location, code },
+            ..
+        } = self.native().status()
+        else {
+            return Ok(None);
+        };
+
+        let module_id = ModuleId::new(
+            AccountAddress::from(location.package.into_bytes()),
+            identifier_sdk_to_core(&location.module),
+        );
+
+        let Some(CleverError {
+            error_code: Some(error_code),
+            ..
+        }) = resolver.resolve_clever_error(module_id, *code).await
+        else {
+            return Ok(Some(BigInt::from(*code)));
+        };
+
+        Ok(Some(BigInt::from(error_code as u64)))
     }
 
     /// Transactions whose outputs this transaction depends upon.
