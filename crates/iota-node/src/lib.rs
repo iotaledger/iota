@@ -628,18 +628,6 @@ impl IotaNode {
         let rpc_indexes_store = if index_groups.is_empty() {
             None
         } else {
-            if config
-                .authority_store_pruning_config
-                .num_epochs_to_retain_for_indexes
-                == Some(0)
-            {
-                return Err(anyhow!(
-                    "num-epochs-to-retain-for-indexes is 0, which the RPC indexes cannot do: the \
-                     running epoch's history is written whatever the retention, because checkpoint \
-                     ingest reads its transaction digests. Set it to 1 to keep the current epoch \
-                     only, or turn the API off with enable-jsonrpc-api / enable-grpc-api"
-                ));
-            }
             info!("creating index store");
             if config
                 .authority_store_pruning_config
