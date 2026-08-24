@@ -9,13 +9,13 @@ use iota_metrics::spawn_monitored_task;
 use parking_lot::{Mutex, RwLock};
 use starfish_config::AuthorityIndex;
 use tokio::{
+    sync::watch,
     task::JoinHandle,
     time::{sleep, timeout},
 };
 use tracing::{debug, error, info};
 
 use crate::{
-    Round,
     block_header::BlockHeaderAPI as _,
     context::Context,
     dag_state::DagState,
@@ -34,6 +34,7 @@ pub(crate) struct Subscriber<C: NetworkClient, S: NetworkService> {
     network_client: Arc<C>,
     authority_service: Arc<S>,
     dag_state: Arc<RwLock<DagState>>,
+    block_stream_reset_sender: watch::Sender<u64>,
     subscriptions: Arc<Mutex<Box<[Option<JoinHandle<()>>]>>>,
 }
 
@@ -43,6 +44,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         network_client: Arc<C>,
         authority_service: Arc<S>,
         dag_state: Arc<RwLock<DagState>>,
+        block_stream_reset_sender: watch::Sender<u64>,
     ) -> Self {
         // Drop label combos left over from previous epochs whose hostnames
         // are no longer in the current committee — otherwise IntGaugeVec
@@ -56,6 +58,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             network_client,
             authority_service,
             dag_state,
+            block_stream_reset_sender,
             subscriptions: Arc::new(Mutex::new(subscriptions.into_boxed_slice())),
         }
     }
@@ -68,10 +71,8 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let context = self.context.clone();
         let network_client = self.network_client.clone();
         let authority_service = self.authority_service.clone();
-        let last_received = {
-            let dag_state = self.dag_state.read();
-            dag_state.get_last_block_header_for_authority(peer).round()
-        };
+        let dag_state = self.dag_state.clone();
+        let block_stream_reset_receiver = self.block_stream_reset_sender.subscribe();
 
         let mut subscriptions = self.subscriptions.lock();
         self.unsubscribe_locked(peer, &mut subscriptions[peer.value()]);
@@ -79,8 +80,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             context,
             network_client,
             authority_service,
+            dag_state,
             peer,
-            last_received,
+            block_stream_reset_receiver,
         )));
     }
 
@@ -119,8 +121,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         context: Arc<Context>,
         network_client: Arc<C>,
         authority_service: Arc<S>,
+        dag_state: Arc<RwLock<DagState>>,
         peer: AuthorityIndex,
-        last_received: Round,
+        mut block_stream_reset_receiver: watch::Receiver<u64>,
     ) {
         const IMMEDIATE_RETRIES: i64 = 3;
         // When not immediately retrying, limit retry delay between 100ms and 10s.
@@ -148,7 +151,17 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                     peer_hostname,
                     delay.as_secs_f32(),
                 );
-                sleep(delay).await;
+                tokio::select! {
+                    biased;
+                    reset = block_stream_reset_receiver.changed() => {
+                        if reset.is_err() {
+                            return;
+                        }
+                        retries = 0;
+                        continue 'subscription;
+                    }
+                    _ = sleep(delay) => {}
+                }
                 // Update delay for the next retry.
                 delay = delay
                     .mul_f32(RETRY_INTERVAL_MULTIPLIER)
@@ -162,10 +175,24 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             }
             retries += 1;
 
+            let last_received = dag_state
+                .read()
+                .get_last_block_header_for_authority(peer)
+                .round();
             // Wrap subscribe_block_bundles in a timeout and increment metric on timeout
             let subscribe_future =
                 network_client.subscribe_block_bundles(peer, last_received, MAX_RETRY_INTERVAL);
-            let subscribe_result = timeout(MAX_RETRY_INTERVAL * 5, subscribe_future).await;
+            let subscribe_result = tokio::select! {
+                biased;
+                reset = block_stream_reset_receiver.changed() => {
+                    if reset.is_err() {
+                        return;
+                    }
+                    retries = 0;
+                    continue 'subscription;
+                }
+                result = timeout(MAX_RETRY_INTERVAL * 5, subscribe_future) => result,
+            };
             let mut block_bundles = match subscribe_result {
                 Ok(inner_result) => match inner_result {
                     Ok(blocks) => {
@@ -219,7 +246,19 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                 .set(1);
 
             'stream: loop {
-                match block_bundles.next().await {
+                let next_block = tokio::select! {
+                    biased;
+                    reset = block_stream_reset_receiver.changed() => {
+                        if reset.is_err() {
+                            return;
+                        }
+                        debug!("Resetting block stream subscription to peer {peer} {peer_hostname}");
+                        retries = 0;
+                        continue 'subscription;
+                    }
+                    block = block_bundles.next() => block,
+                };
+                match next_block {
                     Some(block) => {
                         context
                             .metrics
@@ -271,19 +310,31 @@ mod test {
 
     use super::*;
     use crate::{
-        block_header::BlockRef,
+        Round,
+        block_header::{BlockRef, TestBlockHeader, VerifiedBlockHeader},
         commit::CommitRange,
+        dag_state::DataSource,
         error::ConsensusResult,
         network::{BlockBundleStream, SerializedBlockBundle, test_network::TestService},
         storage::mem_store::MemStore,
         transaction_ref::TransactionRef,
     };
 
-    struct SubscriberTestClient {}
+    struct SubscriberTestClient {
+        last_received_rounds: Mutex<Vec<Round>>,
+        pending_stream: bool,
+    }
 
     impl SubscriberTestClient {
-        fn new() -> Self {
-            Self {}
+        fn new(pending_stream: bool) -> Self {
+            Self {
+                last_received_rounds: Mutex::new(Vec::new()),
+                pending_stream,
+            }
+        }
+
+        fn last_received_rounds(&self) -> Vec<Round> {
+            self.last_received_rounds.lock().clone()
         }
     }
 
@@ -292,18 +343,23 @@ mod test {
         async fn subscribe_block_bundles(
             &self,
             _peer: AuthorityIndex,
-            _last_received: Round,
+            last_received: Round,
             _timeout: Duration,
         ) -> ConsensusResult<BlockBundleStream> {
-            let block_stream = stream::unfold((), |_| async {
-                sleep(Duration::from_millis(1)).await;
-                let block = SerializedBlockBundle {
-                    serialized_block_bundle: Bytes::from(vec![1u8; 8]),
-                };
-                Some((block, ()))
-            })
-            .take(10);
-            Ok(Box::pin(block_stream))
+            self.last_received_rounds.lock().push(last_received);
+            if self.pending_stream {
+                Ok(Box::pin(stream::pending()))
+            } else {
+                let block_stream = stream::unfold((), |_| async {
+                    sleep(Duration::from_millis(1)).await;
+                    let block = SerializedBlockBundle {
+                        serialized_block_bundle: Bytes::from(vec![1u8; 8]),
+                    };
+                    Some((block, ()))
+                })
+                .take(10);
+                Ok(Box::pin(block_stream))
+            }
         }
 
         async fn fetch_transactions(
@@ -353,24 +409,47 @@ mod test {
         }
     }
 
+    async fn wait_for_subscription_attempts(
+        network_client: &SubscriberTestClient,
+        expected: usize,
+    ) {
+        for _ in 0..100 {
+            if network_client.last_received_rounds().len() >= expected {
+                return;
+            }
+            sleep(Duration::from_millis(1)).await;
+        }
+        panic!("subscriber did not make {expected} subscription attempts");
+    }
+
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn subscriber_retries() {
         telemetry_subscribers::init_for_testing();
         let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let authority_service = Arc::new(Mutex::new(TestService::new()));
-        let network_client = Arc::new(SubscriberTestClient::new());
+        let network_client = Arc::new(SubscriberTestClient::new(false));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let (block_stream_reset_sender, _) = watch::channel(0_u64);
         let subscriber = Subscriber::new(
             context.clone(),
-            network_client,
+            network_client.clone(),
             authority_service.clone(),
-            dag_state,
+            dag_state.clone(),
+            block_stream_reset_sender,
         );
 
         let peer = context.committee.to_authority_index(2).unwrap();
         subscriber.subscribe(peer);
+        wait_for_subscription_attempts(&network_client, 1).await;
+
+        let header =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(7, peer.value() as u8).build());
+        dag_state
+            .write()
+            .accept_block_headers(vec![header], DataSource::BlockBundleStream);
+        wait_for_subscription_attempts(&network_client, 2).await;
 
         // Wait for enough block bundles received.
         for _ in 0..10 {
@@ -394,5 +473,50 @@ mod test {
                 }
             );
         }
+        assert!(
+            network_client
+                .last_received_rounds()
+                .iter()
+                .skip(1)
+                .all(|round| *round == 7)
+        );
+        drop(service);
+        subscriber.stop();
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn subscriber_resets_stream_with_latest_cursor() {
+        telemetry_subscribers::init_for_testing();
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let authority_service = Arc::new(Mutex::new(TestService::new()));
+        let network_client = Arc::new(SubscriberTestClient::new(true));
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let (block_stream_reset_sender, _) = watch::channel(0_u64);
+        let subscriber = Subscriber::new(
+            context.clone(),
+            network_client.clone(),
+            authority_service,
+            dag_state.clone(),
+            block_stream_reset_sender.clone(),
+        );
+
+        let peer = context.committee.to_authority_index(2).unwrap();
+        subscriber.subscribe(peer);
+        wait_for_subscription_attempts(&network_client, 1).await;
+
+        let header =
+            VerifiedBlockHeader::new_for_test(TestBlockHeader::new(11, peer.value() as u8).build());
+        dag_state
+            .write()
+            .accept_block_headers(vec![header], DataSource::BlockBundleStream);
+        block_stream_reset_sender.send_modify(|generation| {
+            *generation += 1;
+        });
+
+        wait_for_subscription_attempts(&network_client, 2).await;
+        assert_eq!(network_client.last_received_rounds(), vec![0, 11]);
+        subscriber.stop();
     }
 }

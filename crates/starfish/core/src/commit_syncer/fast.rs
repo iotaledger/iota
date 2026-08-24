@@ -20,7 +20,7 @@ use rand::{SeedableRng as _, rngs::StdRng, thread_rng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
-    sync::oneshot,
+    sync::{oneshot, watch},
     task::JoinSet,
     time::{Instant, MissedTickBehavior},
 };
@@ -141,6 +141,8 @@ pub(crate) struct FastCommitSyncer<C: NetworkClient> {
     // Shared components wrapper.
     inner: Arc<Inner<C>>,
 
+    block_stream_reset_sender: watch::Sender<u64>,
+
     // States only used by the scheduler.
 
     // Inflight requests to fetch commits from different authorities.
@@ -179,6 +181,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         header_synchronizer: Arc<HeaderSynchronizerHandle>,
         misbehavior_store: Arc<MisbehaviorStore>,
         fast_sync_active: Arc<AtomicBool>,
+        block_stream_reset_sender: watch::Sender<u64>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -200,6 +203,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         );
         FastCommitSyncer {
             inner,
+            block_stream_reset_sender,
             inflight_fetches: JoinSet::new(),
             pending_fetches: BTreeSet::new(),
             fetched_ranges: BTreeMap::new(),
@@ -285,6 +289,20 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                             self.inner
                                 .header_synchronizer
                                 .clear_verified_headers_cache();
+                            if self
+                                .inner
+                                .context
+                                .parameters
+                                .enable_block_stream_reset_on_fast_sync_exit
+                            {
+                                self.block_stream_reset_sender.send_modify(|generation| {
+                                    *generation = generation.wrapping_add(1);
+                                });
+                                info!(
+                                    "[{}] Signaled block stream reset",
+                                    self.inner.sync_type.as_str()
+                                );
+                            }
                             info!(
                                 "[{}] Components reinitialized, fast sync complete",
                                 self.inner.sync_type.as_str()
@@ -1155,6 +1173,7 @@ mod tests {
                 None,
                 misbehavior_store.clone(),
             );
+            let (block_stream_reset_sender, _) = tokio::sync::watch::channel(0_u64);
             FastCommitSyncer::new(
                 context,
                 core_thread_dispatcher,
@@ -1166,6 +1185,7 @@ mod tests {
                 header_synchronizer,
                 misbehavior_store,
                 Arc::new(AtomicBool::new(false)),
+                block_stream_reset_sender,
             )
             .inner
         }
