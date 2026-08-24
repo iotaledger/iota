@@ -3195,6 +3195,17 @@ impl AuthorityState {
         self.checkpoint_store
             .historic_checkpoints
             .ensure(new_epoch)?;
+        // The index history counts its retention back from its newest bucket,
+        // so without this the count would start at the epoch just executed
+        // and the node would hold one epoch more than configured. Unlike the
+        // three above, this bucket has a second creator — checkpoint ingest
+        // makes it on demand — so a failure here costs this boundary's
+        // retention accuracy rather than the epoch's history.
+        if let Some(indexes) = &self.rpc_indexes_store {
+            if let Err(err) = indexes.ensure_history_bucket_exists(new_epoch) {
+                error!("Failed to open the RPC index history bucket of {new_epoch}: {err:?}");
+            }
+        }
 
         // `num_epochs_to_retain` counts the historic epochs kept beyond the
         // current one, while `prune` counts buckets including the newest.

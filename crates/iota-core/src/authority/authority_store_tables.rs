@@ -1212,6 +1212,6 @@ mod tests {
         perpetual_db.compact().unwrap();
         let after_compaction_size = sst_size(&db_path);
 
-        more_asserts::assert_le!(after_compaction_size, before_compaction_size);
+        more_asserts::assert_lt!(after_compaction_size, before_compaction_size);
     }
 }

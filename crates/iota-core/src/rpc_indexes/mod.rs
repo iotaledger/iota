@@ -917,6 +917,29 @@ impl RpcIndexesStore {
 
     /// The bucket holding `epoch`'s history, created if absent. Pruned
     /// epochs are refused, see [`EpochBuckets::ensure`].
+    /// Opens `epoch`'s history bucket, creating its column family if the
+    /// store has not been asked for it before.
+    ///
+    /// Checkpoint ingest opens the bucket of each epoch it indexes, so this
+    /// is only needed to get ahead of ingest: [`Self::prune`] counts this
+    /// store's retention back from its newest bucket, so at a reconfiguration
+    /// the epoch being entered must have its bucket before the retention is
+    /// applied, or the count starts at the epoch just executed and one epoch
+    /// too many is kept. Creating a column family blocks.
+    pub(crate) fn ensure_history_bucket_exists(&self, epoch: EpochId) -> IotaResult<()> {
+        self.ensure_history_bucket(epoch).map(|_| ())
+    }
+
+    /// The epochs whose history buckets this store holds, oldest first.
+    #[cfg(test)]
+    pub(crate) fn retained_history_epochs(&self) -> Vec<EpochId> {
+        self.history
+            .iter_with_epoch(false)
+            .into_iter()
+            .map(|(epoch, _)| epoch)
+            .collect()
+    }
+
     fn ensure_history_bucket(&self, epoch: EpochId) -> IotaResult<Arc<HistoryBucket>> {
         self.history
             .ensure(epoch)

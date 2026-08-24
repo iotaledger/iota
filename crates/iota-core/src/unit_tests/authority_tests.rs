@@ -9296,6 +9296,37 @@ async fn reconfiguration_expires_ledger_buckets_beyond_the_retention() {
     }
 }
 
+/// The index history must retain exactly the configured number of epochs,
+/// counting the epoch being entered. It is counted back from the newest
+/// bucket, so the boundary has to open the incoming epoch's bucket before it
+/// prunes — otherwise the count starts one epoch low and the node keeps one
+/// epoch more than configured, for good.
+#[tokio::test]
+async fn the_index_history_retains_exactly_the_configured_epochs() {
+    const EPOCHS_TO_RETAIN: u64 = 2;
+
+    let authority = TestAuthorityBuilder::new()
+        .with_num_epochs_to_retain_for_indexes(EPOCHS_TO_RETAIN)
+        .build()
+        .await;
+    let indexes = authority.rpc_indexes_store.clone().unwrap();
+
+    // The history of every epoch up to the one about to be left.
+    for epoch in 0..=3 {
+        indexes.ensure_history_bucket_exists(epoch).unwrap();
+    }
+    assert_eq!(indexes.retained_history_epochs(), vec![0, 1, 2, 3]);
+
+    authority.advance_historic_buckets(4).await.unwrap();
+
+    // Epoch 4 is the one being entered and 3 the one before it, so those two
+    // are the window; everything below it is gone.
+    assert_eq!(indexes.retained_history_epochs(), vec![3, 4]);
+    // And gone durably: a dropped epoch's bucket cannot be reopened.
+    assert!(indexes.ensure_history_bucket_exists(2).is_err());
+    assert!(indexes.ensure_history_bucket_exists(3).is_ok());
+}
+
 /// Expiring the checkpoint buckets must move `HighestPruned` up to the last
 /// checkpoint of the epoch below the oldest bucket retained, so that
 /// `try_get_lowest_available_checkpoint` stops offering state-sync peers and

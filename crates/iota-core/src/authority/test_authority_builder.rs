@@ -69,6 +69,7 @@ pub struct TestAuthorityBuilder<'a> {
     chain_override: Option<Chain>,
     num_epochs_to_retain: Option<u64>,
     num_epochs_to_retain_for_checkpoints: Option<u64>,
+    num_epochs_to_retain_for_indexes: Option<u64>,
 }
 
 impl<'a> TestAuthorityBuilder<'a> {
@@ -194,6 +195,17 @@ impl<'a> TestAuthorityBuilder<'a> {
     pub fn with_num_epochs_to_retain_for_checkpoints(mut self, num_epochs_to_retain: u64) -> Self {
         assert!(
             self.num_epochs_to_retain_for_checkpoints
+                .replace(num_epochs_to_retain)
+                .is_none()
+        );
+        self
+    }
+
+    /// The number of epochs of RPC index history retained, counting the
+    /// epoch the node is in. Left unset, index pruning is off.
+    pub fn with_num_epochs_to_retain_for_indexes(mut self, num_epochs_to_retain: u64) -> Self {
+        assert!(
+            self.num_epochs_to_retain_for_indexes
                 .replace(num_epochs_to_retain)
                 .is_none()
         );
@@ -351,7 +363,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                     epoch_store
                         .protocol_config()
                         .max_move_identifier_len_as_option(),
-                    None,
+                    self.num_epochs_to_retain_for_indexes,
                     &authority_store,
                     &checkpoint_store,
                     Arc::default(),
