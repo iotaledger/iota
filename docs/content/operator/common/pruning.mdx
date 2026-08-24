@@ -32,7 +32,7 @@ Object pruning, transaction pruning, and index pruning are independent of one an
 | Pruning task          | Controlling parameter                  | Enabled when                      |
 | --------------------- | -------------------------------------- | --------------------------------- |
 | Object pruning        | `num-epochs-to-retain`                 | value is not `u64::MAX`           |
-| Transaction pruning   | `num-epochs-to-retain-for-checkpoints` | set to a value `>= 2`             |
+| Transaction pruning   | `num-epochs-to-retain-for-checkpoints` | set                               |
 | Index pruning         | `num-epochs-to-retain-for-indexes`     | set                               |
 
 All pruning parameters are configured in `fullnode.yaml`. The following annotated block shows every parameter with its default value — copy it into your config and adjust as needed:
@@ -60,10 +60,9 @@ authority-store-pruning-config:
 
   # Number of epochs to keep historic transactions, effects, events, and
   # checkpoint data. Controls transaction pruning.
-  #   unset / 0 / u64::MAX — transaction pruning disabled (default).
-  #   N (>= 2)             — prunes data older than current − N epochs. The
-  #                          minimum effective value is 2; IOTA always keeps
-  #                          the current and immediately prior epoch.
+  #   unset — transaction pruning disabled (default keeps everything).
+  #   N     — keeps the N most recent epochs, counting the current one as
+  #           one of them. 0 and 1 both keep the current epoch only.
   # num-epochs-to-retain-for-checkpoints: 2
 
   # Number of historic epochs to retain in the rpc_indexes store, on top of
@@ -77,6 +76,14 @@ authority-store-pruning-config:
   # set to: a client that submits a transaction needs to read it back — the
   # transaction, its effects, and the index rows behind queries — seconds
   # later. Only at an epoch boundary is dropping that data acceptable.
+  # May be shorter than num-epochs-to-retain-for-checkpoints above — the
+  # only cost is query reach, since every retained transaction stays
+  # fetchable by digest and still reports its checkpoint regardless of
+  # index retention. It must not exceed that value while transaction
+  # pruning is enabled: the node refuses to start otherwise, since
+  # iotax_queryTransactionBlocks() would then return transactions the
+  # ledger has already pruned. Leaving this unset skips that check, but
+  # then the index keeps growing with no bound of its own.
   # num-epochs-to-retain-for-indexes: 2
 
   # Number of recent per-epoch RocksDB databases to keep. Default: 3.
