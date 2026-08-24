@@ -1093,7 +1093,7 @@ impl PackageMetadata {
 
     pub fn struct_tag(&self) -> StructTag {
         match self {
-            PackageMetadata::V1(_) => PackageMetadataV1::struct_tag(),
+            PackageMetadata::V1(_) => StructTag::new_package_metadata_v1(),
         }
     }
 
@@ -1188,15 +1188,6 @@ impl PackageMetadataV1 {
             package_version,
             modules_metadata,
         }
-    }
-
-    pub fn struct_tag() -> StructTag {
-        StructTag::new(
-            Address::FRAMEWORK,
-            PACKAGE_METADATA_MODULE_NAME,
-            PACKAGE_METADATA_V1_STRUCT_NAME,
-            vec![],
-        )
     }
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {

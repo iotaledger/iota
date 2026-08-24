@@ -83,7 +83,7 @@ fn make_large_gas_coin(
 fn make_owned_entry(
     owner: Address,
     object_id: ObjectId,
-    tag: MoveObjectType,
+    object_type: MoveObjectType,
     type_id_hash: u64,
     params_hash: u64,
     balance: Option<u64>,
@@ -92,7 +92,7 @@ fn make_owned_entry(
         owner,
         object_id,
         version: OBJECT_START_VERSION,
-        object_type: tag,
+        object_type,
     };
     let cursor = OwnedObjectCursor {
         object_type_identifier: type_id_hash,
