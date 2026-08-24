@@ -57,9 +57,7 @@ pub mod tonic_network;
 mod tonic_tls;
 
 use crate::{
-    commit_syncer::CommitSyncType,
-    encoder::ShardEncoder,
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    commit_syncer::CommitSyncType, encoder::ShardEncoder, transaction_ref::TransactionRef,
 };
 
 /// Controls transaction fetching truncation behavior for different sync modes
@@ -95,11 +93,11 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         timeout: Duration,
     ) -> ConsensusResult<BlockBundleStream>;
 
-    /// Fetches transactions for the given block references from a peer.
+    /// Fetches transactions for the given transaction references from a peer.
     async fn fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        transactions_refs: Vec<GenericTransactionRef>,
+        transactions_refs: Vec<TransactionRef>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>>;
 
@@ -217,7 +215,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<GenericTransactionRef>,
+        transactions_refs: Vec<TransactionRef>,
         fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>>;
 }

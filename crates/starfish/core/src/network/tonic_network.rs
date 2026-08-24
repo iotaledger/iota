@@ -48,7 +48,7 @@ use crate::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
         tonic_tls::certificate_server_name,
     },
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 // Maximum bytes size in a single fetch_blocks()response.
@@ -300,10 +300,10 @@ impl NetworkClient for TonicClient {
                         .len()
                         .saturating_add(vec_serialized_block_headers.len());
                     if received_headers > max_headers {
-                        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-                            authority: peer,
+                        return Err(ConsensusError::TooManyFetchedHeadersReturned {
+                            peer,
                             requested: max_headers,
-                            received_headers,
+                            received: received_headers,
                         });
                     }
                     for b in &vec_serialized_block_headers {
@@ -344,28 +344,19 @@ impl NetworkClient for TonicClient {
     async fn fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        transactions_refs: Vec<GenericTransactionRef>,
+        transactions_refs: Vec<TransactionRef>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
         let mut request = Request::new(FetchTransactionsRequest {
-            block_refs: transactions_refs
+            transaction_refs: transactions_refs
                 .iter()
-                .filter_map(|r| match r {
-                    GenericTransactionRef::BlockRef(block_ref) => match bcs::to_bytes(block_ref) {
-                        Ok(serialized) => Some(serialized),
-                        Err(e) => {
-                            debug!("Failed to serialize BlockRef {:?}: {e:?}", block_ref);
-                            None
-                        }
-                    },
-                    GenericTransactionRef::TransactionRef(tx_ref) => match bcs::to_bytes(tx_ref) {
-                        Ok(serialized) => Some(serialized),
-                        Err(e) => {
-                            debug!("Failed to serialize TransactionRef {:?}: {e:?}", tx_ref);
-                            None
-                        }
-                    },
+                .filter_map(|tx_ref| match bcs::to_bytes(tx_ref) {
+                    Ok(serialized) => Some(serialized),
+                    Err(e) => {
+                        debug!("Failed to serialize TransactionRef {:?}: {e:?}", tx_ref);
+                        None
+                    }
                 })
                 .collect(),
         });
@@ -1050,11 +1041,11 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         let permit = self.admit(RpcGroup::TransactionFetch, peer_index)?;
 
         let request = request.into_inner();
-        let committed_transactions_refs: Vec<GenericTransactionRef> = request
-            .block_refs
+        let committed_transactions_refs: Vec<TransactionRef> = request
+            .transaction_refs
             .iter()
             .filter_map(|r| match bcs::from_bytes::<TransactionRef>(r) {
-                Ok(transaction_ref) => Some(GenericTransactionRef::TransactionRef(transaction_ref)),
+                Ok(transaction_ref) => Some(transaction_ref),
                 Err(e) => {
                     debug!("Failed to deserialize transaction ref: {e:?}");
                     None
@@ -1626,8 +1617,9 @@ pub(crate) struct GetLatestRoundsResponse {
 
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchTransactionsRequest {
+    // BCS-serialized `TransactionRef`s.
     #[prost(bytes = "vec", repeated, tag = "1")]
-    block_refs: Vec<Vec<u8>>,
+    transaction_refs: Vec<Vec<u8>>,
 }
 
 #[derive(Clone, prost::Message)]

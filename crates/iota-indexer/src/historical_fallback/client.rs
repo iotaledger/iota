@@ -288,6 +288,20 @@ impl HttpRestKVClient {
     }
 
     async fn fetch_batch(&self, request: MultiGetRequest) -> IndexerResult<Vec<Option<Bytes>>> {
+        let item_type = request.item_type;
+        self.metrics.record_request(item_type);
+
+        let result = self.fetch_batch_inner(request).await;
+        if result.is_err() {
+            self.metrics.record_request_error(item_type);
+        }
+        result
+    }
+
+    async fn fetch_batch_inner(
+        &self,
+        request: MultiGetRequest,
+    ) -> IndexerResult<Vec<Option<Bytes>>> {
         let url = self.base_url.join(&request.item_type.to_string())?;
 
         trace!(
@@ -347,6 +361,27 @@ impl HttpRestKVClient {
             IndexerError::HistoricalFallbackInput("limit must be greater than 0".into())
         })?;
 
+        let item_type = key.item_type();
+        self.metrics.record_request(item_type);
+
+        let result = self.paginate_inner(key, cursor, limit, reversed).await;
+        if result.is_err() {
+            self.metrics.record_request_error(item_type);
+        }
+        result
+    }
+
+    async fn paginate_inner<C, T>(
+        &self,
+        key: Key,
+        cursor: Option<C>,
+        limit: NonZeroUsize,
+        reversed: bool,
+    ) -> IndexerResult<Vec<T>>
+    where
+        C: Display,
+        T: for<'de> Deserialize<'de>,
+    {
         let (item_type, encoded_key) = key.to_path_elements();
         let mut url = self.base_url.join(&format!("{item_type}/{encoded_key}"))?;
 
@@ -454,6 +489,20 @@ impl HttpRestKVClient {
     }
 
     async fn fetch_objects_before_version_batch(
+        &self,
+        request: MultiGetRequest,
+    ) -> IndexerResult<Vec<Option<Bytes>>> {
+        let item_type = request.item_type;
+        self.metrics.record_request(item_type);
+
+        let result = self.fetch_objects_before_version_batch_inner(request).await;
+        if result.is_err() {
+            self.metrics.record_request_error(item_type);
+        }
+        result
+    }
+
+    async fn fetch_objects_before_version_batch_inner(
         &self,
         request: MultiGetRequest,
     ) -> IndexerResult<Vec<Option<Bytes>>> {

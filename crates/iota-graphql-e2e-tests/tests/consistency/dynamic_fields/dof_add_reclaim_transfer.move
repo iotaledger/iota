@@ -185,3 +185,18 @@ fragment DynamicFieldsSelect on DynamicFieldConnection {
     }
   }
 }
+
+//# run-graphql
+# The dynamic field wrapper object was deleted when the child was reclaimed:
+# fetching it at the exact deletion version resolves as non-existent, while
+# the version before still resolves.
+{
+  wrapper_at_deletion_version: object(address: "@{obj_3_0}", version: 4) {
+    version
+    status
+  }
+  wrapper_before_deletion: object(address: "@{obj_3_0}", version: 3) {
+    version
+    status
+  }
+}

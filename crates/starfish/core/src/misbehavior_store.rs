@@ -234,7 +234,8 @@ impl MisbehaviorStore {
         }
     }
 
-    /// Attributes a transaction payload that failed verification.
+    /// Attributes a transaction payload that failed the commitment check or
+    /// the transaction validity check.
     ///
     /// `author` is charged with a provable fault only when `authored` is true,
     /// i.e. a verified, author-signed block header commits to this payload, so
@@ -296,12 +297,11 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::DeserializationFailure(_)
         | ConsensusError::SerializedTransactionsTooLarge { .. }
         | ConsensusError::TransactionCommitmentFailure { .. }
+        | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
+        | ConsensusError::TooManyFetchedHeadersReturned { .. }
         // Corrupt or invalid relayed bundle parts (framing, additional-header
         // round, and shard structure/proof). We know which peer relayed them
         // but can't tie them to a verified author.
-        // TODO(iotaledger/iota-private#470): count these under a dedicated
-        // bundle-part counter instead of folding them into the unprovable
-        // block-fault bucket.
         | ConsensusError::MalformedShard(_)
         | ConsensusError::TooBigHeaderRoundInABundle { .. }
         | ConsensusError::TooBigShardRoundInABundle { .. }
@@ -340,10 +340,14 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         // than a faulty peer.
         ConsensusError::MalformedCommit(_)
         | ConsensusError::UnexpectedGenesisRequested { .. }
-        | ConsensusError::UnexpectedNumberOfHeadersFetched { .. }
+        | ConsensusError::NotEnoughHeadersFetched { .. }
         | ConsensusError::UnexpectedLastOwnHeader { .. }
+        // Transaction fetch faults, recorded against the serving peer at the
+        // fetch sites via `record_faulty_transactions` — deliberately not
+        // tracked again here.
         | ConsensusError::TooManyFetchedTransactionsReturned(_)
         | ConsensusError::UnrequestedTransactionFetched { .. }
+        | ConsensusError::UnexpectedTransactionForCommit { .. }
         | ConsensusError::TooManyAuthoritiesProvided(_)
         | ConsensusError::InvalidSizeOfHighestAcceptedRounds(..)
         | ConsensusError::InvalidAuthorityIndexRequested { .. }
@@ -363,8 +367,6 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::SerializedCommitTooLarge { .. }
         | ConsensusError::SerializedBlockHeaderTooLarge { .. }
         | ConsensusError::InvalidCommitRange { .. }
-        | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
-        | ConsensusError::UnexpectedTransactionForCommit { .. }
         | ConsensusError::FetchedTransactionsMismatch { .. }
         | ConsensusError::RocksDBFailure(_)
         | ConsensusError::NetworkConfig(_)
@@ -584,6 +586,14 @@ impl MisbehaviorStore {
 
     pub(crate) fn in_memory_equivocations(&self) -> Vec<u64> {
         self.in_memory.collect(|c| c.equivocations)
+    }
+
+    pub(crate) fn in_memory_faulty_blocks_provable(&self) -> Vec<u64> {
+        self.in_memory.collect(|c| c.faulty_blocks_provable)
+    }
+
+    pub(crate) fn in_memory_faulty_blocks_unprovable(&self) -> Vec<u64> {
+        self.in_memory.collect(|c| c.faulty_blocks_unprovable)
     }
 }
 
@@ -992,6 +1002,17 @@ mod tests {
                 peer: AuthorityIndex::new_for_test(0),
                 round: 3,
             },
+            // A fetched header outside the requested set: charged to the
+            // serving peer.
+            ConsensusError::UnexpectedBlockHeaderForCommit {
+                peer: AuthorityIndex::new_for_test(0),
+                received: BlockRef::MIN,
+            },
+            ConsensusError::TooManyFetchedHeadersReturned {
+                peer: AuthorityIndex::new_for_test(0),
+                requested: 2,
+                received: 3,
+            },
         ];
         for e in cases {
             let (prov, unprov) = classify_via_record(e);
@@ -1014,16 +1035,11 @@ mod tests {
             // Commit-chain inconsistencies.
             ConsensusError::NoCommitReceived { peer: authority },
             ConsensusError::MalformedCommit(bcs::Error::Custom("bad".to_string())),
-            // Fetch-shape errors (peer returned wrong count/ref/transactions).
-            ConsensusError::UnexpectedNumberOfHeadersFetched {
-                authority,
-                requested: 5,
-                received_headers: 3,
-            },
-            ConsensusError::UnexpectedBlockHeaderForCommit {
+            // Fetch shortfalls (client-side truncation can produce them).
+            ConsensusError::NotEnoughHeadersFetched {
                 peer: authority,
-                requested: BlockRef::MIN,
-                received: BlockRef::MIN,
+                requested: 5,
+                received: 3,
             },
             ConsensusError::FetchedTransactionsMismatch {
                 peer: authority,

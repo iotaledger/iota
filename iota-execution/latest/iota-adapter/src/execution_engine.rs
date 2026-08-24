@@ -48,7 +48,9 @@ mod checked {
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
-        transaction::{CallArg, CheckedInputObjects, InputObjects, TransactionKindExt},
+        transaction::{
+            CallArg, CancelledObjects, CheckedInputObjects, InputObjects, TransactionKindExt,
+        },
     };
     use move_binary_format::CompiledModule;
     use move_trace_format::format::MoveTraceBuilder;
@@ -176,7 +178,7 @@ mod checked {
         shared_object_refs: Vec<SharedInput>,
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
+        cancelled_objects: Option<(CancelledObjects, Version)>,
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
@@ -706,7 +708,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
+        cancelled_objects: Option<(CancelledObjects, Version)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
@@ -794,7 +796,7 @@ mod checked {
         enable_expensive_checks: bool,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
+        cancelled_objects: Option<(CancelledObjects, Version)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
             Result<
@@ -1064,7 +1066,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, Version)>,
+        cancelled_objects: Option<(CancelledObjects, Version)>,
     ) -> Result<(), ExecutionError> {
         if deny_cert {
             Err(ExecutionError::new(
@@ -1079,20 +1081,37 @@ mod checked {
         } else if let Some((cancelled_objects, reason)) = cancelled_objects {
             match reason {
                 version if version.is_congested() => Err(ExecutionError::new(
-                    if protocol_config.congestion_control_gas_price_feedback_mechanism() {
-                        ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 {
-                            congested_objects: cancelled_objects,
-                            suggested_gas_price: version
-                                .get_congested_version_suggested_gas_price()
-                                .unwrap(),
+                    match cancelled_objects {
+                        // A transaction cancelled through its gas object has no shared
+                        // inputs, so the execution workers are the congested resource
+                        // and no individual object is responsible.
+                        CancelledObjects::GasObject => {
+                            ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion {
+                                suggested_gas_price: version
+                                    .get_congested_version_suggested_gas_price()
+                                    .expect(
+                                        "execution-worker congestion control requires the gas \
+                                        price feedback mechanism",
+                                    ),
+                            }
                         }
-                    } else {
-                        // WARN: do not remove this `else` branch even after
-                        // `congestion_control_gas_price_feedback_mechanism` is enabled
-                        // on the mainnet. It must be kept to be able to replay old
-                        // transaction data.
-                        ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion {
-                            congested_objects: cancelled_objects,
+                        CancelledObjects::SharedObjects(congested_objects) => {
+                            if protocol_config.congestion_control_gas_price_feedback_mechanism() {
+                                ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                                    congested_objects,
+                                    suggested_gas_price: version
+                                        .get_congested_version_suggested_gas_price()
+                                        .unwrap(),
+                                }
+                            } else {
+                                // WARN: do not remove this `else` branch even after
+                                // `congestion_control_gas_price_feedback_mechanism` is enabled
+                                // on the mainnet. It must be kept to be able to replay old
+                                // transaction data.
+                                ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion {
+                                    congested_objects,
+                                }
+                            }
                         }
                     },
                     None,

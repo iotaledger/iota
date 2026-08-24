@@ -86,6 +86,11 @@ impl DroppedTxStatusCache {
         }
         registration.await
     }
+
+    #[cfg(test)]
+    pub(crate) fn num_pending_for_testing(&self) -> usize {
+        self.notify_read.num_pending()
+    }
 }
 
 #[cfg(test)]

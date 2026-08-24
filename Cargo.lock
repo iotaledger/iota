@@ -4713,9 +4713,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.4.12"
+version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3c0b69cfcb4e1b9f1bf2f53f95f766e4661169728ec61cd3fe5a0166f2d1386"
+checksum = "9f877e75f39e9827ec50a572dd592684ac28c029578726c85f1b2aa6ab807449"
 dependencies = [
  "atomic-waker",
  "bytes",
@@ -6357,6 +6357,7 @@ dependencies = [
  "tower 0.4.13",
  "tower-http 0.5.2",
  "tracing",
+ "url",
  "uuid",
 ]
 
@@ -7566,7 +7567,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b05cf69504951baeb8fbe3f434c22e596fbec330#b05cf69504951baeb8fbe3f434c22e596fbec330"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=df5feb3a920da979393fbc954dbaaa87ad5f17fd#df5feb3a920da979393fbc954dbaaa87ad5f17fd"
 dependencies = [
  "base64ct",
  "bech32 0.11.1",
@@ -7592,7 +7593,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b05cf69504951baeb8fbe3f434c22e596fbec330#b05cf69504951baeb8fbe3f434c22e596fbec330"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=df5feb3a920da979393fbc954dbaaa87ad5f17fd#df5feb3a920da979393fbc954dbaaa87ad5f17fd"
 dependencies = [
  "async-stream",
  "base64ct",
@@ -7624,7 +7625,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b05cf69504951baeb8fbe3f434c22e596fbec330#b05cf69504951baeb8fbe3f434c22e596fbec330"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=df5feb3a920da979393fbc954dbaaa87ad5f17fd#df5feb3a920da979393fbc954dbaaa87ad5f17fd"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7632,7 +7633,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b05cf69504951baeb8fbe3f434c22e596fbec330#b05cf69504951baeb8fbe3f434c22e596fbec330"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=df5feb3a920da979393fbc954dbaaa87ad5f17fd#df5feb3a920da979393fbc954dbaaa87ad5f17fd"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -7651,7 +7652,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b05cf69504951baeb8fbe3f434c22e596fbec330#b05cf69504951baeb8fbe3f434c22e596fbec330"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=df5feb3a920da979393fbc954dbaaa87ad5f17fd#df5feb3a920da979393fbc954dbaaa87ad5f17fd"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -7667,7 +7668,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b05cf69504951baeb8fbe3f434c22e596fbec330#b05cf69504951baeb8fbe3f434c22e596fbec330"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=df5feb3a920da979393fbc954dbaaa87ad5f17fd#df5feb3a920da979393fbc954dbaaa87ad5f17fd"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7686,7 +7687,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=b05cf69504951baeb8fbe3f434c22e596fbec330#b05cf69504951baeb8fbe3f434c22e596fbec330"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=df5feb3a920da979393fbc954dbaaa87ad5f17fd#df5feb3a920da979393fbc954dbaaa87ad5f17fd"
 dependencies = [
  "base64ct",
  "bcs",
@@ -8311,7 +8312,6 @@ dependencies = [
  "iota-protocol-config",
  "iota-sdk-graphql-client",
  "iota-sdk-grpc-client",
- "iota-sdk-transaction-builder",
  "iota-sdk-types",
  "iota-transaction-checks",
  "iota-types",
@@ -10198,7 +10198,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -11753,7 +11753,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls",
- "socket2 0.6.3",
+ "socket2 0.5.7",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -13368,9 +13368,9 @@ dependencies = [
 
 [[package]]
 name = "spin"
-version = "0.9.8"
+version = "0.9.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+checksum = "3763264f6b73151db08c50ff20d7d8a0b8796e021cdea7ceedad07b80155fa0e"
 
 [[package]]
 name = "spinning_top"

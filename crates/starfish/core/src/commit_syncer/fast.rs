@@ -28,14 +28,14 @@ use tracing::{debug, info, warn};
 
 use crate::{
     CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
-    block_header::VerifiedTransactions,
+    block_header::CommitmentVerifiedTransactions,
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, CommittedSubDag, TrustedCommit},
     commit_syncer::{
         CommitSyncType, CommitSyncerHandle, FetchedCommits, Inner, fetch_loop as shared_fetch_loop,
         handle_fetch_join_error, requeue_partial_range, schedule_commit_ranges,
         try_start_fetches as shared_try_start_fetches, verify_fetched_headers,
-        verify_transactions_with_transactions_refs,
+        verify_transactions_commitments,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -619,14 +619,20 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .await
             .expect("Spawn blocking should not fail")?;
 
-        // 3. Collect all committed transaction refs from commits. Commits passing
+        // 3. Collect the committed transaction refs of each commit. Commits passing
         //    verify_commits are V2/V3, which only carry `TransactionRef`s, so the
         //    legacy `BlockRef` variant is an error.
-        let mut committed_tx_refs: BTreeSet<TransactionRef> = commits
+        let mut commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .flat_map(|c| c.committed_transactions())
-            .map(GenericTransactionRef::expect_transaction_ref)
+            .map(|c| {
+                c.committed_transactions()
+                    .into_iter()
+                    .map(GenericTransactionRef::expect_transaction_ref)
+                    .collect()
+            })
             .collect::<ConsensusResult<_>>()?;
+        let mut committed_tx_refs: BTreeSet<TransactionRef> =
+            commits_tx_refs.iter().flatten().copied().collect();
 
         // 4. Process fetched transactions. Each serialized_transaction is a
         //    SerializedTransactionsV2 containing both the TransactionRef and the actual
@@ -635,7 +641,16 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             target_authority,
             serialized_transactions,
             &mut committed_tx_refs,
-        )?;
+        )
+        .inspect_err(|_| {
+            // Truncation drops whole entries and never corrupts one, so a
+            // malformed or uncommitted entry is the peer's fault.
+            inner.misbehavior_store.record_faulty_transactions(
+                target_authority,
+                false,
+                [target_authority],
+            );
+        })?;
 
         // The response may be missing transactions for a suffix of the commits,
         // e.g. when the stream was cut off by the response byte limit or a
@@ -647,6 +662,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             truncate_to_fully_fetched_prefix(
                 target_authority,
                 &mut commits,
+                &mut commits_tx_refs,
                 &mut fetched_transactions,
             )?;
             info!(
@@ -665,14 +681,14 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 .inc();
         }
 
-        // 5. Verify transactions
+        // 5. Verify the transactions against their commitments
         let mut transactions_map = if !fetched_transactions.is_empty() {
             Handle::current()
                 .spawn_blocking({
                     let context = inner.context.clone();
 
                     move || {
-                        verify_transactions_with_transactions_refs(
+                        verify_transactions_commitments(
                             &context,
                             target_authority,
                             fetched_transactions,
@@ -680,7 +696,16 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     }
                 })
                 .await
-                .expect("Spawn blocking should not fail")?
+                .expect("Spawn blocking should not fail")
+                .inspect_err(|_| {
+                    // Not provable against the author, whose commitment the
+                    // peer may have forged.
+                    inner.misbehavior_store.record_faulty_transactions(
+                        target_authority,
+                        false,
+                        [target_authority],
+                    );
+                })?
         } else {
             BTreeMap::new()
         };
@@ -693,7 +718,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // consumers merge-max against their last-seen, so repeating absolute
         // totals across the batch is a no-op after the first.
         let misbehavior_counts = inner.dag_state.read().misbehavior_store().snapshot_totals();
-        for commit in &commits {
+        for (commit, commit_tx_refs) in commits.iter().zip(&commits_tx_refs) {
             // Get block headers from the commit
             let committed_header_refs = commit.block_headers().to_vec();
 
@@ -701,8 +726,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             let reputation_scores = commit.reputation_scores().to_vec();
 
             // Collect transactions for this commit
-            let commit_transactions: Vec<VerifiedTransactions> = commit
-                .committed_transactions()
+            let commit_transactions: Vec<CommitmentVerifiedTransactions> = commit_tx_refs
                 .iter()
                 .filter_map(|tx_ref| transactions_map.remove(tx_ref))
                 .collect();
@@ -863,11 +887,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 break;
                             }
                             Err(e) => {
-                                // TODO: verify_fetched_headers currently only returns
-                                // fetch-shape errors (wrong count/ref) which classify
-                                // as Untracked. When per-header faults become observable
-                                // here, record them as peer misbehavior via
-                                // `inner.misbehavior_store.record_faulty_block`.
+                                inner
+                                    .misbehavior_store
+                                    .record_faulty_block(authority, authority, &e);
                                 record_headers_for_reinitialization_failure(&inner, authority);
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
@@ -956,7 +978,7 @@ fn process_serialized_transactions(
     peer: AuthorityIndex,
     serialized_transactions: Vec<Bytes>,
     committed_tx_refs: &mut BTreeSet<TransactionRef>,
-) -> ConsensusResult<BTreeMap<GenericTransactionRef, Bytes>> {
+) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
     let mut fetched_transactions = BTreeMap::new();
     for serialized_transaction in serialized_transactions {
         let tx_v2: SerializedTransactionsV2 = bcs::from_bytes(&serialized_transaction)
@@ -965,36 +987,35 @@ fn process_serialized_transactions(
         if !committed_tx_refs.contains(&transaction_ref) {
             return Err(ConsensusError::UnexpectedTransactionForCommit {
                 peer,
-                received: GenericTransactionRef::TransactionRef(transaction_ref),
+                received: transaction_ref,
             });
         }
-        fetched_transactions.insert(
-            GenericTransactionRef::TransactionRef(transaction_ref),
-            tx_v2.serialized_transactions,
-        );
+        fetched_transactions.insert(transaction_ref, tx_v2.serialized_transactions);
         committed_tx_refs.remove(&transaction_ref);
     }
     Ok(fetched_transactions)
 }
 
-/// Truncates verified `commits` to the longest prefix whose committed
+/// Truncates verified `commits` (and their aligned per-commit transaction
+/// refs in `commits_tx_refs`) to the longest prefix whose committed
 /// transactions are all present in `fetched_transactions`, and drops fetched
 /// transactions not referenced by that prefix. Commits verified by
 /// `verify_commits` are chained by digest up to a vote-certified last commit,
 /// so any prefix of them remains trusted on its own.
 ///
-/// Returns an error attributed to `peer` when even the first commit is missing
-/// transactions, since the response then allows no forward progress.
+/// Returns an error naming `peer` when even the first commit is missing
+/// transactions, since the response then allows no forward progress. Not
+/// recorded as misbehavior: an honest response can be cut to any prefix.
 fn truncate_to_fully_fetched_prefix(
     peer: AuthorityIndex,
     commits: &mut Vec<TrustedCommit>,
-    fetched_transactions: &mut BTreeMap<GenericTransactionRef, Bytes>,
+    commits_tx_refs: &mut Vec<Vec<TransactionRef>>,
+    fetched_transactions: &mut BTreeMap<TransactionRef, Bytes>,
 ) -> ConsensusResult<()> {
-    let prefix_len = commits
+    let prefix_len = commits_tx_refs
         .iter()
-        .take_while(|commit| {
-            commit
-                .committed_transactions()
+        .take_while(|commit_tx_refs| {
+            commit_tx_refs
                 .iter()
                 .all(|tx_ref| fetched_transactions.contains_key(tx_ref))
         })
@@ -1002,19 +1023,17 @@ fn truncate_to_fully_fetched_prefix(
     if prefix_len == 0 {
         return Err(ConsensusError::FetchedTransactionsMismatch {
             peer,
-            expected: commits
+            expected: commits_tx_refs
                 .iter()
-                .map(|commit| commit.committed_transactions().len())
+                .map(|commit_tx_refs| commit_tx_refs.len())
                 .sum(),
             received: fetched_transactions.len(),
         });
     }
     if prefix_len < commits.len() {
         commits.truncate(prefix_len);
-        let prefix_tx_refs: BTreeSet<GenericTransactionRef> = commits
-            .iter()
-            .flat_map(|commit| commit.committed_transactions())
-            .collect();
+        commits_tx_refs.truncate(prefix_len);
+        let prefix_tx_refs: BTreeSet<&TransactionRef> = commits_tx_refs.iter().flatten().collect();
         fetched_transactions.retain(|tx_ref, _| prefix_tx_refs.contains(tx_ref));
     }
     Ok(())
@@ -1067,6 +1086,7 @@ mod tests {
             core_thread::tests::MockCoreThreadDispatcher,
             dag_state::DagState,
             encoder::create_encoder,
+            error::ConsensusError,
             header_synchronizer::HeaderSynchronizer,
             misbehavior_store::MisbehaviorStore,
             network::SerializedTransactionsV2,
@@ -1201,17 +1221,21 @@ mod tests {
             )
         }
 
+        fn fast_sync_context() -> Arc<Context> {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            Arc::new(context)
+        }
+
         /// A response whose transaction payload covers only some of the
         /// returned commits (e.g. the stream was cut off by the response byte
         /// limit) must still produce output for the covered prefix of commits
         /// instead of failing the whole fetch.
         #[tokio::test]
         async fn returns_covered_prefix_of_truncated_response() {
-            let (mut context, _) = Context::new_for_test(4);
-            context
-                .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(true);
-            let context = Arc::new(context);
+            let context = fast_sync_context();
 
             // Drop the second commit's transaction, as if the transaction
             // stream was cut off by the response byte limit.
@@ -1251,6 +1275,141 @@ mod tests {
                 1
             );
         }
+
+        /// Runs `fetch_once` against a preset response served by authority 1
+        /// and returns the error and the `Inner` whose misbehavior store the
+        /// fetch recorded into.
+        async fn fetch_once_error(
+            context: Arc<Context>,
+            response: (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>),
+        ) -> (ConsensusError, Arc<Inner<FakeNetworkClient>>) {
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some(response),
+                ..Default::default()
+            });
+            let inner = make_inner(context, network_client);
+            let err = FastCommitSyncer::fetch_once(
+                inner.clone(),
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap_err();
+            (err, inner)
+        }
+
+        /// Asserts the peers' unprovable fault counts and that no provable
+        /// fault was recorded.
+        fn assert_unprovable_faults(inner: &Inner<FakeNetworkClient>, expected: Vec<u64>) {
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                expected
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
+            );
+        }
+
+        /// An entry referencing a transaction no commit in the range commits
+        /// to is charged to the serving peer.
+        #[tokio::test]
+        async fn records_misbehavior_for_unrequested_transaction() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) = two_commit_response(&context);
+            let serialized = Transaction::serialize(&[Transaction::new(vec![9u8; 16])]).unwrap();
+            let mut encoder = create_encoder(&context);
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized,
+                &context,
+                &mut encoder,
+            )
+            .unwrap();
+            response_transactions.push(
+                bcs::to_bytes(&SerializedTransactionsV2 {
+                    transaction_ref: TransactionRef {
+                        round: 3,
+                        author: AuthorityIndex::new_for_test(0),
+                        transactions_commitment: commitment,
+                    },
+                    serialized_transactions: serialized,
+                })
+                .unwrap()
+                .into(),
+            );
+
+            let (err, inner) =
+                fetch_once_error(context, (commits, vote_headers, response_transactions)).await;
+
+            assert!(
+                matches!(err, ConsensusError::UnexpectedTransactionForCommit { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
+        }
+
+        /// An entry that does not deserialize is charged to the serving peer.
+        #[tokio::test]
+        async fn records_misbehavior_for_malformed_transaction_entry() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) = two_commit_response(&context);
+            response_transactions[1] = Bytes::from_static(b"garbage");
+
+            let (err, inner) =
+                fetch_once_error(context, (commits, vote_headers, response_transactions)).await;
+
+            assert!(
+                matches!(err, ConsensusError::MalformedTransactions(_)),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
+        }
+
+        /// A payload that fails the commitment of the ref it is paired with
+        /// is charged to the serving peer, which may have forged the pairing.
+        #[tokio::test]
+        async fn records_misbehavior_for_payload_commitment_mismatch() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, response_transactions) = two_commit_response(&context);
+            // Swap the two payloads so each entry fails its ref's commitment.
+            let mut entries: Vec<SerializedTransactionsV2> = response_transactions
+                .iter()
+                .map(|bytes| bcs::from_bytes(bytes).unwrap())
+                .collect();
+            let payload = entries[0].serialized_transactions.clone();
+            entries[0].serialized_transactions = entries[1].serialized_transactions.clone();
+            entries[1].serialized_transactions = payload;
+            let response_transactions = entries
+                .iter()
+                .map(|entry| bcs::to_bytes(entry).unwrap().into())
+                .collect();
+
+            let (err, inner) =
+                fetch_once_error(context, (commits, vote_headers, response_transactions)).await;
+
+            assert!(
+                matches!(err, ConsensusError::TransactionCommitmentFailure { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
+        }
+
+        /// A response with no transactions fails the fetch but records no
+        /// misbehavior, since an honest response can arrive incomplete.
+        #[tokio::test]
+        async fn does_not_record_misbehavior_for_missing_transactions() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, _) = two_commit_response(&context);
+
+            let (err, inner) = fetch_once_error(context, (commits, vote_headers, vec![])).await;
+
+            assert!(
+                matches!(err, ConsensusError::FetchedTransactionsMismatch { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0; 4]);
+        }
     }
 
     /// Covers the commit-vote ordering in the shared `fetch_loop`, driven
@@ -1281,7 +1440,7 @@ mod tests {
                 .enable_commit_sync_peer_selection_by_commit_votes = enabled;
             let context = Arc::new(context);
 
-            // No canned response, so every fetch fails and the loop keeps
+            // No preset response, so every fetch fails and the loop keeps
             // trying peers, exposing the full selection order.
             let network_client = Arc::new(FakeNetworkClient::default());
             let inner = make_inner(context, network_client.clone());
@@ -1398,7 +1557,7 @@ mod tests {
         async fn records_fixed_penalty_for_the_failing_peer() {
             let context = fast_sync_context(2);
             let peer = AuthorityIndex::new_for_test(1);
-            // No canned response, so the only peer always fails and the loop
+            // No preset response, so the only peer always fails and the loop
             // retries forever.
             let network_client = Arc::new(FakeNetworkClient::default());
             let inner = make_inner(context.clone(), network_client);
@@ -1435,6 +1594,33 @@ mod tests {
 
             // Ten commits asked for and two delivered, so the 200ms answer is
             // recorded as the 1s it would have taken at that rate.
+            let requested = network_client.requested_peers.lock().clone();
+            assert_eq!(
+                context
+                    .peer_responsiveness
+                    .effective_latency_ms(DataSource::FastCommitSyncer, requested[0]),
+                Some(1_000.0)
+            );
+        }
+
+        /// However large the shortfall, a delivering peer records no worse
+        /// than the loop's failure penalty, so it can never rank behind a peer
+        /// that failed outright.
+        #[tokio::test(start_paused = true)]
+        async fn success_records_no_worse_than_the_failure_penalty() {
+            let context = fast_sync_context(4);
+            let (commits, vote_headers, transactions) = two_commit_response(&context);
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, transactions)),
+                response_delay: Duration::from_millis(200),
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client.clone());
+
+            fetch_loop(inner, (1..=1_000).into(), 2, FastCommitSyncer::fetch_once).await;
+
+            // Two of a thousand commits delivered in 200ms would scale to
+            // 100s; the record is capped at the failure penalty of this loop.
             let requested = network_client.requested_peers.lock().clone();
             assert_eq!(
                 context
@@ -1533,17 +1719,13 @@ mod tests {
             context::Context,
             error::ConsensusError,
             network::SerializedTransactionsV2,
-            transaction_ref::{GenericTransactionRef, TransactionRef},
+            transaction_ref::TransactionRef,
         };
-
-        fn transaction_ref(round: Round) -> GenericTransactionRef {
-            GenericTransactionRef::TransactionRef(plain_ref(round))
-        }
 
         fn commit(
             context: &Arc<Context>,
             index: u32,
-            transactions: &[GenericTransactionRef],
+            transactions: &[TransactionRef],
         ) -> TrustedCommit {
             let leader = BlockRef::new(
                 index,
@@ -1557,11 +1739,11 @@ mod tests {
                 0,
                 leader,
                 vec![leader],
-                transactions.to_vec(),
+                transactions.iter().copied().map(Into::into).collect(),
             )
         }
 
-        fn fetched(refs: &[GenericTransactionRef]) -> BTreeMap<GenericTransactionRef, Bytes> {
+        fn fetched(refs: &[TransactionRef]) -> BTreeMap<TransactionRef, Bytes> {
             refs.iter().map(|r| (*r, Bytes::new())).collect()
         }
 
@@ -1569,16 +1751,18 @@ mod tests {
         async fn keeps_all_commits_when_all_transactions_fetched() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
-            let (tx_a, tx_b, tx_c) = (transaction_ref(1), transaction_ref(2), transaction_ref(3));
+            let (tx_a, tx_b, tx_c) = (plain_ref(1), plain_ref(2), plain_ref(3));
             let mut commits = vec![
                 commit(&context, 1, &[tx_a]),
                 commit(&context, 2, &[tx_b, tx_c]),
             ];
+            let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b, tx_c]];
             let mut transactions = fetched(&[tx_a, tx_b, tx_c]);
 
             truncate_to_fully_fetched_prefix(
                 AuthorityIndex::new_for_test(1),
                 &mut commits,
+                &mut commits_tx_refs,
                 &mut transactions,
             )
             .unwrap();
@@ -1591,12 +1775,7 @@ mod tests {
         async fn truncates_to_prefix_and_drops_unreferenced_transactions() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
-            let (tx_a, tx_b, tx_c, tx_d) = (
-                transaction_ref(1),
-                transaction_ref(2),
-                transaction_ref(3),
-                transaction_ref(4),
-            );
+            let (tx_a, tx_b, tx_c, tx_d) = (plain_ref(1), plain_ref(2), plain_ref(3), plain_ref(4));
             let first = commit(&context, 1, &[tx_a]);
             let mut commits = vec![
                 first.clone(),
@@ -1604,16 +1783,19 @@ mod tests {
                 commit(&context, 2, &[tx_b, tx_c]),
                 commit(&context, 3, &[tx_d]),
             ];
+            let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b, tx_c], vec![tx_d]];
             let mut transactions = fetched(&[tx_a, tx_c, tx_d]);
 
             truncate_to_fully_fetched_prefix(
                 AuthorityIndex::new_for_test(1),
                 &mut commits,
+                &mut commits_tx_refs,
                 &mut transactions,
             )
             .unwrap();
 
             assert_eq!(commits, vec![first]);
+            assert_eq!(commits_tx_refs, vec![vec![tx_a]]);
             assert_eq!(transactions.into_keys().collect::<Vec<_>>(), vec![tx_a]);
         }
 
@@ -1621,12 +1803,18 @@ mod tests {
         async fn errors_when_first_commit_transactions_missing() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
-            let (tx_a, tx_b) = (transaction_ref(1), transaction_ref(2));
+            let (tx_a, tx_b) = (plain_ref(1), plain_ref(2));
             let peer = AuthorityIndex::new_for_test(1);
             let mut commits = vec![commit(&context, 1, &[tx_a]), commit(&context, 2, &[tx_b])];
+            let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b]];
             let mut transactions = fetched(&[tx_b]);
 
-            let result = truncate_to_fully_fetched_prefix(peer, &mut commits, &mut transactions);
+            let result = truncate_to_fully_fetched_prefix(
+                peer,
+                &mut commits,
+                &mut commits_tx_refs,
+                &mut transactions,
+            );
 
             assert!(matches!(
                 result,
@@ -1642,14 +1830,16 @@ mod tests {
         async fn commit_without_transactions_counts_toward_prefix() {
             let (context, _) = Context::new_for_test(4);
             let context = Arc::new(context);
-            let tx_a = transaction_ref(1);
+            let tx_a = plain_ref(1);
             let empty = commit(&context, 1, &[]);
             let mut commits = vec![empty.clone(), commit(&context, 2, &[tx_a])];
+            let mut commits_tx_refs = vec![vec![], vec![tx_a]];
             let mut transactions = fetched(&[]);
 
             truncate_to_fully_fetched_prefix(
                 AuthorityIndex::new_for_test(1),
                 &mut commits,
+                &mut commits_tx_refs,
                 &mut transactions,
             )
             .unwrap();
@@ -1721,7 +1911,7 @@ mod tests {
                 result,
                 Err(ConsensusError::UnexpectedTransactionForCommit {
                     peer: error_peer,
-                    received: GenericTransactionRef::TransactionRef(received),
+                    received,
                 }) if error_peer == peer && received == tx_b
             ));
         }

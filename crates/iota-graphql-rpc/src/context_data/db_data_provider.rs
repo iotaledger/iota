@@ -7,6 +7,7 @@ use std::time::Duration;
 use iota_indexer::{
     apis::GovernanceReadApi,
     db::ConnectionPoolConfig,
+    historical_fallback::HistoricalFallbackReader,
     metrics::IndexerMetrics,
     pruning::watermark_task::{WatermarkCache, WatermarkTask},
     read::IndexerReader,
@@ -17,9 +18,11 @@ use iota_types::{
     governance::StakedIota as NativeStakedIota,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary as NativeIotaSystemStateSummary,
 };
+use prometheus_filtered::Registry;
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
-use crate::error::Error;
+use crate::{config::HistoricFallbackOptions, error::Error};
 
 pub(crate) struct PgManager {
     pub inner: IndexerReader,
@@ -31,13 +34,17 @@ impl PgManager {
     }
 
     /// Create a new underlying reader, which is used by this type as well as
-    /// other data providers.
+    /// other data providers. If `historic_fallback` carries a URL, an archival
+    /// fallback reader is attached so reads can be served from the REST KV
+    /// store if Postgres data is pruned.
     pub(crate) fn reader_with_config(
         db_url: impl Into<String>,
         pool_size: u32,
         timeout_ms: u64,
         indexer_metrics: IndexerMetrics,
         cancellation_token: CancellationToken,
+        historic_fallback: &HistoricFallbackOptions,
+        registry: &Registry,
     ) -> Result<IndexerReader, Error> {
         let mut config = ConnectionPoolConfig::default();
         config.set_pool_size(pool_size);
@@ -56,7 +63,35 @@ impl PgManager {
         watermark_task.start(cancellation_token);
 
         // Create reader with watermark cache
-        Ok(IndexerReader::new(connection_pool, watermark_cache))
+        let mut reader = IndexerReader::new(connection_pool, watermark_cache);
+
+        if let HistoricFallbackOptions {
+            fallback_kv_url: Some(url),
+            fallback_kv_multi_fetch_batch_size,
+            fallback_kv_concurrent_fetches,
+            fallback_kv_cache_size,
+        } = historic_fallback
+        {
+            let fallback = HistoricalFallbackReader::new(
+                url.as_str(),
+                *fallback_kv_cache_size,
+                reader.package_resolver().clone(),
+                *fallback_kv_multi_fetch_batch_size,
+                *fallback_kv_concurrent_fetches,
+                registry,
+            )
+            .map_err(|e| {
+                Error::Internal(format!(
+                    "Failed to construct historical fallback reader: {e}"
+                ))
+            })?;
+            info!("HistoricalFallbackReader initialized with URL: {url}");
+            reader.with_fallback_reader(fallback);
+        } else {
+            info!("No config for HistoricalFallbackReader provided, skipping...");
+        }
+
+        Ok(reader)
     }
 }
 

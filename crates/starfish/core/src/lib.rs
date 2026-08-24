@@ -72,7 +72,8 @@ pub use authority_node::ConsensusAuthority;
 pub use block_header::{BlockHeaderAPI, BlockRef, Round};
 /// Exported API for testing.
 pub use block_header::{
-    BlockTimestampMs, TestBlockHeader, Transaction, VerifiedBlockHeader, VerifiedTransactions,
+    BlockTimestampMs, CommitmentVerifiedTransactions, TestBlockHeader, Transaction,
+    VerifiedBlockHeader,
 };
 pub use commit::{CommitDigest, CommitIndex, CommitRef, CommittedSubDag};
 pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};

@@ -11,7 +11,7 @@ use typed_store::TypedStoreError;
 use crate::{
     block_header::{BlockRef, GENESIS_ROUND, Round},
     commit::{Commit, CommitIndex},
-    transaction_ref::{GenericTransactionRef, GenericTransactionRefAPI as _, TransactionRef},
+    transaction_ref::TransactionRef,
 };
 
 /// Errors that can occur when processing blocks, reading from storage, or
@@ -61,12 +61,21 @@ pub(crate) enum ConsensusError {
     UnexpectedGenesisRequested { peer: AuthorityIndex },
 
     #[error(
-        "Expected {requested} but received {received_headers} block headers from authority {authority}"
+        "Received fewer block headers than requested from peer {peer}: requested {requested}, received {received}"
     )]
-    UnexpectedNumberOfHeadersFetched {
-        authority: AuthorityIndex,
+    NotEnoughHeadersFetched {
+        peer: AuthorityIndex,
         requested: usize,
-        received_headers: usize,
+        received: usize,
+    },
+
+    #[error(
+        "Received more block headers than requested from peer {peer}: requested {requested}, received {received}"
+    )]
+    TooManyFetchedHeadersReturned {
+        peer: AuthorityIndex,
+        requested: usize,
+        received: usize,
     },
 
     #[error(
@@ -276,17 +285,16 @@ pub(crate) enum ConsensusError {
         end: CommitIndex,
     },
 
-    #[error("Received unexpected block header from peer {peer}: {requested:?} vs {received:?}")]
+    #[error("Received unrequested block header from peer {peer}: {received:?}")]
     UnexpectedBlockHeaderForCommit {
         peer: AuthorityIndex,
-        requested: BlockRef,
         received: BlockRef,
     },
 
     #[error("Received unexpected transaction from peer {peer}: {received:?}")]
     UnexpectedTransactionForCommit {
         peer: AuthorityIndex,
-        received: GenericTransactionRef,
+        received: TransactionRef,
     },
 
     #[error(
@@ -455,19 +463,19 @@ impl ConsensusError {
     }
 
     pub fn quick_validation_requested_tx_refs(
-        gen_tx_refs: &[GenericTransactionRef],
+        tx_refs: &[TransactionRef],
         peer: AuthorityIndex,
         committee: &Committee,
     ) -> ConsensusResult<()> {
-        for gen_tx_ref in gen_tx_refs {
-            if !committee.is_valid_index(gen_tx_ref.author()) {
+        for tx_ref in tx_refs {
+            if !committee.is_valid_index(tx_ref.author) {
                 return Err(ConsensusError::InvalidAuthorityIndexRequested {
-                    index: gen_tx_ref.author(),
+                    index: tx_ref.author,
                     max: committee.size(),
                     peer,
                 });
             }
-            if gen_tx_ref.round() == GENESIS_ROUND {
+            if tx_ref.round == GENESIS_ROUND {
                 return Err(ConsensusError::UnexpectedGenesisRequested { peer });
             }
         }

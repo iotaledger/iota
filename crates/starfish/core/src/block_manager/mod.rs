@@ -24,8 +24,8 @@ pub(crate) mod block_suspender;
 use crate::{
     Round,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, VerifiedBlock,
+        VerifiedBlockHeader,
     },
     block_manager::block_suspender::BlockSuspender,
     context::Context,
@@ -71,11 +71,11 @@ pub(crate) struct BlockManager {
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
 
-    /// Keeps VerifiedTransactions of blocks whose headers have been suspended.
-    /// Bounded by the GC sweep in `maybe_evict_below_gc_floor`: any entry whose
-    /// block round is at or below `gc_round_for_last_commit` cannot be
-    /// sequenced and is dropped.
-    suspended_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
+    /// Keeps CommitmentVerifiedTransactions of blocks whose headers have been
+    /// suspended. Bounded by the GC sweep in `maybe_evict_below_gc_floor`:
+    /// any entry whose block round is at or below
+    /// `gc_round_for_last_commit` cannot be sequenced and is dropped.
+    suspended_transactions: BTreeMap<BlockRef, CommitmentVerifiedTransactions>,
     block_suspender: BlockSuspender,
     /// A vector that holds a tuple of (lowest_round, highest_round) of received
     /// blocks per authority. This is used for metrics reporting purposes
@@ -318,7 +318,7 @@ impl BlockManager {
     fn write_block_headers_and_transactions_to_dag_state(
         &self,
         block_headers: Vec<VerifiedBlockHeader>,
-        transactions: Vec<VerifiedTransactions>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
         source: DataSource,
     ) {
         let mut write_guard = self.dag_state.write();
@@ -339,7 +339,7 @@ impl BlockManager {
         block_headers_to_be_accepted: &[VerifiedBlockHeader],
         present_headers_and_ancestor_refs_in_dag_state: &BTreeSet<BlockRef>,
         blocks: Option<Vec<VerifiedBlock>>,
-    ) -> Vec<VerifiedTransactions> {
+    ) -> Vec<CommitmentVerifiedTransactions> {
         let block_refs_to_be_accepted = block_headers_to_be_accepted
             .iter()
             .map(|h| h.reference())
@@ -676,7 +676,10 @@ mod tests {
 
     use crate::{
         Round,
-        block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
+        block_header::{
+            BlockHeaderAPI, BlockRef, CommitmentVerifiedTransactions, Transaction, VerifiedBlock,
+            VerifiedBlockHeader,
+        },
         block_manager::{BlockManager, merge_accepted_round_ascending},
         context::Context,
         dag_state::{DagState, DataSource},
@@ -1484,11 +1487,9 @@ mod tests {
 
         let far_round = context.parameters.far_future_round_ceiling(0) + 1;
         let h = header(far_round, 1, vec![block_ref(far_round - 1, 0)]);
-        let txs = crate::block_header::VerifiedTransactions::new_for_test(
-            &h,
-            vec![crate::block_header::Transaction::new(vec![1u8; 16])],
-        );
-        let block = crate::block_header::VerifiedBlock::new(h, txs);
+        let txs =
+            CommitmentVerifiedTransactions::new_for_test(&h, vec![Transaction::new(vec![1u8; 16])]);
+        let block = VerifiedBlock::new(h, txs);
 
         let (accepted, missing) =
             block_manager.try_accept_blocks(vec![block], DataSource::BlockStreaming);
@@ -1545,11 +1546,9 @@ mod tests {
         // Build a header at that round and a non-empty transactions payload so
         // the existing "skip empty" optimization isn't what saves us.
         let h = header(gc_floor, 1, vec![]);
-        let txs = crate::block_header::VerifiedTransactions::new_for_test(
-            &h,
-            vec![crate::block_header::Transaction::new(vec![1u8; 16])],
-        );
-        let block = crate::block_header::VerifiedBlock::new(h, txs);
+        let txs =
+            CommitmentVerifiedTransactions::new_for_test(&h, vec![Transaction::new(vec![1u8; 16])]);
+        let block = VerifiedBlock::new(h, txs);
         let (accepted, _) = block_manager.try_accept_blocks(vec![block], DataSource::Test);
 
         assert!(accepted.is_empty(), "header at GC floor must be dropped");
@@ -1617,7 +1616,7 @@ mod tests {
         let stale_ref = stale_header.reference();
         block_manager.suspended_transactions.insert(
             stale_ref,
-            crate::block_header::VerifiedTransactions::new_for_test(&stale_header, vec![]),
+            CommitmentVerifiedTransactions::new_for_test(&stale_header, vec![]),
         );
         assert_eq!(block_manager.suspended_transactions.len(), 1);
 

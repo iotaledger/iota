@@ -155,24 +155,28 @@ impl TreeShakingTest {
     ) -> Result<ObjectId, anyhow::Error> {
         let mut build_config = BuildConfig::new_for_testing().config;
         build_config.lock_file = Some(self.package_path(package_name).join("Move.lock"));
-        let resp = IotaClientCommands::Upgrade {
-            package_path: self.package_path(package_name),
-            upgrade_capability,
-            build_config,
-            skip_dependency_verification: false,
-            verify_deps: false,
-            verify_compatibility: true,
-            with_unpublished_dependencies: false,
-            payment: PaymentArgs {
-                gas: vec![self.gas_obj_id],
-            },
-            gas_data: GasDataArgs {
-                gas_budget: Some(self.rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-                ..Default::default()
-            },
-            processing: TxProcessingArgs::default(),
-        }
-        .execute(self.test_cluster.wallet_mut())
+        // Boxed because the tree-shaking tests chain many CLI commands in a single
+        // test future, which otherwise gets close to the test thread's stack limit.
+        let resp = Box::pin(
+            IotaClientCommands::Upgrade {
+                package_path: self.package_path(package_name),
+                upgrade_capability,
+                build_config,
+                skip_dependency_verification: false,
+                verify_deps: false,
+                verify_compatibility: true,
+                with_unpublished_dependencies: false,
+                payment: PaymentArgs {
+                    gas: vec![self.gas_obj_id],
+                },
+                gas_data: GasDataArgs {
+                    gas_budget: Some(self.rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+                    ..Default::default()
+                },
+                processing: TxProcessingArgs::default(),
+            }
+            .execute(self.test_cluster.wallet_mut()),
+        )
         .await?;
 
         let IotaClientCommandResult::TransactionBlock(publish_response) = resp else {
@@ -209,22 +213,26 @@ async fn publish_package(
     let mut build_config = BuildConfig::new_for_testing().config;
     let move_lock_path = package_path.clone().join("Move.lock");
     build_config.lock_file = Some(move_lock_path.clone());
-    let resp = IotaClientCommands::Publish {
-        package_path: package_path.clone(),
-        build_config: build_config.clone(),
-        skip_dependency_verification: false,
-        verify_deps: false,
-        with_unpublished_dependencies,
-        payment: PaymentArgs {
-            gas: vec![gas_obj_id],
-        },
-        gas_data: GasDataArgs {
-            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
-            ..Default::default()
-        },
-        processing: TxProcessingArgs::default(),
-    }
-    .execute(context)
+    // Boxed because the tree-shaking tests chain many CLI commands in a single
+    // test future, which otherwise gets close to the test thread's stack limit.
+    let resp = Box::pin(
+        IotaClientCommands::Publish {
+            package_path: package_path.clone(),
+            build_config: build_config.clone(),
+            skip_dependency_verification: false,
+            verify_deps: false,
+            with_unpublished_dependencies,
+            payment: PaymentArgs {
+                gas: vec![gas_obj_id],
+            },
+            gas_data: GasDataArgs {
+                gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+                ..Default::default()
+            },
+            processing: TxProcessingArgs::default(),
+        }
+        .execute(context),
+    )
     .await?;
 
     let IotaClientCommandResult::TransactionBlock(publish_response) = resp else {
@@ -5804,10 +5812,9 @@ async fn test_call_command_display_args() -> Result<(), anyhow::Error> {
     if let Some(tx_block_response) = start_call_result.tx_block_response() {
         // Assert Balance Changes are present in the response
         assert!(tx_block_response.balance_changes.is_some());
-        // effects are always in the response
-        assert!(tx_block_response.effects.is_some());
 
         // Assert every other field is not present in the response
+        assert!(tx_block_response.effects.is_none());
         assert!(tx_block_response.object_changes.is_none());
         assert!(tx_block_response.events.is_none());
         assert!(tx_block_response.transaction.is_none());
@@ -5946,7 +5953,8 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
     };
 
     assert!(res.transaction.is_some());
-    assert!(res.effects.is_some());
+    // `DisplayOption::Effects` wasn't provided, so there are no effects
+    assert!(res.effects.is_none());
 
     let ptb_string = r#"
         --make-move-vec <u8> "[1]"
@@ -5966,7 +5974,45 @@ async fn test_ptb_display_args() -> Result<(), anyhow::Error> {
     };
     // `DisplayOption::Input` wasn't provided, so there is no `Transaction Data`
     assert!(res.transaction.is_none());
+    assert!(res.effects.is_none());
+
+    let ptb_string = r#"
+        --make-move-vec <u8> "[1]"
+        "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let PTBCommandResult::CommandResult(res) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Effects]),
+    }
+    .execute(context)
+    .await?
+    else {
+        panic!("unexpected PTB result");
+    };
+    let IotaClientCommandResult::TransactionBlock(res) = *res else {
+        panic!("unexpected PTB result");
+    };
+    // `DisplayOption::Effects` was provided, so the effects are present
+    assert!(res.transaction.is_none());
     assert!(res.effects.is_some());
+
+    // The summary is derived from the effects, so it works even when the
+    // display selection excludes them
+    let ptb_string = r#"
+        --make-move-vec <u8> "[1]"
+        --summary
+        "#;
+    let args = shlex::split(ptb_string).unwrap();
+    let PTBCommandResult::Summary(summary) = iota::client_ptb::ptb::PTB {
+        args,
+        display: HashSet::from([DisplayOption::Input]),
+    }
+    .execute(context)
+    .await?
+    else {
+        panic!("unexpected PTB result");
+    };
+    assert_eq!(summary.status, IotaExecutionStatus::Success);
 
     Ok(())
 }

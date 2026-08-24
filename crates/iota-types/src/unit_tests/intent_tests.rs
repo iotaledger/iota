@@ -3,22 +3,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair;
+use iota_sdk_crypto::IotaSigner as _;
 use iota_sdk_types::{
     ObjectId, Transaction,
-    crypto::{
-        Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage,
-        SimpleSignature,
-    },
+    crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage},
 };
 
 use crate::{
     base_types::dbg_addr,
     committee::EpochId,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature, get_key_pair,
+        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature, get_key_pair,
     },
     object::Object,
+    signature::{AuthenticatorTrait, VerifyParams},
     transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
 };
 
@@ -48,8 +46,12 @@ fn test_personal_message_intent() {
     assert_eq!(&intent_bcs[3..], &p_message_bcs);
 
     // Let's ensure we can sign and verify intents.
-    let s = SimpleSignature::new_secure(&IntentMessage::new(intent, p_message), &sec1);
-    let verification = s.verify_secure(&IntentMessage::new(intent, p_message_2), addr1);
+    let s = sec1.sign_personal_message(&p_message).unwrap();
+    let verification = s.verify_claims(
+        &IntentMessage::new(intent, p_message_2),
+        addr1,
+        &VerifyParams::default(),
+    );
     assert!(verification.is_ok())
 }
 
@@ -72,8 +74,8 @@ fn test_authority_signature_intent() {
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
-    let signature = SimpleSignature::new_secure(&tx.intent_message(), &sender_key);
-    let tx = TransactionEnvelope::from_data(tx, vec![signature]);
+    let signature = sender_key.sign_transaction(&tx).unwrap();
+    let tx = TransactionEnvelope::from_user_sig_data(tx, vec![signature]);
     let tx1 = tx.clone();
     assert!(
         tx.try_into_verified_for_testing(&Default::default())
