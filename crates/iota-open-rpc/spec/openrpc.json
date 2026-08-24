@@ -1287,15 +1287,15 @@
           "params": [
             {
               "name": "version",
-              "value": 33
+              "value": 34
             }
           ],
           "result": {
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "33",
-              "protocolVersion": "33",
+              "maxSupportedProtocolVersion": "34",
+              "protocolVersion": "34",
               "featureFlags": {
                 "accept_passkey_in_multisig": true,
                 "additional_borrow_checks": true,
@@ -2129,7 +2129,7 @@
                   "u64": "10000"
                 },
                 "scorer_version": {
-                  "u16": "1"
+                  "u16": "2"
                 },
                 "storage_gas_price": {
                   "u64": "76"

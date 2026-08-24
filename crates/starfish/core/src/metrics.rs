@@ -15,7 +15,7 @@ use prometheus_filtered::{
 
 use crate::{
     network::metrics::NetworkMetrics,
-    quantile_gauge::{QuantileGauge, QuantileGaugeVec},
+    quantile_gauge::{PeakGauge, QuantileGauge, QuantileGaugeVec},
 };
 
 // starts from 1μs, 50μs, 100μs...
@@ -214,6 +214,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_add_blocks_batch_size: SumCount,
     pub(crate) core_add_block_headers_batch_size: SumCount,
     pub(crate) core_lock_dequeued: IntCounter,
+    pub(crate) core_thread_command_queue_peak: PeakGauge,
     pub(crate) reconstruction_jobs_started: IntCounter,
     pub(crate) reconstruction_jobs_finished: IntCounter,
     pub(crate) accepted_transactions_source: IntCounterVec,
@@ -353,6 +354,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) faulty_blocks_unprovable_by_peer: IntGaugeVec,
     pub(crate) equivocations_by_authority: IntGaugeVec,
     pub(crate) missing_proposals_by_authority: IntGaugeVec,
+    pub(crate) invalid_bundle_parts_by_peer: IntGaugeVec,
     pub(crate) strong_vote_extra_wait_seconds: Histogram,
     pub(crate) strong_vote_missing_authorities: Histogram,
     pub(crate) strong_blames_emitted_for_leader: IntCounterVec,
@@ -567,6 +569,13 @@ impl NodeMetrics {
                 "Number of dequeued core requests",
                 registry,
             ).unwrap(),
+            core_thread_command_queue_peak: PeakGauge::register(
+                "core_thread_command_queue_peak",
+                "The highest number of commands queued for the core thread over the last two minutes",
+                module_path!(),
+                registry,
+                MetricLevel::Warn,
+            ),
             core_lock_enqueued: register_int_counter_with_registry!(
                 "core_lock_enqueued",
                 "Number of enqueued core requests",
@@ -944,7 +953,8 @@ impl NodeMetrics {
                 "decided_leaders_total",
                 "Total number of (direct or indirect, skip or commit) decided leaders per authority",
                 &["authority", "commit_type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             last_committed_authority_round: register_int_gauge_vec_with_registry!(
                 "last_committed_authority_round",
@@ -1404,6 +1414,13 @@ impl NodeMetrics {
                 "missing_proposals_by_authority",
                 "Missing proposals per authority (source: persisted or in_memory)",
                 &["authority", "source"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            invalid_bundle_parts_by_peer: register_int_gauge_vec_with_registry!(
+                "invalid_bundle_parts_by_peer",
+                "Invalid relayed bundle parts per peer (source: persisted or in_memory)",
+                &["peer", "source"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),

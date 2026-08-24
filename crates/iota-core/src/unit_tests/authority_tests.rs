@@ -24,6 +24,7 @@ use iota_macros::sim_test;
 use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
+use iota_sdk_crypto::IotaSigner as _;
 use iota_sdk_types::{
     Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
@@ -31,14 +32,14 @@ use iota_sdk_types::{
     ProgrammableTransaction, SharedObjectReference, StructTag, Transaction, TransactionDigest,
     TransactionEffects, TransactionEffectsDigest, TransactionExpiration, TransactionKind,
     TransactionV1, TypeTag, Version, VersionAssignment,
-    crypto::{Intent, IntentScope, SimpleSignature},
+    crypto::{Intent, IntentScope},
 };
 use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, AuthoritySignInfo, IotaSignature,
-        get_key_pair, random_committee_key_pairs_of_size,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, AuthoritySignInfo, get_key_pair,
+        random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExt},
@@ -1203,6 +1204,37 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
         .unwrap();
     assert_eq!(result.effects.deleted().len(), 0);
     assert_eq!(execution_error_source(&result), Some("VMError with status ABORTED with sub status 1 at location Module ModuleId { address: 0000000000000000000000000000000000000000000000000000000000000002, name: Identifier(\"dynamic_field\") } at code offset 0 in function definition 13".to_string()));
+
+    // dry run against the current parent: the field object is loaded at
+    // runtime and removed, so it must appear in the returned input objects at
+    // its pre-state version even though it is not a declared input
+    let field = effects.created()[0].0;
+    let pt = ProgrammableTransaction {
+        inputs: vec![CallArg::ImmutableOrOwned(new_parent.object_ref())],
+        commands: vec![Command::new_move_call(
+            object_basics.object_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("remove_field"),
+            vec![],
+            vec![Argument::Input(0)],
+        )],
+    };
+    let tx = Transaction::new_programmable(
+        sender,
+        vec![gas_object_ref],
+        pt,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        rgp,
+    );
+    let result = fullnode
+        .simulate_transaction(tx, VmChecks::Enabled)
+        .unwrap();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+    let field_input = result
+        .input_objects
+        .get(&field.object_id)
+        .expect("runtime-loaded field object should be in the input objects");
+    assert_eq!(field_input.version(), field.version);
 }
 
 /// A gas payment that names an object which is not a gas coin is rejected, in
@@ -1369,8 +1401,9 @@ async fn test_handle_transfer_transaction_bad_signature() {
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
         .tx_signatures_mut_for_testing() = vec![
-        SimpleSignature::new_secure(&transfer_transaction.data().intent_message(), &unknown_key)
-            .into(),
+        unknown_key
+            .sign_transaction(transfer_transaction.data().transaction())
+            .unwrap(),
     ];
 
     assert!(

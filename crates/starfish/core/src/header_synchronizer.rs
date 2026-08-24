@@ -905,10 +905,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             } else {
                 1.0
             };
+            // Capped at the failure penalty: a partial delivery never records
+            // worse than a failed fetch.
             context.peer_responsiveness.record_success(
                 DataSource::HeaderSynchronizerRequested,
                 peer_index,
-                elapsed.mul_f64(factor),
+                elapsed.mul_f64(factor).min(FETCH_REQUEST_TIMEOUT),
             );
         }
 
@@ -1850,8 +1852,8 @@ mod tests {
         CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
         block_header::{
-            BlockHeaderDigest, BlockRef, GENESIS_ROUND, Round, TestBlockHeader, VerifiedBlock,
-            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
+            BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, GENESIS_ROUND, Round,
+            TestBlockHeader, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
         },
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
@@ -3153,7 +3155,7 @@ mod tests {
 
         async fn add_transactions(
             &self,
-            _transactions: Vec<VerifiedTransactions>,
+            _transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
@@ -4056,9 +4058,9 @@ mod tests {
                 .get(),
             1
         );
-        let crate::misbehavior_store::MisbehaviorCounts::V1(counts) =
-            &misbehavior_store.snapshot_totals()[peer_index.value()];
-        assert_eq!(counts.faulty_blocks_unprovable, 1);
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[peer_index.value()].as_v2();
+        assert_eq!(counts.invalid_bundle_parts, 1);
     }
 
     /// A header dropped as an unrequested extra stays fetchable: a later
@@ -4291,6 +4293,38 @@ mod tests {
             (elapsed_ms * 4.0..elapsed_ms * 4.0 + 100.0).contains(&recorded),
             "one of four requested headers delivered should scale the fetch-plus-verify \
              latency by four, got {recorded}"
+        );
+
+        // The same peer delivers one of four again, slowly enough that the
+        // scaled latency would exceed the failure penalty: the sample is
+        // capped there, so a delivering peer never records worse than a
+        // failing one.
+        let requested_headers = (40..44)
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
+            .collect::<Vec<_>>();
+        let blocks_guard = inflight_blocks_map
+            .lock_headers(
+                requested_headers
+                    .iter()
+                    .map(|header| header.reference())
+                    .collect(),
+                padding_peer,
+                SyncMethod::Live,
+            )
+            .expect("the headers are free to lock");
+        let fetched = FetchedHeaders {
+            serialized_headers: vec![requested_headers[0].serialized().clone()],
+            elapsed: Duration::from_millis(1_900),
+            holds_requested: true,
+        };
+        let result = process(fetched, blocks_guard, padding_peer).await;
+        assert!(result.is_ok());
+        let capped = latency(padding_peer).expect("the delivery is recorded");
+        let expected = 0.7 * recorded + 0.3 * FETCH_REQUEST_TIMEOUT.as_millis() as f64;
+        assert!(
+            (capped - expected).abs() < 1.0,
+            "the scaled sample must be capped at the failure penalty, got {capped}, \
+             expected {expected}"
         );
 
         // Peer 3 pads its response with a header from an author we did not

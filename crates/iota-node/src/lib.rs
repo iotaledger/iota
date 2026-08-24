@@ -1731,11 +1731,9 @@ impl IotaNode {
     // self.state.db()
     // }
 
-    /// Clone the AuthorityAggregator currently used by this node's
-    /// transaction orchestrator, if the node is a fullnode. After reconfig,
-    /// the active driver builds a new AuthorityAggregator. The caller
-    /// of this function will mostly likely want to call this again
-    /// to get a fresh one.
+    /// Clone an AuthorityAggregator from the transaction orchestrator, if
+    /// this is a fullnode. The snapshot goes stale after an epoch change;
+    /// call again for a fresh one.
     pub fn clone_authority_aggregator(
         &self,
     ) -> Option<Arc<AuthorityAggregator<NetworkAuthorityClient>>> {
@@ -1750,6 +1748,8 @@ impl IotaNode {
         self.transaction_orchestrator.clone()
     }
 
+    /// Subscribe to the quorum driver's effects stream; errors while the
+    /// quorum driver is not the currently served flow on this node.
     pub fn subscribe_to_transaction_orchestrator_effects(
         &self,
     ) -> Result<tokio::sync::broadcast::Receiver<QuorumDriverEffectsQueueResult>> {
@@ -1759,7 +1759,12 @@ impl IotaNode {
                 anyhow::anyhow!("Transaction Orchestrator is not enabled in this node.")
             })?
             .subscribe_to_effects_queue()
-            .ok_or_else(|| anyhow::anyhow!("Effects queue is not available under the P-COOL flow."))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Effects queue is not available: the quorum driver is not the currently \
+                     served flow on this node."
+                )
+            })
     }
 
     /// This function awaits the completion of checkpoint execution of the

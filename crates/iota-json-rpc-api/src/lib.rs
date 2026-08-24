@@ -336,6 +336,7 @@ pub const CLIENT_TARGET_API_VERSION_HEADER: &str = "client-target-api-version";
 
 pub const TRANSIENT_ERROR_CODE: i32 = -32050;
 pub const TRANSACTION_EXECUTION_CLIENT_ERROR_CODE: i32 = -32002;
+pub const TRANSACTION_NOT_FOUND_ERROR_CODE: i32 = -32003;
 
 /// Convert a jsonrpsee client error into a generic error object.
 pub fn error_object_from_rpc(rpc_err: ClientError) -> ErrorObjectOwned {

@@ -55,8 +55,8 @@ use tracing::{info, warn};
 use crate::{
     BlockRef, CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, GENESIS_ROUND, SignedBlockHeader, TransactionsCommitment,
-        VerifiedTransactions,
+        BlockHeaderAPI, CommitmentVerifiedTransactions, GENESIS_ROUND, SignedBlockHeader,
+        TransactionsCommitment,
     },
     block_verifier::{BlockVerifier, serialized_transactions_size_limit},
     commit::{
@@ -144,32 +144,37 @@ impl CommitSyncType {
     }
 }
 
-/// Verifies that fetched block headers match the requested block refs.
-/// Returns verified headers or an error if count/reference mismatch.
+/// Verifies that the fetched headers are exactly the requested ones, in any
+/// order. Requested refs must be distinct.
 pub(crate) fn verify_fetched_headers(
     peer: AuthorityIndex,
     request_block_refs: &[BlockRef],
     serialized_block_headers: Vec<Bytes>,
 ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
-    // 1. Verify count matches
-    if request_block_refs.len() != serialized_block_headers.len() {
-        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-            authority: peer,
+    if serialized_block_headers.len() > request_block_refs.len() {
+        return Err(ConsensusError::TooManyFetchedHeadersReturned {
+            peer,
             requested: request_block_refs.len(),
-            received_headers: serialized_block_headers.len(),
+            received: serialized_block_headers.len(),
         });
     }
-
-    // 2. Verify each header's reference matches requested
+    if serialized_block_headers.len() < request_block_refs.len() {
+        return Err(ConsensusError::NotEnoughHeadersFetched {
+            peer,
+            requested: request_block_refs.len(),
+            received: serialized_block_headers.len(),
+        });
+    }
+    // Counts match, so consuming a distinct requested ref per header drains
+    // the set exactly when no header errors below.
+    let mut pending_refs: BTreeSet<BlockRef> = request_block_refs.iter().cloned().collect();
     serialized_block_headers
         .into_iter()
-        .zip(request_block_refs)
-        .map(|(serialized, requested_ref)| {
+        .map(|serialized| {
             let header = VerifiedBlockHeader::new_from_bytes(serialized)?;
-            if *requested_ref != header.reference() {
+            if !pending_refs.remove(&header.reference()) {
                 return Err(ConsensusError::UnexpectedBlockHeaderForCommit {
                     peer,
-                    requested: *requested_ref,
                     received: header.reference(),
                 });
             }
@@ -424,12 +429,13 @@ pub(crate) fn verify_commits(
     Ok((trusted_commits, verified_voting_headers))
 }
 
-/// Verifies transactions and returns them keyed by transaction reference.
-pub(crate) fn verify_transactions_with_transactions_refs(
+/// Verifies each payload against the transactions commitment in its ref and
+/// returns the payloads keyed by transaction reference.
+pub(crate) fn verify_transactions_commitments(
     context: &Arc<Context>,
     peer: AuthorityIndex,
     serialized_transactions: BTreeMap<TransactionRef, Bytes>,
-) -> ConsensusResult<BTreeMap<TransactionRef, VerifiedTransactions>> {
+) -> ConsensusResult<BTreeMap<TransactionRef, CommitmentVerifiedTransactions>> {
     let mut verified_transactions_map = BTreeMap::new();
     let mut encoder = create_encoder(context);
     let size_limit = serialized_transactions_size_limit(context);
@@ -472,8 +478,8 @@ pub(crate) fn verify_transactions_with_transactions_refs(
         let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
             .map_err(ConsensusError::MalformedTransactions)?;
 
-        // Step 3: Create a VerifiedTransactions instance and insert into map
-        let verified_transactions = VerifiedTransactions::new(
+        // Step 3: Create a CommitmentVerifiedTransactions instance and insert into map
+        let verified_transactions = CommitmentVerifiedTransactions::new(
             transactions,
             transaction_ref,
             None,
@@ -655,13 +661,19 @@ where
             .await
             {
                 Ok(Ok(data)) => {
+                    // A failure is the ceiling of the scale: however short the
+                    // delivery, a peer that returned something never records
+                    // worse than one that failed.
                     inner.context.peer_responsiveness.record_success(
                         data_source,
                         authority,
-                        started.elapsed().mul_f64(shortfall_factor(
-                            commit_range.size(),
-                            data.delivered_commits(),
-                        )),
+                        started
+                            .elapsed()
+                            .mul_f64(shortfall_factor(
+                                commit_range.size(),
+                                data.delivered_commits(),
+                            ))
+                            .min(failure_penalty),
                     );
                     info!(
                         "[{}] Finished fetching commits in {commit_range:?}",
@@ -923,16 +935,16 @@ pub(crate) mod tests {
     use super::*;
     use crate::{
         Round,
-        block_header::BlockHeaderDigest,
+        block_header::{BlockHeaderDigest, TestBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::{CommitV1, CommitV2, CommitV3},
         network::BlockBundleStream,
         transaction_ref::TransactionRef,
     };
 
-    /// Fake `NetworkClient` for commit syncer tests. Serves the canned
-    /// `fetch_commits_and_transactions` response when one is set and fails the
-    /// fetch when none is; all other endpoints are unimplemented.
+    /// Fake `NetworkClient` for commit syncer tests, serving preset responses.
+    /// With no preset response, `fetch_commits_and_transactions` fails the
+    /// fetch, while the other fetch endpoints panic as unimplemented.
     #[derive(Default)]
     pub(crate) struct FakeNetworkClient {
         pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
@@ -941,6 +953,12 @@ pub(crate) mod tests {
         pub(crate) response_delay: Duration,
         /// Every peer asked for commits, in the order it was asked.
         pub(crate) requested_peers: parking_lot::Mutex<Vec<AuthorityIndex>>,
+        /// Preset `fetch_commits` response: commits and certifier headers.
+        pub(crate) commits: Option<(Vec<Bytes>, Vec<Bytes>)>,
+        /// Preset `fetch_block_headers` response.
+        pub(crate) block_headers: Option<Vec<Bytes>>,
+        /// Preset `fetch_transactions` response.
+        pub(crate) transactions: Option<Vec<Bytes>>,
     }
 
     #[async_trait::async_trait]
@@ -960,7 +978,10 @@ pub(crate) mod tests {
             _transaction_refs: Vec<TransactionRef>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
+            match &self.transactions {
+                Some(response) => Ok(response.clone()),
+                None => unimplemented!("Unimplemented"),
+            }
         }
 
         async fn fetch_block_headers(
@@ -970,16 +991,23 @@ pub(crate) mod tests {
             _highest_accepted_rounds: Vec<Round>,
             _timeout: Duration,
         ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
+            match &self.block_headers {
+                Some(response) => Ok(response.clone()),
+                None => unimplemented!("Unimplemented"),
+            }
         }
 
         async fn fetch_commits(
             &self,
-            _peer: AuthorityIndex,
+            peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
         ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
-            unimplemented!("Unimplemented")
+            self.requested_peers.lock().push(peer);
+            match &self.commits {
+                Some(response) => Ok(response.clone()),
+                None => unimplemented!("Unimplemented"),
+            }
         }
 
         async fn fetch_commits_and_transactions(
@@ -1099,7 +1127,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn verify_transactions_rejects_oversized_payload_before_encoding() {
+    async fn verify_transactions_commitments_rejects_oversized_payload_before_encoding() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let peer = AuthorityIndex::new_for_test(1);
@@ -1112,8 +1140,7 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, Bytes::from(vec![0u8; size_limit + 1]))]);
 
-        let result =
-            verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
         assert!(matches!(
             result,
             Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
@@ -1122,7 +1149,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn verify_transactions_rejects_out_of_range_author() {
+    async fn verify_transactions_commitments_rejects_out_of_range_author() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let peer = AuthorityIndex::new_for_test(1);
@@ -1145,8 +1172,7 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
-        let result =
-            verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
         assert!(matches!(
             result,
             Err(ConsensusError::InvalidAuthorityIndexRequested {
@@ -1158,7 +1184,7 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
-    async fn verify_transactions_rejects_genesis_round() {
+    async fn verify_transactions_commitments_rejects_genesis_round() {
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
         let peer = AuthorityIndex::new_for_test(1);
@@ -1180,8 +1206,7 @@ pub(crate) mod tests {
         let serialized_transactions =
             BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
 
-        let result =
-            verify_transactions_with_transactions_refs(&context, peer, serialized_transactions);
+        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
         assert!(matches!(
             result,
             Err(ConsensusError::UnexpectedGenesisRequested { peer: error_peer })
@@ -1226,5 +1251,84 @@ pub(crate) mod tests {
         // Never divides by zero, even though the fetch paths reject empty
         // responses before reaching this point.
         assert_eq!(shortfall_factor(10, 0), 10.0);
+    }
+
+    /// `n` distinct serialized test headers and their refs.
+    fn test_headers(n: u8) -> (Vec<BlockRef>, Vec<Bytes>) {
+        (0..n)
+            .map(|i| {
+                let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, i).build());
+                (header.reference(), header.serialized().clone())
+            })
+            .unzip()
+    }
+
+    #[test]
+    fn verify_fetched_headers_accepts_exact_set_in_any_order() {
+        let (refs, mut headers) = test_headers(3);
+        headers.swap(0, 2);
+        let verified =
+            verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, headers).unwrap();
+        assert_eq!(verified.len(), 3);
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_unrequested_header() {
+        let (refs, headers) = test_headers(3);
+        let response = vec![headers[0].clone(), headers[2].clone()];
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs[..2], response);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::UnexpectedBlockHeaderForCommit { .. })
+        ));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_duplicate_header() {
+        let (refs, headers) = test_headers(2);
+        let response = vec![headers[0].clone(), headers[0].clone()];
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, response);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::UnexpectedBlockHeaderForCommit { .. })
+        ));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_malformed_header() {
+        let (refs, headers) = test_headers(2);
+        let response = vec![headers[0].clone(), Bytes::from_static(b"garbage")];
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, response);
+        assert!(matches!(result, Err(ConsensusError::MalformedHeader(_))));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_extra_headers_before_parsing() {
+        let (refs, mut headers) = test_headers(2);
+        headers.push(Bytes::from_static(b"garbage"));
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, headers);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyFetchedHeadersReturned {
+                requested: 2,
+                received: 3,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_missing_headers() {
+        let (refs, mut headers) = test_headers(2);
+        headers.truncate(1);
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, headers);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::NotEnoughHeadersFetched {
+                requested: 2,
+                received: 1,
+                ..
+            })
+        ));
     }
 }
