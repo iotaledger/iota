@@ -32,7 +32,6 @@ use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use starfish_config::Parameters as StarfishParameters;
-use tracing::info;
 
 use crate::{
     Config, certificate_deny_config::CertificateDenyConfig, genesis,
@@ -1171,8 +1170,11 @@ pub struct AuthorityStorePruningConfig {
         skip_serializing_if = "is_default_periodic_compaction_threshold_days"
     )]
     pub periodic_compaction_threshold_days: Option<usize>,
-    /// number of epochs to keep the latest version of transactions and effects
-    /// for
+    /// Number of historic epochs of transactions, effects, events, and
+    /// checkpoint data to keep. Controls transaction pruning.
+    ///   None — keep every epoch's bucket; transaction pruning is off.
+    ///   N    — keep the N most recent epochs, counting the epoch this
+    ///          retention is measured from as one of the N.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -1214,15 +1216,32 @@ impl AuthorityStorePruningConfig {
 
     pub fn num_epochs_to_retain_for_checkpoints(&self) -> Option<u64> {
         self.num_epochs_to_retain_for_checkpoints
-            // if n less than 2, coerce to 2 and log
-            .map(|n| {
-                if n < 2 {
-                    info!("num_epochs_to_retain_for_checkpoints must be at least 2, rounding up from {}", n);
-                    2
-                } else {
-                    n
-                }
-            })
+    }
+
+    /// Fails if the index retention could outlive the transaction retention
+    /// it is derived from, letting `iotax_queryTransactionBlocks` return a
+    /// digest the ledger has already dropped.
+    ///
+    /// `None` on the ledger side keeps every epoch, so no index retention can
+    /// exceed it. `None` on the index side means the operator left index
+    /// pruning off rather than choosing a bound to compare, so it is not
+    /// treated as a violation either — only two explicit numbers where the
+    /// index outlives the ledger are.
+    pub fn check_index_retention_within_ledger(&self) -> Result<()> {
+        let index = self.num_epochs_to_retain_for_indexes;
+        let ledger = self.num_epochs_to_retain_for_checkpoints();
+        if let (Some(index), Some(ledger)) = (index, ledger) {
+            if index > ledger {
+                anyhow::bail!(
+                    "num-epochs-to-retain-for-indexes ({index}) must not exceed \
+                     num-epochs-to-retain-for-checkpoints ({ledger}): a longer index retention \
+                     lets iotax_queryTransactionBlocks return a transaction digest whose ledger \
+                     data has already been pruned. Lower num-epochs-to-retain-for-indexes or \
+                     raise num-epochs-to-retain-for-checkpoints."
+                );
+            }
+        }
+        Ok(())
     }
 }
 
@@ -1706,8 +1725,9 @@ mod tests {
     use serde_yaml::Value;
 
     use super::{
-        Genesis, GrpcApiConfig, ObjectStoreConfig, default_grpc_api_config,
-        default_periodic_compaction_threshold_days, default_traffic_controller_policy_config,
+        AuthorityStorePruningConfig, Genesis, GrpcApiConfig, ObjectStoreConfig,
+        default_grpc_api_config, default_periodic_compaction_threshold_days,
+        default_traffic_controller_policy_config,
     };
     use crate::{NodeConfig, object_storage_config::ObjectStoreType};
 
@@ -1761,6 +1781,65 @@ mod tests {
             .unwrap()
             .get(&Value::String((*last).to_owned()))
             .cloned()
+    }
+
+    #[test]
+    fn a_retention_below_two_is_no_longer_rounded_up() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(1),
+            ..Default::default()
+        };
+        assert_eq!(config.num_epochs_to_retain_for_checkpoints(), Some(1));
+    }
+
+    #[test]
+    fn index_retention_within_ledger_retention_is_accepted() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(2),
+            num_epochs_to_retain_for_indexes: Some(2),
+            ..Default::default()
+        };
+        assert!(config.check_index_retention_within_ledger().is_ok());
+    }
+
+    #[test]
+    fn index_retention_beyond_ledger_retention_is_refused() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(2),
+            num_epochs_to_retain_for_indexes: Some(3),
+            ..Default::default()
+        };
+        let err = config
+            .check_index_retention_within_ledger()
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("num-epochs-to-retain-for-indexes"), "{err}");
+        assert!(
+            err.contains("num-epochs-to-retain-for-checkpoints"),
+            "{err}"
+        );
+        assert!(err.contains('3'), "{err}");
+        assert!(err.contains('2'), "{err}");
+    }
+
+    #[test]
+    fn unbounded_ledger_retention_accepts_any_index_retention() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: None,
+            num_epochs_to_retain_for_indexes: Some(1000),
+            ..Default::default()
+        };
+        assert!(config.check_index_retention_within_ledger().is_ok());
+    }
+
+    #[test]
+    fn unset_index_retention_is_never_a_violation() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(1),
+            num_epochs_to_retain_for_indexes: None,
+            ..Default::default()
+        };
+        assert!(config.check_index_retention_within_ledger().is_ok());
     }
 
     #[test]
