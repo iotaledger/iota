@@ -2508,8 +2508,9 @@ mod tests {
                 block_round: 1,
             })
         ));
-        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
-        assert_eq!(counts.faulty_blocks_unprovable, 2);
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[0].as_v2();
+        assert_eq!(counts.invalid_bundle_parts, 2);
 
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
