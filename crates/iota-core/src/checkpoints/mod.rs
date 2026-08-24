@@ -171,7 +171,8 @@ pub struct CheckpointStoreTables {
     /// Superseded by [`HistoricCheckpoints`]: contents are written to and read
     /// from the bucket of the epoch that closed the checkpoint, so that
     /// retiring an epoch is one column-family drop rather than a delete per
-    /// row. Rows written before the move are still on disk here.
+    /// row. Rows written before the move are still on disk here, and the
+    /// one-time migration into the buckets is their only reader.
     pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
     /// Deprecated: the contents-digest to sequence-number mapping moved to
@@ -206,7 +207,8 @@ pub struct CheckpointStoreTables {
     /// [`HistoricCheckpoints`] the same way, so it retires with its epoch even
     /// though `certified_checkpoints` — the same summaries keyed by sequence
     /// number — is kept forever. Rows written before the move are still on
-    /// disk here.
+    /// disk here, and the one-time migration into the buckets is their only
+    /// reader.
     pub(crate) checkpoint_by_digest: DBMap<CheckpointDigest, TrustedCheckpoint>,
 
     /// Store locally computed checkpoint summaries so that we can detect forks
@@ -280,13 +282,9 @@ impl CheckpointStoreTables {
             None,
             Some(table_options),
         );
-        let historic_checkpoints = HistoricCheckpoints::open(
-            tables.certified_checkpoints.db.clone(),
-            &db_options,
-            tables.checkpoint_content.clone(),
-            tables.checkpoint_by_digest.clone(),
-        )
-        .expect("cannot open the historic checkpoint buckets");
+        let historic_checkpoints =
+            HistoricCheckpoints::open(tables.certified_checkpoints.db.clone(), &db_options)
+                .expect("cannot open the historic checkpoint buckets");
         (tables, historic_checkpoints)
     }
 
