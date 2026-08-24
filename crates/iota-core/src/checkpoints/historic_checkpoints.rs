@@ -91,18 +91,6 @@ impl HistoricCheckpointsBucket {
 /// being served. [`Self::prune`] takes the executed epoch for that reason.
 pub struct HistoricCheckpoints {
     buckets: EpochBuckets<HistoricCheckpointsBucket>,
-
-    /// The flat tables that held this history before it was bucketed, read
-    /// only when no bucket answers. A database written by an earlier binary
-    /// still has its rows here and none in any bucket, and the very first
-    /// thing a node does on start is look up the genesis checkpoint by
-    /// digest, so without these a restart would find no genesis checkpoint
-    /// and reset its synced and verified watermarks to zero.
-    /// TODO: remove both, and the fallback in [`Self::find_contents`] and
-    /// [`Self::find_by_digest`], once every database has moved its pre-bucket
-    /// rows into the bucket of the epoch that closed them.
-    pre_bucket_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
-    pre_bucket_by_digest: DBMap<CheckpointDigest, TrustedCheckpoint>,
 }
 
 impl HistoricCheckpoints {
@@ -150,17 +138,7 @@ impl HistoricCheckpoints {
     /// column families. `db` is the checkpoint store's own handle: the
     /// buckets are its column families, not a database of their own, and
     /// `db_options` are the options its tables were opened with.
-    ///
-    /// `pre_bucket_content` and `pre_bucket_by_digest` are the checkpoint
-    /// store's own `checkpoint_content` and `checkpoint_by_digest` tables,
-    /// which held this history before it was bucketed and are still where a
-    /// database written by an earlier binary has it.
-    pub fn open(
-        db: Arc<Database>,
-        db_options: &DBOptions,
-        pre_bucket_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
-        pre_bucket_by_digest: DBMap<CheckpointDigest, TrustedCheckpoint>,
-    ) -> Result<Self, TypedStoreError> {
+    pub fn open(db: Arc<Database>, db_options: &DBOptions) -> Result<Self, TypedStoreError> {
         let existing_cfs = list_tables(db.path_for_pruning().to_path_buf())
             .map_err(|e| TypedStoreError::RocksDB(format!("failed to list buckets: {e}")))?;
 
@@ -194,11 +172,7 @@ impl HistoricCheckpoints {
             buckets,
             HistoricCheckpointsBucket::reopen,
         )?;
-        Ok(Self {
-            buckets,
-            pre_bucket_content,
-            pre_bucket_by_digest,
-        })
+        Ok(Self { buckets })
     }
 
     /// The oldest epoch this store still holds a bucket for, `None` when it
@@ -239,11 +213,11 @@ impl HistoricCheckpoints {
             .prune_from_epoch(executed_epoch, epochs_to_retain, |_, _| Ok(()))
     }
 
-    /// The contents stored under `digest`, newest bucket first, falling back
-    /// to the pre-bucket table, `None` if neither holds them.
+    /// The contents stored under `digest`, newest bucket first, `None` if no
+    /// bucket holds them.
     ///
-    /// A digest neither holds belongs to a checkpoint this node never had, or
-    /// to one whose epoch has been dropped, and both answer `None`.
+    /// A digest no bucket holds belongs to a checkpoint this node never had,
+    /// or to one whose epoch has been dropped, and both answer `None`.
     pub fn find_contents(
         &self,
         digest: &CheckpointContentsDigest,
@@ -253,12 +227,11 @@ impl HistoricCheckpoints {
                 return Ok(Some(contents));
             }
         }
-        // One extra point read, and only when no bucket answered.
-        self.pre_bucket_content.get(digest)
+        Ok(None)
     }
 
     /// The certified summary stored under `digest`, newest bucket first,
-    /// falling back to the pre-bucket table, `None` if neither holds it.
+    /// `None` if no bucket holds it.
     ///
     /// Keyed by checkpoint digest. A caller that has the sequence number
     /// reads `certified_checkpoints` instead, which holds the same summaries
@@ -272,8 +245,7 @@ impl HistoricCheckpoints {
                 return Ok(Some(checkpoint));
             }
         }
-        // One extra point read, and only when no bucket answered.
-        self.pre_bucket_by_digest.get(digest)
+        Ok(None)
     }
 
     /// One page of the rows `cf_name` holds, if it is one of this store's
