@@ -561,9 +561,13 @@ fn insert_genesis_checkpoint(
     checkpoint_store: &CheckpointStore,
     genesis: &Genesis,
 ) -> Result<(), anyhow::Error> {
+    // Asked of `certified_checkpoints`, which is keyed by sequence number and
+    // never pruned, the same way `CheckpointStore::insert_genesis_checkpoint`
+    // is: `get_checkpoint_by_digest` goes through the bucketed history, which
+    // no longer answers for an epoch a retention window has already expired.
     if checkpoint_store
-        .get_checkpoint_by_digest(genesis.checkpoint().digest())?
-        .is_none()
+        .get_checkpoint_by_sequence_number(0)?
+        .is_none_or(|stored| stored.digest() != genesis.checkpoint().digest())
     {
         checkpoint_store.insert_checkpoint_contents(
             &genesis.checkpoint(),
