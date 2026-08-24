@@ -245,13 +245,17 @@ impl LedgerBacklogMigration {
             "the ledger backlog migration reached the end of the flat tables"
         );
 
-        // What the node still holds is what it may advertise: the deleted rows
-        // were the whole history of the epochs below the floor, and a
-        // state-sync peer told those checkpoints are available would ask for
-        // contents that are gone. Reported rather than returned — the history
+        // What the node still holds is what it may advertise: below the floor
+        // the whole history is gone, and a state-sync peer told those
+        // checkpoints are available would ask for contents that are gone.
+        // Asked of the floor rather than of what this run deleted, since a run
+        // that resumed past the last expired slice deleted nothing itself and
+        // would otherwise leave the claim standing until the next
+        // reconfiguration. The call is monotonic, so repeating it on every
+        // start costs nothing. Reported rather than returned — the history
         // itself has moved, and failing the start over a watermark would leave
         // the node unable to come up at all.
-        if counts.expired > 0 && self.floor > 0 {
+        if self.floor > 0 {
             if let Err(e) = self
                 .checkpoint_store
                 .advance_highest_pruned_checkpoint(self.floor)
@@ -506,6 +510,13 @@ impl LedgerBacklogMigration {
     /// consulted to place it, and taking its contents with it keeps a
     /// checkpoint's two rows in one bucket — they expire together, as the
     /// per-row pruner they replace deleted them together.
+    ///
+    /// Two checkpoints in different epochs can name one contents row: every
+    /// checkpoint that carries no transaction has the same contents digest,
+    /// and the flat table holds one row for the pair. Each epoch's bucket gets
+    /// a copy of its own, read back out of the bucket the first of them was
+    /// filed in once the flat row is gone, so that expiring the older epoch
+    /// does not leave a retained checkpoint with a summary and no contents.
     fn move_checkpoint_summaries(
         &self,
         from: Option<CheckpointDigest>,
@@ -528,14 +539,32 @@ impl LedgerBacklogMigration {
                 .iter()
                 .map(|(_, summary)| summary.inner().contents_digest)
                 .collect();
-            let found: Vec<_> = named
+            let mut found = Vec::with_capacity(named.len());
+            for (digest, flat_row) in named
                 .iter()
                 .copied()
                 .zip(tables.checkpoint_content.multi_get(&named)?)
-                .filter_map(|(digest, contents)| contents.map(|contents| (digest, contents)))
-                .collect();
+            {
+                match flat_row {
+                    Some(contents) => {
+                        contents_keys.push(digest);
+                        found.push((digest, contents));
+                    }
+                    // An earlier slice took the row for a checkpoint of
+                    // another epoch that names the same contents, so this
+                    // epoch's copy comes back out of that epoch's bucket.
+                    None => {
+                        if let Some(contents) = self
+                            .checkpoint_store
+                            .historic_checkpoints
+                            .find_contents(&digest)?
+                        {
+                            found.push((digest, contents));
+                        }
+                    }
+                }
+            }
             moved += summaries.len() + found.len();
-            contents_keys.extend(found.iter().map(|(digest, _)| *digest));
             batch.insert_batch_tagged(
                 &bucket.checkpoint_by_digest,
                 summaries.iter().map(|(digest, summary)| (digest, summary)),
@@ -570,10 +599,13 @@ impl LedgerBacklogMigration {
     ///
     /// A contents row carries neither an epoch nor a sequence number, and the
     /// summary that names it is what places it — so a row still here once
-    /// every flat summary has moved cannot be placed at all. The two are
-    /// written contents first, so this is the crash window of a single
-    /// checkpoint; filing such a row under the running epoch keeps it rather
-    /// than dropping contents a summary already in a bucket may still name.
+    /// every flat summary has moved cannot be placed at all. State sync, which
+    /// writes almost all of this history, writes the summary first and the
+    /// contents after, so its rows always have a summary to be placed by; only
+    /// [`CheckpointStore::insert_genesis_checkpoint`] writes the contents
+    /// first, leaving one unplaceable row if the node stopped between the two.
+    /// Filing such a row under the running epoch keeps it rather than dropping
+    /// contents a summary already in a bucket may still name.
     fn move_contents_without_summary(
         &self,
         from: Option<CheckpointContentsDigest>,
