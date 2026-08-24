@@ -8,10 +8,10 @@ use std::{
 };
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest};
 use iota_types::{
     base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
-    deny_rule_governance::DenyRuleSet, messages_consensus::TransactionDenyRuleProposal,
+    messages_consensus::TransactionDenyRuleProposal,
 };
 use tokio::time::timeout;
 use typed_store::rocks::DBBatch;

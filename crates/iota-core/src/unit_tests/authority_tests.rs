@@ -8092,10 +8092,9 @@ async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityStat
 /// author is dropped by `verify_consensus_transaction`.
 #[tokio::test]
 async fn deny_rule_proposal_through_consensus_updates_active_set() {
-    use iota_sdk_types::Address;
+    use iota_sdk_types::{Address, DenyRuleSet};
     use iota_types::{
-        deny_rule_governance::{DenyRuleConfig, DenyRuleSet},
-        messages_consensus::TransactionDenyRuleProposal,
+        deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
     let authority = authority_with_deny_rule_governance(true).await;
@@ -8223,10 +8222,8 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
     );
 }
 
-fn rules_denying(
-    address: iota_sdk_types::Address,
-) -> iota_types::deny_rule_governance::DenyRuleSet {
-    iota_types::deny_rule_governance::DenyRuleSet {
+fn rules_denying(address: iota_sdk_types::Address) -> iota_sdk_types::DenyRuleSet {
+    iota_sdk_types::DenyRuleSet {
         denied_addresses: [address].into(),
         ..Default::default()
     }
