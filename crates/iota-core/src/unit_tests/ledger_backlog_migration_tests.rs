@@ -31,11 +31,10 @@ use crate::{
 /// newest epoch the seed below writes history for.
 const RUNNING_EPOCH: EpochId = 3;
 
-/// The retention the finite-floor test runs with. The node config coerces
-/// anything below 2 up to 2, so 2 is the narrowest window a node can really
-/// be given: with the migration running in epoch 3 it keeps epochs 2 and 3
-/// and leaves epoch 1 behind.
-const NARROWEST_RETENTION: u64 = 2;
+/// The narrowest window a node can really be given: 1 keeps only the epoch
+/// the migration is running in, so with the migration running in epoch 3 it
+/// keeps epoch 3 alone and leaves epochs 1 and 2 behind.
+const NARROWEST_RETENTION: u64 = 1;
 
 /// Where a seeded transaction's epoch is recorded, which is what the
 /// migration has to read it back from.
@@ -403,9 +402,9 @@ async fn rows_land_in_their_true_epoch() {
     assert_migrated(&store, &checkpoint_store, &seeded, 0);
 }
 
-/// A node whose retention has already left an epoch behind deletes that
-/// epoch's rows rather than building a bucket the next reconfiguration would
-/// drop again, and it reports the checkpoint range it no longer holds.
+/// A node whose retention has already left epochs behind deletes their rows
+/// rather than building buckets the next reconfiguration would drop again,
+/// and it reports the checkpoint range it no longer holds.
 #[tokio::test]
 async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
     let store_dir = iota_common::tempdir();
@@ -422,11 +421,11 @@ async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
     .run()
     .unwrap();
 
-    // Epoch 1 is one below the floor the next boundary will apply, so it left
-    // no bucket behind in either store.
-    assert_migrated(&store, &checkpoint_store, &seeded, 2);
+    // With retention 1, the running epoch is the floor the next boundary
+    // will apply, so epochs 1 and 2 left no bucket behind in either store.
+    assert_migrated(&store, &checkpoint_store, &seeded, RUNNING_EPOCH);
 
-    // Epoch 1's last checkpoint is the highest the node no longer holds, so
+    // Epoch 2's last checkpoint is the highest the node no longer holds, so
     // that a state-sync peer is not told a dropped checkpoint is available.
     assert_eq!(
         checkpoint_store
@@ -435,7 +434,7 @@ async fn rows_below_a_finite_floor_are_deleted_not_bucketed() {
             .get(&CheckpointWatermark::HighestPruned)
             .unwrap()
             .map(|(sequence, _)| sequence),
-        Some(10)
+        Some(21)
     );
 }
 
