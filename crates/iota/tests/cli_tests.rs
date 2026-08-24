@@ -5285,12 +5285,31 @@ async fn test_clever_errors() -> Result<(), anyhow::Error> {
     .await
     .unwrap_err();
 
+    // Clever error with an error code
+    let clever_error_with_code = IotaClientCommands::Call {
+        package: package.reference.object_id,
+        module: "clever_errors".to_string(),
+        function: "clever_aborter_with_code".to_string(),
+        type_args: vec![],
+        args: vec![],
+        payment: PaymentArgs::default(),
+        gas_data: GasDataArgs {
+            gas_budget: Some(rgp * TEST_ONLY_GAS_UNIT_FOR_PUBLISH),
+            ..Default::default()
+        },
+        processing: TxProcessingArgs::default(),
+    }
+    .execute(context)
+    .await
+    .unwrap_err();
+
     let error_string = format!(
-        "Non-clever-abort\n---\n{}\n---\nLine-only-abort\n---\n{}\n---\nClever-error-utf8\n---\n{}\n---\nClever-error-non-utf8\n---\n{}\n---\n",
+        "Non-clever-abort\n---\n{}\n---\nLine-only-abort\n---\n{}\n---\nClever-error-utf8\n---\n{}\n---\nClever-error-non-utf8\n---\n{}\n---\n\nClever-error-with-code\n---\n{}\n---\n",
         elide_transaction_digest(non_clever_abort.to_string()),
         elide_transaction_digest(line_only_abort.to_string()),
         elide_transaction_digest(clever_error_utf8.to_string()),
-        elide_transaction_digest(clever_error_non_utf8.to_string())
+        elide_transaction_digest(clever_error_non_utf8.to_string()),
+        elide_transaction_digest(clever_error_with_code.to_string())
     );
 
     insta::assert_snapshot!(error_string);

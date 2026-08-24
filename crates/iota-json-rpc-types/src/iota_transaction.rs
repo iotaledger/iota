@@ -1529,6 +1529,7 @@ impl IotaExecutionStatus {
                         module_id,
                         source_line_number,
                         error_info,
+                        error_code,
                     }) = resolver
                         .resolve_clever_error(module_id.clone(), *code)
                         .await
@@ -1540,27 +1541,36 @@ impl IotaExecutionStatus {
                         );
                     };
 
+                    let error_code_str = match error_code {
+                        Some(code) => format!("(code = {code})"),
+                        None => String::new(),
+                    };
+
                     match error_info {
                         ErrorConstants::Rendered {
                             identifier,
                             constant,
                         } => {
                             format!(
-                                "from '{}{fname_string} (line {source_line_number}), abort '{identifier}': {constant}",
+                                "from '{}{fname_string} (line {source_line_number}), abort{error_code_str} '{identifier}': {constant}",
                                 module_id.to_canonical_display(true)
                             )
                         }
                         ErrorConstants::Raw { identifier, bytes } => {
                             let const_str = Base64::encode(bytes);
                             format!(
-                                "from '{}{fname_string} (line {source_line_number}), abort '{identifier}': {const_str}",
+                                "from '{}{fname_string} (line {source_line_number}), abort{error_code_str} '{identifier}': {const_str}",
                                 module_id.to_canonical_display(true)
                             )
                         }
                         ErrorConstants::None => {
                             format!(
-                                "from '{}{fname_string} (line {source_line_number})",
-                                module_id.to_canonical_display(true)
+                                "from '{}{fname_string} (line {source_line_number}){}",
+                                module_id.to_canonical_display(true),
+                                match error_code {
+                                    Some(code) => format!(" abort(code = {code})"),
+                                    None => String::new(),
+                                }
                             )
                         }
                     }
@@ -1568,9 +1578,9 @@ impl IotaExecutionStatus {
                 // Convert the command index into an ordinal.
                 command_index += 1;
                 let suffix = match command_index % 10 {
-                    1 => "st",
-                    2 => "nd",
-                    3 => "rd",
+                    1 if command_index % 100 != 11 => "st",
+                    2 if command_index % 100 != 12 => "nd",
+                    3 if command_index % 100 != 13 => "rd",
                     _ => "th",
                 };
                 IotaExecutionStatus::Failure {

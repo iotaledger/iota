@@ -8,13 +8,18 @@ Error executing transaction 'ELIDED_TRANSACTION_DIGEST': Error in 1st command, f
 ---
 Line-only-abort
 ---
-Error executing transaction 'ELIDED_TRANSACTION_DIGEST': Error in 1st command, from 'ELIDED_ADDRESS::clever_errors::aborter_line_no' (line 19)
+Error executing transaction 'ELIDED_TRANSACTION_DIGEST': Error in 1st command, from 'ELIDED_ADDRESS::clever_errors::aborter_line_no' (line 22)
 ---
 Clever-error-utf8
 ---
-Error executing transaction 'ELIDED_TRANSACTION_DIGEST': Error in 1st command, from 'ELIDED_ADDRESS::clever_errors::clever_aborter' (line 23), abort 'ENotFound': Element not found in vector 💥 🚀 🌠
+Error executing transaction 'ELIDED_TRANSACTION_DIGEST': Error in 1st command, from 'ELIDED_ADDRESS::clever_errors::clever_aborter' (line 26), abort 'ENotFound': Element not found in vector 💥 🚀 🌠
 ---
 Clever-error-non-utf8
 ---
-Error executing transaction 'ELIDED_TRANSACTION_DIGEST': Error in 1st command, from 'ELIDED_ADDRESS::clever_errors::clever_aborter_not_a_string' (line 27), abort 'ENotAString': BAEAAAAAAAAAAgAAAAAAAAADAAAAAAAAAAQAAAAAAAAA
+Error executing transaction 'ELIDED_TRANSACTION_DIGEST': Error in 1st command, from 'ELIDED_ADDRESS::clever_errors::clever_aborter_not_a_string' (line 30), abort 'ENotAString': BAEAAAAAAAAAAgAAAAAAAAADAAAAAAAAAAQAAAAAAAAA
+---
+
+Clever-error-with-code
+---
+Error executing transaction 'ELIDED_TRANSACTION_DIGEST': Error in 1st command, from 'ELIDED_ADDRESS::clever_errors::clever_aborter_with_code' (line 34), abort(code = 1) 'ECodedError': Coded clever error
 ---
