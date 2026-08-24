@@ -916,8 +916,6 @@ impl RpcIndexesStore {
         })
     }
 
-    /// The bucket holding `epoch`'s history, created if absent. Pruned
-    /// epochs are refused, see [`EpochBuckets::ensure`].
     /// Opens `epoch`'s history bucket, creating its column family if the
     /// store has not been asked for it before.
     ///
@@ -941,6 +939,8 @@ impl RpcIndexesStore {
             .collect()
     }
 
+    /// The bucket holding `epoch`'s history, created if absent. Pruned epochs
+    /// are refused, see [`EpochBuckets::ensure`].
     fn ensure_history_bucket(&self, epoch: EpochId) -> IotaResult<Arc<HistoryBucket>> {
         self.history
             .ensure(epoch)
