@@ -419,7 +419,7 @@ impl TryFrom<&IotaObjectData> for GasCoin {
             .ok_or_else(|| anyhow!("Expect object content to not be empty"))?
         {
             IotaParsedData::MoveObject(o) => {
-                if o.tag.is_gas_coin() {
+                if o.struct_tag.is_gas_coin() {
                     return GasCoin::try_from(&o.fields);
                 }
             }
@@ -439,7 +439,7 @@ impl TryFrom<&IotaMoveStruct> for GasCoin {
         match move_struct {
             IotaMoveStruct::WithFields(fields)
             | IotaMoveStruct::WithTypes {
-                type_tag: _,
+                struct_tag: _,
                 fields,
             } => {
                 if let Some(IotaMoveValue::String(balance)) = fields.get("balance") {
@@ -840,7 +840,7 @@ impl IotaData for IotaParsedData {
 
     fn struct_tag(&self) -> Option<&StructTag> {
         match self {
-            Self::MoveObject(o) => Some(&o.tag),
+            Self::MoveObject(o) => Some(&o.struct_tag),
             Self::Package(_) => None,
         }
     }
@@ -851,7 +851,7 @@ impl Display for IotaParsedData {
         let mut writer = String::new();
         match self {
             IotaParsedData::MoveObject(o) => {
-                writeln!(writer, "{}: {}", "type".bold().bright_black(), o.tag)?;
+                writeln!(writer, "{}: {}", "type".bold().bright_black(), o.struct_tag)?;
                 write!(writer, "{}", o.fields)?;
             }
             IotaParsedData::Package(p) => {
@@ -912,7 +912,7 @@ pub struct IotaParsedMoveObject {
     #[serde(rename = "type")]
     #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
-    pub tag: StructTag,
+    pub struct_tag: StructTag,
     pub fields: IotaMoveStruct,
 }
 
@@ -925,17 +925,17 @@ impl IotaMoveObject for IotaParsedMoveObject {
 
         Ok(
             if let IotaMoveStruct::WithTypes {
-                type_tag: tag,
+                struct_tag: tag,
                 fields,
             } = move_struct
             {
                 IotaParsedMoveObject {
-                    tag,
+                    struct_tag: tag,
                     fields: IotaMoveStruct::WithFields(fields),
                 }
             } else {
                 IotaParsedMoveObject {
-                    tag: object.struct_tag().clone(),
+                    struct_tag: object.struct_tag().clone(),
                     fields: move_struct,
                 }
             },
@@ -943,7 +943,7 @@ impl IotaMoveObject for IotaParsedMoveObject {
     }
 
     fn struct_tag(&self) -> &StructTag {
-        &self.tag
+        &self.struct_tag
     }
 }
 
@@ -970,14 +970,14 @@ pub fn type_and_fields_from_move_event_data(
 ) -> IotaResult<(StructTag, serde_json::Value)> {
     match event_data.into() {
         IotaMoveValue::Struct(move_struct) => match &move_struct {
-            IotaMoveStruct::WithTypes { type_tag: tag, .. } => {
-                Ok((tag.clone(), move_struct.clone().to_json_value()))
-            }
+            IotaMoveStruct::WithTypes {
+                struct_tag: tag, ..
+            } => Ok((tag.clone(), move_struct.clone().to_json_value())),
             _ => Err(IotaError::ObjectDeserialization {
                 error: "Found non-type IotaMoveStruct in MoveValue event".to_string(),
             }),
         },
-        IotaMoveValue::Variant(v) => Ok((v.tag.clone(), v.to_json_value())),
+        IotaMoveValue::Variant(v) => Ok((v.struct_tag.clone(), v.to_json_value())),
         IotaMoveValue::Vector(_)
         | IotaMoveValue::Number(_)
         | IotaMoveValue::Bool(_)

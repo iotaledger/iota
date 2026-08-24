@@ -176,7 +176,7 @@ impl ObjectHandler {
         let (struct_tag, iota_move_struct) = if let Some(move_struct) = move_struct {
             match move_struct.into() {
                 IotaMoveStruct::WithTypes {
-                    type_tag: tag,
+                    struct_tag: tag,
                     fields,
                 } => (Some(tag), Some(IotaMoveStruct::WithFields(fields))),
                 fields => (object.struct_tag(), Some(fields)),

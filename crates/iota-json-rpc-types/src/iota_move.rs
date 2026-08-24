@@ -512,7 +512,7 @@ impl From<MoveValue> for IotaMoveValue {
                 tag: _,
                 fields,
             }) => IotaMoveValue::Variant(IotaMoveVariant {
-                tag: struct_tag_core_to_sdk(&type_),
+                struct_tag: struct_tag_core_to_sdk(&type_),
                 variant: variant_name.to_string(),
                 fields: fields
                     .into_iter()
@@ -548,7 +548,7 @@ pub struct IotaMoveVariant {
     #[serde(rename = "type")]
     #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
-    pub tag: StructTag,
+    pub struct_tag: StructTag,
     pub variant: String,
     pub fields: BTreeMap<String, IotaMoveValue>,
 }
@@ -573,7 +573,7 @@ impl Display for IotaMoveVariant {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let mut writer = String::new();
         let IotaMoveVariant {
-            tag,
+            struct_tag: tag,
             variant,
             fields,
         } = self;
@@ -603,7 +603,7 @@ pub enum IotaMoveStruct {
         #[serde(rename = "type")]
         #[schemars(with = "StructTagSchema")]
         #[serde_as(as = "StructTagSchema")]
-        type_tag: StructTag,
+        struct_tag: StructTag,
         fields: BTreeMap<String, IotaMoveValue>,
     },
     WithFields(BTreeMap<String, IotaMoveValue>),
@@ -624,7 +624,7 @@ impl IotaMoveStruct {
             // We only care about values here, assuming struct type information is known at the
             // client side.
             IotaMoveStruct::WithTypes {
-                type_tag: _,
+                struct_tag: _,
                 fields,
             }
             | IotaMoveStruct::WithFields(fields) => {
@@ -641,7 +641,7 @@ impl IotaMoveStruct {
         match self {
             IotaMoveStruct::WithFields(fields) => fields.get(field_name).cloned(),
             IotaMoveStruct::WithTypes {
-                type_tag: _,
+                struct_tag: _,
                 fields,
             } => fields.get(field_name).cloned(),
             _ => None,
@@ -660,7 +660,7 @@ impl Display for IotaMoveStruct {
                 }
             }
             IotaMoveStruct::WithTypes {
-                type_tag: tag,
+                struct_tag: tag,
                 fields,
             } => {
                 writeln!(writer)?;
@@ -746,7 +746,7 @@ fn try_convert_type(
 impl From<MoveStruct> for IotaMoveStruct {
     fn from(move_struct: MoveStruct) -> Self {
         IotaMoveStruct::WithTypes {
-            type_tag: struct_tag_core_to_sdk(&move_struct.type_),
+            struct_tag: struct_tag_core_to_sdk(&move_struct.type_),
             fields: move_struct
                 .fields
                 .into_iter()

@@ -1767,7 +1767,7 @@ fn move_view_function_call() {
         assert_eq!(return_values.len(), 1);
         let wat = &return_values[0];
         let IotaMoveValue::Struct(IotaMoveStruct::WithTypes {
-            type_tag: tag,
+            struct_tag: tag,
             fields,
         }) = wat
         else {
