@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Per-epoch column families, shared by the stores that retain their rows
-//! epoch by epoch: the RPC index history and the superseded object
-//! versions.
+//! epoch by epoch: the RPC index history, the superseded object versions, the
+//! ledger history of executed transactions, and the checkpoint history.
 //!
 //! Rows are partitioned by the epoch that produced them, one column family
 //! per epoch, so pruning an epoch is one constant-time column-family drop
