@@ -337,15 +337,10 @@ pub async fn validate_and_resolve_conflicts(
         // All checks passed — acquire owned-object locks in local tracking.
         // The validated set comes from loaded objects, so unlike the
         // byte-derived `owned_inputs` it excludes immutable inputs, which must
-        // never be locked (issue #12602). Both lists are subsets of
-        // `owned_inputs`, so every reference locked here was probed by
-        // Check #4 first.
+        // never be locked (issue #12602). It is a subset of `owned_inputs`,
+        // so every reference locked here was probed by Check #4 first.
         let locked_inputs: Vec<ObjectReference> = if skip_immutable_locks {
             validated_owned_objects
-                .transaction
-                .into_iter()
-                .chain(validated_owned_objects.authenticators)
-                .collect()
         } else {
             owned_inputs
         };
@@ -466,8 +461,8 @@ fn extract_owned_input_objects(
 
     // Use SenderSignedTransaction::input_objects() rather than
     // Transaction::input_objects() to also include objects coming from
-    // MoveAuthenticator signatures; the lock-subset argument at the
-    // acquisition site relies on them being merged in here.
+    // MoveAuthenticator signatures. Those can only be immutable or shared,
+    // so they widen the probe set but never the locked set.
     let owned_objects = transaction_data
         .input_objects()?
         .into_iter()

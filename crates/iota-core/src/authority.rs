@@ -851,16 +851,6 @@ impl AuthorityMetrics {
 /// Typically instantiated with Box::pin(keypair) where keypair is a `KeyPair`
 pub type StableSyncAuthoritySigner = Pin<Arc<dyn Signer<AuthoritySignature> + Send + Sync>>;
 
-/// Owned object references of a validated transaction, split by origin: the
-/// transaction's own inputs and those contributed by its `MoveAuthenticator`
-/// signatures. Both exclude immutable and shared inputs, which cannot be
-/// locked. Signing-time locking uses `transaction` alone; post-consensus
-/// conflict resolution locks both.
-pub(crate) struct ValidatedOwnedObjects {
-    pub transaction: Vec<ObjectReference>,
-    pub authenticators: Vec<ObjectReference>,
-}
-
 pub struct AuthorityState {
     // Fixed size, static, identity of the authority
     /// The name of this authority.
@@ -1002,7 +992,7 @@ impl AuthorityState {
         epoch_store: &Arc<AuthorityPerEpochStore>,
         deny_config: &dyn DenyRuleConfig,
         epoch_gated_coin_deny_list: bool,
-    ) -> IotaResult<ValidatedOwnedObjects> {
+    ) -> IotaResult<Vec<ObjectReference>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
 
@@ -1054,13 +1044,14 @@ impl AuthorityState {
             .map(|i| &i.0)
             .collect();
 
-        // Collected before the pre-consensus narrowing below: callers that
-        // lock these references need the deferred authenticators' inputs too.
-        let authenticator_owned_objects: Vec<ObjectReference> =
+        // Move authenticators cannot use owned objects, so their inputs never
+        // acquire owned-object locks.
+        debug_assert!(
             per_authenticator_checked_input_objects
                 .iter()
-                .flat_map(|objects| objects.inner().filter_owned_objects())
-                .collect();
+                .all(|objects| objects.inner().filter_owned_objects().is_empty()),
+            "Move authenticator input objects must not contain owned objects"
+        );
 
         // Check if any of the sender, the transaction input objects, the receiving
         // objects and the authenticator input objects are in the coin deny
@@ -1088,8 +1079,7 @@ impl AuthorityState {
         // Filter the authenticators and their checked inputs down to those that must
         // be executed pre-consensus. This is done *after* the deny-list check so
         // that all MoveAuthenticator input objects are covered by that check regardless
-        // of deferral. The narrowed bindings carry `pre_consensus_` names;
-        // anything reported to callers must be collected before this point.
+        // of deferral.
         let pre_consensus_move_authenticators =
             pre_consensus_move_authenticators(transaction, protocol_config);
         // Asserted before the zip below pairs them positionally; the two lists
@@ -1099,31 +1089,28 @@ impl AuthorityState {
             per_authenticator_checked_inputs.len(),
             "Move authenticators amount must match the number of checked authenticator inputs"
         );
-        let (pre_consensus_authenticators, pre_consensus_authenticator_checked_inputs): (
-            Vec<_>,
-            Vec<_>,
-        ) = move_authenticators
-            .into_iter()
-            .zip(per_authenticator_checked_inputs)
-            .filter(|(a, _)| pre_consensus_move_authenticators.contains(a))
-            .unzip();
-        let pre_consensus_authenticator_checked_input_objects: Vec<_> =
-            pre_consensus_authenticator_checked_inputs
-                .iter()
-                .map(|i| &i.0)
-                .collect();
+        let (move_authenticators, per_authenticator_checked_inputs): (Vec<_>, Vec<_>) =
+            move_authenticators
+                .into_iter()
+                .zip(per_authenticator_checked_inputs)
+                .filter(|(a, _)| pre_consensus_move_authenticators.contains(a))
+                .unzip();
+        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
+            .iter()
+            .map(|i| &i.0)
+            .collect();
 
         // If there are `MoveAuthenticator` signatures, execute them and check if they
         // all succeed.
-        if !pre_consensus_authenticators.is_empty() {
+        if !move_authenticators.is_empty() {
             let aggregated_authenticator_input_objects =
                 iota_transaction_checks::aggregate_authenticator_input_objects(
-                    &pre_consensus_authenticator_checked_input_objects,
+                    &per_authenticator_checked_input_objects,
                 )?;
 
-            let move_authenticators = pre_consensus_authenticators
+            let move_authenticators = move_authenticators
                 .into_iter()
-                .zip(pre_consensus_authenticator_checked_inputs)
+                .zip(per_authenticator_checked_inputs)
                 .map(
                     |(
                         move_authenticator,
@@ -1183,10 +1170,7 @@ impl AuthorityState {
             }
         }
 
-        Ok(ValidatedOwnedObjects {
-            transaction: tx_checked_input_objects.inner().filter_owned_objects(),
-            authenticators: authenticator_owned_objects,
-        })
+        Ok(tx_checked_input_objects.inner().filter_owned_objects())
     }
 
     /// This is a private method and should be kept that way. It doesn't check
@@ -1223,7 +1207,7 @@ impl AuthorityState {
         // different existing transaction.
         self.get_cache_writer().try_acquire_transaction_locks(
             epoch_store,
-            &owned_objects.transaction,
+            &owned_objects,
             signed_transaction.clone(),
         )?;
 
