@@ -717,7 +717,7 @@ fn signature_from_signer(
     signer: &impl Signer<SimpleSignature>,
 ) -> SimpleSignature {
     let digest = IntentMessage::new(intent, tx).signing_digest();
-    signer.sign(digest.inner())
+    signer.sign(&digest)
 }
 
 #[test]

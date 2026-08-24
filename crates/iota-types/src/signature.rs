@@ -81,7 +81,7 @@ impl AuthenticatorTrait for SimpleSignature {
         }
 
         SimpleVerifier
-            .verify(value.signing_digest().inner(), self)
+            .verify(&value.signing_digest(), self)
             .map_err(|e| IotaError::InvalidSignature {
                 error: format!("Fail to verify user sig {e}"),
             })

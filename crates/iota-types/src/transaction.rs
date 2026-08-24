@@ -2360,7 +2360,7 @@ impl TransactionEnvelope {
         signer: &impl iota_sdk_crypto::Signer<SimpleSignature>,
     ) -> SimpleSignature {
         let digest = IntentMessage::new(intent, tx).signing_digest();
-        signer.sign(digest.inner())
+        signer.sign(&digest)
     }
 
     pub fn from_user_sig_data(tx: Transaction, signatures: Vec<UserSignature>) -> Self {
