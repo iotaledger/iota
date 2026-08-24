@@ -178,6 +178,12 @@ pub struct AuthorityPerpetualTables {
     /// one-time migration into the buckets, they are also what tells that
     /// migration which epoch a transaction's other rows belong to.
     ///
+    /// The value keeps the epoch rather than collapsing to just the sequence
+    /// number: every row here predates this build, `bcs` rejects the trailing
+    /// bytes a shorter value would leave unread, and the migration is the only
+    /// remaining reader, so there is no way to reshape the value without
+    /// making its own reads of a still-unmigrated database fail.
+    ///
     /// Note, there is a table with the same name in
     /// `AuthorityEpochTables`/`AuthorityPerEpochStore`.
     pub(crate) executed_transactions_to_checkpoint:
