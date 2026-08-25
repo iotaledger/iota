@@ -567,11 +567,11 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     let tmp_dir = iota_common::tempdir();
     let firewall_config = RemoteFirewallConfig {
         remote_fw_url: format!("http://127.0.0.1:{port}"),
-        delegate_spam_blocking: true,
-        delegate_error_blocking: false,
+        delegate_spam_blocking: false,
+        delegate_error_blocking: true,
         destination_port: 8080,
         drain_path: tmp_dir.path().join("drain"),
-        drain_timeout_secs: 10,
+        drain_timeout_secs: 300,
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
         .committee_size(NonZeroUsize::new(4).unwrap())
@@ -603,23 +603,34 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     // await for the server to start
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
-    // it should take no more than 4 requests to be added to the blocklist
+    // The error policy blocks on the fourth tally, thus the firewall gets the
+    // block before the loop ends.
     for _ in 0..n {
-        let response = auth_client.handle_transaction(tx.clone(), None).await;
-        if let Err(err) = response {
-            if err.to_string().contains("Too many requests") {
-                return Ok(());
-            }
-        }
+        // The firewall holds the block, thus the node never rejects the request
+        // itself.
+        let err = auth_client
+            .handle_transaction(tx.clone(), None)
+            .await
+            .expect_err("Expected the bad signature to be rejected");
+        assert!(
+            !err.to_string().contains("Too many requests"),
+            "Expected the firewall to hold the block, not the node: {err}"
+        );
         // Yield to the async executor so that the background `run_tally_loop` task
         // can process the pending tally and update the blocklist before the next
         // request. Without this, the single-threaded tokio test runtime may never
         // schedule the tally loop between iterations, causing the test to be flaky.
         tokio::task::yield_now().await;
     }
-    // Allow time for the async HTTP delegation to the firewall server to complete.
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    let fw_blocklist = server.list_addresses_rpc().await;
+    // The delegation request to the firewall server is asynchronous.
+    let mut fw_blocklist = Vec::new();
+    for _ in 0..50 {
+        fw_blocklist = server.list_addresses_rpc().await;
+        if !fw_blocklist.is_empty() {
+            break;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    }
     assert!(
         !fw_blocklist.is_empty(),
         "Expected blocklist to be non-empty"

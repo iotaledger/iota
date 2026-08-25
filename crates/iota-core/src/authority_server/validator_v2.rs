@@ -786,8 +786,8 @@ impl ValidatorV2 for ValidatorService {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Address, ObjectId};
-    use iota_types::deny_rule_governance::{DenyRuleConfig, DenyRuleSet};
+    use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
+    use iota_types::deny_rule_governance::DenyRuleConfig;
 
     use super::DenyRuleUnion;
 

@@ -27,9 +27,9 @@ use crate::dag_visualizer::grpc_streamer::DagVisualizerEvent;
 use crate::{
     authority_set::AuthoritySet,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
-        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
-        VerifiedTransactions, genesis_blocks,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs,
+        CommitmentVerifiedTransactions, GENESIS_ROUND, Round, Slot, TransactionsCommitment,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, genesis_blocks,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef, CommitVote,
@@ -258,7 +258,8 @@ pub(crate) struct DagState {
     /// entry with index transaction_ref.author. Evicted using the minimum
     /// between GC round for the last solid leader round evicted rounds by
     /// authority.
-    recent_transactions_by_authority: Vec<BTreeMap<GenericTransactionRef, VerifiedTransactions>>,
+    recent_transactions_by_authority:
+        Vec<BTreeMap<GenericTransactionRef, CommitmentVerifiedTransactions>>,
     /// Contains recent own serialized shards with their Merkle proofs per
     /// authority. To access own shard for a given transaction_ref, one
     /// needs to read first the entry with index transaction_ref.author.
@@ -328,7 +329,7 @@ pub(crate) struct DagState {
     pending_acknowledgments: BTreeSet<BlockRef>,
 
     /// Transactions to be flushed to storage.
-    transactions_to_write: Vec<VerifiedTransactions>,
+    transactions_to_write: Vec<CommitmentVerifiedTransactions>,
     block_headers_to_write: Vec<VerifiedBlockHeader>,
     commits_to_write: Vec<TrustedCommit>,
 
@@ -363,9 +364,6 @@ pub(crate) struct DagState {
     /// History of strong-vote complaint masks against this node's own
     /// leader rounds, keyed by leader round.
     starfish_speed_leader_hints: BTreeMap<Round, StarfishSpeedLeaderRoundHints>,
-
-    /// Commitment over an empty transaction list for this committee.
-    empty_transactions_commitment: TransactionsCommitment,
 
     /// Broadcast sender for DAG visualizer events.
     #[cfg(feature = "dag-visualizer")]
@@ -462,9 +460,6 @@ impl DagState {
             unscored_committed_subdags.len()
         );
 
-        let empty_transactions_commitment =
-            TransactionsCommitment::compute_empty_transactions_commitment(&context);
-
         let mut state = Self {
             context,
             genesis,
@@ -496,7 +491,6 @@ impl DagState {
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
             starfish_speed_leader_hints: BTreeMap::new(),
-            empty_transactions_commitment,
             #[cfg(feature = "dag-visualizer")]
             dag_visualizer_sender: None,
         };
@@ -792,7 +786,7 @@ impl DagState {
 
     pub(crate) fn add_transactions(
         &mut self,
-        transactions: VerifiedTransactions,
+        transactions: CommitmentVerifiedTransactions,
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
@@ -849,9 +843,7 @@ impl DagState {
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
     }
 
-    /// Returns the leader round of the last solid commit (backward
-    /// compatibility).
-    #[cfg_attr(not(test), expect(dead_code))]
+    /// Returns the leader round of the last solid commit.
     pub(crate) fn last_solid_commit_leader_round(&self) -> Option<Round> {
         self.last_solid_subdag_base.as_ref().map(|s| s.leader.round)
     }
@@ -990,7 +982,7 @@ impl DagState {
 
     fn update_transaction_metadata(
         &mut self,
-        transactions: &VerifiedTransactions,
+        transactions: &CommitmentVerifiedTransactions,
         source: DataSource,
     ) {
         let transaction_ref = transactions.transaction_ref();
@@ -1115,7 +1107,7 @@ impl DagState {
     pub(crate) fn get_verified_transactions(
         &self,
         transactions_refs: &[GenericTransactionRef],
-    ) -> Vec<Option<VerifiedTransactions>> {
+    ) -> Vec<Option<CommitmentVerifiedTransactions>> {
         self.try_get_verified_transactions(transactions_refs)
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
     }
@@ -1127,7 +1119,7 @@ impl DagState {
     pub(crate) fn try_get_verified_transactions(
         &self,
         transactions_refs: &[GenericTransactionRef],
-    ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
+    ) -> ConsensusResult<Vec<Option<CommitmentVerifiedTransactions>>> {
         let mut transactions = vec![None; transactions_refs.len()];
         let mut missing = Vec::new();
 
@@ -1145,7 +1137,7 @@ impl DagState {
                 transactions[index] = Some(transaction.clone());
                 continue;
             }
-            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+            if let Some(empty) = self.context.empty_transactions_for_ref(*transactions_ref) {
                 transactions[index] = Some(empty);
                 continue;
             }
@@ -1202,7 +1194,7 @@ impl DagState {
                 transactions[index] = Some(transaction.serialized().clone());
                 continue;
             }
-            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+            if let Some(empty) = self.context.empty_transactions_for_ref(*transactions_ref) {
                 transactions[index] = Some(empty.serialized().clone());
                 continue;
             }
@@ -2071,7 +2063,7 @@ impl DagState {
                 exist[index] = self.get_genesis_block(tx_ref).is_some();
                 continue;
             }
-            if self.empty_transactions_for_ref(&tx_ref).is_some() {
+            if self.context.empty_transactions_for_ref(tx_ref).is_some() {
                 exist[index] = true;
                 continue;
             }
@@ -2264,15 +2256,19 @@ impl DagState {
         let Some(header) = self.recent_block_headers.get(block_ref) else {
             return false;
         };
-        // An empty payload is fully determined by the header's commitment.
-        if header.transactions_commitment() == self.empty_transactions_commitment {
-            return true;
-        }
-        let transaction_ref = GenericTransactionRef::from(TransactionRef {
+        let transaction_ref = TransactionRef {
             round: block_ref.round,
             author: block_ref.author,
             transactions_commitment: header.transactions_commitment(),
-        });
+        };
+        if self
+            .context
+            .empty_transactions_for_ref(transaction_ref.into())
+            .is_some()
+        {
+            return true;
+        }
+        let transaction_ref = GenericTransactionRef::from(transaction_ref);
         self.recent_transactions_by_authority[block_ref.author].contains_key(&transaction_ref)
     }
 
@@ -2983,21 +2979,25 @@ impl DagState {
             .collect()
     }
 
-    /// Returns the empty transactions object for `tx_ref` when its commitment
-    /// is the commitment over an empty transaction list, `None` otherwise.
-    fn empty_transactions_for_ref(
-        &self,
-        tx_ref: &GenericTransactionRef,
-    ) -> Option<VerifiedTransactions> {
-        match tx_ref {
-            GenericTransactionRef::TransactionRef(tx_ref) => (tx_ref.transactions_commitment
-                == self.empty_transactions_commitment)
-                .then(|| VerifiedTransactions::new_empty_from_ref(*tx_ref, None)),
-            // The legacy BlockRef form carries no commitment; commits that
-            // use it derive refs from acknowledgments, which never include
-            // empty blocks.
-            GenericTransactionRef::BlockRef(_) => None,
-        }
+    /// Rounds the last commit's leader is ahead of the last solid commit's
+    /// leader. Zero before anything is committed; while nothing is solid yet,
+    /// the whole committed range counts as lag.
+    pub(crate) fn solid_commit_lag_rounds(&self) -> Round {
+        let last_solid_leader_round = self
+            .last_solid_commit_leader_round()
+            .unwrap_or(GENESIS_ROUND);
+        self.last_commit_round()
+            .saturating_sub(last_solid_leader_round)
+    }
+
+    /// Whether local commits run further ahead of the last solid commit than
+    /// `solid_commit_lag_threshold` allows. Ignored during fast sync, where
+    /// commits are applied in bulk before their payloads arrive.
+    pub(crate) fn is_solidification_lagging(&self) -> bool {
+        // The fast-sync flag reads the store, so check it only when the gap
+        // is already over the threshold.
+        self.solid_commit_lag_rounds() > self.context.parameters.solid_commit_lag_threshold
+            && !self.fast_sync_ongoing()
     }
 }
 #[cfg(test)]
@@ -4795,7 +4795,7 @@ mod test {
                         &mut encoder,
                     )
                     .unwrap();
-                let verified_transaction = VerifiedTransactions::new(
+                let verified_transaction = CommitmentVerifiedTransactions::new(
                     transactions,
                     TransactionRef::new(block_ref, transaction_commitment),
                     Some(block_ref.digest),

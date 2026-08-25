@@ -289,8 +289,16 @@ impl EpochState {
                 checks.disabled(),
             );
 
+        let mut input_objects = inner_temp_store.input_objects;
+        iota_types::storage::extend_input_objects_with_loaded_runtime_objects(
+            &mut input_objects,
+            &effects,
+            &inner_temp_store.loaded_runtime_objects,
+            store.backing_store().as_object_store(),
+        );
+
         Ok(SimulateTransactionResult {
-            input_objects: inner_temp_store.input_objects,
+            input_objects,
             output_objects: inner_temp_store.written,
             events: effects.events_digest().map(|_| inner_temp_store.events),
             effects,

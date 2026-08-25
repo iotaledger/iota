@@ -1204,6 +1204,37 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
         .unwrap();
     assert_eq!(result.effects.deleted().len(), 0);
     assert_eq!(execution_error_source(&result), Some("VMError with status ABORTED with sub status 1 at location Module ModuleId { address: 0000000000000000000000000000000000000000000000000000000000000002, name: Identifier(\"dynamic_field\") } at code offset 0 in function definition 13".to_string()));
+
+    // dry run against the current parent: the field object is loaded at
+    // runtime and removed, so it must appear in the returned input objects at
+    // its pre-state version even though it is not a declared input
+    let field = effects.created()[0].0;
+    let pt = ProgrammableTransaction {
+        inputs: vec![CallArg::ImmutableOrOwned(new_parent.object_ref())],
+        commands: vec![Command::new_move_call(
+            object_basics.object_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("remove_field"),
+            vec![],
+            vec![Argument::Input(0)],
+        )],
+    };
+    let tx = Transaction::new_programmable(
+        sender,
+        vec![gas_object_ref],
+        pt,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        rgp,
+    );
+    let result = fullnode
+        .simulate_transaction(tx, VmChecks::Enabled)
+        .unwrap();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+    let field_input = result
+        .input_objects
+        .get(&field.object_id)
+        .expect("runtime-loaded field object should be in the input objects");
+    assert_eq!(field_input.version(), field.version);
 }
 
 /// A gas payment that names an object which is not a gas coin is rejected, in
@@ -8061,10 +8092,9 @@ async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityStat
 /// author is dropped by `verify_consensus_transaction`.
 #[tokio::test]
 async fn deny_rule_proposal_through_consensus_updates_active_set() {
-    use iota_sdk_types::Address;
+    use iota_sdk_types::{Address, DenyRuleSet};
     use iota_types::{
-        deny_rule_governance::{DenyRuleConfig, DenyRuleSet},
-        messages_consensus::TransactionDenyRuleProposal,
+        deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
     let authority = authority_with_deny_rule_governance(true).await;
@@ -8192,10 +8222,8 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
     );
 }
 
-fn rules_denying(
-    address: iota_sdk_types::Address,
-) -> iota_types::deny_rule_governance::DenyRuleSet {
-    iota_types::deny_rule_governance::DenyRuleSet {
+fn rules_denying(address: iota_sdk_types::Address) -> iota_sdk_types::DenyRuleSet {
+    iota_sdk_types::DenyRuleSet {
         denied_addresses: [address].into(),
         ..Default::default()
     }

@@ -1276,6 +1276,9 @@ randomness_state
 iota_deny_list_object_id
 	public(package) fun
 	0x2::object
+transaction_deny_rules
+	public(package) fun
+	0x2::object
 uid_as_inner
 	public fun
 	0x2::object
@@ -3976,6 +3979,27 @@ spent
 key
 	fun
 	0x2::token
+TransactionDenyRules
+	public struct
+	0x2::transaction_deny_rules
+TransactionDenyRulesInnerV1
+	public struct
+	0x2::transaction_deny_rules
+TransactionDenyRulesUpdated
+	public struct
+	0x2::transaction_deny_rules
+create
+	fun
+	0x2::transaction_deny_rules
+load_inner_mut
+	fun
+	0x2::transaction_deny_rules
+update
+	fun
+	0x2::transaction_deny_rules
+apply_delta
+	fun
+	0x2::transaction_deny_rules
 VerifiedID
 	public struct
 	0x2::zklogin_verified_id
