@@ -28,7 +28,7 @@ use iota_sdk_types::{
 };
 use iota_test_transaction_builder::{TestTransactionBuilder, split_coin_equal_tx};
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     dynamic_field::DynamicFieldName,
     gas_coin::GAS,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -125,7 +125,7 @@ fn query_events_by_sender() -> Result<(), IndexerError> {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -135,11 +135,11 @@ fn query_events_by_sender() -> Result<(), IndexerError> {
             .await;
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id)
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_key, client, &package_id)
             .await
             .unwrap();
-        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id)
+        let basic_obj_2 = create_basic_object(sender, &sender_key, client, &package_id)
             .await
             .unwrap();
 
@@ -149,7 +149,7 @@ fn query_events_by_sender() -> Result<(), IndexerError> {
             let res = execute_move_call(
                 client,
                 sender,
-                &sender_kp,
+                &sender_key,
                 package_id,
                 "object_basics".to_string(),
                 "update".to_string(),
@@ -200,7 +200,7 @@ fn query_events_by_tx_digest() -> Result<(), IndexerError> {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -210,18 +210,18 @@ fn query_events_by_tx_digest() -> Result<(), IndexerError> {
             .await;
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id)
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_key, client, &package_id)
             .await
             .unwrap();
-        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id)
+        let basic_obj_2 = create_basic_object(sender, &sender_key, client, &package_id)
             .await
             .unwrap();
 
         let res = execute_move_call(
             client,
             sender,
-            &sender_kp,
+            &sender_key,
             package_id,
             "object_basics".to_string(),
             "update".to_string(),
@@ -276,7 +276,7 @@ fn query_events_by_package() -> Result<(), IndexerError> {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_ref = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -286,11 +286,11 @@ fn query_events_by_package() -> Result<(), IndexerError> {
             .await;
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id)
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_key, client, &package_id)
             .await
             .unwrap();
-        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id)
+        let basic_obj_2 = create_basic_object(sender, &sender_key, client, &package_id)
             .await
             .unwrap();
 
@@ -302,7 +302,7 @@ fn query_events_by_package() -> Result<(), IndexerError> {
             let res = execute_move_call(
                 client,
                 sender,
-                &sender_kp,
+                &sender_key,
                 package_id,
                 "object_basics".to_string(),
                 "update".to_string(),
@@ -549,7 +549,7 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -580,7 +580,7 @@ fn test_query_transaction_blocks_pagination() -> Result<(), anyhow::Error> {
             )
             .await;
 
-            let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+            let signed_transaction = to_sender_signed_transaction(tx_data, &key);
 
             let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
 
@@ -663,7 +663,7 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
     .await;
     indexer_wait_for_checkpoint(store, 1).await;
 
-    let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (address, key): (_, AccountPrivateKey) = get_key_pair();
 
     let gas_ref = cluster
         .fund_address_and_return_gas(
@@ -694,7 +694,7 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
             10_000_000,
         )
         .await;
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
         let res = client
             .execute_transaction_block(
@@ -720,7 +720,7 @@ async fn test_query_transaction_blocks_pagination_with_partial_global_order()
             10_000_000,
         )
         .await;
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
         let res = client
             .execute_transaction_block(
@@ -756,7 +756,7 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -862,7 +862,7 @@ fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
 
         let tx = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
 
-        let signed_transaction = to_sender_signed_transaction(tx, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx, &key);
 
         let response = iota_client
             .quorum_driver_api()
@@ -901,7 +901,7 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
         let recipient_1 = Address::random();
         let recipient_2 = Address::random();
 
@@ -924,7 +924,7 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, transfer_request, &keypair).await;
+        execute_tx_must_succeed(client, transfer_request, &key).await;
         let transfer_request = client
             .transfer_iota(
                 address,
@@ -935,7 +935,7 @@ fn test_query_transaction_blocks_from_and_to_address() -> Result<(), anyhow::Err
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer_checkpoint(client, store, transfer_request, &keypair).await;
+        execute_tx_and_wait_for_indexer_checkpoint(client, store, transfer_request, &key).await;
 
         let query = IotaTransactionBlockResponseQuery::new_with_filter(
             TransactionFilter::FromAndToAddress {
@@ -964,7 +964,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
         let recipient = Address::random();
         let gas = cluster
             .fund_address_and_return_gas(
@@ -987,7 +987,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
             )
             .await
             .unwrap();
-        let digest_1 = execute_tx_must_succeed(client, transfer_request, &keypair).await;
+        let digest_1 = execute_tx_must_succeed(client, transfer_request, &key).await;
 
         let transfer_request = client
             .transfer_iota(
@@ -999,7 +999,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
             )
             .await
             .unwrap();
-        let digest_2 = execute_tx_must_succeed(client, transfer_request, &keypair).await;
+        let digest_2 = execute_tx_must_succeed(client, transfer_request, &key).await;
 
         let transfer_request = client
             .transfer_iota(
@@ -1012,8 +1012,7 @@ fn test_query_by_recently_executed_tx_cursor() -> Result<(), anyhow::Error> {
             .await
             .unwrap();
         let digest_3 =
-            execute_tx_and_wait_for_indexer_checkpoint(client, store, transfer_request, &keypair)
-                .await;
+            execute_tx_and_wait_for_indexer_checkpoint(client, store, transfer_request, &key).await;
 
         assert_paginated_filtered_transactions(
             client,
@@ -1043,7 +1042,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
         let recipient_1 = Address::random();
         let recipient_2 = Address::random();
 
@@ -1066,7 +1065,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
             )
             .await
             .unwrap();
-        execute_tx_must_succeed(client, transfer_request, &keypair).await;
+        execute_tx_must_succeed(client, transfer_request, &key).await;
         let transfer_request = client
             .transfer_iota(
                 address,
@@ -1077,7 +1076,7 @@ fn test_query_transaction_blocks_from_or_to_address() -> Result<(), anyhow::Erro
             )
             .await
             .unwrap();
-        execute_tx_and_wait_for_indexer_checkpoint(client, store, transfer_request, &keypair).await;
+        execute_tx_and_wait_for_indexer_checkpoint(client, store, transfer_request, &key).await;
 
         let query = IotaTransactionBlockResponseQuery::new_with_filter(
             TransactionFilter::FromOrToAddress { addr: address },
@@ -1242,7 +1241,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -1281,7 +1280,7 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
 
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
 
         let res = cluster
             .wallet
@@ -1355,7 +1354,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -1407,7 +1406,7 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
 
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
 
         let res = cluster
             .wallet
@@ -1468,7 +1467,7 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas = cluster
             .fund_address_and_return_gas(
@@ -1509,7 +1508,7 @@ fn test_query_transaction_blocks_tx_kind_filter() -> Result<(), anyhow::Error> {
         let pt = pt_builder.finish();
 
         let tx = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1_000);
-        let signed_transaction = to_sender_signed_transaction(tx, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx, &key);
 
         let response = iota_client
             .quorum_driver_api()
