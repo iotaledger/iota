@@ -154,6 +154,18 @@ impl Repository {
             .id()
             .to_string()
     }
+
+    pub fn commit(&self) -> git2::Oid {
+        commit(&self.0)
+    }
+
+    pub fn tag(&self, name: &str) {
+        tag(&self.0, name)
+    }
+
+    pub fn commits(&self) -> Vec<git2::Commit<'_>> {
+        commits(&self.0)
+    }
 }
 
 /// *(`git2`)* Initialize a new repository at the given path.
@@ -181,7 +193,7 @@ where
 }
 
 /// Create a new [`Project`] with access to the [`Repository`]
-pub fn new_repo<F>(name: &str, callback: F) -> (Project, git2::Repository)
+pub fn new_repo<F>(name: &str, callback: F) -> (Project, Repository)
 where
     F: FnOnce(ProjectBuilder) -> ProjectBuilder,
 {
@@ -192,7 +204,7 @@ where
     let repo = init(&git_project.root());
     add(&repo);
     commit(&repo);
-    (git_project, repo)
+    (git_project, Repository(repo))
 }
 
 /// *(`git2`)* Add all files in the working directory to the git index
@@ -203,7 +215,7 @@ pub fn add(repo: &git2::Repository) {
 }
 
 /// *(`git2`)* Commit changes to the git repository
-pub fn commit(repo: &git2::Repository) -> git2::Oid {
+fn commit(repo: &git2::Repository) -> git2::Oid {
     let tree_id = t!(t!(repo.index()).write_tree());
     let sig = t!(repo.signature());
     let mut parents = Vec::new();
@@ -222,7 +234,7 @@ pub fn commit(repo: &git2::Repository) -> git2::Oid {
 }
 
 /// *(`git2`)* Create a new tag in the git repository
-pub fn tag(repo: &git2::Repository, name: &str) {
+fn tag(repo: &git2::Repository, name: &str) {
     let head = repo.head().unwrap().target().unwrap();
     t!(repo.tag(
         name,
