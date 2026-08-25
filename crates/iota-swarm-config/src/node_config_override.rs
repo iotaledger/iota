@@ -207,30 +207,28 @@ impl NodeConfigOverride {
     }
 }
 
-/// Apply `overrides` to `config` in the given order: later overrides win
-/// per field, and fields no override mentions keep their current values.
-/// Declaration order decides, not how specific a scope is: a later
-/// `validator:` override beats an earlier `validator-0:` one.
+/// Apply `overrides` to `config` in the given order. On error the config
+/// is left unchanged.
 ///
-/// The merge runs on the serialized config. An override that sets a field
-/// inside a section the config leaves at its default therefore starts from
-/// the section's own per-field serde defaults. It does not start from the
-/// value the config holds in memory.
-///
-/// The two agree for `grpc-api-config`. They differ for `policy-config`,
-/// whose [`NodeConfig`] default is the DoS protection policy, while
-/// `PolicyConfig`'s field defaults compose to the no-op one. Set the whole
-/// section to configure that one.
-///
-/// A section the config switches off with an explicit `null` is a scalar,
-/// so an override that sets a field inside it is rejected. To switch the
-/// section back on, set the whole section.
-///
-/// Unknown fields, type mismatches, and changes that would leave the node
-/// unable to run are rejected. On error the config is left unchanged.
-/// [`NodeConfig::validate`] judges the final state, so an override may
-/// clear a field a later one restores. An override that creates or removes
-/// `consensus-config` is rejected even if a later override undoes it.
+/// - Later overrides win per field; fields no override mentions keep
+///   their current values. Declaration order decides, not how specific a
+///   scope is: a later `validator:` override beats an earlier
+///   `validator-0:` one.
+/// - The merge runs on the serialized config: a field set inside a
+///   section the config leaves at its default starts from the section's
+///   own per-field serde defaults, not from the in-memory value. For
+///   example, setting a field inside an unset `policy-config` yields the
+///   no-op policy its field defaults compose to, not the DoS protection
+///   policy [`NodeConfig`] defaults to. Set the whole section to
+///   configure that one.
+/// - A section switched off with an explicit `null` is a scalar, so
+///   setting a field inside it is rejected; set the whole section to
+///   switch it back on.
+/// - Unknown fields, type mismatches, and changes that would leave the
+///   node unable to run are rejected. [`NodeConfig::validate`] judges the
+///   final state, so an override may clear a field a later one restores —
+///   except `consensus-config`, whose creation or removal is rejected
+///   even if a later override undoes it.
 pub fn apply_node_config_overrides<'a>(
     overrides: impl IntoIterator<Item = &'a NodeConfigOverride>,
     config: &mut NodeConfig,
