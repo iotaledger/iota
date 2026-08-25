@@ -6,6 +6,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use iota_common::debug_fatal;
 use prometheus_filtered::IntGauge;
 use serde::{Deserialize, Serialize};
 use starfish_config::{AuthorityIndex, Committee};
@@ -58,13 +59,15 @@ impl MisbehaviorStore {
     /// Records that `author` signed more than one header for `round`: a second
     /// verified header for an occupied slot was dropped at ingest. Idempotent —
     /// repeated arrivals and further distinct headers for the same slot
-    /// collapse into one equivocation. `author` comes from a verified header,
-    /// so it is within the committee.
+    /// collapse into one equivocation. Callers pass the author of a verified
+    /// header, so an author outside the committee is a verification bug and is
+    /// reported rather than recorded.
     pub(crate) fn record_equivocating_slot(&self, author: AuthorityIndex, round: Round) {
-        self.equivocating_rounds[author.value()]
-            .lock()
-            .unwrap()
-            .insert(round);
+        let Some(rounds) = self.equivocating_rounds.get(author.value()) else {
+            debug_fatal!("equivocating author {author} is outside the committee");
+            return;
+        };
+        rounds.lock().unwrap().insert(round);
     }
 
     /// Restores persisted counts from storage and computes in-memory counts
