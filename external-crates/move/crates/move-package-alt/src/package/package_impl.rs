@@ -24,7 +24,6 @@ use crate::{
     dependency::{DependencySet, PinnedDependencyInfo},
     errors::{ManifestError, PackageResult},
     flavor::MoveFlavor,
-    git::GitRepo,
 };
 
 pub type EnvironmentName = String;

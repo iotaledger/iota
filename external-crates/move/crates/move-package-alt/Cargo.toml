@@ -36,6 +36,8 @@ datatest-stable.workspace = true
 insta.workspace = true
 move-command-line-common.workspace = true
 tempfile.workspace = true
+test-log.workspace = true
+walkdir.workspace = true
 
 [[bin]]
 name = "move-package-alt"

@@ -21,7 +21,6 @@ use tracing::debug;
 use crate::{
     errors::PackageResult,
     flavor::MoveFlavor,
-    git::format_repo_to_fs_path,
     package::{EnvironmentName, paths::PackagePath},
 };
 
@@ -104,9 +103,7 @@ impl<F: MoveFlavor> PinnedDependencyInfo<F> {
     /// fetched into, without actually fetching it
     pub fn unfetched_path(&self) -> PathBuf {
         match self {
-            PinnedDependencyInfo::Git(dep) => {
-                format_repo_to_fs_path(&dep.repo, &dep.rev, Some(dep.path.clone()))
-            }
+            PinnedDependencyInfo::Git(dep) => dep.unfetched_path(),
             PinnedDependencyInfo::Local(dep) => dep.unfetched_path(),
             PinnedDependencyInfo::FlavorSpecific(dep) => todo!(),
         }

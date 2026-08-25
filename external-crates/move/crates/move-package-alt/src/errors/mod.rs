@@ -28,9 +28,7 @@ pub use files::FileHandle;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{
-    dependency::external::ResolverError, git::errors::GitError, package::paths::PackagePathError,
-};
+use crate::{dependency::external::ResolverError, git::GitError, package::paths::PackagePathError};
 
 /// Result type for package operations
 pub type PackageResult<T> = Result<T, PackageError>;
