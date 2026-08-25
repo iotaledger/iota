@@ -1708,7 +1708,7 @@ mod tests {
     }
 
     fn consensus_config() -> super::ConsensusConfig {
-        serde_yaml::from_str("db-path: consensus-db").unwrap()
+        serde_yaml::from_str("db-path: /opt/iota/consensus-db").unwrap()
     }
 
     fn object_store_config() -> ObjectStoreConfig {
