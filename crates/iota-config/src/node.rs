@@ -831,10 +831,17 @@ impl NodeConfig {
     /// not start with. They also reject the known cases where a node would
     /// start and ignore part of the config.
     pub fn validate(&self) -> Result<()> {
-        // Validators do not expose the gRPC API. In a file, an absent key
-        // deserializes to the default config. `None` here therefore means an
-        // explicit `null`, or a config built in code.
-        if !self.is_validator() && self.enable_grpc_api && self.grpc_api_config.is_none() {
+        // A validator never starts the gRPC server, so an enabled API there
+        // is a setting the node would ignore.
+        if self.is_validator() && self.enable_grpc_api {
+            anyhow::bail!(
+                "`enable-grpc-api` is set, but validators do not expose the gRPC API; turn it \
+                 off, or move the API to a fullnode"
+            );
+        }
+        // In a file, an absent key deserializes to the default config. `None`
+        // here therefore means an explicit `null`, or a config built in code.
+        if self.enable_grpc_api && self.grpc_api_config.is_none() {
             anyhow::bail!(
                 "`enable-grpc-api` is set but `grpc-api-config` is missing; set \
                  `grpc-api-config` or turn off `enable-grpc-api`"
@@ -1769,9 +1776,26 @@ mod tests {
         config.grpc_api_config = Some(GrpcApiConfig::default());
         config.validate().unwrap();
 
-        // Validators do not expose the gRPC API. The check does not apply.
+        // Validators do not expose the gRPC API, so the config check does
+        // not apply to them and the API itself is rejected instead.
         config.grpc_api_config = None;
         config.consensus_config = Some(consensus_config());
+        let err = config.validate().unwrap_err().to_string();
+        assert!(err.contains("validators do not expose"), "{err}");
+    }
+
+    #[test]
+    fn validate_rejects_the_grpc_api_on_a_validator() {
+        let mut config = template_config();
+        config.consensus_config = Some(consensus_config());
+        config.validate().unwrap();
+
+        config.enable_grpc_api = true;
+        let err = config.validate().unwrap_err().to_string();
+        assert!(err.contains("validators do not expose"), "{err}");
+
+        // The same config is valid for a fullnode.
+        config.consensus_config = None;
         config.validate().unwrap();
     }
 
