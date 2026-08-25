@@ -165,7 +165,7 @@ struct MakeMoveVecTransaction {
     /// If the elements are not objects, or the vector is empty, a type must be
     /// supplied.
     #[graphql(name = "type")]
-    type_: Option<MoveType>,
+    move_type: Option<MoveType>,
 
     /// The values to pack into the vector, all of the same type.
     elements: Vec<TransactionArgument>,
@@ -406,7 +406,7 @@ impl ProgrammableTransaction {
                     .collect(),
             }),
             N::MakeMoveVector(cmd) => P::MakeMoveVec(MakeMoveVecTransaction {
-                type_: cmd.type_tag.map(Into::into),
+                move_type: cmd.type_tag.map(Into::into),
                 elements: cmd
                     .elements
                     .into_iter()

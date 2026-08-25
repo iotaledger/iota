@@ -278,7 +278,7 @@ impl IotaObjectData {
             version,
             digest,
         } = object_ref;
-        let tag = if *show_type {
+        let object_type = if *show_type {
             Some(Into::<ObjectType>::into(&obj))
         } else {
             None
@@ -321,7 +321,7 @@ impl IotaObjectData {
             object_id,
             version,
             digest,
-            object_type: tag,
+            object_type,
             owner: if *show_owner { Some(obj.owner) } else { None },
             storage_rebate: if *show_storage_rebate {
                 Some(obj.storage_rebate)
