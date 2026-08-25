@@ -14,17 +14,14 @@ use move_core_types::identifier::Identifier;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
-use super::{
-    lockfile::{Lockfile, Publication},
-    manifest::Manifest,
-    paths::PackagePath,
-};
+use super::{EnvironmentID, lockfile::Lockfiles, manifest::Manifest, paths::PackagePath};
 use crate::{
     dependency::{DependencySet, PinnedDependencyInfo, pin},
-    errors::{PackageError, PackageResult},
+    errors::{FileHandle, PackageError, PackageResult},
     flavor::MoveFlavor,
     graph::PackageGraph,
     package::{EnvironmentName, Package, PackageName},
+    schema::{PackageID, ParsedLockfile, Pin},
 };
 
 /// A package that is defined as the root of a Move project.
@@ -38,17 +35,22 @@ pub struct RootPackage<F: MoveFlavor + fmt::Debug> {
     dependencies: BTreeMap<EnvironmentName, PackageGraph<F>>,
 }
 
+// TODO: this interface needs to be designed more carefully. In particular, it
+// focuses on a single lockfile instead of a bunch. Also, it's not clear whether
+// it represents all the environments, one environment, or some set of
+// environments
 impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     /// Loads the root package from path and builds a dependency graph from the
     /// manifest. If `env` is passed, it will check that this environment
     /// exists in the manifest, and will only load the dependencies for that
     /// environment.
     // TODO: maybe we want to check multiple envs
+    // TODO: load should probably use PackageGraph::load and have the same behavior?
     pub async fn load(path: impl AsRef<Path>, env: Option<EnvironmentName>) -> PackageResult<Self> {
         let package_path = PackagePath::new(path.as_ref().to_path_buf())?;
         let root = Package::<F>::load_root(package_path.path()).await?;
         let dependencies = if let Some(env) = env {
-            if root.manifest().environments().get(&env).is_none() {
+            if !root.manifest().environments().contains_key(&env) {
                 return Err(PackageError::Generic(format!(
                     "Package {} does not have `{env}` defined as an environment in its manifest",
                     root.name(),
@@ -75,7 +77,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
         let root = Package::<F>::load_root(package_path.path()).await?;
 
         if let Some(env) = env {
-            if root.manifest().environments().get(&env).is_none() {
+            if !root.manifest().environments().contains_key(&env) {
                 return Err(PackageError::Generic(format!(
                     "Package {} does not have `{env}` defined as an environment in its manifest",
                     root.name(),
@@ -98,9 +100,18 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
         Ok(Self { root, dependencies })
     }
 
-    /// Read the lockfile from the root directory
-    pub fn load_lockfile(&self) -> PackageResult<Lockfile<F>> {
-        Lockfile::read_from_dir(self.package_path().path())
+    /// Read the lockfile from the root directory, returning an empty structure
+    /// if none exists
+    pub fn load_lockfile(&self) -> PackageResult<ParsedLockfile<F>> {
+        let path = self.package_path().lockfile_path();
+        debug!("loading lockfile {:?}", path);
+
+        if !path.exists() {
+            return Ok(ParsedLockfile::<F>::default());
+        }
+
+        let file = FileHandle::new(self.package_path().lockfile_path())?;
+        Ok(toml_edit::de::from_str(file.source())?)
     }
 
     /// The package's manifest
@@ -109,7 +120,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
     }
 
     /// The package's defined environments
-    pub fn environments(&self) -> &BTreeMap<EnvironmentName, F::EnvironmentID> {
+    pub fn environments(&self) -> BTreeMap<EnvironmentName, EnvironmentID> {
         self.manifest().environments()
     }
 
@@ -126,14 +137,17 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
 
     /// Create a [`Lockfile`] with the current package's dependencies. The
     /// lockfile will have no published information.
-    pub async fn dependencies_to_lockfile(&self) -> PackageResult<Lockfile<F>> {
-        let mut lockfile = Lockfile::<F>::new(BTreeMap::new(), BTreeMap::new());
+    pub async fn dependencies_to_lockfile(&self) -> PackageResult<ParsedLockfile<F>> {
+        let pinned: BTreeMap<EnvironmentName, BTreeMap<PackageID, Pin>> = self
+            .dependencies()
+            .iter()
+            .map(|(env, graph)| (env.clone(), graph.into()))
+            .collect();
 
-        for (env, graph) in self.dependencies() {
-            lockfile.update_pinned_dep_env(graph.to_pinned_deps(self.package_path(), env).await?);
-        }
-
-        Ok(lockfile)
+        Ok(ParsedLockfile {
+            pinned,
+            published: BTreeMap::new(),
+        })
     }
 
     /// Repin dependencies for the given environments and write back to
@@ -144,16 +158,20 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
         &self,
         envs: &BTreeMap<EnvironmentName, F::EnvironmentID>,
     ) -> PackageResult<()> {
-        let mut deps = BTreeMap::new();
+        let mut lockfile = self.load_lockfile()?;
+
         for env in envs.keys() {
             let graph =
                 PackageGraph::<F>::load_from_manifest_by_env(self.package_path(), env).await?;
-            let pinned_deps = graph.to_pinned_deps(self.package_path(), env).await?;
-            deps.extend(pinned_deps);
+            let pinned_deps: BTreeMap<PackageID, Pin> = (&graph).into();
+            lockfile.pinned.insert(env.clone(), pinned_deps);
         }
 
-        let lockfile = self.load_lockfile()?;
-        lockfile.updated_deps_to_lockfile(self.package_path().path(), deps, envs);
+        debug!("writing lockfile {:?}", self.package_path().lockfile_path());
+        std::fs::write(
+            self.package_path().lockfile_path(),
+            lockfile.render_as_toml(),
+        );
 
         Ok(())
     }
@@ -190,6 +208,7 @@ mod tests {
     use crate::{
         flavor::Vanilla,
         git::{GitCache, GitResult, GitTree, run_git_cmd_with_args},
+        schema::LockfileDependencyInfo,
     };
 
     async fn setup_test_move_project() -> (TempDir, PathBuf) {
@@ -304,6 +323,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lockfile_deps() {
+        // TODO: this should really be an insta test
         let (temp_dir, root_path) = setup_test_move_project().await;
 
         let pkg_path = root_path.join("packages").join("graph");
@@ -461,8 +481,8 @@ mod tests {
             .get(&Identifier::new("pkg_git").unwrap())
             .unwrap();
 
-        match git_dep {
-            PinnedDependencyInfo::Git(p) => {
+        match git_dep.clone().into() {
+            LockfileDependencyInfo::Git(p) => {
                 assert_eq!(&p.rev.to_string(), commits.first().unwrap())
             }
             _ => panic!("Expected a git dependency"),
@@ -484,8 +504,8 @@ mod tests {
             .get(&Identifier::new("pkg_git").unwrap())
             .unwrap();
 
-        match git_dep {
-            PinnedDependencyInfo::Git(p) => assert_eq!(p.rev.to_string(), commits[1]),
+        match git_dep.clone().into() {
+            LockfileDependencyInfo::Git(p) => assert_eq!(p.rev.to_string(), commits[1]),
             _ => panic!("Expected a git dependency"),
         }
 
@@ -500,7 +520,7 @@ mod tests {
 
         // check if update deps works as expected
         root_pkg
-            .update_deps_and_write_to_lockfile(root_pkg.environments())
+            .update_deps_and_write_to_lockfile(&root_pkg.environments())
             .await
             .unwrap();
 
@@ -508,15 +528,9 @@ mod tests {
 
         assert_ne!(updated_lockfile.render_as_toml(), lockfile.render_as_toml());
 
-        let updated_lockfile_dep = &updated_lockfile
-            .pinned_deps_for_env(&"mainnet".to_string())
-            .unwrap()
-            .data
-            .get("pkg_git")
-            .unwrap()
-            .source;
+        let updated_lockfile_dep = &updated_lockfile.pinned["mainnet"]["pkg_git"].source;
         match updated_lockfile_dep {
-            PinnedDependencyInfo::Git(p) => assert_eq!(p.rev.to_string(), commits[0]),
+            LockfileDependencyInfo::Git(p) => assert_eq!(p.rev.to_string(), commits[0]),
             x => panic!("Expected a git dependency, but got {:?}", x),
         }
     }

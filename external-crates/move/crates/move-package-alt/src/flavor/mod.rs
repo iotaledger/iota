@@ -15,7 +15,7 @@ use serde::{Serialize, de::DeserializeOwned};
 pub use vanilla::Vanilla;
 
 use crate::{
-    dependency::{DependencySet, Pinned, PinnedDependencyInfo, Unpinned},
+    dependency::{DependencySet, PinnedDependencyInfo},
     errors::PackageResult,
     package::PackageName,
 };

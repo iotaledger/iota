@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use move_package_alt::{
-    dependency::{self, DependencySet, Pinned, PinnedDependencyInfo, Unpinned},
+    dependency::{self, DependencySet, PinnedDependencyInfo},
     errors::PackageResult,
     flavor::MoveFlavor,
     package::PackageName,
@@ -17,7 +17,7 @@ pub struct IotaFlavor;
 
 impl MoveFlavor for IotaFlavor {
     fn name() -> String {
-        "iota move 2025".to_string()
+        "iota".to_string()
     }
 
     type PublishedMetadata = (); // TODO

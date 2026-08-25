@@ -6,30 +6,36 @@ source: crates/move-package-alt/tests/test_runner.rs
 
 [pinned.mainnet.bar]
 source = { local = "../bar" }
-manifest_digest = "AD6A03141A37AE9219BD8E19F2B1B1256D02F07AEDE426189F6C65E2820D2A6D"
+use_environment = "testnet"
+manifest_digest = "11991D29E75864253220A00DAB21A12C837AA2F64777ACB495FB5DC690B35B66"
 deps = {}
 
 [pinned.mainnet.baz]
 source = { local = "../baz" }
-manifest_digest = "E2CC8F534316884A141D7042199F9646208A9039D912F8C3638D2C1B5536FCEC"
+use_environment = "testnet"
+manifest_digest = "CD6DE7D6545ACE1FDDFA8A155B15BA4829D707026D6132BC83C267FCFEE16A76"
 deps = { bar = "bar" }
 
 [pinned.mainnet.example]
 source = { local = "." }
-manifest_digest = "3B015BA2A16D608F8DFEC74D18B53FA9CB9856D2EADD4E7629483DCF5A8EF8A1"
+use_environment = "mainnet"
+manifest_digest = "AD0FF16BDF8722982AA83D72E3C704E9B49BE7180FBDB5A8A7F878BBD775074E"
 deps = { baz = "baz" }
 
 [pinned.testnet.bar]
 source = { local = "../bar" }
-manifest_digest = "AD6A03141A37AE9219BD8E19F2B1B1256D02F07AEDE426189F6C65E2820D2A6D"
+use_environment = "testnet"
+manifest_digest = "11991D29E75864253220A00DAB21A12C837AA2F64777ACB495FB5DC690B35B66"
 deps = {}
 
 [pinned.testnet.baz]
 source = { local = "../baz" }
-manifest_digest = "E2CC8F534316884A141D7042199F9646208A9039D912F8C3638D2C1B5536FCEC"
+use_environment = "testnet"
+manifest_digest = "CD6DE7D6545ACE1FDDFA8A155B15BA4829D707026D6132BC83C267FCFEE16A76"
 deps = { bar = "bar" }
 
 [pinned.testnet.example]
 source = { local = "." }
-manifest_digest = "3B015BA2A16D608F8DFEC74D18B53FA9CB9856D2EADD4E7629483DCF5A8EF8A1"
+use_environment = "testnet"
+manifest_digest = "AD0FF16BDF8722982AA83D72E3C704E9B49BE7180FBDB5A8A7F878BBD775074E"
 deps = { baz = "baz" }

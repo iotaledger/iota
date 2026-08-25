@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 
 use super::MoveFlavor;
 use crate::{
-    dependency::{DependencySet, Pinned, PinnedDependencyInfo, Unpinned},
+    dependency::{DependencySet, PinnedDependencyInfo},
     errors::PackageResult,
     package::PackageName,
 };

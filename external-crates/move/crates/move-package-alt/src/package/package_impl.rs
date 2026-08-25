@@ -14,15 +14,12 @@ use move_core_types::identifier::Identifier;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
-use super::{
-    lockfile::{Lockfile, Publication},
-    manifest::Manifest,
-    paths::PackagePath,
-};
+use super::{manifest::Manifest, paths::PackagePath};
 use crate::{
     dependency::{DependencySet, PinnedDependencyInfo, pin},
     errors::{PackageError, PackageResult},
     flavor::MoveFlavor,
+    schema::{LocalDepInfo, LockfileDependencyInfo, Pin},
 };
 
 pub type EnvironmentName = String;
@@ -37,6 +34,9 @@ pub struct Package<F: MoveFlavor> {
     // Package long term?
     manifest: Manifest<F>,
     path: PackagePath,
+
+    /// The way this package should be serialized to the lockfile
+    source: LockfileDependencyInfo,
 }
 
 impl<F: MoveFlavor> Package<F> {
@@ -49,7 +49,11 @@ impl<F: MoveFlavor> Package<F> {
         let path = PackagePath::new(path.as_ref().to_path_buf())?;
         let manifest = Manifest::<F>::read_from_file(path.manifest_path())?;
 
-        Ok(Self { manifest, path })
+        Ok(Self {
+            manifest,
+            path,
+            source: LockfileDependencyInfo::Local(LocalDepInfo { local: ".".into() }),
+        })
     }
 
     /// Fetch [dep] and load a package from the fetched source
@@ -59,7 +63,11 @@ impl<F: MoveFlavor> Package<F> {
         let path = PackagePath::new(dep.fetch().await?)?;
         let manifest = Manifest::read_from_file(path.manifest_path())?;
 
-        Ok(Self { manifest, path })
+        Ok(Self {
+            manifest,
+            path,
+            source: dep.into(),
+        })
     }
 
     /// The path to the root directory of this package. This path is guaranteed
@@ -77,6 +85,10 @@ impl<F: MoveFlavor> Package<F> {
         &self.manifest
     }
 
+    pub fn dep_for_self(&self) -> &LockfileDependencyInfo {
+        &self.source
+    }
+
     /// The resolved and pinned dependencies from the manifest for environment
     /// `env`
     pub async fn direct_deps(
@@ -85,7 +97,7 @@ impl<F: MoveFlavor> Package<F> {
     ) -> PackageResult<BTreeMap<PackageName, PinnedDependencyInfo>> {
         let mut deps = self.manifest.dependencies();
 
-        if self.manifest().environments().get(env).is_none() {
+        if !self.manifest().environments().contains_key(env) {
             return Err(PackageError::Generic(format!(
                 "Package {} does not have `{env}` defined as an environment in its manifest",
                 self.name()

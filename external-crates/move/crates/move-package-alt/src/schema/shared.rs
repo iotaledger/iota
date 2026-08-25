@@ -3,29 +3,36 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Types and methods related to local dependencies (of the form `{ local =
-//! "<path>" }`)
-
 use std::path::PathBuf;
 
+use move_core_types::identifier::Identifier;
 use serde::{Deserialize, Serialize};
 
-use crate::{package::paths::PackagePath, schema::OnChainDepInfo};
+pub type EnvironmentName = String;
+pub type PackageName = Identifier;
 
-impl OnChainDepInfo {
-    pub fn unfetched_path(&self) -> PathBuf {
-        todo!()
-    }
+// TODO: this should be an OID
+pub type Address = String;
 
-    pub async fn fetch(&self) -> PackagePath {
-        todo!()
-    }
+/// A serialized dependency of the form `{ local = <path> }`
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct LocalDepInfo {
+    /// The path on the filesystem, relative to the location of the containing
+    /// file
+    pub local: PathBuf,
+}
+
+/// An on-chain dependency `{on-chain = true}`
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct OnChainDepInfo {
+    #[serde(rename = "on-chain")]
+    on_chain: ConstTrue,
 }
 
 /// The constant `true`
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(try_from = "bool", into = "bool")]
-pub struct ConstTrue;
+struct ConstTrue;
 
 impl TryFrom<bool> for ConstTrue {
     type Error = &'static str;
