@@ -5143,6 +5143,22 @@ impl AuthorityState {
     )> {
         let mut txns = Vec::new();
 
+        // Create the TransactionDenyRules object once: the epoch-start
+        // configuration is identical on every validator, so the whole
+        // committee injects (or skips) the kind together. If this epoch
+        // change falls into safe mode the creation is dropped with it, the
+        // object stays absent, and the next epoch end injects it again.
+        if epoch_store
+            .protocol_config()
+            .deny_rule_governance_on_chain()
+            && epoch_store
+                .epoch_start_config()
+                .transaction_deny_rules_obj_initial_shared_version()
+                .is_none()
+        {
+            txns.push(EndOfEpochTransactionKind::TransactionDenyRulesCreate);
+        }
+
         let next_epoch = epoch_store.epoch() + 1;
 
         let buffer_stake_bps = epoch_store.get_effective_buffer_stake_bps();
