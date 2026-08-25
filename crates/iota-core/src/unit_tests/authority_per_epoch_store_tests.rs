@@ -1408,3 +1408,197 @@ async fn deny_rule_mirror_guard_fails_on_a_missing_object() {
     .unwrap();
     authority_state.check_transaction_deny_rules_consistency(&closing_store, &next_without_object);
 }
+
+/// Failure effects for a `TransactionDenyRulesUpdate` fire the report;
+/// success effects and other transaction kinds do not. Identification is by
+/// kind, so a fresh authority — a restart — reports a failure it never
+/// scheduled; a tracking-set refactor would break this test. The effects
+/// arrive with an expected digest here, as they do while executing a certified
+/// checkpoint, so the report counts and logs without asserting.
+#[tokio::test]
+async fn failed_deny_rule_update_execution_is_reported() {
+    use std::collections::BTreeSet;
+
+    use iota_sdk_types::{ExecutionError, ExecutionStatus, TransactionDenyRulesUpdate};
+    use iota_types::{
+        effects::TestEffectsBuilder, executable_transaction::VerifiedExecutableTransaction,
+        transaction::VerifiedTransaction,
+    };
+
+    let update_transaction = || {
+        VerifiedExecutableTransaction::new_system(
+            VerifiedTransaction::new_transaction_deny_rules_update(TransactionDenyRulesUpdate {
+                epoch: 0,
+                round: 1,
+                added_addresses: [Address::new([7u8; 32])].into(),
+                removed_addresses: BTreeSet::new(),
+                added_objects: BTreeSet::new(),
+                removed_objects: BTreeSet::new(),
+                added_packages: BTreeSet::new(),
+                removed_packages: BTreeSet::new(),
+                package_publish_disabled: false,
+                package_upgrade_disabled: false,
+                shared_object_disabled: false,
+                user_transaction_disabled: false,
+                receiving_objects_disabled: false,
+                move_authenticator_disabled: false,
+                deny_rules_obj_initial_shared_version: Version::from_u64(1),
+            }),
+            0,
+        )
+    };
+    let failure = || ExecutionStatus::Failure {
+        error: ExecutionError::InsufficientGas,
+        command: None,
+    };
+    let update_effects = |transaction: &VerifiedExecutableTransaction, status: ExecutionStatus| {
+        TestEffectsBuilder::new(transaction.data())
+            .with_shared_input_versions(
+                [(
+                    iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
+                    Version::from_u64(1),
+                )]
+                .into(),
+            )
+            .with_status(status)
+            .build()
+    };
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let failures = || store.metrics.deny_rule_update_execution_failures.get();
+
+    let update = update_transaction();
+    let effects = update_effects(&update, ExecutionStatus::Success);
+    authority_state.report_failed_deny_rule_update_execution(
+        &update,
+        &effects,
+        Some(effects.digest()),
+        &store,
+    );
+    assert_eq!(failures(), 0);
+
+    let effects = update_effects(&update, failure());
+    authority_state.report_failed_deny_rule_update_execution(
+        &update,
+        &effects,
+        Some(effects.digest()),
+        &store,
+    );
+    assert_eq!(failures(), 1);
+
+    let genesis = VerifiedExecutableTransaction::new_system(
+        VerifiedTransaction::new_genesis_transaction(Vec::new(), Vec::new()),
+        0,
+    );
+    let genesis_effects = TestEffectsBuilder::new(genesis.data())
+        .with_status(failure())
+        .build();
+    authority_state.report_failed_deny_rule_update_execution(
+        &genesis,
+        &genesis_effects,
+        Some(genesis_effects.digest()),
+        &store,
+    );
+    assert_eq!(failures(), 1);
+
+    let restarted_state = TestAuthorityBuilder::new().build().await;
+    let restarted_store = restarted_state.epoch_store_for_testing();
+    let update = update_transaction();
+    let effects = update_effects(&update, failure());
+    restarted_state.report_failed_deny_rule_update_execution(
+        &update,
+        &effects,
+        Some(effects.digest()),
+        &restarted_store,
+    );
+    assert_eq!(
+        restarted_store
+            .metrics
+            .deny_rule_update_execution_failures
+            .get(),
+        1
+    );
+}
+
+/// Effects the node derived itself carry no expected digest, and a failure in
+/// them is this node's own broken invariant: the report asserts. Only the
+/// simulator can observe a `debug_fatal!` instead of aborting on it, so the
+/// live path is covered here rather than in the plain unit test above.
+#[cfg(msim)]
+#[iota_macros::sim_test]
+async fn failed_deny_rule_update_execution_asserts_on_derived_effects() {
+    use std::{
+        collections::BTreeSet,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    use iota_common::register_debug_fatal_handler;
+    use iota_sdk_types::{ExecutionError, ExecutionStatus, TransactionDenyRulesUpdate};
+    use iota_types::{
+        effects::TestEffectsBuilder, executable_transaction::VerifiedExecutableTransaction,
+        transaction::VerifiedTransaction,
+    };
+
+    static ASSERTED: AtomicUsize = AtomicUsize::new(0);
+    register_debug_fatal_handler!("TransactionDenyRulesUpdate failed execution", || {
+        ASSERTED.fetch_add(1, Ordering::SeqCst);
+    });
+
+    let update = VerifiedExecutableTransaction::new_system(
+        VerifiedTransaction::new_transaction_deny_rules_update(TransactionDenyRulesUpdate {
+            epoch: 0,
+            round: 1,
+            added_addresses: [Address::new([7u8; 32])].into(),
+            removed_addresses: BTreeSet::new(),
+            added_objects: BTreeSet::new(),
+            removed_objects: BTreeSet::new(),
+            added_packages: BTreeSet::new(),
+            removed_packages: BTreeSet::new(),
+            package_publish_disabled: false,
+            package_upgrade_disabled: false,
+            shared_object_disabled: false,
+            user_transaction_disabled: false,
+            receiving_objects_disabled: false,
+            move_authenticator_disabled: false,
+            deny_rules_obj_initial_shared_version: Version::from_u64(1),
+        }),
+        0,
+    );
+    let effects = |status| {
+        TestEffectsBuilder::new(update.data())
+            .with_shared_input_versions(
+                [(
+                    iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
+                    Version::from_u64(1),
+                )]
+                .into(),
+            )
+            .with_status(status)
+            .build()
+    };
+
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+
+    authority_state.report_failed_deny_rule_update_execution(
+        &update,
+        &effects(ExecutionStatus::Success),
+        None,
+        &store,
+    );
+    assert_eq!(ASSERTED.load(Ordering::SeqCst), 0);
+    assert_eq!(store.metrics.deny_rule_update_execution_failures.get(), 0);
+
+    authority_state.report_failed_deny_rule_update_execution(
+        &update,
+        &effects(ExecutionStatus::Failure {
+            error: ExecutionError::InsufficientGas,
+            command: None,
+        }),
+        None,
+        &store,
+    );
+    assert_eq!(ASSERTED.load(Ordering::SeqCst), 1);
+    assert_eq!(store.metrics.deny_rule_update_execution_failures.get(), 1);
+}

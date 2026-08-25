@@ -42,8 +42,8 @@ use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
     ExecutionStatus, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
     RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents, TypeTag,
-    Version,
+    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
+    TransactionKind, TypeTag, Version,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentScope},
     gas::GasCostSummary,
@@ -1712,6 +1712,7 @@ impl AuthorityState {
             &effects,
             tx_guard,
             execution_guard,
+            expected_effects_digest,
             epoch_store,
         )?;
 
@@ -1745,6 +1746,7 @@ impl AuthorityState {
         effects: &TransactionEffects,
         tx_guard: TxGuard,
         _execution_guard: ExecutionLockReadGuard<'_>,
+        expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult {
         let _scope: Option<iota_metrics::MonitoredScopeGuard> =
@@ -1781,6 +1783,13 @@ impl AuthorityState {
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
+
+        self.report_failed_deny_rule_update_execution(
+            transaction,
+            effects,
+            expected_effects_digest,
+            epoch_store,
+        );
 
         if transaction.transaction().is_end_of_epoch_tx() {
             // At the end of epoch, since system packages may have been upgraded, force
@@ -3326,6 +3335,52 @@ impl AuthorityState {
             );
             cur_epoch_store.metrics.deny_rule_mirror_divergence.set(1);
         }
+    }
+
+    /// Reports a `TransactionDenyRulesUpdate` whose execution failed — an
+    /// invariant violation, the update is built to exclude every expected
+    /// failure. The object misses the delta until the epoch boundary re-seeds
+    /// the mirror. Identification is by kind, so the report needs no tracking
+    /// state and holds across restarts and replays.
+    ///
+    /// `expected_effects_digest` is `Some` when these effects were handed to
+    /// this node with the transaction, which is the case while executing a
+    /// certified checkpoint: the failure is then part of agreed history, so it
+    /// is reported without asserting. Effects the node derived itself assert,
+    /// because only then is the broken invariant its own.
+    pub(crate) fn report_failed_deny_rule_update_execution(
+        &self,
+        transaction: &VerifiedExecutableTransaction,
+        effects: &TransactionEffects,
+        expected_effects_digest: Option<TransactionEffectsDigest>,
+        epoch_store: &AuthorityPerEpochStore,
+    ) {
+        if !matches!(
+            transaction.transaction().kind(),
+            TransactionKind::TransactionDenyRulesUpdate(_)
+        ) || effects.status().is_success()
+        {
+            return;
+        }
+        epoch_store
+            .metrics
+            .deny_rule_update_execution_failures
+            .inc();
+        if expected_effects_digest.is_some() {
+            error!(
+                digest = ?transaction.digest(),
+                status = ?effects.status(),
+                "TransactionDenyRulesUpdate failed execution; the object misses its delta until \
+                 the epoch boundary re-seeds the mirror"
+            );
+            return;
+        }
+        debug_fatal!(
+            "TransactionDenyRulesUpdate failed execution; the object misses its delta until the \
+             epoch boundary re-seeds the mirror (digest: {:?}, status: {:?})",
+            transaction.digest(),
+            effects.status(),
+        );
     }
 
     #[instrument(level = "error", skip_all)]
