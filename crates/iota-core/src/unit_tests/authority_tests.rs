@@ -8092,6 +8092,56 @@ async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityStat
         .await
 }
 
+/// The end-of-epoch transaction creates the `TransactionDenyRules` object
+/// exactly when on-chain deny rule governance is enabled and the object does
+/// not exist at epoch start.
+#[rstest::rstest]
+#[tokio::test]
+async fn advance_epoch_tx_creates_deny_rules_object_under_flag(
+    #[values(false, true)] enabled: bool,
+) {
+    use iota_sdk_types::gas::GasCostSummary;
+    use iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID;
+
+    use crate::authority::epoch_start_configuration::EpochStartConfigTrait;
+
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    if enabled {
+        protocol_config.set_deny_rule_governance_for_testing(true);
+        protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
+    }
+    let authority = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    assert!(
+        epoch_store
+            .epoch_start_config()
+            .transaction_deny_rules_obj_initial_shared_version()
+            .is_none()
+    );
+
+    // One full score for the single-validator test committee.
+    let (_, _, effects) = authority
+        .create_and_execute_advance_epoch_tx(
+            &epoch_store,
+            &GasCostSummary::new(0, 0, 0, 0, 0),
+            1, // checkpoint
+            0, // epoch_start_timestamp_ms
+            vec![u16::MAX as u64 + 1],
+        )
+        .await
+        .expect("advance epoch tx must succeed");
+
+    let created = effects
+        .created()
+        .iter()
+        .any(|(object_ref, _)| object_ref.object_id == IOTA_TRANSACTION_DENY_RULES_OBJECT_ID);
+    assert_eq!(created, enabled);
+}
+
 /// A `TransactionDenyRuleProposal` whose declared authority matches `author` is
 /// recorded through the consensus pipeline and its rules become active for the
 /// next commit; a proposal whose author does not match the consensus block

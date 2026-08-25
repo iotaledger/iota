@@ -557,6 +557,61 @@ fn compute_active_transaction_deny_rules_applies_stake_thresholds() {
     assert!(!active.package_upgrade_disabled);
 }
 
+/// The enforcement union keeps every mirrored on-chain entry and switch
+/// active regardless of the proposal-derived aggregate, so rules carry
+/// across the epoch boundary before supporters re-announce.
+#[test]
+fn union_deny_rule_sets_keeps_mirrored_state_active() {
+    use crate::authority::authority_per_epoch_store::union_deny_rule_sets;
+
+    // Every list gets a mirrored-only, an aggregate-only, and a shared entry.
+    // Each side contributes three of the six switches.
+    let shared = Address::new([1u8; 32]);
+    let mirrored = DenyRuleSet {
+        denied_addresses: [shared, Address::new([2u8; 32])].into(),
+        denied_objects: [ObjectId::new([3u8; 32])].into(),
+        denied_packages: [ObjectId::new([4u8; 32])].into(),
+        package_publish_disabled: true,
+        shared_object_disabled: true,
+        receiving_objects_disabled: true,
+        ..Default::default()
+    };
+    let aggregate = DenyRuleSet {
+        denied_addresses: [shared, Address::new([5u8; 32])].into(),
+        denied_objects: [ObjectId::new([6u8; 32])].into(),
+        denied_packages: [ObjectId::new([7u8; 32])].into(),
+        package_upgrade_disabled: true,
+        user_transaction_disabled: true,
+        move_authenticator_disabled: true,
+        ..Default::default()
+    };
+
+    let active = union_deny_rule_sets(aggregate, &mirrored);
+    assert_eq!(
+        active.denied_addresses,
+        [shared, Address::new([2u8; 32]), Address::new([5u8; 32])].into()
+    );
+    assert_eq!(
+        active.denied_objects,
+        [ObjectId::new([3u8; 32]), ObjectId::new([6u8; 32])].into()
+    );
+    assert_eq!(
+        active.denied_packages,
+        [ObjectId::new([4u8; 32]), ObjectId::new([7u8; 32])].into()
+    );
+    assert!(active.package_publish_disabled);
+    assert!(active.package_upgrade_disabled);
+    assert!(active.shared_object_disabled);
+    assert!(active.user_transaction_disabled);
+    assert!(active.receiving_objects_disabled);
+    assert!(active.move_authenticator_disabled);
+
+    // An empty aggregate changes nothing. A fresh epoch starts this way.
+    // This also pins the switches the mirror leaves off.
+    let active = union_deny_rule_sets(DenyRuleSet::default(), &mirrored);
+    assert_eq!(active, mirrored);
+}
+
 /// `announced_deny_rule_stake` sums the committee stake behind recorded
 /// proposals: empty proposals count as announcements, non-members weigh 0.
 #[tokio::test]
