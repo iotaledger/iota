@@ -15,9 +15,12 @@ codespan-reporting.workspace = true
 derive-where.workspace = true
 futures.workspace = true
 itertools.workspace = true
+jsonrpc.workspace = true
 move-command-line-common.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
+once_cell.workspace = true
+path-clean.workspace = true
 petgraph.workspace = true
 regex.workspace = true
 serde.workspace = true
@@ -33,9 +36,13 @@ tracing-subscriber.workspace = true
 
 [dev-dependencies]
 datatest-stable.workspace = true
+git2 = "0.20.2"
 insta.workspace = true
 move-command-line-common.workspace = true
 tempfile.workspace = true
+test-log.workspace = true
+url.workspace = true
+walkdir.workspace = true
 
 [[bin]]
 name = "move-package-alt"
@@ -53,5 +60,3 @@ path = "src/mocks/mock-resolver-2.rs"
 name = "test_runner"
 harness = false
 
-[[test]]
-name = "jsonrpc_tests"

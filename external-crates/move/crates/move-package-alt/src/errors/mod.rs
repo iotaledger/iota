@@ -4,32 +4,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod lockfile_error;
-mod manifest_error;
-use append_only_vec::AppendOnlyVec;
-use codespan_reporting::files::{SimpleFile, SimpleFiles};
 pub use lockfile_error::LockfileError;
-pub use manifest_error::{ManifestError, ManifestErrorKind};
 
 mod located;
-mod thefile;
-pub use located::Located;
-pub use thefile::TheFile;
+pub use located::Location;
 
 mod files;
-use std::{
-    fs,
-    ops::Range,
-    path::{Path, PathBuf},
-    sync::{LazyLock, Mutex},
-};
-
-use codespan_reporting::diagnostic::Diagnostic;
-pub use files::FileHandle;
-use serde::{Deserialize, Serialize};
+pub use files::{FileHandle, Files};
 use thiserror::Error;
 
 use crate::{
-    dependency::external::ResolverError, git::errors::GitError, package::paths::PackagePathError,
+    dependency::ResolverError,
+    git::GitError,
+    package::{manifest::ManifestError, paths::PackagePathError},
 };
 
 /// Result type for package operations
@@ -67,22 +54,4 @@ pub enum PackageError {
 
     #[error(transparent)]
     PackagePath(#[from] PackagePathError),
-}
-
-impl PackageError {
-    pub fn to_diagnostic(&self) -> Diagnostic<usize> {
-        match self {
-            Self::Manifest(err) => err.to_diagnostic(),
-            _ => Diagnostic::error()
-                .with_message(self.to_string())
-                .with_labels(vec![]),
-        }
-    }
-
-    pub fn emit(&self) -> Result<(), codespan_reporting::files::Error> {
-        match self {
-            Self::Manifest(err) => err.emit(),
-            _ => Ok(()),
-        }
-    }
 }

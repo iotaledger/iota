@@ -1,15 +1,24 @@
 ---
 source: crates/move-package-alt/tests/test_runner.rs
 ---
-{
-  "mock": {
-    "local": "for_default"
-  },
-  "replacements": {
-    "mainnet": {
-      "mock": {
-        "local": "for_mainnet"
-      }
-    }
-  }
+DependencySet {
+    inner: {
+        "mainnet": {
+            Identifier(
+                "mock",
+            ): PinnedDependencyInfo(
+                Dependency {
+                    dep_info: Local(
+                        LocalDepInfo {
+                            local: "for_mainnet",
+                        },
+                    ),
+                    use_environment: "mainnet",
+                    is_override: false,
+                    published_at: None,
+                    containing_file: "tests/data/external_basic/Move.toml",
+                },
+            ),
+        },
+    },
 }

@@ -9,9 +9,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anyhow::{Context, ensure};
-use clap::{Command, Parser, Subcommand};
-use move_core_types::identifier::Identifier;
+use anyhow::Context;
+use clap::Parser;
 use move_package::source_package::layout::SourcePackageLayout;
 
 use crate::{errors::PackageResult, package::PackageName};
@@ -30,10 +29,10 @@ pub struct New {
 impl New {
     pub fn execute(&self) -> PackageResult<()> {
         let path = match self.path {
-            Some(ref path) => path.join(&self.name.to_string()),
+            Some(ref path) => path.join(self.name.to_string()),
             None => {
                 let current_dir = std::env::current_dir()?;
-                current_dir.join(&self.name.to_string())
+                current_dir.join(self.name.to_string())
             }
         };
 
@@ -112,10 +111,10 @@ testnet = "{TESTNET_CHAIN_ID}"
 # Add your dependencies here or leave empty.
 
 # Depedency on local package in the directory `../bar`, which can be referred to in the Move code as "bar::module::function"
-# bar = { path = "../bar" }
+# bar = { local = "../bar" }
 
 # Git dependency
-# foo = { git = "https://example.com/foo.git", rev = "releases/v1"}
+# foo = { git = "https://example.com/foo.git", rev = "releases/v1", subdir = "foo" }
 
 # Setting `override = true` forces your dependencies to use this version of the package.
 # This is required if you need to link against a different version from one of your dependencies, or if
