@@ -39,6 +39,22 @@ impl<T> DependencySet<T> {
     }
 
     /// Return true if [self] has no dependencies
+    ///
+    /// ```
+    /// use move_package_alt::{
+    ///     dependency::DependencySet,
+    ///     package::{EnvironmentName, PackageName},
+    /// };
+    /// let mut example = DependencySet::new();
+    /// assert!(example.is_empty());
+    ///
+    /// example.insert(
+    ///     EnvironmentName::from("env"),
+    ///     PackageName::new("pkg").unwrap(),
+    ///     "dep",
+    /// );
+    /// assert!(!example.is_empty());
+    /// ```
     pub fn is_empty(&self) -> bool {
         self.inner.iter().all(|(_, it)| it.is_empty())
     }
@@ -49,7 +65,7 @@ impl<T> DependencySet<T> {
         sets.into_iter().flatten().collect()
     }
 
-    /// Specialize to a specific environment
+    /// Return the dependencies for `env`
     pub fn deps_for(&self, env: &EnvironmentName) -> Option<&BTreeMap<PackageName, T>> {
         self.inner.get(env)
     }
@@ -197,5 +213,5 @@ impl<T: Serialize> fmt::Debug for DependencySet<T> {
 
 #[cfg(test)]
 mod tests {
-    // TODO
+    use crate::dependency::DependencySet;
 }

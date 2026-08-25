@@ -21,7 +21,7 @@ use super::{
 };
 use crate::{
     dependency::{DependencySet, PinnedDependencyInfo, pin},
-    errors::{ManifestError, PackageError, PackageResult},
+    errors::{PackageError, PackageResult},
     flavor::MoveFlavor,
     graph::PackageGraph,
     package::{EnvironmentName, Package, PackageName},
@@ -183,12 +183,13 @@ mod tests {
     use std::{fs, process::Output};
 
     use tempfile::{TempDir, tempdir};
+    use test_log::test;
     use tokio::process::Command;
 
     use super::*;
     use crate::{
         flavor::Vanilla,
-        git::{GitCache, GitTree},
+        git::{GitCache, GitResult, GitTree, run_git_cmd_with_args},
     };
 
     async fn setup_test_move_project() -> (TempDir, PathBuf) {
@@ -343,30 +344,16 @@ mod tests {
     /// Sets up a test Move project with git repository
     /// It returns the temporary directory, the root path of the project, and
     /// the commits' sha
-    pub async fn run_git_cmd(args: &[&str], repo_path: &PathBuf) -> Output {
-        let cmd = Command::new("git")
-            .args(args)
-            .current_dir(repo_path)
-            .output()
-            .await
-            .unwrap();
-
-        if !cmd.status.success() {
-            panic!(
-                "Git command failed with status: {}. Output: {}\n Error: {}",
-                cmd.status,
-                String::from_utf8_lossy(&cmd.stdout),
-                String::from_utf8_lossy(&cmd.stderr)
-            );
-        }
-
-        cmd
+    pub async fn run_git_cmd(args: &[&str], repo_path: &PathBuf) -> GitResult<String> {
+        run_git_cmd_with_args(args, Some(repo_path)).await
     }
 
     pub async fn setup_test_move_git_repo() -> (TempDir, PathBuf, Vec<String>) {
         // Create a temporary directory
         let temp_dir = tempdir().unwrap();
         let root_path = temp_dir.path().to_path_buf();
+
+        debug!("=== setting up test repo ===");
 
         // Create the root directory for the Move project
         fs::create_dir_all(&root_path).unwrap();
@@ -434,14 +421,17 @@ mod tests {
         run_git_cmd(&["tag", "-a", "v0.0.3", "-m", "Third version"], &pkg_path).await;
 
         // Get commits SHA
-        let commits = run_git_cmd(&["log", "--pretty=format:%H"], &pkg_path).await;
-        let commits = String::from_utf8_lossy(&commits.stdout);
+        let commits = run_git_cmd(&["log", "--pretty=format:%H"], &pkg_path)
+            .await
+            .unwrap();
         let commits: Vec<_> = commits.lines().map(|x| x.to_string()).collect();
+
+        debug!("=== test repo setup complete ===");
 
         (temp_dir, root_path, commits)
     }
 
-    #[tokio::test]
+    #[test(tokio::test)]
     async fn test_all() {
         let (temp_dir, root_path, commits) = setup_test_move_git_repo().await;
         let move_dir = temp_dir.path().join(".move");
