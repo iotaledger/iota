@@ -374,30 +374,6 @@ fn merge_value(target: &mut Value, value: Value) {
     }
 }
 
-/// Reject mapping keys that are not strings anywhere in an override
-/// value: serde reads a number as a field index, which names no field and
-/// renders as a broken path in a list of overridden fields.
-fn ensure_string_mapping_keys(value: &Value) -> anyhow::Result<()> {
-    match value {
-        Value::Mapping(mapping) => {
-            for (key, value) in mapping {
-                ensure!(
-                    key.is_string(),
-                    "mapping keys in an override value must be strings"
-                );
-                ensure_string_mapping_keys(value)?;
-            }
-        }
-        Value::Sequence(sequence) => {
-            for value in sequence {
-                ensure_string_mapping_keys(value)?;
-            }
-        }
-        _ => {}
-    }
-    Ok(())
-}
-
 /// What a deserialization failure says when its own message cannot be
 /// shown.
 const UNFIT_VALUE: &str = "the value does not fit the field's type";
@@ -530,7 +506,6 @@ impl FromStr for NodeConfigOverride {
                 )
             })?
         };
-        ensure_string_mapping_keys(&value)?;
         let config_override = Self { scope, path, value };
         if scope.reaches_a_validator() {
             // Checked against the fields the override sets, so a section
@@ -1015,16 +990,17 @@ mod tests {
     }
 
     #[test]
-    fn parse_rejects_non_string_mapping_keys() {
-        // Serde reads an integer key as a field index, which would render
-        // as a broken path in a list of overridden fields.
+    fn apply_rejects_non_string_mapping_keys() {
+        // Serde reads an integer key as a field index, which names no
+        // field of the config.
+        let mut config = test_config();
         for input in [
             "metrics={0: 5}",
             "metrics={groups: {0: 5}}",
             "p2p-config.seed-peers=[{0: 5}]",
         ] {
-            let err = input.parse::<NodeConfigOverride>().unwrap_err().to_string();
-            assert!(err.contains("must be strings"), "{input}: {err}");
+            let config_override: NodeConfigOverride = input.parse().unwrap();
+            assert!(config_override.apply_to(&mut config).is_err(), "{input}");
         }
     }
 

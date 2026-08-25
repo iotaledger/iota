@@ -1250,12 +1250,14 @@ fn check_fullnode_override_scopes(
     node_config_overrides: &[NodeConfigOverride],
     has_fullnode: bool,
 ) -> Result<(), anyhow::Error> {
-    for config_override in node_config_overrides {
-        ensure!(
-            has_fullnode || config_override.scope != OverrideScope::Fullnode,
-            "`{}` is fullnode-scoped, but this network has no fullnode",
-            config_override.scoped_field_path()
-        );
+    if !has_fullnode {
+        for config_override in node_config_overrides {
+            ensure!(
+                config_override.scope != OverrideScope::Fullnode,
+                "`{}` is fullnode-scoped, but this network has no fullnode",
+                config_override.scoped_field_path()
+            );
+        }
     }
     Ok(())
 }
