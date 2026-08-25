@@ -1494,7 +1494,7 @@ impl NodeMetrics {
             ).unwrap(),
             shard_reconstructor_dropped_shards: register_int_counter_vec_with_registry!(
                 "shard_reconstructor_dropped_shards",
-                "Number of shards dropped by the reconstructor's admission rules, by reason: the relaying peer already contributed a shard in the slot, or the slot already holds the maximum number of accumulators",
+                "Number of shards dropped by the reconstructor's admission rules, by reason: the relaying peer already contributed a shard in the slot, the slot already holds the maximum number of accumulators, the slot is already resolved, or the peer's retained-shard budget evicted its oldest shard",
                 &["reason"],
                 registry;
                 MetricLevel::Warn,
