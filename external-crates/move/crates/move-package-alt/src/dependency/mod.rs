@@ -19,7 +19,10 @@ mod dependency_set;
 pub use dependency_set::DependencySet;
 use move_core_types::account_address::AccountAddress;
 
-use crate::{errors::FileHandle, schema::EnvironmentName};
+use crate::{
+    errors::FileHandle,
+    schema::{EnvironmentName, PublishedID},
+};
 
 /// [Dependency] wraps information about the location of a dependency (such as
 /// the `git` or `local` fields) with additional metadata about how the
@@ -45,7 +48,7 @@ struct Dependency<DepInfo> {
     is_override: bool,
 
     /// Does the original manifest override the published address?
-    published_at: Option<AccountAddress>,
+    published_at: Option<PublishedID>,
 
     /// What manifest or lockfile does this dependency come from?
     containing_file: FileHandle,

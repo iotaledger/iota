@@ -10,8 +10,7 @@ use serde::{Deserialize, Deserializer, de};
 use serde_spanned::Spanned;
 
 use super::{
-    EnvironmentName, LocalDepInfo, OnChainDepInfo, PackageName, ResolverName,
-    shared::ser_opt_account,
+    EnvironmentName, LocalDepInfo, OnChainDepInfo, PackageName, PublishedID, ResolverName,
 };
 use crate::dependency::DependencySet;
 
@@ -71,8 +70,8 @@ pub struct ReplacementDependency {
     #[serde(flatten, default)]
     pub dependency: Option<DefaultDependency>,
 
-    #[serde(default, serialize_with = "ser_opt_account")]
-    pub published_at: Option<AccountAddress>,
+    #[serde(default)]
+    pub published_at: Option<PublishedID>,
 
     #[serde(default)]
     pub use_environment: Option<EnvironmentName>,

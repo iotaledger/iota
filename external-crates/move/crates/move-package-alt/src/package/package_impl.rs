@@ -14,13 +14,13 @@ use move_core_types::{account_address::AccountAddress, identifier::Identifier};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
-use super::{manifest::Manifest, paths::PackagePath};
+use super::{manifest::Manifest, paths::PackagePath, published_info::PublishInformation};
 use crate::{
     dependency::{DependencySet, PinnedDependencyInfo, pin},
     errors::{PackageError, PackageResult},
     flavor::MoveFlavor,
     package::lockfile::Lockfiles,
-    schema::{LocalDepInfo, LockfileDependencyInfo, Pin, PublishInformation},
+    schema::{LocalDepInfo, LockfileDependencyInfo, Pin},
 };
 
 pub type EnvironmentName = String;

@@ -7,12 +7,10 @@
 
 mod lockfile;
 mod manifest;
-mod published_info;
 mod resolver;
 mod shared;
 
 pub use lockfile::*;
 pub use manifest::*;
-pub use published_info::*;
 pub use resolver::*;
 pub use shared::*;

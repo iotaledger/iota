@@ -14,7 +14,8 @@ use toml_edit::{
 };
 
 use super::{
-    EnvironmentID, EnvironmentName, LocalDepInfo, OnChainDepInfo, PackageName, shared::ser_account,
+    EnvironmentID, EnvironmentName, LocalDepInfo, OnChainDepInfo, OriginalID, PackageName,
+    PublishedID,
 };
 use crate::{flavor::MoveFlavor, git::GitSha};
 
@@ -42,10 +43,8 @@ pub type BuildConfig = toml::Value;
 #[serde(rename_all = "kebab-case")]
 #[serde(deny_unknown_fields)]
 pub struct Publication<F: MoveFlavor> {
-    #[serde(serialize_with = "ser_account")]
-    pub published_at: AccountAddress,
-    #[serde(serialize_with = "ser_account")]
-    pub original_id: AccountAddress,
+    pub published_at: PublishedID,
+    pub original_id: OriginalID,
     pub chain_id: EnvironmentID,
     pub toolchain_version: String,
     pub build_config: BuildConfig,
