@@ -2016,7 +2016,7 @@ struct ImmutableInputSetup {
     authority: Arc<crate::authority::AuthorityState>,
     epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
     sender: Address,
-    sender_key: AccountKeyPair,
+    sender_key: AccountPrivateKey,
     package_ref: ObjectReference,
     immutable_ref: ObjectReference,
     gas1_ref: ObjectReference,
@@ -2035,7 +2035,7 @@ async fn setup_immutable_input(skip_immutable_locks: bool) -> ImmutableInputSetu
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
 
     let immutable_id = ObjectId::random();
     let gas1_id = ObjectId::random();
