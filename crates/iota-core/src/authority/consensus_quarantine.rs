@@ -107,6 +107,11 @@ pub(crate) struct ConsensusCommitOutput {
     // commit. Flushed to `deny_rule_proposals` atomically with
     // `last_consensus_stats`.
     deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
+
+    // The mirror state reached by this commit's injected updates, when it
+    // injected any. Written to `deny_rule_mirror` atomically with
+    // `last_consensus_stats`.
+    deny_rule_mirror: Option<DenyRuleSet>,
 }
 
 impl ConsensusCommitOutput {
@@ -267,6 +272,18 @@ impl ConsensusCommitOutput {
         }
     }
 
+    /// The deny rule proposals recorded during this commit so far.
+    pub(super) fn deny_rule_proposals(
+        &self,
+    ) -> &BTreeMap<AuthorityName, TransactionDenyRuleProposal> {
+        &self.deny_rule_proposals
+    }
+
+    /// Records the mirror state reached by this commit's injected updates.
+    pub fn record_deny_rule_mirror(&mut self, rules: DenyRuleSet) {
+        self.deny_rule_mirror = Some(rules);
+    }
+
     pub fn write_to_batch(
         self,
         epoch_store: &AuthorityPerEpochStore,
@@ -406,6 +423,9 @@ impl ConsensusCommitOutput {
         )?;
 
         batch.insert_batch(&tables.deny_rule_proposals, self.deny_rule_proposals)?;
+        if let Some(mirror) = self.deny_rule_mirror {
+            batch.insert_batch(&tables.deny_rule_mirror, [((), mirror)])?;
+        }
 
         Ok(())
     }
