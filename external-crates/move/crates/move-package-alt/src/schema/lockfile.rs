@@ -6,13 +6,16 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use derive_where::derive_where;
+use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
 use toml_edit::{
     DocumentMut, InlineTable, Item, KeyMut, Table, Value,
     visit_mut::{self, VisitMut},
 };
 
-use super::{Address, EnvironmentID, EnvironmentName, LocalDepInfo, OnChainDepInfo, PackageName};
+use super::{
+    EnvironmentID, EnvironmentName, LocalDepInfo, OnChainDepInfo, PackageName, shared::ser_account,
+};
 use crate::{flavor::MoveFlavor, git::GitSha};
 
 /// An identifier for a node in the package graph, used to index into the
@@ -31,15 +34,21 @@ pub struct ParsedLockfile<F: MoveFlavor> {
     pub published: BTreeMap<EnvironmentName, Publication<F>>,
 }
 
+pub type BuildConfig = toml::Value;
+
 /// A serialized entry in the `[published.<environment>]` table of the lockfile
 #[derive(Debug, Serialize, Deserialize)]
 #[derive_where(Clone)]
 #[serde(rename_all = "kebab-case")]
 #[serde(deny_unknown_fields)]
 pub struct Publication<F: MoveFlavor> {
-    pub published_at: Address,
-    pub original_id: Address,
+    #[serde(serialize_with = "ser_account")]
+    pub published_at: AccountAddress,
+    #[serde(serialize_with = "ser_account")]
+    pub original_id: AccountAddress,
     pub chain_id: EnvironmentID,
+    pub toolchain_version: String,
+    pub build_config: BuildConfig,
 
     #[serde(flatten)]
     pub metadata: F::PublishedMetadata,

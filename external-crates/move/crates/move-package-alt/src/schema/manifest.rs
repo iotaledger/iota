@@ -5,10 +5,14 @@
 
 use std::{collections::BTreeMap, path::PathBuf};
 
+use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Deserializer, de};
 use serde_spanned::Spanned;
 
-use super::{Address, EnvironmentName, LocalDepInfo, OnChainDepInfo, PackageName, ResolverName};
+use super::{
+    EnvironmentName, LocalDepInfo, OnChainDepInfo, PackageName, ResolverName,
+    shared::ser_opt_account,
+};
 use crate::dependency::DependencySet;
 
 // TODO: look at Brandon's serialization code (https://github.com/iotaledger/sui-rust-sdk/blob/master/crates/iota-sdk-types/src/object.rs)
@@ -67,8 +71,8 @@ pub struct ReplacementDependency {
     #[serde(flatten, default)]
     pub dependency: Option<DefaultDependency>,
 
-    #[serde(default)]
-    pub published_at: Option<Address>,
+    #[serde(default, serialize_with = "ser_opt_account")]
+    pub published_at: Option<AccountAddress>,
 
     #[serde(default)]
     pub use_environment: Option<EnvironmentName>,

@@ -53,8 +53,10 @@ deps = { bar = "bar", foo = "Foo_0", iota = "Iota", non = "Foo_1", std = "MoveSt
 published-at = "0x6ba0cc1a418ff3bebce0ff9ec3961e6cc794af9bc3a4114fb138d00a4c9274bb"
 original-id = "0x6ba0cc1a418ff3bebce0ff9ec3961e6cc794af9bc3a4114fb138d00a4c9274bb"
 chain-id = "6364aad5"
+toolchain-version = "1.52.0"
 
 [published.testnet]
 published-at = "0x6ba0cc1a418ff3bebce0ff9ec3961e6cc794af9bc3a4114fb138d00a4c9274bb"
 original-id = "0x6ba0cc1a418ff3bebce0ff9ec3961e6cc794af9bc3a4114fb138d00a4c9274bb"
 chain-id = "2304aa97"
+toolchain-version = "1.52.0"
