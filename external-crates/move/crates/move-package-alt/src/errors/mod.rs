@@ -17,7 +17,7 @@ pub use files::{FileHandle, Files};
 use thiserror::Error;
 
 use crate::{
-    dependency::external::ResolverError,
+    dependency::ResolverError,
     git::GitError,
     package::{manifest::ManifestError, paths::PackagePathError},
 };
