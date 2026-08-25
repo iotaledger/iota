@@ -1028,14 +1028,16 @@ mod tests {
     }
 
     #[test]
-    fn enabling_the_grpc_api_on_a_validator_does_not_need_a_config() {
-        // Validators do not expose the gRPC API, so enabling it there needs
-        // no config section.
+    fn enabling_the_grpc_api_on_a_validator_is_rejected() {
+        // A validator never starts the gRPC server, so enabling it there is
+        // a setting the node would ignore.
         let mut config = validator_test_config();
         let enable: NodeConfigOverride = "enable-grpc-api=true".parse().unwrap();
-        enable.apply_to(&mut config).unwrap();
-        assert!(config.enable_grpc_api);
-        assert!(config.grpc_api_config.is_none());
+        let err = format!("{:#}", enable.apply_to(&mut config).unwrap_err());
+        assert!(
+            err.contains("validators do not expose the gRPC API"),
+            "{err}"
+        );
     }
 
     #[test]

@@ -122,7 +122,7 @@ The following are rejected:
 - The key pair fields, `genesis` and `migration-tx-data-path`.
 - A field inside a section the generated config switched off with an explicit `null`, such as `policy-config.dry-run` while `policy-config` is `null`. Set the whole section instead, for example `policy-config={dry-run: false}`.
 
-`metrics-address`, `admin-interface-address`, `json-rpc-address`, the gRPC settings and the database paths are freely overridable. One case needs two overrides in one run: `fullnode:enable-grpc-api=true` alone is rejected, because a generated fullnode has no `grpc-api-config`. Add `fullnode:grpc-api-config={address: 0.0.0.0:50051}`.
+`metrics-address`, `admin-interface-address`, `json-rpc-address`, the gRPC settings and the database paths are freely overridable. One case needs two overrides in one run: `fullnode:enable-grpc-api=true` alone is rejected, because a generated fullnode has no `grpc-api-config`. Add `fullnode:grpc-api-config={address: 0.0.0.0:50051}`. Enabling the API on a validator is rejected, because a validator never starts the gRPC server.
 
 A field set inside a section the config leaves at its default starts from that section's own per-field defaults, which for `policy-config` are not the traffic control policy the node config defaults to. Set the whole section when the rest of it matters.
 
