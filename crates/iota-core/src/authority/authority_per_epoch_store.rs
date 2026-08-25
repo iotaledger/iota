@@ -728,12 +728,20 @@ pub struct AuthorityPerEpochStore {
     /// `Rejected` response instead of waiting for the gRPC deadline.
     dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache,
 
-    /// The active deny rule set: the stake-weighted aggregate of the recorded
-    /// deny rule proposals. Recomputed via
-    /// `store_active_transaction_deny_rules` in
-    /// `ConsensusOutputQuarantine::push_consensus_output` and seeded from the
-    /// `deny_rule_proposals` table on construction.
+    /// The active deny rule set: the union of the mirrored on-chain state
+    /// and the stake-weighted aggregate of the recorded deny rule proposals.
+    /// Recomputed via `store_active_transaction_deny_rules` in
+    /// `ConsensusOutputQuarantine::push_consensus_output`; seeded on
+    /// construction from the epoch-start object state and the
+    /// `deny_rule_proposals` table, so enforcement carries across the epoch
+    /// boundary before any announcement of the new epoch lands.
     active_transaction_deny_rules: ArcSwap<DenyRuleSet>,
+
+    /// The deny rule state last written to the `TransactionDenyRules` object,
+    /// as far as this validator knows: seeded from the object at epoch start,
+    /// advanced on each injected update. The base the injection diff is
+    /// computed against.
+    mirrored_transaction_deny_rules: ArcSwap<DenyRuleSet>,
 
     /// Pre-consensus soft locks for owned objects (P-COOL flow).
     ///
@@ -1277,9 +1285,15 @@ impl AuthorityPerEpochStore {
                 .safe_iter()
                 .collect::<Result<BTreeMap<_, _>, _>>()
                 .expect("AuthorityEpochTables should contain valid deny rule proposals");
-        let active_transaction_deny_rules = ArcSwap::from_pointee(
+        let mirrored_deny_rules = epoch_start_configuration
+            .transaction_deny_rules_state()
+            .cloned()
+            .unwrap_or_default();
+        let active_transaction_deny_rules = ArcSwap::from_pointee(union_deny_rule_sets(
             Self::compute_active_transaction_deny_rules(&cached_deny_rule_proposals, &committee),
-        );
+            &mirrored_deny_rules,
+        ));
+        let mirrored_transaction_deny_rules = ArcSwap::from_pointee(mirrored_deny_rules);
 
         let committee_size = committee.num_members();
         let report_version = MisbehaviorReportVersion::from_protocol(&protocol_config);
@@ -1328,6 +1342,7 @@ impl AuthorityPerEpochStore {
             signed_effects_digests_cache,
             dropped_tx_status_cache: super::dropped_tx_status_cache::DroppedTxStatusCache::new(),
             active_transaction_deny_rules,
+            mirrored_transaction_deny_rules,
             soft_locks: OnceCell::new(),
             end_of_publish: Mutex::new(end_of_publish),
             pending_consensus_certificates: RwLock::new(pending_consensus_certificates),
@@ -3062,6 +3077,19 @@ impl AuthorityPerEpochStore {
             .remove(authority)
     }
 
+    /// The total stake of committee members with a recorded deny rule
+    /// proposal this epoch, empty proposals included. Every committee member
+    /// announces its configuration each epoch, so this converges towards the
+    /// full committee stake as announcements arrive.
+    pub fn announced_deny_rule_stake(&self) -> StakeUnit {
+        self.consensus_quarantine
+            .read()
+            .current_deny_rule_proposals()
+            .keys()
+            .map(|authority| self.committee().weight(authority))
+            .sum()
+    }
+
     /// Whether `proposal` is newer than the recorded proposal (if any) from
     /// the same authority and should therefore be recorded.
     pub fn should_record_deny_rule_proposal(&self, proposal: &TransactionDenyRuleProposal) -> bool {
@@ -3072,9 +3100,16 @@ impl AuthorityPerEpochStore {
             .is_some_and(|generation| generation >= proposal.generation)
     }
 
-    /// Returns the active deny rule set derived from the recorded proposals.
+    /// Returns the active deny rule set: the union of the mirrored on-chain
+    /// state and the aggregate of the recorded proposals.
     pub fn get_active_transaction_deny_rules(&self) -> Arc<DenyRuleSet> {
         self.active_transaction_deny_rules.load_full()
+    }
+
+    /// Returns the deny rule state last known to be written to the
+    /// `TransactionDenyRules` object.
+    pub fn get_mirrored_transaction_deny_rules(&self) -> Arc<DenyRuleSet> {
+        self.mirrored_transaction_deny_rules.load_full()
     }
 
     /// Recomputes the active deny rule set from the current proposals and
@@ -3094,7 +3129,10 @@ impl AuthorityPerEpochStore {
         &self,
         proposals: &BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
     ) -> bool {
-        let rules = Self::compute_active_transaction_deny_rules(proposals, self.committee());
+        let rules = union_deny_rule_sets(
+            Self::compute_active_transaction_deny_rules(proposals, self.committee()),
+            &self.mirrored_transaction_deny_rules.load(),
+        );
         if **self.active_transaction_deny_rules.load() == rules {
             return false;
         }
@@ -5848,4 +5886,27 @@ impl From<LockDetails> for LockDetailsWrapper {
         // always use latest version.
         LockDetailsWrapper::V1(details)
     }
+}
+
+/// The union of two deny rule sets: an entry or switch is active when it is
+/// active in either. Enforcement combines the mirrored on-chain state with
+/// the current epoch's aggregate this way, so on-chain rules keep applying
+/// before their supporters have re-announced.
+pub(crate) fn union_deny_rule_sets(mut rules: DenyRuleSet, other: &DenyRuleSet) -> DenyRuleSet {
+    rules
+        .denied_addresses
+        .extend(other.denied_addresses.iter().copied());
+    rules
+        .denied_objects
+        .extend(other.denied_objects.iter().copied());
+    rules
+        .denied_packages
+        .extend(other.denied_packages.iter().copied());
+    rules.package_publish_disabled |= other.package_publish_disabled;
+    rules.package_upgrade_disabled |= other.package_upgrade_disabled;
+    rules.shared_object_disabled |= other.shared_object_disabled;
+    rules.user_transaction_disabled |= other.user_transaction_disabled;
+    rules.receiving_objects_disabled |= other.receiving_objects_disabled;
+    rules.move_authenticator_disabled |= other.move_authenticator_disabled;
+    rules
 }
