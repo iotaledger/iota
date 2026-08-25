@@ -848,6 +848,7 @@ mod test {
     use std::{collections::BTreeSet, net::SocketAddr, num::NonZeroUsize};
 
     use iota_swarm_config::{
+        network_config::NetworkConfig,
         network_config_builder::ConfigBuilder,
         node_config_override::{NodeConfigOverride, apply_node_config_overrides},
     };
@@ -899,13 +900,14 @@ mod test {
     #[test]
     fn node_config_overrides_apply_to_late_spawned_nodes() {
         let swarm = Swarm::builder()
-            .committee_size(NonZeroUsize::new(1).unwrap())
+            .committee_size(NonZeroUsize::new(2).unwrap())
             .with_fullnode_count(1)
             .with_node_config_overrides(vec![
                 "fullnode:authority-store-pruning-config.num-epochs-to-retain=18446744073709551615"
                     .parse()
                     .unwrap(),
                 "validator:enable-soft-locking=false".parse().unwrap(),
+                "validator-0:enable-index-processing=false".parse().unwrap(),
             ])
             .build();
 
@@ -923,21 +925,6 @@ mod test {
         );
         // Validator-scoped overrides do not apply to a fullnode.
         assert!(config.enable_soft_locking);
-    }
-
-    #[test]
-    fn node_config_overrides_apply_to_a_late_spawned_validator() {
-        let swarm = Swarm::builder()
-            .committee_size(NonZeroUsize::new(2).unwrap())
-            .with_fullnode_count(0)
-            .with_node_config_overrides(vec![
-                "validator:enable-soft-locking=false".parse().unwrap(),
-                "validator-0:enable-index-processing=false".parse().unwrap(),
-                "fullnode:authority-store-pruning-config.num-epochs-to-retain=18446744073709551615"
-                    .parse()
-                    .unwrap(),
-            ])
-            .build();
 
         // A validator respawned from its own config: the batch it was built
         // with applies again unchanged.
@@ -1011,21 +998,32 @@ mod test {
         );
     }
 
+    /// A network config whose validator 0 carries a firewall section, which
+    /// its peers do not. Returns the config and the temporary directory it
+    /// must outlive.
+    fn network_config_with_a_firewall_on_validator_0(
+        committee_size: usize,
+    ) -> (NetworkConfig, tempfile::TempDir) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let mut network_config = ConfigBuilder::new(dir.path())
+            .committee_size(NonZeroUsize::new(committee_size).unwrap())
+            .build();
+        let overrides: Vec<NodeConfigOverride> = [
+            "policy-config={}",
+            "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}",
+        ]
+        .iter()
+        .map(|input| input.parse().unwrap())
+        .collect();
+        apply_node_config_overrides(&overrides, &mut network_config.validator_configs[0]).unwrap();
+        (network_config, dir)
+    }
+
     #[test]
     fn validator_override_failures_name_the_validator() {
         // A `validator:` scope carries no index, so only the error context
         // can say which validator rejected the override.
-        let dir = tempfile::TempDir::new().unwrap();
-        let mut network_config = ConfigBuilder::new(dir.path())
-            .committee_size(NonZeroUsize::new(2).unwrap())
-            .build();
-        let overrides = vec![
-            "policy-config={}".parse::<NodeConfigOverride>().unwrap(),
-            "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}"
-                .parse::<NodeConfigOverride>()
-                .unwrap(),
-        ];
-        apply_node_config_overrides(&overrides, &mut network_config.validator_configs[0]).unwrap();
+        let (network_config, _dir) = network_config_with_a_firewall_on_validator_0(2);
 
         let err = Swarm::builder()
             .with_network_config(network_config)
@@ -1086,18 +1084,7 @@ mod test {
     fn overrides_apply_to_a_supplied_network_config() {
         // The localnet feeds a network config loaded from disk. Overrides
         // apply to those configs, not to freshly generated ones.
-        let dir = tempfile::TempDir::new().unwrap();
-        let mut network_config = ConfigBuilder::new(dir.path())
-            .committee_size(NonZeroUsize::new(1).unwrap())
-            .build();
-        let overrides: Vec<NodeConfigOverride> = [
-            "policy-config={}",
-            "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}",
-        ]
-        .iter()
-        .map(|input| input.parse().unwrap())
-        .collect();
-        apply_node_config_overrides(&overrides, &mut network_config.validator_configs[0]).unwrap();
+        let (network_config, _dir) = network_config_with_a_firewall_on_validator_0(1);
 
         let swarm = Swarm::builder()
             .with_network_config(network_config)

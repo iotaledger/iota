@@ -210,25 +210,22 @@ impl NodeConfigOverride {
 /// Apply `overrides` to `config` in the given order. On error the config
 /// is left unchanged.
 ///
-/// - Later overrides win per field; fields no override mentions keep
-///   their current values. Declaration order decides, not how specific a
-///   scope is: a later `validator:` override beats an earlier
-///   `validator-0:` one.
-/// - The merge runs on the serialized config: a field set inside a
-///   section the config leaves at its default starts from the section's
-///   own per-field serde defaults, not from the in-memory value. For
-///   example, setting a field inside an unset `policy-config` yields the
-///   no-op policy its field defaults compose to, not the DoS protection
-///   policy [`NodeConfig`] defaults to. Set the whole section to
-///   configure that one.
-/// - A section switched off with an explicit `null` is a scalar, so
-///   setting a field inside it is rejected; set the whole section to
-///   switch it back on.
-/// - Unknown fields, type mismatches, and changes that would leave the
-///   node unable to run are rejected. [`NodeConfig::validate`] judges the
-///   final state, so an override may clear a field a later one restores —
-///   except `consensus-config`, whose creation or removal is rejected
-///   even if a later override undoes it.
+/// - Later overrides win per field; fields no override mentions keep their
+///   current values. Declaration order decides, not how specific a scope is: a
+///   later `validator:` override beats an earlier `validator-0:` one.
+/// - The merge runs on the serialized config: a field set inside a section the
+///   config leaves at its default starts from the section's own per-field serde
+///   defaults, not from the in-memory value. For example, setting a field
+///   inside an unset `policy-config` yields the no-op policy its field defaults
+///   compose to, not the DoS protection policy [`NodeConfig`] defaults to. Set
+///   the whole section to configure that one.
+/// - A section switched off with an explicit `null` is a scalar, so setting a
+///   field inside it is rejected; set the whole section to switch it back on.
+/// - Unknown fields, type mismatches, and changes that would leave the node
+///   unable to run are rejected. [`NodeConfig::validate`] judges the final
+///   state, so an override may clear a field a later one restores — except
+///   `consensus-config`, whose creation or removal is rejected even if a later
+///   override undoes it.
 pub fn apply_node_config_overrides<'a>(
     overrides: impl IntoIterator<Item = &'a NodeConfigOverride>,
     config: &mut NodeConfig,
@@ -562,7 +559,9 @@ impl FromStr for NodeConfigOverride {
 #[cfg(test)]
 mod tests {
     use iota_config::node::{Genesis, GrpcApiConfig};
-    use iota_types::traffic_control::PolicyConfig;
+    use iota_types::{
+        supported_protocol_versions::SupportedProtocolVersions, traffic_control::PolicyConfig,
+    };
     use rand::rngs::OsRng;
 
     use super::*;
@@ -686,35 +685,23 @@ mod tests {
 
     #[test]
     fn committee_addresses_are_rejected_for_a_scope_that_reaches_a_validator() {
-        for path in [
-            "network-address",
-            "p2p-config.external-address",
-            "primary-address",
+        // The last two spell the field as part of its section, which the
+        // guard has to catch like the dotted path.
+        for assignment in [
+            "network-address=/ip4/127.0.0.1/tcp/9200",
+            "p2p-config.external-address=/ip4/127.0.0.1/udp/9201",
+            "primary-address=/ip4/127.0.0.1/tcp/9202",
+            "p2p-config={external-address: /ip4/127.0.0.1/udp/9201}",
+            "p2p-config=null",
         ] {
             for scope in ["", "all:", "validator:", "validator-0:"] {
-                let input = format!("{scope}{path}=/ip4/127.0.0.1/tcp/9200");
+                let input = format!("{scope}{assignment}");
                 let err = input.parse::<NodeConfigOverride>().unwrap_err().to_string();
                 assert!(err.contains("genesis.blob"), "{input}: {err}");
                 assert!(err.contains("re-running genesis"), "{input}: {err}");
             }
             // A fullnode is not a committee member, so the same fields are
             // ordinary config there.
-            let input = format!("fullnode:{path}=/ip4/127.0.0.1/tcp/9200");
-            assert!(input.parse::<NodeConfigOverride>().is_ok(), "{input}");
-        }
-    }
-
-    #[test]
-    fn committee_addresses_are_rejected_under_a_section_spelling() {
-        for assignment in [
-            "p2p-config={external-address: /ip4/127.0.0.1/udp/9201}",
-            "p2p-config=null",
-        ] {
-            let input = format!("validator:{assignment}");
-            let err = input.parse::<NodeConfigOverride>().unwrap_err().to_string();
-            assert!(err.contains("genesis.blob"), "{input}: {err}");
-            assert!(err.contains("re-running genesis"), "{input}: {err}");
-
             let input = format!("fullnode:{assignment}");
             assert!(input.parse::<NodeConfigOverride>().is_ok(), "{input}");
         }
@@ -765,23 +752,11 @@ mod tests {
     }
 
     #[test]
-    fn apply_preserves_supported_protocol_versions() {
-        use iota_types::supported_protocol_versions::SupportedProtocolVersions;
-
-        let mut config = test_config();
-        config.supported_protocol_versions = Some(SupportedProtocolVersions::SYSTEM_DEFAULT);
-
-        let config_override: NodeConfigOverride = "enable-index-processing=false".parse().unwrap();
-        config_override.apply_to(&mut config).unwrap();
-        assert_eq!(
-            config.supported_protocol_versions,
-            Some(SupportedProtocolVersions::SYSTEM_DEFAULT)
-        );
-    }
-
-    #[test]
     fn apply_leaves_untouched_fields_unchanged() {
         for mut config in [test_config(), validator_test_config()] {
+            // `supported_protocol_versions` is `#[serde(skip)]`, so this also
+            // pins that the round trip preserves it.
+            config.supported_protocol_versions = Some(SupportedProtocolVersions::SYSTEM_DEFAULT);
             let before = debug_with_keys_loaded(&config);
             let enable_index_processing = config.enable_index_processing;
 
@@ -793,6 +768,14 @@ mod tests {
 
             assert_eq!(debug_with_keys_loaded(&config), before);
         }
+    }
+
+    #[test]
+    fn an_empty_batch_leaves_the_config_untouched() {
+        let mut config = test_config();
+        let before = debug_with_keys_loaded(&config);
+        apply_node_config_overrides([], &mut config).unwrap();
+        assert_eq!(debug_with_keys_loaded(&config), before);
     }
 
     #[test]
@@ -1009,33 +992,26 @@ mod tests {
     }
 
     #[test]
-    fn enabling_the_grpc_api_needs_its_config_section() {
+    fn enabling_the_grpc_api_alone_is_rejected() {
         // The API is off on a built fullnode, which leaves `grpc-api-config`
         // an explicit `null`, so turning it on alone leaves the node unable
-        // to start.
-        let mut config = test_config();
-        assert!(!config.enable_grpc_api);
-        assert!(config.grpc_api_config.is_none());
-
+        // to start. A validator never starts the gRPC server at all.
         let enable: NodeConfigOverride = "enable-grpc-api=true".parse().unwrap();
-        let err = format!("{:#}", enable.apply_to(&mut config).unwrap_err());
-        assert!(
-            err.contains("`enable-grpc-api` is set but `grpc-api-config` is missing"),
-            "{err}"
-        );
-    }
-
-    #[test]
-    fn enabling_the_grpc_api_on_a_validator_is_rejected() {
-        // A validator never starts the gRPC server, so enabling it there is
-        // a setting the node would ignore.
-        let mut config = validator_test_config();
-        let enable: NodeConfigOverride = "enable-grpc-api=true".parse().unwrap();
-        let err = format!("{:#}", enable.apply_to(&mut config).unwrap_err());
-        assert!(
-            err.contains("validators do not expose the gRPC API"),
-            "{err}"
-        );
+        for (mut config, expected) in [
+            (
+                test_config(),
+                "`enable-grpc-api` is set but `grpc-api-config` is missing",
+            ),
+            (
+                validator_test_config(),
+                "validators do not expose the gRPC API",
+            ),
+        ] {
+            assert!(!config.enable_grpc_api);
+            assert!(config.grpc_api_config.is_none());
+            let err = format!("{:#}", enable.apply_to(&mut config).unwrap_err());
+            assert!(err.contains(expected), "{err}");
+        }
     }
 
     #[test]
@@ -1130,27 +1106,6 @@ mod tests {
     }
 
     #[test]
-    fn clearing_consensus_config_is_rejected_even_when_recreated() {
-        let mut config = validator_test_config();
-        let db_path = config.consensus_config.as_ref().unwrap().db_path.clone();
-
-        // A section recreated from a bare mapping would silently reset
-        // every field the second override does not mention.
-        let overrides: [NodeConfigOverride; 2] = [
-            "consensus-config=".parse().unwrap(),
-            "consensus-config={db-path: /tmp/replaced}".parse().unwrap(),
-        ];
-        let err = apply_node_config_overrides(&overrides, &mut config)
-            .unwrap_err()
-            .to_string();
-        assert!(
-            err.contains("`all:consensus-config` would remove `consensus-config`"),
-            "{err}"
-        );
-        assert_eq!(config.consensus_config.as_ref().unwrap().db_path, db_path);
-    }
-
-    #[test]
     fn batched_overrides_apply_in_order() {
         let mut config = test_config();
         let overrides: Vec<NodeConfigOverride> = [
@@ -1184,14 +1139,6 @@ mod tests {
             "{err}"
         );
         assert!(err.contains("all:not-a-field"), "{err}");
-        assert_eq!(debug_with_keys_loaded(&config), before);
-    }
-
-    #[test]
-    fn an_empty_batch_leaves_the_config_untouched() {
-        let mut config = test_config();
-        let before = debug_with_keys_loaded(&config);
-        apply_node_config_overrides(&[], &mut config).unwrap();
         assert_eq!(debug_with_keys_loaded(&config), before);
     }
 
@@ -1471,5 +1418,23 @@ mod tests {
             "{err}"
         );
         assert!(config.consensus_config.is_some());
+
+        // The reverse order is rejected too: a section recreated from a
+        // bare mapping would silently reset every field the second
+        // override does not mention.
+        let mut config = validator_test_config();
+        let db_path = config.consensus_config.as_ref().unwrap().db_path.clone();
+        let overrides: [NodeConfigOverride; 2] = [
+            "consensus-config=".parse().unwrap(),
+            "consensus-config={db-path: /tmp/replaced}".parse().unwrap(),
+        ];
+        let err = apply_node_config_overrides(&overrides, &mut config)
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("`all:consensus-config` would remove `consensus-config`"),
+            "{err}"
+        );
+        assert_eq!(config.consensus_config.as_ref().unwrap().db_path, db_path);
     }
 }
