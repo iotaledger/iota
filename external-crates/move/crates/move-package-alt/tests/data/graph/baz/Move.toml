@@ -9,4 +9,4 @@ mainnet = "6364aad5"
 testnet = "2304aa97"
 
 [dependencies]
-baz = { local = "../bar" }
+bar = { local = "../bar" }

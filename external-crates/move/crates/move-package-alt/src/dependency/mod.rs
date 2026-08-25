@@ -5,8 +5,8 @@
 
 mod dependency_set;
 pub mod external;
-mod git;
-mod local;
+pub mod git;
+pub mod local;
 mod onchain;
 
 use std::{collections::BTreeMap, path::PathBuf};
@@ -97,7 +97,7 @@ impl PinnedDependencyInfo {
 
     pub async fn fetch(&self) -> PackageResult<PathBuf> {
         match self {
-            PinnedDependencyInfo::Git(dep) => dep.fetch().await,
+            PinnedDependencyInfo::Git(dep) => Ok(dep.fetch().await?),
             PinnedDependencyInfo::Local(dep) => Ok(dep.unfetched_path().clone()),
             PinnedDependencyInfo::OnChain(dep) => todo!(),
         }
@@ -110,6 +110,14 @@ impl PinnedDependencyInfo {
             PinnedDependencyInfo::Git(dep) => dep.unfetched_path(),
             PinnedDependencyInfo::Local(dep) => dep.unfetched_path(),
             PinnedDependencyInfo::OnChain(dep) => todo!(),
+        }
+    }
+
+    pub fn as_git_dep(&self) -> Option<PinnedGitDependency> {
+        if let PinnedDependencyInfo::Git(dep) = self {
+            Some(dep.clone())
+        } else {
+            None
         }
     }
 }
