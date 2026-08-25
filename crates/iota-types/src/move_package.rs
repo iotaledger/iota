@@ -1113,15 +1113,6 @@ pub struct PackageMetadataKey {
 }
 
 impl PackageMetadataKey {
-    pub fn tag() -> StructTag {
-        StructTag::new(
-            Address::FRAMEWORK,
-            PACKAGE_METADATA_MODULE_NAME,
-            PACKAGE_METADATA_KEY_STRUCT_NAME,
-            Vec::new(),
-        )
-    }
-
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
         // Safe unwrap as the PackageMetadataKey struct is always serializable
         bcs::to_bytes(&self).unwrap()
@@ -1130,7 +1121,7 @@ impl PackageMetadataKey {
 
 pub fn derive_package_metadata_id(package_storage_id: ObjectId) -> ObjectId {
     package_storage_id.derive_object_id(
-        &PackageMetadataKey::tag().into(),
+        &StructTag::new_package_metadata_key().into(),
         &PackageMetadataKey::default().to_bcs_bytes(),
     )
 }
