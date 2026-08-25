@@ -557,6 +557,32 @@ fn compute_active_transaction_deny_rules_applies_stake_thresholds() {
     assert!(!active.package_upgrade_disabled);
 }
 
+/// `announced_deny_rule_stake` sums the committee stake behind recorded
+/// proposals: empty proposals count as announcements, non-members weigh 0.
+#[tokio::test]
+async fn announced_deny_rule_stake_counts_recorded_proposals() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+
+    assert_eq!(store.announced_deny_rule_stake(), 0);
+
+    // A non-member's recorded proposal contributes no stake.
+    flush_deny_rule_proposal(
+        &store,
+        deny_proposal(AuthorityName::ZERO, 1, DenyRuleSet::default()),
+    );
+    assert_eq!(store.announced_deny_rule_stake(), 0);
+
+    // An empty proposal is an announcement: the single-validator test
+    // committee holds all stake.
+    flush_deny_rule_proposal(&store, deny_proposal(me, 1, DenyRuleSet::default()));
+    assert_eq!(
+        store.announced_deny_rule_stake(),
+        store.committee().total_votes()
+    );
+}
+
 /// A proposal replaces the recorded one from the same authority only when its
 /// generation is strictly newer, both across commits
 /// (`should_record_deny_rule_proposal`) and within one commit
