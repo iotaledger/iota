@@ -111,9 +111,9 @@ pub struct ManifestGitDependency {
     #[serde(default)]
     pub rev: Option<String>,
 
-    /// The path within the repository
+    /// The subdir within the repository
     #[serde(default)]
-    pub path: PathBuf,
+    pub subdir: PathBuf,
 }
 
 /// Convenience type for serializing/deserializing external deps
