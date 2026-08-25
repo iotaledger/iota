@@ -23,7 +23,6 @@ use iota_types::{
     collection_types::VecMap,
     crypto::deterministic_random_account_private_key,
     dynamic_field::DynamicFieldName,
-    gas_coin::GAS,
     id::UID,
     object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -64,7 +63,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
 
     let nft_move_object = {
         MoveStruct::new_from_execution(
-            Nft::tag(),
+            StructTag::new_nft(),
             OBJECT_START_VERSION,
             bcs::to_bytes(&nft).unwrap(),
             &ProtocolConfig::get_for_min_version(),
@@ -97,7 +96,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
         .get_owned_objects(
             address,
             Some(IotaObjectResponseQuery::new(
-                Some(IotaObjectDataFilter::StructType(Nft::tag())),
+                Some(IotaObjectDataFilter::StructType(StructTag::new_nft())),
                 Some(
                     IotaObjectDataOptions::new()
                         .with_type()
@@ -466,7 +465,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
     let function_1 = Identifier::from_str("split")?;
     let function_2 = Identifier::from_str("divide_and_keep")?;
 
-    let iota_type_args = type_args![GAS::type_tag()]?;
+    let iota_type_args = type_args![TypeTag::from(StructTag::new_gas())]?;
     let type_args = iota_type_args
         .into_iter()
         .map(|ty| ty.try_into())
@@ -698,7 +697,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
     let bag_object_ref = objects.data.first().unwrap().object().unwrap().object_ref();
 
     let name = DynamicFieldName {
-        type_: TypeTag::U64,
+        type_tag: TypeTag::U64,
         value: IotaMoveValue::from(MoveValue::U64(0u64)).to_json_value(),
     };
 

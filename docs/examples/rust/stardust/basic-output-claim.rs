@@ -14,7 +14,6 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::BasicOutput,
@@ -22,7 +21,8 @@ use iota_sdk::{
     },
 };
 use iota_sdk_types::{
-    Argument, Identifier, ObjectId, SignatureScheme, Transaction, TypeTag, crypto::Intent,
+    Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
+    crypto::Intent,
 };
 use iota_types::transaction::TransactionAPI;
 
@@ -120,7 +120,7 @@ async fn main() -> Result<(), anyhow::Error> {
         ////// Command #1: extract the base token and native tokens bag.
         // Type argument for a Basic Output coming from the IOTA network, i.e., the IOTA
         // token or Gas type tag
-        let type_arguments = vec![GAS::type_tag()];
+        let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
         // Then pass the basic output object as input
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(basic_output_object_ref))?];
         // Finally call the basic_output::extract_assets function
@@ -163,7 +163,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             ////// Command #4: create a coin from the extracted IOTA balance
             // Type argument for the IOTA coin
-            let type_arguments = vec![GAS::type_tag()];
+            let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
             let arguments = vec![extracted_base_token];
             let new_iota_coin = builder.programmable_move_call(
                 ObjectId::FRAMEWORK,

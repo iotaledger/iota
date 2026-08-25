@@ -12,7 +12,7 @@ use std::{
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::Object as ObjectInner;
 use iota_sdk_types::{
-    Address, MoveObjectType, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
+    Address, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
     TransactionDigest, TypeTag, Version, move_package::MovePackage,
 };
 use move_binary_format::CompiledModule;
@@ -28,7 +28,7 @@ use crate::{
     error::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
-    gas_coin::{GAS, GasCoin},
+    gas_coin::GasCoin,
     iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
     move_package::MovePackageExt,
@@ -310,7 +310,10 @@ impl MoveStructExt for MoveStruct {
     /// purposes
     fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
         let balances = self.get_coin_balances(layout_resolver)?;
-        Ok(balances.get(&GAS::type_tag()).copied().unwrap_or(0))
+        Ok(balances
+            .get(&TypeTag::from(StructTag::new_gas()))
+            .copied()
+            .unwrap_or(0))
     }
 
     /// Get the total balances for all `Coin<T>` embedded in `self`.
@@ -484,10 +487,6 @@ impl std::ops::DerefMut for Object {
 }
 
 impl Object {
-    pub fn type_(&self) -> Option<&MoveObjectType> {
-        self.data.opt_object_type()
-    }
-
     pub fn is_coin(&self) -> bool {
         if let Some(move_object) = self.data.as_opt_struct() {
             move_object.struct_tag().is_coin()

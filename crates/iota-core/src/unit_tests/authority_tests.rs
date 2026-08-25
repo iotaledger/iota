@@ -3722,7 +3722,7 @@ async fn test_store_get_dynamic_field() {
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
     assert_eq!(json!(true), fields[0].name.value);
-    assert_eq!(TypeTag::Bool, fields[0].name.type_)
+    assert_eq!(TypeTag::Bool, fields[0].name.type_tag)
 }
 
 async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<DynamicFieldInfo>) {
@@ -3815,7 +3815,7 @@ async fn test_dynamic_field_struct_name_parsing() {
     assert_eq!(json!({"name_str": "Test Name"}), fields[0].name.value);
     assert_eq!(
         TypeTag::from_str("0x0::object_basics::Name").unwrap(),
-        fields[0].name.type_
+        fields[0].name.type_tag
     )
 }
 
@@ -3829,7 +3829,7 @@ async fn test_dynamic_field_bytearray_name_parsing() {
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
     assert_eq!(
         TypeTag::from_str("vector<u8>").unwrap(),
-        fields[0].name.type_
+        fields[0].name.type_tag
     );
     assert_eq!(json!("Test Name".as_bytes()), fields[0].name.value);
 }
@@ -3841,7 +3841,10 @@ async fn test_dynamic_field_address_name_parsing() {
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
-    assert_eq!(TypeTag::from_str("address").unwrap(), fields[0].name.type_);
+    assert_eq!(
+        TypeTag::from_str("address").unwrap(),
+        fields[0].name.type_tag
+    );
     assert_eq!(json!(sender), fields[0].name.value);
 }
 
@@ -3855,7 +3858,7 @@ async fn test_dynamic_object_field_struct_name_parsing() {
     assert_eq!(json!({"name_str": "Test Name"}), fields[0].name.value);
     assert_eq!(
         TypeTag::from_str("0x0::object_basics::Name").unwrap(),
-        fields[0].name.type_
+        fields[0].name.type_tag
     )
 }
 
@@ -3869,7 +3872,7 @@ async fn test_dynamic_object_field_bytearray_name_parsing() {
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
     assert_eq!(
         TypeTag::from_str("vector<u8>").unwrap(),
-        fields[0].name.type_
+        fields[0].name.type_tag
     );
     assert_eq!(json!("Test Name".as_bytes()), fields[0].name.value);
 }
@@ -3881,7 +3884,10 @@ async fn test_dynamic_object_field_address_name_parsing() {
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
-    assert_eq!(TypeTag::from_str("address").unwrap(), fields[0].name.type_);
+    assert_eq!(
+        TypeTag::from_str("address").unwrap(),
+        fields[0].name.type_tag
+    );
     assert_eq!(json!(sender), fields[0].name.value);
 }
 
@@ -6015,7 +6021,7 @@ async fn test_for_inc_201_dev_inspect() {
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
-        events.data[0].type_.name().to_string()
+        events.data[0].struct_tag.name().to_string()
     );
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }
@@ -6060,7 +6066,7 @@ async fn test_for_inc_201_dry_run() {
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
-        events.data[0].type_.name().to_string()
+        events.data[0].struct_tag.name().to_string()
     );
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }

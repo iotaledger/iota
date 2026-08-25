@@ -20,7 +20,6 @@ use iota_sdk_types::{
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
-    gas_coin::GAS,
     id::UID,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
@@ -252,7 +251,7 @@ fn move_call() {
                     ObjectId::FRAMEWORK,
                     "coin".to_string(),
                     "join".to_string(),
-                    type_args![GAS::type_tag()].unwrap(),
+                    type_args![TypeTag::from(StructTag::new_gas())].unwrap(),
                     call_args!(sender_coins[1], sender_coins[2]).unwrap(),
                     Some(gas),
                     10_000_000.into(),
@@ -411,7 +410,7 @@ fn batch_transaction() {
                             package_object_id: ObjectId::FRAMEWORK,
                             module: "pay".to_string(),
                             function: "split".to_string(),
-                            type_arguments: type_args![GAS::type_tag()]?,
+                            type_arguments: type_args![TypeTag::from(StructTag::new_gas())]?,
                             arguments: call_args!(coin_to_split, amount_to_split)?
                                 .into_iter()
                                 .map(PtbInput::CallArg)

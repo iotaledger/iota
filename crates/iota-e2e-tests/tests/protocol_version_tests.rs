@@ -442,7 +442,7 @@ mod sim_only_tests {
             .unwrap();
 
         let shared = get_object(&cluster, &shared_id).await;
-        let type_ = shared.type_().unwrap();
+        let type_ = shared.data.opt_object_type().unwrap();
         assert_eq!(type_.module().as_str(), "msim_extra_1");
         assert_eq!(type_.name().as_str(), "S");
 

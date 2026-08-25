@@ -435,7 +435,9 @@ impl CommandExt for Command {
                 .iter()
                 .map(|id| InputObjectKind::MovePackage(*id))
                 .collect(),
-            Command::MakeMoveVector(MakeMoveVector { type_: Some(t), .. }) => {
+            Command::MakeMoveVector(MakeMoveVector {
+                type_tag: Some(t), ..
+            }) => {
                 let mut packages = BTreeSet::new();
                 add_type_tag_packages(&mut packages, t);
                 packages
@@ -443,7 +445,7 @@ impl CommandExt for Command {
                     .map(InputObjectKind::MovePackage)
                     .collect()
             }
-            Command::MakeMoveVector(MakeMoveVector { type_: None, .. })
+            Command::MakeMoveVector(MakeMoveVector { type_tag: None, .. })
             | Command::TransferObjects(_)
             | Command::SplitCoins(_)
             | Command::MergeCoins(_) => vec![],
@@ -471,7 +473,7 @@ impl CommandExt for Command {
                 );
             }
             Command::MakeMoveVector(MakeMoveVector {
-                type_: ty_opt,
+                type_tag: ty_opt,
                 elements: args,
             }) => {
                 // ty_opt.is_none() ==> !args.is_empty()

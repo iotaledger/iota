@@ -9,7 +9,7 @@ Epoch advanced: 1
 
 task 2, line 12:
 //# update-deny-rules --package-publish-disabled --shared-object-disabled --move-authenticator-disabled
-events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), type_: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAAAAAAAAAABAAEAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" }
+events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), struct_tag: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAAAAAAAAAABAAEAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" }
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9, object(1,0)
 gas summary:
 ├── Computation Cost: 0
@@ -84,7 +84,7 @@ Contents: iota::dynamic_field::Field<u64, iota::transaction_deny_rules::Transact
 
 task 4, line 18:
 //# update-deny-rules --user-transaction-disabled
-events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), type_: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" }
+events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), struct_tag: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=" }
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9, object(1,0)
 gas summary:
 ├── Computation Cost: 0

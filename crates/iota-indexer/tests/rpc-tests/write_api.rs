@@ -357,7 +357,7 @@ fn dry_run_publish_resolves_events_of_the_published_package() {
             response.events.data
         );
         let event = &response.events.data[0];
-        assert_eq!(event.type_.name().to_string(), "PublishEvent");
+        assert_eq!(event.struct_tag.name().to_string(), "PublishEvent");
         // An unresolved type would leave the payload undecoded.
         assert_eq!(event.parsed_json, serde_json::json!({ "foo": "bar" }));
     });
@@ -1767,10 +1767,14 @@ fn move_view_function_call() {
         let return_values = view_results.into_return_values();
         assert_eq!(return_values.len(), 1);
         let wat = &return_values[0];
-        let IotaMoveValue::Struct(IotaMoveStruct::WithTypes { type_, fields }) = wat else {
+        let IotaMoveValue::Struct(IotaMoveStruct::WithTypes {
+            struct_tag: tag,
+            fields,
+        }) = wat
+        else {
             panic!("return value should have been a struct");
         };
-        assert_eq!(type_.name().to_string(), "Wat");
+        assert_eq!(tag.name().to_string(), "Wat");
         assert!(fields.contains_key(&"counter".to_string()));
 
         // Test mixed object, bool and address arguments.

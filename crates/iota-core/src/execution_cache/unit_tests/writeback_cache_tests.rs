@@ -55,7 +55,7 @@ fn random_event() -> Event {
         package_id: ObjectId::random(),
         module: Identifier::new("test").unwrap(),
         sender: Address::random(),
-        type_: StructTag::new(
+        struct_tag: StructTag::new(
             Address::random(),
             Identifier::new("test").unwrap(),
             Identifier::new("test").unwrap(),

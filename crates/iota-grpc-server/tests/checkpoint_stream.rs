@@ -1050,7 +1050,7 @@ fn build_checkpoint_transactions_with_events(
                     package_id: ObjectId::ZERO,
                     module: Identifier::from_static("test_module"),
                     sender,
-                    type_: StructTag::new(
+                    struct_tag: StructTag::new(
                         Address::ZERO,
                         Identifier::from_static("test_module"),
                         Identifier::from_static("TestEvent"),

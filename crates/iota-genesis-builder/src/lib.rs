@@ -1248,7 +1248,11 @@ mod test {
 
         let genesis = builder.get_or_build_unsigned_genesis();
         for object in genesis.objects() {
-            println!("ObjectId: {} Type: {:?}", object.id(), object.type_());
+            println!(
+                "ObjectId: {} Type: {:?}",
+                object.id(),
+                object.data.opt_object_type()
+            );
         }
         builder.save(dir.path()).unwrap();
         Builder::load(dir.path()).unwrap();

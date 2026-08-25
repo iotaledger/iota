@@ -162,7 +162,7 @@ impl Display for Pretty<'_, Command> {
             }
             Command::MakeMoveVector(cmd) => {
                 write!(f, "MakeMoveVector:\n ┌")?;
-                if let Some(ty) = &cmd.type_ {
+                if let Some(ty) = &cmd.type_tag {
                     write!(f, "\n │ Type Tag: {ty}")?;
                 }
                 write!(f, "\n │ Arguments:\n │   ")?;
