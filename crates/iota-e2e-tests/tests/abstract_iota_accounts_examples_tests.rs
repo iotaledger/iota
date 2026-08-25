@@ -38,7 +38,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference,
     OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference, SignatureScheme,
-    Transaction, TransactionEffects, TypeTag, UserSignature, crypto::Intent,
+    Transaction, TransactionEffects, TypeTag, UserSignature, WriteKind, crypto::Intent,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -46,7 +46,6 @@ use iota_types::{
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    storage::WriteKind,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
         TransactionEnvelope,

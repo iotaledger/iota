@@ -27,7 +27,7 @@ use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, ExecutionError, Identifier, MoveAuthenticatorV1, MoveLocation, ObjectId,
     ObjectReference, OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
-    SignatureScheme, Transaction, TransactionEffects, TypeTag, UserSignature,
+    SignatureScheme, Transaction, TransactionEffects, TypeTag, UserSignature, WriteKind,
     crypto::{Intent, SimpleSignature},
 };
 use iota_test_transaction_builder::publish_package;
@@ -40,7 +40,6 @@ use iota_types::{
     move_package,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::QuorumDriverResponse,
-    storage::WriteKind,
     transaction::{
         CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI,
         TransactionEnvelope,

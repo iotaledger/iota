@@ -17,7 +17,7 @@ use iota_sdk_types::{
     OwnedObjectReference, Owner, ProgrammableTransaction, SenderSignedTransaction,
     SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
     TransactionEventsDigest, TransactionKind, TransferObjects, TypeTag, UserSignature, Version,
-    VersionAssignment, gas::GasCostSummary,
+    VersionAssignment, WriteKind, gas::GasCostSummary,
 };
 use iota_types::{
     base_types::EpochId,
@@ -31,7 +31,7 @@ use iota_types::{
     object::bounded_visitor::BoundedVisitor,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
-    storage::{DeleteKind, WriteKind},
+    storage::DeleteKind,
     transaction::{CallArg, InputObjectKind, TransactionAPI},
 };
 use move_binary_format::CompiledModule;

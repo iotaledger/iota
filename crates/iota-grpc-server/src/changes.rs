@@ -18,14 +18,14 @@ use std::{
 
 use iota_grpc_types::v1::transaction as grpc_tx;
 use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectDigest, ObjectId, OwnedObjectReference, Owner, StructTag,
-    TransactionEffects, TypeTag, Version,
+    Address, ExecutionStatus, ObjectDigest, ObjectId, ObjectRemoveKind, OwnedObjectReference,
+    Owner, StructTag, TransactionEffects, TypeTag, Version, WriteKind,
 };
 use iota_types::{
     coin::Coin,
-    effects::{ObjectRemoveKind, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    gas_coin::GAS,
     object::Object,
-    storage::WriteKind,
 };
 
 /// Error deriving balance or object changes from a transaction's effects.

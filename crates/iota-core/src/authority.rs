@@ -43,7 +43,7 @@ use iota_sdk_types::{
     ExecutionStatus, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
     RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
     TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
-    TransactionKind, TypeTag, Version,
+    TransactionKind, TypeTag, Version, WriteKind,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentScope},
     gas::GasCostSummary,
@@ -106,9 +106,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticatorExt,
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
-    storage::{
-        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
-    },
+    storage::{BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore},
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },

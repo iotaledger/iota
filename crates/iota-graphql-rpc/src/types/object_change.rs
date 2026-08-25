@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_sdk_types::IdOperation;
-use iota_types::effects::ObjectChange as NativeObjectChange;
+use iota_sdk_types::{IdOperation, ObjectChange as NativeObjectChange};
 
 use crate::types::{iota_address::IotaAddress, object::Object};
 

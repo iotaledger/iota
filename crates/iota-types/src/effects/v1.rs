@@ -5,13 +5,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    Address, ObjectDigest, ObjectVersion, OwnedObjectReference, TransactionDigest,
+    Address, ObjectChange, ObjectDigest, ObjectVersion, OwnedObjectReference, TransactionDigest,
     TransactionEventsDigest,
 };
 
 use super::{
     ChangedObject, EpochId, ExecutionStatus, GasCostSummary, IdOperation, InputSharedObject,
-    ObjectChange, ObjectId, ObjectIn, ObjectOut, ObjectReference, Owner, TransactionEffectsV1,
+    ObjectId, ObjectIn, ObjectOut, ObjectReference, Owner, TransactionEffectsV1,
     UnchangedSharedKind, UnchangedSharedObject, Version,
 };
 use crate::{

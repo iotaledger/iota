@@ -5,9 +5,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectDigest, ObjectId, ObjectReference,
-    Owner, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
-    UnchangedSharedKind, UnchangedSharedObject, Version,
+    EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectChange, ObjectDigest, ObjectId,
+    ObjectReference, ObjectRemoveKind, ObjectVersion, OwnedObjectReference, Owner,
+    TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest, UnchangedSharedKind,
+    UnchangedSharedObject, Version, WriteKind,
     crypto::Intent,
     effects::{
         ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
@@ -26,7 +27,6 @@ use crate::{
     error::IotaResult,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
-    storage::WriteKind,
 };
 
 mod test_effects_builder;
@@ -57,8 +57,6 @@ impl Message for TransactionEffects {
         TransactionEffectsDigest::new(default_hash(self))
     }
 }
-
-pub use iota_sdk_types::ObjectRemoveKind;
 
 /// Description of a shared object that was used as input to a transaction.
 ///
@@ -93,8 +91,6 @@ impl InputSharedObject {
         }
     }
 }
-
-pub use iota_sdk_types::{ObjectChange, ObjectVersion, OwnedObjectReference};
 
 mod transaction_effects_api {
     pub trait Sealed {}

@@ -18,7 +18,7 @@ use std::{
 
 use iota_sdk_types::{
     ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest, TransactionEffects,
-    Version, move_package::MovePackage,
+    Version, WriteKind, move_package::MovePackage,
 };
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
@@ -89,8 +89,6 @@ impl From<&Object> for InputKey {
         }
     }
 }
-
-pub use iota_sdk_types::WriteKind;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
 pub enum DeleteKind {
