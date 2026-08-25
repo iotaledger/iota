@@ -365,9 +365,6 @@ pub(crate) struct DagState {
     /// leader rounds, keyed by leader round.
     starfish_speed_leader_hints: BTreeMap<Round, StarfishSpeedLeaderRoundHints>,
 
-    /// Commitment over an empty transaction list for this committee.
-    empty_transactions_commitment: TransactionsCommitment,
-
     /// Broadcast sender for DAG visualizer events.
     #[cfg(feature = "dag-visualizer")]
     dag_visualizer_sender: Option<tokio::sync::broadcast::Sender<DagVisualizerEvent>>,
@@ -463,9 +460,6 @@ impl DagState {
             unscored_committed_subdags.len()
         );
 
-        let empty_transactions_commitment =
-            TransactionsCommitment::compute_empty_transactions_commitment(&context);
-
         let mut state = Self {
             context,
             genesis,
@@ -497,7 +491,6 @@ impl DagState {
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
             starfish_speed_leader_hints: BTreeMap::new(),
-            empty_transactions_commitment,
             #[cfg(feature = "dag-visualizer")]
             dag_visualizer_sender: None,
         };
@@ -1144,7 +1137,7 @@ impl DagState {
                 transactions[index] = Some(transaction.clone());
                 continue;
             }
-            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+            if let Some(empty) = self.context.empty_transactions_for_ref(*transactions_ref) {
                 transactions[index] = Some(empty);
                 continue;
             }
@@ -1201,7 +1194,7 @@ impl DagState {
                 transactions[index] = Some(transaction.serialized().clone());
                 continue;
             }
-            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+            if let Some(empty) = self.context.empty_transactions_for_ref(*transactions_ref) {
                 transactions[index] = Some(empty.serialized().clone());
                 continue;
             }
@@ -2070,7 +2063,7 @@ impl DagState {
                 exist[index] = self.get_genesis_block(tx_ref).is_some();
                 continue;
             }
-            if self.empty_transactions_for_ref(&tx_ref).is_some() {
+            if self.context.empty_transactions_for_ref(tx_ref).is_some() {
                 exist[index] = true;
                 continue;
             }
@@ -2263,15 +2256,19 @@ impl DagState {
         let Some(header) = self.recent_block_headers.get(block_ref) else {
             return false;
         };
-        // An empty payload is fully determined by the header's commitment.
-        if header.transactions_commitment() == self.empty_transactions_commitment {
-            return true;
-        }
-        let transaction_ref = GenericTransactionRef::from(TransactionRef {
+        let transaction_ref = TransactionRef {
             round: block_ref.round,
             author: block_ref.author,
             transactions_commitment: header.transactions_commitment(),
-        });
+        };
+        if self
+            .context
+            .empty_transactions_for_ref(transaction_ref.into())
+            .is_some()
+        {
+            return true;
+        }
+        let transaction_ref = GenericTransactionRef::from(transaction_ref);
         self.recent_transactions_by_authority[block_ref.author].contains_key(&transaction_ref)
     }
 
@@ -2980,23 +2977,6 @@ impl DagState {
                     .base
             })
             .collect()
-    }
-
-    /// Returns the empty transactions object for `tx_ref` when its commitment
-    /// is the commitment over an empty transaction list, `None` otherwise.
-    fn empty_transactions_for_ref(
-        &self,
-        tx_ref: &GenericTransactionRef,
-    ) -> Option<CommitmentVerifiedTransactions> {
-        match tx_ref {
-            GenericTransactionRef::TransactionRef(tx_ref) => (tx_ref.transactions_commitment
-                == self.empty_transactions_commitment)
-                .then(|| CommitmentVerifiedTransactions::new_empty_from_ref(*tx_ref, None)),
-            // The legacy BlockRef form carries no commitment; commits that
-            // use it derive refs from acknowledgments, which never include
-            // empty blocks.
-            GenericTransactionRef::BlockRef(_) => None,
-        }
     }
 
     /// Rounds the last commit's leader is ahead of the last solid commit's

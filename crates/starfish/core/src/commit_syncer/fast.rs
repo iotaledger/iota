@@ -657,6 +657,13 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             );
         })?;
 
+        // Empty payloads can be recovered from their commitments.
+        fill_missing_empty_transactions(
+            &inner.context,
+            &mut committed_tx_refs,
+            &mut fetched_transactions,
+        );
+
         // The response may be missing transactions for a suffix of the commits,
         // e.g. when the stream was cut off by the response byte limit or a
         // mid-stream network error. Keep the prefix of commits whose
@@ -1006,6 +1013,20 @@ fn process_serialized_transactions(
     Ok(fetched_transactions)
 }
 
+fn fill_missing_empty_transactions(
+    context: &Context,
+    committed_tx_refs: &mut BTreeSet<TransactionRef>,
+    fetched_transactions: &mut BTreeMap<TransactionRef, Bytes>,
+) {
+    committed_tx_refs.retain(|transaction_ref| {
+        let Some(empty) = context.empty_transactions_for_ref((*transaction_ref).into()) else {
+            return true;
+        };
+        fetched_transactions.insert(*transaction_ref, empty.serialized().clone());
+        false
+    });
+}
+
 /// Truncates verified `commits` (and their aligned per-commit transaction
 /// refs in `commits_tx_refs`) to the longest prefix whose committed
 /// transactions are all present in `fetched_transactions`, and drops fetched
@@ -1155,14 +1176,26 @@ mod tests {
         pub(crate) fn two_commit_response(
             context: &Arc<Context>,
         ) -> (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>) {
+            two_commit_response_with_payloads(
+                context,
+                [
+                    vec![Transaction::new(vec![1u8; 16])],
+                    vec![Transaction::new(vec![2u8; 16])],
+                ],
+            )
+        }
+
+        fn two_commit_response_with_payloads(
+            context: &Arc<Context>,
+            transactions: [Vec<Transaction>; 2],
+        ) -> (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>) {
             let mut encoder = create_encoder(context);
 
             // Two chained commits, each committing one transaction.
             let mut transaction_refs = Vec::new();
             let mut serialized_transactions = Vec::new();
-            for round in 1..=2u32 {
-                let serialized =
-                    Transaction::serialize(&[Transaction::new(vec![round as u8; 16])]).unwrap();
+            for (round, transactions) in (1..=2u32).zip(transactions) {
+                let serialized = Transaction::serialize(&transactions).unwrap();
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized,
                     context,
@@ -1284,6 +1317,38 @@ mod tests {
                     .get(),
                 1
             );
+        }
+
+        #[tokio::test]
+        async fn fills_empty_payload_omitted_by_peer() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) =
+                two_commit_response_with_payloads(
+                    &context,
+                    [vec![], vec![Transaction::new(vec![2u8; 16])]],
+                );
+            response_transactions.remove(0);
+
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, response_transactions)),
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client);
+
+            let output = FastCommitSyncer::fetch_once(
+                inner,
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(output.commits.len(), 2);
+            assert_eq!(output.committed_subdags.len(), 2);
+            assert_eq!(output.committed_subdags[0].transactions.len(), 1);
+            assert!(!output.committed_subdags[0].transactions[0].has_transactions());
+            assert!(output.committed_subdags[1].transactions[0].has_transactions());
         }
 
         /// Runs `fetch_once` against a preset response served by authority 1

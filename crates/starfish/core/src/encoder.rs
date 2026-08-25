@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 pub(crate) use reed_solomon_simd::ReedSolomonEncoder;
+use starfish_config::Committee;
 
 use crate::{block_header::Shard, context::Context, error::ConsensusError};
 
@@ -128,8 +129,14 @@ fn create_shards_from_serialized_transactions(
     data
 }
 pub(crate) fn create_encoder(context: &Arc<Context>) -> Box<dyn ShardEncoder + Send + Sync> {
-    let info_length = context.committee.info_length();
-    let parity_length = context.committee.size() - info_length;
+    create_encoder_for_committee(&context.committee)
+}
+
+pub(crate) fn create_encoder_for_committee(
+    committee: &Committee,
+) -> Box<dyn ShardEncoder + Send + Sync> {
+    let info_length = committee.info_length();
+    let parity_length = committee.size() - info_length;
     if info_length == 0 {
         panic!("Info length must be greater than 0");
     }
