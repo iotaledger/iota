@@ -210,6 +210,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Add the `iota::transaction_deny_rules` framework module and its
 //             reserved object ID 0xDE9 (dormant until deny-rule governance
 //             activates).
+//             Stop locking immutable objects in post-consensus conflict
+//             resolution.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -577,6 +579,13 @@ struct FeatureFlags {
     // conflict resolution) using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
+
+    // If true, immutable transaction inputs do not acquire owned-object locks
+    // in post-consensus conflict resolution — such a lock is never released
+    // and blocks every later reader until the epoch ends. Has no effect
+    // unless `enable_pcool_flow` is set.
+    #[serde(skip_serializing_if = "is_false")]
+    pcool_skip_immutable_object_locks: bool,
 
     // If true perform consistent verification of metadata
     #[serde(skip_serializing_if = "is_false")]
@@ -1449,6 +1458,18 @@ pub struct ProtocolConfig {
     /// validators in any epoch to go above this.
     max_committee_members_count: Option<u64>,
 
+    /// Maximum number of added plus removed entries one injected
+    /// `TransactionDenyRulesUpdate` transaction may carry; a larger diff is
+    /// split into multiple transactions in the same commit. Set together with
+    /// the `deny_rule_governance` feature flags.
+    deny_rule_update_max_entries_per_tx: Option<u64>,
+
+    /// Consensus round before which removals are never injected into the
+    /// `TransactionDenyRules` object, so validators can re-announce their
+    /// rules after an epoch change before unsupported entries are dropped.
+    /// Set together with the `deny_rule_governance` feature flags.
+    deny_rule_removal_grace_round_floor: Option<u64>,
+
     /// Configures the garbage collection depth for consensus. When is unset or
     /// `0` then the garbage collection is disabled.
     consensus_gc_depth: Option<u32>,
@@ -1926,6 +1947,10 @@ impl ProtocolConfig {
         self.feature_flags.enable_pcool_flow
     }
 
+    pub fn pcool_skip_immutable_object_locks(&self) -> bool {
+        self.feature_flags.pcool_skip_immutable_object_locks
+    }
+
     pub fn validator_metadata_verify_v2(&self) -> bool {
         self.feature_flags.validator_metadata_verify_v2
     }
@@ -2104,6 +2129,38 @@ impl ProtocolConfig {
             !ret.feature_flags.deny_rule_governance_on_chain
                 || ret.feature_flags.deny_rule_governance,
             "deny_rule_governance_on_chain requires deny_rule_governance"
+        );
+        // The injection cannot chunk updates or gate removals without its
+        // knobs.
+        assert!(
+            !ret.feature_flags.deny_rule_governance_on_chain
+                || (ret.deny_rule_update_max_entries_per_tx.is_some()
+                    && ret.deny_rule_removal_grace_round_floor.is_some()),
+            "deny_rule_governance_on_chain requires deny_rule_update_max_entries_per_tx and deny_rule_removal_grace_round_floor"
+        );
+        // A deny-rule update chunk must always execute, or the object falls
+        // permanently behind the mirrored state on every validator at once.
+        // The binding limits are `max_event_emit_size` (the update event
+        // carries every entry, ~32 bytes each) and the object-runtime store
+        // entries touched when removals re-link `LinkedTable` nodes — neither
+        // expressible as an entry count here, so the constant keeps a wide
+        // margin below them (tightest is roughly 5000 entries).
+        const DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING: u64 = 2048;
+        assert!(
+            ret.deny_rule_update_max_entries_per_tx
+                .is_none_or(|max_entries| {
+                    max_entries > 0
+                        && max_entries <= DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING
+                        && [
+                            ret.max_num_new_move_object_ids_system_tx,
+                            ret.max_num_deleted_move_object_ids_system_tx,
+                            ret.object_runtime_max_num_cached_objects_system_tx,
+                            ret.object_runtime_max_num_store_entries_system_tx,
+                        ]
+                        .iter()
+                        .all(|limit| limit.is_none_or(|limit| max_entries <= limit))
+                }),
+            "deny_rule_update_max_entries_per_tx must be positive, at most {DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING}, and within the system transaction object limits"
         );
 
         ret
@@ -2625,6 +2682,8 @@ impl ProtocolConfig {
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
 
             max_committee_members_count: None,
+            deny_rule_update_max_entries_per_tx: None,
+            deny_rule_removal_grace_round_floor: None,
 
             consensus_gc_depth: None,
 
@@ -3299,6 +3358,10 @@ impl ProtocolConfig {
                         // unprovable block-fault counter.
                         cfg.scorer_version = Some(2);
                     }
+                    // Stop locking immutable objects in post-consensus conflict
+                    // resolution. Set on all chains; inert where the P-COOL flow
+                    // is off.
+                    cfg.feature_flags.pcool_skip_immutable_object_locks = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3549,6 +3612,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
+    }
+
+    pub fn set_pcool_skip_immutable_object_locks_for_testing(&mut self, val: bool) {
+        self.feature_flags.pcool_skip_immutable_object_locks = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
@@ -3819,6 +3886,51 @@ mod test {
                 .unwrap()
                 == &true
         );
+    }
+
+    /// A chunk limit above the executability ceiling would fail execution on
+    /// every validator at once, so the configuration is rejected at startup
+    /// rather than at the flip.
+    #[test]
+    #[should_panic(expected = "deny_rule_update_max_entries_per_tx must be positive")]
+    fn deny_rule_chunk_limit_above_the_ceiling_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_deny_rule_governance_for_testing(true);
+            config.set_deny_rule_governance_on_chain_for_testing(true);
+            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_deny_rule_update_max_entries_per_tx_for_testing(2048 + 1);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// A zero chunk limit would make every delta unsplittable; the pure
+    /// chunking function clamps it, but the configuration is still invalid.
+    #[test]
+    #[should_panic(expected = "deny_rule_update_max_entries_per_tx must be positive")]
+    fn deny_rule_chunk_limit_of_zero_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_deny_rule_governance_for_testing(true);
+            config.set_deny_rule_governance_on_chain_for_testing(true);
+            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_deny_rule_update_max_entries_per_tx_for_testing(0);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// The value the flip is expected to ship stays inside the limits.
+    #[test]
+    fn deny_rule_chunk_limit_within_system_tx_object_id_limit_is_accepted() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_deny_rule_governance_for_testing(true);
+            config.set_deny_rule_governance_on_chain_for_testing(true);
+            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert_eq!(config.deny_rule_update_max_entries_per_tx(), 1000);
     }
 
     #[test]

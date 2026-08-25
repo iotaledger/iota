@@ -16,7 +16,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::dbg_addr,
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::{InputSharedObject, TransactionEffectsAPI},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
@@ -69,7 +69,7 @@ struct TestSetup {
     setup_authority_state: Arc<AuthorityState>,
     protocol_config: ProtocolConfig,
     sender: Address,
-    sender_key: AccountKeyPair,
+    sender_key: AccountPrivateKey,
     package: ObjectReference,
     gas_object_id: ObjectId,
 }
@@ -79,7 +79,7 @@ impl TestSetup {
         max_execution_duration_per_commit: u64,
         max_congestion_limit_overshoot_per_commit: u64,
     ) -> Self {
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
@@ -228,7 +228,7 @@ async fn build_test_transaction(
     authority_state: &AuthorityState,
     package: &ObjectReference,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
     shared_objects: &[(ObjectId, Version)],
     owned_object: &ObjectReference,
@@ -293,7 +293,7 @@ async fn commit_and_execute_transaction(
     authority_state: &AuthorityState,
     package: &ObjectReference,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
     shared_objects: &[(ObjectId, Version)],
     owned_object: &ObjectReference,
@@ -1008,7 +1008,7 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_1_id = ObjectId::random();
     let object_2_id = ObjectId::random();
     let gas_ids: Vec<ObjectId> = (0..4).map(|_| ObjectId::random()).collect();
@@ -1226,7 +1226,7 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_1_id = ObjectId::random();
     let object_2_id = ObjectId::random();
     let gas_1_id = ObjectId::random();
@@ -1542,7 +1542,7 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_ids = [ObjectId::random(), ObjectId::random()];
     let gas_ids = [
         [ObjectId::random(), ObjectId::random()],

@@ -117,6 +117,24 @@ pub enum EpochStartConfiguration {
 }
 
 impl EpochStartConfiguration {
+    /// Test-only: stamps the deny-rules object fields onto a V3 config, as
+    /// `new` does when the object exists at the epoch boundary.
+    #[cfg(test)]
+    pub fn set_transaction_deny_rules_for_testing(
+        &mut self,
+        initial_shared_version: Version,
+        state: DenyRuleSet,
+    ) {
+        match self {
+            Self::V3(config) => {
+                config.transaction_deny_rules_obj_initial_shared_version =
+                    Some(initial_shared_version);
+                config.transaction_deny_rules_state = Some(state);
+            }
+            _ => panic!("only a V3 config carries deny-rules fields"),
+        }
+    }
+
     pub fn new(
         system_state: EpochStartSystemState,
         epoch_digest: CheckpointDigest,

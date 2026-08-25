@@ -1343,6 +1343,7 @@
                 "pass_calculated_validator_scores_to_advance_epoch": true,
                 "pass_validator_scores_to_advance_epoch": true,
                 "passkey_auth": true,
+                "pcool_skip_immutable_object_locks": true,
                 "pre_consensus_sponsor_only_move_authentication": true,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
@@ -1525,6 +1526,8 @@
                 "debug_print_stack_trace_base_cost": {
                   "u64": "52"
                 },
+                "deny_rule_removal_grace_round_floor": null,
+                "deny_rule_update_max_entries_per_tx": null,
                 "dynamic_field_add_child_object_cost_base": {
                   "u64": "100"
                 },

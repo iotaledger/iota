@@ -42,8 +42,8 @@ use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
     ExecutionStatus, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
     RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents, TypeTag,
-    Version,
+    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
+    TransactionKind, TypeTag, Version,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentScope},
     gas::GasCostSummary,
@@ -1039,10 +1039,19 @@ impl AuthorityState {
 
         // Get the input objects for the authenticators, if there are
         // `MoveAuthenticator`s.
-        let per_authenticator_checked_input_objects = per_authenticator_checked_inputs
+        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
             .iter()
             .map(|i| &i.0)
             .collect();
+
+        // Move authenticators cannot use owned objects, so their inputs never
+        // acquire owned-object locks.
+        debug_assert!(
+            per_authenticator_checked_input_objects
+                .iter()
+                .all(|objects| objects.inner().filter_owned_objects().is_empty()),
+            "Move authenticator input objects must not contain owned objects"
+        );
 
         // Check if any of the sender, the transaction input objects, the receiving
         // objects and the authenticator input objects are in the coin deny
@@ -1073,6 +1082,13 @@ impl AuthorityState {
         // of deferral.
         let pre_consensus_move_authenticators =
             pre_consensus_move_authenticators(transaction, protocol_config);
+        // Asserted before the zip below pairs them positionally; the two lists
+        // come from independent computations.
+        debug_assert_eq!(
+            move_authenticators.len(),
+            per_authenticator_checked_inputs.len(),
+            "Move authenticators amount must match the number of checked authenticator inputs"
+        );
         let (move_authenticators, per_authenticator_checked_inputs): (Vec<_>, Vec<_>) =
             move_authenticators
                 .into_iter()
@@ -1091,12 +1107,6 @@ impl AuthorityState {
                 iota_transaction_checks::aggregate_authenticator_input_objects(
                     &per_authenticator_checked_input_objects,
                 )?;
-
-            debug_assert_eq!(
-                move_authenticators.len(),
-                per_authenticator_checked_inputs.len(),
-                "Move authenticators amount must match the number of checked authenticator inputs"
-            );
 
             let move_authenticators = move_authenticators
                 .into_iter()
@@ -1712,6 +1722,7 @@ impl AuthorityState {
             &effects,
             tx_guard,
             execution_guard,
+            expected_effects_digest,
             epoch_store,
         )?;
 
@@ -1745,6 +1756,7 @@ impl AuthorityState {
         effects: &TransactionEffects,
         tx_guard: TxGuard,
         _execution_guard: ExecutionLockReadGuard<'_>,
+        expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult {
         let _scope: Option<iota_metrics::MonitoredScopeGuard> =
@@ -1781,6 +1793,13 @@ impl AuthorityState {
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
+
+        self.report_failed_deny_rule_update_execution(
+            transaction,
+            effects,
+            expected_effects_digest,
+            epoch_store,
+        );
 
         if transaction.transaction().is_end_of_epoch_tx() {
             // At the end of epoch, since system packages may have been upgraded, force
@@ -2538,9 +2557,10 @@ impl AuthorityState {
                         oref.version
                     );
 
-                    let type_ = new_object
-                        .type_()
-                        .map(|type_| ObjectType::Struct(type_.clone()))
+                    let object_type = new_object
+                        .data
+                        .opt_object_type()
+                        .map(|ty| ObjectType::Struct(ty.clone()))
                         .unwrap_or(ObjectType::Package);
 
                     new_owners.push((
@@ -2549,7 +2569,7 @@ impl AuthorityState {
                             object_id: *id,
                             version: oref.version,
                             digest: oref.digest,
-                            type_,
+                            object_type,
                             owner,
                             previous_transaction: *effects.transaction_digest(),
                         },
@@ -2646,7 +2666,7 @@ impl AuthorityState {
             })?;
 
         let name = DynamicFieldName {
-            type_: name_type,
+            type_tag: name_type,
             value: IotaMoveValue::from(name_value).to_json_value(),
         };
 
@@ -3269,6 +3289,111 @@ impl AuthorityState {
         self.execution_lock.write().await
     }
 
+    /// Reports a mirror that diverged from the object at the epoch boundary,
+    /// where the two must agree. Reporting is the remedy: reconfiguration
+    /// re-seeds the mirror from the object, so failing here would only pin
+    /// the node to the diverged state. A missing object is fatal instead.
+    /// Objects cannot be deleted, so the local store lost it and there is
+    /// nothing to re-seed from. Nodes outside the closing committee are
+    /// exempt. So is an epoch this node's consensus did not close. A
+    /// checkpoint catch-up leaves the mirror legitimately behind until the
+    /// re-seed.
+    pub(crate) fn check_transaction_deny_rules_consistency(
+        &self,
+        cur_epoch_store: &AuthorityPerEpochStore,
+        epoch_start_configuration: &EpochStartConfiguration,
+    ) {
+        if self.is_fullnode(cur_epoch_store) {
+            return;
+        }
+        let Some(walked_deny_rules) = epoch_start_configuration.transaction_deny_rules_state()
+        else {
+            if cur_epoch_store
+                .epoch_start_config()
+                .transaction_deny_rules_obj_initial_shared_version()
+                .is_some()
+            {
+                fatal!(
+                    "TransactionDenyRules object existed in epoch {} but is missing from the \
+                     state walked for the next epoch — the local store is corrupted; restore or \
+                     state-sync before rejoining",
+                    cur_epoch_store.epoch(),
+                );
+            }
+            return;
+        };
+        // RejectAllTx proves this node's consensus processed every commit of
+        // the epoch, so the mirror is complete. Otherwise the tail came from
+        // synced checkpoints and the mirror's lag carries no signal.
+        if cur_epoch_store
+            .get_reconfig_state_read_lock_guard()
+            .should_accept_tx()
+        {
+            info!(
+                "skipping the deny-rule mirror comparison: consensus did not close epoch {} on \
+                 this node",
+                cur_epoch_store.epoch(),
+            );
+            return;
+        }
+        let mirrored_deny_rules = cur_epoch_store.get_mirrored_transaction_deny_rules();
+        if *walked_deny_rules != *mirrored_deny_rules {
+            debug_fatal!(
+                "TransactionDenyRules object diverged from the mirrored state at the end of \
+                 epoch {}; continuing from the object (walked: {walked_deny_rules:?}, mirrored: \
+                 {mirrored_deny_rules:?})",
+                cur_epoch_store.epoch(),
+            );
+            cur_epoch_store.metrics.deny_rule_mirror_divergence.set(1);
+        }
+    }
+
+    /// Reports a `TransactionDenyRulesUpdate` whose execution failed — an
+    /// invariant violation, the update is built to exclude every expected
+    /// failure. The object misses the delta until the epoch boundary re-seeds
+    /// the mirror. Identification is by kind, so the report needs no tracking
+    /// state and holds across restarts and replays.
+    ///
+    /// `expected_effects_digest` is `Some` when these effects were handed to
+    /// this node with the transaction, which is the case while executing a
+    /// certified checkpoint: the failure is then part of agreed history, so it
+    /// is reported without asserting. Effects the node derived itself assert,
+    /// because only then is the broken invariant its own.
+    pub(crate) fn report_failed_deny_rule_update_execution(
+        &self,
+        transaction: &VerifiedExecutableTransaction,
+        effects: &TransactionEffects,
+        expected_effects_digest: Option<TransactionEffectsDigest>,
+        epoch_store: &AuthorityPerEpochStore,
+    ) {
+        if !matches!(
+            transaction.transaction().kind(),
+            TransactionKind::TransactionDenyRulesUpdate(_)
+        ) || effects.status().is_success()
+        {
+            return;
+        }
+        epoch_store
+            .metrics
+            .deny_rule_update_execution_failures
+            .inc();
+        if expected_effects_digest.is_some() {
+            error!(
+                digest = ?transaction.digest(),
+                status = ?effects.status(),
+                "TransactionDenyRulesUpdate failed execution; the object misses its delta until \
+                 the epoch boundary re-seeds the mirror"
+            );
+            return;
+        }
+        debug_fatal!(
+            "TransactionDenyRulesUpdate failed execution; the object misses its delta until the \
+             epoch boundary re-seeds the mirror (digest: {:?}, status: {:?})",
+            transaction.digest(),
+            effects.status(),
+        );
+    }
+
     #[instrument(level = "error", skip_all)]
     pub async fn reconfigure(
         &self,
@@ -3343,6 +3468,8 @@ impl AuthorityState {
             expensive_safety_check_config,
             epoch_supply_change,
         )?;
+        self.check_transaction_deny_rules_consistency(cur_epoch_store, &epoch_start_configuration);
+
         self.get_reconfig_api()
             .try_set_epoch_start_configuration(&epoch_start_configuration)?;
         // When state snapshots are published, a RocksDB checkpoint of the
@@ -3940,7 +4067,7 @@ impl AuthorityState {
     {
         let object_ids = self
             .get_owner_objects_iterator(owner, None, None)?
-            .filter(|o| match &o.type_ {
+            .filter(|o| match &o.object_type {
                 ObjectType::Struct(s) => *s == tag,
                 ObjectType::Package => false,
             })
@@ -4420,7 +4547,7 @@ impl AuthorityState {
                 tx_digest,
                 event_seq as u64,
                 Some(timestamp),
-                layout_resolver.get_annotated_layout(&e.type_)?,
+                layout_resolver.get_annotated_layout(&e.struct_tag)?,
             )?)
         }
         Ok(events)

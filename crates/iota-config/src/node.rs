@@ -21,8 +21,8 @@ use iota_sdk_types::Address;
 use iota_types::{
     committee::EpochId,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits, NetworkKeyPair,
-        get_key_pair_from_rng, simple_to_network_keypair,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits,
+        NetworkKeyPair, get_key_pair_from_rng, simple_to_network_keypair,
     },
     messages_checkpoint::CheckpointSequenceNumber,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
@@ -698,7 +698,7 @@ fn default_authority_key_pair() -> AuthorityKeyPairWithPath {
 }
 
 fn default_key_pair() -> KeyPairWithPath {
-    KeyPairWithPath::new(AccountKeyPair::random().into())
+    KeyPairWithPath::new(AccountPrivateKey::random().into())
 }
 
 fn default_metrics_address() -> SocketAddr {

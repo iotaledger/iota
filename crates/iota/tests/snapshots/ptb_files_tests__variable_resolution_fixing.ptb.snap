@@ -23,6 +23,6 @@ Command 0: Command: Move Call
 └── Arguments
     └── 0: Input(0)
 Command 1: Command: Make Move Vector
-├── Type: address
+├── Type Tag: address
 └── Elements
     └── 0: Input(0)

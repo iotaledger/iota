@@ -17,7 +17,7 @@ use iota_sdk_types::{
     TransactionEffects,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     execution_config_utils::to_binary_config,
@@ -167,7 +167,7 @@ pub fn build_upgrade_txn(
 
 struct UpgradeStateRunner {
     pub sender: Address,
-    pub sender_key: AccountKeyPair,
+    pub sender_key: AccountPrivateKey,
     pub gas_object_id: ObjectId,
     pub authority_state: Arc<AuthorityState>,
     pub package: ObjectReference,
@@ -178,7 +178,7 @@ struct UpgradeStateRunner {
 impl UpgradeStateRunner {
     pub async fn new(base_package_name: &str) -> Self {
         telemetry_subscribers::init_for_testing();
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_object_id = ObjectId::random();
         let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
         let authority_state = TestAuthorityBuilder::new().build().await;
@@ -1283,10 +1283,15 @@ async fn test_upgraded_types_in_one_txn() {
         .authority_state
         .get_transaction_events(effects.transaction_digest())
         .unwrap();
-    events.sort_by(|a, b| a.type_.name().as_str().cmp(b.type_.name().as_str()));
+    events.sort_by(|a, b| {
+        a.struct_tag
+            .name()
+            .as_str()
+            .cmp(b.struct_tag.name().as_str())
+    });
     assert!(events.len() == 2);
-    assert_eq!(events[0].type_, e1_type);
-    assert_eq!(events[1].type_, e2_type);
+    assert_eq!(events[0].struct_tag, e1_type);
+    assert_eq!(events[1].struct_tag, e2_type);
 }
 
 #[tokio::test]
@@ -1502,7 +1507,7 @@ async fn test_upgrade_cross_module_refs() {
 
 #[tokio::test]
 async fn test_upgrade_max_packages() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 
@@ -1556,7 +1561,7 @@ async fn test_upgrade_max_packages() {
 
 #[tokio::test]
 async fn test_upgrade_more_than_max_packages_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 

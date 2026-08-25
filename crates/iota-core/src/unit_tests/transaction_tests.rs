@@ -18,7 +18,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{dbg_addr, random_object_ref},
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     error::{IotaError, UserInputError},
     messages_grpc::HandleSoftBundleCertificatesRequestV1,
     transaction::TransactionAPI,
@@ -74,7 +74,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
         1,
         |_| {},
         |mut_tx| {
-            let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
+            let (_unknown_address, unknown_key): (_, AccountPrivateKey) = get_key_pair();
             let data = mut_tx.data_mut_for_testing();
             let signature = unknown_key.sign_transaction(data.transaction()).unwrap();
             *data.tx_signatures_mut_for_testing() = vec![signature];
@@ -266,7 +266,7 @@ async fn test_user_sends_system_transaction_impl(transaction_kind: TransactionKi
 pub fn init_transfer_transaction(
     pre_sign_mutations: impl Fn(&mut Transaction),
     sender: Address,
-    secret: &AccountKeyPair,
+    secret: &AccountPrivateKey,
     recipient: Address,
     object_ref: ObjectReference,
     gas_object_ref: ObjectReference,
@@ -288,7 +288,7 @@ pub fn init_transfer_transaction(
 pub fn init_move_call_transaction(
     pre_sign_mutations: impl Fn(&mut Transaction),
     sender: Address,
-    secret: &AccountKeyPair,
+    secret: &AccountPrivateKey,
     gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
@@ -350,8 +350,8 @@ async fn do_transaction_test_impl(
 ) {
     telemetry_subscribers::init_for_testing();
     let _guard = disable_pcool_flow();
-    let (sender1, sender_key1): (_, AccountKeyPair) = get_key_pair();
-    let (sender2, sender_key2): (_, AccountKeyPair) = get_key_pair();
+    let (sender1, sender_key1): (_, AccountPrivateKey) = get_key_pair();
+    let (sender2, sender_key2): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_object_id1 = ObjectId::random();
@@ -518,7 +518,7 @@ fn disable_pcool_flow() -> OverrideGuard {
 async fn test_oversized_txn() {
     telemetry_subscribers::init_for_testing();
     let _guard = disable_pcool_flow();
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
@@ -578,7 +578,7 @@ async fn test_oversized_txn() {
 async fn test_very_large_certificate() {
     telemetry_subscribers::init_for_testing();
     let _guard = disable_pcool_flow();
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
@@ -668,7 +668,7 @@ async fn test_very_large_certificate() {
 async fn test_handle_certificate_errors() {
     telemetry_subscribers::init_for_testing();
     let _guard = disable_pcool_flow();
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
@@ -804,7 +804,7 @@ async fn test_handle_certificate_errors() {
     );
 
     let mut absent_sig_tx = transfer_transaction.clone();
-    let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
+    let (_unknown_address, unknown_key): (_, AccountPrivateKey) = get_key_pair();
     let data = absent_sig_tx.data_mut_for_testing();
     let signature = unknown_key.sign_transaction(data.transaction()).unwrap();
     *data.tx_signatures_mut_for_testing() = vec![signature];
@@ -844,13 +844,13 @@ async fn test_handle_soft_bundle_certificates() {
     let mut senders = Vec::new();
     let mut gas_object_ids = Vec::new();
     for _i in 0..4 {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
         let gas_object_id = ObjectId::random();
 
         let obj = Object::with_id_owner_for_testing(gas_object_id, address);
         authority.insert_genesis_object(obj);
 
-        senders.push((address, keypair));
+        senders.push((address, key));
         gas_object_ids.push(gas_object_id);
     }
 
@@ -999,9 +999,9 @@ async fn test_handle_soft_bundle_certificates_errors() {
     let mut gas_objects = Vec::new();
     let mut owned_objects = Vec::new();
     for _i in 0..15 {
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let mut objects = create_gas_objects(2, sender);
-        senders.push((sender, keypair));
+        senders.push((sender, sender_key));
         gas_objects.push(objects.remove(0));
         owned_objects.push(objects.remove(0));
     }

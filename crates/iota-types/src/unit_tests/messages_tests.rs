@@ -25,7 +25,7 @@ use crate::{
     base_types::random_object_ref,
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfoTrait,
         IotaAuthoritySignature, PublicKey, VerificationObligation,
         bcs_signable_test::{Foo, get_obligation_input},
         get_key_pair,
@@ -47,8 +47,8 @@ fn test_signed_values() {
     let (_a1, sec1): (_, AuthorityKeyPair) = get_key_pair();
     let (_a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
     let (_a3, sec3): (_, AuthorityKeyPair) = get_key_pair();
-    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
-    let sender_sec2 = AccountKeyPair::random();
+    let (a_sender, sender_sec): (_, AccountPrivateKey) = get_key_pair();
+    let sender_sec2 = AccountPrivateKey::random();
 
     authorities.insert(
         // address
@@ -141,7 +141,7 @@ fn test_certificates() {
     let (_a1, sec1): (_, AuthorityKeyPair) = get_key_pair();
     let (a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
     let (_a3, sec3): (_, AuthorityKeyPair) = get_key_pair();
-    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
+    let (a_sender, sender_sec): (_, AccountPrivateKey) = get_key_pair();
 
     let mut authorities: BTreeMap<AuthorityPublicKeyBytes, u64> = BTreeMap::new();
     authorities.insert(
@@ -498,7 +498,7 @@ fn test_digest_caching() {
     let (_a2, sec2): (_, AuthorityKeyPair) = get_key_pair();
 
     let sa1 = Address::random();
-    let (sa2, ssec2): (_, AccountKeyPair) = get_key_pair();
+    let (sa2, ssec2): (_, AccountPrivateKey) = get_key_pair();
 
     authorities.insert(sec1.public().into(), 1);
     authorities.insert(sec2.public().into(), 0);
@@ -581,8 +581,8 @@ fn test_digest_caching() {
 fn test_user_signature_committed_in_transactions() {
     // TODO: refactor this test to not reuse the same keys for user and authority
     // signing
-    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
-    let (a_sender2, sender_sec2): (_, AccountKeyPair) = get_key_pair();
+    let (a_sender, sender_sec): (_, AccountPrivateKey) = get_key_pair();
+    let (a_sender2, sender_sec2): (_, AccountPrivateKey) = get_key_pair();
 
     let gas_price = 10;
     let tx = Transaction::new_transfer(
@@ -632,8 +632,8 @@ fn test_user_signature_committed_in_signed_transactions() {
     // TODO: refactor this test to not reuse the same keys for user and authority
     // signing
     let (_a1, sec1): (_, AuthorityKeyPair) = get_key_pair();
-    let (a_sender, sender_sec): (_, AccountKeyPair) = get_key_pair();
-    let (a_sender2, sender_sec2): (_, AccountKeyPair) = get_key_pair();
+    let (a_sender, sender_sec): (_, AccountPrivateKey) = get_key_pair();
+    let (a_sender2, sender_sec2): (_, AccountPrivateKey) = get_key_pair();
 
     let epoch = 0;
     let gas_price = 10;
@@ -1335,11 +1335,11 @@ fn test_certificate_digest() {
     let (committee, key_pairs) = Committee::new_simple_test_committee();
 
     let receiver = Address::random();
-    let (sender1, sender1_sec): (_, AccountKeyPair) = get_key_pair();
-    let (sender2, sender2_sec): (_, AccountKeyPair) = get_key_pair();
+    let (sender1, sender1_sec): (_, AccountPrivateKey) = get_key_pair();
+    let (sender2, sender2_sec): (_, AccountPrivateKey) = get_key_pair();
 
     let gas_price = 10;
-    let make_tx = |sender, sender_sec: AccountKeyPair| {
+    let make_tx = |sender, sender_sec: AccountPrivateKey| {
         TransactionEnvelope::from_data_and_signer(
             Transaction::new_transfer(
                 receiver,

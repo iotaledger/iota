@@ -24,7 +24,6 @@ use iota_sdk_types::{
 use iota_types::{
     coin::Coin,
     effects::{ObjectRemoveKind, TransactionEffectsAPI, TransactionEffectsExt},
-    gas_coin::GAS,
     object::Object,
     storage::WriteKind,
 };
@@ -160,7 +159,7 @@ pub fn derive_balance_changes(
     if effects.status() != &ExecutionStatus::Success {
         return Ok(vec![DerivedBalanceChange {
             owner: gas_owner,
-            coin_type: GAS::type_tag(),
+            coin_type: TypeTag::from(StructTag::new_gas()),
             amount: (effects.gas_cost_summary().net_gas_usage() as i128).neg(),
         }]);
     }
@@ -236,7 +235,7 @@ fn coin_owner_type_value(
             version,
         });
     };
-    let Some(move_object_type) = object.type_() else {
+    let Some(move_object_type) = object.data.opt_object_type() else {
         return Ok(None);
     };
     if !move_object_type.is_coin() {
@@ -298,7 +297,7 @@ pub fn derive_object_changes(
         let Some(object) = outputs.get(&(object_id, version)) else {
             return Err(DeriveChangesError::MissingObject { object_id, version });
         };
-        if let Some(move_object_type) = object.type_() {
+        if let Some(move_object_type) = object.data.opt_object_type() {
             let object_type: StructTag = move_object_type.clone().into();
 
             match kind {
@@ -363,7 +362,7 @@ pub fn derive_object_changes(
             });
         };
         // Packages cannot be removed; skip non-Move objects
-        if let Some(move_object_type) = object.type_() {
+        if let Some(move_object_type) = object.data.opt_object_type() {
             let object_type: StructTag = move_object_type.clone().into();
             match kind {
                 ObjectRemoveKind::Delete => object_changes.push(DerivedObjectChange::Deleted {
@@ -587,12 +586,12 @@ mod tests {
                 let mut expected = vec![
                     DerivedBalanceChange {
                         owner: Owner::Address(sender_address()),
-                        coin_type: GAS::type_tag(),
+                        coin_type: TypeTag::from(StructTag::new_gas()),
                         amount: -30,
                     },
                     DerivedBalanceChange {
                         owner: Owner::Address(recipient_address()),
-                        coin_type: GAS::type_tag(),
+                        coin_type: TypeTag::from(StructTag::new_gas()),
                         amount: 30,
                     },
                 ];
@@ -684,7 +683,7 @@ mod tests {
             changes,
             Ok(vec![DerivedBalanceChange {
                 owner: Owner::Address(sender_address()),
-                coin_type: GAS::type_tag(),
+                coin_type: TypeTag::from(StructTag::new_gas()),
                 amount: -1000,
             }])
         );
@@ -706,7 +705,7 @@ mod tests {
             changes,
             Ok(vec![DerivedBalanceChange {
                 owner: Owner::Address(recipient_address()),
-                coin_type: GAS::type_tag(),
+                coin_type: TypeTag::from(StructTag::new_gas()),
                 amount: 30,
             }])
         );

@@ -448,7 +448,8 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         let iter = self.owned_objects[start..]
             .iter()
             .filter(move |(info, _)| {
-                info.owner == owner_filter && type_filter.as_ref().is_none_or(|t| info.type_ == *t)
+                info.owner == owner_filter
+                    && type_filter.as_ref().is_none_or(|t| info.object_type == *t)
             })
             .map(|(info, cursor)| {
                 Ok((
@@ -456,7 +457,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
                         owner: info.owner,
                         object_id: info.object_id,
                         version: info.version,
-                        type_: info.type_.clone(),
+                        object_type: info.object_type.clone(),
                     },
                     cursor.clone(),
                 ))

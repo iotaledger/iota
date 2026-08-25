@@ -723,7 +723,7 @@ async fn list_owned_objects_filter_by_type(pcool: bool) {
         .iter()
         .find_map(|resp| {
             let data = resp.data.as_ref()?;
-            let struct_tag: StructTag = data.type_.clone()?.try_into().ok()?;
+            let struct_tag: StructTag = data.object_type.clone()?.try_into().ok()?;
             (struct_tag.to_canonical_string(true) == treasury_cap_type).then(|| data.object_ref())
         })
         .expect("sender should own a TreasuryCap after publish");
