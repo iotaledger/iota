@@ -15,7 +15,8 @@ use iota_sdk_crypto::{
 };
 use iota_sdk_types::{
     Address, ExecutionStatus, GasPayment, Owner, SharedObjectReference, SignatureScheme, StructTag,
-    TransactionEventsDigest, crypto::SimpleSignature, gas::GasCostSummary,
+    TransactionDenyRulesUpdate, TransactionEventsDigest, crypto::SimpleSignature,
+    gas::GasCostSummary,
 };
 use roaring::RoaringBitmap;
 
@@ -717,7 +718,7 @@ fn signature_from_signer(
     signer: &impl Signer<SimpleSignature>,
 ) -> SimpleSignature {
     let digest = IntentMessage::new(intent, tx).signing_digest();
-    signer.sign(digest.inner())
+    signer.sign(&digest)
 }
 
 #[test]
@@ -1080,6 +1081,82 @@ fn test_consensus_commit_prologue_v1_transaction() {
     );
     assert!(tx.is_system_tx());
     assert_eq!(tx.data().transaction().input_objects().unwrap().len(), 1);
+}
+
+fn transaction_deny_rules_update_kind() -> TransactionKind {
+    TransactionKind::TransactionDenyRulesUpdate(TransactionDenyRulesUpdate {
+        epoch: 1,
+        round: 42,
+        added_addresses: Default::default(),
+        removed_addresses: Default::default(),
+        added_objects: Default::default(),
+        removed_objects: Default::default(),
+        added_packages: Default::default(),
+        removed_packages: Default::default(),
+        package_publish_disabled: false,
+        package_upgrade_disabled: false,
+        shared_object_disabled: false,
+        user_transaction_disabled: false,
+        receiving_objects_disabled: false,
+        move_authenticator_disabled: false,
+        deny_rules_obj_initial_shared_version: Version::INITIAL_SHARED_VERSION,
+    })
+}
+
+#[test]
+fn test_transaction_deny_rules_update_transaction() {
+    let kind = transaction_deny_rules_update_kind();
+    assert_eq!(
+        kind.shared_input_objects().collect::<Vec<_>>(),
+        [SharedObjectReference::new(
+            ObjectId::TRANSACTION_DENY_RULES,
+            Version::INITIAL_SHARED_VERSION,
+            true,
+        )],
+    );
+    let data = Transaction::new_system_transaction(kind);
+    assert!(data.is_system_tx());
+    assert_eq!(data.input_objects().unwrap().len(), 1);
+
+    let create = EndOfEpochTransactionKind::TransactionDenyRulesCreate;
+    assert!(create.input_objects().is_empty());
+    assert!(
+        Transaction::new_system_transaction(TransactionKind::EndOfEpoch(vec![create]))
+            .is_system_tx()
+    );
+}
+
+/// Both deny rules kinds are unsupported while the flag is off, and even with
+/// it on they are system transactions that users cannot submit.
+#[test]
+fn test_transaction_deny_rules_kinds_rejected_from_users() {
+    let flag_off = ProtocolConfig::get_for_max_version_UNSAFE();
+    let mut flag_on = ProtocolConfig::get_for_max_version_UNSAFE();
+    flag_on.set_deny_rule_governance_for_testing(true);
+    flag_on.set_deny_rule_governance_on_chain_for_testing(true);
+
+    let create =
+        TransactionKind::EndOfEpoch(vec![EndOfEpochTransactionKind::TransactionDenyRulesCreate]);
+    for kind in [transaction_deny_rules_update_kind(), create] {
+        assert!(matches!(
+            kind.validity_check(&flag_off),
+            Err(UserInputError::Unsupported(_))
+        ));
+        kind.validity_check(&flag_on).unwrap();
+
+        let user_submission =
+            SenderSignedTransaction::new(Transaction::new_system_transaction(kind), vec![]);
+        let context = TxValidityCheckContext {
+            config: &flag_on,
+            epoch: 1,
+        };
+        assert!(matches!(
+            user_submission.validity_check(&context),
+            Err(IotaError::UserInput {
+                error: UserInputError::Unsupported(message)
+            }) if message == "SenderSignedTransaction must not contain system transaction"
+        ));
+    }
 }
 
 #[test]

@@ -449,7 +449,7 @@ mod ingestion_tests {
         assert!(err.is_none());
 
         sim.create_checkpoint(); // checkpoint 1
-        sim.advance_epoch(); // checkpoint 2 and epoch 1
+        sim.advance_epoch(false); // checkpoint 2 and epoch 1
 
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();

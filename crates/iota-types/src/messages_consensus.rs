@@ -14,8 +14,8 @@ use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
 use iota_sdk_types::{
-    Digest, MisbehaviorReportDigest, ObjectReference, SenderSignedTransaction, TransactionDigest,
-    crypto::IntentScope,
+    DenyRuleSet, Digest, MisbehaviorReportDigest, ObjectReference, SenderSignedTransaction,
+    TransactionDigest, crypto::IntentScope,
 };
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,6 @@ use tracing::warn;
 use crate::{
     base_types::{AuthorityName, ConciseableName},
     crypto::{AuthoritySignature, DefaultHash, default_hash},
-    deny_rule_governance::DenyRuleSet,
     message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
     supported_protocol_versions::{
@@ -996,11 +995,7 @@ mod tests {
     /// variants or `DenyRuleSet` fields breaks nodes on the old build.
     #[test]
     fn deny_rule_proposal_consensus_kind_wire_format_unchanged() {
-        use std::collections::BTreeSet;
-
-        use iota_sdk_types::{Address, ObjectId};
-
-        use crate::deny_rule_governance::DenyRuleSet;
+        use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
 
         let authority = AuthorityName::default();
         let address = Address::new([7u8; 32]);
@@ -1038,9 +1033,9 @@ mod tests {
                     authority,
                     42u64,
                     (
-                        BTreeSet::from([address]),
-                        BTreeSet::from([object]),
-                        BTreeSet::from([package]),
+                        vec![address],
+                        vec![object],
+                        vec![package],
                         switch(0), // package_publish_disabled
                         switch(1), // package_upgrade_disabled
                         switch(2), // shared_object_disabled
@@ -1063,9 +1058,7 @@ mod tests {
     /// The proposal round-trips through BCS unchanged.
     #[test]
     fn deny_rule_proposal_bcs_round_trip() {
-        use iota_sdk_types::{Address, ObjectId};
-
-        use crate::deny_rule_governance::DenyRuleSet;
+        use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
 
         let proposal = TransactionDenyRuleProposal {
             authority: AuthorityName::default(),
@@ -1088,7 +1081,7 @@ mod tests {
     /// recorded proposal's generation even if the clock stepped backward.
     #[test]
     fn proposal_generation_supersedes_last_generation() {
-        use crate::deny_rule_governance::DenyRuleSet;
+        use iota_sdk_types::DenyRuleSet;
 
         let authority = AuthorityName::default();
         let fresh = TransactionDenyRuleProposal::new(authority, DenyRuleSet::default(), None);

@@ -1,0 +1,174 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
+---
+processed 7 tasks
+
+task 1, line 9:
+//# advance-epoch --create-deny-rules-object
+Epoch advanced: 1
+
+task 2, line 11:
+//# update-deny-rules --added-addresses 0xAA --package-publish-disabled
+events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), type_: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAAAAAAEAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==" }
+created: object(2,0)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9, object(1,0)
+gas summary:
+├── Computation Cost: 0
+├── Computation Cost Burned: 0
+├── Storage Cost: 0
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
+
+task 3, lines 13-15:
+//# advance-epoch
+Epoch advanced: 2
+
+task 4, line 17:
+//# view-object 1,0
+Owner: Object(_)
+Version: 3
+Contents: iota::dynamic_field::Field<u64, iota::transaction_deny_rules::TransactionDenyRulesInnerV1> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(1,0),
+        },
+    },
+    name: 1u64,
+    value: iota::transaction_deny_rules::TransactionDenyRulesInnerV1 {
+        version: 1u64,
+        denied_addresses: iota::linked_table::LinkedTable<address, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 1u64,
+            head: std::option::Option<address> {
+                vec: vector[
+                    _,
+                ],
+            },
+            tail: std::option::Option<address> {
+                vec: vector[
+                    _,
+                ],
+            },
+        },
+        denied_objects: iota::linked_table::LinkedTable<iota::object::ID, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 0u64,
+            head: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+            tail: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+        },
+        denied_packages: iota::linked_table::LinkedTable<iota::object::ID, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 0u64,
+            head: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+            tail: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+        },
+        package_publish_disabled: true,
+        package_upgrade_disabled: false,
+        shared_object_disabled: false,
+        user_transaction_disabled: false,
+        receiving_objects_disabled: false,
+        move_authenticator_disabled: false,
+    },
+}
+
+task 5, lines 19-22:
+//# update-deny-rules --added-addresses 0xBB --removed-addresses 0xAA
+events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), type_: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALsBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }
+created: object(5,0)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9, object(1,0)
+deleted: object(2,0)
+gas summary:
+├── Computation Cost: 0
+├── Computation Cost Burned: 0
+├── Storage Cost: 0
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
+
+task 6, line 24:
+//# view-object 1,0
+Owner: Object(_)
+Version: 4
+Contents: iota::dynamic_field::Field<u64, iota::transaction_deny_rules::TransactionDenyRulesInnerV1> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(1,0),
+        },
+    },
+    name: 1u64,
+    value: iota::transaction_deny_rules::TransactionDenyRulesInnerV1 {
+        version: 1u64,
+        denied_addresses: iota::linked_table::LinkedTable<address, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 1u64,
+            head: std::option::Option<address> {
+                vec: vector[
+                    _,
+                ],
+            },
+            tail: std::option::Option<address> {
+                vec: vector[
+                    _,
+                ],
+            },
+        },
+        denied_objects: iota::linked_table::LinkedTable<iota::object::ID, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 0u64,
+            head: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+            tail: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+        },
+        denied_packages: iota::linked_table::LinkedTable<iota::object::ID, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 0u64,
+            head: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+            tail: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+        },
+        package_publish_disabled: false,
+        package_upgrade_disabled: false,
+        shared_object_disabled: false,
+        user_transaction_disabled: false,
+        receiving_objects_disabled: false,
+        move_authenticator_disabled: false,
+    },
+}

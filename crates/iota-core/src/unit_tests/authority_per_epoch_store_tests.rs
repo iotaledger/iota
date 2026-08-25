@@ -8,10 +8,10 @@ use std::{
 };
 
 use iota_config::node::ExpensiveSafetyCheckConfig;
-use iota_sdk_types::{Address, ObjectId, TransactionDigest};
+use iota_sdk_types::{Address, DenyRuleSet, ObjectId, TransactionDigest};
 use iota_types::{
     base_types::AuthorityName, committee::Committee, crypto::KeypairTraits,
-    deny_rule_governance::DenyRuleSet, messages_consensus::TransactionDenyRuleProposal,
+    messages_consensus::TransactionDenyRuleProposal,
 };
 use tokio::time::timeout;
 use typed_store::rocks::DBBatch;
@@ -555,6 +555,87 @@ fn compute_active_transaction_deny_rules_applies_stake_thresholds() {
     assert!(!active.user_transaction_disabled);
     assert!(!active.package_publish_disabled);
     assert!(!active.package_upgrade_disabled);
+}
+
+/// The enforcement union keeps every mirrored on-chain entry and switch
+/// active regardless of the proposal-derived aggregate, so rules carry
+/// across the epoch boundary before supporters re-announce.
+#[test]
+fn union_deny_rule_sets_keeps_mirrored_state_active() {
+    use crate::authority::authority_per_epoch_store::union_deny_rule_sets;
+
+    // Every list gets a mirrored-only, an aggregate-only, and a shared entry.
+    // Each side contributes three of the six switches.
+    let shared = Address::new([1u8; 32]);
+    let mirrored = DenyRuleSet {
+        denied_addresses: [shared, Address::new([2u8; 32])].into(),
+        denied_objects: [ObjectId::new([3u8; 32])].into(),
+        denied_packages: [ObjectId::new([4u8; 32])].into(),
+        package_publish_disabled: true,
+        shared_object_disabled: true,
+        receiving_objects_disabled: true,
+        ..Default::default()
+    };
+    let aggregate = DenyRuleSet {
+        denied_addresses: [shared, Address::new([5u8; 32])].into(),
+        denied_objects: [ObjectId::new([6u8; 32])].into(),
+        denied_packages: [ObjectId::new([7u8; 32])].into(),
+        package_upgrade_disabled: true,
+        user_transaction_disabled: true,
+        move_authenticator_disabled: true,
+        ..Default::default()
+    };
+
+    let active = union_deny_rule_sets(aggregate, &mirrored);
+    assert_eq!(
+        active.denied_addresses,
+        [shared, Address::new([2u8; 32]), Address::new([5u8; 32])].into()
+    );
+    assert_eq!(
+        active.denied_objects,
+        [ObjectId::new([3u8; 32]), ObjectId::new([6u8; 32])].into()
+    );
+    assert_eq!(
+        active.denied_packages,
+        [ObjectId::new([4u8; 32]), ObjectId::new([7u8; 32])].into()
+    );
+    assert!(active.package_publish_disabled);
+    assert!(active.package_upgrade_disabled);
+    assert!(active.shared_object_disabled);
+    assert!(active.user_transaction_disabled);
+    assert!(active.receiving_objects_disabled);
+    assert!(active.move_authenticator_disabled);
+
+    // An empty aggregate changes nothing. A fresh epoch starts this way.
+    // This also pins the switches the mirror leaves off.
+    let active = union_deny_rule_sets(DenyRuleSet::default(), &mirrored);
+    assert_eq!(active, mirrored);
+}
+
+/// `announced_deny_rule_stake` sums the committee stake behind recorded
+/// proposals: empty proposals count as announcements, non-members weigh 0.
+#[tokio::test]
+async fn announced_deny_rule_stake_counts_recorded_proposals() {
+    let authority_state = TestAuthorityBuilder::new().build().await;
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+
+    assert_eq!(store.announced_deny_rule_stake(), 0);
+
+    // A non-member's recorded proposal contributes no stake.
+    flush_deny_rule_proposal(
+        &store,
+        deny_proposal(AuthorityName::ZERO, 1, DenyRuleSet::default()),
+    );
+    assert_eq!(store.announced_deny_rule_stake(), 0);
+
+    // An empty proposal is an announcement: the single-validator test
+    // committee holds all stake.
+    flush_deny_rule_proposal(&store, deny_proposal(me, 1, DenyRuleSet::default()));
+    assert_eq!(
+        store.announced_deny_rule_stake(),
+        store.committee().total_votes()
+    );
 }
 
 /// A proposal replaces the recorded one from the same authority only when its
