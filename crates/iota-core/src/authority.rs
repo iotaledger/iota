@@ -114,7 +114,7 @@ use iota_types::{
     },
     traffic_control::{PolicyConfig, TrafficControlReconfigParams},
     transaction::*,
-    transaction_executor::{SimulateTransactionResult, VmChecks},
+    transaction_executor::{InputCheckRelaxations, SimulateTransactionResult, VmChecks},
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
@@ -2466,6 +2466,7 @@ impl AuthorityState {
                 authenticator_gas_budget,
                 protocol_config,
                 reference_gas_price,
+                InputCheckRelaxations::EXECUTION,
             )?;
 
             let owned_object_refs = authenticator_and_tx_checked_input_objects
@@ -2895,58 +2896,23 @@ impl AuthorityState {
 
         // Checks enabled -> DRY-RUN, it means we are simulating a real TX
         // Checks disabled -> DEV-INSPECT, more relaxed Move VM checks
-        let (gas_status, checked_input_objects) = if checks.enabled() {
-            iota_transaction_checks::check_transaction_input(
-                protocol_config,
-                epoch_store.reference_gas_price(),
-                &transaction,
-                input_objects,
-                &receiving_objects,
-                &self.metrics.bytecode_verifier_metrics,
-                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
-                authenticator_gas_budget,
-                false,
-            )?
+        let relaxations = if checks.enabled() {
+            InputCheckRelaxations::EXECUTION
         } else {
-            // Execution smashes the gas coins and reserves the whole budget from them
-            // before running any command, treating the input checks as having verified
-            // that they are gas coins at all — so with those checks skipped here, this
-            // has to stand in for them. With the checks enabled,
-            // `check_transaction_input` covers it.
-            iota_types::gas::check_gas_coins_cover_budget_in_simulation(
-                &input_objects,
-                transaction.gas(),
-                transaction.gas_budget(),
-            )?;
-
-            let checked_input_objects = iota_transaction_checks::check_simulation_input(
-                protocol_config,
-                transaction.kind(),
-                input_objects,
-                receiving_objects,
-            )?;
-
-            // Execution verifies the packages a transaction publishes with neither a
-            // limit nor a meter, trusting signing to have bounded them — so with the
-            // signing-time checks skipped here, this has to bound them. The node's
-            // own limits reject nothing that signing would accept. With the checks
-            // enabled, `check_transaction_input` covers it.
-            iota_transaction_checks::check_non_system_packages_to_be_published(
-                &transaction,
-                protocol_config,
-                &self.metrics.bytecode_verifier_metrics,
-                VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
-            )?;
-
-            let gas_status = IotaGasStatus::new(
-                transaction.gas_budget(),
-                transaction.gas_price(),
-                epoch_store.reference_gas_price(),
-                protocol_config,
-            )?;
-
-            (gas_status, checked_input_objects)
+            InputCheckRelaxations::SIMULATION
         };
+        let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
+            protocol_config,
+            epoch_store.reference_gas_price(),
+            &transaction,
+            input_objects,
+            &receiving_objects,
+            &self.metrics.bytecode_verifier_metrics,
+            VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
+            authenticator_gas_budget,
+            false,
+            relaxations,
+        )?;
 
         // Create a new executor for the simulation
         let executor = iota_execution::executor(
@@ -6867,6 +6833,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 is_execute_transaction_to_effects,
+                InputCheckRelaxations::EXECUTION,
             )?;
 
         Ok((
@@ -6934,6 +6901,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 false,
+                InputCheckRelaxations::EXECUTION,
             )?;
 
         Ok((tx_checked_input_objects, per_authenticator_checked_inputs))

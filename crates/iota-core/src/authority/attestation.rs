@@ -35,6 +35,7 @@ use iota_types::{
         CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult, ReceivingObjects,
         TransactionAPI, VerifiedTransaction,
     },
+    transaction_executor::InputCheckRelaxations,
 };
 
 use crate::{
@@ -329,6 +330,7 @@ impl AuthorityState {
                 authenticator_gas_budget,
                 protocol_config,
                 reference_gas_price,
+                InputCheckRelaxations::EXECUTION,
             )?;
         Ok((tx_checked_input_objects, per_authenticator_checked_inputs))
     }
