@@ -1128,18 +1128,21 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // If last_received is a valid and more blocks have been proposed since then,
         // this call is guaranteed to return at least some recent blocks, which
         // will help with liveness.
-        let missed_blocks = stream::iter(
-            dag_state
-                .get_own_cached_blocks(last_received.saturating_add(1))
-                .into_iter()
-                .filter_map(|block| match SerializedBlockBundle::try_from(block) {
-                    Ok(block_bundle) => Some(block_bundle),
-                    Err(e) => {
-                        tracing::error!("Failed to serialize block bundle from cache: {e}");
-                        None
-                    }
-                }),
-        );
+        let own_blocks = dag_state.get_own_cached_blocks(last_received.saturating_add(1));
+        // The core adds an own block to DagState before broadcasting it, so the newest
+        // missed block may also arrive on the broadcast receiver created below.
+        let last_missed_round = own_blocks
+            .last()
+            .map_or(last_received, |block| block.round());
+        let missed_blocks = stream::iter(own_blocks.into_iter().filter_map(|block| {
+            match SerializedBlockBundle::try_from(block) {
+                Ok(block_bundle) => Some(block_bundle),
+                Err(e) => {
+                    tracing::error!("Failed to serialize block bundle from cache: {e}");
+                    None
+                }
+            }
+        }));
 
         let broadcasted_blocks = BroadcastedBlockStream::new(
             peer,
@@ -1155,6 +1158,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 let context = context.clone();
                 let connection_knowledge = connection_knowledge.clone();
                 async move {
+                    if block.round() <= last_missed_round {
+                        return None;
+                    }
                     let ts = block.timestamp_ms();
 
                     let block_bundle = {
@@ -3906,6 +3912,12 @@ mod tests {
             );
         }
         received_bundles = vec![];
+
+        // The newest missed block is broadcast only after the subscription was served;
+        // the stream must not deliver it a second time.
+        tx_block_broadcast
+            .send(all_blocks[first_batch_end_exclusive as usize - 1][0].clone())
+            .expect("We expect that block is sent successfully");
 
         for round in first_batch_end_exclusive..=rounds {
             core_dispatcher
