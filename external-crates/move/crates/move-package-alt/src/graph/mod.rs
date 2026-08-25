@@ -34,7 +34,7 @@ pub struct PackageGraph<F: MoveFlavor> {
 #[derive(Debug)]
 pub struct PackageNode<F: MoveFlavor> {
     package: Package<F>,
-    pinned_dep: PinnedDependencyInfo<F>,
+    pinned_dep: PinnedDependencyInfo,
 }
 
 struct PackageCache<F: MoveFlavor> {
@@ -184,7 +184,7 @@ impl<F: MoveFlavor> PackageGraphBuilder<F> {
         // TODO: this is wrong - it is ignoring `path`
         let graph = Arc::new(Mutex::new(DiGraph::new()));
         let visited = Arc::new(Mutex::new(BTreeMap::new()));
-        let root = PinnedDependencyInfo::<F>::root_dependency(path);
+        let root = PinnedDependencyInfo::root_dependency(path);
 
         self.add_transitive_manifest_deps(&root, env, graph.clone(), visited)
             .await?;
@@ -214,7 +214,7 @@ impl<F: MoveFlavor> PackageGraphBuilder<F> {
     /// there cannot be a deadlock
     async fn add_transitive_manifest_deps(
         &self,
-        dep: &PinnedDependencyInfo<F>,
+        dep: &PinnedDependencyInfo,
         env: &EnvironmentName,
         graph: Arc<Mutex<DiGraph<Option<Arc<PackageNode<F>>>, PackageName>>>,
         visited: Arc<Mutex<BTreeMap<PathBuf, NodeIndex>>>,
@@ -266,7 +266,7 @@ impl<F: MoveFlavor> PackageCache<F> {
     }
 
     /// Return a reference to a cached [Package], loading it if necessary
-    pub async fn fetch(&self, dep: &PinnedDependencyInfo<F>) -> PackageResult<Arc<PackageNode<F>>> {
+    pub async fn fetch(&self, dep: &PinnedDependencyInfo) -> PackageResult<Arc<PackageNode<F>>> {
         let cell = self
             .cache
             .lock()
