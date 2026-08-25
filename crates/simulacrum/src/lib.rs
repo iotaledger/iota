@@ -1053,6 +1053,78 @@ mod tests {
         assert!(object.owner().is_shared());
     }
 
+    /// The full deny rule state read back by walking the object's
+    /// `LinkedTable`s matches the deltas applied through real execution.
+    #[test]
+    fn walked_object_state_matches_applied_deltas() {
+        use std::collections::BTreeSet;
+
+        use iota_sdk_types::TransactionDenyRulesUpdate;
+        use iota_types::transaction_deny_rules::{
+            get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
+        };
+
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_deny_rule_governance_for_testing(true);
+                config.set_deny_rule_governance_on_chain_for_testing(true);
+                config
+            });
+        let sim = Simulacrum::new();
+        sim.advance_epoch(true);
+
+        let initial_shared_version = sim
+            .with_store(|store| get_transaction_deny_rules_obj_initial_shared_version(store))
+            .unwrap()
+            .expect("object must exist after the create");
+
+        let denied_address = Address::new([0xAA; 32]);
+        let removed_address = Address::new([0xBB; 32]);
+        let denied_package = ObjectId::new([0x2B; 32]);
+        let update = |round, added_addresses: BTreeSet<Address>, removed_addresses| {
+            VerifiedTransaction::new_transaction_deny_rules_update(TransactionDenyRulesUpdate {
+                epoch: 1,
+                round,
+                added_addresses,
+                removed_addresses,
+                added_objects: BTreeSet::new(),
+                removed_objects: BTreeSet::new(),
+                added_packages: [denied_package].into(),
+                removed_packages: BTreeSet::new(),
+                package_publish_disabled: false,
+                package_upgrade_disabled: false,
+                shared_object_disabled: true,
+                user_transaction_disabled: false,
+                receiving_objects_disabled: false,
+                move_authenticator_disabled: false,
+                deny_rules_obj_initial_shared_version: initial_shared_version,
+            })
+        };
+
+        // Two entries in, then one removed again: the walk crosses re-linked
+        // nodes, not just appended ones.
+        let (_, error) = sim
+            .execute_transaction(
+                update(0, [denied_address, removed_address].into(), BTreeSet::new()).into(),
+            )
+            .unwrap();
+        assert!(error.is_none());
+        let (_, error) = sim
+            .execute_transaction(update(1, BTreeSet::new(), [removed_address].into()).into())
+            .unwrap();
+        assert!(error.is_none());
+
+        let walked = sim
+            .with_store(|store| get_transaction_deny_rules(store))
+            .unwrap()
+            .expect("object must exist");
+        assert_eq!(walked.denied_addresses, [denied_address].into());
+        assert!(walked.denied_objects.is_empty());
+        assert_eq!(walked.denied_packages, [denied_package].into());
+        assert!(walked.shared_object_disabled);
+        assert!(!walked.user_transaction_disabled);
+    }
+
     #[test]
     fn simple_epoch() {
         let steps = 10;
