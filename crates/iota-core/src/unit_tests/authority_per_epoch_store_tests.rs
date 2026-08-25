@@ -1164,6 +1164,90 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
     assert_eq!(roots, [transactions[0].key()].into_iter().collect());
 }
 
+/// A commit processed after `close_all_tx` ignores every chunk: nothing is
+/// scheduled or rooted, the mirror is held back, and the unchanged mirror
+/// re-derives the identical delta for the next derivation.
+#[tokio::test]
+async fn skipped_deny_rule_chunks_hold_the_mirror_back() {
+    use std::collections::VecDeque;
+
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+
+    use crate::consensus_handler::ConsensusCommitInfo;
+
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    protocol_config.set_deny_rule_governance_for_testing(true);
+    protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
+    protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+    protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+    let authority_state = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config.clone())
+        .build()
+        .await;
+    // The builder's config override drops when `build` returns; keep one
+    // alive for the reopened epoch store below.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
+    let store = authority_state.epoch_store_for_testing();
+    let me = store.name;
+    let address = Address::new([1u8; 32]);
+
+    let initial_shared_version = Version::from_u64(3);
+    let mut epoch_start_configuration = (*store.epoch_start_configuration).clone();
+    epoch_start_configuration
+        .set_transaction_deny_rules_for_testing(initial_shared_version, DenyRuleSet::default());
+    store.release_db_handles();
+    let store = AuthorityPerEpochStore::new(
+        store.name,
+        store.committee().clone(),
+        &store.parent_path,
+        store.db_options.clone(),
+        store.metrics.clone(),
+        epoch_start_configuration,
+        authority_state.get_backing_package_store().clone(),
+        store.execution_component.metrics(),
+        store.signature_verifier.metrics.clone(),
+        &ExpensiveSafetyCheckConfig::default(),
+        store.chain,
+        0,
+    )
+    .unwrap();
+    flush_deny_rule_proposal(&store, deny_proposal(me, 1, rules_denying_address(address)));
+
+    // The epoch is closing: no transaction is accepted any more.
+    store.get_reconfig_state_write_lock_guard().close_all_tx();
+
+    let commit_info = ConsensusCommitInfo::new_for_test(1, 0, false);
+    let mut output = ConsensusCommitOutput::default();
+    let mut transactions = VecDeque::new();
+    let mut roots = std::collections::BTreeSet::new();
+    store
+        .add_deny_rule_update_transactions(&mut output, &mut transactions, &mut roots, &commit_info)
+        .unwrap();
+    assert!(transactions.is_empty());
+    assert!(roots.is_empty());
+    assert_eq!(
+        *store.get_mirrored_transaction_deny_rules(),
+        DenyRuleSet::default(),
+        "an ignored chunk must hold the mirror back"
+    );
+
+    // The held-back mirror re-derives the identical delta.
+    let mirror = store.get_mirrored_transaction_deny_rules();
+    let (chunks, target) = compute_deny_rule_update_chunks(
+        &rules_denying_address(address),
+        &mirror,
+        true,
+        1000,
+        store.epoch(),
+        1,
+        initial_shared_version,
+    );
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].added_addresses, [address].into());
+    assert_eq!(target, rules_denying_address(address));
+}
+
 /// Every chunk of a split delta becomes its own checkpoint root: a chunk that
 /// executes but reaches no checkpoint would leave the object behind on every
 /// node that follows checkpoints rather than consensus.
