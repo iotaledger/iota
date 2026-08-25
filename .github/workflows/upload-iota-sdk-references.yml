@@ -55,7 +55,7 @@ jobs:
           ref: ${{ steps.pin.outputs.rev }}
           path: iota-rust-sdk
 
-      - uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           key: iota-sdk-references-${{ matrix.language }}
           workspaces: iota-rust-sdk
@@ -77,7 +77,7 @@ jobs:
 
       - name: Setup Java
         if: matrix.language == 'kotlin'
-        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
         with:
           distribution: "oracle"
           java-version: "21"
@@ -91,7 +91,7 @@ jobs:
 
       - name: Setup .NET
         if: matrix.language == 'csharp'
-        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: "8.0.x"
 
@@ -101,7 +101,7 @@ jobs:
           make -C iota-rust-sdk install-uniffi-bindgen-cs
           dotnet tool install --global XMLDoc2Markdown
 
-      - uses: taiki-e/install-action@5b4d68e2e660441203ab128a23676f1e4faf1532 # v2.86.3
+      - uses: taiki-e/install-action@b6ff580856c41316412a0b9b60540fbc6f8c82cc # v2.86.7
         if: matrix.language == 'wasm'
         with:
           tool: wasm-pack
