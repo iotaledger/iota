@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{
+    IntCounter, IntGauge, MetricLevel, Registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
+};
 
 pub struct EpochMetrics {
     /// The current epoch ID. This is updated only when the AuthorityState
@@ -121,6 +124,22 @@ pub struct EpochMetrics {
 
     /// The number of shared object assignments in the quarantine.
     pub shared_object_assignments_size: IntGauge,
+
+    /// The number of consensus commits that injected deny-rule update
+    /// transactions.
+    pub deny_rule_updates_injected: IntCounter,
+
+    /// The number of injected deny-rule update transactions (one per chunk
+    /// of the delta).
+    pub deny_rule_update_transactions_injected: IntCounter,
+
+    /// Whether deny-rule removals are unlocked: enough announced stake this
+    /// epoch and the grace round floor passed.
+    pub deny_rule_removals_unlocked: IntGauge,
+
+    /// Set to 1, and never cleared, when the `TransactionDenyRules` object
+    /// diverged from the mirrored state at an epoch boundary.
+    pub deny_rule_mirror_divergence: IntGauge,
 }
 
 impl EpochMetrics {
@@ -254,6 +273,31 @@ impl EpochMetrics {
             shared_object_assignments_size: register_int_gauge_with_registry!(
                 "shared_object_assignments_size",
                 "The number of shared object assignments in the quarantine",
+                registry
+            )
+            .unwrap(),
+            deny_rule_updates_injected: register_int_counter_with_registry!(
+                "deny_rule_updates_injected",
+                "The number of consensus commits that injected deny-rule update transactions",
+                registry
+            )
+            .unwrap(),
+            deny_rule_update_transactions_injected: register_int_counter_with_registry!(
+                "deny_rule_update_transactions_injected",
+                "The number of injected deny-rule update transactions",
+                registry
+            )
+            .unwrap(),
+            deny_rule_removals_unlocked: register_int_gauge_with_registry!(
+                "deny_rule_removals_unlocked",
+                "Whether deny-rule removals are currently unlocked",
+                registry
+            )
+            .unwrap(),
+            deny_rule_mirror_divergence: register_int_gauge_with_registry!(
+                "deny_rule_mirror_divergence",
+                "Set to 1 when the TransactionDenyRules object diverged from the mirrored state \
+                 at an epoch boundary",
                 registry
             )
             .unwrap(),
