@@ -27,10 +27,12 @@ pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
         .collect::<BTreeMap<_, _>>();
 
     for (changed, kind) in all_changed_objects {
-        let owner = changed.owner;
-        let object_id = changed.reference.object_id;
-        let version = changed.reference.version;
-        let digest = changed.reference.digest;
+        let OwnedObjectReference { reference, owner } = changed;
+        let ObjectReference {
+            object_id,
+            version,
+            digest,
+        } = reference;
         let o = object_provider.get_object(&object_id, &version).await?;
         if let Some(object_type) = o.data.opt_object_type() {
             let object_type: StructTag = object_type.clone().into();

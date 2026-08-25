@@ -18,8 +18,8 @@ use std::{
 
 use iota_grpc_types::v1::transaction as grpc_tx;
 use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectDigest, ObjectId, ObjectRemoveKind, OwnedObjectReference,
-    Owner, StructTag, TransactionEffects, TypeTag, Version, WriteKind,
+    Address, ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, ObjectRemoveKind,
+    OwnedObjectReference, Owner, StructTag, TransactionEffects, TypeTag, Version, WriteKind,
 };
 use iota_types::{
     coin::Coin,
@@ -296,10 +296,12 @@ pub fn derive_object_changes(
         input_objects.iter().map(|o| (o.id(), o)).collect();
 
     for (changed, kind) in effects.all_changed_objects() {
-        let owner = changed.owner;
-        let object_id = changed.reference.object_id;
-        let version = changed.reference.version;
-        let digest = changed.reference.digest;
+        let OwnedObjectReference { reference, owner } = changed;
+        let ObjectReference {
+            object_id,
+            version,
+            digest,
+        } = reference;
         let Some(object) = outputs.get(&(object_id, version)) else {
             return Err(DeriveChangesError::MissingObject { object_id, version });
         };
