@@ -11,7 +11,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::dbg_addr,
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaResult, UserInputError},
     gas_coin::GasCoin,
@@ -109,7 +109,7 @@ async fn test_tx_more_than_maximum_gas_budget() {
 async fn publish_move_random_package(
     authority_state: &Arc<AuthorityState>,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
 ) -> ObjectId {
     const PUBLISH_BUDGET: u64 = 10_000_000;
@@ -140,7 +140,7 @@ async fn publish_move_random_package(
 
 async fn check_oog_transaction<F>(
     sender: Address,
-    sender_key: AccountKeyPair,
+    sender_key: AccountPrivateKey,
     function: &'static str,
     args: Vec<CallArg>,
     budget: u64,
@@ -265,7 +265,7 @@ fn make_gas_coins(owner: Address, gas_amount: u64, coin_num: u64) -> Vec<Object>
 async fn touch_gas_coins(
     authority_state: &AuthorityState,
     sender: Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     recipient: Address,
     coin_ids: &[ObjectId],
     gas_object_id: ObjectId,
@@ -545,7 +545,7 @@ async fn test_native_transfer_gas_price_is_used() {
 
 #[tokio::test]
 async fn test_transfer_iota_insufficient_gas() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let authority_state = TestAuthorityBuilder::new().build().await;
     let gas_object_id = ObjectId::random();
@@ -587,7 +587,7 @@ async fn test_transfer_iota_insufficient_gas() {
 /// - All gas coins should be owned by the sender, or the sponsor
 #[tokio::test]
 async fn test_invalid_gas_owners() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let authority_state = TestAuthorityBuilder::new().build().await;
 
     let init_object = |o: Object| async {
@@ -614,7 +614,7 @@ async fn test_invalid_gas_owners() {
         good_gas_object: ObjectReference,
         bad_gas_object: ObjectReference,
         sender: Address,
-        sender_key: &AccountKeyPair,
+        sender_key: &AccountPrivateKey,
         authority_state: &AuthorityState,
     ) -> UserInputError {
         let pt = {
@@ -753,7 +753,7 @@ async fn test_native_transfer_insufficient_gas_execution() {
 
 #[tokio::test]
 async fn test_publish_gas() -> anyhow::Result<()> {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -826,7 +826,7 @@ async fn test_publish_gas() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_move_call_gas() -> IotaResult {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -915,7 +915,7 @@ async fn test_tx_gas_price_less_than_reference_gas_price() {
 
 #[tokio::test]
 async fn test_tx_gas_coins_input_coins() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let authority_state = TestAuthorityBuilder::new().build().await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
@@ -940,7 +940,7 @@ async fn test_tx_gas_coins_input_coins() {
     async fn run_merge(
         authority_state: &AuthorityState,
         sender: Address,
-        sender_key: &AccountKeyPair,
+        sender_key: &AccountPrivateKey,
         gas_coin_refs: Vec<ObjectReference>,
         coin_ref: ObjectReference,
         coin_refs: Vec<ObjectReference>,
@@ -1010,7 +1010,7 @@ async fn execute_transfer_with_price(
     run_confirm: bool,
     min_budget_pre_rgp: bool,
 ) -> TransferResult {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id: ObjectId = ObjectId::random();
     let recipient = dbg_addr(2);
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;

@@ -637,14 +637,14 @@ async fn deny_rule_withdrawal_and_re_add_converges() {
 async fn deny_rule_enforcement_survives_the_epoch_boundary() {
     use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
     use iota_test_transaction_builder::TestTransactionBuilder;
-    use iota_types::crypto::get_account_key_pair;
+    use iota_types::crypto::get_account_private_key;
 
     telemetry_subscribers::init_for_testing();
     // A floor no in-test commit round reaches: the withdrawn rule cannot be
     // removed from the object.
     let _guard = governance_overrides(1000, 100_000);
 
-    let (denied, denied_key) = get_account_key_pair();
+    let (denied, denied_key) = get_account_private_key();
     let deny_config = TransactionDenyConfigBuilder::new()
         .add_denied_address(denied)
         .build();

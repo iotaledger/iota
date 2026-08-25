@@ -12,7 +12,7 @@ use iota_sdk_types::{
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::dbg_addr,
-    crypto::{AccountKeyPair, get_account_key_pair},
+    crypto::{AccountPrivateKey, get_account_private_key},
     deny_list_v1::{
         DenyCapV1, RegulatedCoinMetadata, check_address_denied_by_config, check_global_pause,
         get_per_type_coin_deny_list_v1,
@@ -124,7 +124,7 @@ async fn test_regulated_coin_v1_types() {
         ],
     )
     .with_type_args(vec![regulated_coin_type.clone()])
-    .build_and_sign(&env.keypair);
+    .build_and_sign(&env.private_key);
     let (_, effects) = send_and_confirm_transaction_(&env.authority, None, tx, true)
         .await
         .unwrap();
@@ -197,7 +197,7 @@ async fn test_regulated_coin_v1_types() {
         ],
     )
     .with_type_args(vec![regulated_coin_type.clone()])
-    .build_and_sign(&env.keypair);
+    .build_and_sign(&env.private_key);
     let (_, effects) = send_and_confirm_transaction_(&env.authority, None, tx, true)
         .await
         .unwrap();
@@ -512,7 +512,7 @@ impl RegulatedCoinEnv {
         )
         .move_call(ObjectId::FRAMEWORK, "coin", function, args)
         .with_type_args(vec![self.regulated_coin_type.clone()])
-        .build_and_sign(&self.env.keypair);
+        .build_and_sign(&self.env.private_key);
 
         // `fake_consensus = false`: assign the shared-object version directly
         // instead of going through the consensus commit handler, which
@@ -567,7 +567,7 @@ impl RegulatedCoinEnv {
                 self.env.get_latest_object_ref(&self.coin_id).await,
                 dbg_addr(2),
             )
-            .build_and_sign(&self.env.keypair)
+            .build_and_sign(&self.env.private_key)
     }
 
     /// Runs `handle_transaction_validation_checks` with the given coin
@@ -627,7 +627,7 @@ impl RegulatedCoinEnv {
 struct TestEnv {
     authority: Arc<AuthorityState>,
     sender: Address,
-    keypair: AccountKeyPair,
+    private_key: AccountPrivateKey,
     gas_object_id: ObjectId,
     publish_effects: TransactionEffects,
 }
@@ -639,7 +639,7 @@ impl TestEnv {
 }
 
 async fn new_authority_and_publish(path: &str) -> TestEnv {
-    let (sender, keypair) = get_account_key_pair();
+    let (sender, sender_key) = get_account_private_key();
     let gas_object = Object::with_owner_for_testing(sender);
     let gas_object_id = gas_object.id();
     let authority = TestAuthorityBuilder::new()
@@ -650,7 +650,7 @@ async fn new_authority_and_publish(path: &str) -> TestEnv {
     let (_, effects) = build_and_try_publish_test_package(
         &authority,
         &sender,
-        &keypair,
+        &sender_key,
         &gas_object_id,
         path,
         TEST_ONLY_GAS_UNIT_FOR_PUBLISH * rgp,
@@ -661,7 +661,7 @@ async fn new_authority_and_publish(path: &str) -> TestEnv {
     TestEnv {
         authority,
         sender,
-        keypair,
+        private_key: sender_key,
         gas_object_id,
         publish_effects: effects.into_data(),
     }

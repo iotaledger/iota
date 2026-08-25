@@ -13,7 +13,7 @@ mod simtests {
     use iota_protocol_config::ProtocolConfig;
     use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
     use iota_test_transaction_builder::TestTransactionBuilder;
-    use iota_types::crypto::get_account_key_pair;
+    use iota_types::crypto::get_account_private_key;
     use test_cluster::TestClusterBuilder;
 
     /// Validators announce their local deny config through consensus on
@@ -30,7 +30,7 @@ mod simtests {
 
         // A funded account whose address every validator's local config
         // denies, and a funded non-denied account for the positive path.
-        let (denied, denied_key) = get_account_key_pair();
+        let (denied, denied_key) = get_account_private_key();
         let deny_config = TransactionDenyConfigBuilder::new()
             .add_denied_address(denied)
             .build();

@@ -13,7 +13,8 @@ use crate::{
     base_types::dbg_addr,
     committee::EpochId,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature, get_key_pair,
+        AccountPrivateKey, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
+        get_key_pair,
     },
     object::Object,
     signature::{AuthenticatorTrait, VerifyParams},
@@ -22,7 +23,7 @@ use crate::{
 
 #[test]
 fn test_personal_message_intent() {
-    let (addr1, sec1): (_, AccountKeyPair) = get_key_pair();
+    let (addr1, sec1): (_, AccountPrivateKey) = get_key_pair();
     let message = "Hello".as_bytes().to_vec();
     let p_message = PersonalMessage(message.into());
     let p_message_2 = p_message.clone();
@@ -61,7 +62,7 @@ fn test_authority_signature_intent() {
     let kp: AuthorityKeyPair = get_key_pair().1;
 
     // Create a signed user transaction.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let object = Object::immutable_with_id_for_testing(object_id);

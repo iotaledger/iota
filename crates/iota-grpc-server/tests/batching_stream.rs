@@ -22,7 +22,7 @@ use iota_sdk_types::{TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::TestEffectsBuilder,
     transaction::VerifiedTransaction,
 };
@@ -38,7 +38,7 @@ fn create_test_transaction() -> (
     Arc<VerifiedTransaction>,
     TransactionEffects,
 ) {
-    let (sender, key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
     let gas = random_object_ref();
     let tx = TestTransactionBuilder::new(sender, gas, 1000)
         .transfer(random_object_ref(), sender)

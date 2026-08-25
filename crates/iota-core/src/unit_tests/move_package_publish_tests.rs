@@ -11,7 +11,7 @@ use iota_sdk_types::{
     ExecutionError, ExecutionStatus, Identifier, ObjectData, ObjectId, Owner, Transaction,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     object::ObjectRead,
@@ -33,7 +33,7 @@ use crate::authority::{
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publishing_with_unpublished_deps() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -98,7 +98,7 @@ async fn test_publishing_with_unpublished_deps() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_empty_package() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
@@ -151,7 +151,7 @@ async fn test_publish_empty_package() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_duplicate_modules() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let gas_object = authority.get_object(&gas);
@@ -316,7 +316,7 @@ async fn test_custom_property_check_unpublished_dependencies() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_extraneous_bytes_modules() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let gas_object = authority.get_object(&gas);
@@ -438,7 +438,7 @@ async fn test_publish_extraneous_bytes_modules() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_max_packages() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 
@@ -466,7 +466,7 @@ async fn test_publish_max_packages() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_publish_more_than_max_packages_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 
