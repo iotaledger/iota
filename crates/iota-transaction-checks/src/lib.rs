@@ -29,8 +29,9 @@ mod checked {
         transaction::{
             CheckedInputObjects, InputObjectKind, InputObjects, ObjectReadResult,
             ObjectReadResultKind, ProgrammableTransactionExt, ReceivingObjectReadResult,
-            ReceivingObjects, TransactionAPI, TransactionKindExt,
+            ReceivingObjects, TransactionAPI,
         },
+        transaction_executor::InputCheckRelaxations,
     };
     use tracing::{error, instrument};
 
@@ -56,6 +57,7 @@ mod checked {
         transaction: &Transaction,
         authentication_gas_budget: u64,
         is_execute_transaction_to_effects: bool,
+        relaxations: InputCheckRelaxations,
     ) -> IotaResult<IotaGasStatus> {
         if transaction.is_system_tx() {
             Ok(IotaGasStatus::new_unmetered())
@@ -69,10 +71,22 @@ mod checked {
                 transaction.gas_budget(),
                 authentication_gas_budget,
                 is_execute_transaction_to_effects,
+                relaxations,
             )
         }
     }
 
+    /// Checks whether a transaction may run, for signing, for a certificate, or
+    /// for a simulation.
+    ///
+    /// `relaxations` names the checks a caller drops. A simulation with
+    /// [`VmChecks::Disabled`](iota_types::transaction_executor::VmChecks::Disabled)
+    /// passes [`InputCheckRelaxations::SIMULATION`]; everything bound for
+    /// execution passes [`InputCheckRelaxations::EXECUTION`]. A caller that
+    /// needs a check relaxed must name it in `InputCheckRelaxations`, with the
+    /// reason on the field, rather than validating its inputs somewhere else:
+    /// the point of routing every caller through here is that a check added
+    /// below applies to all of them until someone says otherwise.
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn check_transaction_input(
         protocol_config: &ProtocolConfig,
@@ -83,6 +97,7 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
         authentication_gas_budget: u64,
+        relaxations: InputCheckRelaxations,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_status = check_transaction_input_inner(
             protocol_config,
@@ -92,8 +107,9 @@ mod checked {
             &[],
             authentication_gas_budget,
             false,
+            relaxations,
         )?;
-        check_receiving_objects(&input_objects, receiving_objects)?;
+        check_receiving_objects(&input_objects, receiving_objects, relaxations)?;
         // Runs verifier, which could be expensive.
         check_non_system_packages_to_be_published(
             transaction,
@@ -127,8 +143,13 @@ mod checked {
             &[gas_object_ref],
             0,
             true,
+            InputCheckRelaxations::EXECUTION,
         )?;
-        check_receiving_objects(&input_objects, &receiving_objects)?;
+        check_receiving_objects(
+            &input_objects,
+            &receiving_objects,
+            InputCheckRelaxations::EXECUTION,
+        )?;
         // Runs verifier, which could be expensive.
         check_non_system_packages_to_be_published(
             transaction,
@@ -161,53 +182,13 @@ mod checked {
             &[],
             0,
             true,
+            InputCheckRelaxations::EXECUTION,
         )?;
         // NB: We do not check receiving objects when executing. Only at signing
         // time do we check. NB: move verifier is only checked at
         // signing time, not at execution.
 
         Ok((gas_status, input_objects.into_checked()))
-    }
-
-    /// WARNING! Only for simulating a transaction with
-    /// [`VmChecks::Disabled`](iota_types::transaction_executor::VmChecks::Disabled).
-    /// This bypasses many of the normal object checks. A simulation with
-    /// `VmChecks::Enabled` goes through [`check_transaction_input`] instead,
-    /// the same as a transaction bound for execution.
-    #[instrument(level = "trace", skip_all)]
-    pub fn check_simulation_input(
-        config: &ProtocolConfig,
-        kind: &TransactionKind,
-        input_objects: InputObjects,
-        // TODO: check ReceivingObjects when simulating?
-        _receiving_objects: ReceivingObjects,
-    ) -> IotaResult<CheckedInputObjects> {
-        kind.validity_check(config)?;
-        if kind.is_system() {
-            return Err(UserInputError::Unsupported(format!(
-                "Transaction kind {kind} is not supported in a simulation"
-            ))
-            .into());
-        }
-        let mut used_objects: HashSet<Address> = HashSet::new();
-        for input_object in input_objects.iter() {
-            let Some(object) = input_object.as_object() else {
-                // object was deleted
-                continue;
-            };
-
-            if !object.is_immutable() {
-                fp_ensure!(
-                    used_objects.insert(object.id().into()),
-                    UserInputError::MutableObjectUsedMoreThanOnce {
-                        object_id: object.id()
-                    }
-                    .into()
-                );
-            }
-        }
-
-        Ok(input_objects.into_checked())
     }
 
     /// A common function to check the `MoveAuthenticator` inputs for signing.
@@ -278,6 +259,7 @@ mod checked {
             &[],
             authenticator_gas_budget,
             true,
+            InputCheckRelaxations::EXECUTION,
         )?;
 
         let per_authenticator_checked_input_objects = per_authenticator_input_objects
@@ -308,6 +290,7 @@ mod checked {
         gas_override: &[ObjectReference],
         authentication_gas_budget: u64,
         is_execute_transaction_to_effects: bool,
+        relaxations: InputCheckRelaxations,
     ) -> IotaResult<IotaGasStatus> {
         // Cheap validity checks that is ok to run multiple times during processing.
         let gas = if gas_override.is_empty() {
@@ -324,16 +307,32 @@ mod checked {
             transaction,
             authentication_gas_budget,
             is_execute_transaction_to_effects,
+            relaxations,
         )?;
-        check_objects(transaction, input_objects)?;
+        check_objects(transaction, input_objects, relaxations)?;
 
         Ok(gas_status)
     }
 
+    /// Checks the receiving references against the objects they name.
+    ///
+    /// Two separable things happen here. Whether each reference is current —
+    /// its version and digest match the loaded object — is an
+    /// optimistic-concurrency question, dropped per half by
+    /// [`InputCheckRelaxations::any_receiving_object_version`] and
+    /// [`InputCheckRelaxations::any_receiving_object_digest`].
+    /// What the object is, and that no reference duplicates another or collides
+    /// with an input object, is not relaxed by anything: the duplicate
+    /// rejection below is the only one there is, since `CallArg::Receiving`
+    /// is not part of `input_objects()` and so escapes its
+    /// `DuplicateObjectRefInput` dedup. Without it a duplicated receiving
+    /// ticket reaches the object runtime, which treats receiving the same
+    /// object twice as impossible.
     #[instrument(level = "trace", skip_all)]
     fn check_receiving_objects(
         input_objects: &InputObjects,
         receiving_objects: &ReceivingObjects,
+        relaxations: InputCheckRelaxations,
     ) -> Result<(), IotaError> {
         let mut objects_in_txn: HashSet<_> = input_objects
             .object_kinds()
@@ -359,19 +358,36 @@ mod checked {
                 continue;
             };
 
+            // A reference is fine if it names an address-owned object and matches
+            // it on both counts the caller still cares about, so the block below
+            // is for the ones that are not. Relax each equality here rather than
+            // reordering the block: which error a caller gets when a reference
+            // fails more than one test is observable.
+            //
+            // Keep the two conditions in step with the two `fp_ensure!`s inside.
+            // The trailing `match object.owner` has no gate of its own, and its
+            // `Owner::Address` arm is a `debug_assert!(false)` — dead only
+            // because every path that enters here with an address owner bails at
+            // whichever `fp_ensure!` let it in. Skipping a test while still
+            // admitting the references it would have rejected makes that arm
+            // reachable, which panics in a debug build.
             if !(object.owner.is_address()
-                && object.version() == object_ref.version
-                && object.digest() == object_ref.digest)
+                && (object.version() == object_ref.version
+                    || relaxations.any_receiving_object_version)
+                && (object.digest() == object_ref.digest
+                    || relaxations.any_receiving_object_digest))
             {
-                // Version mismatch
-                fp_ensure!(
-                    object.version() == object_ref.version,
-                    UserInputError::ObjectVersionUnavailableForConsumption {
-                        provided_obj_ref: *object_ref,
-                        current_version: object.version(),
-                    }
-                    .into()
-                );
+                if !relaxations.any_receiving_object_version {
+                    // Version mismatch
+                    fp_ensure!(
+                        object.version() == object_ref.version,
+                        UserInputError::ObjectVersionUnavailableForConsumption {
+                            provided_obj_ref: *object_ref,
+                            current_version: object.version(),
+                        }
+                        .into()
+                    );
+                }
 
                 // Tried to receive a package
                 fp_ensure!(
@@ -382,16 +398,18 @@ mod checked {
                     .into()
                 );
 
-                // Digest mismatch
-                let expected_digest = object.digest();
-                fp_ensure!(
-                    expected_digest == object_ref.digest,
-                    UserInputError::InvalidObjectDigest {
-                        object_id: object_ref.object_id,
-                        expected_digest
-                    }
-                    .into()
-                );
+                if !relaxations.any_receiving_object_digest {
+                    // Digest mismatch
+                    let expected_digest = object.digest();
+                    fp_ensure!(
+                        expected_digest == object_ref.digest,
+                        UserInputError::InvalidObjectDigest {
+                            object_id: object_ref.object_id,
+                            expected_digest
+                        }
+                        .into()
+                    );
+                }
 
                 match object.owner {
                     Owner::Address(_) => {
@@ -457,6 +475,7 @@ mod checked {
         transaction_gas_budget: u64,
         authentication_gas_budget: u64,
         is_execute_transaction_to_effects: bool,
+        relaxations: InputCheckRelaxations,
     ) -> IotaResult<IotaGasStatus> {
         let gas_budget_to_set = if authentication_gas_budget > 0 {
             // If there is an authentication gas budget, then we are checking if
@@ -509,14 +528,22 @@ mod checked {
             })?;
             gas_objects.push(obj);
         }
-        gas_status.check_gas_balance(&gas_objects, gas_budget_to_check)?;
+        gas_status.check_gas_balance(
+            &gas_objects,
+            gas_budget_to_check,
+            !relaxations.unbounded_gas_budget,
+        )?;
         Ok(gas_status)
     }
 
     /// Check all the objects used in the transaction against the database, and
     /// ensure that they are all the correct version and number.
     #[instrument(level = "trace", skip_all)]
-    fn check_objects(transaction: &Transaction, objects: &InputObjects) -> UserInputResult<()> {
+    fn check_objects(
+        transaction: &Transaction,
+        objects: &InputObjects,
+        relaxations: InputCheckRelaxations,
+    ) -> UserInputResult<()> {
         // We require that mutable objects cannot show up more than once.
         let mut used_objects: HashSet<Address> = HashSet::new();
         for object in objects.iter() {
@@ -555,6 +582,7 @@ mod checked {
                         input_object_kind,
                         object,
                         system_transaction,
+                        relaxations,
                     )?;
                 }
                 // We skip checking a deleted shared object because it no longer exists
@@ -574,6 +602,7 @@ mod checked {
         object_kind: InputObjectKind,
         object: &Object,
         system_transaction: bool,
+        relaxations: InputCheckRelaxations,
     ) -> UserInputResult {
         match object_kind {
             InputObjectKind::MovePackage(package_id) => {
@@ -607,30 +636,38 @@ mod checked {
                 );
 
                 // Check the digest matches - user could give a mismatched ObjectDigest
-                let expected_digest = object.digest();
-                fp_ensure!(
-                    expected_digest == object_ref.digest,
-                    UserInputError::InvalidObjectDigest {
-                        object_id: object_ref.object_id,
-                        expected_digest
-                    }
-                );
+                if !relaxations.any_object_digest {
+                    let expected_digest = object.digest();
+                    fp_ensure!(
+                        expected_digest == object_ref.digest,
+                        UserInputError::InvalidObjectDigest {
+                            object_id: object_ref.object_id,
+                            expected_digest
+                        }
+                    );
+                }
 
                 match object.owner {
                     Owner::Immutable => {
                         // Nothing else to check for Immutable.
                     }
                     Owner::Address(actual_owner) => {
-                        // Check the owner is correct.
-                        fp_ensure!(
-                            owner == &actual_owner,
-                            UserInputError::IncorrectUserSignature {
-                                error: format!(
-                                    "Object {} is owned by account address {}, but given owner/signer address is {}",
-                                    object_ref.object_id, actual_owner, owner
-                                ),
-                            }
-                        );
+                        // Check the owner is correct. Only this arm is relaxed: whether
+                        // the sender owns the object is a question of permission, which
+                        // a simulation may ask past. The arms below are not — those
+                        // objects cannot be owned inputs at all, and the engine treats
+                        // the checks here as having established that.
+                        if !relaxations.any_object_owner {
+                            fp_ensure!(
+                                owner == &actual_owner,
+                                UserInputError::IncorrectUserSignature {
+                                    error: format!(
+                                        "Object {} is owned by account address {}, but given owner/signer address is {}",
+                                        object_ref.object_id, actual_owner, owner
+                                    ),
+                                }
+                            );
+                        }
                     }
                     Owner::Object(owner) => {
                         return Err(UserInputError::InvalidChildObjectArgument {

@@ -1058,4 +1058,30 @@ mod tests {
         assert_eq!(&checkpoint.epoch_rolling_gas_cost_summary, gas_summary);
         assert_eq!(checkpoint.network_total_transactions, 2); // genesis + 1 txn
     }
+
+    /// A system transaction kind is rejected under both check modes.
+    ///
+    /// Simulating one would run it outside the sequencing that gives it
+    /// meaning, and the shared input checks treat a system transaction as
+    /// exempt from the gas and object rules rather than rejecting it, so the
+    /// entry point is where this belongs — as it is on the node and in the SDK.
+    #[test]
+    fn simulate_rejects_system_transactions() {
+        use iota_types::{error::IotaError, transaction_executor::VmChecks};
+
+        let sim = Simulacrum::new();
+        let (tx, _) = sim.transfer_txn(Address::random());
+        let mut transaction = tx.data().transaction().clone();
+        *transaction.kind_mut() = TransactionKind::EndOfEpoch(vec![]);
+
+        for checks in [VmChecks::Enabled, VmChecks::Disabled] {
+            let Err(error) = sim.simulate_transaction(transaction.clone(), checks) else {
+                panic!("{checks:?} must not simulate a system transaction");
+            };
+            assert!(
+                matches!(error, IotaError::UnsupportedFeature { .. }),
+                "unexpected error for {checks:?}: {error:?}"
+            );
+        }
+    }
 }

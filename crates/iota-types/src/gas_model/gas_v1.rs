@@ -301,15 +301,24 @@ mod checked {
 
         // Check whether gas arguments are legit:
         // 1. Gas object has an address owner.
-        // 2. Gas budget is between min and max budget allowed
+        // 2. Gas budget is between min and max budget allowed, when `bounded_budget` is
+        //    set.
         // 3. Gas balance (all gas coins together) is bigger or equal to budget
         //
         // Keep the three checks together: it is only sound because step 1 has already
         // rejected every gas object that `as_object` returns `None` for.
+        //
+        // Step 3 sums the balances of `gas_objs` as given, so an object listed twice
+        // is counted twice and the balance it reports is too high. Nothing here
+        // rejects that; `check_transaction_input` rejects it afterwards, in
+        // `check_objects`, as `MutableObjectUsedMoreThanOnce`. So an inflated
+        // balance can pass this function but not the call it is part of. A caller
+        // reaching this directly has to reject duplicate gas references itself.
         pub(crate) fn check_gas_balance(
             &self,
             gas_objs: &[&ObjectReadResult],
             gas_budget: u64,
+            bounded_budget: bool,
         ) -> UserInputResult {
             // 1. All gas objects have an address owner
             for gas_object in gas_objs {
@@ -326,18 +335,20 @@ mod checked {
                 }
             }
 
-            // 2. Gas budget is between min and max budget allowed
-            if gas_budget > self.cost_table.max_gas_budget {
-                return Err(UserInputError::GasBudgetTooHigh {
-                    gas_budget,
-                    max_budget: self.cost_table.max_gas_budget,
-                });
-            }
-            if gas_budget < self.cost_table.min_transaction_cost {
-                return Err(UserInputError::GasBudgetTooLow {
-                    gas_budget,
-                    min_budget: self.cost_table.min_transaction_cost,
-                });
+            if bounded_budget {
+                // 2. Gas budget is between min and max budget allowed
+                if gas_budget > self.cost_table.max_gas_budget {
+                    return Err(UserInputError::GasBudgetTooHigh {
+                        gas_budget,
+                        max_budget: self.cost_table.max_gas_budget,
+                    });
+                }
+                if gas_budget < self.cost_table.min_transaction_cost {
+                    return Err(UserInputError::GasBudgetTooLow {
+                        gas_budget,
+                        min_budget: self.cost_table.min_transaction_cost,
+                    });
+                }
             }
 
             // 3. Gas balance (all gas coins together) is bigger or equal to budget

@@ -1312,6 +1312,262 @@ async fn test_simulate_rejects_a_gas_payment_that_is_not_a_gas_coin() {
     }
 }
 
+/// Simulates `pt` under both [`VmChecks`], returning what each produced.
+///
+/// The input checks a simulation shares with a signing validator must reject
+/// the same transaction either way, so a test asserting one of them asserts it
+/// over this.
+fn simulate_under_both_checks(
+    fullnode: &Arc<AuthorityState>,
+    sender: Address,
+    gas: Vec<ObjectReference>,
+    pt: &ProgrammableTransaction,
+) -> Vec<(VmChecks, IotaResult<SimulateTransactionResult>)> {
+    [VmChecks::Enabled, VmChecks::Disabled]
+        .into_iter()
+        .map(|checks| {
+            let transaction = Transaction::V1(TransactionV1 {
+                kind: TransactionKind::new_programmable(pt.clone()),
+                sender,
+                gas_payment: GasPayment {
+                    objects: gas.clone(),
+                    owner: sender,
+                    price: 0,
+                    budget: 0,
+                },
+                expiration: TransactionExpiration::None,
+            });
+            (checks, fullnode.simulate_transaction(transaction, checks))
+        })
+        .collect()
+}
+
+/// A command that touches none of the object inputs, so a test can assert on
+/// what the input checks make of those inputs rather than on what running them
+/// would do. The two pure arguments are the last two inputs.
+fn create_object_command(package: ObjectId, first_pure_input: u16) -> Command {
+    Command::new_move_call(
+        package,
+        Identifier::from_static("object_basics"),
+        Identifier::from_static("create"),
+        vec![],
+        vec![
+            Argument::Input(first_pure_input),
+            Argument::Input(first_pure_input + 1),
+        ],
+    )
+}
+
+/// An `object_basics::Object` with the given owner, ready to insert as a
+/// genesis object.
+fn object_basics_object(package: ObjectId, owner: Owner) -> Object {
+    let object_id = ObjectId::random();
+    Object::new_move(
+        MoveStruct::new(
+            StructTag::new(
+                Address::from(package),
+                Identifier::from_static("object_basics"),
+                Identifier::from_static("Object"),
+                vec![],
+            )
+            .into(),
+            OBJECT_START_VERSION,
+            // A Move object's contents lead with its own id.
+            bcs::to_bytes(&(object_id, 7u64)).unwrap(),
+        )
+        .unwrap(),
+        owner,
+        TransactionDigest::GENESIS_MARKER,
+    )
+}
+
+/// Sets up a fullnode with `object_basics` published and a gas coin that covers
+/// any budget, plus whatever extra objects the caller needs on both nodes.
+async fn simulation_fixture(
+    sender: Address,
+    extra_objects: impl Fn(ObjectId) -> Vec<Object>,
+) -> (Arc<AuthorityState>, ObjectId, ObjectReference, Vec<Object>) {
+    let (validator, fullnode, object_basics) =
+        init_state_with_ids_and_object_basics_with_fullnode(vec![]).await;
+    let max_tx_gas = validator
+        .epoch_store_for_testing()
+        .protocol_config()
+        .max_tx_gas();
+    let gas_coin = Object::new_gas_with_balance_and_owner_for_testing(max_tx_gas * 4, sender);
+    let extra = extra_objects(object_basics.object_id);
+
+    for object in std::iter::once(gas_coin.clone()).chain(extra.iter().cloned()) {
+        validator.insert_genesis_object(object.clone());
+        fullnode.insert_genesis_object(object);
+    }
+
+    (
+        fullnode,
+        object_basics.object_id,
+        gas_coin.object_ref(),
+        extra,
+    )
+}
+
+/// A package named as an owned object is rejected by both check modes: the
+/// engine has no way to treat a package as a Move value.
+#[tokio::test]
+async fn test_simulate_rejects_a_package_used_as_an_object() {
+    let sender = Address::random();
+    let (fullnode, object_basics, gas, _) = simulation_fixture(sender, |_| vec![]).await;
+    let package = fullnode.get_object(&object_basics).unwrap();
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(package.object_ref()),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        let Err(error) = result else {
+            panic!("{checks:?} should reject a package used as an object");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::MovePackageAsObject { object_id }
+                } if object_id == object_basics
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+/// A child object named as an owned input is rejected by both check modes: it
+/// has to be reached through its parent, not passed directly.
+#[tokio::test]
+async fn test_simulate_rejects_a_child_object_used_as_owned() {
+    let sender = Address::random();
+    let parent_id = ObjectId::random();
+    let (fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(package, Owner::Object(parent_id))]
+    })
+    .await;
+    let child = &extra[0];
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(child.object_ref()),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        let Err(error) = result else {
+            panic!("{checks:?} should reject a child object used as an owned input");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::InvalidChildObjectArgument { child_id, parent_id: p }
+                } if child_id == child.id() && p == parent_id
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+/// `Clock` taken mutably is rejected by both check modes: only a system
+/// transaction may do that.
+#[tokio::test]
+async fn test_simulate_rejects_a_mutable_clock_parameter() {
+    let sender = Address::random();
+    let (fullnode, object_basics, gas, _) = simulation_fixture(sender, |_| vec![]).await;
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::Shared(SharedObjectReference::new(
+                ObjectId::CLOCK,
+                Version::from(1),
+                true,
+            )),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        let Err(error) = result else {
+            panic!("{checks:?} should reject Clock as a mutable parameter");
+        };
+        assert!(
+            matches!(
+                error,
+                IotaError::UserInput {
+                    error: UserInputError::ImmutableParameterExpected { object_id }
+                } if object_id == ObjectId::CLOCK
+            ),
+            "unexpected error for {checks:?}: {error:?}"
+        );
+    }
+}
+
+/// A mismatched input object digest is rejected by a dry run and accepted by a
+/// dev inspect.
+///
+/// The digest is an optimistic-concurrency token for submission, which a dev
+/// inspect does not do, and nothing in execution reads it — the object is
+/// loaded by id and version either way.
+#[tokio::test]
+async fn test_simulate_input_object_digest_is_checked_only_with_checks_enabled() {
+    let sender = Address::random();
+    let (fullnode, object_basics, gas, extra) = simulation_fixture(sender, |package| {
+        vec![object_basics_object(package, Owner::Address(sender))]
+    })
+    .await;
+    let owned = &extra[0];
+    let object_ref = owned.object_ref();
+    let wrong_digest = ObjectReference::new(
+        object_ref.object_id,
+        object_ref.version,
+        ObjectDigest::new([9; 32]),
+    );
+
+    let pt = ProgrammableTransaction {
+        inputs: vec![
+            CallArg::ImmutableOrOwned(wrong_digest),
+            CallArg::Pure(bcs::to_bytes(&16_u64).unwrap()),
+            CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
+        ],
+        commands: vec![create_object_command(object_basics, 1)],
+    };
+
+    for (checks, result) in simulate_under_both_checks(&fullnode, sender, vec![gas], &pt) {
+        match checks {
+            VmChecks::Enabled => {
+                let Err(error) = result else {
+                    panic!("a dry run should reject a mismatched input object digest");
+                };
+                assert!(
+                    matches!(
+                        error,
+                        IotaError::UserInput {
+                            error: UserInputError::InvalidObjectDigest { object_id, .. }
+                        } if object_id == owned.id()
+                    ),
+                    "unexpected error for {checks:?}: {error:?}"
+                );
+            }
+            VmChecks::Disabled => {
+                result.expect("a dev inspect should accept a mismatched input object digest");
+            }
+        }
+    }
+}
+
 // tests using a gas coin with version MAX - 1
 #[tokio::test]
 async fn test_dry_run_dev_inspect_max_gas_version() {
