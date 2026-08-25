@@ -12,7 +12,8 @@
 //! them, like the node. Self-contained — uses only the built-in framework.
 
 use iota_sdk_types::{
-    MoveStruct, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest, Version,
+    MoveStruct, ObjectId, ObjectReference, Owner, ProgrammableTransaction, Transaction,
+    TransactionDigest, Version,
 };
 use iota_types::{
     error::{IotaError, UserInputError},
@@ -21,8 +22,8 @@ use iota_types::{
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionAPI},
 };
 use iota_vm_sdk::{
-    Address, Chain, ChainContext, ExecuteOptions, InMemoryStore, LocalVm, ProtocolVersion, Store,
-    VmSdkError,
+    Address, Chain, ChainContext, ExecuteOptions, ExecutionResult, InMemoryStore, LocalVm,
+    ProtocolVersion, Store, VmSdkError,
 };
 
 const GAS_PRICE: u64 = 1000;
@@ -191,4 +192,149 @@ fn dev_inspect_skips_receiving_checks() {
         "the receiving input is unused, so the run must succeed, got {:?}",
         result.status
     );
+}
+
+/// Runs `tx` under both execution modes and returns what each produced.
+///
+/// Only whether a receiving reference is *current* is relaxed for a dev
+/// inspect. What the object is, and that no reference is named twice, is
+/// checked either way, so these assert over both modes.
+fn execute_under_both_modes(
+    vm: &mut LocalVm,
+    tx: Transaction,
+) -> Vec<(&'static str, Result<ExecutionResult, VmSdkError>)> {
+    vec![
+        ("dry run", vm.execute(tx.clone(), ExecuteOptions::dry_run())),
+        ("dev inspect", vm.execute(tx, ExecuteOptions::dev_inspect())),
+    ]
+}
+
+/// A transfer PTB with `extra` appended as declared-but-unused inputs.
+///
+/// [`ProgrammableTransactionBuilder`] deduplicates object inputs and refuses to
+/// name one object under two argument kinds, so a malformed set of references
+/// cannot be built through it. A client sends the transaction as bytes and is
+/// under no such constraint, which is what the input checks answer for.
+fn tx_with_extra_inputs(sender: Address, gas: &Object, extra: Vec<CallArg>) -> Transaction {
+    let mut b = ProgrammableTransactionBuilder::new();
+    b.transfer_iota(Address::from(ObjectId::random()), Some(1000));
+    let ProgrammableTransaction {
+        mut inputs,
+        commands,
+    } = b.finish();
+    inputs.extend(extra);
+
+    Transaction::new_programmable(
+        sender,
+        vec![gas.object_ref()],
+        ProgrammableTransaction { inputs, commands },
+        TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE * GAS_PRICE,
+        GAS_PRICE,
+    )
+}
+
+fn assert_user_input_error(
+    label: &str,
+    result: Result<ExecutionResult, VmSdkError>,
+    expected: impl Fn(&UserInputError) -> bool,
+) {
+    let Err(VmSdkError::Validation(validation)) = &result else {
+        panic!("{label} must reject the transaction, got {result:?}");
+    };
+    let IotaError::UserInput { error } = &validation.source else {
+        panic!("{label} must fail the input checks, got {validation:?}");
+    };
+    assert!(expected(error), "unexpected error for {label}: {error:?}");
+}
+
+/// The same object named by two receiving references is rejected under both
+/// modes.
+///
+/// `CallArg::Receiving` is not part of `input_objects()`, so it escapes that
+/// function's duplicate rejection; this check is the only one there is. Without
+/// it both tickets reach the object runtime, which treats receiving one object
+/// twice as impossible.
+#[test]
+fn both_modes_reject_a_duplicate_receiving_reference() {
+    let sender = Address::ZERO;
+    let (mut vm, gas, receivable_ref) = vm_with_receivable_coin(sender, ObjectId::random());
+
+    let tx = tx_with_extra_inputs(
+        sender,
+        &gas,
+        vec![
+            CallArg::Receiving(receivable_ref),
+            CallArg::Receiving(receivable_ref),
+        ],
+    );
+
+    for (label, result) in execute_under_both_modes(&mut vm, tx) {
+        assert_user_input_error(label, result, |error| {
+            matches!(error, UserInputError::DuplicateObjectRefInput)
+        });
+    }
+}
+
+/// An object named both as an owned input and as a receiving reference is
+/// rejected under both modes.
+#[test]
+fn both_modes_reject_a_receiving_reference_that_is_also_an_input() {
+    let sender = Address::ZERO;
+    let gas = Object::new_move(
+        MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), GAS_COIN_VALUE),
+        Owner::Address(sender),
+        TransactionDigest::ZERO,
+    );
+    // Owned by the sender, so the owned-input checks pass and the collision
+    // between the two references is what rejects the transaction.
+    let owned = Object::new_move(
+        MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), 1),
+        Owner::Address(sender),
+        TransactionDigest::ZERO,
+    );
+    let owned_ref = owned.object_ref();
+
+    let mut store = InMemoryStore::with_framework();
+    store.insert(gas.clone());
+    store.insert(owned);
+    let mut vm = LocalVm::new(chain_context(), store).expect("build LocalVm");
+
+    let tx = tx_with_extra_inputs(
+        sender,
+        &gas,
+        vec![
+            CallArg::ImmutableOrOwned(owned_ref),
+            CallArg::Receiving(owned_ref),
+        ],
+    );
+
+    for (label, result) in execute_under_both_modes(&mut vm, tx) {
+        assert_user_input_error(label, result, |error| {
+            matches!(error, UserInputError::DuplicateObjectRefInput)
+        });
+    }
+}
+
+/// A package named as a receiving reference is rejected under both modes: a
+/// package is not a value that can be received.
+#[test]
+fn both_modes_reject_receiving_a_package() {
+    let sender = Address::ZERO;
+    let (mut vm, gas, _) = vm_with_receivable_coin(sender, ObjectId::random());
+    let package = vm
+        .store()
+        .get_object(&ObjectId::FRAMEWORK, None)
+        .expect("store lookup")
+        .expect("framework package");
+
+    let tx = tx_with_receiving_input(sender, &gas, package.object_ref());
+
+    for (label, result) in execute_under_both_modes(&mut vm, tx) {
+        assert_user_input_error(label, result, |error| {
+            matches!(
+                error,
+                UserInputError::MovePackageAsObject { object_id } if *object_id == ObjectId::FRAMEWORK
+            )
+        });
+    }
 }
