@@ -22,9 +22,9 @@ use iota_sdk_types::{
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
     MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
     Owner, ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
-    SenderSignedTransaction, SharedObjectReference, SplitCoins, Transaction, TransactionDigest,
-    TransactionExpiration, TransactionKind, TransactionV1, TransferObjects, TypeTag, Upgrade,
-    UserSignature, Version,
+    SenderSignedTransaction, SharedObjectReference, SplitCoins, Transaction,
+    TransactionDenyRulesUpdate, TransactionDigest, TransactionExpiration, TransactionKind,
+    TransactionV1, TransferObjects, TypeTag, Upgrade, UserSignature, Version,
     crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 use itertools::Either;
@@ -2467,6 +2467,10 @@ impl VerifiedTransaction {
 
     pub fn new_end_of_epoch_transaction(txns: Vec<EndOfEpochTransactionKind>) -> Self {
         TransactionKind::EndOfEpoch(txns).pipe(Self::new_system_transaction)
+    }
+
+    pub fn new_transaction_deny_rules_update(update: TransactionDenyRulesUpdate) -> Self {
+        TransactionKind::TransactionDenyRulesUpdate(update).pipe(Self::new_system_transaction)
     }
 
     fn new_system_transaction(system_transaction: TransactionKind) -> Self {

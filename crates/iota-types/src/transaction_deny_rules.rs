@@ -10,6 +10,8 @@ use crate::{
 };
 
 pub const TRANSACTION_DENY_RULES_MODULE_NAME: &IdentStr = ident_str!("transaction_deny_rules");
+pub const TRANSACTION_DENY_RULES_MODULE: Identifier =
+    Identifier::from_static("transaction_deny_rules");
 pub const TRANSACTION_DENY_RULES_UPDATE_FUNCTION_NAME: Identifier =
     Identifier::from_static("update");
 pub const TRANSACTION_DENY_RULES_CREATE_FUNCTION_NAME: Identifier =
