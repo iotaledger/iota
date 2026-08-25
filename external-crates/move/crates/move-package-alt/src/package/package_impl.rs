@@ -3,24 +3,17 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::BTreeMap,
-    fmt::{self, Debug},
-    marker::PhantomData,
-    path::{Path, PathBuf},
-};
+use std::{collections::BTreeMap, fmt::Debug, path::Path};
 
-use move_core_types::{account_address::AccountAddress, identifier::Identifier};
-use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use move_core_types::identifier::Identifier;
 
 use super::{manifest::Manifest, paths::PackagePath, published_info::PublishInformation};
 use crate::{
-    dependency::{DependencySet, PinnedDependencyInfo, pin},
+    dependency::{PinnedDependencyInfo, pin},
     errors::{PackageError, PackageResult},
     flavor::MoveFlavor,
     package::lockfile::Lockfiles,
-    schema::{LocalDepInfo, LockfileDependencyInfo, Pin},
+    schema::{LocalDepInfo, LockfileDependencyInfo},
 };
 
 pub type EnvironmentName = String;

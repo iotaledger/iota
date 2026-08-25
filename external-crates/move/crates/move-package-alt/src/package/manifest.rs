@@ -9,14 +9,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use codespan_reporting::{
-    diagnostic::{Diagnostic, Label},
-    term::{
-        self,
-        termcolor::{ColorChoice, StandardStream},
-    },
-};
-use serde::Deserialize;
+use codespan_reporting::diagnostic::{Diagnostic, Label};
 use sha2::{Digest as ShaDigest, Sha256};
 use thiserror::Error;
 use tracing::debug;
@@ -24,9 +17,9 @@ use tracing::debug;
 use super::*;
 use crate::{
     dependency::{CombinedDependency, DependencySet},
-    errors::{FileHandle, Files, Located, Location, TheFile},
+    errors::{FileHandle, Location},
     flavor::MoveFlavor,
-    schema::{self, DefaultDependency, ParsedManifest, ReplacementDependency},
+    schema::ParsedManifest,
 };
 
 const ALLOWED_EDITIONS: &[&str] = &["2025", "2024", "2024.beta", "legacy"];

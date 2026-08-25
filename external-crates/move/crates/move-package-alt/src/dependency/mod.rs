@@ -17,7 +17,6 @@ pub use fetch::FetchedDependency;
 
 mod dependency_set;
 pub use dependency_set::DependencySet;
-use move_core_types::account_address::AccountAddress;
 
 use crate::{
     errors::FileHandle,

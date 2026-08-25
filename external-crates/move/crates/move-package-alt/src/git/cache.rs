@@ -6,17 +6,15 @@
 use std::{
     io::BufRead,
     path::{Path, PathBuf},
-    process::{Output, Stdio},
+    process::Stdio,
 };
 
 use once_cell::sync::OnceCell;
 use tokio::process::Command;
 use tracing::{debug, info};
 
-use super::{
-    errors::{GitError, GitResult},
-    sha::GitSha,
-};
+use super::errors::{GitError, GitResult};
+use crate::schema::GitSha;
 
 static CONFIG: OnceCell<String> = OnceCell::new();
 
@@ -394,14 +392,13 @@ fn display_cmd(cmd: &Command) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, env, fs, path::Path};
+    use std::{collections::BTreeSet, fs, path::Path};
 
-    use tempfile::{TempDir, tempdir};
-    use test_log::test;
+    use tempfile::tempdir;
     use walkdir::{DirEntry, WalkDir};
 
     use super::*;
-    use crate::test_utils::{basic_manifest, git, git::commits};
+    use crate::test_utils::{basic_manifest, git};
 
     /// Asserts that `root/path` exists for each path in `paths`, and that no
     /// other files exist inside `root`. Ignores empty directories and files

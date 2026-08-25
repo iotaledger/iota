@@ -61,7 +61,6 @@
 //! repository.
 
 use std::{
-    env::consts,
     fs,
     path::{Path, PathBuf},
 };

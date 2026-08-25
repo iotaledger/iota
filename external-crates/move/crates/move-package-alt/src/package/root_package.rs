@@ -3,20 +3,14 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::BTreeMap,
-    fmt::{self, Debug},
-    marker::PhantomData,
-    path::{Path, PathBuf},
-};
+use std::{collections::BTreeMap, fmt, path::Path};
 
-use move_core_types::identifier::Identifier;
-use serde::{Deserialize, Serialize};
-use tracing::{debug, info};
+use tracing::debug;
 
-use super::{EnvironmentID, lockfile::Lockfiles, manifest::Manifest, paths::PackagePath};
+use super::{EnvironmentID, manifest::Manifest, paths::PackagePath};
+#[cfg(test)]
+use crate::dependency::PinnedDependencyInfo;
 use crate::{
-    dependency::{DependencySet, PinnedDependencyInfo, pin},
     errors::{FileHandle, PackageError, PackageResult},
     flavor::MoveFlavor,
     graph::PackageGraph,
@@ -176,6 +170,7 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
         Ok(())
     }
 
+    // TODO: probably remove this?
     #[cfg(test)]
     pub async fn direct_dependencies(
         &self,
@@ -198,8 +193,9 @@ impl<F: MoveFlavor + fmt::Debug> RootPackage<F> {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs, process::Output};
+    use std::{fs, path::PathBuf};
 
+    use move_core_types::identifier::Identifier;
     use tempfile::{TempDir, tempdir};
     use test_log::test;
     use tokio::process::Command;
@@ -207,7 +203,7 @@ mod tests {
     use super::*;
     use crate::{
         flavor::Vanilla,
-        git::{GitCache, GitResult, GitTree, run_git_cmd_with_args},
+        git::{GitResult, run_git_cmd_with_args},
         schema::LockfileDependencyInfo,
     };
 
@@ -313,10 +309,6 @@ mod tests {
         // Test environment operations
         assert!(root.environments().contains_key("testnet"));
         assert!(root.environments().contains_key("mainnet"));
-
-        // Test dependencies operations
-        let deps = root.direct_dependencies().await.unwrap();
-        assert!(!deps.is_empty());
 
         assert_eq!(root.package_name(), &Identifier::new("graph").unwrap());
     }

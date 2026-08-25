@@ -5,8 +5,6 @@
 
 mod cache;
 mod errors;
-mod sha;
 
 pub use cache::*;
 pub use errors::*;
-pub use sha::*;

@@ -3,14 +3,9 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
-
-use move_core_types::account_address::AccountAddress;
-use serde::{Deserialize, Serialize};
-
 use crate::{
     flavor::MoveFlavor,
-    schema::{EnvironmentID, EnvironmentName, Publication},
+    schema::{EnvironmentID, Publication},
 };
 
 /// Publish information for a package in a specific environment.

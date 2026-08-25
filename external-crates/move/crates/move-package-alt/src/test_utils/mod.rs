@@ -12,9 +12,8 @@ mod paths;
 
 use std::{
     env,
-    ffi::OsStr,
     fmt::Write,
-    fs, os,
+    fs,
     path::{Path, PathBuf},
 };
 

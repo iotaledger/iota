@@ -5,14 +5,12 @@
 
 use std::{collections::BTreeMap, path::PathBuf};
 
-use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Deserializer, de};
 use serde_spanned::Spanned;
 
 use super::{
     EnvironmentName, LocalDepInfo, OnChainDepInfo, PackageName, PublishedID, ResolverName,
 };
-use crate::dependency::DependencySet;
 
 // TODO: look at Brandon's serialization code (https://github.com/iotaledger/sui-rust-sdk/blob/master/crates/iota-sdk-types/src/object.rs)
 

@@ -3,10 +3,9 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use super::{Dependency, DependencySet, PinnedDependencyInfo};
+use super::{Dependency, DependencySet};
 use crate::{
-    errors::{FileHandle, PackageResult},
-    flavor::MoveFlavor,
+    errors::FileHandle,
     package::manifest::ManifestResult,
     schema::{
         DefaultDependency, EnvironmentName, ManifestDependencyInfo, ParsedManifest,

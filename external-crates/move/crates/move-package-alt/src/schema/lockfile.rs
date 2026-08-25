@@ -6,7 +6,6 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use derive_where::derive_where;
-use move_core_types::account_address::AccountAddress;
 use serde::{Deserialize, Serialize};
 use toml_edit::{
     DocumentMut, InlineTable, Item, KeyMut, Table, Value,
@@ -14,10 +13,10 @@ use toml_edit::{
 };
 
 use super::{
-    EnvironmentID, EnvironmentName, LocalDepInfo, OnChainDepInfo, OriginalID, PackageName,
+    EnvironmentID, EnvironmentName, GitSha, LocalDepInfo, OnChainDepInfo, OriginalID, PackageName,
     PublishedID,
 };
-use crate::{flavor::MoveFlavor, git::GitSha};
+use crate::flavor::MoveFlavor;
 
 /// An identifier for a node in the package graph, used to index into the
 /// `[pinned.<environment>]` table

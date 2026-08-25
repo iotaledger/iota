@@ -8,9 +8,11 @@
 mod lockfile;
 mod manifest;
 mod resolver;
+mod sha;
 mod shared;
 
 pub use lockfile::*;
 pub use manifest::*;
 pub use resolver::*;
+pub use sha::*;
 pub use shared::*;

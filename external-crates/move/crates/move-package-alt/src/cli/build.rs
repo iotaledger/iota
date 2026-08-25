@@ -5,7 +5,7 @@
 
 use std::path::PathBuf;
 
-use clap::{Command, Parser, Subcommand};
+use clap::Parser;
 
 use crate::{errors::PackageResult, flavor::Vanilla, package::Package};
 

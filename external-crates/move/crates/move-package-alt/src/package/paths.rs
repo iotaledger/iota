@@ -6,14 +6,13 @@
 use std::{
     collections::BTreeMap,
     ffi::OsString,
-    fmt::{self, Debug, Display},
+    fmt::Debug,
     path::{Path, PathBuf},
 };
 
 use thiserror::Error;
 
 use super::EnvironmentName;
-use crate::errors::PackageResult;
 
 /// A canonical path to a directory containing a loaded Move package (in
 /// particular, the directory must have a Move.toml)
