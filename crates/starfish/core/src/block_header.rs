@@ -17,8 +17,8 @@ use itertools::Itertools as _;
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
 use starfish_config::{
-    AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper, Epoch,
-    ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
+    AuthorityIndex, Committee, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper,
+    Epoch, ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
 };
 use tracing::instrument;
 
@@ -26,7 +26,7 @@ use crate::{
     authority_set::AuthoritySet,
     commit::CommitVote,
     context::Context,
-    encoder::{ShardEncoder, create_encoder},
+    encoder::{ShardEncoder, create_encoder_for_committee},
     error::{ConsensusError, ConsensusResult},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -943,13 +943,24 @@ impl TransactionsCommitment {
     /// Commitment over an empty transaction list. The value depends on the
     /// committee size through the erasure-coding shard counts.
     pub(crate) fn compute_empty_transactions_commitment(
-        context: &Arc<Context>,
+        committee: &Committee,
     ) -> TransactionsCommitment {
-        let mut encoder = create_encoder(context);
+        let info_length = committee.info_length();
+        let parity_length = committee.size() - info_length;
+        let mut encoder = create_encoder_for_committee(committee);
         let serialized = Transaction::serialize(&[])
             .expect("Serializing an empty transaction list should not fail");
-        Self::compute_transactions_commitment(&serialized, context, &mut encoder)
+        let encoded_shards = encoder
+            .encode_serialized_data(&serialized, info_length, parity_length)
+            .expect("Encoding empty transactions should not fail");
+        let authority = committee
+            .authorities()
+            .next()
+            .expect("Committee should not be empty")
+            .0;
+        Self::compute_merkle_root_and_proof(&encoded_shards, authority)
             .expect("Computing the empty transactions commitment should not fail")
+            .0
     }
 }
 

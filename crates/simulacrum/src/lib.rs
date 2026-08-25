@@ -292,12 +292,18 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// created.
     ///
     /// NOTE: This function does not currently support updating the protocol
-    /// version or the system packages
+    /// version or the system packages.
+    ///
+    /// With `create_deny_rules_object`, the end-of-epoch transaction also
+    /// creates the `TransactionDenyRules` object (requires the
+    /// `deny_rule_governance_on_chain` feature flag).
+    ///
+    /// Returns the effects of the end-of-epoch transaction.
     ///
     /// # Panics
     ///
     /// Panics if the end-of-epoch transaction cannot be executed or fails.
-    pub fn advance_epoch(&self) {
+    pub fn advance_epoch(&self, create_deny_rules_object: bool) -> TransactionEffects {
         let inner = self.inner.read().unwrap();
         let current_epoch = inner.epoch_state.epoch();
         let next_epoch = current_epoch + 1;
@@ -325,9 +331,13 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let scores = vec![MAX_SCORE; committee_size];
 
         let next_epoch_system_package_bytes: Vec<SystemPackage> = vec![];
+        let mut kinds = Vec::new();
+        if create_deny_rules_object {
+            kinds.push(EndOfEpochTransactionKind::TransactionDenyRulesCreate);
+        }
         // Mirror the node's kind selection: the framework's `advance_epoch`
         // expects the V4 argument shape when the flag is enabled.
-        let kinds = vec![if pass_validator_scores {
+        kinds.push(if pass_validator_scores {
             EndOfEpochTransactionKind::new_change_epoch_v4(
                 next_epoch,
                 next_epoch_protocol_version.as_u64(),
@@ -355,7 +365,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 next_epoch_system_package_bytes,
                 vec![],
             )
-        }];
+        });
 
         let tx = VerifiedTransaction::new_end_of_epoch_transaction(kinds);
         let (effects, execution_error) = self
@@ -368,7 +378,17 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
 
         let (checkpoint, contents, new_epoch_state) = {
             let mut inner = self.inner.write().unwrap();
-            let new_epoch_state = EpochState::new(inner.store.get_system_state());
+            let system_state = inner.store.get_system_state();
+            // On same-version epoch changes, carry the current protocol config
+            // over instead of re-resolving it from the version, so feature
+            // flags customized for testing survive the epoch change.
+            let prev_protocol_config = inner.epoch_state.protocol_config();
+            let new_epoch_state =
+                if system_state.protocol_version() == prev_protocol_config.version.as_u64() {
+                    EpochState::new_with_config(prev_protocol_config.clone(), system_state)
+                } else {
+                    EpochState::new(system_state)
+                };
             let end_of_epoch_data = EndOfEpochData {
                 next_epoch_committee: new_epoch_state.committee().committee_members(),
                 next_epoch_protocol_version: next_epoch_protocol_version.as_u64(),
@@ -402,6 +422,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         // Finally, update the epoch state
         let mut inner = self.inner.write().unwrap();
         inner.epoch_state = new_epoch_state;
+
+        effects
     }
 
     /// Execute a function with read access to the store.
@@ -1004,13 +1026,195 @@ mod tests {
     }
 
     #[test]
+    fn advance_epoch_creates_deny_rules_object() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_deny_rule_governance_for_testing(true);
+                config.set_deny_rule_governance_on_chain_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+                config
+            });
+        let sim = Simulacrum::new();
+
+        assert!(sim.with_store(|store| {
+            store
+                .get_object(&iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID)
+                .is_none()
+        }));
+
+        sim.advance_epoch(true);
+
+        let object = sim
+            .with_store(|store| {
+                store
+                    .get_object(&iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID)
+                    .cloned()
+            })
+            .expect("the TransactionDenyRules object must exist after the create");
+        assert!(object.owner().is_shared());
+    }
+
+    /// The full deny rule state read back by walking the object's
+    /// `LinkedTable`s matches the deltas applied through real execution.
+    #[test]
+    fn walked_object_state_matches_applied_deltas() {
+        use std::collections::BTreeSet;
+
+        use iota_sdk_types::TransactionDenyRulesUpdate;
+        use iota_types::transaction_deny_rules::{
+            get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
+        };
+
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_deny_rule_governance_for_testing(true);
+                config.set_deny_rule_governance_on_chain_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+                config
+            });
+        let sim = Simulacrum::new();
+        sim.advance_epoch(true);
+
+        let initial_shared_version = sim
+            .with_store(|store| get_transaction_deny_rules_obj_initial_shared_version(store))
+            .unwrap()
+            .expect("object must exist after the create");
+
+        let denied_address = Address::new([0xAA; 32]);
+        let removed_address = Address::new([0xBB; 32]);
+        let denied_package = ObjectId::new([0x2B; 32]);
+        let update = |round, added_addresses: BTreeSet<Address>, removed_addresses| {
+            VerifiedTransaction::new_transaction_deny_rules_update(TransactionDenyRulesUpdate {
+                epoch: 1,
+                round,
+                added_addresses,
+                removed_addresses,
+                added_objects: BTreeSet::new(),
+                removed_objects: BTreeSet::new(),
+                added_packages: [denied_package].into(),
+                removed_packages: BTreeSet::new(),
+                package_publish_disabled: false,
+                package_upgrade_disabled: false,
+                shared_object_disabled: true,
+                user_transaction_disabled: false,
+                receiving_objects_disabled: false,
+                move_authenticator_disabled: false,
+                deny_rules_obj_initial_shared_version: initial_shared_version,
+            })
+        };
+
+        // Two entries in, then one removed again: the walk crosses re-linked
+        // nodes, not just appended ones.
+        let (_, error) = sim
+            .execute_transaction(
+                update(0, [denied_address, removed_address].into(), BTreeSet::new()).into(),
+            )
+            .unwrap();
+        assert!(error.is_none());
+        let (_, error) = sim
+            .execute_transaction(update(1, BTreeSet::new(), [removed_address].into()).into())
+            .unwrap();
+        assert!(error.is_none());
+
+        let walked = sim
+            .with_store(|store| get_transaction_deny_rules(store))
+            .unwrap()
+            .expect("object must exist");
+        assert_eq!(walked.denied_addresses, [denied_address].into());
+        assert!(walked.denied_objects.is_empty());
+        assert_eq!(walked.denied_packages, [denied_package].into());
+        assert!(walked.shared_object_disabled);
+        assert!(!walked.user_transaction_disabled);
+    }
+
+    /// A chunk at the `deny_rule_update_max_entries_per_tx` ceiling executes:
+    /// all additions and all removals, which stress different limits (new
+    /// object ids and event size vs the store entries touched by re-linking).
+    #[test]
+    fn deny_rule_update_executes_at_the_chunk_ceiling() {
+        use std::collections::BTreeSet;
+
+        use iota_sdk_types::TransactionDenyRulesUpdate;
+        use iota_types::transaction_deny_rules::{
+            get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
+        };
+
+        const CEILING: u64 = 2048;
+
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_deny_rule_governance_for_testing(true);
+                config.set_deny_rule_governance_on_chain_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(CEILING);
+                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+                config
+            });
+        let sim = Simulacrum::new();
+        sim.advance_epoch(true);
+
+        let initial_shared_version = sim
+            .with_store(|store| get_transaction_deny_rules_obj_initial_shared_version(store))
+            .unwrap()
+            .expect("object must exist after the create");
+
+        let addresses: BTreeSet<Address> = (0..CEILING)
+            .map(|i| {
+                let mut bytes = [0u8; 32];
+                bytes[..8].copy_from_slice(&i.to_be_bytes());
+                Address::new(bytes)
+            })
+            .collect();
+        let update = |round, added_addresses, removed_addresses| {
+            VerifiedTransaction::new_transaction_deny_rules_update(TransactionDenyRulesUpdate {
+                epoch: 1,
+                round,
+                added_addresses,
+                removed_addresses,
+                added_objects: BTreeSet::new(),
+                removed_objects: BTreeSet::new(),
+                added_packages: BTreeSet::new(),
+                removed_packages: BTreeSet::new(),
+                package_publish_disabled: false,
+                package_upgrade_disabled: false,
+                shared_object_disabled: false,
+                user_transaction_disabled: false,
+                receiving_objects_disabled: false,
+                move_authenticator_disabled: false,
+                deny_rules_obj_initial_shared_version: initial_shared_version,
+            })
+        };
+
+        let (_, error) = sim
+            .execute_transaction(update(0, addresses.clone(), BTreeSet::new()).into())
+            .unwrap();
+        assert!(error.is_none());
+        let walked = sim
+            .with_store(|store| get_transaction_deny_rules(store))
+            .unwrap()
+            .expect("object must exist");
+        assert_eq!(walked.denied_addresses.len(), CEILING as usize);
+
+        let (_, error) = sim
+            .execute_transaction(update(1, BTreeSet::new(), addresses).into())
+            .unwrap();
+        assert!(error.is_none());
+        let walked = sim
+            .with_store(|store| get_transaction_deny_rules(store))
+            .unwrap()
+            .expect("object must exist");
+        assert!(walked.denied_addresses.is_empty());
+    }
+
+    #[test]
     fn simple_epoch() {
         let steps = 10;
         let sim = Simulacrum::new();
 
         let start_epoch = sim.with_store(|store| store.get_highest_checkpoint().unwrap().epoch);
         for i in 0..steps {
-            sim.advance_epoch();
+            sim.advance_epoch(false);
             sim.advance_clock(Duration::from_millis(1));
             sim.create_checkpoint();
             println!("{i}");

@@ -199,9 +199,9 @@ fn get_registry() -> Result<Registry> {
     )
     .signing_digest();
 
-    let sig1: SimpleSignature = kp1.sign(&*digest);
-    let sig2: SimpleSignature = kp2.sign(&*digest);
-    let sig3: SimpleSignature = kp3.sign(&*digest);
+    let sig1: SimpleSignature = kp1.sign(&digest);
+    let sig2: SimpleSignature = kp2.sign(&digest);
+    let sig3: SimpleSignature = kp3.sign(&digest);
 
     let multi_sig = MultisigAggregatedSignature::new(
         vec![

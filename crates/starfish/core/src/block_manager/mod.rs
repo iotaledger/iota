@@ -1744,8 +1744,8 @@ mod tests {
         let misbehavior_store = dag_state.read().misbehavior_store().clone();
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
         let faults = |authority: u8| {
-            let crate::misbehavior_store::MisbehaviorCounts::V1(counts) =
-                &misbehavior_store.snapshot_totals()[authority as usize];
+            let totals = misbehavior_store.snapshot_totals();
+            let counts = totals[authority as usize].as_v2();
             (
                 counts.faulty_blocks_provable,
                 counts.faulty_blocks_unprovable,

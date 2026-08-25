@@ -354,6 +354,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) faulty_blocks_unprovable_by_peer: IntGaugeVec,
     pub(crate) equivocations_by_authority: IntGaugeVec,
     pub(crate) missing_proposals_by_authority: IntGaugeVec,
+    pub(crate) invalid_bundle_parts_by_peer: IntGaugeVec,
     pub(crate) strong_vote_extra_wait_seconds: Histogram,
     pub(crate) strong_vote_missing_authorities: Histogram,
     pub(crate) strong_blames_emitted_for_leader: IntCounterVec,
@@ -1416,6 +1417,13 @@ impl NodeMetrics {
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
+            invalid_bundle_parts_by_peer: register_int_gauge_vec_with_registry!(
+                "invalid_bundle_parts_by_peer",
+                "Invalid relayed bundle parts per peer (source: persisted or in_memory)",
+                &["peer", "source"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
             strong_vote_extra_wait_seconds: register_histogram_with_registry!(
                 "strong_vote_extra_wait_seconds",
                 "Extra wait at block proposal time imposed by the StarfishSpeed strong-vote condition: time between when the ordinary (base Starfish) propose condition first became satisfiable for the current clock round and when the proposal actually happened. Observed only when consensus_starfish_speed is enabled.",
@@ -1486,7 +1494,7 @@ impl NodeMetrics {
             ).unwrap(),
             shard_reconstructor_dropped_shards: register_int_counter_vec_with_registry!(
                 "shard_reconstructor_dropped_shards",
-                "Number of shards dropped by the reconstructor's admission rules, by reason: the relaying peer already contributed a shard in the slot, or the slot already holds the maximum number of accumulators",
+                "Number of shards dropped by the reconstructor's admission rules, by reason: the relaying peer already contributed a shard in the slot, the slot already holds the maximum number of accumulators, the slot is already resolved, or the peer's retained-shard budget evicted its oldest shard",
                 &["reason"],
                 registry;
                 MetricLevel::Warn,

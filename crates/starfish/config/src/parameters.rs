@@ -180,6 +180,20 @@ pub struct Parameters {
     /// Disabled by default (None).
     #[serde(default)]
     pub dag_visualizer_port: Option<u16>,
+
+    /// Maximum number of rounds the last commit's leader may run ahead of the
+    /// last solid commit's leader before the node stops accepting new block
+    /// bundles and restricts header fetching, until solidification catches up.
+    #[serde(default = "Parameters::default_solid_commit_lag_threshold")]
+    pub solid_commit_lag_threshold: u32,
+
+    /// Maximum number of shards from one relaying authority retained across
+    /// all pending shard accumulators. At the budget, admitting a new shard
+    /// from the authority evicts its oldest retained one, so reconstructor
+    /// memory stays bounded by `committee size × budget × shard size`
+    /// regardless of how far commits run ahead of solidification.
+    #[serde(default = "Parameters::default_shard_budget_per_authority")]
+    pub shard_budget_per_authority: u32,
 }
 
 impl Parameters {
@@ -310,6 +324,10 @@ impl Parameters {
             (
                 "tonic.keepalive_interval",
                 self.tonic.keepalive_interval.as_nanos(),
+            ),
+            (
+                "shard_budget_per_authority",
+                self.shard_budget_per_authority as u128,
             ),
         ];
         for (name, value) in positive_fields {
@@ -455,6 +473,20 @@ impl Parameters {
     pub(crate) fn default_enable_peer_responsiveness_ranking() -> bool {
         true
     }
+
+    pub(crate) fn default_solid_commit_lag_threshold() -> u32 {
+        // The healthy gap is a few rounds at most; 500 rounds (a few minutes of
+        // commits) is far above live jitter yet caps how long a solidification
+        // stall can keep widening the shard/payload retention window.
+        500
+    }
+
+    pub(crate) fn default_shard_budget_per_authority() -> u32 {
+        // Honest need per authority is one shard per slot times a few rounds
+        // until decode, well under the budget at any realistic committee size.
+        // Worst-case total pool ≈ 3 × budget × the maximum payload size.
+        1000
+    }
 }
 
 impl Default for Parameters {
@@ -494,6 +526,8 @@ impl Default for Parameters {
             enable_peer_responsiveness_ranking:
                 Parameters::default_enable_peer_responsiveness_ranking(),
             dag_visualizer_port: None,
+            solid_commit_lag_threshold: Parameters::default_solid_commit_lag_threshold(),
+            shard_budget_per_authority: Parameters::default_shard_budget_per_authority(),
         }
     }
 }

@@ -509,8 +509,11 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .inc_by(verified_shards.len() as u64);
         Ok(verified_shards)
     }
-    fn ensure_commit_lag_within_threshold(&self, block_ref: BlockRef) -> ConsensusResult<()> {
-        let last_commit_index = self.dag_state.read().last_commit_index();
+    fn ensure_commit_lag_within_threshold(
+        &self,
+        block_ref: BlockRef,
+        last_commit_index: CommitIndex,
+    ) -> ConsensusResult<()> {
         let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
         // The threshold to ignore block should be larger than commit_sync_batch_size,
         // to avoid excessive block rejections and synchronizations.
@@ -726,6 +729,36 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             }
         }
     }
+
+    /// Rejects the block when local commits run too far ahead of the last
+    /// solid commit, i.e. transaction payloads are not keeping up. New headers
+    /// would only widen the round window in which shards and payloads are
+    /// retained, so ingestion pauses until the transactions synchronizer
+    /// closes the gap.
+    fn ensure_solid_commit_lag_within_threshold(
+        &self,
+        block_ref: BlockRef,
+        solid_commit_lag: Option<Round>,
+    ) -> ConsensusResult<()> {
+        let Some(solid_commit_lag) = solid_commit_lag else {
+            return Ok(());
+        };
+        self.context
+            .metrics
+            .node_metrics
+            .rejected_blocks
+            .with_label_values(&["solid_commit_lagging"])
+            .inc();
+        debug!(
+            "Block {block_ref:?} is rejected because the last solid commit is lagging the last commit by {solid_commit_lag} rounds",
+        );
+        Err(ConsensusError::BlockRejected {
+            block_ref,
+            reason: format!(
+                "Last solid commit is lagging the last commit by {solid_commit_lag} rounds",
+            ),
+        })
+    }
 }
 
 /// Rejects a deserialized `ShardWithProof` that is not the current `V2`
@@ -919,11 +952,23 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         };
 
         // 7. Reject blocks when local commit index is lagging too far from quorum
-        //    commit index.
+        //    commit index, or when local commits run too far ahead of the last solid
+        //    commit.
         //
         // IMPORTANT: this must be done after observing votes from the block, otherwise
         // observed quorum commit will no longer progress.
-        self.ensure_commit_lag_within_threshold(block_ref)?;
+        //
+        // Read both lag inputs under a single short dag_state lock, then decide without
+        // holding it — the threshold comparisons, metrics and errors need no lock.
+        let (last_commit_index, solid_commit_lag) = {
+            let dag_state = self.dag_state.read();
+            let solid_commit_lag = dag_state
+                .is_solidification_lagging()
+                .then(|| dag_state.solid_commit_lag_rounds());
+            (dag_state.last_commit_index(), solid_commit_lag)
+        };
+        self.ensure_commit_lag_within_threshold(block_ref, last_commit_index)?;
+        self.ensure_solid_commit_lag_within_threshold(block_ref, solid_commit_lag)?;
 
         self.context
             .metrics
@@ -1563,10 +1608,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let store_transactions = if !below_gc.is_empty() {
             let refs: Vec<GenericTransactionRef> =
                 below_gc.iter().copied().map(Into::into).collect();
-            self.store
-                .read_serialized_transactions(&refs)?
+            let transactions = self.store.read_serialized_transactions(&refs)?;
+            transactions
                 .into_iter()
                 .zip(below_gc)
+                .map(|(transaction, transaction_ref)| {
+                    let transaction = transaction.or_else(|| {
+                        self.context
+                            .empty_transactions_for_ref(transaction_ref.into())
+                            .map(|empty| empty.serialized().clone())
+                    });
+                    (transaction, transaction_ref)
+                })
                 .collect::<Vec<_>>()
         } else {
             vec![]
@@ -1586,15 +1639,20 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             vec![]
         };
 
-        // Combine and serialize the results
+        let transactions_by_ref: BTreeMap<_, _> = store_transactions
+            .into_iter()
+            .chain(dag_transactions)
+            .filter_map(|(transaction, transaction_ref)| {
+                transaction.map(|transaction| (transaction_ref, transaction))
+            })
+            .collect();
+
         let mut result = Vec::new();
-        for (opt_serialized_tx, transaction_ref) in
-            store_transactions.into_iter().chain(dag_transactions)
-        {
-            if let Some(serialized_tx) = opt_serialized_tx {
+        for transaction_ref in committed_transactions_refs {
+            if let Some(serialized_tx) = transactions_by_ref.get(&transaction_ref) {
                 let serialized = bcs::to_bytes(&SerializedTransactionsV2 {
                     transaction_ref,
-                    serialized_transactions: serialized_tx,
+                    serialized_transactions: serialized_tx.clone(),
                 })
                 .map_err(ConsensusError::SerializationFailure)?;
                 result.push(Bytes::from(serialized));
@@ -1858,7 +1916,9 @@ mod tests {
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
-        commit::{CertifiedCommits, CommitDigest, CommitRange, CommitRef},
+        commit::{
+            CertifiedCommits, CommitDigest, CommitRange, CommitRef, SubDagBase, TrustedCommit,
+        },
         commit_observer::CommitObserver,
         commit_syncer::CommitSyncType,
         commit_vote_monitor::CommitVoteMonitor,
@@ -1873,7 +1933,7 @@ mod tests {
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::HeaderSynchronizer,
         leader_schedule::LeaderSchedule,
-        misbehavior_store::{MisbehaviorCounts, MisbehaviorStore},
+        misbehavior_store::MisbehaviorStore,
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
@@ -1946,7 +2006,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
             unimplemented!("Unimplemented")
         }
 
@@ -2239,10 +2299,237 @@ mod tests {
                 .get(),
             1,
         );
-        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[peer.value()];
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[peer.value()].as_v2();
         assert_eq!(
             counts.faulty_blocks_provable, 1,
             "two signed headers for one slot are provable equivocation"
+        );
+    }
+
+    /// A bundle is rejected while local commits run further ahead of the last
+    /// solid commit than `solid_commit_lag_threshold`, and accepted again once
+    /// solidification catches up to the threshold.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_rejects_when_solid_commit_lags() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context.with_parameters(Parameters {
+            solid_commit_lag_threshold: 10,
+            ..Default::default()
+        }));
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, mut tx_message_receiver) = mpsc::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+            Arc::new(MisbehaviorStore::new(&context)),
+            tx_message_sender,
+            cordial_knowledge,
+        ));
+        let mut encoder = create_encoder(&context);
+
+        // Commit up to leader round 12 with nothing solid yet, so the solid
+        // commit lag (12 rounds) exceeds the 10-round threshold.
+        {
+            let mut d = dag_state.write();
+            for index in 1..=12u32 {
+                d.add_commit(TrustedCommit::new_for_test(
+                    &context,
+                    index,
+                    CommitDigest::MIN,
+                    0,
+                    BlockRef::new(
+                        index,
+                        AuthorityIndex::new_for_test(0),
+                        BlockHeaderDigest::MIN,
+                    ),
+                    vec![],
+                    vec![],
+                ));
+            }
+        }
+
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
+        let bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
+
+        let result = authority_service
+            .handle_subscribed_block_bundle(peer, bundle.clone(), &mut encoder)
+            .await;
+        assert!(
+            matches!(result, Err(ConsensusError::BlockRejected { .. })),
+            "expected BlockRejected while solidification lags, got {result:?}"
+        );
+        assert!(
+            tx_message_receiver.try_recv().is_err(),
+            "a rejected bundle must not feed the shard reconstructor"
+        );
+        assert!(
+            core_dispatcher.get_blocks().is_empty(),
+            "a rejected block must not be forwarded to the core"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .rejected_blocks
+                .with_label_values(&["solid_commit_lagging"])
+                .get(),
+            1,
+        );
+
+        // Solidify up to leader round 2: the lag is exactly the threshold,
+        // which is accepted.
+        dag_state.write().update_last_solid_subdag_base(SubDagBase {
+            leader: BlockRef::new(2, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            headers: vec![],
+            committed_header_refs: vec![],
+            timestamp_ms: 0,
+            commit_ref: CommitRef::new(2, CommitDigest::MIN),
+            reputation_scores_desc: vec![],
+        });
+
+        authority_service
+            .handle_subscribed_block_bundle(peer, bundle, &mut encoder)
+            .await
+            .unwrap();
+        assert_eq!(core_dispatcher.get_blocks(), vec![input_block]);
+    }
+
+    /// During fast sync commits are applied in bulk before their payloads
+    /// arrive, so the solid commit lag does not reject bundles.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_allows_solid_commit_lag_during_fast_sync() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context.with_parameters(Parameters {
+            solid_commit_lag_threshold: 10,
+            ..Default::default()
+        }));
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+        let authority_service = Arc::new(AuthorityService::new(
+            context.clone(),
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store.clone(),
+            Arc::new(MisbehaviorStore::new(&context)),
+            tx_message_sender,
+            cordial_knowledge,
+        ));
+        let mut encoder = create_encoder(&context);
+
+        // Commit up to leader round 12 with nothing solid, but mark fast sync
+        // as ongoing.
+        {
+            let mut d = dag_state.write();
+            for index in 1..=12u32 {
+                d.add_commit(TrustedCommit::new_for_test(
+                    &context,
+                    index,
+                    CommitDigest::MIN,
+                    0,
+                    BlockRef::new(
+                        index,
+                        AuthorityIndex::new_for_test(0),
+                        BlockHeaderDigest::MIN,
+                    ),
+                    vec![],
+                    vec![],
+                ));
+            }
+        }
+        store
+            .write(WriteBatch {
+                fast_commit_sync_flag: Some(true),
+                ..WriteBatch::default()
+            })
+            .unwrap();
+
+        let peer = context.committee.to_authority_index(0).unwrap();
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
+        let bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
+
+        authority_service
+            .handle_subscribed_block_bundle(peer, bundle, &mut encoder)
+            .await
+            .unwrap();
+        assert_eq!(core_dispatcher.get_blocks(), vec![input_block]);
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .rejected_blocks
+                .with_label_values(&["solid_commit_lagging"])
+                .get(),
+            0,
         );
     }
 
@@ -2330,7 +2617,7 @@ mod tests {
         }
 
         let counts = misbehavior_store.snapshot_totals();
-        let MisbehaviorCounts::V1(counts) = &counts[0];
+        let counts = counts[0].as_v2();
         assert_eq!(counts.faulty_blocks_unprovable, 1);
 
         let input_block = VerifiedBlock::new_for_test(
@@ -2360,7 +2647,7 @@ mod tests {
         ));
 
         let counts = misbehavior_store.snapshot_totals();
-        let MisbehaviorCounts::V1(counts) = &counts[0];
+        let counts = counts[0].as_v2();
         assert_eq!(counts.faulty_blocks_unprovable, 2);
     }
 
@@ -2464,8 +2751,9 @@ mod tests {
         }
 
         // The relaying peer (authority 0) is charged for the invalid header.
-        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
-        assert_eq!(counts.faulty_blocks_unprovable, 1);
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[0].as_v2();
+        assert_eq!(counts.invalid_bundle_parts, 1);
 
         let cached_header = VerifiedBlockHeader::new_for_test(
             TestBlockHeader::new_with_commitment(1, 1, &context, &mut encoder)
@@ -2506,8 +2794,9 @@ mod tests {
                 block_round: 1,
             })
         ));
-        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
-        assert_eq!(counts.faulty_blocks_unprovable, 2);
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[0].as_v2();
+        assert_eq!(counts.invalid_bundle_parts, 2);
 
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
@@ -2639,7 +2928,8 @@ mod tests {
         assert_eq!(authority_service.received_block_headers.size(), 0);
 
         // The relaying peer (authority 0) is charged for the invalid metadata.
-        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[0];
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[0].as_v2();
         assert_eq!(counts.faulty_blocks_unprovable, 1);
     }
 
@@ -4274,7 +4564,7 @@ mod tests {
         let rounds = 10;
         let validators = 4;
         let (context, key_pairs) = Context::new_for_test(validators);
-        let context = Context {
+        let mut context = Context {
             parameters: Parameters {
                 max_transactions_per_transaction_sync_fetch: 20,
                 max_transactions_per_commit_sync_fetch: 10,
@@ -4283,6 +4573,7 @@ mod tests {
             },
             ..context
         };
+        context.protocol_config.set_gc_depth_for_testing(5);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -4464,15 +4755,42 @@ mod tests {
         // Verify that we received zero transactions since they are not present in the
         // dag
         assert!(serialized_transactions.is_empty());
+
+        let leader = all_block_headers[(2 * rounds) as usize][0].reference();
+        dag_state
+            .write()
+            .update_last_solid_subdag_base(crate::commit::SubDagBase {
+                leader,
+                headers: vec![],
+                committed_header_refs: vec![],
+                timestamp_ms: 0,
+                commit_ref: crate::commit::CommitRef::new(1, crate::commit::CommitDigest::MIN),
+                reputation_scores_desc: vec![],
+            });
+        let empty_ref = TransactionRef {
+            round: 1,
+            author: AuthorityIndex::new_for_test(0),
+            transactions_commitment: TransactionsCommitment::compute_empty_transactions_commitment(
+                &context.committee,
+            ),
+        };
+        assert!(empty_ref.round < dag_state.read().gc_round_for_last_solid_commit());
+
+        let serialized_transactions = authority_service
+            .handle_fetch_transactions(peer, vec![empty_ref], TransactionFetchMode::FastCommitSync)
+            .await
+            .unwrap();
+        let returned: SerializedTransactionsV2 =
+            bcs::from_bytes(&serialized_transactions[0]).unwrap();
+        let transactions: Vec<Transaction> =
+            bcs::from_bytes(&returned.serialized_transactions).unwrap();
+        assert_eq!(returned.transaction_ref, empty_ref);
+        assert!(transactions.is_empty());
     }
 
-    /// Tests that handle_fetch_headers preserves the original request order
-    /// of block refs when they span the GC boundary — i.e. some are fetched
-    /// from the persistent store (below GC) and others from in-memory
-    /// dag_state (at or above GC). The interleaved input order must be
-    /// maintained in the response.
+    /// Tests request order across the GC boundary.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_handle_fetch_headers_commit_sync_order_across_gc_boundary() {
+    async fn test_handle_fetch_data_commit_sync_order_across_gc_boundary() {
         // GIVEN
         let rounds = 20;
         let validators = 4;
@@ -4581,6 +4899,7 @@ mod tests {
                 ..WriteBatch::default()
             })
             .expect("Failed to write block headers to store");
+        dag_state.write().flush();
 
         // Set last_solid_subdag_base so gc_round_for_last_solid_commit() is ~10.
         // gc_round = leader_round.saturating_sub(gc_depth * 2) = 20 - 10 = 10
@@ -4674,6 +4993,33 @@ mod tests {
                 verified_block_header.reference()
             );
         }
+
+        let transaction_refs_by_block: BTreeMap<_, _> = headers_by_round
+            .iter()
+            .flatten()
+            .map(|header| (header.reference(), header.transaction_ref()))
+            .collect();
+        let transaction_refs: Vec<_> = interleaved_refs
+            .iter()
+            .map(|block_ref| transaction_refs_by_block[block_ref])
+            .collect();
+        let returned_transactions = authority_service
+            .handle_fetch_transactions(
+                peer,
+                transaction_refs.clone(),
+                TransactionFetchMode::FastCommitSync,
+            )
+            .await
+            .unwrap();
+        let returned_refs: Vec<TransactionRef> = returned_transactions
+            .iter()
+            .map(|transaction| {
+                bcs::from_bytes::<SerializedTransactionsV2>(transaction)
+                    .unwrap()
+                    .transaction_ref
+            })
+            .collect();
+        assert_eq!(returned_refs, transaction_refs);
     }
 
     #[test]
@@ -4831,8 +5177,9 @@ mod tests {
             ),
             "an oversized shard must be refused, got {result:?}"
         );
-        let MisbehaviorCounts::V1(counts) = &misbehavior_store.snapshot_totals()[peer.value()];
-        assert_eq!(counts.faulty_blocks_unprovable, 1);
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[peer.value()].as_v2();
+        assert_eq!(counts.invalid_bundle_parts, 1);
 
         // At exactly the maximum length the size gate passes, so the shard is
         // only rejected by the following proof check.

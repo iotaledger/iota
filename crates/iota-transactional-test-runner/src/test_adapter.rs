@@ -30,16 +30,17 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
     Event, ExecutionStatus, GasPayment, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId,
-    ObjectReference, ProgrammableTransaction, RandomnessRound, Transaction, TransactionDigest,
-    TransactionEffects, TransactionEvents, TransactionExpiration, TransactionKind, TransactionV1,
-    TypeTag, UserSignature, Version, checkpoint::CheckpointContents, gas::GasCostSummary,
-    move_package::MovePackage,
+    ObjectReference, ProgrammableTransaction, RandomnessRound, Transaction,
+    TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionEvents,
+    TransactionExpiration, TransactionKind, TransactionV1, TypeTag, UserSignature, Version,
+    checkpoint::CheckpointContents, gas::GasCostSummary, move_package::MovePackage,
 };
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_types::{
+    IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
     base_types::{IOTA_ADDRESS_LENGTH, VersionNumber},
     committee::EpochId,
     crypto::{AccountPrivateKey, get_authority_key_pair, get_key_pair_from_rng},
@@ -114,6 +115,7 @@ const WELL_KNOWN_OBJECTS: &[ObjectId] = &[
     ObjectId::CLOCK,
     ObjectId::DENY_LIST,
     ObjectId::RANDOMNESS_STATE,
+    ObjectId::TRANSACTION_DENY_RULES,
 ];
 // TODO use the file name as a seed
 const RNG_SEED: [u8; 32] = [
@@ -208,6 +210,7 @@ impl AdapterInitConfig {
             reference_gas_price,
             default_gas_price,
             move_auth,
+            deny_rule_governance,
             flavor,
             epochs_to_keep,
             data_ingestion_path,
@@ -238,6 +241,14 @@ impl AdapterInitConfig {
             protocol_config.set_enable_move_authentication_for_testing(enable);
             protocol_config.set_enable_move_authentication_for_sponsor_for_testing(enable);
             protocol_config.set_pre_consensus_sponsor_only_move_authentication_for_testing(enable);
+        }
+        if let Some(enable) = deny_rule_governance {
+            protocol_config.set_deny_rule_governance_for_testing(enable);
+            protocol_config.set_deny_rule_governance_on_chain_for_testing(enable);
+            if enable {
+                protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+                protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            }
         }
         if custom_validator_account && !simulator {
             panic!("Can only set custom validator account in simulator mode");
@@ -710,9 +721,31 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let latest_chk = self.executor.try_get_latest_checkpoint_sequence_number()?;
                 Ok(Some(format!("Checkpoint created: {latest_chk}")))
             }
-            IotaSubcommand::AdvanceEpoch(AdvanceEpochCommand { count }) => {
+            IotaSubcommand::AdvanceEpoch(AdvanceEpochCommand {
+                count,
+                create_deny_rules_object,
+            }) => {
                 for _ in 0..count.unwrap_or(1) {
-                    self.executor.advance_epoch().await?;
+                    let effects = self
+                        .executor
+                        .advance_epoch(create_deny_rules_object)
+                        .await?;
+                    // Enumerate the objects the create produced so tests can
+                    // `view-object` them. Scoped to the flag to leave the fake
+                    // ids of all other tests untouched.
+                    if create_deny_rules_object {
+                        if let Some(effects) = effects {
+                            let mut created_ids: Vec<_> = effects
+                                .created()
+                                .iter()
+                                .map(|(object_ref, _)| object_ref.object_id)
+                                .collect();
+                            created_ids.sort_by_key(|id| self.get_object_sorting_key(id));
+                            for id in created_ids {
+                                self.enumerate_fake(id);
+                            }
+                        }
+                    }
                 }
                 let epoch = self.try_get_latest_epoch_id()?;
                 Ok(Some(format!("Epoch advanced: {epoch}")))
@@ -741,6 +774,62 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
                 self.execute_txn(tx.into()).await?;
                 Ok(None)
+            }
+            IotaSubcommand::UpdateDenyRules(cmd) => {
+                fn parse_entries<T: std::str::FromStr + Ord>(
+                    items: Vec<String>,
+                ) -> anyhow::Result<std::collections::BTreeSet<T>>
+                where
+                    T::Err: std::fmt::Display,
+                {
+                    items
+                        .into_iter()
+                        .map(|item| {
+                            // Accept short hex (e.g. `0xaa`) by left-padding to
+                            // the full 32-byte width.
+                            let hex = item.strip_prefix("0x").unwrap_or(&item);
+                            format!("0x{hex:0>64}")
+                                .parse::<T>()
+                                .map_err(|e| anyhow!("invalid deny list entry `{item}`: {e}"))
+                        })
+                        .collect()
+                }
+
+                let epoch = self.try_get_latest_epoch_id()?;
+                let deny_rules_obj_initial_shared_version = self
+                    .get_object(&IOTA_TRANSACTION_DENY_RULES_OBJECT_ID, None)
+                    .map_err(|_| {
+                        anyhow!(
+                            "the TransactionDenyRules object has not been created yet; \
+                             advance-epoch --create-deny-rules-object creates it"
+                        )
+                    })?
+                    .owner
+                    .into_opt_shared()
+                    .ok_or_else(|| anyhow!("TransactionDenyRules object must be shared"))?;
+
+                let tx = VerifiedTransaction::new_transaction_deny_rules_update(
+                    TransactionDenyRulesUpdate {
+                        epoch,
+                        round: cmd.round.unwrap_or_default(),
+                        added_addresses: parse_entries(cmd.added_addresses)?,
+                        removed_addresses: parse_entries(cmd.removed_addresses)?,
+                        added_objects: parse_entries(cmd.added_objects)?,
+                        removed_objects: parse_entries(cmd.removed_objects)?,
+                        added_packages: parse_entries(cmd.added_packages)?,
+                        removed_packages: parse_entries(cmd.removed_packages)?,
+                        package_publish_disabled: cmd.package_publish_disabled,
+                        package_upgrade_disabled: cmd.package_upgrade_disabled,
+                        shared_object_disabled: cmd.shared_object_disabled,
+                        user_transaction_disabled: cmd.user_transaction_disabled,
+                        receiving_objects_disabled: cmd.receiving_objects_disabled,
+                        move_authenticator_disabled: cmd.move_authenticator_disabled,
+                        deny_rules_obj_initial_shared_version,
+                    },
+                );
+
+                let summary = self.execute_txn(tx.into()).await?;
+                Ok(self.object_summary_output(&summary, /* summarize */ false))
             }
             IotaSubcommand::ViewObject(ViewObjectCommand { id: fake_id }) => {
                 let obj = get_obj!(fake_id);
@@ -2709,6 +2798,22 @@ async fn init_sim_executor(
     // Create the simulator with the specific account configs, which also crates
     // objects
 
+    // The simulator resolves its `ProtocolConfig` from the protocol version alone,
+    // so feature flags toggled on `protocol_config` would not reach it. Scope a
+    // thread-local override around the (synchronous) construction so the genesis
+    // epoch picks the flags up; `Simulacrum::advance_epoch` then carries the
+    // config over to later epochs.
+    let config_override = protocol_config.deny_rule_governance().then(|| {
+        let max_entries = protocol_config.deny_rule_update_max_entries_per_tx();
+        let grace_floor = protocol_config.deny_rule_removal_grace_round_floor();
+        ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+            config.set_deny_rule_governance_for_testing(true);
+            config.set_deny_rule_governance_on_chain_for_testing(true);
+            config.set_deny_rule_update_max_entries_per_tx_for_testing(max_entries);
+            config.set_deny_rule_removal_grace_round_floor_for_testing(grace_floor);
+            config
+        })
+    });
     let (sim, read_replica) = PersistedStore::new_sim_replica_with_protocol_version_and_accounts(
         rng,
         DEFAULT_CHAIN_START_TIMESTAMP,
@@ -2718,6 +2823,7 @@ async fn init_sim_executor(
         reference_gas_price,
         None,
     );
+    drop(config_override);
 
     sim.set_data_ingestion_path(data_ingestion_path.clone());
 

@@ -56,7 +56,7 @@ fn test_signatures() {
     let bar = IntentMessage::new(Intent::iota_transaction(), Bar("hello".into()));
 
     let aux = VerifyParams::default();
-    let s: SimpleSignature = sec1.sign(foo.signing_digest().inner());
+    let s: SimpleSignature = sec1.sign(&foo.signing_digest());
     assert!(s.verify_claims(&foo, addr1, &aux).is_ok());
     assert!(s.verify_claims(&foo, addr2, &aux).is_err());
     assert!(s.verify_claims(&foox, addr1, &aux).is_err());
@@ -80,11 +80,8 @@ fn test_signatures() {
 fn test_signatures_serde() {
     let sec1 = AccountPrivateKey::random();
     let foo = Foo("hello".into());
-    let s: SimpleSignature = sec1.sign(
-        IntentMessage::new(Intent::iota_transaction(), foo)
-            .signing_digest()
-            .inner(),
-    );
+    let s: SimpleSignature =
+        sec1.sign(&IntentMessage::new(Intent::iota_transaction(), foo).signing_digest());
 
     let serialized = bcs::to_bytes(&s).unwrap();
     println!("{serialized:?}");

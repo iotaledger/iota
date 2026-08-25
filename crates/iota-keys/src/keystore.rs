@@ -377,7 +377,7 @@ impl AccountKeystore for FileBasedKeystore {
 
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(keypair.sign(intent_msg.signing_digest().inner())),
+            StoredKey::KeyPair(keypair) => Ok(keypair.sign(&intent_msg.signing_digest())),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_secure is not supported for account type",
             )),
@@ -770,7 +770,7 @@ impl AccountKeystore for InMemKeystore {
 
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(keypair.sign(intent_msg.signing_digest().inner())),
+            StoredKey::KeyPair(keypair) => Ok(keypair.sign(&intent_msg.signing_digest())),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_secure is not supported for account type",
             )),

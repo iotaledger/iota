@@ -1384,6 +1384,23 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             return Ok(());
         }
 
+        // While solidification lags, new headers only widen the round window
+        // in which shards and payloads are retained (fetched headers raise the
+        // accepted frontier), so the scheduler stands down entirely until the
+        // transactions synchronizer closes the gap.
+        if self.dag_state.read().is_solidification_lagging() {
+            trace!(
+                "Scheduled synchronizer temporarily disabled as the last solid commit is lagging the last commit too much."
+            );
+            self.context
+                .metrics
+                .node_metrics
+                .synchronizer_fetch_block_headers_scheduler_skipped
+                .with_label_values(&["solid_commit_lagging"])
+                .inc();
+            return Ok(());
+        }
+
         let context = self.context.clone();
         let network_client = self.network_client.clone();
         let block_verifier = self.block_verifier.clone();
@@ -1856,7 +1873,7 @@ mod tests {
             TestBlockHeader, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
         },
         block_verifier::NoopBlockVerifier,
-        commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
+        commit::{CertifiedCommits, CommitRange, CommitRef, CommitVote, SubDagBase, TrustedCommit},
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         core::ReasonToCreateBlock,
@@ -2020,7 +2037,7 @@ mod tests {
             _peer: AuthorityIndex,
             _commit_range: CommitRange,
             _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)> {
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
             unimplemented!("fetch_commits_and_transactions not implemented in mock")
         }
     }
@@ -2945,11 +2962,148 @@ mod tests {
                 d.last_commit_index(),
                 commit_vote_monitor.quorum_commit_index()
             );
+
+            // Solidify up to the last commit so the solid commit lag does not
+            // keep the scheduler disabled.
+            d.update_last_solid_subdag_base(SubDagBase {
+                leader: BlockRef::new(
+                    commit_index,
+                    AuthorityIndex::new_for_test(0),
+                    BlockHeaderDigest::MIN,
+                ),
+                headers: vec![],
+                committed_header_refs: vec![],
+                timestamp_ms: 0,
+                commit_ref: CommitRef::new(commit_index, CommitDigest::MIN),
+                reputation_scores_desc: vec![],
+            });
         }
 
         // Now stub again the missing blocks to fetch the exact same ones.
         core_dispatcher
             .stub_missing_block_headers(missing_blocks_refs.clone())
+            .await;
+
+        sleep(2 * FETCH_REQUEST_TIMEOUT).await;
+
+        // THEN the missing blocks should now be fetched and added to core
+        let mut added_blocks = core_dispatcher.get_and_drain_block_headers().await;
+
+        added_blocks.sort_by_key(|block| block.reference());
+        expected_headers.sort_by_key(|block| block.reference());
+
+        assert_eq!(added_blocks, expected_headers);
+
+        // Stop synchronizer and ensure that no panic occurred
+        if let Err(err) = handle.stop().await {
+            if err.is_panic() {
+                std::panic::resume_unwind(err.into_panic());
+            }
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread", start_paused = true)]
+    async fn synchronizer_periodic_task_when_solidification_lagging_gets_disabled() {
+        // GIVEN
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context.with_parameters(Parameters {
+            solid_commit_lag_threshold: 10,
+            ..Default::default()
+        }));
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let network_client = Arc::new(MockNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+
+        // AND stub some missing blocks and the fetch responses for them.
+        let mut expected_headers = (1..=5u32)
+            .map(|round| VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, 0).build()))
+            .collect::<Vec<_>>();
+        let missing_blocks_refs = expected_headers
+            .iter()
+            .map(|block| block.reference())
+            .collect::<BTreeSet<_>>();
+        core_dispatcher
+            .stub_missing_block_headers(missing_blocks_refs.clone())
+            .await;
+        network_client
+            .stub_fetch_headers_response(
+                expected_headers.clone(),
+                AuthorityIndex::new_for_test(1),
+                Some(FETCH_REQUEST_TIMEOUT),
+            )
+            .await;
+        network_client
+            .stub_fetch_headers_response(
+                expected_headers.clone(),
+                AuthorityIndex::new_for_test(2),
+                None,
+            )
+            .await;
+
+        // AND commit up to leader round 12 with nothing solid yet, so the
+        // solid commit lag (12 rounds) exceeds the 10-round threshold.
+        {
+            let mut d = dag_state.write();
+            for index in 1..=12u32 {
+                d.add_commit(TrustedCommit::new_for_test(
+                    &context,
+                    index,
+                    CommitDigest::MIN,
+                    0,
+                    BlockRef::new(
+                        index,
+                        AuthorityIndex::new_for_test(0),
+                        BlockHeaderDigest::MIN,
+                    ),
+                    vec![],
+                    vec![],
+                ));
+            }
+        }
+
+        let handle = HeaderSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer,
+            block_verifier,
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+
+        sleep(4 * FETCH_REQUEST_TIMEOUT).await;
+
+        // While solidification lags, the scheduler stands down entirely, so
+        // nothing is fetched.
+        let added_blocks = core_dispatcher.get_and_drain_block_headers().await;
+        assert_eq!(added_blocks, vec![]);
+
+        // AND solidify up to the last commit, closing the gap.
+        dag_state.write().update_last_solid_subdag_base(SubDagBase {
+            leader: BlockRef::new(12, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+            headers: vec![],
+            committed_header_refs: vec![],
+            timestamp_ms: 0,
+            commit_ref: CommitRef::new(12, CommitDigest::MIN),
+            reputation_scores_desc: vec![],
+        });
+
+        // Now stub again the missing blocks to fetch the exact same ones.
+        core_dispatcher
+            .stub_missing_block_headers(missing_blocks_refs)
             .await;
 
         sleep(2 * FETCH_REQUEST_TIMEOUT).await;
@@ -4058,9 +4212,9 @@ mod tests {
                 .get(),
             1
         );
-        let crate::misbehavior_store::MisbehaviorCounts::V1(counts) =
-            &misbehavior_store.snapshot_totals()[peer_index.value()];
-        assert_eq!(counts.faulty_blocks_unprovable, 1);
+        let totals = misbehavior_store.snapshot_totals();
+        let counts = totals[peer_index.value()].as_v2();
+        assert_eq!(counts.invalid_bundle_parts, 1);
     }
 
     /// A header dropped as an unrequested extra stays fetchable: a later

@@ -365,9 +365,6 @@ pub(crate) struct DagState {
     /// leader rounds, keyed by leader round.
     starfish_speed_leader_hints: BTreeMap<Round, StarfishSpeedLeaderRoundHints>,
 
-    /// Commitment over an empty transaction list for this committee.
-    empty_transactions_commitment: TransactionsCommitment,
-
     /// Broadcast sender for DAG visualizer events.
     #[cfg(feature = "dag-visualizer")]
     dag_visualizer_sender: Option<tokio::sync::broadcast::Sender<DagVisualizerEvent>>,
@@ -463,9 +460,6 @@ impl DagState {
             unscored_committed_subdags.len()
         );
 
-        let empty_transactions_commitment =
-            TransactionsCommitment::compute_empty_transactions_commitment(&context);
-
         let mut state = Self {
             context,
             genesis,
@@ -497,7 +491,6 @@ impl DagState {
             evicted_rounds: vec![0; num_authorities],
             cordial_knowledge_senders: None,
             starfish_speed_leader_hints: BTreeMap::new(),
-            empty_transactions_commitment,
             #[cfg(feature = "dag-visualizer")]
             dag_visualizer_sender: None,
         };
@@ -850,9 +843,7 @@ impl DagState {
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"))
     }
 
-    /// Returns the leader round of the last solid commit (backward
-    /// compatibility).
-    #[cfg_attr(not(test), expect(dead_code))]
+    /// Returns the leader round of the last solid commit.
     pub(crate) fn last_solid_commit_leader_round(&self) -> Option<Round> {
         self.last_solid_subdag_base.as_ref().map(|s| s.leader.round)
     }
@@ -1146,7 +1137,7 @@ impl DagState {
                 transactions[index] = Some(transaction.clone());
                 continue;
             }
-            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+            if let Some(empty) = self.context.empty_transactions_for_ref(*transactions_ref) {
                 transactions[index] = Some(empty);
                 continue;
             }
@@ -1203,7 +1194,7 @@ impl DagState {
                 transactions[index] = Some(transaction.serialized().clone());
                 continue;
             }
-            if let Some(empty) = self.empty_transactions_for_ref(transactions_ref) {
+            if let Some(empty) = self.context.empty_transactions_for_ref(*transactions_ref) {
                 transactions[index] = Some(empty.serialized().clone());
                 continue;
             }
@@ -2072,7 +2063,7 @@ impl DagState {
                 exist[index] = self.get_genesis_block(tx_ref).is_some();
                 continue;
             }
-            if self.empty_transactions_for_ref(&tx_ref).is_some() {
+            if self.context.empty_transactions_for_ref(tx_ref).is_some() {
                 exist[index] = true;
                 continue;
             }
@@ -2265,15 +2256,19 @@ impl DagState {
         let Some(header) = self.recent_block_headers.get(block_ref) else {
             return false;
         };
-        // An empty payload is fully determined by the header's commitment.
-        if header.transactions_commitment() == self.empty_transactions_commitment {
-            return true;
-        }
-        let transaction_ref = GenericTransactionRef::from(TransactionRef {
+        let transaction_ref = TransactionRef {
             round: block_ref.round,
             author: block_ref.author,
             transactions_commitment: header.transactions_commitment(),
-        });
+        };
+        if self
+            .context
+            .empty_transactions_for_ref(transaction_ref.into())
+            .is_some()
+        {
+            return true;
+        }
+        let transaction_ref = GenericTransactionRef::from(transaction_ref);
         self.recent_transactions_by_authority[block_ref.author].contains_key(&transaction_ref)
     }
 
@@ -2984,21 +2979,25 @@ impl DagState {
             .collect()
     }
 
-    /// Returns the empty transactions object for `tx_ref` when its commitment
-    /// is the commitment over an empty transaction list, `None` otherwise.
-    fn empty_transactions_for_ref(
-        &self,
-        tx_ref: &GenericTransactionRef,
-    ) -> Option<CommitmentVerifiedTransactions> {
-        match tx_ref {
-            GenericTransactionRef::TransactionRef(tx_ref) => (tx_ref.transactions_commitment
-                == self.empty_transactions_commitment)
-                .then(|| CommitmentVerifiedTransactions::new_empty_from_ref(*tx_ref, None)),
-            // The legacy BlockRef form carries no commitment; commits that
-            // use it derive refs from acknowledgments, which never include
-            // empty blocks.
-            GenericTransactionRef::BlockRef(_) => None,
-        }
+    /// Rounds the last commit's leader is ahead of the last solid commit's
+    /// leader. Zero before anything is committed; while nothing is solid yet,
+    /// the whole committed range counts as lag.
+    pub(crate) fn solid_commit_lag_rounds(&self) -> Round {
+        let last_solid_leader_round = self
+            .last_solid_commit_leader_round()
+            .unwrap_or(GENESIS_ROUND);
+        self.last_commit_round()
+            .saturating_sub(last_solid_leader_round)
+    }
+
+    /// Whether local commits run further ahead of the last solid commit than
+    /// `solid_commit_lag_threshold` allows. Ignored during fast sync, where
+    /// commits are applied in bulk before their payloads arrive.
+    pub(crate) fn is_solidification_lagging(&self) -> bool {
+        // The fast-sync flag reads the store, so check it only when the gap
+        // is already over the threshold.
+        self.solid_commit_lag_rounds() > self.context.parameters.solid_commit_lag_threshold
+            && !self.fast_sync_ongoing()
     }
 }
 #[cfg(test)]
