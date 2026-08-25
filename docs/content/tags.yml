@@ -44,6 +44,10 @@ wasm:
   label: WASM
   description: WebAssembly programming language.
 
+csharp:
+  label: C#
+  description: C# programming language.
+
 go:
   label: Go
   description: Go programming language.
