@@ -1,3 +1,7 @@
+DROP INDEX optimistic_transactions_global_seq;
+ALTER TABLE optimistic_transactions DROP CONSTRAINT optimistic_transactions_pkey;
+ALTER TABLE optimistic_transactions ADD PRIMARY KEY (global_sequence_number, optimistic_sequence_number);
+
 ALTER TABLE tx_global_order ADD COLUMN global_sequence_number BIGINT;
 UPDATE tx_global_order SET global_sequence_number = COALESCE(tx_sequence_number, 0);
 UPDATE tx_global_order g

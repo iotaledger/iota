@@ -309,7 +309,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    optimistic_transactions (global_sequence_number, optimistic_sequence_number) {
+    optimistic_transactions (optimistic_sequence_number) {
         global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         transaction_digest -> Bytea,

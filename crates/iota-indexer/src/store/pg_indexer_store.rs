@@ -1363,7 +1363,7 @@ impl PgIndexerStore {
             |conn| {
                 let sql = r#"
                     WITH ids_to_delete AS (
-                         SELECT global_sequence_number, optimistic_sequence_number
+                         SELECT optimistic_sequence_number
                          FROM optimistic_transactions
                          WHERE global_sequence_number BETWEEN $1 AND $2
                          ORDER BY global_sequence_number, optimistic_sequence_number
@@ -1372,8 +1372,7 @@ impl PgIndexerStore {
                      )
                      DELETE FROM optimistic_transactions otx
                      USING ids_to_delete
-                     WHERE (otx.global_sequence_number, otx.optimistic_sequence_number) =
-                           (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)
+                     WHERE otx.optimistic_sequence_number = ids_to_delete.optimistic_sequence_number
                 "#;
                 diesel::sql_query(sql)
                     .bind::<diesel::sql_types::BigInt, _>(start as i64)
