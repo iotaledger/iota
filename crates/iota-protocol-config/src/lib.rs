@@ -210,6 +210,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Add the `iota::transaction_deny_rules` framework module and its
 //             reserved object ID 0xDE9 (dormant until deny-rule governance
 //             activates).
+//             Stop locking immutable objects in post-consensus conflict
+//             resolution.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -577,6 +579,13 @@ struct FeatureFlags {
     // conflict resolution) using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
     enable_pcool_flow: bool,
+
+    // If true, immutable transaction inputs do not acquire owned-object locks
+    // in post-consensus conflict resolution — such a lock is never released
+    // and blocks every later reader until the epoch ends. Has no effect
+    // unless `enable_pcool_flow` is set.
+    #[serde(skip_serializing_if = "is_false")]
+    pcool_skip_immutable_object_locks: bool,
 
     // If true perform consistent verification of metadata
     #[serde(skip_serializing_if = "is_false")]
@@ -1936,6 +1945,10 @@ impl ProtocolConfig {
 
     pub fn enable_pcool_flow(&self) -> bool {
         self.feature_flags.enable_pcool_flow
+    }
+
+    pub fn pcool_skip_immutable_object_locks(&self) -> bool {
+        self.feature_flags.pcool_skip_immutable_object_locks
     }
 
     pub fn validator_metadata_verify_v2(&self) -> bool {
@@ -3345,6 +3358,10 @@ impl ProtocolConfig {
                         // unprovable block-fault counter.
                         cfg.scorer_version = Some(2);
                     }
+                    // Stop locking immutable objects in post-consensus conflict
+                    // resolution. Set on all chains; inert where the P-COOL flow
+                    // is off.
+                    cfg.feature_flags.pcool_skip_immutable_object_locks = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3595,6 +3612,10 @@ impl ProtocolConfig {
 
     pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
         self.feature_flags.enable_pcool_flow = val;
+    }
+
+    pub fn set_pcool_skip_immutable_object_locks_for_testing(&mut self, val: bool) {
+        self.feature_flags.pcool_skip_immutable_object_locks = val;
     }
 
     pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
