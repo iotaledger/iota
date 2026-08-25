@@ -627,7 +627,11 @@ pub fn extend_input_objects_with_loaded_runtime_objects(
     loaded_runtime_objects: &BTreeMap<ObjectId, DynamicallyLoadedObjectMetadata>,
     object_store: &dyn ObjectStore,
 ) {
-    let modified_at: BTreeMap<_, _> = effects.modified_at_versions().into_iter().collect();
+    let modified_at: BTreeMap<_, _> = effects
+        .modified_at_versions()
+        .into_iter()
+        .map(|modified| (modified.object_id, modified.version))
+        .collect();
     for (id, metadata) in loaded_runtime_objects {
         if input_objects.contains_key(id) || modified_at.get(id) != Some(&metadata.version) {
             continue;

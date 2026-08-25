@@ -4,228 +4,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use iota_sdk_types::{
-    Address, ObjectChange, ObjectDigest, ObjectVersion, OwnedObjectReference, TransactionDigest,
-    TransactionEventsDigest,
-};
+use iota_sdk_types::TransactionEventsDigest;
 
 use super::{
-    ChangedObject, EpochId, ExecutionStatus, GasCostSummary, IdOperation, InputSharedObject,
-    ObjectId, ObjectIn, ObjectOut, ObjectReference, Owner, TransactionEffectsV1,
+    ChangedObject, EpochId, ExecutionStatus, GasCostSummary, IdOperation, ObjectId, ObjectIn,
+    ObjectOut, ObjectReference, Owner, TransactionDigest, TransactionEffectsV1,
     UnchangedSharedKind, UnchangedSharedObject, Version,
 };
-use crate::{
-    effects::{TransactionEffectsAPI, TransactionEffectsAPIForTesting},
-    execution::SharedInput,
-    object::OBJECT_START_VERSION,
-};
-
-impl TransactionEffectsAPI for TransactionEffectsV1 {
-    fn status(&self) -> &ExecutionStatus {
-        &self.status
-    }
-
-    fn into_status(self) -> ExecutionStatus {
-        self.status
-    }
-
-    fn epoch(&self) -> EpochId {
-        self.epoch
-    }
-
-    fn modified_at_versions(&self) -> Vec<ObjectVersion> {
-        TransactionEffectsV1::modified_at_versions(self)
-    }
-
-    fn lamport_version(&self) -> Version {
-        self.lamport_version
-    }
-
-    fn old_object_metadata(&self) -> Vec<OwnedObjectReference> {
-        TransactionEffectsV1::old_object_metadata(self)
-    }
-
-    fn input_shared_objects(&self) -> Vec<InputSharedObject> {
-        TransactionEffectsV1::input_shared_objects(self)
-            .into_iter()
-            .map(|shared| match shared {
-                iota_sdk_types::InputSharedObject::Mutate(reference) => {
-                    InputSharedObject::Mutate(reference)
-                }
-                iota_sdk_types::InputSharedObject::ReadOnly(reference) => {
-                    InputSharedObject::ReadOnly(reference)
-                }
-                iota_sdk_types::InputSharedObject::ReadDeleted(object) => {
-                    InputSharedObject::ReadDeleted(object.object_id, object.version)
-                }
-                iota_sdk_types::InputSharedObject::MutateDeleted(object) => {
-                    InputSharedObject::MutateDeleted(object.object_id, object.version)
-                }
-                iota_sdk_types::InputSharedObject::Canceled(object) => {
-                    InputSharedObject::Cancelled(object.object_id, object.version)
-                }
-            })
-            .collect()
-    }
-
-    fn created(&self) -> Vec<OwnedObjectReference> {
-        TransactionEffectsV1::created(self)
-    }
-
-    fn mutated(&self) -> Vec<OwnedObjectReference> {
-        TransactionEffectsV1::mutated(self)
-    }
-
-    fn unwrapped(&self) -> Vec<OwnedObjectReference> {
-        TransactionEffectsV1::unwrapped(self)
-    }
-
-    fn deleted(&self) -> Vec<ObjectReference> {
-        TransactionEffectsV1::deleted(self)
-    }
-
-    fn unwrapped_then_deleted(&self) -> Vec<ObjectReference> {
-        TransactionEffectsV1::unwrapped_then_deleted(self)
-    }
-
-    fn wrapped(&self) -> Vec<ObjectReference> {
-        TransactionEffectsV1::wrapped(self)
-    }
-
-    fn object_changes(&self) -> Vec<ObjectChange> {
-        TransactionEffectsV1::object_changes(self)
-    }
-
-    fn gas_object(&self) -> OwnedObjectReference {
-        // A system transaction pays no gas, so its effects name no gas object;
-        // this reports the dummy reference callers here have always been given
-        // for that case.
-        TransactionEffectsV1::gas_object(self).unwrap_or_else(|| {
-            OwnedObjectReference::new(
-                ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
-                Owner::Address(Address::ZERO),
-            )
-        })
-    }
-
-    fn events_digest(&self) -> Option<&TransactionEventsDigest> {
-        self.events_digest.as_ref()
-    }
-
-    fn dependencies(&self) -> &[TransactionDigest] {
-        &self.dependencies
-    }
-
-    fn transaction_digest(&self) -> &TransactionDigest {
-        &self.transaction_digest
-    }
-
-    fn gas_cost_summary(&self) -> &GasCostSummary {
-        &self.gas_cost_summary
-    }
-
-    fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)> {
-        self.unchanged_shared_objects
-            .iter()
-            .map(|unchanged| (unchanged.object_id, unchanged.kind.clone()))
-            .collect()
-    }
-}
-
-impl TransactionEffectsAPIForTesting for TransactionEffectsV1 {
-    fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
-        &mut self.status
-    }
-
-    fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary {
-        &mut self.gas_cost_summary
-    }
-
-    fn transaction_digest_mut_for_testing(&mut self) -> &mut TransactionDigest {
-        &mut self.transaction_digest
-    }
-
-    fn dependencies_mut_for_testing(&mut self) -> &mut Vec<TransactionDigest> {
-        &mut self.dependencies
-    }
-
-    fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject) {
-        match kind {
-            InputSharedObject::Mutate(object_ref) => {
-                let (object_id, version, digest) = object_ref.into_parts();
-                self.changed_objects.push(ChangedObject {
-                    object_id,
-                    input_state: ObjectIn::Data {
-                        version,
-                        digest,
-                        owner: Owner::Shared(OBJECT_START_VERSION),
-                    },
-                    output_state: ObjectOut::ObjectWrite {
-                        digest,
-                        owner: Owner::Shared(version),
-                    },
-                    id_operation: IdOperation::None,
-                })
-            }
-            InputSharedObject::ReadOnly(object_ref) => {
-                let (object_id, version, digest) = object_ref.into_parts();
-                self.unchanged_shared_objects.push(UnchangedSharedObject {
-                    object_id,
-                    kind: UnchangedSharedKind::ReadOnlyRoot { version, digest },
-                })
-            }
-            InputSharedObject::ReadDeleted(object_id, version) => {
-                self.unchanged_shared_objects.push(UnchangedSharedObject {
-                    object_id,
-                    kind: UnchangedSharedKind::ReadDeleted { version },
-                })
-            }
-            InputSharedObject::MutateDeleted(object_id, version) => {
-                self.unchanged_shared_objects.push(UnchangedSharedObject {
-                    object_id,
-                    kind: UnchangedSharedKind::MutateDeleted { version },
-                })
-            }
-            InputSharedObject::Cancelled(object_id, version) => {
-                self.unchanged_shared_objects.push(UnchangedSharedObject {
-                    object_id,
-                    kind: UnchangedSharedKind::Canceled { version },
-                })
-            }
-        }
-    }
-
-    fn unsafe_add_deleted_live_object_for_testing(&mut self, object_ref: ObjectReference) {
-        let (object_id, version, digest) = object_ref.into_parts();
-        self.changed_objects.push(ChangedObject {
-            object_id,
-            input_state: ObjectIn::Data {
-                version,
-                digest,
-                owner: Owner::Address(Address::ZERO),
-            },
-            output_state: ObjectOut::ObjectWrite {
-                digest,
-                owner: Owner::Address(Address::ZERO),
-            },
-            id_operation: IdOperation::None,
-        })
-    }
-
-    fn unsafe_add_object_tombstone_for_testing(&mut self, object_ref: ObjectReference) {
-        let (object_id, version, digest) = object_ref.into_parts();
-        self.changed_objects.push(ChangedObject {
-            object_id,
-            input_state: ObjectIn::Data {
-                version,
-                digest,
-                owner: Owner::Address(Address::ZERO),
-            },
-            output_state: ObjectOut::Missing,
-            id_operation: IdOperation::Deleted,
-        })
-    }
-}
+use crate::execution::SharedInput;
 
 pub(crate) fn new_from_execution(
     status: ExecutionStatus,
@@ -416,9 +202,11 @@ fn check_invariant(v1: &TransactionEffectsV1) {
         }
     }
 
-    // Make sure that gas object exists in changed_objects.
-    let OwnedObjectReference { owner, .. } = TransactionEffectsAPI::gas_object(v1);
-    assert!(matches!(owner, Owner::Address(_)));
+    // A gas object, where there is one, is address-owned and among the changed
+    // objects. A system transaction pays no gas and names none.
+    if let Some(gas) = TransactionEffectsV1::gas_object(v1) {
+        assert!(matches!(gas.owner, Owner::Address(_)));
+    }
 
     for unchanged in &v1.unchanged_shared_objects {
         let id = &unchanged.object_id;

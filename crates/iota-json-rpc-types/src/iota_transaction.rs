@@ -1035,7 +1035,7 @@ impl IotaTransactionBlockEffects {
                 .await;
         match native {
             TransactionEffects::V1(inner) => {
-                let mut inner = IotaTransactionBlockEffectsV1::from(*inner);
+                let mut inner = IotaTransactionBlockEffectsV1::from(TransactionEffects::V1(inner));
                 inner.status = clever_status;
                 inner.into()
             }

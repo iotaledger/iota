@@ -24,7 +24,6 @@ use iota_sdk_types::{
 use iota_types::{
     coin::Coin,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    gas_coin::GAS,
     object::Object,
 };
 

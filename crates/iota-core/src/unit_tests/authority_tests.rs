@@ -1208,7 +1208,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     // dry run against the current parent: the field object is loaded at
     // runtime and removed, so it must appear in the returned input objects at
     // its pre-state version even though it is not a declared input
-    let field = effects.created()[0].0;
+    let field = effects.created()[0].reference;
     let pt = ProgrammableTransaction {
         inputs: vec![CallArg::ImmutableOrOwned(new_parent.object_ref())],
         commands: vec![Command::new_move_call(
@@ -8154,7 +8154,7 @@ async fn advance_epoch_tx_creates_deny_rules_object_under_flag(
     let created = effects
         .created()
         .iter()
-        .any(|(object_ref, _)| object_ref.object_id == IOTA_TRANSACTION_DENY_RULES_OBJECT_ID);
+        .any(|created| created.reference.object_id == IOTA_TRANSACTION_DENY_RULES_OBJECT_ID);
     assert_eq!(created, enabled);
 }
 
