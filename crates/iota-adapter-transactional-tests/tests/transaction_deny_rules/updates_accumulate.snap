@@ -1,0 +1,158 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+assertion_line: 818
+---
+processed 7 tasks
+
+task 1, lines 9-11:
+//# advance-epoch --create-deny-rules-object
+Epoch advanced: 1
+
+task 2, lines 13-16:
+//# update-deny-rules --added-addresses 0xAA,0xBB --added-objects 0x1A --added-packages 0x2B,0x2C
+events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), type_: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAuwABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABoAAgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAArAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACwAAAAAAAAAAgAAAAAAAAABAAAAAAAAAAIAAAAAAAAA" }
+created: object(2,0), object(2,1), object(2,2), object(2,3), object(2,4)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9, object(1,0)
+gas summary:
+├── Computation Cost: 0
+├── Computation Cost Burned: 0
+├── Storage Cost: 0
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
+
+task 3, lines 18-21:
+//# update-deny-rules --added-addresses 0xCC --removed-addresses 0xAA --removed-objects 0x1A --removed-packages 0x2B
+events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), type_: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMwBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAaAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKwAAAAAAAAIAAAAAAAAAAAAAAAAAAAABAAAAAAAAAA==" }
+created: object(3,0)
+mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9, object(1,0), object(2,0), object(2,4)
+deleted: object(2,1), object(2,2), object(2,3)
+gas summary:
+├── Computation Cost: 0
+├── Computation Cost Burned: 0
+├── Storage Cost: 0
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
+
+task 4, lines 23-25:
+//# view-object 1,0
+Owner: Object(_)
+Version: 4
+Contents: iota::dynamic_field::Field<u64, iota::transaction_deny_rules::TransactionDenyRulesInnerV1> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(1,0),
+        },
+    },
+    name: 1u64,
+    value: iota::transaction_deny_rules::TransactionDenyRulesInnerV1 {
+        version: 1u64,
+        denied_addresses: iota::linked_table::LinkedTable<address, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 2u64,
+            head: std::option::Option<address> {
+                vec: vector[
+                    _,
+                ],
+            },
+            tail: std::option::Option<address> {
+                vec: vector[
+                    _,
+                ],
+            },
+        },
+        denied_objects: iota::linked_table::LinkedTable<iota::object::ID, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 0u64,
+            head: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+            tail: std::option::Option<iota::object::ID> {
+                vec: vector[],
+            },
+        },
+        denied_packages: iota::linked_table::LinkedTable<iota::object::ID, bool> {
+            id: iota::object::UID {
+                id: iota::object::ID {
+                    bytes: _,
+                },
+            },
+            size: 1u64,
+            head: std::option::Option<iota::object::ID> {
+                vec: vector[
+                    iota::object::ID {
+                        bytes: _,
+                    },
+                ],
+            },
+            tail: std::option::Option<iota::object::ID> {
+                vec: vector[
+                    iota::object::ID {
+                        bytes: _,
+                    },
+                ],
+            },
+        },
+        package_publish_disabled: false,
+        package_upgrade_disabled: false,
+        shared_object_disabled: false,
+        user_transaction_disabled: false,
+        receiving_objects_disabled: false,
+        move_authenticator_disabled: false,
+    },
+}
+
+task 5, lines 27-29:
+//# view-object 2,0
+Owner: Object(_)
+Version: 4
+Contents: iota::dynamic_field::Field<address, iota::linked_table::Node<address, bool>> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    name: _,
+    value: iota::linked_table::Node<address, bool> {
+        prev: std::option::Option<address> {
+            vec: vector[],
+        },
+        next: std::option::Option<address> {
+            vec: vector[
+                _,
+            ],
+        },
+        value: true,
+    },
+}
+
+task 6, line 31:
+//# view-object 3,0
+Owner: Object(_)
+Version: 4
+Contents: iota::dynamic_field::Field<address, iota::linked_table::Node<address, bool>> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(3,0),
+        },
+    },
+    name: _,
+    value: iota::linked_table::Node<address, bool> {
+        prev: std::option::Option<address> {
+            vec: vector[
+                _,
+            ],
+        },
+        next: std::option::Option<address> {
+            vec: vector[],
+        },
+        value: true,
+    },
+}

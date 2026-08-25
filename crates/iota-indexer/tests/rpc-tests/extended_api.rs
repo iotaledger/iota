@@ -30,11 +30,11 @@ fn get_or_init_shared_extended_api_simulacrum_env() -> &'static SimulacrumTestSe
 
             execute_simulacrum_transactions(&mut sim, 15);
             add_checkpoints(&mut sim, 300);
-            sim.advance_epoch();
+            sim.advance_epoch(false);
 
             execute_simulacrum_transactions(&mut sim, 10);
             add_checkpoints(&mut sim, 300);
-            sim.advance_epoch();
+            sim.advance_epoch(false);
 
             execute_simulacrum_transactions(&mut sim, 5);
             add_checkpoints(&mut sim, 300);

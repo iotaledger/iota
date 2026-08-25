@@ -292,12 +292,18 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// created.
     ///
     /// NOTE: This function does not currently support updating the protocol
-    /// version or the system packages
+    /// version or the system packages.
+    ///
+    /// With `create_deny_rules_object`, the end-of-epoch transaction also
+    /// creates the `TransactionDenyRules` object (requires the
+    /// `deny_rule_governance_on_chain` feature flag).
+    ///
+    /// Returns the effects of the end-of-epoch transaction.
     ///
     /// # Panics
     ///
     /// Panics if the end-of-epoch transaction cannot be executed or fails.
-    pub fn advance_epoch(&self) {
+    pub fn advance_epoch(&self, create_deny_rules_object: bool) -> TransactionEffects {
         let inner = self.inner.read().unwrap();
         let current_epoch = inner.epoch_state.epoch();
         let next_epoch = current_epoch + 1;
@@ -325,9 +331,13 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         let scores = vec![MAX_SCORE; committee_size];
 
         let next_epoch_system_package_bytes: Vec<SystemPackage> = vec![];
+        let mut kinds = Vec::new();
+        if create_deny_rules_object {
+            kinds.push(EndOfEpochTransactionKind::TransactionDenyRulesCreate);
+        }
         // Mirror the node's kind selection: the framework's `advance_epoch`
         // expects the V4 argument shape when the flag is enabled.
-        let kinds = vec![if pass_validator_scores {
+        kinds.push(if pass_validator_scores {
             EndOfEpochTransactionKind::new_change_epoch_v4(
                 next_epoch,
                 next_epoch_protocol_version.as_u64(),
@@ -355,7 +365,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 next_epoch_system_package_bytes,
                 vec![],
             )
-        }];
+        });
 
         let tx = VerifiedTransaction::new_end_of_epoch_transaction(kinds);
         let (effects, execution_error) = self
@@ -368,7 +378,17 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
 
         let (checkpoint, contents, new_epoch_state) = {
             let mut inner = self.inner.write().unwrap();
-            let new_epoch_state = EpochState::new(inner.store.get_system_state());
+            let system_state = inner.store.get_system_state();
+            // On same-version epoch changes, carry the current protocol config
+            // over instead of re-resolving it from the version, so feature
+            // flags customized for testing survive the epoch change.
+            let prev_protocol_config = inner.epoch_state.protocol_config();
+            let new_epoch_state =
+                if system_state.protocol_version() == prev_protocol_config.version.as_u64() {
+                    EpochState::new_with_config(prev_protocol_config.clone(), system_state)
+                } else {
+                    EpochState::new(system_state)
+                };
             let end_of_epoch_data = EndOfEpochData {
                 next_epoch_committee: new_epoch_state.committee().committee_members(),
                 next_epoch_protocol_version: next_epoch_protocol_version.as_u64(),
@@ -402,6 +422,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         // Finally, update the epoch state
         let mut inner = self.inner.write().unwrap();
         inner.epoch_state = new_epoch_state;
+
+        effects
     }
 
     /// Execute a function with read access to the store.
@@ -1004,13 +1026,41 @@ mod tests {
     }
 
     #[test]
+    fn advance_epoch_creates_deny_rules_object() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_deny_rule_governance_for_testing(true);
+                config.set_deny_rule_governance_on_chain_for_testing(true);
+                config
+            });
+        let sim = Simulacrum::new();
+
+        assert!(sim.with_store(|store| {
+            store
+                .get_object(&iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID)
+                .is_none()
+        }));
+
+        sim.advance_epoch(true);
+
+        let object = sim
+            .with_store(|store| {
+                store
+                    .get_object(&iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID)
+                    .cloned()
+            })
+            .expect("the TransactionDenyRules object must exist after the create");
+        assert!(object.owner().is_shared());
+    }
+
+    #[test]
     fn simple_epoch() {
         let steps = 10;
         let sim = Simulacrum::new();
 
         let start_epoch = sim.with_store(|store| store.get_highest_checkpoint().unwrap().epoch);
         for i in 0..steps {
-            sim.advance_epoch();
+            sim.advance_epoch(false);
             sim.advance_clock(Duration::from_millis(1));
             sim.create_checkpoint();
             println!("{i}");

@@ -1608,10 +1608,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let store_transactions = if !below_gc.is_empty() {
             let refs: Vec<GenericTransactionRef> =
                 below_gc.iter().copied().map(Into::into).collect();
-            self.store
-                .read_serialized_transactions(&refs)?
+            let transactions = self.store.read_serialized_transactions(&refs)?;
+            transactions
                 .into_iter()
                 .zip(below_gc)
+                .map(|(transaction, transaction_ref)| {
+                    let transaction = transaction.or_else(|| {
+                        self.context
+                            .empty_transactions_for_ref(transaction_ref.into())
+                            .map(|empty| empty.serialized().clone())
+                    });
+                    (transaction, transaction_ref)
+                })
                 .collect::<Vec<_>>()
         } else {
             vec![]
@@ -1631,15 +1639,20 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             vec![]
         };
 
-        // Combine and serialize the results
+        let transactions_by_ref: BTreeMap<_, _> = store_transactions
+            .into_iter()
+            .chain(dag_transactions)
+            .filter_map(|(transaction, transaction_ref)| {
+                transaction.map(|transaction| (transaction_ref, transaction))
+            })
+            .collect();
+
         let mut result = Vec::new();
-        for (opt_serialized_tx, transaction_ref) in
-            store_transactions.into_iter().chain(dag_transactions)
-        {
-            if let Some(serialized_tx) = opt_serialized_tx {
+        for transaction_ref in committed_transactions_refs {
+            if let Some(serialized_tx) = transactions_by_ref.get(&transaction_ref) {
                 let serialized = bcs::to_bytes(&SerializedTransactionsV2 {
                     transaction_ref,
-                    serialized_transactions: serialized_tx,
+                    serialized_transactions: serialized_tx.clone(),
                 })
                 .map_err(ConsensusError::SerializationFailure)?;
                 result.push(Bytes::from(serialized));
@@ -4551,7 +4564,7 @@ mod tests {
         let rounds = 10;
         let validators = 4;
         let (context, key_pairs) = Context::new_for_test(validators);
-        let context = Context {
+        let mut context = Context {
             parameters: Parameters {
                 max_transactions_per_transaction_sync_fetch: 20,
                 max_transactions_per_commit_sync_fetch: 10,
@@ -4560,6 +4573,7 @@ mod tests {
             },
             ..context
         };
+        context.protocol_config.set_gc_depth_for_testing(5);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
             context.clone(),
@@ -4741,15 +4755,42 @@ mod tests {
         // Verify that we received zero transactions since they are not present in the
         // dag
         assert!(serialized_transactions.is_empty());
+
+        let leader = all_block_headers[(2 * rounds) as usize][0].reference();
+        dag_state
+            .write()
+            .update_last_solid_subdag_base(crate::commit::SubDagBase {
+                leader,
+                headers: vec![],
+                committed_header_refs: vec![],
+                timestamp_ms: 0,
+                commit_ref: crate::commit::CommitRef::new(1, crate::commit::CommitDigest::MIN),
+                reputation_scores_desc: vec![],
+            });
+        let empty_ref = TransactionRef {
+            round: 1,
+            author: AuthorityIndex::new_for_test(0),
+            transactions_commitment: TransactionsCommitment::compute_empty_transactions_commitment(
+                &context.committee,
+            ),
+        };
+        assert!(empty_ref.round < dag_state.read().gc_round_for_last_solid_commit());
+
+        let serialized_transactions = authority_service
+            .handle_fetch_transactions(peer, vec![empty_ref], TransactionFetchMode::FastCommitSync)
+            .await
+            .unwrap();
+        let returned: SerializedTransactionsV2 =
+            bcs::from_bytes(&serialized_transactions[0]).unwrap();
+        let transactions: Vec<Transaction> =
+            bcs::from_bytes(&returned.serialized_transactions).unwrap();
+        assert_eq!(returned.transaction_ref, empty_ref);
+        assert!(transactions.is_empty());
     }
 
-    /// Tests that handle_fetch_headers preserves the original request order
-    /// of block refs when they span the GC boundary — i.e. some are fetched
-    /// from the persistent store (below GC) and others from in-memory
-    /// dag_state (at or above GC). The interleaved input order must be
-    /// maintained in the response.
+    /// Tests request order across the GC boundary.
     #[tokio::test(flavor = "current_thread", start_paused = true)]
-    async fn test_handle_fetch_headers_commit_sync_order_across_gc_boundary() {
+    async fn test_handle_fetch_data_commit_sync_order_across_gc_boundary() {
         // GIVEN
         let rounds = 20;
         let validators = 4;
@@ -4858,6 +4899,7 @@ mod tests {
                 ..WriteBatch::default()
             })
             .expect("Failed to write block headers to store");
+        dag_state.write().flush();
 
         // Set last_solid_subdag_base so gc_round_for_last_solid_commit() is ~10.
         // gc_round = leader_round.saturating_sub(gc_depth * 2) = 20 - 10 = 10
@@ -4951,6 +4993,33 @@ mod tests {
                 verified_block_header.reference()
             );
         }
+
+        let transaction_refs_by_block: BTreeMap<_, _> = headers_by_round
+            .iter()
+            .flatten()
+            .map(|header| (header.reference(), header.transaction_ref()))
+            .collect();
+        let transaction_refs: Vec<_> = interleaved_refs
+            .iter()
+            .map(|block_ref| transaction_refs_by_block[block_ref])
+            .collect();
+        let returned_transactions = authority_service
+            .handle_fetch_transactions(
+                peer,
+                transaction_refs.clone(),
+                TransactionFetchMode::FastCommitSync,
+            )
+            .await
+            .unwrap();
+        let returned_refs: Vec<TransactionRef> = returned_transactions
+            .iter()
+            .map(|transaction| {
+                bcs::from_bytes::<SerializedTransactionsV2>(transaction)
+                    .unwrap()
+                    .transaction_ref
+            })
+            .collect();
+        assert_eq!(returned_refs, transaction_refs);
     }
 
     #[test]
