@@ -904,7 +904,10 @@ async fn deny_rule_event_fold_matches_the_object() {
                     .get_events(&digests.transaction)
                     .expect("an update emits its event");
                 for event in &events.0 {
-                    assert_eq!(event.type_.name().as_str(), "TransactionDenyRulesUpdated");
+                    assert_eq!(
+                        event.struct_tag.name().as_str(),
+                        "TransactionDenyRulesUpdated"
+                    );
                     let event: TransactionDenyRulesUpdatedEvent =
                         bcs::from_bytes(&event.contents).unwrap();
                     event_count += 1;
