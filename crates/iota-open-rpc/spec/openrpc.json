@@ -1343,6 +1343,7 @@
                 "pass_calculated_validator_scores_to_advance_epoch": true,
                 "pass_validator_scores_to_advance_epoch": true,
                 "passkey_auth": true,
+                "pcool_skip_immutable_object_locks": true,
                 "pre_consensus_sponsor_only_move_authentication": true,
                 "protocol_defined_base_fee": true,
                 "publish_package_metadata": true,
