@@ -150,10 +150,14 @@ impl MisbehaviorStore {
         threshold_clock_round: Round,
         context: &Arc<Context>,
     ) -> Option<MisbehaviorCounts> {
-        if threshold_clock_round == 0 || authority_index.value() >= context.committee.size() {
+        if threshold_clock_round == 0 {
             return None;
         }
         let idx = authority_index.value();
+        if idx >= context.committee.size() {
+            debug_fatal!("authority {authority_index} is outside the committee");
+            return None;
+        }
 
         // Move buffered faulty block counts to persisted.
         let had_faulty = self.flush_faulty_block_buffer(idx);
@@ -273,6 +277,7 @@ impl MisbehaviorStore {
         let peer_idx = peer.value();
         let author_idx = author.value();
         if peer_idx >= committee_size {
+            debug_fatal!("peer {peer} is outside the committee");
             return;
         }
         match classify_block_error(error) {
@@ -313,12 +318,20 @@ impl MisbehaviorStore {
         relayers: impl IntoIterator<Item = AuthorityIndex>,
     ) {
         let committee_size = self.in_memory.authorities.len();
-        if authored && author.value() < committee_size {
-            self.in_memory.record_block_fault_provable(author.value());
+        if authored {
+            if author.value() < committee_size {
+                self.in_memory.record_block_fault_provable(author.value());
+            } else {
+                debug_fatal!("author {author} of a verified header is outside the committee");
+            }
         }
         for peer in relayers {
             let idx = peer.value();
-            if idx >= committee_size || (authored && peer == author) {
+            if idx >= committee_size {
+                debug_fatal!("relaying peer {peer} is outside the committee");
+                continue;
+            }
+            if authored && peer == author {
                 continue;
             }
             self.in_memory.record_block_fault_unprovable(idx);
@@ -946,12 +959,6 @@ mod tests {
             result,
             Some(MisbehaviorCounts::new_v2_for_test(0, 0, 3, 0, 0))
         );
-
-        // Out-of-bounds authority → None
-        let oob = AuthorityIndex::new_for_test(4);
-        let result =
-            store.update_misbehavior_counts_on_eviction(oob, &recent_refs, 2, 1, 3, &context);
-        assert!(result.is_none());
     }
 
     #[tokio::test]
