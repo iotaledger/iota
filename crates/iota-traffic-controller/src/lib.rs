@@ -71,7 +71,8 @@ enum Acl {
     /// If this variant is set, then we do no tallying or running
     /// of background tasks, and instead simply block all IPs not
     /// in the allowlist on calls to `check`. The allowlist should
-    /// only be populated once at initialization.
+    /// only be populated once at initialization, and stays sorted so
+    /// that `check` can binary-search it.
     Allowlist(Vec<IpAddr>),
 }
 
@@ -342,7 +343,9 @@ impl TrafficController {
     pub fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
         let dry_run = self.dry_run.load(Ordering::Relaxed);
         let allowed = match &self.acl {
-            Acl::Allowlist(allowlist) => client.is_none_or(|client| allowlist.contains(&client)),
+            Acl::Allowlist(allowlist) => {
+                client.is_none_or(|client| allowlist.binary_search(&client).is_ok())
+            }
             Acl::Tally(state) => check_blocklists(&state.blocklists, client, proxied_client),
         };
         match (allowed, dry_run) {
@@ -361,14 +364,17 @@ impl TrafficController {
     }
 }
 
+/// Returns the allowlist sorted, so that `check` can binary-search it.
 fn parse_allowlist(allow_list: &[String]) -> Vec<IpAddr> {
-    allow_list
+    let mut allowlist: Vec<IpAddr> = allow_list
         .iter()
         .map(|ip_str| {
             parse_ip(ip_str)
                 .unwrap_or_else(|| fatal!("Failed to parse allowlist IP address: {ip_str:?}"))
         })
-        .collect()
+        .collect();
+    allowlist.sort_unstable();
+    allowlist
 }
 
 /// Builds the tallying state and spawns its background tasks. Must be called
@@ -1279,5 +1285,24 @@ mod tests {
         // The second client is no longer pending. A new breach queues a block.
         spam(&controller, overflow);
         assert_eq!(controller.metrics.firewall_delegation_overflow.get(), 2);
+    }
+
+    #[test]
+    fn an_unsorted_allowlist_still_admits_its_clients() {
+        let controller = TrafficController::init_for_test(
+            PolicyConfig {
+                allow_list: Some(vec!["10.0.0.9".to_string(), "10.0.0.1".to_string()]),
+                dry_run: false,
+                ..Default::default()
+            },
+            None,
+        );
+
+        for client in ["10.0.0.9", "10.0.0.1"] {
+            let client: IpAddr = client.parse().unwrap();
+            assert!(controller.check(&Some(client), &None));
+        }
+        let stranger = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5));
+        assert!(!controller.check(&Some(stranger), &None));
     }
 }
