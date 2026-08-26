@@ -496,6 +496,30 @@ impl CheckpointStore {
             .collect()
     }
 
+    /// Every checkpoint watermark as it is stored, without resolving any of
+    /// them to a checkpoint.
+    ///
+    /// The resolving readers beside this one go through `checkpoint_by_digest`,
+    /// which is bucketed and pruned, so they answer `None` for a watermark
+    /// whose epoch has been expired — exactly the case worth inspecting. This
+    /// reads the rows themselves and so keeps answering.
+    pub fn get_checkpoint_watermarks(
+        &self,
+    ) -> Result<
+        Vec<(
+            CheckpointWatermark,
+            CheckpointSequenceNumber,
+            CheckpointDigest,
+        )>,
+        TypedStoreError,
+    > {
+        self.tables
+            .watermarks
+            .safe_iter()
+            .map(|row| row.map(|(mark, (sequence_number, digest))| (mark, sequence_number, digest)))
+            .collect()
+    }
+
     /// The row `watermark` holds — a sequence number and a digest — and `None`
     /// when it has never been written.
     ///
