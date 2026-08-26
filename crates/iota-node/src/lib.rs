@@ -360,9 +360,11 @@ impl IotaNode {
     ) -> Result<Arc<IotaNode>> {
         config.check_renamed_keys()?;
         config.validate()?;
-        config
-            .authority_store_pruning_config
-            .check_index_retention_within_ledger()?;
+        if config.maintains_rpc_indexes() {
+            config
+                .authority_store_pruning_config
+                .check_index_retention_within_ledger()?;
+        }
         NodeConfigMetrics::new(&registry_service.default_registry()).record_metrics(&config);
         if config.supported_protocol_versions.is_none() {
             info!(
