@@ -488,6 +488,18 @@ impl BlockSuspender {
     pub(crate) fn suspended_blocks_refs(&self) -> BTreeSet<BlockRef> {
         self.suspended_headers.keys().cloned().collect()
     }
+
+    /// Whether a suspended header exists at `block_ref`'s slot with a digest
+    /// different from `block_ref`'s.
+    pub(crate) fn contains_other_header_at_slot(&self, block_ref: &BlockRef) -> bool {
+        self.suspended_headers
+            .range(
+                BlockRef::new(block_ref.round, block_ref.author, BlockHeaderDigest::MIN)
+                    ..=BlockRef::new(block_ref.round, block_ref.author, BlockHeaderDigest::MAX),
+            )
+            .any(|(existing, _)| existing != block_ref)
+    }
+
     #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.suspended_headers.is_empty()

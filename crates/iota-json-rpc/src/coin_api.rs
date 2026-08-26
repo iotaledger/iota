@@ -564,7 +564,8 @@ mod tests {
     use expect_test::expect;
     use iota_json_rpc_types::Coin;
     use iota_sdk_types::{
-        CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TypeTag, Version,
+        CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TransactionEffects,
+        TransactionEvents, TypeTag, Version,
     };
     use iota_storage::{
         key_value_store::{
@@ -575,7 +576,7 @@ mod tests {
     use iota_types::{
         balance::Supply,
         coin::TreasuryCap,
-        effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
+        effects::TransactionEffectsExtForTesting,
         error::{IotaError, IotaResult},
         id::UID,
         messages_checkpoint::CheckpointSequenceNumber,
@@ -1012,13 +1013,13 @@ mod tests {
                 get_test_coin(Some("0xAAA"), CoinType::Gas),
             ];
             let coins_clone = coins.clone();
-            let coin_move_object = MoveStruct::new_gas_coin(
+            let coin_move_struct = MoveStruct::new_gas_coin(
                 coins[0].version,
                 coins[0].coin_object_id,
                 coins[0].balance,
             );
             let coin_object = Object::new_move(
-                coin_move_object,
+                coin_move_struct,
                 Owner::Immutable,
                 coins[0].previous_transaction,
             );

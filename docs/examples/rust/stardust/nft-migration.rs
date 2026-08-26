@@ -15,11 +15,13 @@ use iota_sdk::{
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, Transaction, TransactionData},
+        transaction::{CallArg, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{Argument, Identifier, ObjectId, SignatureScheme, crypto::Intent};
-use iota_types::transaction::TransactionDataAPI;
+use iota_sdk_types::{
+    Argument, Identifier, ObjectId, SignatureScheme, Transaction, crypto::Intent,
+};
+use iota_types::transaction::TransactionAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "okay pottery arch air egg very cave cash poem gown sorry mind poem crack dawn wet car pink extra crane hen bar boring salt";
@@ -142,7 +144,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create the transaction data that will be sent to the network
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -151,13 +153,13 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     // Sign the transaction
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&sender, &tx, Intent::iota_transaction())?;
 
     // Execute transaction
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

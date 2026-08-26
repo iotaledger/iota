@@ -13,7 +13,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use im::{OrdMap, OrdSet, ordmap, ordset};
+use imbl::{OrdMap, OrdSet, ordmap, ordset, shared_ptr::DefaultSharedPtr};
 use itertools::Itertools;
 
 // ================================================================================================
@@ -51,7 +51,7 @@ pub trait AbstractDomain {
 // Predefined Domain Types
 
 // As the underlying implementation of the below types we use the collections
-// from the `im`(mutable) crate (`im::OrdSet` and `im::OrdMap`), a
+// from the `imbl` crate (`imbl::OrdSet` and `imbl::OrdMap`), an immutable
 // representation which supports structure sharing. This is important because in
 // data flow analysis we often refine a set or map value in each step of the
 // analysis, e.g. adding a single element to a larger collection, while
@@ -120,7 +120,7 @@ impl<E: Ord + Clone> std::iter::FromIterator<E> for SetDomain<E> {
 
 impl<E: Ord + Clone> std::iter::IntoIterator for SetDomain<E> {
     type Item = E;
-    type IntoIter = im::ordset::ConsumingIter<E>;
+    type IntoIter = imbl::ordset::ConsumingIter<E, DefaultSharedPtr>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
@@ -225,7 +225,7 @@ impl<K: Ord + Clone, V: AbstractDomain + Clone> std::iter::FromIterator<(K, V)>
 
 impl<K: Ord + Clone, V: AbstractDomain + Clone> std::iter::IntoIterator for MapDomain<K, V> {
     type Item = (K, V);
-    type IntoIter = im::ordmap::ConsumingIter<(K, V)>;
+    type IntoIter = imbl::ordmap::ConsumingIter<(K, V), DefaultSharedPtr>;
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }

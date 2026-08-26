@@ -19,13 +19,14 @@ use iota_sdk::{
         gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, Transaction, TransactionData},
+        transaction::{CallArg, TransactionEnvelope},
     },
 };
 use iota_sdk_types::{
-    Argument, Identifier, ObjectId, SignatureScheme, StructTag, TypeTag, crypto::Intent,
+    Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
+    crypto::Intent,
 };
-use iota_types::transaction::TransactionDataAPI;
+use iota_types::transaction::TransactionAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
@@ -222,7 +223,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create a transaction data that will be sent to the network.
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -231,13 +232,13 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     // Sign the transaction.
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&sender, &tx, Intent::iota_transaction())?;
 
     // Execute the transaction.
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

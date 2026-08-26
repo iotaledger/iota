@@ -305,7 +305,9 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::MalformedShard(_)
         | ConsensusError::TooBigHeaderRoundInABundle { .. }
         | ConsensusError::TooBigShardRoundInABundle { .. }
-        | ConsensusError::IncorrectShardProof { .. } => FaultType::Unprovable,
+        | ConsensusError::IncorrectShardProof { .. }
+        | ConsensusError::UnrequestedHeaderOutOfWindow { .. }
+        | ConsensusError::SerializedShardTooLarge { .. } => FaultType::Unprovable,
 
         // Checks that run only after the author's signature is verified, so the
         // signed header itself proves the author produced a block that violates
@@ -327,7 +329,8 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::TransactionTooLarge { .. }
         | ConsensusError::TooManyTransactions { .. }
         | ConsensusError::TooManyTransactionBytes { .. }
-        | ConsensusError::InvalidTransaction(_) => FaultType::Provable,
+        | ConsensusError::InvalidTransaction(_)
+        | ConsensusError::BlockHeaderEquivocation { .. } => FaultType::Provable,
 
         // Not attributable as misbehavior from a signed block alone: subjective
         // rejections, commit-chain and commit-sync inconsistencies, fetch-shape

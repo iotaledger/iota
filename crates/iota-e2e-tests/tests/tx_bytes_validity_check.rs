@@ -46,7 +46,7 @@ fn build_faulty_transaction_byte_sequence() -> Base64 {
     let pt = ProgrammableTransaction { inputs, commands };
     let tx = TransactionKind::new_programmable(pt);
 
-    Base64::from_bytes(&bcs::to_bytes(&tx).unwrap())
+    Base64::from_bytes(&tx.to_bcs())
 }
 
 #[sim_test]

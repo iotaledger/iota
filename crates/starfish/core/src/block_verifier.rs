@@ -13,6 +13,7 @@ use crate::{
         genesis_block_headers,
     },
     context::Context,
+    encoder::shard_bytes,
     error::{ConsensusError, ConsensusResult},
     transaction::TransactionVerifier,
 };
@@ -342,6 +343,17 @@ pub(crate) fn serialized_transactions_size_limit(context: &Context) -> usize {
         .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
 }
 
+/// Upper bound on the length of a shard encoding a transaction payload that
+/// passes `check_transactions`. `usize::MAX` when the protocol payload limits
+/// are disabled, as no finite shard length is implied then.
+pub(crate) fn max_shard_bytes(context: &Context) -> usize {
+    let payload_limit = serialized_transactions_size_limit(context);
+    if payload_limit == usize::MAX {
+        return usize::MAX;
+    }
+    shard_bytes(payload_limit, context.committee.info_length())
+}
+
 #[cfg(test)]
 pub(crate) struct NoopBlockVerifier;
 
@@ -365,12 +377,15 @@ impl BlockVerifier for NoopBlockVerifier {
 
 #[cfg(test)]
 pub(crate) mod test {
+    use rstest::rstest;
     use starfish_config::AuthorityIndex;
 
     use super::*;
     use crate::{
         authority_set::AuthoritySet,
-        block_header::{BlockHeaderDigest, BlockRef, StrongVote, TestBlockHeader},
+        block_header::{
+            BlockHeaderDigest, BlockRef, StrongVote, TestBlockHeader, TestBlockHeaderVersion,
+        },
         context::Context,
         transaction::{TransactionVerifier, ValidationError},
     };
@@ -410,6 +425,30 @@ pub(crate) mod test {
         assert!(serialized.len() <= serialized_transactions_size_limit(&context));
     }
 
+    /// Pins `max_shard_bytes` to what the encoder actually produces for a
+    /// maximal payload, so a change to the encoder's chunking is caught here
+    /// rather than by shards being refused at ingress.
+    #[tokio::test]
+    async fn max_shard_bytes_bounds_maximal_shard() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let payload_limit = serialized_transactions_size_limit(&context);
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.parity_length();
+
+        let mut encoder = crate::encoder::create_encoder(&context);
+        let shards = encoder
+            .encode_serialized_data(
+                &bytes::Bytes::from(vec![0u8; payload_limit]),
+                info_length,
+                parity_length,
+            )
+            .unwrap();
+
+        let longest = shards.iter().map(|shard| shard.len()).max().unwrap();
+        assert_eq!(longest, max_shard_bytes(&context));
+    }
+
     #[tokio::test]
     async fn check_and_parse_transactions_rejects_oversized_payload() {
         let (context, _) = Context::new_for_test(4);
@@ -442,24 +481,26 @@ pub(crate) mod test {
         }
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_verify_block() {
-        // Test headers are V1, which flag-on verification rejects; run with
-        // StarfishSpeed off.
+    async fn test_verify_block(#[values(false, true)] starfish_speed: bool) {
         let (mut context, keypairs) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
+        let version = TestBlockHeaderVersion::from_context(&context);
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
-        let test_block = TestBlockHeader::new(10, 2).set_ancestors(vec![
-            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
-            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-        ]);
+        let test_block = TestBlockHeader::new(10, 2)
+            .set_version(version)
+            .set_ancestors(vec![
+                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            ]);
 
         // Valid SignedBlock.
         {
@@ -700,29 +741,31 @@ pub(crate) mod test {
         }
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_verify_block_round_gap() {
+    async fn test_verify_block_round_gap(#[values(false, true)] starfish_speed: bool) {
         let (mut context, keypairs) = Context::new_for_test(4);
         // Small gc_depth so we can construct violations without huge round
         // numbers.
         context
             .protocol_config
             .set_consensus_gc_depth_for_testing(5);
-        // Test headers are V1, which flag-on verification rejects; run with
-        // StarfishSpeed off.
         context
             .protocol_config
-            .set_consensus_starfish_speed_for_testing(false);
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
+        let version = TestBlockHeaderVersion::from_context(&context);
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
-        let test_block = TestBlockHeader::new(10, 2).set_ancestors(vec![
-            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
-            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-        ]);
+        let test_block = TestBlockHeader::new(10, 2)
+            .set_version(version)
+            .set_ancestors(vec![
+                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            ]);
 
         // Acknowledgment at the block's round.
         {
@@ -867,12 +910,14 @@ pub(crate) mod test {
         let leader_authority = AuthorityIndex::new_for_test(0);
         let verifier_on = SignedBlockVerifier::new(context_on, Arc::new(TxnSizeVerifier {}));
 
-        let base = TestBlockHeader::new(10, 2).set_ancestors(vec![
-            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-            BlockRef::new(9, leader_authority, BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
-            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-        ]);
+        let base = TestBlockHeader::new(10, 2)
+            .set_version(TestBlockHeaderVersion::V2)
+            .set_ancestors(vec![
+                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                BlockRef::new(9, leader_authority, BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            ]);
         let well_formed = StrongVote {
             leader_authority,
             missing: AuthoritySet::new(),

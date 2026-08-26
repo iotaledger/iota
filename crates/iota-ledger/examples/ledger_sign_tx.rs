@@ -5,19 +5,8 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use clap::{Arg, Command};
-use fastcrypto::encoding::{Base64, Encoding};
-use iota_sdk_types::crypto::Intent;
-use iota_types::{object::Object, transaction::TransactionData};
-
-fn transaction_from_base64(b64: &str) -> TransactionData {
-    let bytes = Base64::decode(b64).expect("Invalid base64 in transaction");
-    bcs::from_bytes(&bytes).expect("Invalid bcs in transaction")
-}
-
-fn object_from_base64(b64: &str) -> Object {
-    let bytes = Base64::decode(b64).expect("Invalid base64 in object");
-    bcs::from_bytes(&bytes).expect("Invalid bcs in object")
-}
+use iota_sdk_types::{Transaction, crypto::Intent};
+use iota_types::object::{Object, ObjectInner};
 
 pub fn main() -> Result<()> {
     let matches = Command::new("sign_tx")
@@ -66,7 +55,10 @@ pub fn main() -> Result<()> {
 
     let objects: Vec<Object> = matches
         .get_many::<String>("objects")
-        .map(|objs| objs.map(|o| object_from_base64(o)).collect())
+        .map(|objs| {
+            objs.map(|o| Object::from(ObjectInner::from_base64(o).expect("Invalid object")))
+                .collect()
+        })
         .unwrap_or_default();
 
     let ledger = if is_simulator {
@@ -78,11 +70,12 @@ pub fn main() -> Result<()> {
     let key_response = ledger.get_public_key(&derivation_path)?;
     println!("Address: {}", key_response.address);
 
-    let transaction = transaction_from_base64(
+    let transaction = Transaction::from_base64(
         matches
             .get_one::<String>("transaction")
             .expect("Transaction bytes are required"),
-    );
+    )
+    .expect("Invalid transaction");
 
     let signature = ledger.sign_intent(
         &derivation_path,

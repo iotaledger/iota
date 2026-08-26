@@ -7,15 +7,15 @@ use std::num::NonZeroUsize;
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_sdk_types::{
-    Address, CheckpointDigest, TransactionDigest, checkpoint::CheckpointContents,
+    Address, CheckpointDigest, TransactionDigest, TransactionEffects, TransactionEvents,
+    checkpoint::CheckpointContents,
 };
 use iota_types::{
-    effects::{TransactionEffects, TransactionEvents},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use serde::{Deserialize, Serialize};
 
@@ -153,7 +153,7 @@ pub struct Checkpoint {
 /// including its effects, events, and the checkpoint number it belongs to.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TransactionData {
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
     pub effects: TransactionEffects,
     pub events: Option<TransactionEvents>,
     pub checkpoint_number: CheckpointSequenceNumber,

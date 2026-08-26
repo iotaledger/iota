@@ -18,6 +18,7 @@ use fastcrypto::{
 };
 use fastcrypto_tbls::{dkg_v1, dkg_v1::Output, nodes, nodes::PartyId};
 use futures::{StreamExt, stream::FuturesUnordered};
+use iota_common::debug_fatal;
 use iota_macros::fail_point_if;
 use iota_network::randomness;
 use iota_sdk_types::RandomnessRound;
@@ -641,7 +642,9 @@ impl RandomnessManager {
             return Ok(());
         }
         let Some((_, party_id)) = self.authority_info.get(authority) else {
-            error!("random beacon: received DKG Message from unknown authority: {authority:?}");
+            debug_fatal!(
+                "random beacon: received DKG Message from unknown authority: {authority:?}"
+            );
             return Ok(());
         };
         if *party_id != msg.sender() {

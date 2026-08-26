@@ -23,16 +23,16 @@ use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthority
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
 use iota_json_rpc_api::QUERY_MAX_RESULT_LIMIT;
 use iota_json_rpc_types::{
-    DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionStatus,
-    IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
+    IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
 };
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
-    Event, ExecutionStatus, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId, ObjectReference,
-    ProgrammableTransaction, RandomnessRound, TransactionDigest, TransactionKind, TypeTag,
-    UserSignature, Version, checkpoint::CheckpointContents, gas::GasCostSummary,
+    Event, ExecutionStatus, GasPayment, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId,
+    ObjectReference, ProgrammableTransaction, RandomnessRound, Transaction, TransactionDigest,
+    TransactionEffects, TransactionEvents, TransactionExpiration, TransactionKind, TransactionV1,
+    TypeTag, UserSignature, Version, checkpoint::CheckpointContents, gas::GasCostSummary,
     move_package::MovePackage,
 };
 use iota_storage::{
@@ -43,7 +43,7 @@ use iota_types::{
     base_types::{IOTA_ADDRESS_LENGTH, VersionNumber},
     committee::EpochId,
     crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     move_package::{
@@ -54,9 +54,10 @@ use iota_types::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::{ObjectStore, ReadStore},
     transaction::{
-        CallArg, SenderSignedTransactionAPI, Transaction, TransactionData, TransactionDataAPI,
+        CallArg, SenderSignedTransactionAPI, TransactionAPI, TransactionEnvelope,
         VerifiedTransaction,
     },
+    transaction_executor::{SimulateTransactionResult, VmChecks},
     utils::{
         to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
         to_sender_signed_transaction_with_optional_sponsor,
@@ -521,7 +522,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 builder.publish_immutable(modules_bytes, dependencies);
             };
             let pt = builder.finish();
-            TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
+            Transaction::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
         let transaction = self.sign_txn(sender, data);
         let summary = self.execute_txn(transaction).await?;
@@ -793,7 +794,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     let rec_arg = builder.pure(recipient).unwrap();
                     builder.command(Command::new_transfer_objects(vec![obj_arg], rec_arg));
                     let pt = builder.finish();
-                    TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
+                    Transaction::new_programmable(sender, gas, pt, gas_budget, gas_price)
                 });
                 let summary = self.execute_txn(transaction).await?;
                 let output = self.object_summary_output(&summary, /* summarize */ false);
@@ -842,7 +843,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                         gas_payment.unwrap_or_default(),
                         None,
                         |sender, sponsor, gas| {
-                            TransactionData::new_programmable_allow_sponsor(
+                            Transaction::new_programmable_allow_sponsor(
                                 sender,
                                 gas,
                                 ProgrammableTransaction { inputs, commands },
@@ -861,7 +862,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
                     let payments = self.get_payments(sponsor, gas_payment.unwrap_or_default());
 
-                    let transaction = TransactionData::new_programmable(
+                    let transaction = Transaction::new_programmable(
                         sender.address,
                         payments,
                         ProgrammableTransaction { inputs, commands },
@@ -1231,7 +1232,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     gas_payment,
                     Some(move_authenticator),
                     |sender, sponsor, gas| {
-                        TransactionData::new_programmable_allow_sponsor(
+                        Transaction::new_programmable_allow_sponsor(
                             sender,
                             gas,
                             ProgrammableTransaction {
@@ -1634,7 +1635,7 @@ impl IotaTestAdapter {
         let pt = builder.finish();
 
         let summary = if dry_run {
-            let transaction = TransactionData::new_programmable(
+            let transaction = Transaction::new_programmable(
                 self.get_sender(Some(sender)).address,
                 vec![],
                 pt,
@@ -1643,10 +1644,9 @@ impl IotaTestAdapter {
             );
             self.dry_run(transaction).await?
         } else {
-            let data = |sender, gas| {
-                TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
-            };
-            let transaction = self.sign_txn(Some(sender), data);
+            let tx =
+                |sender, gas| Transaction::new_programmable(sender, gas, pt, gas_budget, gas_price);
+            let transaction = self.sign_txn(Some(sender), tx);
             self.execute_txn(transaction).await?
         };
         let created_package = summary
@@ -1684,8 +1684,8 @@ impl IotaTestAdapter {
             Address,
             // gas
             Vec<ObjectReference>,
-        ) -> TransactionData,
-    ) -> Transaction {
+        ) -> Transaction,
+    ) -> TransactionEnvelope {
         let sender = self.get_sender(sender);
         self.sign_sponsor_txn(sender, None, vec![], None, move |sender, _, gas| {
             txn_data(sender, gas)
@@ -1724,8 +1724,8 @@ impl IotaTestAdapter {
             Address,
             // gas
             Vec<ObjectReference>,
-        ) -> TransactionData,
-    ) -> Transaction {
+        ) -> Transaction,
+    ) -> TransactionEnvelope {
         let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
 
         let payment_refs = self.get_payments(sponsor, payment);
@@ -1770,7 +1770,7 @@ impl IotaTestAdapter {
         args: Vec<IotaValue>,
         gas_budget: Option<u64>,
         extra: IotaRunArgs,
-    ) -> anyhow::Result<Transaction> {
+    ) -> anyhow::Result<TransactionEnvelope> {
         assert!(signers.is_empty(), "signers are not used");
         let IotaRunArgs {
             sender, gas_price, ..
@@ -1793,12 +1793,15 @@ impl IotaTestAdapter {
                 arguments,
             ));
             let pt = builder.finish();
-            TransactionData::new_programmable(sender, gas, pt, gas_budget, gas_price)
+            Transaction::new_programmable(sender, gas, pt, gas_budget, gas_price)
         };
         Ok(self.sign_txn(sender, data))
     }
 
-    async fn execute_txn(&mut self, transaction: Transaction) -> anyhow::Result<TxnSummary> {
+    async fn execute_txn(
+        &mut self,
+        transaction: TransactionEnvelope,
+    ) -> anyhow::Result<TxnSummary> {
         let with_shared = transaction.contains_shared_object();
         let (effects, error_opt) = self.executor.execute_txn(transaction).await?;
         let digest = effects.transaction_digest();
@@ -1913,17 +1916,12 @@ impl IotaTestAdapter {
         }
     }
 
-    async fn dry_run(&mut self, transaction: TransactionData) -> anyhow::Result<TxnSummary> {
-        let digest = transaction.digest();
-        let results = self
+    async fn dry_run(&mut self, transaction: Transaction) -> anyhow::Result<TxnSummary> {
+        let result = self
             .executor
-            .dry_run_transaction_block(transaction, digest)
+            .simulate_transaction(transaction, VmChecks::Enabled)
             .await?;
-        let DryRunTransactionBlockResponse {
-            effects, events, ..
-        } = results;
-
-        self.tx_summary_from_effects(effects, events)
+        self.tx_summary_from_simulation(result)
     }
 
     async fn dev_inspect(
@@ -1932,21 +1930,32 @@ impl IotaTestAdapter {
         transaction_kind: TransactionKind,
         gas_price: Option<u64>,
     ) -> anyhow::Result<TxnSummary> {
-        let results = self
+        let transaction = Transaction::V1(TransactionV1 {
+            kind: transaction_kind,
+            sender,
+            gas_payment: GasPayment {
+                // The simulation fills all of this in: an empty payment gets a mock gas
+                // coin, and a zero price or budget gets the epoch's defaults.
+                objects: vec![],
+                owner: sender,
+                price: gas_price.unwrap_or_default(),
+                budget: 0,
+            },
+            expiration: TransactionExpiration::None,
+        });
+        let result = self
             .executor
-            .dev_inspect_transaction_block(sender, transaction_kind, gas_price)
+            .simulate_transaction(transaction, VmChecks::Disabled)
             .await?;
-        let DevInspectResults {
-            effects, events, ..
-        } = results;
-        self.tx_summary_from_effects(effects, events)
+        self.tx_summary_from_simulation(result)
     }
 
-    fn tx_summary_from_effects(
+    fn tx_summary_from_simulation(
         &mut self,
-        effects: IotaTransactionBlockEffects,
-        events: IotaTransactionBlockEvents,
+        result: SimulateTransactionResult,
     ) -> anyhow::Result<TxnSummary> {
+        let events = result.events.unwrap_or_default().0;
+        let effects: IotaTransactionBlockEffects = result.effects.try_into()?;
         if let IotaExecutionStatus::Failure { error } = effects.status() {
             bail!(self.stabilize_str(format!(
                 "Transaction Effects Status: {error}\nExecution Error: {error}",
@@ -1988,12 +1997,6 @@ impl IotaTestAdapter {
         deleted_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
         unwrapped_then_deleted_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
         wrapped_ids.sort_by_key(|id| self.real_to_fake_object_id(id));
-
-        let events = events
-            .data
-            .into_iter()
-            .map(|iota_event| iota_event.into())
-            .collect();
 
         Ok(TxnSummary {
             events,
@@ -2127,7 +2130,9 @@ impl IotaTestAdapter {
             .unwrap();
         }
         out.push('\n');
-        write!(out, "gas summary: {gas_summary}").unwrap();
+        let gas = gas_summary.to_string();
+        let gas_body = gas.strip_prefix("Gas Cost Summary\n").unwrap_or(&gas);
+        write!(out, "gas summary:\n{gas_body}").unwrap();
 
         if out.is_empty() { None } else { Some(out) }
     }
@@ -2271,7 +2276,7 @@ impl IotaTestAdapter {
         let gas_price = self.gas_price;
 
         let tx = self.sign_txn(sender, |sender_addr, gas| {
-            TransactionData::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
+            Transaction::new_programmable(sender_addr, gas, pt, gas_budget, gas_price)
         });
 
         let summary = self.execute_txn(tx).await?;

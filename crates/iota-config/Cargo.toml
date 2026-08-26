@@ -19,7 +19,7 @@ tracing.workspace = true
 
 # internal dependencies
 iota-protocol-config.workspace = true
-iota-sdk-crypto.workspace = true
+iota-sdk-crypto = { workspace = true, features = ["bech32", "ed25519"] }
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 move-vm-config.workspace = true
@@ -39,9 +39,9 @@ reqwest.workspace = true
 serde_yaml.workspace = true
 
 # internal dependencies
-iota-genesis-common.workspace = true
 iota-keys.workspace = true
 iota-metrics.workspace = true
+iota-multiaddr.workspace = true
 iota-names.workspace = true
 prometheus-filtered.workspace = true
 starfish-config.workspace = true

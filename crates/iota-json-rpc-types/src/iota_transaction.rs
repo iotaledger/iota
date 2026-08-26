@@ -8,20 +8,20 @@ use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
-use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
+    Address, Argument, CanceledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
     ChangeEpochV4, Command, ConsensusCommitDigest, ConsensusDeterminedVersionAssignments,
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
     GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SharedObjectReference, TransactionDigest, TransactionEventsDigest,
+    ProgrammableTransaction, SenderSignedTransaction, SharedObjectReference, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionEventsDigest,
     TransactionKind, TransferObjects, TypeTag, UserSignature, Version, VersionAssignment,
     gas::GasCostSummary,
 };
 use iota_types::{
     base_types::EpochId,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     error::{ExecutionError, IotaError, IotaResult},
     event::EventID,
     iota_sdk_types_conversions::{identifier_sdk_to_core, type_tag_core_to_sdk},
@@ -32,9 +32,7 @@ use iota_types::{
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
     storage::{DeleteKind, WriteKind},
-    transaction::{
-        CallArg, InputObjectKind, SenderSignedData, TransactionData, TransactionDataAPI,
-    },
+    transaction::{CallArg, InputObjectKind, TransactionAPI},
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -270,8 +268,8 @@ pub struct IotaTransactionBlockResponse {
     /// Transaction input data
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transaction: Option<IotaTransactionBlock>,
-    /// BCS encoded [SenderSignedData] that includes input object references
-    /// returns empty array if `show_raw_transaction` is false
+    /// BCS encoded [SenderSignedTransaction] that includes input object
+    /// references returns empty array if `show_raw_transaction` is false
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64Schema")]
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
@@ -1699,16 +1697,16 @@ impl IotaTransactionBlockData {
     }
 
     fn try_from_inner(
-        data: TransactionData,
+        tx: Transaction,
         transaction: IotaTransactionBlockKind,
     ) -> Result<Self, anyhow::Error> {
-        let message_version = data.message_version();
-        let sender = data.sender();
+        let message_version = tx.message_version();
+        let sender = tx.sender();
         let gas_data = IotaGasData {
-            payment: data.gas().to_vec(),
-            owner: data.gas_owner(),
-            price: data.gas_price(),
-            budget: data.gas_budget(),
+            payment: tx.gas().to_vec(),
+            owner: tx.gas_owner(),
+            price: tx.gas_price(),
+            budget: tx.gas_budget(),
         };
 
         match message_version {
@@ -1718,36 +1716,36 @@ impl IotaTransactionBlockData {
                 gas_data,
             })),
             _ => Err(anyhow::anyhow!(
-                "Support for TransactionData version {message_version} not implemented"
+                "Support for Transaction version {message_version} not implemented"
             )),
         }
     }
 
     pub fn try_from_with_module_cache(
-        data: TransactionData,
+        tx: Transaction,
         module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         let transaction = IotaTransactionBlockKind::try_from_with_module_cache(
-            data.kind().clone(),
+            tx.kind().clone(),
             module_cache,
             tx_digest,
         )?;
-        Self::try_from_inner(data, transaction)
+        Self::try_from_inner(tx, transaction)
     }
 
     pub async fn try_from_with_package_resolver(
-        data: TransactionData,
+        tx: Transaction,
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         let transaction = IotaTransactionBlockKind::try_from_with_package_resolver(
-            data.kind().clone(),
+            tx.kind().clone(),
             package_resolver,
             tx_digest,
         )
         .await?;
-        Self::try_from_inner(data, transaction)
+        Self::try_from_inner(tx, transaction)
     }
 }
 
@@ -1775,17 +1773,17 @@ pub struct IotaTransactionBlock {
 
 impl IotaTransactionBlock {
     pub fn try_from(
-        data: SenderSignedData,
+        tx: SenderSignedTransaction,
         module_cache: &impl GetModule,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_module_cache(
-                data.transaction().clone(),
+                tx.transaction().clone(),
                 module_cache,
                 tx_digest,
             )?,
-            tx_signatures: data.signatures().to_vec(),
+            tx_signatures: tx.signatures().to_vec(),
         })
     }
 
@@ -1793,18 +1791,18 @@ impl IotaTransactionBlock {
     // indexer v1, so are the related `try_from` methods for nested structs like
     // IotaTransactionBlockData etc.
     pub async fn try_from_with_package_resolver(
-        data: SenderSignedData,
+        tx: SenderSignedTransaction,
         package_resolver: &Resolver<impl PackageStore>,
         tx_digest: TransactionDigest,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
             data: IotaTransactionBlockData::try_from_with_package_resolver(
-                data.transaction().clone(),
+                tx.transaction().clone(),
                 package_resolver,
                 tx_digest,
             )
             .await?,
-            tx_signatures: data.signatures().to_vec(),
+            tx_signatures: tx.signatures().to_vec(),
         })
     }
 }
@@ -1889,10 +1887,10 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
         consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
     ) -> Self {
         match consensus_determined_version_assignments {
-            ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                cancelled_transactions,
+            ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                canceled_transactions,
             } => IotaConsensusDeterminedVersionAssignments::CancelledTransactions(
-                cancelled_transactions
+                canceled_transactions
                     .into_iter()
                     .map(|cancelled| {
                         (
@@ -1919,10 +1917,10 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
     ) -> Self {
         match iota_consensus_determined_version_assignments {
             IotaConsensusDeterminedVersionAssignments::CancelledTransactions(assignments) => {
-                ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                    cancelled_transactions: assignments
+                ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                    canceled_transactions: assignments
                         .into_iter()
-                        .map(|(digest, version_assignments)| CancelledTransaction {
+                        .map(|(digest, version_assignments)| CanceledTransaction {
                             digest,
                             version_assignments: version_assignments
                                 .into_iter()
@@ -2480,11 +2478,11 @@ pub struct TransactionBlockBytes {
 }
 
 impl TransactionBlockBytes {
-    pub fn from_data(data: TransactionData) -> Result<Self, anyhow::Error> {
+    pub fn from_data(tx: Transaction) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            tx_bytes: Base64::from_bytes(bcs::to_bytes(&data)?.as_slice()),
-            gas: data.gas().to_vec(),
-            input_objects: data
+            tx_bytes: Base64::from_bytes(&tx.to_bcs()),
+            gas: tx.gas().to_vec(),
+            input_objects: tx
                 .input_objects()?
                 .into_iter()
                 .map(IotaInputObjectKind::from)
@@ -2492,8 +2490,8 @@ impl TransactionBlockBytes {
         })
     }
 
-    pub fn to_data(self) -> Result<TransactionData, anyhow::Error> {
-        bcs::from_bytes::<TransactionData>(&self.tx_bytes.to_vec().map_err(|e| anyhow::anyhow!(e))?)
+    pub fn to_data(self) -> Result<Transaction, anyhow::Error> {
+        bcs::from_bytes::<Transaction>(&self.tx_bytes.to_vec().map_err(|e| anyhow::anyhow!(e))?)
             .map_err(|e| anyhow::anyhow!(e))
     }
 }
@@ -2648,7 +2646,7 @@ pub enum IotaObjectArg {
 #[derive(Clone)]
 pub struct EffectsWithInput {
     pub effects: IotaTransactionBlockEffects,
-    pub input: TransactionData,
+    pub input: Transaction,
 }
 
 impl From<EffectsWithInput> for IotaTransactionBlockEffects {
@@ -2758,7 +2756,6 @@ impl TransactionFilter {
 
 impl Filter<EffectsWithInput> for TransactionFilter {
     fn matches(&self, item: &EffectsWithInput) -> bool {
-        let _scope = monitored_scope("TransactionFilter::matches");
         match self {
             TransactionFilter::InputObject(o) => {
                 let Ok(input_objects) = item.input.input_objects() else {
@@ -2919,7 +2916,6 @@ impl TransactionFilterV2 {
 
 impl Filter<EffectsWithInput> for TransactionFilterV2 {
     fn matches(&self, item: &EffectsWithInput) -> bool {
-        let _scope = monitored_scope("TransactionFilterV2::matches");
         if let Some(v1) = self.as_v1() {
             return v1.matches(item);
         }

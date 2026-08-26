@@ -283,7 +283,7 @@ fn parse_transaction_proto(
 ///   transaction this contains only the gas charge.
 /// - `object_changes` - structured object changes (created, mutated, deleted,
 ///   wrapped, unwrapped, published)
-#[tracing::instrument(skip(reader, executor))]
+#[tracing::instrument(skip_all, fields(batch_size = request.transactions.len()))]
 pub async fn execute_transactions(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
@@ -676,7 +676,7 @@ async fn execute_single_transaction(
         signatures: sdk_signatures,
     };
 
-    let transaction = iota_types::transaction::Transaction::from(sdk_signed_transaction);
+    let transaction = iota_types::transaction::TransactionEnvelope::from(sdk_signed_transaction);
 
     // Determine what to include in the request based on read mask.
     // Balance/object changes are derived from the input/output objects, so the

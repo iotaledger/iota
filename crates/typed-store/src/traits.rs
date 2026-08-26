@@ -42,7 +42,10 @@ where
     /// Removes the entry for the given key from the map.
     fn remove(&self, key: &K) -> Result<(), Self::Error>;
 
-    /// Uses delete range on the entire key range
+    /// Removes every entry from the map.
+    ///
+    /// Not atomic with respect to concurrent writers: an entry inserted while
+    /// the call is in flight may survive it.
     fn schedule_delete_all(&self) -> Result<(), TypedStoreError>;
 
     /// Returns true if the map is empty, otherwise false.
@@ -64,6 +67,10 @@ where
     /// Iterates over the keys within `range`, honoring the range's own bound
     /// inclusivity (e.g. `lo..hi` excludes `hi`, `lo..=hi` includes it).
     fn safe_range_iter(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)>;
+
+    /// Reverse counterpart of [`Self::safe_range_iter`]: yields exactly the
+    /// keys of `safe_range_iter(range)` in descending order.
+    fn safe_range_iter_reversed(&'a self, range: impl RangeBounds<K>) -> DbIterator<'a, (K, V)>;
 
     /// Returns a vector of values corresponding to the keys provided,
     /// non-atomically.

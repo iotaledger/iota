@@ -33,6 +33,7 @@ use iota_indexer::{
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
@@ -41,7 +42,6 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
-use iota_types::crypto::IotaKeyPair;
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{info, warn};
@@ -232,6 +232,10 @@ pub enum LocalnetCommand {
         /// Start the network without a fullnode
         #[arg(long)]
         no_full_node: bool,
+        /// Keep the fullnode's full history instead of pruning old object
+        /// versions and checkpoints.
+        #[arg(long, conflicts_with = "no_full_node")]
+        disable_fullnode_pruning: bool,
         /// Set the number of validators in the network.
         /// If a genesis was already generated with a specific number of
         /// validators, this will not override it; the user should recreate the
@@ -308,6 +312,7 @@ impl LocalnetCommand {
                 #[cfg(feature = "indexer")]
                 data_ingestion_dir,
                 no_full_node,
+                disable_fullnode_pruning,
                 committee_size,
                 epoch_duration_ms,
             } => {
@@ -325,6 +330,7 @@ impl LocalnetCommand {
                     #[cfg(feature = "indexer")]
                     data_ingestion_dir,
                     no_full_node,
+                    disable_fullnode_pruning,
                     committee_size,
                 )
                 .await
@@ -374,6 +380,7 @@ async fn start(
     fullnode_rpc_port: u16,
     #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
+    disable_fullnode_pruning: bool,
     committee_size: Option<usize>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
@@ -424,6 +431,10 @@ async fn start(
     let config_path = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
 
     let mut swarm_builder = Swarm::builder();
+
+    if disable_fullnode_pruning {
+        swarm_builder = swarm_builder.with_disable_fullnode_pruning();
+    }
 
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
@@ -742,8 +753,8 @@ async fn start(
             let kp = swarm.config_mut().account_keys.swap_remove(0);
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-            let kp = IotaKeyPair::Ed25519(kp);
-            let address: Address = kp.address();
+            let kp = SimpleKeypair::from(kp);
+            let address: Address = kp.public_key().derive_address();
             keystore.add_key(None, kp).unwrap();
             IotaClientConfig::new(keystore)
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])
@@ -968,7 +979,7 @@ async fn genesis(
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     for key in &network_config.account_keys {
-        keystore.add_key(None, IotaKeyPair::Ed25519(key.clone()))?;
+        keystore.add_key(None, SimpleKeypair::from(key.clone()))?;
     }
     let active_address = keystore.addresses().pop();
 

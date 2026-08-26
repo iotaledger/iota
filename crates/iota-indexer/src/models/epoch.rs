@@ -7,8 +7,9 @@ use diesel::{
     prelude::{AsChangeset, Identifiable},
 };
 use iota_json_rpc_types::{EndOfEpochInfo, EpochInfo};
+use iota_sdk_types::TransactionEvents;
 use iota_types::{
-    effects::TransactionEvents, event::SystemEpochInfoEvent,
+    event::SystemEpochInfoEvent,
     iota_system_state::iota_system_state_summary::IotaSystemStateSummary,
     messages_checkpoint::CertifiedCheckpointSummary,
 };

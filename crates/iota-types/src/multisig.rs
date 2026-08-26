@@ -4,11 +4,10 @@
 
 pub use enum_dispatch::enum_dispatch;
 use iota_sdk_crypto::{Verifier, multisig::MultisigVerifier};
-pub use iota_sdk_types::crypto::{
-    BitmapUnit, MultisigAggregatedSignature as MultiSig, MultisigCommittee as MultiSigPublicKey,
-    MultisigMember, MultisigMemberSignature, ThresholdUnit, WeightUnit,
+use iota_sdk_types::{
+    Address,
+    crypto::{IntentMessage, MultisigAggregatedSignature},
 };
-use iota_sdk_types::{Address, crypto::IntentMessage};
 use serde::Serialize;
 
 use crate::{
@@ -20,7 +19,7 @@ use crate::{
 #[path = "unit_tests/multisig_tests.rs"]
 mod multisig_tests;
 
-impl AuthenticatorTrait for MultiSig {
+impl AuthenticatorTrait for MultisigAggregatedSignature {
     fn verify_claims<T>(
         &self,
         intent_message: &IntentMessage<T>,

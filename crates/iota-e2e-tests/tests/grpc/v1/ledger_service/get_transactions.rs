@@ -204,7 +204,7 @@ async fn get_transactions_readmask_scenarios() {
 #[sim_test]
 async fn get_transactions_derived_changes() {
     use iota_test_transaction_builder::make_transfer_iota_transaction;
-    use iota_types::transaction::TransactionDataAPI as _;
+    use iota_types::transaction::TransactionAPI as _;
 
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
@@ -256,10 +256,10 @@ async fn get_transactions_derived_changes() {
 
 #[sim_test]
 async fn get_transactions_derived_changes_failed_transaction() {
-    use iota_sdk_types::Command;
+    use iota_sdk_types::{Command, Transaction};
     use iota_types::{
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, TransactionData, TransactionDataAPI as _},
+        transaction::{CallArg, TransactionAPI as _},
     };
 
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
@@ -279,14 +279,14 @@ async fn get_transactions_derived_changes_failed_transaction() {
         .unwrap();
     let huge_amount = builder.pure(u64::MAX).unwrap();
     builder.command(Command::new_split_coins(coin_arg, vec![huge_amount]));
-    let transaction_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![*gas_object],
         builder.finish(),
         10_000_000,
         test_cluster.get_reference_gas_price().await,
     );
-    let transaction = test_cluster.wallet.sign_transaction(&transaction_data);
+    let transaction = test_cluster.wallet.sign_transaction(&tx);
     let transaction_digest = *transaction.digest();
     test_cluster
         .wallet

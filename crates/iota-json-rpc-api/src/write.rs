@@ -69,7 +69,7 @@ pub trait WriteApi {
         &self,
         #[schemars(with = "AddressSchema")]
         sender_address: Address,
-        /// BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice)
+        /// BCS encoded TransactionKind(as opposed to Transaction, which include gasBudget and gasPrice)
         #[schemars(with = "Base64Schema")]
         tx_bytes: Base64,
         /// Gas is not charged, but gas usage is still calculated. Default to use reference gas price

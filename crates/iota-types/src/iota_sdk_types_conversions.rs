@@ -219,13 +219,13 @@ impl<const T: bool> From<ValidatorAggregatedSignature>
     }
 }
 
-impl From<crate::transaction::Transaction> for SignedTransaction {
-    fn from(value: crate::transaction::Transaction) -> Self {
+impl From<crate::transaction::TransactionEnvelope> for SignedTransaction {
+    fn from(value: crate::transaction::TransactionEnvelope) -> Self {
         value.into_data().into()
     }
 }
 
-impl From<SignedTransaction> for crate::transaction::Transaction {
+impl From<SignedTransaction> for crate::transaction::TransactionEnvelope {
     fn from(value: SignedTransaction) -> Self {
         Self::new(value.into())
     }

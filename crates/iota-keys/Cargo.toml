@@ -22,7 +22,7 @@ tiny-bip39 = "1.0"
 tracing.workspace = true
 
 # internal dependencies
-iota-sdk-crypto = { workspace = true, features = ["ed25519", "secp256k1", "secp256r1"] }
+iota-sdk-crypto = { workspace = true, features = ["bech32", "ed25519", "secp256k1", "secp256r1"] }
 iota-sdk-types.workspace = true
 iota-types.workspace = true
 

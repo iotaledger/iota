@@ -30,6 +30,7 @@ use crate::{
     block_manager::block_suspender::BlockSuspender,
     context::Context,
     dag_state::{DagState, DataSource},
+    error::ConsensusError,
 };
 
 /// Combine headers accepted via the regular path with headers unsuspended by
@@ -208,6 +209,7 @@ impl BlockManager {
         let blocks = drop_far_future(&self.context, &self.dag_state, blocks, source, |b| {
             b.round()
         });
+        let blocks = self.drop_over_slot_cap(blocks, source, |b| b.reference());
 
         let block_headers: Vec<_> = blocks
             .iter()
@@ -256,6 +258,7 @@ impl BlockManager {
             drop_far_future(&self.context, &self.dag_state, block_headers, source, |h| {
                 h.round()
             });
+        let block_headers = self.drop_over_slot_cap(block_headers, source, |h| h.reference());
 
         // Headers are added through synchronizer, commit syncer and cordial
         // dissemination.
@@ -595,6 +598,71 @@ impl BlockManager {
             .collect::<Vec<_>>();
         filtered.sort_by_key(|h| h.round());
         filtered
+    }
+
+    /// Drops items whose slot already holds a header with a different digest,
+    /// be it accepted, suspended, or earlier in this batch. Only
+    /// peer-controlled sources are filtered, the rest pass through unchanged.
+    ///
+    /// A drop means two headers of one slot passed signature verification, so
+    /// the author is charged a provable fault.
+    fn drop_over_slot_cap<T>(
+        &self,
+        items: Vec<T>,
+        source: DataSource,
+        ref_of: impl Fn(&T) -> BlockRef,
+    ) -> Vec<T> {
+        if !source.is_subject_to_slot_cap() {
+            return items;
+        }
+        let dag_state = self.dag_state.read();
+        let misbehavior_store = dag_state.misbehavior_store().clone();
+        let mut admitted_by_slot: BTreeMap<(Round, AuthorityIndex), BlockHeaderDigest> =
+            BTreeMap::new();
+        items
+            .into_iter()
+            .filter(|item| {
+                let block_ref = ref_of(item);
+                let slot = (block_ref.round, block_ref.author);
+                let admit = match admitted_by_slot.get(&slot) {
+                    Some(admitted_digest) => *admitted_digest == block_ref.digest,
+                    None => {
+                        let other_exists = dag_state
+                            .contains_other_block_header_at_slot(&block_ref)
+                            || self
+                                .block_suspender
+                                .contains_other_header_at_slot(&block_ref);
+                        if !other_exists {
+                            admitted_by_slot.insert(slot, block_ref.digest);
+                        }
+                        !other_exists
+                    }
+                };
+                if !admit {
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .dropped_slot_cap_headers_total
+                        .with_label_values(&[
+                            self.context.authority_hostname(block_ref.author),
+                            source.as_str(),
+                        ])
+                        .inc();
+                    // No relaying peer is known at this level; passing the
+                    // author as the peer leaves the author's provable fault as
+                    // the only charge.
+                    misbehavior_store.record_faulty_block(
+                        block_ref.author,
+                        block_ref.author,
+                        &ConsensusError::BlockHeaderEquivocation {
+                            authority: block_ref.author,
+                            round: block_ref.round,
+                        },
+                    );
+                }
+                admit
+            })
+            .collect()
     }
 }
 
@@ -1385,7 +1453,7 @@ mod tests {
         // One round past the ceiling: dropped for every far-future-bounded source.
         for source in [
             DataSource::BlockBundleStream,
-            DataSource::HeaderSynchronizer,
+            DataSource::HeaderSynchronizerRequested,
         ] {
             let store = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
@@ -1660,5 +1728,175 @@ mod tests {
         );
         // Suspender state is still cleaned up by the cascade.
         assert!(block_manager.block_suspender.is_empty());
+    }
+
+    /// A second header for an (author, round) slot is dropped for capped
+    /// sources — whether the first copy is accepted, suspended, or earlier in
+    /// the same batch — while an exact duplicate passes through to the regular
+    /// dedup.
+    #[tokio::test]
+    async fn slot_cap_drops_second_header_for_slot() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let misbehavior_store = dag_state.read().misbehavior_store().clone();
+        let mut block_manager = BlockManager::new(context.clone(), dag_state);
+        let faults = |authority: u8| {
+            let crate::misbehavior_store::MisbehaviorCounts::V1(counts) =
+                &misbehavior_store.snapshot_totals()[authority as usize];
+            (
+                counts.faulty_blocks_provable,
+                counts.faulty_blocks_unprovable,
+            )
+        };
+        let slot_cap_drops = |source: DataSource| {
+            context
+                .metrics
+                .node_metrics
+                .dropped_slot_cap_headers_total
+                .with_label_values(&[
+                    context.authority_hostname(AuthorityIndex::new_for_test(1)),
+                    source.as_str(),
+                ])
+                .get()
+        };
+
+        // Two headers for slot (author 1, round 50), different digests, both
+        // with the same missing ancestor. The first is suspended; the second
+        // is dropped by the cap even though nothing is accepted yet.
+        let missing_ancestor = block_ref(30, 0);
+        let first = header(50, 1, vec![missing_ancestor]);
+        let equivocation = {
+            let mut ancestors = vec![missing_ancestor];
+            ancestors.push(block_ref(30, 2));
+            header(50, 1, ancestors)
+        };
+        assert_ne!(first.reference(), equivocation.reference());
+
+        let (accepted, _) = block_manager
+            .try_accept_block_headers(vec![first.clone()], DataSource::BlockBundleStream);
+        assert!(accepted.is_empty());
+        assert!(
+            block_manager
+                .suspended_blocks_refs()
+                .contains(&first.reference())
+        );
+
+        let (accepted, missing) = block_manager
+            .try_accept_block_headers(vec![equivocation.clone()], DataSource::BlockBundleStream);
+        assert!(accepted.is_empty());
+        assert!(
+            missing.is_empty(),
+            "a dropped header's ancestors must not be queued to fetch"
+        );
+        assert!(
+            !block_manager
+                .suspended_blocks_refs()
+                .contains(&equivocation.reference()),
+            "the second header for the slot must not grow the suspender"
+        );
+        assert_eq!(slot_cap_drops(DataSource::BlockBundleStream), 1);
+        assert_eq!(
+            faults(1),
+            (1, 0),
+            "two verified headers for one slot are the author's provable fault, \
+             and no relaying peer is charged for it"
+        );
+
+        // A repeat of the suspended header is neither a drop nor a fault.
+        let (accepted, _) =
+            block_manager.try_accept_block_headers(vec![first], DataSource::BlockStreaming);
+        assert!(accepted.is_empty());
+        assert_eq!(slot_cap_drops(DataSource::BlockStreaming), 0);
+        assert_eq!(faults(1), (1, 0));
+
+        // Same-batch case at a fresh slot: two different digests in one call,
+        // only the first survives.
+        let batch_first = header(60, 1, vec![block_ref(59, 0)]);
+        let batch_second = header(60, 1, vec![block_ref(59, 2)]);
+        let (accepted, _) = block_manager.try_accept_block_headers(
+            vec![batch_first.clone(), batch_second.clone()],
+            DataSource::BlockBundleStream,
+        );
+        assert!(accepted.is_empty());
+        assert!(
+            block_manager
+                .suspended_blocks_refs()
+                .contains(&batch_first.reference())
+        );
+        assert!(
+            !block_manager
+                .suspended_blocks_refs()
+                .contains(&batch_second.reference())
+        );
+        assert_eq!(slot_cap_drops(DataSource::BlockBundleStream), 2);
+        assert_eq!(faults(1), (2, 0));
+        assert_eq!(faults(0), (0, 0), "only the equivocating author is charged");
+    }
+
+    /// A header the cap dropped is still accepted when it arrives from an
+    /// exempt source: as a requested ref via the header synchronizer, or from
+    /// certified catch-up.
+    #[tokio::test]
+    async fn slot_cap_exempts_requested_and_certified_sources() {
+        use gc_eviction_helpers::*;
+
+        for exempt_source in [
+            DataSource::HeaderSynchronizerRequested,
+            DataSource::CommitSyncer,
+        ] {
+            let (context, _) = Context::new_for_test(4);
+            let context = Arc::new(context);
+            let store = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let mut block_manager = BlockManager::new(context.clone(), dag_state.clone());
+
+            let missing_ancestor = block_ref(30, 0);
+            let first = header(50, 1, vec![missing_ancestor]);
+            let equivocation = header(50, 1, vec![missing_ancestor, block_ref(30, 2)]);
+
+            block_manager.try_accept_block_headers(vec![first], DataSource::BlockBundleStream);
+            let (_, _) =
+                block_manager.try_accept_block_headers(vec![equivocation.clone()], exempt_source);
+            assert!(
+                block_manager
+                    .suspended_blocks_refs()
+                    .contains(&equivocation.reference()),
+                "{} must bypass the slot cap",
+                exempt_source.as_str()
+            );
+        }
+    }
+
+    /// Fetch-response gap-fill headers run under their own source and are
+    /// subject to the cap, unlike the requested refs.
+    #[tokio::test]
+    async fn slot_cap_applies_to_header_synchronizer_additional() {
+        use gc_eviction_helpers::*;
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let mut block_manager = BlockManager::new(context, dag_state);
+
+        let missing_ancestor = block_ref(30, 0);
+        let first = header(50, 1, vec![missing_ancestor]);
+        let equivocation = header(50, 1, vec![missing_ancestor, block_ref(30, 2)]);
+
+        block_manager.try_accept_block_headers(vec![first], DataSource::BlockBundleStream);
+        block_manager.try_accept_block_headers(
+            vec![equivocation.clone()],
+            DataSource::HeaderSynchronizerAdditional,
+        );
+        assert!(
+            !block_manager
+                .suspended_blocks_refs()
+                .contains(&equivocation.reference()),
+            "gap-fill extras must be subject to the slot cap"
+        );
     }
 }

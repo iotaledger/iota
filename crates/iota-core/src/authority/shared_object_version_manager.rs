@@ -5,16 +5,17 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use iota_sdk_types::{
-    ObjectId, SharedObjectReference, TransactionDigest, Version, VersionAssignment,
+    ObjectId, SenderSignedTransaction, SharedObjectReference, TransactionDigest,
+    TransactionEffects, Version, VersionAssignment,
 };
 use iota_types::{
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaResult,
     executable_transaction::VerifiedExecutableTransaction,
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
-    transaction::{SenderSignedData, SenderSignedTransactionAPI, TransactionKey},
+    transaction::{SenderSignedTransactionAPI, TransactionKey},
 };
 use tracing::trace;
 
@@ -174,14 +175,14 @@ impl SharedObjVerManager {
                                 Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
                             }
                         } else {
-                            Version::CANCELLED_READ
+                            Version::CANCELED_READ
                         }
                     }
                     Some(CancelConsensusTransactionReason::DkgFailed) => {
                         if id == &ObjectId::RANDOMNESS_STATE {
                             Version::RANDOMNESS_UNAVAILABLE
                         } else {
-                            Version::CANCELLED_READ
+                            Version::CANCELED_READ
                         }
                     }
                     None => unreachable!("cancelled transaction should have cancellation info"),
@@ -252,7 +253,7 @@ impl SharedObjVerManager {
 }
 
 fn get_or_init_versions<'a>(
-    transactions: impl Iterator<Item = &'a SenderSignedData>,
+    transactions: impl Iterator<Item = &'a SenderSignedTransaction>,
     epoch_store: &AuthorityPerEpochStore,
     cache_reader: &dyn ObjectCacheRead,
 ) -> IotaResult<HashMap<ObjectId, Version>> {
@@ -274,7 +275,9 @@ fn get_or_init_versions<'a>(
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
-    use iota_sdk_types::{Address, ObjectDigest, ObjectReference, RandomnessRound};
+    use iota_sdk_types::{
+        Address, ObjectDigest, ObjectReference, RandomnessRound, SenderSignedTransaction,
+    };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
         effects::TestEffectsBuilder,
@@ -283,7 +286,7 @@ mod tests {
         },
         object::Object,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, SenderSignedData, VerifiedTransaction},
+        transaction::{CallArg, VerifiedTransaction},
     };
 
     use super::*;
@@ -590,7 +593,7 @@ mod tests {
                             Version::new_congested_with_suggested_gas_price(suggested_gas_price)
                                 .unwrap(),
                         ),
-                        VersionAssignment::new(id2, Version::CANCELLED_READ),
+                        VersionAssignment::new(id2, Version::CANCELED_READ),
                     ]
                 ),
                 (
@@ -600,7 +603,7 @@ mod tests {
                 (
                     transactions[3].key(),
                     vec![
-                        VersionAssignment::new(id1, Version::CANCELLED_READ),
+                        VersionAssignment::new(id1, Version::CANCELED_READ),
                         VersionAssignment::new(
                             id2,
                             Version::new_congested_with_suggested_gas_price(suggested_gas_price)
@@ -615,7 +618,7 @@ mod tests {
                             ObjectId::RANDOMNESS_STATE,
                             Version::RANDOMNESS_UNAVAILABLE
                         ),
-                        VersionAssignment::new(id2, Version::CANCELLED_READ)
+                        VersionAssignment::new(id2, Version::CANCELED_READ)
                     ]
                 ),
             ]
@@ -721,7 +724,7 @@ mod tests {
         )
         .programmable(builder.finish())
         .build();
-        let tx = SenderSignedData::new(tx_data, vec![]);
+        let tx = SenderSignedTransaction::new(tx_data, vec![]);
         VerifiedExecutableTransaction::new_unchecked(ExecutableTransaction::new_from_data_and_sig(
             tx,
             CertificateProof::new_system(0),

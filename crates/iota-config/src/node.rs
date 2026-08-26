@@ -11,20 +11,20 @@ use std::{
 };
 
 use anyhow::Result;
-use fastcrypto::{ed25519::Ed25519KeyPair, traits::ToFromBytes};
+use fastcrypto::ed25519::Ed25519KeyPair;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
 use iota_metrics::MetricGroups;
+use iota_multiaddr::Multiaddr;
 use iota_names::config::IotaNamesConfig;
-use iota_sdk_crypto::ToFromBytes as _;
+use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::Address;
 use iota_types::{
     committee::EpochId,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, KeypairTraits,
-        NetworkKeyPair, get_key_pair_from_rng,
+        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits, NetworkKeyPair,
+        get_key_pair_from_rng, simple_to_network_keypair,
     },
     messages_checkpoint::CheckpointSequenceNumber,
-    multiaddr::Multiaddr,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
@@ -169,12 +169,6 @@ pub struct NodeConfig {
     /// order to test protocol upgrades.
     #[serde(skip)]
     pub supported_protocol_versions: Option<SupportedProtocolVersions>,
-
-    /// Configuration to manage database checkpoints,
-    /// including whether to perform checkpoints at the end of an epoch,
-    /// the path for storing checkpoints, and other related settings.
-    #[serde(default)]
-    pub db_checkpoint_config: DBCheckpointConfig,
 
     /// Configuration for enabling/disabling expensive safety checks.
     #[serde(default)]
@@ -695,11 +689,7 @@ fn default_authority_key_pair() -> AuthorityKeyPairWithPath {
 }
 
 fn default_key_pair() -> KeyPairWithPath {
-    KeyPairWithPath::new(
-        get_key_pair_from_rng::<AccountKeyPair, _>(&mut OsRng)
-            .1
-            .into(),
-    )
+    KeyPairWithPath::new(AccountKeyPair::random().into())
 }
 
 fn default_metrics_address() -> SocketAddr {
@@ -791,7 +781,10 @@ impl NodeConfig {
     }
 
     pub fn iota_address(&self) -> Address {
-        (&self.account_key_pair.keypair().public()).into()
+        self.account_key_pair
+            .keypair()
+            .public_key()
+            .derive_address()
     }
 
     pub fn checkpoint_archive_config(&self) -> Option<&CheckpointArchiveConfig> {
@@ -1117,23 +1110,16 @@ pub struct MetricsConfig {
     pub groups: Option<MetricGroups>,
 }
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct DBCheckpointConfig {
-    #[serde(default)]
-    pub perform_db_checkpoints_at_epoch_end: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub checkpoint_path: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub object_store_config: Option<ObjectStoreConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub perform_index_db_checkpoints_at_epoch_end: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prune_and_compact_before_upload: Option<bool>,
+fn default_checkpoint_archive_download_concurrency() -> NonZeroUsize {
+    NonZeroUsize::new(10).unwrap()
 }
 
-fn default_checkpoint_archive_download_concurrency() -> usize {
-    10
+fn default_checkpoint_archive_verify_concurrency() -> NonZeroUsize {
+    std::thread::available_parallelism().unwrap_or(NonZeroUsize::new(4).unwrap())
+}
+
+fn default_checkpoint_archive_max_checkpoints_ahead_of_execution() -> NonZeroUsize {
+    NonZeroUsize::new(100_000).unwrap()
 }
 
 /// Configuration for backfilling checkpoint contents from the
@@ -1145,7 +1131,18 @@ pub struct CheckpointArchiveConfig {
     pub url: String,
     /// Non-zero number of checkpoints to download in parallel.
     #[serde(default = "default_checkpoint_archive_download_concurrency")]
-    pub download_concurrency: usize,
+    pub download_concurrency: NonZeroUsize,
+    /// Non-zero number of downloaded checkpoints to verify in parallel.
+    /// Defaults to the number of CPU cores.
+    #[serde(default = "default_checkpoint_archive_verify_concurrency")]
+    pub verify_concurrency: NonZeroUsize,
+    /// Pause downloading from the archive while the synced watermark is this
+    /// many checkpoints ahead of the executed watermark, and resume once
+    /// execution catches up. Bounds the disk space held by checkpoints that
+    /// are synced but not yet executed, since only executed checkpoints can
+    /// be pruned.
+    #[serde(default = "default_checkpoint_archive_max_checkpoints_ahead_of_execution")]
+    pub max_checkpoints_ahead_of_execution: NonZeroUsize,
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.
@@ -1385,18 +1382,18 @@ enum GenesisLocation {
     },
 }
 
-/// Wrapper struct for IotaKeyPair that can be deserialized from a file path.
+/// Wrapper struct for SimpleKeypair that can be deserialized from a file path.
 /// Used by network, worker, and account keypair.
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct KeyPairWithPath {
     #[serde(flatten)]
     location: KeyPairLocation,
 
     #[serde(skip)]
-    keypair: OnceCell<Arc<IotaKeyPair>>,
+    keypair: OnceCell<Arc<SimpleKeypair>>,
 
     // The consensus/network stacks borrow their key as `&Ed25519KeyPair`
-    // (fastcrypto), while the key itself is stored as an SDK `IotaKeyPair`
+    // (fastcrypto), while the key itself is stored as an SDK `SimpleKeypair`
     // above. Converting on each access would return an owned value, which
     // can't back the `&`-returning accessors, so the converted key is cached
     // here. Never populated for account keys.
@@ -1404,21 +1401,43 @@ pub struct KeyPairWithPath {
     ed25519_keypair: OnceCell<Arc<Ed25519KeyPair>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
+impl PartialEq for KeyPairWithPath {
+    fn eq(&self, other: &Self) -> bool {
+        self.location == other.location
+    }
+}
+
+impl Eq for KeyPairWithPath {}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 enum KeyPairLocation {
     InPlace {
         #[serde(with = "bech32_formatted_keypair")]
-        value: Arc<IotaKeyPair>,
+        value: Arc<SimpleKeypair>,
     },
     File {
         path: PathBuf,
     },
 }
 
+impl PartialEq for KeyPairLocation {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::InPlace { value: a }, Self::InPlace { value: b }) => {
+                a.to_bytes() == b.to_bytes()
+            }
+            (Self::File { path: a }, Self::File { path: b }) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for KeyPairLocation {}
+
 impl KeyPairWithPath {
-    pub fn new(kp: IotaKeyPair) -> Self {
-        let cell: OnceCell<Arc<IotaKeyPair>> = OnceCell::new();
+    pub fn new(kp: SimpleKeypair) -> Self {
+        let cell: OnceCell<Arc<SimpleKeypair>> = OnceCell::new();
         let arc_kp = Arc::new(kp);
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
@@ -1431,7 +1450,7 @@ impl KeyPairWithPath {
     }
 
     pub fn new_from_path(path: PathBuf) -> Self {
-        let cell: OnceCell<Arc<IotaKeyPair>> = OnceCell::new();
+        let cell: OnceCell<Arc<SimpleKeypair>> = OnceCell::new();
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
         cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
@@ -1445,7 +1464,7 @@ impl KeyPairWithPath {
         }
     }
 
-    pub fn keypair(&self) -> &IotaKeyPair {
+    pub fn keypair(&self) -> &SimpleKeypair {
         self.keypair
             .get_or_init(|| match &self.location {
                 KeyPairLocation::InPlace { value } => value.clone(),
@@ -1467,14 +1486,11 @@ impl KeyPairWithPath {
     /// ed25519.
     pub fn ed25519_keypair(&self) -> &Ed25519KeyPair {
         self.ed25519_keypair
-            .get_or_init(|| match self.keypair() {
-                IotaKeyPair::Ed25519(kp) => Arc::new(
-                    Ed25519KeyPair::from_bytes(&kp.to_bytes())
-                        .expect("valid ed25519 private key bytes"),
-                ),
-                other => {
-                    panic!("invalid keypair type: {other:?}, only Ed25519 is allowed")
-                }
+            .get_or_init(|| {
+                Arc::new(
+                    simple_to_network_keypair(self.keypair())
+                        .expect("only Ed25519 network keys are allowed"),
+                )
             })
             .as_ref()
     }
@@ -1559,7 +1575,9 @@ mod tests {
 
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
-    use iota_types::crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng};
+    use iota_types::crypto::{
+        AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng, network_to_simple_keypair,
+    };
     use rand::{SeedableRng, rngs::StdRng};
 
     use super::Genesis;
@@ -1604,12 +1622,12 @@ mod tests {
         write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))
             .unwrap();
         write_keypair_to_file(
-            &protocol_key_pair.copy().into(),
+            &network_to_simple_keypair(&protocol_key_pair),
             PathBuf::from("protocol.key"),
         )
         .unwrap();
         write_keypair_to_file(
-            &network_key_pair.copy().into(),
+            &network_to_simple_keypair(&network_key_pair),
             PathBuf::from("network.key"),
         )
         .unwrap();
@@ -1659,23 +1677,24 @@ impl RunWithRange {
 }
 
 /// A serde helper module used with #[serde(with = "...")] to change the
-/// de/serialization format of an `IotaKeyPair` to Bech32 when written to or
+/// de/serialization format of an `SimpleKeypair` to Bech32 when written to or
 /// read from a node config.
 mod bech32_formatted_keypair {
     use std::ops::Deref;
 
-    use iota_types::crypto::{EncodeDecodeBase64, IotaKeyPair};
+    use fastcrypto::encoding::{Base64, Encoding};
+    use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S, T>(kp: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
-        T: Deref<Target = IotaKeyPair>,
+        T: Deref<Target = SimpleKeypair>,
     {
         use serde::ser::Error;
 
         // Serialize the keypair to a Bech32 string
-        let s = kp.encode().map_err(Error::custom)?;
+        let s = kp.to_bech32().map_err(Error::custom)?;
 
         serializer.serialize_str(&s)
     }
@@ -1683,19 +1702,20 @@ mod bech32_formatted_keypair {
     pub fn deserialize<'de, D, T>(deserializer: D) -> Result<T, D::Error>
     where
         D: Deserializer<'de>,
-        T: From<IotaKeyPair>,
+        T: From<SimpleKeypair>,
     {
         use serde::de::Error;
 
         let s = String::deserialize(deserializer)?;
 
         // Try to deserialize the keypair from a Bech32 formatted string
-        IotaKeyPair::decode(&s)
-            .or_else(|_| {
+        SimpleKeypair::from_bech32(&s)
+            .map_err(Error::custom)
+            .or_else(|_: D::Error| {
                 // For backwards compatibility try Base64 if Bech32 failed
-                IotaKeyPair::decode_base64(&s)
+                let bytes = Base64::decode(&s).map_err(Error::custom)?;
+                SimpleKeypair::from_bytes(&bytes).map_err(Error::custom)
             })
             .map(Into::into)
-            .map_err(Error::custom)
     }
 }

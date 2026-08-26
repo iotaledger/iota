@@ -11,8 +11,8 @@ use axum::{
     response::IntoResponse,
 };
 use iota_kvstore::client::TransactionSequenceNumber;
+use iota_sdk_types::Address;
 use iota_storage::http_key_value_store::{ItemType, Key};
-use iota_types::sdk_types::Address;
 use serde::Deserialize;
 
 use crate::{

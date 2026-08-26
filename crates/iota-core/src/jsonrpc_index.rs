@@ -8,7 +8,7 @@
 use std::{
     cmp::{max, min},
     collections::{BTreeMap, HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicU64, Ordering},
@@ -21,13 +21,12 @@ use iota_common::try_iterator_ext::TryIteratorExt;
 use iota_json_rpc_types::{IotaObjectDataFilter, TransactionFilter};
 use iota_sdk_types::{
     Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, TransactionDigest,
-    TransactionEventsDigest, TypeTag, Version,
+    TransactionEvents, TransactionEventsDigest, TypeTag, Version,
 };
 use iota_storage::{mutex_table::MutexTable, sharded_lru::ShardedLruCache};
 use iota_types::{
     base_types::{ObjectInfo, TxSequenceNumber},
     dynamic_field::{self, DynamicFieldInfo},
-    effects::TransactionEvents,
     error::{IotaError, IotaResult, UserInputError},
     inner_temporary_store::TxCoins,
     object::Object,
@@ -1444,14 +1443,6 @@ impl IndexStore {
         self.tables.owner_index.is_empty()
     }
 
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // We are checkpointing the whole db
-        self.tables
-            .transactions_from_addr
-            .checkpoint_db(path)
-            .map_err(Into::into)
-    }
-
     /// This method first gets the balance from `per_coin_type_balance` cache.
     /// On a cache miss, it gets the balance for passed in `coin_type` from
     /// the `all_balance` cache. Only on the second cache miss, we go to the
@@ -1686,10 +1677,9 @@ impl IndexStore {
 mod tests {
     use std::collections::BTreeMap;
 
-    use iota_sdk_types::{Address, ObjectId, Owner, TransactionDigest};
+    use iota_sdk_types::{Address, ObjectId, Owner, TransactionDigest, TransactionEvents};
     use iota_types::{
         base_types::{ObjectInfo, ObjectType},
-        effects::TransactionEvents,
         gas_coin::GAS,
         object,
     };

@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use im::OrdMap;
+use imbl::OrdMap;
 use lsp_types::Position;
 use move_compiler::{
     diagnostics::warning_filters::WarningFilters,

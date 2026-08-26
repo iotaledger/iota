@@ -68,7 +68,7 @@ pub struct SenderSignedTransaction {
   pub tx_signatures: Vec<UserSignature>,
 }
 
-pub struct TransactionDataV1 {  // <-- A variant of `TransactionData`
+pub struct TransactionV1 {  // <-- A variant of `TransactionData`
   pub kind: TransactionKind,  // <-- This contains the transaction details
   pub sender: IotaAddress,
   pub gas_data: GasData,
@@ -85,7 +85,7 @@ pub struct GasData {
 
 Key points to note:
 
-- The `sender` in `TransactionDataV1` represents the user's address.
+- The `sender` in `TransactionV1` represents the user's address.
 - The `gas_data` field contains the gas payment information.
 - `GasData` can include multiple gas objects, but they must all be owned by the same address—the `owner` field, which is the sponsor. If the `owner` and `sender` are the same, it's a regular (non-sponsored) transaction.
 - The `tx_signatures` array must include signatures from both the user and the sponsor for a sponsored transaction. These signatures cover the entire `TransactionData`, including `GasData`.

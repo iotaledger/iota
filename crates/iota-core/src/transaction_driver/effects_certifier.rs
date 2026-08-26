@@ -1080,14 +1080,12 @@ mod tests {
 
     use async_trait::async_trait;
     use iota_sdk_types::{
-        Address, ExecutionStatus, GasCostSummary, ObjectId, Owner, TransactionDigest, Version,
+        Address, ChangedObject, ExecutionStatus, GasCostSummary, IdOperation, ObjectId, ObjectIn,
+        ObjectOut, Owner, TransactionDigest, TransactionEffects, TransactionEvents, Version,
     };
     use iota_types::{
         committee::Committee,
-        effects::{
-            EffectsObjectChange, IDOperation, ObjectIn, ObjectOut, TransactionEffects,
-            TransactionEffectsExt as _, TransactionEvents,
-        },
+        effects::TransactionEffectsExt as _,
         error::{IotaError, UserInputError},
         iota_system_state::IotaSystemState,
         messages_checkpoint::{CheckpointRequest, CheckpointResponse},
@@ -1100,7 +1098,7 @@ mod tests {
             ValidatorHealthRequest, ValidatorHealthResponse,
         },
         object::Object,
-        transaction::Transaction,
+        transaction::TransactionEnvelope,
     };
 
     use super::*;
@@ -1367,7 +1365,7 @@ mod tests {
     impl ValidatorV2API for MockStatusClient {
         async fn submit_tx(
             &self,
-            _transactions: Vec<Transaction>,
+            _transactions: Vec<TransactionEnvelope>,
             _client_addr: Option<SocketAddr>,
         ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
             unimplemented!()
@@ -1423,7 +1421,7 @@ mod tests {
     impl ValidatorAPI for MockStatusClient {
         async fn handle_transaction(
             &self,
-            _transaction: Transaction,
+            _transaction: TransactionEnvelope,
             _client_addr: Option<SocketAddr>,
         ) -> Result<HandleTransactionResponse, IotaError> {
             unimplemented!()
@@ -1636,7 +1634,7 @@ mod tests {
             output_ref.version(),
             BTreeMap::from([(
                 object_id,
-                EffectsObjectChange {
+                ChangedObject {
                     object_id,
                     input_state: ObjectIn::Data {
                         version: input_ref.version(),
@@ -1647,7 +1645,7 @@ mod tests {
                         digest: *output_ref.digest(),
                         owner,
                     },
-                    id_operation: IDOperation::None,
+                    id_operation: IdOperation::None,
                 },
             )]),
             None,

@@ -17,16 +17,16 @@ use iota_sdk::{
     IotaClient, IotaClientBuilder,
     rpc_types::{IotaTransactionBlockEffectsAPI, ObjectChange},
     types::{
-        programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::TransactionEnvelope,
     },
 };
 use iota_sdk_types::{
-    Address, Argument, Identifier, ObjectId, ObjectReference, Owner, SharedObjectReference,
-    SignatureScheme, TypeTag, UserSignature,
+    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    SharedObjectReference, SignatureScheme, TypeTag, UserSignature,
 };
 use iota_types::{
     crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, transaction::CallArg,
-    utils::MoveAuthenticatorV1,
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -386,7 +386,7 @@ pub async fn create_test_transaction(
     recipient: Address,
     account_ref: &ObjectReference,
     blacklist_ref: &ObjectReference,
-) -> Result<Transaction> {
+) -> Result<TransactionEnvelope> {
     let account_address = account_ref.object_id.into();
 
     // Create a PTB that sends some IOTA from the abstract account to the recipient
@@ -424,14 +424,17 @@ pub async fn create_test_transaction(
         .into(),
     );
 
-    Ok(Transaction::from_user_sig_data(tx_data, vec![signature]))
+    Ok(TransactionEnvelope::from_user_sig_data(
+        tx_data,
+        vec![signature],
+    ))
 }
 
 /// Swaps the blacklist shared object in the transaction with a new one.
 pub fn swap_blacklist_in_transaction(
-    mut transaction: Transaction,
+    mut transaction: TransactionEnvelope,
     new_blacklist_ref: &ObjectReference,
-) -> Transaction {
+) -> TransactionEnvelope {
     let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectReference::new(
         new_blacklist_ref.object_id,
         new_blacklist_ref.version,

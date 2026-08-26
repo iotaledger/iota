@@ -15,15 +15,15 @@ use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
 use iota_sdk_crypto::{
-    ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey,
+    ToFromBech32, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
     Address, SignatureScheme,
-    crypto::{Intent, IntentMessage},
+    crypto::{Intent, IntentMessage, SimpleSignature},
 };
 use iota_types::crypto::{
-    EncodeDecodeBase64, IotaKeyPair, IotaSignature, PublicKey, Signature, enum_dispatch,
-    get_key_pair_from_rng,
+    EncodeDecodeBase64, IotaSignature, PublicKey, enum_dispatch, get_key_pair_from_rng,
 };
 use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
@@ -55,14 +55,18 @@ pub trait AccountKeystore: Send + Sync {
     fn keys(&self) -> Vec<&StoredKey>;
     fn get_key(&self, address: &Address) -> Result<&StoredKey, anyhow::Error>;
 
-    fn sign_hashed(&self, address: &Address, msg: &[u8]) -> Result<Signature, signature::Error>;
+    fn sign_hashed(
+        &self,
+        address: &Address,
+        msg: &[u8],
+    ) -> Result<SimpleSignature, signature::Error>;
 
     fn sign_secure<T>(
         &self,
         address: &Address,
         msg: &T,
         intent: Intent,
-    ) -> Result<Signature, signature::Error>
+    ) -> Result<SimpleSignature, signature::Error>
     where
         T: Serialize;
     fn addresses(&self) -> Vec<Address> {
@@ -213,7 +217,7 @@ pub struct Alias {
 )]
 pub enum StoredKey {
     #[serde(with = "serde_iota_keypair")]
-    KeyPair(IotaKeyPair),
+    KeyPair(SimpleKeypair),
     Account(Address),
     External {
         source: String,
@@ -225,8 +229,8 @@ pub enum StoredKey {
     },
 }
 
-impl From<IotaKeyPair> for StoredKey {
-    fn from(keypair: IotaKeyPair) -> Self {
+impl From<SimpleKeypair> for StoredKey {
+    fn from(keypair: SimpleKeypair) -> Self {
         StoredKey::KeyPair(keypair)
     }
 }
@@ -252,7 +256,7 @@ impl From<Secp256r1PrivateKey> for StoredKey {
 impl StoredKey {
     pub fn address(&self) -> Address {
         match self {
-            StoredKey::KeyPair(key) => (&key.public()).into(),
+            StoredKey::KeyPair(key) => (&PublicKey::from(key)).into(),
             StoredKey::Account(address) => *address,
             StoredKey::External { public_key, .. } => public_key.into(),
         }
@@ -260,7 +264,7 @@ impl StoredKey {
 
     pub fn public(&self) -> PublicKey {
         match self {
-            StoredKey::KeyPair(keypair) => keypair.public(),
+            StoredKey::KeyPair(keypair) => PublicKey::from(keypair),
             StoredKey::Account(_) => panic!("Account addresses are not backed by key pairs."),
             StoredKey::External { public_key, .. } => public_key.clone(),
         }
@@ -284,7 +288,7 @@ impl StoredKey {
         }
     }
 
-    pub fn as_keypair(&self) -> Result<&IotaKeyPair, anyhow::Error> {
+    pub fn as_keypair(&self) -> Result<&SimpleKeypair, anyhow::Error> {
         match self {
             StoredKey::KeyPair(keypair) => Ok(keypair),
             StoredKey::Account(_) => bail!("Account addresses are not backed by key pairs."),
@@ -341,13 +345,17 @@ pub struct AliasedKey {
 }
 
 impl AccountKeystore for FileBasedKeystore {
-    fn sign_hashed(&self, address: &Address, msg: &[u8]) -> Result<Signature, signature::Error> {
+    fn sign_hashed(
+        &self,
+        address: &Address,
+        msg: &[u8],
+    ) -> Result<SimpleSignature, signature::Error> {
         let stored_key = self.keys.get(address).ok_or_else(|| {
             signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
         })?;
 
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(Signature::new_hashed(msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_hashed(msg, keypair)),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_hashed is not supported for account type",
             )),
@@ -361,7 +369,7 @@ impl AccountKeystore for FileBasedKeystore {
         address: &Address,
         msg: &T,
         intent: Intent,
-    ) -> Result<Signature, signature::Error>
+    ) -> Result<SimpleSignature, signature::Error>
     where
         T: Serialize,
     {
@@ -371,7 +379,7 @@ impl AccountKeystore for FileBasedKeystore {
 
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(Signature::new_secure(intent_msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_secure(intent_msg, keypair)),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_secure is not supported for account type",
             )),
@@ -492,8 +500,8 @@ impl FileBasedKeystore {
             kp_strings
                 .iter()
                 .map(|kpstr| {
-                    let key = IotaKeyPair::decode(kpstr);
-                    key.map(|k| (Address::from(&k.public()), StoredKey::KeyPair(k)))
+                    let key = SimpleKeypair::from_bech32(kpstr);
+                    key.map(|k| (Address::from(&PublicKey::from(&k)), StoredKey::KeyPair(k)))
                 })
                 .collect::<Result<BTreeMap<_, _>, _>>()
                 .map_err(|e| anyhow!("Invalid keystore file: {}. {}", path.display(), e))?
@@ -730,13 +738,17 @@ pub struct InMemKeystore {
 }
 
 impl AccountKeystore for InMemKeystore {
-    fn sign_hashed(&self, address: &Address, msg: &[u8]) -> Result<Signature, signature::Error> {
+    fn sign_hashed(
+        &self,
+        address: &Address,
+        msg: &[u8],
+    ) -> Result<SimpleSignature, signature::Error> {
         let stored_key = self.keys.get(address).ok_or_else(|| {
             signature::Error::from_source(format!("Cannot find key for address: [{address}]"))
         })?;
 
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(Signature::new_hashed(msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_hashed(msg, keypair)),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_hashed is not supported for account type",
             )),
@@ -750,7 +762,7 @@ impl AccountKeystore for InMemKeystore {
         address: &Address,
         msg: &T,
         intent: Intent,
-    ) -> Result<Signature, signature::Error>
+    ) -> Result<SimpleSignature, signature::Error>
     where
         T: Serialize,
     {
@@ -760,7 +772,7 @@ impl AccountKeystore for InMemKeystore {
 
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(Signature::new_secure(intent_msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_secure(intent_msg, keypair)),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_secure is not supported for account type",
             )),
@@ -874,8 +886,8 @@ impl InMemKeystore {
     pub fn new_insecure_for_tests(initial_key_number: usize) -> Self {
         let mut rng = StdRng::from_seed([0; 32]);
         let keys = (0..initial_key_number)
-            .map(|_| get_key_pair_from_rng(&mut rng))
-            .map(|(ad, k)| (ad, IotaKeyPair::Ed25519(k).into()))
+            .map(|_| get_key_pair_from_rng::<Ed25519PrivateKey, _>(&mut rng))
+            .map(|(ad, k)| (ad, SimpleKeypair::from(k).into()))
             .collect::<BTreeMap<Address, StoredKey>>();
 
         let aliases = keys

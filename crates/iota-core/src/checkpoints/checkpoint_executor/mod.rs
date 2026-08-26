@@ -21,19 +21,19 @@
 //! successfully, we have reached the end of epoch. This allows us to use it as
 //! a signal for reconfig.
 
-use std::{sync::Arc, time::Instant};
+use std::{future::Future, sync::Arc, time::Instant};
 
 use futures::StreamExt;
 use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_sdk_types::{
-    RandomnessRound, TransactionDigest, TransactionEffectsDigest, TransactionKind,
-    checkpoint::CheckpointContents,
+    RandomnessRound, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionKind, checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::ExecutionData,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     executable_transaction::VerifiedExecutableTransaction,
     full_checkpoint_content::CheckpointData,
     global_state_hash::GlobalStateHash,
@@ -42,7 +42,7 @@ use iota_types::{
         FullCheckpointContents, VerifiedCheckpoint,
     },
     transaction::{
-        SenderSignedTransactionAPI, TransactionDataAPI, TransactionKey, VerifiedTransaction,
+        SenderSignedTransactionAPI, TransactionAPI, TransactionKey, VerifiedTransaction,
     },
 };
 use parking_lot::Mutex;
@@ -57,8 +57,8 @@ use crate::{
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::CheckpointStore,
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     global_state_hasher::GlobalStateHasher,
-    transaction_manager::TransactionManager,
 };
 
 mod data_ingestion_handler;
@@ -90,7 +90,6 @@ pub(crate) struct CheckpointExecutionData {
 pub(crate) struct CheckpointTransactionData {
     pub transactions: Vec<VerifiedExecutableTransaction>,
     pub effects: Vec<TransactionEffects>,
-    pub executed_fx_digests: Vec<Option<TransactionEffectsDigest>>,
 }
 
 pub(crate) struct CheckpointExecutionState {
@@ -132,7 +131,7 @@ pub struct CheckpointExecutor {
     checkpoint_store: Arc<CheckpointStore>,
     object_cache_reader: Arc<dyn ObjectCacheRead>,
     transaction_cache_reader: Arc<dyn TransactionCacheRead>,
-    tx_manager: Arc<TransactionManager>,
+    execution_scheduler: Arc<ExecutionSchedulerWrapper>,
     global_state_hasher: Arc<GlobalStateHasher>,
     backpressure_manager: Arc<BackpressureManager>,
     config: CheckpointExecutorConfig,
@@ -160,7 +159,7 @@ impl CheckpointExecutor {
             checkpoint_store,
             object_cache_reader: state.get_object_cache_reader().clone(),
             transaction_cache_reader: state.get_transaction_cache_reader().clone(),
-            tx_manager: state.transaction_manager().clone(),
+            execution_scheduler: state.execution_scheduler().clone(),
             global_state_hasher,
             backpressure_manager,
             config,
@@ -260,19 +259,26 @@ impl CheckpointExecutor {
             .and_then(|s| s.parse().ok())
             .unwrap_or(this.config.checkpoint_execution_max_concurrency);
 
-        let pipeline_stages = PipelineStages::new(next_to_schedule, this.metrics.clone());
+        let pipeline_stages = PipelineStages::new(
+            next_to_schedule,
+            this.metrics.clone(),
+            this.checkpoint_progress_tracker.clone(),
+        );
 
         let final_checkpoint_executed = stream_synced_checkpoints(
             this.checkpoint_store.clone(),
             next_to_schedule,
             run_with_range.and_then(|rwr| rwr.into_checkpoint_bound()),
         )
-        // Checkpoint loading and execution is parallelized
+        // Checkpoint loading and execution is parallelized: each
+        // checkpoint's task loads its transaction data before awaiting
+        // admission to the ordered pipeline stages.
         .map(|checkpoint| {
             let this = this.clone();
-            let pipeline_handle = pipeline_stages.handle(checkpoint.sequence_number());
+            let pipeline_stages = pipeline_stages.clone();
             async move {
-                let pipeline_handle = pipeline_handle.await;
+                let seq = checkpoint.sequence_number();
+                let pipeline_handle = async move { pipeline_stages.handle(seq).await };
                 tokio::spawn(this.execute_checkpoint(checkpoint, pipeline_handle))
                     .await
                     .unwrap()
@@ -301,16 +307,33 @@ impl CheckpointExecutor {
     async fn execute_checkpoint(
         self: Arc<Self>,
         checkpoint: VerifiedCheckpoint,
-        mut pipeline_handle: PipelineHandle,
+        pipeline_handle: impl Future<Output = PipelineHandle> + Send,
     ) -> bool /* is final checkpoint */ {
         debug!("executing checkpoint");
         let sequence_number = checkpoint.sequence_number;
+        let is_last_checkpoint_of_epoch = checkpoint.is_last_checkpoint_of_epoch();
 
         checkpoint.report_checkpoint_age(&self.metrics.checkpoint_contents_age);
         self.backpressure_manager
             .update_highest_certified_checkpoint(sequence_number);
 
-        if checkpoint.is_last_checkpoint_of_epoch() && sequence_number > 0 {
+        // Load the transaction data before awaiting admission to the
+        // pipeline: it reads only state-sync-written data (contents,
+        // transactions, and expected effects), so it can run in parallel
+        // across the buffered checkpoints instead of inside the ordered
+        // ExecuteTransactions stage. The clone is needed because the
+        // locally-built-checkpoint path below wants the checkpoint too.
+        let loaded = (self.state.is_fullnode(&self.epoch_store) || is_last_checkpoint_of_epoch)
+            .then(|| {
+                let _scope = iota_metrics::monitored_scope(
+                    "CheckpointExecutor::load_checkpoint_transactions",
+                );
+                self.load_checkpoint_transactions(checkpoint.clone())
+            });
+
+        let mut pipeline_handle = pipeline_handle.await;
+
+        if is_last_checkpoint_of_epoch && sequence_number > 0 {
             let _wait_for_previous_checkpoints_guard =
                 iota_metrics::monitored_scope("CheckpointExecutor::wait_for_previous_checkpoints");
 
@@ -328,14 +351,19 @@ impl CheckpointExecutor {
         // Note: only `execute_transactions_from_synced_checkpoint` has end-of-epoch
         // logic.
         let exec_start = Instant::now();
-        let ckpt_state = if self.state.is_fullnode(&self.epoch_store)
-            || checkpoint.is_last_checkpoint_of_epoch()
-        {
-            self.execute_transactions_from_synced_checkpoint(checkpoint, &mut pipeline_handle)
+        let ckpt_state = match loaded {
+            Some((ckpt_state, tx_data)) => {
+                self.execute_transactions_from_synced_checkpoint(
+                    ckpt_state,
+                    tx_data,
+                    &mut pipeline_handle,
+                )
                 .await
-        } else {
-            self.verify_locally_built_checkpoint(checkpoint, &mut pipeline_handle)
-                .await
+            }
+            None => {
+                self.verify_locally_built_checkpoint(checkpoint, &mut pipeline_handle)
+                    .await
+            }
         };
 
         let tps = self.tps_estimator.lock().update(
@@ -498,8 +526,9 @@ impl CheckpointExecutor {
 
         let Some(locally_built_checkpoint) = locally_built_checkpoint else {
             // fall back to tx-by-tx execution path if we are catching up.
+            let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint);
             return self
-                .execute_transactions_from_synced_checkpoint(checkpoint, pipeline_handle)
+                .execute_transactions_from_synced_checkpoint(ckpt_state, tx_data, pipeline_handle)
                 .await;
         };
 
@@ -564,26 +593,25 @@ impl CheckpointExecutor {
     #[instrument(level = "info", skip_all)]
     async fn execute_transactions_from_synced_checkpoint(
         &self,
-        checkpoint: VerifiedCheckpoint,
+        mut ckpt_state: CheckpointExecutionState,
+        tx_data: CheckpointTransactionData,
         pipeline_handle: &mut PipelineHandle,
     ) -> CheckpointExecutionState {
-        let sequence_number = checkpoint.sequence_number;
+        let sequence_number = ckpt_state.data.checkpoint.sequence_number;
 
-        let (mut ckpt_state, tx_data, unexecuted_tx_digests) = {
+        let unexecuted_tx_digests = {
             let _scope = iota_metrics::monitored_scope("CheckpointExecutor::execute_transactions");
-            let (ckpt_state, tx_data) = self.load_checkpoint_transactions(checkpoint);
-            let unexecuted_tx_digests = self.schedule_transaction_execution(&ckpt_state, &tx_data);
-            (ckpt_state, tx_data, unexecuted_tx_digests)
+            self.schedule_transaction_execution(&ckpt_state, &tx_data)
         };
 
         finish_stage!(pipeline_handle, ExecuteTransactions);
 
         {
-            let _metrics_scope = iota_metrics::monitored_scope(
-                "CheckpointExecutor::notify_read_executed_effects_digests",
-            );
             self.transaction_cache_reader
-                .notify_read_executed_effects_digests(&unexecuted_tx_digests)
+                .notify_read_executed_effects_digests(
+                    "CheckpointExecutor::notify_read_executed_effects_digests",
+                    &unexecuted_tx_digests,
+                )
                 .await;
         }
 
@@ -760,10 +788,6 @@ impl CheckpointExecutor {
                     fx_digests.push(fx_digest);
                 });
 
-            let executed_fx_digests = self
-                .transaction_cache_reader
-                .multi_get_executed_effects_digests(&tx_digests);
-
             (
                 CheckpointExecutionState::new(CheckpointExecutionData {
                     checkpoint,
@@ -774,7 +798,6 @@ impl CheckpointExecutor {
                 CheckpointTransactionData {
                     transactions,
                     effects,
-                    executed_fx_digests,
                 },
             )
         } else {
@@ -839,10 +862,6 @@ impl CheckpointExecutor {
                 .map(|tx| VerifiedExecutableTransaction::new_from_checkpoint(tx, epoch, seq))
                 .collect();
 
-            let executed_fx_digests = self
-                .transaction_cache_reader
-                .multi_get_executed_effects_digests(&tx_digests);
-
             (
                 CheckpointExecutionState::new(CheckpointExecutionData {
                     checkpoint,
@@ -853,7 +872,6 @@ impl CheckpointExecutor {
                 CheckpointTransactionData {
                     transactions,
                     effects,
-                    executed_fx_digests,
                 },
             )
         }
@@ -866,6 +884,14 @@ impl CheckpointExecutor {
         ckpt_state: &CheckpointExecutionState,
         tx_data: &CheckpointTransactionData,
     ) -> Vec<TransactionDigest> {
+        // Which transactions have already been executed must be read here, in
+        // the ordered pipeline stage, and not when the checkpoint data is
+        // loaded: execution progresses in between, and a stale answer would
+        // skip the fork check for a transaction that executed since loading.
+        let executed_fx_digests = self
+            .transaction_cache_reader
+            .multi_get_executed_effects_digests(&ckpt_state.data.tx_digests);
+
         // Find unexecuted transactions and their expected effects digests
         let (unexecuted_tx_digests, unexecuted_txns, unexecuted_effects): (Vec<_>, Vec<_>, Vec<_>) =
             itertools::multiunzip(
@@ -874,7 +900,7 @@ impl CheckpointExecutor {
                     ckpt_state.data.tx_digests.iter(),
                     ckpt_state.data.fx_digests.iter(),
                     tx_data.effects.iter(),
-                    tx_data.executed_fx_digests.iter()
+                    executed_fx_digests.iter()
                 )
                 .filter_map(
                     |(txn, tx_digest, expected_fx_digest, effects, executed_fx_digest)| {
@@ -909,7 +935,7 @@ impl CheckpointExecutor {
         }
 
         // Enqueue unexecuted transactions with their expected effects digests
-        self.tx_manager
+        self.execution_scheduler
             .enqueue_with_expected_effects_digest(unexecuted_txns, &self.epoch_store);
 
         unexecuted_tx_digests
@@ -960,13 +986,17 @@ impl CheckpointExecutor {
             change_epoch_tx.digest(),
             change_epoch_fx.digest()
         );
-        self.tx_manager.enqueue_with_expected_effects_digest(
-            vec![(change_epoch_tx.clone(), change_epoch_fx.digest())],
-            &self.epoch_store,
-        );
+        self.execution_scheduler
+            .enqueue_with_expected_effects_digest(
+                vec![(change_epoch_tx.clone(), change_epoch_fx.digest())],
+                &self.epoch_store,
+            );
 
         self.transaction_cache_reader
-            .notify_read_executed_effects_digests(&[*change_epoch_tx.digest()])
+            .notify_read_executed_effects_digests(
+                "CheckpointExecutor::notify_read_advance_epoch_tx",
+                &[*change_epoch_tx.digest()],
+            )
             .await;
     }
 

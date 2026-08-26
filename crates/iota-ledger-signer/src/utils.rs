@@ -9,16 +9,16 @@ use iota_sdk::{
     types::{
         base_types::ObjectType,
         object::{MoveStructExt, Object},
-        transaction::{InputObjectKind, TransactionData, TransactionDataAPI},
+        transaction::{InputObjectKind, TransactionAPI},
     },
 };
-use iota_sdk_types::{MoveStruct, ObjectId};
+use iota_sdk_types::{MoveStruct, ObjectId, Transaction};
 
 use crate::LedgerSignerError;
 
 pub(crate) async fn load_objects_with_client(
     client: &IotaClient,
-    transaction: &TransactionData,
+    transaction: &Transaction,
 ) -> Result<Vec<Object>, LedgerSignerError> {
     let object_ids = object_ids_from_transaction(transaction)?;
 
@@ -40,7 +40,7 @@ pub(crate) async fn load_objects_with_client(
 }
 
 fn object_ids_from_transaction(
-    transaction: &TransactionData,
+    transaction: &Transaction,
 ) -> Result<Vec<ObjectId>, LedgerSignerError> {
     let object_ids = transaction
         .gas_data()
@@ -78,7 +78,7 @@ fn object_from_response(resp: IotaObjectResponse) -> Option<Object> {
         _ => return None,
     };
 
-    let move_object = MoveStruct::new_from_execution_with_limit(
+    let move_struct = MoveStruct::new_from_execution_with_limit(
         move_object_type.into(),
         data.version,
         bcs_bytes,
@@ -88,7 +88,7 @@ fn object_from_response(resp: IotaObjectResponse) -> Option<Object> {
     let owner = data.owner?;
     let previous_transaction = data.previous_transaction?;
 
-    let object = Object::new_move(move_object, owner, previous_transaction);
+    let object = Object::new_move(move_struct, owner, previous_transaction);
 
     // We need to get the inner object to modify the storage rebate
     let mut inner = object.into_inner();

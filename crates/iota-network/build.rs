@@ -33,7 +33,7 @@ fn main() -> Result<()> {
             Method::builder()
                 .name("transaction")
                 .route_name("Transaction")
-                .input_type("iota_types::transaction::Transaction")
+                .input_type("iota_types::transaction::TransactionEnvelope")
                 .output_type("iota_types::messages_grpc::HandleTransactionResponse")
                 .codec_path(codec_path)
                 .build(),
