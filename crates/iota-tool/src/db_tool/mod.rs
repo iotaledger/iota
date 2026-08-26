@@ -258,7 +258,7 @@ pub fn print_last_consensus_index(path: &Path) -> anyhow::Result<()> {
 }
 
 pub fn print_transaction(path: &Path, opt: PrintTransactionOptions) -> anyhow::Result<()> {
-    let (_perpetual_db, _historic_objects, historic_ledger) =
+    let (_perpetual_db, _historic_objects, historic_ledger, _epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(&path.join("store"), None)?;
     if let Some((epoch, checkpoint_seq_num)) =
         historic_ledger.get_transaction_checkpoint(&opt.digest)?
