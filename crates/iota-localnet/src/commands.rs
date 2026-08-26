@@ -58,6 +58,11 @@ const DEFAULT_GRPC_PORT: u16 = 50051;
 const DEFAULT_GRAPHQL_PORT: u16 = 9125;
 #[cfg(feature = "indexer")]
 const DEFAULT_INDEXER_PORT: u16 = 9124;
+/// Metrics port a local network gives the GraphQL service, overriding the
+/// `9184` the service picks by default, which the fullnode metrics endpoint
+/// already holds.
+#[cfg(feature = "indexer")]
+const GRAPHQL_METRICS_PORT: u16 = 9126;
 /// Port base of the fullnode layout, see
 /// [`FullnodeConfigBuilder::with_deterministic_ports`].
 const FULLNODE_PORT_BASE: u16 = 9184;
@@ -722,6 +727,10 @@ async fn start(
             port: graphql_address.port(),
             host: graphql_address.ip().to_string(),
             db_url: pg_address,
+            // The default metrics port collides with the fullnode metrics
+            // endpoint, which binds `FULLNODE_PORT_BASE` before this runs.
+            prom_host: Ipv4Addr::LOCALHOST.to_string(),
+            prom_port: GRAPHQL_METRICS_PORT,
             ..Default::default()
         };
         start_graphql_server_with_fn_rpc(
@@ -1156,5 +1165,32 @@ pub fn parse_host_port(
         format!("{default_host}:{input}").parse::<SocketAddr>()
     } else {
         format!("{default_host}:{default_port_if_missing}").parse::<SocketAddr>()
+    }
+}
+
+#[cfg(all(test, feature = "indexer"))]
+mod tests {
+    use super::*;
+
+    /// Every service port of a local network is fixed, so a collision is a
+    /// startup failure rather than a test flake. The fullnode metrics
+    /// endpoint and the GraphQL metrics endpoint shared `9184` once.
+    #[test]
+    fn service_ports_do_not_collide() {
+        let mut ports = vec![
+            DEFAULT_FAUCET_PORT,
+            DEFAULT_GRPC_PORT,
+            DEFAULT_GRAPHQL_PORT,
+            DEFAULT_INDEXER_PORT,
+            GRAPHQL_METRICS_PORT,
+            9000, // fullnode JSON-RPC, see `fullnode_rpc_port`
+        ];
+        // The fullnode owns `FULLNODE_PORT_BASE` and the two ports above it,
+        // each validator the ten ports above its own base.
+        ports.extend((0..3).map(|offset| FULLNODE_PORT_BASE + offset));
+        ports.extend((0..10 * DEFAULT_COMMITTEE_SIZE as u16).map(|o| VALIDATOR_PORT_BASE + o));
+
+        let unique = ports.iter().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(unique.len(), ports.len(), "two services share a port");
     }
 }
