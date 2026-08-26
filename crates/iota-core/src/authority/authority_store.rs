@@ -416,6 +416,18 @@ impl AuthorityStore {
         &self.historic_ledger
     }
 
+    /// Records the one-time passes over the pre-bucket tables as done, for a
+    /// database that cannot hold anything for them to find.
+    ///
+    /// See [`AuthorityPerpetualTables::mark_object_backlog_swept`] and
+    /// [`AuthorityPerpetualTables::mark_ledger_backlog_migrated`].
+    // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
+    // together with the passes it skips.
+    pub fn mark_pre_bucket_passes_done(&self) -> IotaResult<()> {
+        self.perpetual_tables.mark_object_backlog_swept()?;
+        self.perpetual_tables.mark_ledger_backlog_migrated()
+    }
+
     pub fn get_recovery_epoch_at_restart(&self) -> IotaResult<EpochId> {
         self.perpetual_tables.get_recovery_epoch_at_restart()
     }
