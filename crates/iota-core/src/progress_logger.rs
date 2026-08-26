@@ -40,12 +40,16 @@ pub(crate) struct ProgressLogger {
     done_at_last_line: u64,
     started: Instant,
     last_line: Instant,
+    /// Whether the opening line has been written. Held off until the step is
+    /// known to have work: these passes stay in the startup path long after
+    /// every database has been through them, and one that finds an empty
+    /// table should say nothing at all.
+    announced: bool,
 }
 
 impl ProgressLogger {
     pub(crate) fn new(pass: &'static str, step: &'static str, total: u64) -> Self {
         let now = Instant::now();
-        info!("{pass}: {step} starting, about {total} rows to go");
         Self {
             pass,
             step,
@@ -54,6 +58,7 @@ impl ProgressLogger {
             done_at_last_line: 0,
             started: now,
             last_line: now,
+            announced: false,
         }
     }
 
@@ -65,14 +70,28 @@ impl ProgressLogger {
 
     /// Counts `rows` as done, writing a line if the last one is a second old.
     pub(crate) fn advance(&mut self, rows: u64) {
+        if rows == 0 {
+            return;
+        }
+        if !self.announced {
+            info!(
+                "{}: {} starting, about {} rows to go",
+                self.pass, self.step, self.total
+            );
+            self.announced = true;
+        }
         self.done += rows;
         if self.last_line.elapsed() >= PROGRESS_REPORT_INTERVAL {
             self.write_line();
         }
     }
 
-    /// Writes the closing line, however recent the last one.
+    /// Writes the closing line, however recent the last one. Silent for a step
+    /// that never found anything to do.
     pub(crate) fn finish(&self) {
+        if !self.announced {
+            return;
+        }
         info!(
             "{}: {} finished, {} rows in {:.0?}",
             self.pass,
