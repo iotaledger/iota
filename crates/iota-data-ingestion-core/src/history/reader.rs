@@ -27,7 +27,7 @@ use crate::{
     history::{
         CHECKPOINT_FILE_MAGIC,
         epoch_boundaries::{EpochBoundaries, read_epoch_boundaries},
-        manifest::{FileMetadata, Manifest, read_manifest},
+        manifest::{FileMetadata, Manifest, read_manifest, read_manifest_from_bytes},
     },
 };
 
@@ -203,6 +203,11 @@ impl HistoricalReader {
     /// data from the remote store, decodes the raw data, and streams the
     /// deserialized values.
     ///
+    /// The file is fetched with a single request, so the caller is
+    /// responsible for retrying. The request is bounded by the store
+    /// client's connect and stall timeouts rather than by a total duration,
+    /// since a transfer takes as long as the file is large.
+    ///
     /// # Errors
     ///
     /// Returns an error in the following cases:
@@ -213,7 +218,7 @@ impl HistoricalReader {
         &self,
         file_path: Path,
     ) -> Result<impl Iterator<Item = CheckpointData>> {
-        let raw_data_batch = get(&self.remote_object_store, &file_path).await?;
+        let raw_data_batch = self.remote_object_store.get_bytes(&file_path).await?;
         make_blob_iterator(raw_data_batch)
     }
 
@@ -249,6 +254,21 @@ impl HistoricalReader {
     /// Syncs the Manifest from remote store.
     pub async fn sync_manifest_once(&self) -> Result<()> {
         Self::sync_manifest(self.remote_object_store.clone(), self.manifest.clone()).await?;
+        Ok(())
+    }
+
+    /// Syncs the Manifest from remote store with a single request.
+    ///
+    /// Unlike [`Self::sync_manifest_once`], a failed request is reported to
+    /// the caller instead of being retried, so a caller that already runs a
+    /// retry loop does not end up nesting two backoff schedules.
+    pub async fn sync_manifest_no_retry(&self) -> Result<()> {
+        let bytes = self
+            .remote_object_store
+            .get_bytes(&Manifest::file_path())
+            .await?;
+        let new_manifest = read_manifest_from_bytes(bytes.to_vec())?;
+        *self.manifest.lock().await = new_manifest;
         Ok(())
     }
 
