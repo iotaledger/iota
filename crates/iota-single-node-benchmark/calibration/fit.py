@@ -38,6 +38,14 @@ BASE_PREDICTORS = [
     "interp_stack_size_flow",
     "interp_stack_height_flow",
     "values_constructed",
+    # Peak bytes held (operand stack, locals, object runtime): growing a
+    # transaction's working set costs CPU time — page faults on fresh memory,
+    # cache misses in a growing structure — that per-operation counts do not
+    # carry. The nested-struct workload made this measurable: allocation
+    # *count* fitted to ~zero while peak stack bytes carried its cost.
+    "stack_size_high_water_mark",
+    "locals_size_high_water_mark",
+    "object_runtime_cached_bytes",
     "input_object_count",
     "input_object_bytes",
     "child_object_reads",
