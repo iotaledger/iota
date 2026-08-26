@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{anyhow, bail};
 use clap::Parser;
+use comfy_table::{ContentArrangement, Table};
 use iota_core::{
     authority::{
         authority_per_epoch_store::AuthorityEpochTables,
@@ -44,6 +45,7 @@ pub enum DbToolCommand {
     PrintCheckpointContent(PrintCheckpointContentOptions),
     RewindCheckpointExecution(RewindCheckpointExecutionOptions),
     Compact,
+    PrintCheckpointWatermarks,
     SetCheckpointWatermark(SetCheckpointWatermarkOptions),
 }
 
@@ -188,6 +190,7 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
             print_db_table_summary(d.store_name, d.epoch, db_path, &d.table_name)
         }
         DbToolCommand::DuplicatesSummary => print_db_duplicates_summary(db_path),
+        DbToolCommand::PrintCheckpointWatermarks => print_checkpoint_watermarks(&db_path),
         DbToolCommand::ListDBMetadata(d) => {
             print_table_metadata(d.store_name, d.epoch, db_path, &d.table_name)
         }
@@ -411,6 +414,28 @@ pub fn print_all_entries(
 /// cargo run --package iota-tool -- db-tool --db-path
 /// /opt/iota/db/authorities_db/live set_checkpoint_watermark --highest-synced
 /// 300000
+/// Prints the checkpoint watermarks as they are stored.
+///
+/// Read straight from the watermark rows rather than resolved to checkpoints:
+/// a watermark whose epoch has been expired is no longer reachable through the
+/// bucketed `checkpoint_by_digest`, and that is the case worth looking at.
+pub fn print_checkpoint_watermarks(path: &Path) -> anyhow::Result<()> {
+    let checkpoint_db = CheckpointStore::new(&path.join("checkpoints"));
+    let mut table = Table::new();
+    table
+        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_header(vec!["watermark", "sequence number", "digest"]);
+    for (mark, sequence_number, digest) in checkpoint_db.get_checkpoint_watermarks()? {
+        table.add_row(vec![
+            format!("{mark:?}"),
+            sequence_number.to_string(),
+            format!("{digest}"),
+        ]);
+    }
+    println!("{table}");
+    Ok(())
+}
+
 pub fn set_checkpoint_watermark(
     path: &Path,
     options: SetCheckpointWatermarkOptions,
