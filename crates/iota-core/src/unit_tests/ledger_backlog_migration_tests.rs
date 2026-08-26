@@ -11,7 +11,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::random_object_ref,
     committee::EpochId,
-    crypto::{AccountKeyPair, deterministic_random_account_key},
+    crypto::{AccountPrivateKey, deterministic_random_account_private_key},
     effects::TestEffectsBuilder,
     messages_checkpoint::{CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint},
     transaction::VerifiedTransaction,
@@ -90,7 +90,8 @@ fn open(store_dir: &Path, checkpoint_dir: &Path) -> (Arc<AuthorityStore>, Arc<Ch
 }
 
 fn random_transaction() -> VerifiedTransaction {
-    let (sender, keypair): (Address, AccountKeyPair) = deterministic_random_account_key();
+    let (sender, keypair): (Address, AccountPrivateKey) =
+        deterministic_random_account_private_key();
     // The gas object reference is random on every call, so every transaction
     // built here has a digest of its own.
     let transaction = TestTransactionBuilder::new(sender, random_object_ref(), 100)
