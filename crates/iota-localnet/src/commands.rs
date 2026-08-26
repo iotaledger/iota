@@ -741,6 +741,12 @@ async fn start(
             DEFAULT_GRAPHQL_METRICS_PORT,
         )
         .map_err(|_| anyhow!("Invalid graphql metrics host and port"))?;
+        // The service rebuilds the address as `host:port`, which an IPv6 host
+        // needs brackets to survive.
+        ensure!(
+            graphql_metrics_address.is_ipv4(),
+            "graphql metrics configuration requires an IPv4 address"
+        );
         tracing::info!("Serving the GraphQL metrics at {graphql_metrics_address}");
         let graphql_connection_config = ConnectionConfig {
             port: graphql_address.port(),
@@ -1218,5 +1224,29 @@ mod tests {
 
         let unique = ports.iter().collect::<std::collections::BTreeSet<_>>();
         assert_eq!(unique.len(), ports.len(), "two services share a port");
+    }
+
+    /// An endpoint that keeps its host on localhost must stay there when only
+    /// a port is given, and when nothing is given at all.
+    #[test]
+    fn a_metrics_address_defaults_to_localhost() {
+        let localhost = Ipv4Addr::LOCALHOST.to_string();
+        let parse = |input: &str| {
+            parse_host_port_with_default_host(
+                input.to_string(),
+                &localhost,
+                DEFAULT_GRAPHQL_METRICS_PORT,
+            )
+            .unwrap()
+        };
+
+        assert_eq!(parse(""), SocketAddr::from(([127, 0, 0, 1], 9126)));
+        assert_eq!(parse("9127"), SocketAddr::from(([127, 0, 0, 1], 9127)));
+        assert_eq!(parse("localhost"), SocketAddr::from(([127, 0, 0, 1], 9126)));
+        assert_eq!(parse("0.0.0.0"), SocketAddr::from(([0, 0, 0, 0], 9126)));
+        assert_eq!(
+            parse("0.0.0.0:9127"),
+            SocketAddr::from(([0, 0, 0, 0], 9127))
+        );
     }
 }
