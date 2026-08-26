@@ -1681,7 +1681,7 @@ type Lagged {
 	"""
 	Number of missed payloads since the previous emitted one.
 	"""
-	count: Int!
+	count: UInt53!
 }
 
 """
@@ -2423,7 +2423,7 @@ type MovePackage implements IObject & IOwner {
 	Fetch another version of this package (the package that shares this
 	package's original ID, but has the specified `version`).
 	"""
-	packageAtVersion(version: Int!): MovePackage
+	packageAtVersion(version: UInt53!): MovePackage
 	"""
 	Fetch all versions of this package (packages that share this package's
 	original ID), optionally bounding the versions exclusively from
@@ -5167,7 +5167,7 @@ type ValidatorSet {
 	"""
 	Size of the stake pool mappings `Table`.
 	"""
-	stakingPoolMappingsSize: Int
+	stakingPoolMappingsSize: UInt53
 	"""
 	Object ID of the `Table` storing the inactive staking pools.
 	"""
@@ -5175,7 +5175,7 @@ type ValidatorSet {
 	"""
 	Size of the inactive pools `Table`.
 	"""
-	inactivePoolsSize: Int
+	inactivePoolsSize: UInt53
 	"""
 	Object ID of the `Table` storing the validator candidates.
 	"""
@@ -5183,7 +5183,7 @@ type ValidatorSet {
 	"""
 	Size of the validator candidates `Table`.
 	"""
-	validatorCandidatesSize: Int
+	validatorCandidatesSize: UInt53
 	"""
 	The current set of active validators.
 	"""

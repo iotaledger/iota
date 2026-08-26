@@ -11,10 +11,13 @@ use iota_types::iota_system_state::iota_system_state_summary::{
 };
 
 use super::validator_set::ValidatorSet;
-use crate::types::{
-    address::Address, big_int::BigInt, gas::GasCostSummary, iota_address::IotaAddress,
-    safe_mode::SafeMode, storage_fund::StorageFund, system_parameters::SystemParameters,
-    uint53::UInt53, validator::Validator,
+use crate::{
+    error::Error,
+    types::{
+        address::Address, big_int::BigInt, gas::GasCostSummary, int::try_into_int,
+        iota_address::IotaAddress, safe_mode::SafeMode, storage_fund::StorageFund,
+        system_parameters::SystemParameters, uint53::UInt53, validator::Validator,
+    },
 };
 
 #[derive(Clone, Debug)]
@@ -89,29 +92,36 @@ impl NativeStateValidatorInfo {
         total_stake: u64,
         checkpoint_viewed_at: u64,
         requested_for_epoch: u64,
-    ) -> ValidatorSet {
+    ) -> Result<ValidatorSet, Error> {
         let active_validators = self.to_validators_mut(checkpoint_viewed_at, requested_for_epoch);
         let committee_members = self
             .committee_members
             .into_iter()
             .map(|i| active_validators[i as usize].clone())
             .collect();
+        let pending_removals = self
+            .pending_removals
+            .into_iter()
+            .map(try_into_int)
+            .collect::<Result<Vec<_>, _>>()?;
 
-        ValidatorSet {
+        Ok(ValidatorSet {
             total_stake: Some(BigInt::from(total_stake)),
             active_validators: Some(active_validators),
             committee_members: Some(committee_members),
-            pending_removals: Some(self.pending_removals),
+            pending_removals: Some(pending_removals),
             pending_active_validators_id: Some(self.pending_active_validators_id.into()),
-            pending_active_validators_size: Some(self.pending_active_validators_size),
+            pending_active_validators_size: Some(try_into_int(
+                self.pending_active_validators_size,
+            )?),
             staking_pool_mappings_id: Some(self.staking_pool_mappings_id.into()),
-            staking_pool_mappings_size: Some(self.staking_pool_mappings_size),
+            staking_pool_mappings_size: Some(self.staking_pool_mappings_size.try_into()?),
             inactive_pools_id: Some(self.inactive_pools_id.into()),
-            inactive_pools_size: Some(self.inactive_pools_size),
+            inactive_pools_size: Some(self.inactive_pools_size.try_into()?),
             validator_candidates_id: Some(self.validator_candidates_id.into()),
-            validator_candidates_size: Some(self.validator_candidates_size),
+            validator_candidates_size: Some(self.validator_candidates_size.try_into()?),
             checkpoint_viewed_at,
-        }
+        })
     }
 }
 
@@ -223,8 +233,10 @@ impl SystemStateSummary {
     /// `0x3::iota::IotaSystemState` object.  This version changes whenever
     /// the fields contained in the system state object (held in a dynamic
     /// field attached to `0x5`) change.
-    async fn system_state_version(&self) -> Option<UInt53> {
-        Some(self.native.system_state_version().into())
+    async fn system_state_version(&self) -> Result<Option<UInt53>> {
+        Ok(Some(
+            UInt53::try_from(self.native.system_state_version()).extend()?,
+        ))
     }
 
     /// The total IOTA supply.
@@ -238,13 +250,13 @@ impl SystemStateSummary {
     }
 
     /// Details of the system that are decided during genesis.
-    async fn system_parameters(&self) -> Option<SystemParameters> {
-        Some(SystemParameters {
+    async fn system_parameters(&self) -> Result<Option<SystemParameters>> {
+        Ok(Some(SystemParameters {
             duration_ms: Some(BigInt::from(self.native.epoch_duration_ms())),
             // TODO min validator count can be extracted, but it requires some JSON RPC changes,
             // so we decided to wait on it for now.
             min_validator_count: None,
-            max_validator_count: Some(self.native.max_validator_count()),
+            max_validator_count: Some(try_into_int(self.native.max_validator_count()).extend()?),
             min_validator_joining_stake: Some(BigInt::from(
                 self.native.min_validator_joining_stake(),
             )),
@@ -257,6 +269,6 @@ impl SystemStateSummary {
             validator_low_stake_grace_period: Some(BigInt::from(
                 self.native.validator_low_stake_grace_period(),
             )),
-        })
+        }))
     }
 }

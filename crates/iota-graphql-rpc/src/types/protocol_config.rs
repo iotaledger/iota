@@ -44,8 +44,8 @@ impl ProtocolConfigs {
     /// The protocol is not required to change on every epoch boundary, so the
     /// protocol version tracks which change to the protocol these configs
     /// are from.
-    async fn protocol_version(&self) -> UInt53 {
-        self.version.into()
+    async fn protocol_version(&self) -> Result<UInt53> {
+        UInt53::try_from(self.version).extend()
     }
 
     /// List all available feature flags and their values.  Feature flags are a

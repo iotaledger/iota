@@ -310,7 +310,7 @@ impl MovePackage {
             .await
     }
 
-    pub(crate) async fn version(&self) -> UInt53 {
+    pub(crate) async fn version(&self) -> Result<UInt53> {
         ObjectImpl(&self.super_).version().await
     }
 
@@ -332,7 +332,7 @@ impl MovePackage {
 
     /// The owner type of this object: Immutable, Shared, Parent, Address
     /// Packages are always Immutable.
-    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Option<ObjectOwner> {
+    pub(crate) async fn owner(&self, ctx: &Context<'_>) -> Result<Option<ObjectOwner>> {
         ObjectImpl(&self.super_).owner(ctx).await
     }
 
@@ -419,12 +419,12 @@ impl MovePackage {
     async fn package_at_version(
         &self,
         ctx: &Context<'_>,
-        version: u64,
+        version: UInt53,
     ) -> Result<Option<MovePackage>> {
         MovePackage::query(
             ctx,
             self.super_.address,
-            MovePackage::by_version(version, self.checkpoint_viewed_at_impl()),
+            MovePackage::by_version(version.into(), self.checkpoint_viewed_at_impl()),
         )
         .await
         .extend()
@@ -557,19 +557,22 @@ impl MovePackage {
     }
 
     /// The transitive dependencies of this package.
-    async fn linkage(&self) -> Option<Vec<Linkage>> {
+    async fn linkage(&self) -> Result<Option<Vec<Linkage>>> {
         let linkage = self
             .native
             .linkage_table()
             .iter()
-            .map(|(&runtime_id, upgrade_info)| Linkage {
-                original_id: runtime_id.into(),
-                upgraded_id: upgrade_info.upgraded_id.into(),
-                version: upgrade_info.upgraded_version.as_u64().into(),
+            .map(|(&runtime_id, upgrade_info)| {
+                Ok(Linkage {
+                    original_id: runtime_id.into(),
+                    upgraded_id: upgrade_info.upgraded_id.into(),
+                    version: upgrade_info.upgraded_version.as_u64().try_into()?,
+                })
             })
-            .collect();
+            .collect::<Result<_, Error>>()
+            .extend()?;
 
-        Some(linkage)
+        Ok(Some(linkage))
     }
 
     /// The (previous) versions of this package that introduced its types.
