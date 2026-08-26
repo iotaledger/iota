@@ -114,7 +114,7 @@ use iota_types::{
     },
     traffic_control::{PolicyConfig, RemoteFirewallConfig, TrafficControlReconfigParams},
     transaction::*,
-    transaction_executor::{InputCheckRelaxations, SimulateTransactionResult, VmChecks},
+    transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
@@ -2259,10 +2259,10 @@ impl AuthorityState {
 
         // Checks enabled -> DRY-RUN, it means we are simulating a real TX
         // Checks disabled -> DEV-INSPECT, more relaxed Move VM checks
-        let relaxations = if checks.enabled() {
-            InputCheckRelaxations::EXECUTION
+        let input_checks = if checks.enabled() {
+            InputCheckRules::EXECUTION
         } else {
-            InputCheckRelaxations::SIMULATION
+            InputCheckRules::SIMULATION
         };
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             protocol_config,
@@ -2273,7 +2273,7 @@ impl AuthorityState {
             &self.metrics.bytecode_verifier_metrics,
             &self.config.verifier_signing_config,
             authenticator_gas_budget,
-            relaxations,
+            input_checks,
         )?;
 
         // Create a new executor for the simulation
@@ -5715,7 +5715,7 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
                 &self.config.verifier_signing_config,
                 authenticator_gas_budget,
-                InputCheckRelaxations::EXECUTION,
+                InputCheckRules::EXECUTION,
             )?;
 
         Ok((

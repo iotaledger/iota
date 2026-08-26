@@ -37,7 +37,7 @@ use iota_types::{
         ReceivingObjectReadResult, ReceivingObjects, TransactionAPI,
         merge_authenticator_input_objects,
     },
-    transaction_executor::{InputCheckRelaxations, SimulateTransactionResult},
+    transaction_executor::{InputCheckRules, SimulateTransactionResult},
 };
 use move_trace_format::format::MoveTraceBuilder;
 
@@ -169,10 +169,10 @@ pub(super) fn prepare_transaction(
     // above resolves to `max_tx_gas` when the caller declares none, matching the
     // node's dev-inspect entry point, and drops the input checks a simulation
     // does not need. Every other mode runs what a validator runs.
-    let (relaxations, check_name) = if matches!(mode, ExecutionMode::DevInspect) {
-        (InputCheckRelaxations::SIMULATION, "simulation input check")
+    let (input_checks, check_name) = if matches!(mode, ExecutionMode::DevInspect) {
+        (InputCheckRules::SIMULATION, "simulation input check")
     } else {
-        (InputCheckRelaxations::EXECUTION, "transaction input check")
+        (InputCheckRules::EXECUTION, "transaction input check")
     };
     // Offline default: the verifier-signing limits may differ from those a
     // live validator enforces, so this check will not match a real chain.
@@ -196,7 +196,7 @@ pub(super) fn prepare_transaction(
         &env.bytecode_verifier_metrics,
         &verifier_signing_config,
         0,
-        relaxations,
+        input_checks,
     )
     .map_err(|e| ValidationError::new(check_name, e))?;
 
