@@ -53,7 +53,7 @@ use iota_types::{
     storage::ObjectKey,
 };
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 use typed_store::traits::Map;
 
 use crate::{
@@ -126,18 +126,9 @@ pub async fn sweep(
         }
         match sweep.bound(&checkpoint_store, pruner_db_present)? {
             Some(bound) => {
-                info!(
-                    bound,
-                    "sweeping the object versions superseded before this build, from the \
-                     checkpoints the earlier build's pruner had not reached"
-                );
                 sweep.sweep_above_bound(&checkpoint_store, epoch, bound)?;
             }
             None => {
-                info!(
-                    "sweeping the object versions superseded before this build out of the live \
-                     table"
-                );
                 let mut progress = ProgressLogger::new(
                     "object backlog sweep",
                     "objects",
@@ -153,7 +144,6 @@ pub async fn sweep(
                 progress.finish();
             }
         }
-        info!("the object backlog sweep is done");
         IotaResult::Ok(())
     })
     .await
@@ -251,7 +241,7 @@ impl ObjectBacklogSweep {
             .get(&())?;
         let mut next = resumed.unwrap_or(bound).saturating_add(1);
         let mut progress = ProgressLogger::new(
-            "object backlog sweep",
+            "object backlog sweep above the objects pruner's watermark",
             "checkpoints",
             highest.saturating_sub(next).saturating_add(1),
         );
