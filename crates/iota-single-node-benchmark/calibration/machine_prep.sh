@@ -33,7 +33,15 @@ fi
   echo "thp: $(cat /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || echo n/a)"
   echo "load: $(cat /proc/loadavg)"
   echo "disk for $out: $(df -h "$out" | tail -1)"
-  command -v fio >/dev/null && fio --name=baseline --filename="$out/.fio-baseline" --size=1G \
-      --rw=randread --bs=4k --direct=1 --iodepth=16 --runtime=20 --time_based --output-format=terse \
-      2>/dev/null | awk -F';' '{print "fio_randread_4k_iops: " $8}' && rm -f "$out/.fio-baseline"
+  # Disk baseline is optional: a missing or failing fio must not abort the run.
+  if command -v fio >/dev/null 2>&1; then
+    if fio --name=baseline --filename="$out/.fio-baseline" --size=1G --rw=randread --bs=4k \
+        --direct=1 --iodepth=16 --runtime=20 --time_based --output-format=terse 2>/dev/null \
+        | awk -F';' '{print "fio_randread_4k_iops: " $8}'; then :; else
+      echo "fio_randread_4k_iops: n/a (fio failed)"
+    fi
+    rm -f "$out/.fio-baseline"
+  else
+    echo "fio_randread_4k_iops: n/a (fio not installed)"
+  fi
 } | tee "$out/machine-state.txt"
