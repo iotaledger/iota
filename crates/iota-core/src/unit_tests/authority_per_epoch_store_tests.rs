@@ -1614,7 +1614,10 @@ async fn failed_deny_rule_update_execution_is_reported() {
 async fn failed_deny_rule_update_execution_asserts_on_derived_effects() {
     use std::{
         collections::BTreeSet,
-        sync::atomic::{AtomicUsize, Ordering},
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
     };
 
     use iota_common::register_debug_fatal_handler;
@@ -1624,9 +1627,12 @@ async fn failed_deny_rule_update_execution_asserts_on_derived_effects() {
         transaction::VerifiedTransaction,
     };
 
-    static ASSERTED: AtomicUsize = AtomicUsize::new(0);
-    register_debug_fatal_handler!("TransactionDenyRulesUpdate failed execution", || {
-        ASSERTED.fetch_add(1, Ordering::SeqCst);
+    let asserted = Arc::new(AtomicUsize::new(0));
+    register_debug_fatal_handler!("TransactionDenyRulesUpdate failed execution", {
+        let asserted = asserted.clone();
+        move || {
+            asserted.fetch_add(1, Ordering::SeqCst);
+        }
     });
 
     let update = VerifiedExecutableTransaction::new_system(
@@ -1671,7 +1677,7 @@ async fn failed_deny_rule_update_execution_asserts_on_derived_effects() {
         None,
         &store,
     );
-    assert_eq!(ASSERTED.load(Ordering::SeqCst), 0);
+    assert_eq!(asserted.load(Ordering::SeqCst), 0);
     assert_eq!(store.metrics.deny_rule_update_execution_failures.get(), 0);
 
     authority_state.report_failed_deny_rule_update_execution(
@@ -1683,6 +1689,6 @@ async fn failed_deny_rule_update_execution_asserts_on_derived_effects() {
         None,
         &store,
     );
-    assert_eq!(ASSERTED.load(Ordering::SeqCst), 1);
+    assert_eq!(asserted.load(Ordering::SeqCst), 1);
     assert_eq!(store.metrics.deny_rule_update_execution_failures.get(), 1);
 }
