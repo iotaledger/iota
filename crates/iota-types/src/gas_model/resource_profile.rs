@@ -37,6 +37,12 @@ pub struct ResourceProfile {
     pub interp_instruction_count: u64,
     pub interp_stack_size_flow: u64,
     pub interp_stack_height_flow: u64,
+    /// Container values constructed by bytecode — structs and vectors packed,
+    /// container-typed constants loaded — plus elements appended to vectors.
+    /// Each is a heap allocation, a cost the instruction count alone does
+    /// not carry: a transaction building many small values runs far slower
+    /// per instruction than arithmetic does. Deterministic (bytecode events).
+    pub values_constructed: u64,
     /// Internal gas deducted by native functions (tiering-correct: the gas
     /// actually charged, not the pre-tiering declared amount). Together with
     /// `interpreter_gas` and the per-byte charges, this sums to the total
