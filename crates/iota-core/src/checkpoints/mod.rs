@@ -433,6 +433,16 @@ impl CheckpointStore {
         self.get_checkpoint_by_digest(&highest_synced.1)
     }
 
+    pub fn get_highest_verified_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        Ok(self
+            .tables
+            .watermarks
+            .get(&CheckpointWatermark::HighestVerified)?
+            .map(|(sequence_number, _digest)| sequence_number))
+    }
+
     pub fn get_highest_synced_checkpoint_seq_number(
         &self,
     ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {

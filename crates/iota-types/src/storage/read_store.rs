@@ -100,6 +100,18 @@ pub trait ReadStore: ObjectStore {
             .expect("storage access failed")
     }
 
+    /// The sequence number of the highest verified checkpoint, without the
+    /// checkpoint itself.
+    ///
+    /// Cheaper than [`Self::try_get_highest_verified_checkpoint`] for a caller
+    /// that only compares positions, and it cannot fail to find a checkpoint
+    /// the watermark names.
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        Ok(self
+            .try_get_highest_verified_checkpoint()?
+            .sequence_number())
+    }
+
     /// Get the highest synced checkpoint. This is the highest checkpoint that
     /// has been synced from state-synce. The checkpoint header, contents,
     /// transactions, and effects of this checkpoint are guaranteed to be
@@ -476,6 +488,10 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
         (*self).try_get_highest_verified_checkpoint()
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (*self).try_get_highest_verified_checkpoint_seq_number()
+    }
+
     fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         (*self).try_get_highest_synced_checkpoint()
     }
@@ -595,6 +611,10 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
         (**self).try_get_highest_verified_checkpoint()
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (**self).try_get_highest_verified_checkpoint_seq_number()
+    }
+
     fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         (**self).try_get_highest_synced_checkpoint()
     }
@@ -712,6 +732,10 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
 
     fn try_get_highest_verified_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         (**self).try_get_highest_verified_checkpoint()
+    }
+
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (**self).try_get_highest_verified_checkpoint_seq_number()
     }
 
     fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {

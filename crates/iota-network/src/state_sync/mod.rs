@@ -1173,18 +1173,14 @@ where
 
     let mut last_cleaned = current.sequence_number();
     while let Some((maybe_checkpoint, next, maybe_peer_id)) = request_stream.next().await {
-        // This task fixed its range when it started, and it is not the only
-        // writer of the verified watermark: the checkpoint-archive reducer
-        // advances it too, over a range that can overlap this one. Stop once
-        // it has passed us rather than fetch, verify and write summaries the
-        // store already holds. Whatever is left is picked up by the next task,
-        // which starts from wherever the watermark has since reached.
+        // Don't redo work: the archive sync advances the same watermark, and
+        // may already have passed the range this task fixed when it started.
         let highest_verified = store
-            .try_get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint_seq_number()
             .expect("store operation should not fail");
-        if highest_verified.sequence_number() > current.sequence_number() {
+        if highest_verified > current.sequence_number() {
             debug!(
-                highest_verified = highest_verified.sequence_number(),
+                highest_verified,
                 walked_to = current.sequence_number(),
                 "stopping a checkpoint summary sync another writer has passed",
             );

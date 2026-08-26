@@ -119,6 +119,15 @@ impl ReadStore for RocksDbStore {
             .map_err(Into::into)
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(
+        &self,
+    ) -> Result<CheckpointSequenceNumber, StorageError> {
+        Ok(self
+            .checkpoint_store
+            .get_highest_verified_checkpoint_seq_number()?
+            .expect("storage should have been initialized with genesis checkpoint"))
+    }
+
     fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint, StorageError> {
         self.checkpoint_store
             .get_highest_synced_checkpoint()
