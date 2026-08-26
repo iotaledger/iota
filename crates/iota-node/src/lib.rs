@@ -604,6 +604,18 @@ impl IotaNode {
             }
         }
 
+        // A database this build created from genesis holds nothing an earlier
+        // build wrote, so the one-time passes below have nothing to find.
+        // Recording them done keeps a fresh node from walking its own genesis
+        // objects, and every later start from walking them again — the same
+        // reason a formal-snapshot restore records them.
+        // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
+        // together with the passes it skips.
+        if is_genesis {
+            store.mark_pre_bucket_passes_done()?;
+            checkpoint_store.mark_checkpoint_backlog_migrated()?;
+        }
+
         // Before any service that could expire a historic bucket starts, and
         // before the index rebuild below scans the live `objects` table for
         // its latest versions.
