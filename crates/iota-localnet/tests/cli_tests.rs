@@ -447,9 +447,9 @@ async fn write_config_writes_runnable_configs_and_starts_nothing() -> Result<(),
     assert_eq!(
         written,
         vec![
-            "127.0.0.1-9200.yaml".to_owned(),
-            "127.0.0.1-9210.yaml".to_owned(),
             IOTA_FULLNODE_CONFIG.to_owned(),
+            "validator-0.yaml".to_owned(),
+            "validator-1.yaml".to_owned(),
         ]
     );
 
@@ -490,7 +490,7 @@ async fn write_config_writes_runnable_configs_and_starts_nothing() -> Result<(),
         PersistedConfig::<NodeConfig>::read(&config_dir.join(IOTA_FULLNODE_CONFIG)).unwrap();
     assert!(!fullnode.enable_index_processing);
     let validator =
-        PersistedConfig::<NodeConfig>::read(&config_dir.join("127.0.0.1-9200.yaml")).unwrap();
+        PersistedConfig::<NodeConfig>::read(&config_dir.join("validator-0.yaml")).unwrap();
     assert!(validator.enable_index_processing);
 
     tmp_dir.close()?;

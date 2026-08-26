@@ -1307,11 +1307,10 @@ fn write_node_configs(swarm: &Swarm, directory: &Path) -> Result<(), anyhow::Err
         ))
     })?;
 
+    // Named by index rather than by host and port: a caller that reads these
+    // files back knows the validator index, not the address genesis gave it.
     for (index, config) in swarm.config().validator_configs().iter().enumerate() {
-        let path = directory.join(iota_config::validator_config_file(
-            config.network_address.clone(),
-            index,
-        ));
+        let path = directory.join(format!("validator-{index}.yaml"));
         write_node_config(config, &path)?;
     }
 

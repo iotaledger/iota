@@ -138,7 +138,7 @@ iota-localnet start --write-config ./node-configs
 iota-node --config-path ./node-configs/fullnode.yaml
 ```
 
-The fullnode is written as `fullnode.yaml` and each validator as `<host>-<port>.yaml`, for example `127.0.0.1-9200.yaml`. Nothing reads these files back: editing one does not change what `iota-localnet start` runs, so pass `--node-config-override` for that. They contain the nodes' key pairs, as `network.yaml` already does.
+The fullnode is written as `fullnode.yaml` and each validator as `validator-<index>.yaml`, for example `validator-0.yaml`. Nothing reads these files back: editing one does not change what `iota-localnet start` runs, so pass `--node-config-override` for that. They contain the nodes' key pairs, as `network.yaml` already does.
 
 A config directory created by an older version of `iota-localnet` is rejected, since its `network.yaml` holds node configs rather than the state they are derived from. Re-create it with `iota-localnet genesis --force`.
 
