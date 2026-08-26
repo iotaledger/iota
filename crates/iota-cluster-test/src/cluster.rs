@@ -5,7 +5,7 @@
 use std::{net::SocketAddr, path::Path};
 
 use async_trait::async_trait;
-use iota_config::{Config, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, node};
+use iota_config::{Config, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, node::Genesis};
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
