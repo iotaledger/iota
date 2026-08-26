@@ -82,7 +82,7 @@ SWEEPS = {
         "fixed": ["--vector-move-size", "8192"],
         "x_field": "interp_stack_size_flow",
     },
-    # working-memory shapes. Building a flat vector byte-by-byte through the
+    # working-memory workloads. Building a flat vector byte-by-byte through the
     # interpreter is gas-capped below what process-level memory readings can
     # resolve, so the flat-vector sweep keeps time as its response and the
     # resident-memory slope comes from the struct tree: nodes are cheap to
@@ -337,9 +337,23 @@ def machine_manifest(binary: Path, argv):
                 manifest["platform"]["cpu_model"] = model[0].split(":", 1)[1].strip()
             meminfo = Path("/proc/meminfo").read_text().splitlines()[0]
             manifest["platform"]["mem_total"] = meminfo.split(":", 1)[1].strip()
-            gov = Path("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
-            if gov.exists():
-                manifest["platform"]["cpu0_scaling_governor"] = gov.read_text().strip()
+            manifest["platform"]["nproc"] = len(
+                [l for l in cpuinfo.splitlines() if l.startswith("processor")]
+            )
+            # The reference-machine controls the plan requires (fixed governor,
+            # turbo/boost state, SMT) are recorded rather than assumed.
+            state_files = {
+                "scaling_governors": "/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor",
+                "smt_control": "/sys/devices/system/cpu/smt/control",
+                "intel_no_turbo": "/sys/devices/system/cpu/intel_pstate/no_turbo",
+                "cpufreq_boost": "/sys/devices/system/cpu/cpufreq/boost",
+                "transparent_hugepages": "/sys/kernel/mm/transparent_hugepage/enabled",
+            }
+            import glob
+            for key, pattern in state_files.items():
+                values = sorted({Path(f).read_text().strip() for f in glob.glob(pattern)})
+                if values:
+                    manifest["platform"][key] = values if len(values) > 1 else values[0]
         except OSError:
             pass
 
