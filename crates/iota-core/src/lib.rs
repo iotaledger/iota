@@ -34,6 +34,7 @@ pub mod overload_monitor;
 mod par_index_live_object_set;
 pub(crate) mod post_consensus_tx_reorder;
 pub(crate) mod post_consensus_validation;
+pub(crate) mod progress_logger;
 pub mod quorum_driver;
 pub mod rpc_indexes;
 pub mod safe_client;

@@ -62,6 +62,7 @@ use crate::{
         historic_objects::HistoricObjects,
     },
     checkpoints::CheckpointStore,
+    progress_logger::ProgressLogger,
 };
 
 /// Keys one slice decides before it writes its batch. A slice stops at this
@@ -134,7 +135,19 @@ pub async fn sweep(
                     "sweeping the object versions superseded before this build out of the live \
                      table"
                 );
-                while sweep.sweep_slice(epoch)? {}
+                let mut progress = ProgressLogger::new(
+                    "object backlog sweep",
+                    "objects",
+                    sweep.perpetual_tables.objects.estimated_len()?,
+                );
+                loop {
+                    let (decided, more) = sweep.sweep_slice(epoch)?;
+                    progress.advance(decided as u64);
+                    if !more {
+                        break;
+                    }
+                }
+                progress.finish();
             }
         }
         info!("the object backlog sweep is done");
@@ -240,16 +253,18 @@ impl ObjectBacklogSweep {
             .object_backlog_sweep_checkpoint
             .get(&())?;
         let mut next = resumed.unwrap_or(bound).saturating_add(1);
-        info!(
-            from = next,
-            through = highest,
-            "walking the checkpoints the earlier build's pruner had not reached"
+        let mut progress = ProgressLogger::new(
+            "object backlog sweep",
+            "checkpoints",
+            highest.saturating_sub(next).saturating_add(1),
         );
         while next <= highest {
             let last = highest.min(next.saturating_add(CHECKPOINTS_PER_SLICE - 1));
             self.sweep_checkpoint_slice(checkpoint_store, epoch, next, last)?;
+            progress.advance(last - next + 1);
             next = last.saturating_add(1);
         }
+        progress.finish();
         self.mark_done()
     }
 
@@ -330,18 +345,19 @@ impl ObjectBacklogSweep {
     }
 
     /// Sweeps up to [`Self::keys_per_slice`] rows above the recorded key and
-    /// records how far it got. Returns whether rows are left to sweep.
+    /// records how far it got. Returns how many rows it resolved and whether
+    /// any are left to sweep.
     ///
     /// Each relocated version's insert into `epoch`'s bucket and its delete
     /// from the live table are one batch, together with the tombstones
     /// recorded in that bucket and the progress row: a crash leaves every
     /// version in one of the two tables, and an interrupted run resumes at
     /// the key it last wrote and never skips a row.
-    fn sweep_slice(&self, epoch: EpochId) -> IotaResult<bool> {
+    fn sweep_slice(&self, epoch: EpochId) -> IotaResult<(usize, bool)> {
         let objects = &self.perpetual_tables.objects;
         let progress = &self.perpetual_tables.object_backlog_sweep_progress;
         let lower_bound = match progress.get(&())? {
-            Some(ObjectBacklogSweepProgress::Done) => return Ok(false),
+            Some(ObjectBacklogSweepProgress::Done) => return Ok((0, false)),
             Some(ObjectBacklogSweepProgress::SweptThrough(key)) => Bound::Excluded(key),
             None => Bound::Unbounded,
         };
@@ -414,7 +430,7 @@ impl ObjectBacklogSweep {
             tombstones = tombstones.len(),
             "swept a slice of the superseded object versions"
         );
-        Ok(sliced)
+        Ok((decided, sliced))
     }
 
     /// Sorts one row into the versions to relocate and the tombstones to

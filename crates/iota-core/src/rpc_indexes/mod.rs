@@ -74,9 +74,8 @@ use crate::{
     checkpoints::CheckpointStore,
     epoch_buckets::{self, EpochBuckets},
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
-    par_index_live_object_set::{
-        PROGRESS_REPORT_INTERVAL, eta_display, par_index_live_object_set, progress_rate,
-    },
+    par_index_live_object_set::{eta_display, par_index_live_object_set, progress_rate},
+    progress_logger::PROGRESS_REPORT_INTERVAL,
 };
 
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
