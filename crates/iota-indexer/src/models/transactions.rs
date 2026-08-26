@@ -30,15 +30,7 @@ use crate::{
 pub struct TxGlobalOrder {
     /// Sequence number of transaction according to checkpoint ordering.
     /// Set after transaction is checkpoint-indexed.
-    pub chk_tx_sequence_number: Option<i64>,
-    /// Number that represents the global ordering between optimistic and
-    /// checkpointed transactions.
-    ///
-    /// Optimistic transactions will share the same number as checkpointed
-    /// transactions. In this case, ties are resolved by the
-    /// `(global_sequence_number, optimistic_sequence_number)` pair that
-    /// guarantees deterministic ordering.
-    pub global_sequence_number: i64,
+    pub tx_sequence_number: Option<i64>,
     pub tx_digest: Vec<u8>,
     /// Monotonically increasing number that represents the order
     /// of execution of optimistic transactions.
@@ -58,8 +50,7 @@ pub const CHECKPOINT_TX_OPTIMISTIC_SEQ: i64 = -1;
 impl From<&IndexedTransaction> for TxGlobalOrder {
     fn from(tx: &IndexedTransaction) -> Self {
         Self {
-            chk_tx_sequence_number: Some(tx.tx_sequence_number as i64),
-            global_sequence_number: tx.tx_sequence_number as i64,
+            tx_sequence_number: Some(tx.tx_sequence_number as i64),
             tx_digest: tx.tx_digest.into_inner().to_vec(),
             optimistic_sequence_number: Some(CHECKPOINT_TX_OPTIMISTIC_SEQ),
         }
