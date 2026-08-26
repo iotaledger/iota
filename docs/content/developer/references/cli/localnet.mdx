@@ -69,7 +69,7 @@ The metrics, admin interface, p2p, network and primary addresses are on `127.0.0
 | `9123` | Faucet (`--with-faucet`). |
 | `9124` | Indexer (`--with-indexer`). |
 | `9125` | GraphQL (`--with-graphql`). |
-| `9126` | GraphQL metrics (`--with-graphql`). |
+| `9126` | GraphQL metrics (change it with `--graphql-metrics-address`). |
 | `9184` | Fullnode metrics. |
 | `9185` | Fullnode admin interface. |
 | `9186` | Fullnode p2p (UDP). |
@@ -98,6 +98,7 @@ When built with the `indexer` feature, additional options are available:
 |--------|-------------|
 | `--with-indexer[=HOST:PORT]` | Start an indexer (default: `0.0.0.0:9124`). Requires Postgres. |
 | `--with-graphql[=HOST:PORT]` | Start a GraphQL server (default: `0.0.0.0:9125`). Automatically enables indexer. |
+| `--graphql-metrics-address <HOST:PORT>` | Bind the GraphQL metrics endpoint elsewhere (default: `127.0.0.1:9126`). |
 | `--pg-port <PORT>` | Postgres port (default: `5432`). |
 | `--pg-host <HOST>` | Postgres hostname (default: `localhost`). |
 | `--pg-db-name <NAME>` | Postgres database name (default: `iota_indexer`). |
