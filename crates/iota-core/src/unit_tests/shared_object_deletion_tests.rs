@@ -14,7 +14,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     committee::EpochId,
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{ExecutionError, IotaError},
     object::Object,
@@ -40,7 +40,7 @@ use crate::{
 
 pub struct TestRunner {
     pub sender: Address,
-    pub sender_key: AccountKeyPair,
+    pub sender_key: AccountPrivateKey,
     pub gas_object_ids: Vec<ObjectId>,
     pub authority_state: Arc<AuthorityState>,
     pub package: ObjectReference,
@@ -49,7 +49,7 @@ pub struct TestRunner {
 impl TestRunner {
     pub async fn new(base_package_name: &str) -> Self {
         telemetry_subscribers::init_for_testing();
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);

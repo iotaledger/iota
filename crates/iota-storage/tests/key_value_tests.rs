@@ -17,7 +17,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{ExecutionDigests, VersionNumber, random_object_ref},
     committee::Committee,
-    crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
+    crypto::{AccountPrivateKey, KeypairTraits, get_key_pair},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
     error::IotaResult,
     messages_checkpoint::{
@@ -30,7 +30,7 @@ use iota_types::{
 };
 
 fn random_tx() -> TransactionEnvelope {
-    let (sender, key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
     let gas = random_object_ref();
     TestTransactionBuilder::new(sender, gas, 1)
         .transfer(random_object_ref(), sender)
@@ -440,7 +440,7 @@ mod simtests {
             package_id: ObjectId::random(),
             module: Identifier::from_static("test"),
             sender: Address::random(),
-            type_: StructTag::new(
+            struct_tag: StructTag::new(
                 Address::random(),
                 Identifier::from_static("test"),
                 Identifier::from_static("test"),

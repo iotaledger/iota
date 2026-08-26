@@ -16,7 +16,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::AuthorityName,
     committee::{Committee, EpochId},
-    crypto::{AccountKeyPair, AuthorityKeyPair},
+    crypto::{AccountPrivateKey, AuthorityKeyPair},
     effects::TransactionEffectsAPI,
     error::IotaError,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
@@ -505,7 +505,7 @@ impl ReadStore for InMemoryStore {
 #[derive(Debug)]
 pub struct KeyStore {
     validator_keys: BTreeMap<AuthorityName, AuthorityKeyPair>,
-    account_keys: BTreeMap<Address, AccountKeyPair>,
+    account_keys: BTreeMap<Address, AccountPrivateKey>,
 }
 
 impl Clone for KeyStore {
@@ -561,7 +561,7 @@ impl KeyStore {
         self.validator_keys.get(name)
     }
 
-    pub fn accounts(&self) -> impl Iterator<Item = (&Address, &AccountKeyPair)> {
+    pub fn accounts(&self) -> impl Iterator<Item = (&Address, &AccountPrivateKey)> {
         self.account_keys.iter()
     }
 }

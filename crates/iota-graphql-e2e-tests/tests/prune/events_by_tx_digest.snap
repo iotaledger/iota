@@ -30,7 +30,7 @@ gas summary:
 
 task 3, line 34:
 //# run Test::M::bump --sender A --args object(2,0) 3
-events: Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "AQAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "AgAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "AwAAAAAAAAA=" }
+events: Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), struct_tag: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "AQAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), struct_tag: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "AgAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), struct_tag: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "AwAAAAAAAAA=" }
 mutated: object(0,0), object(2,0)
 gas summary:
 ├── Computation Cost: 1000000
@@ -69,7 +69,7 @@ Checkpoint created: 7
 
 task 11, line 50:
 //# run Test::M::bump --sender A --args object(2,0) 3
-events: Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "BAAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "BQAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), type_: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "BgAAAAAAAAA=" }
+events: Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), struct_tag: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "BAAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), struct_tag: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "BQAAAAAAAAA=" }, Event { package_id: ObjectId("Test"), module: Identifier("M"), sender: Address("A"), struct_tag: StructTag { address: Address("Test"), module: Identifier("M"), name: Identifier("Bumped"), type_params: [] }, contents: "BgAAAAAAAAA=" }
 mutated: object(0,0), object(2,0)
 gas summary:
 ├── Computation Cost: 1000000

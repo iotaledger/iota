@@ -3,7 +3,13 @@ title: Sign and Send IOTA
 description: 'How to sign and execute an IOTA transfer transaction on localnet.'
 tags:
   - how-to
-  - rust-sdk
+  - rust
+  - go
+  - python
+  - kotlin
+  - swift
+  - csharp
+  - wasm
 ---
 
 import IotaSdk from '../../../../_snippets/developer/iota-sdk/sdk.mdx';
@@ -29,39 +35,53 @@ This example runs on **localnet**. Make sure you have a local IOTA node running 
 
 Create a throwaway Ed25519 private key from a zeroed byte array and derive the sender address from it.
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/sign_send_iota.rs#L16-L22
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/sign_send_iota.rs#L13-L21
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/sign_send_iota/main.go#L13-L24
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/sign_send_iota/main.go#L13-L24
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/sign_send_iota.py#L12-L18
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/sign_send_iota.py#L12-L18
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/SignSendIota.kt#L11-L17
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/SignSendIota.kt#L11-L17
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/SignSendIota.swift#L12-L18
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/SignSendIota.swift#L12-L18
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/SignSendIota/Program.cs#L11-L18
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/sign_send_iota.mjs#L17-L26
 ```
 
   </TabItem>
@@ -71,39 +91,53 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 Connect to localnet and request funds from the faucet for the sender address.
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/sign_send_iota.rs#L24-L29
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/sign_send_iota.rs#L23-L28
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/sign_send_iota/main.go#L26-L33
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/sign_send_iota/main.go#L26-L33
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/sign_send_iota.py#L20-L24
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/sign_send_iota.py#L20-L24
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/SignSendIota.kt#L19-L23
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/SignSendIota.kt#L19-L23
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/SignSendIota.swift#L20-L24
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/SignSendIota.swift#L20-L24
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/SignSendIota/Program.cs#L20-L23
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/sign_send_iota.mjs#L28-L32
 ```
 
   </TabItem>
@@ -111,39 +145,53 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 ### 3. Build the Transaction
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/sign_send_iota.rs#L31-L33
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/sign_send_iota.rs#L30-L32
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/sign_send_iota/main.go#L35-L40
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/sign_send_iota/main.go#L35-L40
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/sign_send_iota.py#L26-L28
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/sign_send_iota.py#L26-L28
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/SignSendIota.kt#L25-L27
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/SignSendIota.kt#L25-L27
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/SignSendIota.swift#L26-L28
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/SignSendIota.swift#L26-L28
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/SignSendIota/Program.cs#L25-L28
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/sign_send_iota.mjs#L34-L36
 ```
 
   </TabItem>
@@ -153,39 +201,53 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 Verify the transaction will execute correctly before signing.
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/sign_send_iota.rs#L35-L38
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/sign_send_iota.rs#L34-L37
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/sign_send_iota/main.go#L42-L48
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/sign_send_iota/main.go#L42-L48
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/sign_send_iota.py#L30-L32
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/sign_send_iota.py#L30-L32
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/SignSendIota.kt#L29-L32
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/SignSendIota.kt#L29-L32
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/SignSendIota.swift#L30-L35
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/SignSendIota.swift#L30-L35
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/SignSendIota/Program.cs#L30-L34
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/sign_send_iota.mjs#L38-L41
 ```
 
   </TabItem>
@@ -195,39 +257,53 @@ https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples
 
 Sign the transaction with the private key and submit it to the network.
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/sign_send_iota.rs#L40-L46
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/sign_send_iota.rs#L39-L43
 ```
 
   </TabItem>
   <TabItem value="go" label="Go">
 
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/sign_send_iota/main.go#L50-L63
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/sign_send_iota/main.go#L50-L63
 ```
 
   </TabItem>
   <TabItem value="python" label="Python">
 
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/sign_send_iota.py#L34-L41
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/sign_send_iota.py#L34-L41
 ```
 
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/SignSendIota.kt#L34-L41
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/SignSendIota.kt#L34-L41
 ```
 
   </TabItem>
   <TabItem value="swift" label="Swift">
 
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/SignSendIota.swift#L37-L45
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/SignSendIota.swift#L37-L45
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/SignSendIota/Program.cs#L36-L43
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/sign_send_iota.mjs#L43-L50
 ```
 
   </TabItem>
@@ -244,30 +320,40 @@ Effects: <transaction-effects>
 
 ## Full Example
 
-<Tabs groupId="language">
+<Tabs groupId="language" queryString>
   <TabItem value="rust" label="Rust" default>
 ```rust reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/crates/iota-sdk/examples/sign_send_iota.rs
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/sign_send_iota.rs#L4-L46
 ```
   </TabItem>
   <TabItem value="go" label="Go">
 ```go reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/go/examples/sign_send_iota/main.go
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/sign_send_iota/main.go#L4-L63
 ```
   </TabItem>
   <TabItem value="python" label="Python">
 ```python reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/python/examples/sign_send_iota.py
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/sign_send_iota.py#L4-L45
 ```
   </TabItem>
   <TabItem value="kotlin" label="Kotlin">
 ```kotlin reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/kotlin/examples/SignSendIota.kt
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/SignSendIota.kt#L4-L46
 ```
   </TabItem>
   <TabItem value="swift" label="Swift">
 ```swift reference
-https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/swift/examples/SignSendIota.swift
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/SignSendIota.swift#L4-L46
+```
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/SignSendIota/Program.cs#L4-L45
+```
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/sign_send_iota.mjs#L4-L50
 ```
   </TabItem>
 </Tabs>

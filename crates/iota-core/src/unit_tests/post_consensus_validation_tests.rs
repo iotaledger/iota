@@ -8,14 +8,22 @@ use std::sync::Arc;
 
 use iota_macros::sim_test;
 use iota_protocol_config::{OverrideGuard, ProtocolConfig};
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, TransactionDigest, Version};
+use iota_sdk_types::{
+    Address, Command, Identifier, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
+    Version,
+};
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     error::{IotaError, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
-    transaction::{TransactionKey, VerifiedTransaction},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{
+        CallArg, TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS, TransactionAPI, TransactionKey,
+        VerifiedTransaction,
+    },
+    utils::to_sender_signed_transaction,
 };
 
 use crate::{
@@ -77,7 +85,7 @@ async fn test_valid_user_transaction_passes() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_id = ObjectId::random();
@@ -166,7 +174,7 @@ async fn test_duplicate_transaction_deduplicated() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_id = ObjectId::random();
@@ -226,7 +234,7 @@ async fn test_mixed_batch_filtering() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let obj1_id = ObjectId::random();
@@ -304,7 +312,7 @@ async fn test_simple_conflict() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
     let recipient2 = Address::random();
 
@@ -397,7 +405,7 @@ async fn test_stale_version_dropped_fresh_kept() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_id = ObjectId::random();
@@ -509,7 +517,7 @@ async fn test_no_conflict() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
     let recipient2 = Address::random();
 
@@ -596,7 +604,7 @@ async fn test_chain_conflict() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
     let recipient2 = Address::random();
     let recipient3 = Address::random();
@@ -707,7 +715,7 @@ async fn test_multiple_conflicts_in_batch() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_a_id = ObjectId::random();
@@ -825,7 +833,7 @@ async fn test_gas_object_conflict() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = Address::random();
     let recipient2 = Address::random();
 
@@ -912,7 +920,7 @@ async fn test_winner_blocks_multiple_losers() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_a_id = ObjectId::random();
@@ -1034,7 +1042,7 @@ async fn test_dropped_tx_does_not_acquire_locks() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_a_id = ObjectId::random();
@@ -1187,7 +1195,7 @@ async fn already_executed_tx_must_remain_in_checkpoint_roots() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     let object_id = ObjectId::random();
@@ -1283,7 +1291,7 @@ async fn double_spend_loser_excluded_from_checkpoint_roots() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
 
     // One owned object spent by both transactions, plus a distinct gas object each
@@ -1406,7 +1414,7 @@ struct LockTierSetup {
     authority: Arc<crate::authority::AuthorityState>,
     epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
     sender: Address,
-    sender_key: AccountKeyPair,
+    sender_key: AccountPrivateKey,
     recipient: Address,
     object_ref: ObjectReference,
     gas_ref: ObjectReference,
@@ -1420,7 +1428,7 @@ async fn setup_lock_tier() -> LockTierSetup {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1773,7 +1781,7 @@ async fn post_consensus_validation_uses_governance_rules_when_enabled() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1831,7 +1839,7 @@ async fn post_consensus_validation_keeps_non_denied_transactions() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1884,7 +1892,7 @@ async fn post_consensus_validation_uses_local_config_when_disabled() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1934,7 +1942,7 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         config
     });
 
-    let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -1996,4 +2004,240 @@ async fn post_consensus_validation_applies_relaxed_rules() {
         "previously denied sender must be kept after withdrawal"
     );
     assert_eq!(locks.len(), 2);
+}
+
+// ---------------------------------------------------------------------------
+// Immutable object inputs (issue #12602)
+// ---------------------------------------------------------------------------
+
+/// A state with one immutable object, two gas coins and one spare owned object,
+/// plus builders for transactions that read the immutable object.
+struct ImmutableInputSetup {
+    authority: Arc<crate::authority::AuthorityState>,
+    epoch_store: Arc<crate::authority::authority_per_epoch_store::AuthorityPerEpochStore>,
+    sender: Address,
+    sender_key: AccountPrivateKey,
+    package_ref: ObjectReference,
+    immutable_ref: ObjectReference,
+    gas1_ref: ObjectReference,
+    gas2_ref: ObjectReference,
+    owned_ref: ObjectReference,
+    rgp: u64,
+    _config_guard: OverrideGuard,
+}
+
+/// Builds the state above with the P-COOL flow on and the immutable-lock skip
+/// set to `skip_immutable_locks`.
+async fn setup_immutable_input(skip_immutable_locks: bool) -> ImmutableInputSetup {
+    let _config_guard = ProtocolConfig::apply_overrides_for_testing(move |_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_pcool_skip_immutable_object_locks_for_testing(skip_immutable_locks);
+        config
+    });
+
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
+
+    let immutable_id = ObjectId::random();
+    let gas1_id = ObjectId::random();
+    let gas2_id = ObjectId::random();
+    let owned_id = ObjectId::random();
+
+    let (authority, package_ref) = init_state_with_objects_and_object_basics(vec![
+        Object::immutable_with_id_for_testing(immutable_id),
+        Object::with_id_owner_for_testing(gas1_id, sender),
+        Object::with_id_owner_for_testing(gas2_id, sender),
+        Object::with_id_owner_for_testing(owned_id, sender),
+    ])
+    .await;
+
+    let epoch_store = authority.epoch_store_for_testing().clone();
+    let rgp = authority.reference_gas_price_for_testing().unwrap();
+    let object_ref = |id| authority.get_object(&id).unwrap().object_ref();
+
+    ImmutableInputSetup {
+        immutable_ref: object_ref(immutable_id),
+        gas1_ref: object_ref(gas1_id),
+        gas2_ref: object_ref(gas2_id),
+        owned_ref: object_ref(owned_id),
+        authority,
+        epoch_store,
+        sender,
+        sender_key,
+        package_ref,
+        rgp,
+        _config_guard,
+    }
+}
+
+impl ImmutableInputSetup {
+    /// A transaction reading the immutable object, paid by `gas_ref`. Passing a
+    /// distinct gas coin yields a distinct digest with no shared owned input.
+    fn read_immutable(&self, gas_ref: ObjectReference) -> VerifiedTransaction {
+        self.build(gas_ref, &[self.immutable_ref])
+    }
+
+    /// A transaction reading the immutable object and taking `owned_ref` as a
+    /// second input, paid by `gas_ref`.
+    fn read_immutable_with_owned(&self, gas_ref: ObjectReference) -> VerifiedTransaction {
+        self.build(gas_ref, &[self.immutable_ref, self.owned_ref])
+    }
+
+    /// Builds an `object_basics::update` call over `inputs`. The argument
+    /// types deliberately mismatch, so execution fails — a failed execution
+    /// must still report every owned input it consumed.
+    fn build(&self, gas_ref: ObjectReference, inputs: &[ObjectReference]) -> VerifiedTransaction {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        let args: Vec<_> = inputs
+            .iter()
+            .map(|obj_ref| builder.obj(CallArg::ImmutableOrOwned(*obj_ref)).unwrap())
+            .collect();
+        let first = args[0];
+        builder.command(Command::new_move_call(
+            self.package_ref.object_id,
+            Identifier::new("object_basics").unwrap(),
+            Identifier::new("update").unwrap(),
+            vec![],
+            vec![first, first],
+        ));
+        let tx = Transaction::new_programmable(
+            self.sender,
+            vec![gas_ref],
+            builder.finish(),
+            self.rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS * 5,
+            self.rgp,
+        );
+        self.epoch_store
+            .verify_transaction(to_sender_signed_transaction(tx, &self.sender_key))
+            .unwrap()
+    }
+
+    /// Marks `tx` as executed via the checkpoint-executor path, as state-sync
+    /// would when it wins the race against this node's consensus handler.
+    fn execute_via_state_sync(&self, tx: &VerifiedTransaction) {
+        let executable = VerifiedExecutableTransaction::new_from_checkpoint(
+            tx.clone(),
+            self.epoch_store.epoch(),
+            1,
+        );
+        self.authority
+            .try_execute_immediately(&executable, None, &self.epoch_store)
+            .unwrap();
+    }
+
+    async fn resolve(
+        &self,
+        transactions: &mut Vec<VerifiedSequencedConsensusTransaction>,
+    ) -> (
+        Vec<(TransactionDigest, IotaError)>,
+        std::collections::HashMap<ObjectReference, LockDetails>,
+    ) {
+        let (dropped, locks, _) = post_consensus_validation::validate_and_resolve_conflicts(
+            &self.authority,
+            &self.epoch_store,
+            transactions,
+        )
+        .await
+        .unwrap();
+        (dropped, locks)
+    }
+}
+
+/// An immutable object is read-only and cannot be double-spent, so referencing
+/// it must not acquire an owned-object lock: any number of transactions in the
+/// same epoch may take it as an input (issue #12602).
+#[tokio::test]
+async fn test_immutable_object_input_not_locked() {
+    telemetry_subscribers::init_for_testing();
+    let s = setup_immutable_input(true).await;
+
+    let tx1 = s.read_immutable(s.gas1_ref);
+    let tx2 = s.read_immutable(s.gas2_ref);
+    let mut transactions = vec![make_user_tx_v1_verified(tx1), make_user_tx_v1_verified(tx2)];
+
+    let (dropped, locks) = s.resolve(&mut transactions).await;
+
+    assert!(
+        dropped.is_empty(),
+        "no transaction may be dropped over an immutable input: {dropped:?}"
+    );
+    assert_eq!(transactions.len(), 2, "both transactions must be kept");
+    assert!(
+        !locks.contains_key(&s.immutable_ref),
+        "immutable object must not be locked"
+    );
+    assert_eq!(
+        locks.len(),
+        2,
+        "only the two gas coins may be locked, got {locks:?}"
+    );
+}
+
+/// The gate itself: with the flag off, the first reader locks the immutable
+/// object and the second is dropped against it.
+#[tokio::test]
+async fn test_immutable_object_input_locked_when_flag_disabled() {
+    telemetry_subscribers::init_for_testing();
+    let s = setup_immutable_input(false).await;
+
+    let tx1 = s.read_immutable(s.gas1_ref);
+    let tx2 = s.read_immutable(s.gas2_ref);
+    let tx2_digest = *tx2.digest();
+    let mut transactions = vec![
+        make_user_tx_v1_verified(tx1.clone()),
+        make_user_tx_v1_verified(tx2),
+    ];
+
+    let (dropped, locks) = s.resolve(&mut transactions).await;
+
+    assert_eq!(dropped.len(), 1, "the second reader must be dropped");
+    assert_eq!(dropped[0].0, tx2_digest);
+    assert!(matches!(dropped[0].1, IotaError::ObjectLockConflict { .. }));
+    assert_eq!(
+        locks.get(&s.immutable_ref),
+        Some(tx1.digest()),
+        "the immutable object is locked while the flag is off"
+    );
+}
+
+/// The already-executed branch registers locks from the transaction's own
+/// effects, so it locks the owned inputs it consumed and leaves the immutable
+/// input free. A later reader of the same immutable object is then kept
+/// instead of hitting the winner-out-locked `fatal!`.
+#[tokio::test]
+async fn test_already_executed_tx_does_not_lock_immutable_input() {
+    telemetry_subscribers::init_for_testing();
+    let s = setup_immutable_input(true).await;
+
+    let executed = s.read_immutable_with_owned(s.gas1_ref);
+    s.execute_via_state_sync(&executed);
+
+    let later_reader = s.read_immutable(s.gas2_ref);
+    let mut transactions = vec![
+        make_user_tx_v1_verified(executed.clone()),
+        make_user_tx_v1_verified(later_reader),
+    ];
+
+    let (dropped, locks) = s.resolve(&mut transactions).await;
+
+    assert!(dropped.is_empty(), "{dropped:?}");
+    assert_eq!(
+        transactions.len(),
+        2,
+        "the executed winner and the later reader must both be kept"
+    );
+    assert!(
+        !locks.contains_key(&s.immutable_ref),
+        "an executed transaction must not lock its immutable input"
+    );
+    assert_eq!(
+        locks.get(&s.gas1_ref),
+        Some(executed.digest()),
+        "the executed transaction still locks the gas coin it consumed"
+    );
+    assert_eq!(
+        locks.get(&s.owned_ref),
+        Some(executed.digest()),
+        "an owned input the Move call never mutated is still consumed, so it \
+         is still locked"
+    );
 }

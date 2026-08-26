@@ -12,7 +12,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::{RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR},
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     error::{ExecutionErrorKind, IotaError},
     move_package::UpgradeCap,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -30,7 +30,7 @@ use crate::authority::authority_tests::{
 #[cfg_attr(msim, ignore)]
 async fn test_object_wrapping_unwrapping() {
     telemetry_subscribers::init_for_testing();
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -253,7 +253,7 @@ async fn test_object_wrapping_unwrapping() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_object_owning_another_object() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -449,7 +449,7 @@ async fn test_object_owning_another_object() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -511,7 +511,7 @@ async fn test_create_then_delete_parent_child() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child_wrap() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -608,7 +608,7 @@ async fn test_create_then_delete_parent_child_wrap() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_remove_child_when_no_prior_version_exists() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -701,7 +701,7 @@ async fn test_remove_child_when_no_prior_version_exists() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_create_then_delete_parent_child_wrap_separate() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -805,7 +805,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_empty() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
@@ -953,7 +953,7 @@ async fn test_entry_point_vector_empty() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_primitive() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -995,7 +995,7 @@ async fn test_entry_point_vector_primitive() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -1125,7 +1125,7 @@ async fn test_entry_point_vector() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -1404,7 +1404,7 @@ async fn test_entry_point_vector_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_any() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -1538,7 +1538,7 @@ async fn test_entry_point_vector_any() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_vector_any_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -1819,7 +1819,7 @@ async fn test_entry_point_vector_any_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -1904,7 +1904,7 @@ async fn test_entry_point_string() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_nested_string() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -2049,7 +2049,7 @@ async fn test_nested_string() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_vec() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -2091,7 +2091,7 @@ async fn test_entry_point_string_vec() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -2211,7 +2211,7 @@ async fn test_entry_point_string_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_vec_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -2267,7 +2267,7 @@ async fn test_entry_point_string_vec_error() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_entry_point_string_option_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -2372,7 +2372,7 @@ async fn test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
     gas: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     package_id: ObjectId,
     t: TypeTag,
     value: T,
@@ -2535,7 +2535,7 @@ macro_rules! make_vec_tests_for_type {
         #[tokio::test]
         #[cfg_attr(msim, ignore)]
         async fn $test() {
-            let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+            let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
             let gas = ObjectId::random();
             let authority = init_state_with_ids(vec![(sender, gas)]).await;
             let package = build_and_publish_test_package(
@@ -2644,7 +2644,7 @@ async fn error_test_make_move_vec_for_type<T: Clone + Serialize>(
     authority: &AuthorityState,
     gas: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     t: TypeTag,
     value: T,
 ) {
@@ -2733,7 +2733,7 @@ macro_rules! make_vec_error_tests_for_type {
         #[tokio::test]
         #[cfg_attr(msim, ignore)]
         async fn $test() {
-            let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+            let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
             let gas = ObjectId::random();
             let authority = init_state_with_ids(vec![(sender, gas)]).await;
             error_test_make_move_vec_for_type(&authority, &gas, &sender, &sender_key, $tag, $value)
@@ -2822,7 +2822,7 @@ make_vec_error_tests_for_type!(
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_make_move_vec_empty() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
@@ -2915,7 +2915,7 @@ pub fn build_package(
 pub async fn build_and_try_publish_test_package(
     authority: &AuthorityState,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
     test_dir: &str,
     gas_budget: u64,
@@ -2958,7 +2958,7 @@ pub async fn build_and_try_publish_test_package(
 pub async fn build_and_publish_test_package(
     authority: &AuthorityState,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
     test_dir: &str,
     with_unpublished_deps: bool,
@@ -2998,7 +2998,7 @@ pub fn created_package_ref(effects: &TransactionEffects) -> ObjectReference {
 pub async fn build_and_publish_test_package_with_upgrade_cap(
     authority: &AuthorityState,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
     test_dir: &str,
     with_unpublished_deps: bool,
@@ -3061,7 +3061,7 @@ pub async fn collect_packages_and_upgrade_caps(
 pub async fn run_multi_txns(
     authority: &AuthorityState,
     sender: Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
     builder: ProgrammableTransactionBuilder,
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {

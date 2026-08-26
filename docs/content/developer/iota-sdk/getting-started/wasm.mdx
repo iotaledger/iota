@@ -1,0 +1,89 @@
+---
+title: Getting Started with WASM/TypeScript
+description: Get started with the IOTA SDK WASM/TypeScript bindings to interact with the IOTA network from Node.js or the browser.
+tags: [ tutorial, wasm, typescript, mainnet, testnet, devnet, setup, install, getting-started ]
+---
+
+import IotaSdk from '../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Getting Started with WASM/TypeScript
+
+<IotaSdk />
+
+The IOTA SDK WASM bindings allow JavaScript and TypeScript developers to use the SDK in Node.js and the browser. The core Rust SDK is compiled to WebAssembly, and the package ships with a TypeScript API and type declarations.
+
+:::info TypeScript SDK
+
+If you are building a web dApp, also consider the [IOTA TypeScript SDK](../../ts-sdk/typescript/index.mdx), a native TypeScript implementation with React tooling ([dApp Kit](../../ts-sdk/dapp-kit/index.mdx)). The WASM bindings expose the same API surface as the other IOTA SDK bindings, which makes them a good fit if you want identical behavior across languages.
+
+:::
+
+## Prerequisites
+
+Before using the WASM bindings, ensure you have:
+* **Node.js**: Version 20 or higher (for Node.js usage), or a browser with WebAssembly support.
+
+## Installation
+
+<Tabs groupId='installation-method' queryString>
+<TabItem value='pre-build' label='Pre-built (Recommended)'>
+
+Add the IOTA SDK to your project using your package manager:
+
+```bash
+npm install @iota/sdk-wasm@3.0.0-alpha.1
+```
+
+The package contains the compiled WebAssembly binary and TypeScript declarations, so no Rust toolchain is required.
+
+</TabItem>
+<TabItem value='build-from-source' label='Build from Source'>
+
+To build the WASM bindings locally, you need a Rust toolchain with the `wasm32-unknown-unknown` target, the `wasm-bindgen` CLI, and [pnpm](https://pnpm.io/):
+
+```bash
+git clone https://github.com/iotaledger/iota-rust-sdk.git
+cd iota-rust-sdk
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli --version 0.2.122
+make wasm
+```
+
+The output is written to `bindings/wasm/dist/`. For additional setup instructions, refer to the [WASM bindings README](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/wasm) in the repository.
+
+</TabItem>
+</Tabs>
+
+## Quick Start Example
+
+The following example demonstrates how to connect to the IOTA Testnet and retrieve the Chain ID.
+
+### 1. Create a `chain_id.mjs` file
+
+Create a new file named `chain_id.mjs` and paste the following code. The WASM module must be initialized with `initAsync()` before any other call:
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/chain_id.mjs#L4-L10
+```
+
+### 2. Run the code
+
+In your terminal, run:
+
+```bash
+node chain_id.mjs
+```
+
+## Usage in the Browser
+
+The same API works in the browser. See the [browser example](https://github.com/iotaledger/iota-rust-sdk/blob/develop/bindings/wasm/examples/chain_id.html) for a complete HTML page that loads the WASM module and queries the chain ID.
+
+## What's Next?
+
+Now that you have connected to the network, you can explore more advanced features:
+
+* [Accounts and Addresses](/developer/iota-sdk/how-tos/accounts-and-addresses): create a mnemonic, derive addresses, and check coin balances.
+* [Transactions](/developer/iota-sdk/how-tos/transactions): build, sign, and send Programmable Transaction Blocks (PTBs), including staking and reusing command results.
+* [Queries](/developer/iota-sdk/how-tos/queries): query owned objects, events, and transactions with the GraphQL client.
+
+View more comprehensive examples in the official [WASM examples directory](https://github.com/iotaledger/iota-rust-sdk/tree/develop/bindings/wasm/examples).

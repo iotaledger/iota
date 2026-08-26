@@ -150,7 +150,11 @@ const config = {
             description: 'TypeScript and Rust SDK documentation for building applications on IOTA',
             includePatterns: [
               'developer/ts-sdk/**',
-              'developer/references/rust-sdk.md',
+              // Generated references (developer/iota-sdk/references/**) are
+              // deliberately excluded — they are too large for the LLM file.
+              'developer/iota-sdk/getting-started/**',
+              'developer/iota-sdk/how-tos/**',
+              'developer/iota-sdk/explanations/**',
             ],
             fullContent: true,
           },
@@ -347,6 +351,18 @@ const config = {
               from: '/operator/extensions/indexer-functions',
               to: '/operator/extended-data-services/iota-indexer',
             },
+            {
+              from: '/developer/references/rust-sdk',
+              to: '/developer/iota-sdk/getting-started/rust',
+            },
+            {
+              from: '/developer/iota-sdk/how-tos/transactions/transactions-with-function',
+              to: '/developer/iota-sdk/how-tos/queries/query-transactions',
+            },
+            {
+              from: '/developer/iota-sdk/how-tos/transactions/prepare-send-iota',
+              to: '/developer/iota-sdk/how-tos/transactions/sign-send-iota',
+            },
           ];
           let paths = [];
           for (const redirect of redirects) {
@@ -427,6 +443,9 @@ const config = {
             "current",
             "1.0.0",
           ],*/
+          beforeDefaultRemarkPlugins: [
+            require("./config/remark-sdk-rev.js"),
+          ],
           remarkPlugins: [
             [math,{singleDollarTextMath:false}],
             [
@@ -562,7 +581,7 @@ const config = {
       prism: {
         theme: themes.vsLight,
         darkTheme: themes.vsDark,
-        additionalLanguages: ["rust", "typescript", "solidity", "move"],
+        additionalLanguages: ["rust", "typescript", "solidity", "move", "csharp"],
       },
       imageZoom: {
         selector: '.markdown img',

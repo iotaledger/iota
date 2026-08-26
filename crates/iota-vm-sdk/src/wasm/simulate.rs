@@ -135,15 +135,15 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
             .iter()
             .map(|ev| {
                 let (value, decode_error) =
-                    match vm.decode_value(&ev.contents, &ev.type_.clone().into()) {
+                    match vm.decode_value(&ev.contents, &ev.struct_tag.clone().into()) {
                         Ok(value) => (Some(move_value_to_json(&value)), None),
                         Err(e) => (None, Some(e.to_string())),
                     };
                 EventOut {
                     package_id: ev.package_id.to_string(),
                     module: ev.module.to_string(),
-                    name: ev.type_.name().to_string(),
-                    type_tag: ev.type_.to_string(),
+                    name: ev.struct_tag.name().to_string(),
+                    type_tag: ev.struct_tag.to_string(),
                     value,
                     decode_error,
                 }

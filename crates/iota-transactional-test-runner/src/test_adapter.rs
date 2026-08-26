@@ -43,7 +43,7 @@ use iota_types::{
     IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
     base_types::{IOTA_ADDRESS_LENGTH, VersionNumber},
     committee::EpochId,
-    crypto::{AccountKeyPair, get_authority_key_pair, get_key_pair_from_rng},
+    crypto::{AccountPrivateKey, get_authority_key_pair, get_key_pair_from_rng},
     effects::TransactionEffectsAPI,
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
@@ -290,7 +290,7 @@ impl AdapterInitConfig {
 #[derive(Debug)]
 struct TestAccount {
     address: Address,
-    key_pair: Option<AccountKeyPair>,
+    private_key: Option<AccountPrivateKey>,
     gas: ObjectId,
 }
 
@@ -1822,19 +1822,19 @@ impl IotaTestAdapter {
         let data = txn_data(sender.address, sponsor.address, payment_refs);
 
         if let Some(aa_sig) = aa_sig {
-            let sponsor_keypair = sponsor.key_pair.as_ref();
-            to_sender_signed_transaction_with_optional_sponsor(data, aa_sig, sponsor_keypair)
+            let sponsor_key = sponsor.private_key.as_ref();
+            to_sender_signed_transaction_with_optional_sponsor(data, aa_sig, sponsor_key)
         } else if sender.address == sponsor.address {
             to_sender_signed_transaction(
                 data,
-                sender.key_pair.as_ref().expect("Sender key pair missing"),
+                sender.private_key.as_ref().expect("Sender key missing"),
             )
         } else {
             to_sender_signed_transaction_with_multi_signers(
                 data,
                 vec![
-                    sender.key_pair.as_ref().expect("Sender key pair missing"),
-                    sponsor.key_pair.as_ref().expect("Sponsor key pair missing"),
+                    sender.private_key.as_ref().expect("Sender key missing"),
+                    sponsor.private_key.as_ref().expect("Sponsor key missing"),
                 ],
             )
         }
@@ -2399,7 +2399,7 @@ impl IotaTestAdapter {
 
         let abstract_account = TestAccount {
             address: Address::from(created_abstract_account_id),
-            key_pair: None,
+            private_key: None,
             gas: created_abstract_account_coin.object_id,
         };
 
@@ -2688,7 +2688,7 @@ async fn init_val_fullnode_executor(
 
     // Closure to create accounts with gas objects of value `GAS_FOR_TESTING`
     let mut mk_account = || {
-        let (address, key_pair) = get_key_pair_from_rng(&mut rng);
+        let (address, key) = get_key_pair_from_rng(&mut rng);
         let obj = Object::with_id_owner_gas_for_testing(
             ObjectId::new(rng.gen()),
             address,
@@ -2696,7 +2696,7 @@ async fn init_val_fullnode_executor(
         );
         let test_account = TestAccount {
             address,
-            key_pair: Some(key_pair),
+            private_key: Some(key),
             gas: obj.id(),
         };
         objects.push(obj);
@@ -2753,30 +2753,30 @@ async fn init_sim_executor(
     // Initial list of named addresses with specified values
     let mut named_address_mapping = NAMED_ADDRESSES.clone();
     let mut account_objects = BTreeMap::new();
-    let mut account_kps = BTreeMap::new();
+    let mut account_keys = BTreeMap::new();
     let mut accounts = BTreeMap::new();
     let mut objects = vec![];
 
-    // For each named IOTA account without an address value, create a key pair
+    // For each named IOTA account without an address value, create a key
     for n in account_names {
         let test_account = get_key_pair_from_rng(&mut rng);
-        account_kps.insert(n, test_account);
+        account_keys.insert(n, test_account);
     }
 
-    // Make a default account keypair
-    let default_account_kp = get_key_pair_from_rng(&mut rng);
+    // Make a default account key
+    let default_account_key = get_key_pair_from_rng(&mut rng);
 
     let (mut validator_addr, mut validator_key, mut key_copy) = (None, None, None);
     if custom_validator_account {
         // Make a validator account with a gas object
-        let (a, b): (Address, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let (a, b): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
 
         key_copy = Some(b.clone());
         validator_addr = Some(a);
         validator_key = Some(b);
     }
 
-    let mut acc_cfgs = account_kps
+    let mut acc_cfgs = account_keys
         .values()
         .map(|acc| AccountConfig {
             address: Some(acc.0),
@@ -2784,7 +2784,7 @@ async fn init_sim_executor(
         })
         .collect::<Vec<_>>();
     acc_cfgs.push(AccountConfig {
-        address: Some(default_account_kp.0),
+        address: Some(default_account_key.0),
         gas_amounts: vec![GAS_FOR_TESTING],
     });
 
@@ -2829,7 +2829,7 @@ async fn init_sim_executor(
 
     // Get the actual object values from the simulator
     let default_account = sim.with_store(|store| {
-        for (name, (addr, kp)) in account_kps {
+        for (name, (addr, key)) in account_keys {
             let o = store.owned_objects(addr).next().unwrap();
             objects.push(o.clone());
             account_objects.insert(name.clone(), o.id());
@@ -2838,15 +2838,15 @@ async fn init_sim_executor(
                 name.to_owned(),
                 TestAccount {
                     address: addr,
-                    key_pair: Some(kp),
+                    private_key: Some(key),
                     gas: o.id(),
                 },
             );
         }
-        let o = store.owned_objects(default_account_kp.0).next().unwrap();
+        let o = store.owned_objects(default_account_key.0).next().unwrap();
         let default_account = TestAccount {
-            address: default_account_kp.0,
-            key_pair: Some(default_account_kp.1),
+            address: default_account_key.0,
+            private_key: Some(default_account_key.1),
             gas: o.id(),
         };
         objects.push(o);
@@ -2855,7 +2855,7 @@ async fn init_sim_executor(
             let o = store.owned_objects(v_addr).next().unwrap();
             let validator_account = TestAccount {
                 address: v_addr,
-                key_pair: Some(v_key),
+                private_key: Some(v_key),
                 gas: o.id(),
             };
             objects.push(o.clone());

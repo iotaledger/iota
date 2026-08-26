@@ -20,7 +20,7 @@ use iota_sdk_types::Address;
 use iota_types::{
     committee::ProtocolVersion,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
         NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
     },
 };
@@ -103,7 +103,7 @@ impl ValidatorGenesisConfig {
 #[derive(Default)]
 pub struct ValidatorGenesisConfigBuilder {
     authority_key_pair: Option<AuthorityKeyPair>,
-    account_key_pair: Option<AccountKeyPair>,
+    account_private_key: Option<AccountPrivateKey>,
     ip: Option<String>,
     gas_price: Option<u64>,
     /// If set, the validator will use deterministic addresses based on the port
@@ -125,8 +125,8 @@ impl ValidatorGenesisConfigBuilder {
         self
     }
 
-    pub fn with_account_key_pair(mut self, key_pair: AccountKeyPair) -> Self {
-        self.account_key_pair = Some(key_pair);
+    pub fn with_account_private_key(mut self, private_key: AccountPrivateKey) -> Self {
+        self.account_private_key = Some(private_key);
         self
     }
 
@@ -165,8 +165,8 @@ impl ValidatorGenesisConfigBuilder {
         let authority_key_pair = self
             .authority_key_pair
             .unwrap_or_else(|| get_key_pair_from_rng(rng).1);
-        let account_key_pair = self
-            .account_key_pair
+        let account_private_key = self
+            .account_private_key
             .unwrap_or_else(|| get_key_pair_from_rng(rng).1);
         let gas_price = self.gas_price.unwrap_or(DEFAULT_VALIDATOR_GAS_PRICE);
 
@@ -217,7 +217,7 @@ impl ValidatorGenesisConfigBuilder {
         ValidatorGenesisConfig {
             authority_key_pair,
             protocol_key_pair,
-            account_key_pair: account_key_pair.into(),
+            account_key_pair: account_private_key.into(),
             network_key_pair,
             network_address,
             p2p_address,
@@ -257,7 +257,7 @@ impl GenesisConfig {
     pub fn generate_accounts<R: rand::RngCore + rand::CryptoRng>(
         &self,
         mut rng: R,
-    ) -> Result<(Vec<AccountKeyPair>, Vec<TokenAllocation>)> {
+    ) -> Result<(Vec<AccountPrivateKey>, Vec<TokenAllocation>)> {
         let mut addresses = Vec::new();
         let mut allocations = Vec::new();
 
@@ -268,8 +268,8 @@ impl GenesisConfig {
             let address = if let Some(address) = account.address {
                 address
             } else {
-                let (address, keypair) = get_key_pair_from_rng(&mut rng);
-                keys.push(keypair);
+                let (address, key) = get_key_pair_from_rng(&mut rng);
+                keys.push(key);
                 address
             };
 
@@ -312,7 +312,7 @@ fn default_ed25519_key_pair() -> NetworkKeyPair {
 }
 
 fn default_iota_key_pair() -> SimpleKeypair {
-    SimpleKeypair::from(AccountKeyPair::random())
+    SimpleKeypair::from(AccountPrivateKey::random())
 }
 
 // Serde adapter storing the keypair as base64 `flag || privkey`, the on-disk
@@ -492,7 +492,7 @@ impl GenesisConfig {
     pub fn benchmark_gas_keys(n: usize) -> Vec<SimpleKeypair> {
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
         (0..n)
-            .map(|_| SimpleKeypair::from(AccountKeyPair::random_with(&mut rng)))
+            .map(|_| SimpleKeypair::from(AccountPrivateKey::random_with(&mut rng)))
             .collect()
     }
 

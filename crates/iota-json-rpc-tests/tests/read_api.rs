@@ -63,7 +63,7 @@ impl MatchesResponseOptions for IotaObjectResponse {
             .as_ref()
             .map(|iota_obj| {
                 let derived_options = Self::Options {
-                    show_type: iota_obj.type_.is_some(),
+                    show_type: iota_obj.object_type.is_some(),
                     show_owner: iota_obj.owner.is_some(),
                     show_previous_transaction: iota_obj.previous_transaction.is_some(),
                     show_display: iota_obj.display.is_some(),
@@ -84,7 +84,7 @@ impl MatchesResponseOptions for IotaPastObjectResponse {
         self.object()
             .map(|iota_obj| {
                 let derived_options = Self::Options {
-                    show_type: iota_obj.type_.is_some(),
+                    show_type: iota_obj.object_type.is_some(),
                     show_owner: iota_obj.owner.is_some(),
                     show_previous_transaction: iota_obj.previous_transaction.is_some(),
                     show_display: iota_obj.display.is_some(),

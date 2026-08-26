@@ -10,12 +10,11 @@ use std::{
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
 use iota_sdk_types::{
-    ExecutionStatus, ObjectDigest, ObjectId, Owner, TransactionEffects, TypeTag, Version,
+    ExecutionStatus, ObjectDigest, ObjectId, Owner, StructTag, TransactionEffects, TypeTag, Version,
 };
 use iota_types::{
     coin::Coin,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
-    gas_coin::GAS,
     object::Object,
     transaction::InputObjectKind,
 };
@@ -34,7 +33,7 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
     if effects.status() != &ExecutionStatus::Success {
         return Ok(vec![BalanceChange {
             owner: gas_owner,
-            coin_type: GAS::type_tag(),
+            coin_type: TypeTag::from(StructTag::new_gas()),
             amount: effects.gas_cost_summary().net_gas_usage().neg() as i128,
         }]);
     }
@@ -135,8 +134,8 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
     for (id, version, digest_opt) in objects {
         // TODO: use multi get object
         let o = object_provider.get_object(id, version).await?;
-        if let Some(struct_tag) = o.type_() {
-            if struct_tag.is_coin() {
+        if let Some(object_type) = o.data.opt_object_type() {
+            if object_type.is_coin() {
                 if let Some(digest) = digest_opt {
                     // TODO: can we return Err here instead?
                     assert_eq!(
@@ -145,7 +144,7 @@ async fn fetch_coins<P: ObjectProvider<Error = E>, E>(
                         "Object digest mismatch--got bad data from object_provider?"
                     )
                 }
-                let coin_type = struct_tag.type_params()[0].clone();
+                let coin_type = object_type.type_params()[0].clone();
                 all_mutated_coins.push((
                     o.owner,
                     coin_type,

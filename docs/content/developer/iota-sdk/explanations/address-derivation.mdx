@@ -1,4 +1,5 @@
 ---
+title: Address Derivation in IOTA
 description: 'Explains how IOTA address derivation works — key concepts, BIP-39/BIP-44/SLIP-10 standards, and the three supported signature schemes.'
 tags:
   - explanation
@@ -26,7 +27,7 @@ This page explains the concepts and cryptographic standards behind deriving key 
 | `Public Key` | The public counterpart of the private key, used to generate the IOTA address and verify signatures. |
 | `Flagged Public Key` | The public key bytes prefixed with a scheme flag byte (Base64-encoded), used internally by the IOTA protocol. |
 | `Address` | A 32-byte IOTA address derived from the public key, displayed as a `0x`-prefixed hex string. |
-| `Derivation Path` | A BIP-44/SLIP-10 path (e.g. `m/74'/4218'/0'/0/2`) specifying which key to derive from the seed. |
+| `Derivation Path` | A BIP-44/SLIP-10 path (e.g. the Ed25519 default `m/44'/4218'/0'/0'/0'`) specifying which key to derive from the seed. |
 
 ## Supported Signature Schemes
 

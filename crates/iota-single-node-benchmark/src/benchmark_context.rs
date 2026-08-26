@@ -85,7 +85,7 @@ impl BenchmarkContext {
             .publish_package(
                 publish_data,
                 self.admin_account.sender,
-                &self.admin_account.keypair,
+                &self.admin_account.private_key,
                 gas_objects[0],
             )
             .await;

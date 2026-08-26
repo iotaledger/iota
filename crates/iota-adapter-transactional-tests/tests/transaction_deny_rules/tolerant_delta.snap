@@ -9,7 +9,7 @@ Epoch advanced: 1
 
 task 2, lines 12-14:
 //# update-deny-rules --added-addresses 0xAA --added-packages 0x2B
-events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), type_: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACsAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAA" }
+events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), struct_tag: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACsAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAA" }
 created: object(2,0), object(2,1)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9, object(1,0)
 gas summary:
@@ -21,7 +21,7 @@ gas summary:
 
 task 3, lines 16-18:
 //# update-deny-rules --added-addresses 0xAA --added-packages 0x2B
-events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), type_: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACsAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAA" }
+events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), struct_tag: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACsAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAA" }
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9
 gas summary:
 ├── Computation Cost: 0
@@ -32,7 +32,7 @@ gas summary:
 
 task 4, lines 20-22:
 //# update-deny-rules --removed-addresses 0xBB --removed-objects 0x1A
-events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), type_: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC7AAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAA" }
+events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), struct_tag: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAC7AAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGgAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAA" }
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9
 gas summary:
 ├── Computation Cost: 0

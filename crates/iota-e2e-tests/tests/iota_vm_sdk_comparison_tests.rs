@@ -126,7 +126,7 @@ async fn compare_local_vm_staking_against_test_cluster() {
         .iter()
         .map(|e| {
             (
-                e.type_.clone(),
+                e.struct_tag.clone(),
                 e.package_id,
                 e.sender,
                 e.bcs.bytes().to_vec(),
@@ -183,7 +183,14 @@ async fn compare_local_vm_staking_against_test_cluster() {
                 events
                     .0
                     .iter()
-                    .map(|e| (e.type_.clone(), e.package_id, e.sender, e.contents.clone()))
+                    .map(|e| {
+                        (
+                            e.struct_tag.clone(),
+                            e.package_id,
+                            e.sender,
+                            e.contents.clone(),
+                        )
+                    })
                     .collect()
             })
             .unwrap_or_default();
@@ -224,7 +231,7 @@ async fn compare_local_vm_staking_against_test_cluster() {
         .expect("every emitted event must decode");
     let staking_event = decoded
         .iter()
-        .find(|d| d.event.type_.name().as_str() == "StakingRequestEvent")
+        .find(|d| d.event.struct_tag.name().as_str() == "StakingRequestEvent")
         .expect("a StakingRequestEvent must be present");
 
     // The raw BCS contents decode into a struct with the event's named fields.
@@ -250,7 +257,7 @@ async fn compare_local_vm_staking_against_test_cluster() {
     let via_value = vm
         .decode_value(
             &event.contents,
-            &TypeTag::Struct(Box::new(event.type_.clone())),
+            &TypeTag::Struct(Box::new(event.struct_tag.clone())),
         )
         .expect("decode_value must succeed on the event contents");
     assert_eq!(

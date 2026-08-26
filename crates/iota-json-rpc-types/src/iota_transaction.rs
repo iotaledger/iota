@@ -1232,7 +1232,7 @@ impl IotaTransactionBlockEvents {
                 .drain(..)
                 .enumerate()
                 .map(|(seq, event)| {
-                    let layout = resolver.get_annotated_layout(&event.type_)?;
+                    let layout = resolver.get_annotated_layout(&event.struct_tag)?;
                     IotaEvent::try_from(event, tx_digest, seq as u64, timestamp_ms, layout)
                 })
                 .collect::<Result<_, _>>()?,
@@ -1252,7 +1252,7 @@ impl IotaTransactionBlockEvents {
                 .drain(..)
                 .enumerate()
                 .map(|(seq, event)| {
-                    let layout = get_layout_from_struct_tag(event.type_.clone(), resolver)?;
+                    let layout = get_layout_from_struct_tag(event.struct_tag.clone(), resolver)?;
                     IotaEvent::try_from(event, tx_digest, seq as u64, timestamp_ms, layout)
                 })
                 .collect::<Result<_, _>>()?,
@@ -2307,7 +2307,7 @@ impl From<Command> for IotaCommand {
             ),
             Command::Publish(cmd) => IotaCommand::Publish(cmd.dependencies),
             Command::MakeMoveVector(cmd) => IotaCommand::MakeMoveVec(
-                cmd.type_.map(|tag| tag.to_string()),
+                cmd.type_tag.map(|tag| tag.to_string()),
                 cmd.elements.into_iter().map(IotaArgument::from).collect(),
             ),
             Command::Upgrade(cmd) => IotaCommand::Upgrade(

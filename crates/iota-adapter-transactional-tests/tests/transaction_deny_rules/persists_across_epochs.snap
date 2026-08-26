@@ -1,6 +1,5 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
-assertion_line: 818
 ---
 processed 7 tasks
 
@@ -10,7 +9,7 @@ Epoch advanced: 1
 
 task 2, line 11:
 //# update-deny-rules --added-addresses 0xAA --package-publish-disabled
-events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), type_: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAAAAAAEAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==" }
+events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), struct_tag: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AQAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAAAAAAEAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==" }
 created: object(2,0)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9, object(1,0)
 gas summary:
@@ -94,7 +93,7 @@ Contents: iota::dynamic_field::Field<u64, iota::transaction_deny_rules::Transact
 
 task 5, lines 19-22:
 //# update-deny-rules --added-addresses 0xBB --removed-addresses 0xAA
-events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), type_: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALsBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }
+events: Event { package_id: ObjectId("iota"), module: Identifier("transaction_deny_rules"), sender: Address("_"), struct_tag: StructTag { address: Address("iota"), module: Identifier("transaction_deny_rules"), name: Identifier("TransactionDenyRulesUpdated"), type_params: [] }, contents: "AgAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAALsBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAKoAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" }
 created: object(5,0)
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000de9, object(1,0)
 deleted: object(2,0)

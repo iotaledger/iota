@@ -1,0 +1,247 @@
+---
+title: Stake IOTA
+description: 'How to stake IOTA to a validator using the SDK transaction builder.'
+tags:
+  - how-to
+  - rust
+  - go
+  - python
+  - kotlin
+  - swift
+  - csharp
+  - wasm
+---
+
+import IotaSdk from '../../../../_snippets/developer/iota-sdk/sdk.mdx';
+
+# Stake IOTA
+
+<IotaSdk />
+
+This how-to demonstrates how to stake IOTA to an active validator using the SDK transaction builder.
+
+:::info
+This example runs on **testnet**. Set the sender address to an account you control that holds enough IOTA to stake.
+:::
+
+## Prerequisites
+
+- The IOTA SDK installed for your target language
+- A sender address funded with IOTA on testnet
+
+## Steps
+
+### 1. Initialize the Client and Set the Sender Address
+
+Connect to testnet and set the address that will stake.
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/stake.rs#L11-L14
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/stake/main.go#L20-L23
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/stake.py#L10-L13
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/Stake.kt#L9-L12
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/Stake.swift#L10-L13
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/Stake/Program.cs#L10-L12
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/stake.mjs#L8-L12
+```
+
+  </TabItem>
+</Tabs>
+
+### 2. Select a Validator
+
+Fetch the active validators and pick the one to stake to.
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/stake.rs#L16-L27
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/stake/main.go#L25-L41
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/stake.py#L15-L20
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/Stake.kt#L14-L20
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/Stake.swift#L15-L23
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/Stake/Program.cs#L14-L21
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/stake.mjs#L14-L20
+```
+
+  </TabItem>
+</Tabs>
+
+### 3. Build the Stake Command and Dry-Run
+
+Add the stake command to the transaction builder and dry-run it to verify it will execute correctly.
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/stake.rs#L29-L39
+```
+
+  </TabItem>
+  <TabItem value="go" label="Go">
+
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/stake/main.go#L43-L56
+```
+
+  </TabItem>
+  <TabItem value="python" label="Python">
+
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/stake.py#L22-L30
+```
+
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/Stake.kt#L22-L32
+```
+
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/Stake.swift#L25-L37
+```
+
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/Stake/Program.cs#L23-L34
+```
+
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/stake.mjs#L22-L30
+```
+
+  </TabItem>
+</Tabs>
+
+## Expected Output
+
+```bash
+Staking to validator <validator-name>
+Stake dry run was successful!
+```
+
+## Full Example
+
+<Tabs groupId="language" queryString>
+  <TabItem value="rust" label="Rust" default>
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/crates/iota-sdk/examples/stake.rs#L4-L42
+```
+  </TabItem>
+  <TabItem value="go" label="Go">
+```go reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/go/examples/stake/main.go#L4-L57
+```
+  </TabItem>
+  <TabItem value="python" label="Python">
+```python reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/python/examples/stake.py#L4-L34
+```
+  </TabItem>
+  <TabItem value="kotlin" label="Kotlin">
+```kotlin reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/kotlin/examples/Stake.kt#L4-L37
+```
+  </TabItem>
+  <TabItem value="swift" label="Swift">
+```swift reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/swift/examples/Stake.swift#L4-L39
+```
+  </TabItem>
+  <TabItem value="csharp" label="C#">
+```csharp reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/csharp/examples/Stake/Program.cs#L4-L36
+```
+  </TabItem>
+  <TabItem value="wasm" label="WASM/TS">
+```javascript reference
+https://github.com/iotaledger/iota-rust-sdk/blob/{SDK_REV}/bindings/wasm/examples/stake.mjs#L4-L30
+```
+  </TabItem>
+</Tabs>
