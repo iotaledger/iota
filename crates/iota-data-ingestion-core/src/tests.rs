@@ -3,15 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashMap,
     path::PathBuf,
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicU64, Ordering},
     },
     time::Duration,
 };
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, ObjectDigest, ObjectId, ObjectReference, RandomnessStateUpdate, Transaction,
@@ -19,7 +21,10 @@ use iota_sdk_types::{
     checkpoint::{CheckpointContents, CheckpointSummary},
     gas::GasCostSummary,
 };
-use iota_storage::blob::{Blob, BlobEncoding};
+use iota_storage::{
+    FileCompression, StorageFormat,
+    blob::{Blob, BlobEncoding},
+};
 use iota_types::{
     committee::EpochId,
     crypto::KeypairTraits,
@@ -35,13 +40,22 @@ use iota_types::{
 use prometheus_filtered::Registry;
 use rand::{SeedableRng, prelude::StdRng};
 use tempfile::NamedTempFile;
-use tokio::time::timeout;
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::{TcpListener, TcpStream},
+    time::timeout,
+};
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, IngestionLimit,
     IngestionResult, ProgressStore, ReaderOptions, Reducer, ShutdownAction, Worker, WorkerPool,
-    progress_store::ExecutorProgress, reader::v2::CheckpointReaderConfig,
+    history::{
+        CHECKPOINT_FILE_MAGIC,
+        manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
+    },
+    progress_store::ExecutorProgress,
+    reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
 
 async fn add_worker_pool<W: Worker + 'static>(
@@ -744,6 +758,19 @@ fn mock_checkpoint_data_bytes_with_opt(
     epoch: EpochId,
     transactions: Vec<CheckpointTransaction>,
 ) -> Vec<u8> {
+    Blob::encode(
+        &mock_checkpoint_data(seq_number, epoch, transactions),
+        BlobEncoding::Bcs,
+    )
+    .unwrap()
+    .to_bytes()
+}
+
+fn mock_checkpoint_data(
+    seq_number: CheckpointSequenceNumber,
+    epoch: EpochId,
+    transactions: Vec<CheckpointTransaction>,
+) -> CheckpointData {
     let mut rng = StdRng::from_seed(RNG_SEED);
     let (keys, committee) = make_committee_key(&mut rng);
     let contents = CheckpointContents::new_with_digests_only_for_tests(vec![]);
@@ -768,13 +795,185 @@ fn mock_checkpoint_data_bytes_with_opt(
         })
         .collect();
 
-    let checkpoint_data = CheckpointData {
+    CheckpointData {
         checkpoint_summary: CertifiedCheckpointSummary::new(summary, sign_infos, &committee)
             .unwrap(),
         checkpoint_contents: contents,
         transactions,
-    };
-    Blob::encode(&checkpoint_data, BlobEncoding::Bcs)
+    }
+}
+
+/// Serves a fixed set of files over HTTP and counts the requests received for
+/// each of them.
+///
+/// Returns the base URL of the server and the request counter.
+async fn spawn_counting_file_server(
+    files: HashMap<String, Vec<u8>>,
+    token: CancellationToken,
+) -> (String, Arc<Mutex<HashMap<String, usize>>>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let requests = Arc::new(Mutex::new(HashMap::new()));
+    let files = Arc::new(files);
+
+    tokio::spawn({
+        let requests = requests.clone();
+        async move {
+            loop {
+                let socket = tokio::select! {
+                    _ = token.cancelled() => break,
+                    accepted = listener.accept() => match accepted {
+                        Ok((socket, _)) => socket,
+                        Err(_) => break,
+                    },
+                };
+                tokio::spawn(serve_connection(socket, files.clone(), requests.clone()));
+            }
+        }
+    });
+
+    (url, requests)
+}
+
+/// Answers every request on `socket` until the peer closes the connection.
+async fn serve_connection(
+    mut socket: TcpStream,
+    files: Arc<HashMap<String, Vec<u8>>>,
+    requests: Arc<Mutex<HashMap<String, usize>>>,
+) {
+    let mut pending = Vec::new();
+    let mut chunk = [0u8; 1024];
+    loop {
+        // Requests are all GETs, so the head is the whole request.
+        let head_len = loop {
+            if let Some(offset) = pending.windows(4).position(|window| window == b"\r\n\r\n") {
+                break offset + 4;
+            }
+            match socket.read(&mut chunk).await {
+                Ok(0) | Err(_) => return,
+                Ok(read) => pending.extend_from_slice(&chunk[..read]),
+            }
+        };
+        let head = String::from_utf8_lossy(&pending[..head_len]).into_owned();
+        pending.drain(..head_len);
+
+        let path = head
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or_default()
+            .trim_start_matches('/')
+            .to_owned();
+        *requests.lock().unwrap().entry(path.clone()).or_default() += 1;
+
+        let response = match files.get(&path) {
+            Some(body) => {
+                let mut response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nETag: \"{path}\"\r\nLast-Modified: \
+                     Wed, 21 Oct 2015 07:28:00 +0000\r\n\r\n",
+                    body.len()
+                )
+                .into_bytes();
+                response.extend_from_slice(body);
+                response
+            }
+            None => b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n".to_vec(),
+        };
+        if socket.write_all(&response).await.is_err() {
+            return;
+        }
+    }
+}
+
+/// Builds a historical store holding `checkpoint_count` checkpoints in a
+/// single file, as the file name to contents map a file server expects.
+fn mock_historical_store(checkpoint_count: CheckpointSequenceNumber) -> HashMap<String, Vec<u8>> {
+    let mut file = Vec::new();
+    file.extend_from_slice(&CHECKPOINT_FILE_MAGIC.to_be_bytes());
+    file.push(StorageFormat::Blob as u8);
+    file.push(FileCompression::None as u8);
+    for sequence_number in 0..checkpoint_count {
+        Blob::encode(
+            &mock_checkpoint_data(sequence_number, 0, vec![]),
+            BlobEncoding::Bcs,
+        )
         .unwrap()
-        .to_bytes()
+        .write(&mut file)
+        .unwrap();
+    }
+
+    let file_metadata =
+        create_file_metadata_from_bytes(Bytes::from(file.clone()), 0..checkpoint_count).unwrap();
+    let mut manifest = Manifest::new(0);
+    manifest.update(checkpoint_count, file_metadata);
+    let manifest_bytes = finalize_manifest(manifest).unwrap();
+
+    HashMap::from([
+        ("0.chk".to_owned(), file),
+        ("MANIFEST".to_owned(), manifest_bytes.to_vec()),
+    ])
+}
+
+/// A worker that never finishes processing a checkpoint, so that the executor
+/// makes no progress and the reader's capacity is never released.
+#[derive(Clone)]
+struct StalledWorker(CancellationToken);
+
+#[async_trait]
+impl Worker for StalledWorker {
+    type Message = ();
+    type Error = IngestionError;
+
+    async fn process_checkpoint(
+        &self,
+        _checkpoint: Arc<CheckpointData>,
+    ) -> Result<Self::Message, Self::Error> {
+        self.0.cancelled().await;
+        Ok(())
+    }
+}
+
+/// Once the reader has as many checkpoints in progress as it is allowed to
+/// hold, it must stop fetching from the historical store instead of
+/// downloading files it can only throw away again.
+#[tokio::test]
+async fn historical_read_stops_fetching_at_capacity() {
+    let files = mock_historical_store(4);
+    let server_token = CancellationToken::new();
+    let (url, requests) = spawn_counting_file_server(files, server_token.clone()).await;
+
+    let bundle = create_executor_bundle().await;
+    let mut executor = bundle.executor;
+    add_worker_pool(&mut executor, StalledWorker(bundle.token.clone()), 1)
+        .await
+        .unwrap();
+
+    let executor_fut = executor.run_with_config(CheckpointReaderConfig {
+        reader_options: ReaderOptions {
+            tick_interval_ms: 10,
+            batch_size: 1,
+            // Room for a single checkpoint, so the reader is at capacity as
+            // soon as it has handed over the first one.
+            data_limit: 1,
+            ..Default::default()
+        },
+        ingestion_path: None,
+        remote_store_url: Some(RemoteUrl::HybridHistoricalStore {
+            historical_url: url,
+            live_url: None,
+        }),
+    });
+    let executor_handle = tokio::spawn(executor_fut);
+
+    // Long enough for a reader that keeps fetching to tick many times over.
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    bundle.token.cancel();
+    let _ = executor_handle.await;
+    server_token.cancel();
+
+    let checkpoint_file_requests = requests.lock().unwrap().get("0.chk").copied().unwrap_or(0);
+    assert_eq!(
+        checkpoint_file_requests, 1,
+        "the reader downloaded the same checkpoint file {checkpoint_file_requests} times while \
+         being at capacity"
+    );
 }

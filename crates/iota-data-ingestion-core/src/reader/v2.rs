@@ -272,6 +272,12 @@ impl CheckpointReaderActor {
             .enumerate()
             .filter_map(|(index, metadata)| (index >= start_index).then_some(metadata))
         {
+            // Checkpoints from a file the channel has no room for would be
+            // thrown away again, so stop before spending the request.
+            if self.exceeds_capacity(self.current_checkpoint_number) {
+                return Err(IngestionError::MaxCheckpointsCapacityReached);
+            }
+
             let checkpoints = historical_reader
                 .iter_for_file(metadata.file_path())
                 .await?
