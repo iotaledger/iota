@@ -5749,7 +5749,6 @@ dependencies = [
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
- "jsonrpsee",
  "prometheus-filtered",
  "regex",
  "reqwest",
