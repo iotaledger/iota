@@ -557,11 +557,9 @@ async fn list_owned_objects_tto_indexing() {
     let coin_after_start = start_effects
         .mutated_excluding_gas()
         .iter()
-        .find_map(
-            |OwnedObjectReference {
-                 reference: obj_ref, ..
-             }| (obj_ref.object_id == coin_ref.object_id).then_some(*obj_ref),
-        )
+        .find_map(|mutated| {
+            (mutated.reference.object_id == coin_ref.object_id).then_some(mutated.reference)
+        })
         .expect("coin must appear in mutated set after start");
 
     // Parent starts with 1 coin (TTO'd in by `start`).

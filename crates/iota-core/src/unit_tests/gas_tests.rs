@@ -133,7 +133,7 @@ async fn publish_move_random_package(
     effects
         .created()
         .iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
         .reference
         .object_id

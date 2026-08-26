@@ -352,12 +352,7 @@ async fn test_object_owning_another_object() {
     let child_effect = effects
         .mutated()
         .into_iter()
-        .find(
-            |OwnedObjectReference {
-                 reference: object_ref,
-                 ..
-             }| object_ref.object_id == child_id,
-        )
+        .find(|mutated| mutated.reference.object_id == child_id)
         .unwrap();
     // Check that the child is now owned by the parent.
     let field_id = child_effect.owner.as_object();
@@ -496,7 +491,7 @@ async fn test_create_then_delete_parent_child() {
     let parent = effects
         .created()
         .iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Address(_)))
+        .find(|created| matches!(created.owner, Owner::Address(_)))
         .unwrap()
         .reference;
 
@@ -565,19 +560,14 @@ async fn test_create_then_delete_parent_child_wrap() {
     let parent = effects
         .created()
         .iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Address(_)))
+        .find(|created| matches!(created.owner, Owner::Address(_)))
         .unwrap()
         .reference;
 
     let field = effects
         .created()
         .iter()
-        .find(
-            |OwnedObjectReference {
-                 reference: object_ref,
-                 ..
-             }| object_ref.object_id != parent.object_id,
-        )
+        .find(|created| created.reference.object_id != parent.object_id)
         .unwrap()
         .reference;
 
@@ -668,19 +658,14 @@ async fn test_remove_child_when_no_prior_version_exists() {
     let parent = effects
         .created()
         .iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Address(_)))
+        .find(|created| matches!(created.owner, Owner::Address(_)))
         .unwrap()
         .reference;
 
     let field = effects
         .created()
         .iter()
-        .find(
-            |OwnedObjectReference {
-                 reference: object_ref,
-                 ..
-             }| object_ref.object_id != parent.object_id,
-        )
+        .find(|created| created.reference.object_id != parent.object_id)
         .unwrap()
         .reference;
 
@@ -3051,7 +3036,7 @@ pub async fn build_and_publish_test_package_with_upgrade_cap(
     let upgrade_cap = effects
         .created()
         .into_iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Address(_)))
+        .find(|created| matches!(created.owner, Owner::Address(_)))
         .unwrap();
 
     (package, upgrade_cap.reference)
@@ -3064,12 +3049,8 @@ pub async fn collect_packages_and_upgrade_caps(
     let packages: HashMap<_, _> = effects
         .created()
         .into_iter()
-        .filter(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
-        .map(
-            |OwnedObjectReference {
-                 reference: package, ..
-             }| (package.object_id, package),
-        )
+        .filter(|created| matches!(created.owner, Owner::Immutable))
+        .map(|created| (created.reference.object_id, created.reference))
         .collect();
     let mut caps = HashMap::new();
     for OwnedObjectReference {

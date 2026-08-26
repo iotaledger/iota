@@ -10,8 +10,7 @@ use std::{
 use async_trait::async_trait;
 use iota_json_rpc_types::BalanceChange;
 use iota_sdk_types::{
-    ExecutionStatus, ObjectDigest, ObjectId, OwnedObjectReference, Owner, StructTag,
-    TransactionEffects, TypeTag, Version,
+    ExecutionStatus, ObjectDigest, ObjectId, Owner, StructTag, TransactionEffects, TypeTag, Version,
 };
 use iota_types::{
     coin::Coin,
@@ -28,9 +27,7 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
     input_objs: Vec<InputObjectKind>,
     mocked_coin: Option<ObjectId>,
 ) -> Result<Vec<BalanceChange>, E> {
-    let OwnedObjectReference {
-        owner: gas_owner, ..
-    } = effects.gas_object();
+    let gas_owner = effects.gas_object().owner;
 
     // Only charge gas when tx fails, skip all object parsing
     if effects.status() != &ExecutionStatus::Success {

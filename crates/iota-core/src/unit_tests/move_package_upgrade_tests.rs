@@ -226,7 +226,7 @@ impl UpgradeStateRunner {
         let cap = effects
             .created()
             .into_iter()
-            .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner, Owner::Address(_)))
             .unwrap();
 
         (package, cap.reference)
@@ -279,11 +279,9 @@ impl UpgradeStateRunner {
         .await
         .unwrap();
 
-        if let Some(updated_cap) = effects.mutated().into_iter().find_map(
-            |OwnedObjectReference { reference: cap, .. }| {
-                (cap.object_id == self.upgrade_cap.object_id).then_some(cap)
-            },
-        ) {
+        if let Some(updated_cap) = effects.mutated().into_iter().find_map(|mutated| {
+            (mutated.reference.object_id == self.upgrade_cap.object_id).then_some(mutated.reference)
+        }) {
             self.upgrade_cap = updated_cap;
         }
 
@@ -412,12 +410,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     let created = effects
         .created()
         .into_iter()
-        .find_map(
-            |OwnedObjectReference {
-                 reference: b,
-                 owner,
-             }| matches!(owner, Owner::Address(_)).then_some(b),
-        )
+        .find_map(|created| matches!(created.owner, Owner::Address(_)).then_some(created.reference))
         .unwrap();
 
     let b = runner
@@ -857,7 +850,7 @@ async fn test_multiple_upgrades(
     let package_v2 = effects
         .created()
         .into_iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
         .reference
         .object_id;
@@ -924,7 +917,7 @@ async fn test_interleaved_upgrades() {
     let dep_v2_package = effects
         .created()
         .into_iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
         .reference;
 
@@ -991,7 +984,7 @@ async fn test_publish_override_happy_path() {
     let dep_v2_package = effects
         .created()
         .into_iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
         .reference;
 
@@ -1137,7 +1130,7 @@ async fn test_publish_transitive_override_happy_path() {
     let base_v2_package = effects
         .created()
         .into_iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
         .reference;
 
@@ -1243,12 +1236,7 @@ async fn test_upgraded_types_in_one_txn() {
     let created_b = effects
         .created()
         .into_iter()
-        .find_map(
-            |OwnedObjectReference {
-                 reference: b,
-                 owner,
-             }| matches!(owner, Owner::Address(_)).then_some(b),
-        )
+        .find_map(|created| matches!(created.owner, Owner::Address(_)).then_some(created.reference))
         .unwrap();
 
     // Create an instance of the type introduced at version 3 using function from
@@ -1319,7 +1307,7 @@ async fn test_different_versions_across_calls() {
     let package_v3 = effects
         .created()
         .into_iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
         .reference
         .object_id;
@@ -1368,7 +1356,7 @@ async fn test_conflicting_versions_across_calls() {
     let base_v2_package = effects
         .created()
         .into_iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
         .reference;
 
@@ -1414,7 +1402,7 @@ async fn test_conflicting_versions_across_calls() {
     let dependent_v2_package = effects
         .created()
         .into_iter()
-        .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
         .reference;
 

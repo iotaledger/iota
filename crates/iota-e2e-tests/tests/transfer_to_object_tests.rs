@@ -119,12 +119,7 @@ fn get_parent_and_child(created: Vec<OwnedObjectReference>) -> (ObjectReference,
     // of another object.
     let created_addrs: HashSet<_> = created
         .iter()
-        .map(
-            |OwnedObjectReference {
-                 reference: object_ref,
-                 ..
-             }| object_ref.object_id,
-        )
+        .map(|owned| owned.reference.object_id)
         .collect();
     let (child, parent_id) = created
         .iter()
@@ -137,12 +132,7 @@ fn get_parent_and_child(created: Vec<OwnedObjectReference>) -> (ObjectReference,
         .unwrap();
     let parent = created
         .iter()
-        .find(
-            |OwnedObjectReference {
-                 reference: object_ref,
-                 ..
-             }| object_ref.object_id == parent_id,
-        )
+        .find(|owned| owned.reference.object_id == parent_id)
         .unwrap();
     (parent.reference, child.reference)
 }
@@ -207,20 +197,16 @@ impl TestEnvironment {
         let new_child_ref =
             fx.0.mutated_excluding_gas()
                 .iter()
-                .find_map(
-                    |OwnedObjectReference {
-                         reference: oref, ..
-                     }| (oref.object_id == child.object_id).then_some(*oref),
-                )
+                .find_map(|mutated| {
+                    (mutated.reference.object_id == child.object_id).then_some(mutated.reference)
+                })
                 .unwrap();
         let new_parent_ref =
             fx.0.mutated_excluding_gas()
                 .iter()
-                .find_map(
-                    |OwnedObjectReference {
-                         reference: oref, ..
-                     }| (oref.object_id == parent.object_id).then_some(*oref),
-                )
+                .find_map(|mutated| {
+                    (mutated.reference.object_id == parent.object_id).then_some(mutated.reference)
+                })
                 .unwrap();
         Ok((new_parent_ref, new_child_ref))
     }
@@ -231,11 +217,9 @@ impl TestEnvironment {
         assert!(fx.0.status().is_success());
         fx.0.mutated_excluding_gas()
             .iter()
-            .find_map(
-                |OwnedObjectReference {
-                     reference: oref, ..
-                 }| (oref.object_id == parent.object_id).then_some(*oref),
-            )
+            .find_map(|mutated| {
+                (mutated.reference.object_id == parent.object_id).then_some(mutated.reference)
+            })
             .unwrap()
     }
 }

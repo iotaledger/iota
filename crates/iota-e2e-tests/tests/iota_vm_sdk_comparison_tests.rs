@@ -160,9 +160,7 @@ async fn compare_local_vm_staking_against_test_cluster() {
             .effects
             .mutated()
             .into_iter()
-            .filter(|OwnedObjectReference { reference: r, .. }| {
-                r.object_id != node_gas.reference.object_id
-            })
+            .filter(|mutated| mutated.reference.object_id != node_gas.reference.object_id)
             .collect();
         let local_deleted: BTreeSet<ObjectReference> =
             result.effects.deleted().into_iter().collect();
@@ -451,11 +449,7 @@ async fn execute_tto_call(
 fn parent_and_child(created: Vec<OwnedObjectReference>) -> (ObjectReference, ObjectReference) {
     let created_ids: HashSet<_> = created
         .iter()
-        .map(
-            |OwnedObjectReference {
-                 reference: oref, ..
-             }| oref.object_id,
-        )
+        .map(|owned| owned.reference.object_id)
         .collect();
     let (child, parent_id) = created
         .iter()
@@ -473,11 +467,7 @@ fn parent_and_child(created: Vec<OwnedObjectReference>) -> (ObjectReference, Obj
         .expect("start must create an object owned by another created object");
     let parent = created
         .iter()
-        .find(
-            |OwnedObjectReference {
-                 reference: oref, ..
-             }| oref.object_id == parent_id,
-        )
+        .find(|owned| owned.reference.object_id == parent_id)
         .expect("the owning parent must be among the created objects");
     (parent.reference, child)
 }
@@ -486,10 +476,6 @@ fn parent_and_child(created: Vec<OwnedObjectReference>) -> (ObjectReference, Obj
 fn mutated_ref(fx: &TransactionEffects, id: ObjectId) -> ObjectReference {
     fx.mutated_excluding_gas()
         .iter()
-        .find_map(
-            |OwnedObjectReference {
-                 reference: oref, ..
-             }| (oref.object_id == id).then_some(*oref),
-        )
+        .find_map(|mutated| (mutated.reference.object_id == id).then_some(mutated.reference))
         .unwrap_or_else(|| panic!("object {id} must be among the mutated objects"))
 }

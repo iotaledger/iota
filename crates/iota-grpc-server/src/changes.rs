@@ -152,9 +152,7 @@ pub fn derive_balance_changes(
     output_objects: &[Object],
     mocked_coin: Option<ObjectId>,
 ) -> Result<Vec<DerivedBalanceChange>, DeriveChangesError> {
-    let OwnedObjectReference {
-        owner: gas_owner, ..
-    } = effects.gas_object();
+    let gas_owner = effects.gas_object().owner;
 
     // Only charge gas when the tx fails, skip all object parsing
     if effects.status() != &ExecutionStatus::Success {

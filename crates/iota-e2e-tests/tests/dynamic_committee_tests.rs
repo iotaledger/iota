@@ -168,13 +168,10 @@ impl StressTestRunner {
         let mut layout_resolver = epoch_store
             .executor()
             .type_layout_resolver(Box::new(backing_package_store.as_ref()));
-        for OwnedObjectReference {
-            reference: obj_ref, ..
-        } in effects.created()
-        {
+        for created in effects.created() {
             let object_opt = state
                 .get_object_store()
-                .get_object_by_key(&obj_ref.object_id, obj_ref.version);
+                .get_object_by_key(&created.reference.object_id, created.reference.version);
             let Some(object) = object_opt else { continue };
             let struct_tag = object.struct_tag().unwrap();
             let total_iota =
@@ -183,13 +180,10 @@ impl StressTestRunner {
         }
 
         println!("MUTATED:");
-        for OwnedObjectReference {
-            reference: obj_ref, ..
-        } in effects.mutated()
-        {
+        for mutated in effects.mutated() {
             let object = state
                 .get_object_store()
-                .get_object_by_key(&obj_ref.object_id, obj_ref.version)
+                .get_object_by_key(&mutated.reference.object_id, mutated.reference.version)
                 .unwrap();
             let struct_tag = object.struct_tag().unwrap();
             let total_iota =
@@ -272,21 +266,17 @@ impl StressTestRunner {
         let db = self.state().get_object_store().clone();
         let found: Vec<_> = effects
             .iter()
-            .filter_map(
-                |OwnedObjectReference {
-                     reference: obj_ref, ..
-                 }| {
-                    let object = db
-                        .get_object_by_key(&obj_ref.object_id, obj_ref.version)
-                        .unwrap();
-                    let struct_tag = object.struct_tag().unwrap();
-                    if struct_tag.name().as_str() == name {
-                        Some(object)
-                    } else {
-                        None
-                    }
-                },
-            )
+            .filter_map(|owned| {
+                let object = db
+                    .get_object_by_key(&owned.reference.object_id, owned.reference.version)
+                    .unwrap();
+                let struct_tag = object.struct_tag().unwrap();
+                if struct_tag.name().as_str() == name {
+                    Some(object)
+                } else {
+                    None
+                }
+            })
             .collect();
         assert!(found.len() <= 1, "Multiple objects of type {name} found");
         found.first().cloned()

@@ -6,8 +6,8 @@ use std::sync::Arc;
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Identifier, ObjectId, ObjectReference, OwnedObjectReference, SharedObjectReference,
-    StructTag, TransactionDigest, TransactionEffects, TypeTag, Version,
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag,
+    TransactionDigest, TransactionEffects, TypeTag, Version,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -49,12 +49,11 @@ async fn test_regulated_coin_v1_types() {
     let mut metadata_object = None;
     let mut regulated_metadata_object = None;
     let mut package_id = None;
-    for OwnedObjectReference {
-        reference: oref,
-        owner: _owner,
-    } in env.publish_effects.created()
-    {
-        let object = env.authority.get_object(&oref.object_id).unwrap();
+    for created in env.publish_effects.created() {
+        let object = env
+            .authority
+            .get_object(&created.reference.object_id)
+            .unwrap();
         if object.is_package() {
             package_id = Some(object.id());
             continue;
@@ -441,12 +440,11 @@ impl RegulatedCoinEnv {
         let mut deny_cap_id = None;
         let mut coin_id = None;
 
-        for OwnedObjectReference {
-            reference: oref,
-            owner: _owner,
-        } in env.publish_effects.created()
-        {
-            let object = env.authority.get_object(&oref.object_id).unwrap();
+        for created in env.publish_effects.created() {
+            let object = env
+                .authority
+                .get_object(&created.reference.object_id)
+                .unwrap();
             if object.is_package() {
                 package_id = Some(object.id());
                 continue;

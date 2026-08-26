@@ -48,13 +48,9 @@ async fn objects_transitioning_to_shared_remember_their_previous_version_pcool_f
 async fn objects_transitioning_to_shared_remember_their_previous_version(pcool: bool) {
     let _pcool_guard = override_pcool_flow(pcool);
     let env = TestEnvironment::new().await;
-    let OwnedObjectReference {
-        reference: counter, ..
-    } = env.create_counter().await;
+    let counter = env.create_counter().await.reference;
 
-    let OwnedObjectReference {
-        reference: counter, ..
-    } = env.increment_owned_counter(counter).await;
+    let counter = env.increment_owned_counter(counter).await.reference;
     assert_ne!(counter.version, OBJECT_START_VERSION);
 
     let ExecutionError::MoveAbort { location, code } =
@@ -70,14 +66,9 @@ async fn objects_transitioning_to_shared_remember_their_previous_version(pcool: 
 #[sim_test]
 async fn shared_object_owner_doesnt_change_on_write() {
     let env = TestEnvironment::new().await;
-    let OwnedObjectReference {
-        reference: counter, ..
-    } = env.create_counter().await;
+    let counter = env.create_counter().await.reference;
 
-    let OwnedObjectReference {
-        reference: inc_counter,
-        ..
-    } = env.increment_owned_counter(counter).await;
+    let inc_counter = env.increment_owned_counter(counter).await.reference;
     let ExecutionError::MoveAbort { location, code } =
         env.share_counter(inc_counter).await.unwrap_err()
     else {
@@ -91,13 +82,9 @@ async fn shared_object_owner_doesnt_change_on_write() {
 #[sim_test]
 async fn initial_shared_version_mismatch_start_version() {
     let env = TestEnvironment::new().await;
-    let OwnedObjectReference {
-        reference: counter, ..
-    } = env.create_counter().await;
+    let counter = env.create_counter().await.reference;
 
-    let OwnedObjectReference {
-        reference: counter, ..
-    } = env.increment_owned_counter(counter).await;
+    let counter = env.increment_owned_counter(counter).await.reference;
     let ExecutionError::MoveAbort { location, code } =
         env.share_counter(counter).await.unwrap_err()
     else {
@@ -111,9 +98,7 @@ async fn initial_shared_version_mismatch_start_version() {
 #[sim_test]
 async fn initial_shared_version_mismatch_current_version() {
     let env = TestEnvironment::new().await;
-    let OwnedObjectReference {
-        reference: counter, ..
-    } = env.create_counter().await;
+    let counter = env.create_counter().await.reference;
 
     let ExecutionError::MoveAbort { location, code } =
         env.share_counter(counter).await.unwrap_err()
@@ -186,7 +171,7 @@ impl TestEnvironment {
 
         *fx.created()
             .iter()
-            .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner, Owner::Address(_)))
             .expect("Owned object created")
     }
 
@@ -199,7 +184,7 @@ impl TestEnvironment {
 
         *fx.created()
             .iter()
-            .find(|OwnedObjectReference { owner, .. }| owner.is_shared())
+            .find(|created| created.owner.is_shared())
             .expect("Shared object created")
     }
 
@@ -219,7 +204,7 @@ impl TestEnvironment {
         Ok(*fx
             .mutated()
             .iter()
-            .find(|OwnedObjectReference { reference: obj, .. }| obj.object_id == counter.object_id)
+            .find(|mutated| mutated.reference.object_id == counter.object_id)
             .expect("Counter mutated"))
     }
 
@@ -234,7 +219,7 @@ impl TestEnvironment {
 
         *fx.mutated()
             .iter()
-            .find(|OwnedObjectReference { reference: obj, .. }| obj.object_id == counter.object_id)
+            .find(|mutated| mutated.reference.object_id == counter.object_id)
             .expect("Counter modified")
     }
 
@@ -257,7 +242,7 @@ impl TestEnvironment {
         Ok(*fx
             .mutated()
             .iter()
-            .find(|OwnedObjectReference { reference: obj, .. }| obj.object_id == counter)
+            .find(|mutated| mutated.reference.object_id == counter)
             .expect("Counter modified"))
     }
 }

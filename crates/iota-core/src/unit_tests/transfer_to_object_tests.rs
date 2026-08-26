@@ -155,11 +155,9 @@ impl TestRunner {
                 .unwrap();
         }
 
-        if let Some(updated_cap) = effects.mutated().into_iter().find_map(
-            |OwnedObjectReference { reference: cap, .. }| {
-                (cap.object_id == self.upgrade_cap.object_id).then_some(cap)
-            },
-        ) {
+        if let Some(updated_cap) = effects.mutated().into_iter().find_map(|mutated| {
+            (mutated.reference.object_id == self.upgrade_cap.object_id).then_some(mutated.reference)
+        }) {
             self.upgrade_cap = updated_cap;
         }
 
@@ -190,11 +188,9 @@ impl TestRunner {
                 .unwrap();
         }
 
-        if let Some(updated_cap) = effects.mutated().into_iter().find_map(
-            |OwnedObjectReference { reference: cap, .. }| {
-                (cap.object_id == self.upgrade_cap.object_id).then_some(cap)
-            },
-        ) {
+        if let Some(updated_cap) = effects.mutated().into_iter().find_map(|mutated| {
+            (mutated.reference.object_id == self.upgrade_cap.object_id).then_some(mutated.reference)
+        }) {
             self.upgrade_cap = updated_cap;
         }
 
@@ -413,17 +409,17 @@ async fn test_tto_invalid_receiving_arguments() {
         let shared = *effects
             .created()
             .iter()
-            .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Shared(_)))
+            .find(|created| matches!(created.owner, Owner::Shared(_)))
             .unwrap();
         let immutable = *effects
             .created()
             .iter()
-            .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Immutable))
+            .find(|created| matches!(created.owner, Owner::Immutable))
             .unwrap();
         let object_owned = *effects
             .created()
             .iter()
-            .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Object(_)))
+            .find(|created| matches!(created.owner, Owner::Object(_)))
             .unwrap();
 
         #[expect(clippy::type_complexity)]
@@ -1102,7 +1098,7 @@ async fn test_tto_valid_dependencies() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|OwnedObjectReference { reference: o, .. }| o.object_id == child.reference .object_id)
+            .find(|mutated| mutated.reference.object_id == child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
@@ -1201,7 +1197,7 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|OwnedObjectReference { reference: o, .. }| o.object_id == child.reference .object_id)
+            .find(|mutated| mutated.reference.object_id == child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
@@ -1296,7 +1292,7 @@ async fn test_tto_dependencies_dont_receive() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|OwnedObjectReference { reference: o, .. }| o.object_id == old_child.reference .object_id)
+            .find(|mutated| mutated.reference.object_id == old_child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
@@ -1393,7 +1389,7 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|OwnedObjectReference { reference: o, .. }| o.object_id == old_child.reference .object_id)
+            .find(|mutated| mutated.reference.object_id == old_child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
@@ -1488,7 +1484,7 @@ async fn test_tto_dependencies_receive_and_abort() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|OwnedObjectReference { reference: o, .. }| o.object_id == old_child.reference .object_id)
+            .find(|mutated| mutated.reference.object_id == old_child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
@@ -1582,7 +1578,7 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|OwnedObjectReference { reference: o, .. }| o.object_id == old_child.reference .object_id)
+            .find(|mutated| mutated.reference.object_id == old_child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
@@ -1656,12 +1652,12 @@ async fn receive_and_dof_interleave() {
         let shared = *effects
             .created()
             .iter()
-            .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Shared(_)))
+            .find(|created| matches!(created.owner, Owner::Shared(_)))
             .unwrap();
         let owned = *effects
             .created()
             .iter()
-            .find(|OwnedObjectReference { owner, .. }| matches!(owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner, Owner::Address(_)))
             .unwrap();
         let Owner::Shared(initial_shared_version) = shared.owner else { unreachable!() };
 

@@ -611,7 +611,7 @@ impl PrimaryWorker {
             let superseded_ids: HashSet<ObjectId> = effects
                 .mutated()
                 .into_iter()
-                .map(|OwnedObjectReference { reference: r, .. }| r.object_id)
+                .map(|mutated| mutated.reference.object_id)
                 .chain(
                     effects
                         .all_removed_objects()
@@ -637,10 +637,10 @@ impl PrimaryWorker {
             // 2. Created objects did not exist before this transaction. Use lamport version
             //    - 1 so the version is monotonic with other backward-history rows for the
             //    same object.
-            for OwnedObjectReference { reference: r, .. } in effects.created() {
+            for created in effects.created() {
                 result.push(StoredBackwardHistoryObject::from_empty(
-                    r.object_id,
-                    r.version.as_u64() as i64 - 1,
+                    created.reference.object_id,
+                    created.reference.version.as_u64() as i64 - 1,
                     ObjectStatus::NotYetCreated,
                     checkpoint_seq,
                 ));
@@ -651,7 +651,7 @@ impl PrimaryWorker {
             let unwrapped_refs = effects
                 .unwrapped()
                 .into_iter()
-                .map(|OwnedObjectReference { reference: r, .. }| r);
+                .map(|unwrapped| unwrapped.reference);
             let unwrapped_then_deleted_refs = effects.unwrapped_then_deleted().into_iter();
             for r in unwrapped_refs.chain(unwrapped_then_deleted_refs) {
                 result.push(StoredBackwardHistoryObject::from_empty(

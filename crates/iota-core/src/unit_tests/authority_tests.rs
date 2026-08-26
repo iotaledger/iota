@@ -5250,15 +5250,11 @@ async fn test_consensus_message_processed() {
         }
 
         // Update to the new gas object for new tx
-        gas_object_ref = *effects1
+        gas_object_ref = effects1
             .data()
             .mutated()
             .iter()
-            .map(
-                |OwnedObjectReference {
-                     reference: objref, ..
-                 }| objref,
-            )
+            .map(|mutated| mutated.reference)
             .find(|objref| objref.object_id == gas_object_ref.object_id)
             .unwrap();
     }
@@ -6215,10 +6211,7 @@ async fn test_publish_transitive_dependencies_ok() {
         .unwrap()
         .1
         .into_data();
-    let OwnedObjectReference {
-        reference: object_ref_c,
-        ..
-    } = txn_effects.created()[0];
+    let object_ref_c = txn_effects.created()[0].reference;
     let gas_ref = txn_effects.gas_object().reference;
 
     // Publish `package B`
@@ -6257,10 +6250,7 @@ async fn test_publish_transitive_dependencies_ok() {
         .unwrap()
         .1
         .into_data();
-    let OwnedObjectReference {
-        reference: object_ref_b,
-        ..
-    } = txn_effects.created()[0];
+    let object_ref_b = txn_effects.created()[0].reference;
     let gas_ref = txn_effects.gas_object().reference;
 
     // Publish `package A`
@@ -6306,10 +6296,7 @@ async fn test_publish_transitive_dependencies_ok() {
         .unwrap()
         .1
         .into_data();
-    let OwnedObjectReference {
-        reference: object_ref_a,
-        ..
-    } = txn_effects.created()[0];
+    let object_ref_a = txn_effects.created()[0].reference;
     let gas_ref = txn_effects.gas_object().reference;
 
     // Publish `package root`

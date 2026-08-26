@@ -30,7 +30,7 @@ use iota_protocol_config::{Chain, ProtocolConfig};
 use iota_sdk_types::{
     Address, Argument, CheckpointContentsDigest, CheckpointDigest, Command, ConsensusCommitDigest,
     Event, ExecutionStatus, GasPayment, Identifier, MoveAuthenticatorV1, ObjectData, ObjectId,
-    ObjectReference, OwnedObjectReference, ProgrammableTransaction, RandomnessRound, Transaction,
+    ObjectReference, ProgrammableTransaction, RandomnessRound, Transaction,
     TransactionDenyRulesUpdate, TransactionDigest, TransactionEffects, TransactionEvents,
     TransactionExpiration, TransactionKind, TransactionV1, TypeTag, UserSignature, Version,
     checkpoint::CheckpointContents, gas::GasCostSummary, move_package::MovePackage,
@@ -1910,32 +1910,17 @@ impl IotaTestAdapter {
         let mut created_ids: Vec<_> = effects
             .created()
             .iter()
-            .map(
-                |OwnedObjectReference {
-                     reference: object_ref,
-                     ..
-                 }| object_ref.object_id,
-            )
+            .map(|created| created.reference.object_id)
             .collect();
         let mut mutated_ids: Vec<_> = effects
             .mutated()
             .iter()
-            .map(
-                |OwnedObjectReference {
-                     reference: object_ref,
-                     ..
-                 }| object_ref.object_id,
-            )
+            .map(|mutated| mutated.reference.object_id)
             .collect();
         let mut unwrapped_ids: Vec<_> = effects
             .unwrapped()
             .iter()
-            .map(
-                |OwnedObjectReference {
-                     reference: object_ref,
-                     ..
-                 }| object_ref.object_id,
-            )
+            .map(|unwrapped| unwrapped.reference.object_id)
             .collect();
         let mut deleted_ids: Vec<_> = effects
             .deleted()
