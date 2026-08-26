@@ -6,28 +6,35 @@
 # remote machine under tmux/nohup: every stage skips work already on disk,
 # so re-running after an interruption continues where it stopped.
 #
-#   run_all.sh OUT_DIR [--write-duration SECS] [--skip-cold] [--skip-write]
+#   run_all.sh OUT_DIR [--write-duration SECS] [--skip-cold] [--skip-write] [--turbo on|off]
+#
+# --turbo defaults to off (the fitting protocol: base clock, repeatable). A
+# second full run with --turbo on, into its own OUT_DIR, measures how much the
+# base-clock fit over-prices a machine running boosted; the turbo state is
+# recorded in every dataset manifest, so the two cannot be confused.
 #
 # Stages: build → Stage 1 sweeps → mixed workload → cold reads (page cache
 # dropped when root/sudo is available) → optional sustained write run →
 # fit → validation score. Logs to OUT_DIR/run_all.log.
 set -euo pipefail
-out="${1:?usage: run_all.sh OUT_DIR [--write-duration SECS] [--skip-cold] [--skip-write]}"; shift
-write_duration=0; skip_cold=0; skip_write=1
+out="${1:?usage: run_all.sh OUT_DIR [--write-duration SECS] [--skip-cold] [--skip-write] [--turbo on|off]}"; shift
+write_duration=0; skip_cold=0; skip_write=1; turbo="off"
 while [ $# -gt 0 ]; do
   case "$1" in
     --write-duration) write_duration="$2"; skip_write=0; shift 2;;
     --skip-cold) skip_cold=1; shift;;
     --skip-write) skip_write=1; shift;;
+    --turbo) turbo="$2"; shift 2;;
     *) echo "unknown arg $1" >&2; exit 2;;
   esac
 done
+case "$turbo" in on|off) ;; *) echo "--turbo must be on or off" >&2; exit 2;; esac
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../../.." && pwd)"
 mkdir -p "$out"
 log="$out/run_all.log"
 exec > >(tee -a "$log") 2>&1
-echo "=== run_all start $(date -u +%FT%TZ) on $(hostname) ==="
+echo "=== run_all start $(date -u +%FT%TZ) on $(hostname) — turbo $turbo ==="
 
 stage() { echo; echo "--- $1 ($(date -u +%T)) ---"; }
 
@@ -46,7 +53,7 @@ fi
 echo "all build prerequisites present"
 
 stage "machine state"
-bash "$here/machine_prep.sh" "$out"
+bash "$here/machine_prep.sh" "$out" --turbo "$turbo"
 
 stage "build (release)"
 (cd "$repo" && cargo build --release -p iota-single-node-benchmark)

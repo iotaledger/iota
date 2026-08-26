@@ -20,7 +20,7 @@ never reach `--profile-output`.
 cargo build --release -p iota-single-node-benchmark --bin calibrate
 
 # full Stage 1 sweep set (defaults: 5 runs x 100 txs per point)
-./sweep.py --out ~/calibration-data/$(date +%Y%m%d)-macbook
+./sweep.py --out ~/calibration-data/$(date +%Y%m%d-%H%M%S)-macbook
 
 # plumbing check (3 values, 2 runs, 20 txs per point)
 ./sweep.py --out /tmp/sweep-check --quick
@@ -259,8 +259,9 @@ curl https://sh.rustup.rs -sSf | sh            # the toolchain is pinned by rust
 
 # every session: run inside tmux so an SSH drop does not kill the collection
 tmux new -s calibration
-crates/iota-single-node-benchmark/calibration/run_all.sh /data/calibration/$(date +%Y%m%d)
+crates/iota-single-node-benchmark/calibration/run_all.sh /data/calibration/$(date +%Y%m%d-%H%M%S)
 # add --write-duration 14400 for a four-hour sustained write run
+# add --turbo on (default off) for the boosted-clock comparison run — use a separate OUT_DIR
 
 # back on your machine
 rsync -az server:/data/calibration/ ~/calibration-data/server/
