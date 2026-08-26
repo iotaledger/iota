@@ -663,7 +663,7 @@ async fn replay_shared_object_transaction() {
             .await;
 
         // Ensure the sequence number of the shared object did not change.
-        let curr = effects.created()[0].0.version;
+        let curr = effects.created()[0].reference.version;
         if let Some(prev) = version {
             assert_eq!(prev, curr, "Version of shared object did not change.");
         }

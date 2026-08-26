@@ -1573,7 +1573,7 @@ async fn try_get_past_object_deleted() {
         )
         .await;
 
-    let created_object_id = tx_block_response.created()[0].0.object_id;
+    let created_object_id = tx_block_response.created()[0].reference.object_id;
 
     let objects = cluster
         .get_owned_objects(address, Some(IotaObjectDataOptions::full_content()))
