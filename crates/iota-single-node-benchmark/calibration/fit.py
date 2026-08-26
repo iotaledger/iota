@@ -37,6 +37,7 @@ BASE_PREDICTORS = [
     "interp_instruction_count",
     "interp_stack_size_flow",
     "interp_stack_height_flow",
+    "values_constructed",
     "input_object_count",
     "input_object_bytes",
     "child_object_reads",
