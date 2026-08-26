@@ -9319,12 +9319,12 @@ async fn the_index_history_retains_exactly_the_configured_epochs() {
 
     authority.advance_historic_buckets(4).await.unwrap();
 
-    // Epoch 4 is the one being entered and 3 the one before it, so those two
-    // are the window; everything below it is gone.
-    assert_eq!(indexes.retained_history_epochs(), vec![3, 4]);
+    // Epoch 4 is the one being entered, so the window is that epoch plus the
+    // two before it; everything below is gone.
+    assert_eq!(indexes.retained_history_epochs(), vec![2, 3, 4]);
     // And gone durably: a dropped epoch's bucket cannot be reopened.
-    assert!(indexes.ensure_history_bucket_exists(2).is_err());
-    assert!(indexes.ensure_history_bucket_exists(3).is_ok());
+    assert!(indexes.ensure_history_bucket_exists(1).is_err());
+    assert!(indexes.ensure_history_bucket_exists(2).is_ok());
 }
 
 /// Expiring the checkpoint buckets must move `HighestPruned` up to the last
