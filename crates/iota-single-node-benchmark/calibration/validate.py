@@ -4,7 +4,7 @@
 """Stage 3 validation: score a calibration artifact on data it was not
 trained on, against the plan's acceptance criteria.
 
-    # collect a mixed-workload dataset (shapes interleaved within one run)
+    # collect a mixed-workload dataset (workloads interleaved within one run)
     ./validate.py collect --out DIR [--spec mixed-default.json] [--runs 5]
 
     # score an artifact against any dataset(s)
@@ -12,8 +12,8 @@ trained on, against the plan's acceptance criteria.
 
 Acceptance (from the plan): predicted cpu_time >= measured on >= 99% of
 transactions, and the 95th-percentile overestimate <= ~2x. Scoring a
-single-shape sweep dataset with a mixed-trained artifact is the
-"single-shape commits" check; scoring mixed data with a sweep-trained
+single-workload sweep dataset with a mixed-trained artifact is the
+"single-workload commits" check; scoring mixed data with a sweep-trained
 artifact is the reverse. Replay of real checkpoint ranges uses the same
 scorer once replay capture exists.
 """
@@ -125,7 +125,7 @@ def score(args):
     print(f"p95 overestimate: x{p95_over:.2f} (target <= x{P95_TARGET}) "
           f"{'PASS' if p95_pass else 'FAIL'}")
     print(f"median overestimate: x{median_over:.2f}")
-    print("\nper shape/sweep (coverage, median overestimate):")
+    print("\nper workload (coverage, median overestimate):")
     for s, v in report["by_sweep"].items():
         flag = "" if v["coverage"] >= COVERAGE_TARGET else "  <-- under-covered"
         print(f"  {s}: {v['coverage']:.2%}, x{v['median_overestimate']}{flag}")

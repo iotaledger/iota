@@ -100,7 +100,7 @@ def main():
     if not rounds:
         sys.exit("no rounds recorded")
 
-    # User payload bytes per round, from the workload shape.
+    # User payload bytes per round, from the workload parameters.
     user_bytes_per_round = args.tx_count * args.num_mints * args.nft_size
     total_user_bytes = user_bytes_per_round * len(rounds)
 
