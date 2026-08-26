@@ -184,7 +184,7 @@ impl Cluster for LocalNewCluster {
             // Derive the node configs of the network from its persisted state.
             let network_config = PersistedNetworkConfig::read(&config_dir)?.into_network_config(
                 &config_dir,
-                node::Genesis::new_from_file(config_dir.join(IOTA_GENESIS_FILENAME)),
+                Genesis::new_from_file(config_dir.join(IOTA_GENESIS_FILENAME)),
             )?;
             cluster_builder = cluster_builder.set_network_config(network_config);
 
