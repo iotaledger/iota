@@ -31,6 +31,7 @@ use crate::authority::{
     authority_store_types::{
         StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
     },
+    epoch_markers::EpochMarkers,
     epoch_start_configuration::EpochStartConfiguration,
     historic_ledger::HistoricLedger,
     historic_objects::HistoricObjects,
@@ -271,7 +272,7 @@ impl AuthorityPerpetualTables {
     pub fn open_with_historic_objects(
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
-    ) -> Result<(Self, HistoricObjects, HistoricLedger), TypedStoreError> {
+    ) -> Result<(Self, HistoricObjects, HistoricLedger, EpochMarkers), TypedStoreError> {
         let (tables, db_options, ledger_db_options) =
             Self::open_with_db_options(parent_path, db_options_override);
         let mut historic_objects = HistoricObjects::open(
@@ -290,16 +291,17 @@ impl AuthorityPerpetualTables {
             historic_objects.mark_backlog_swept();
         }
         let historic_ledger = HistoricLedger::open(tables.objects.db.clone(), &ledger_db_options)?;
-        Ok((tables, historic_objects, historic_ledger))
+        let epoch_markers = EpochMarkers::open(tables.objects.db.clone(), &db_options)?;
+        Ok((tables, historic_objects, historic_ledger, epoch_markers))
     }
 
     /// The perpetual tables, the base options their column families were
     /// opened with, and the base options of the historic ledger buckets. The
-    /// historic object buckets clone the former, so they share the base
-    /// options' block cache with each other and with every column family that
-    /// takes those options unchanged; `objects`, `live_owned_object_markers`,
-    /// `transactions`, `effects` and the ledger buckets install caches of
-    /// their own.
+    /// historic object and epoch marker buckets clone the former, so they
+    /// share the base options' block cache with each other and with every
+    /// column family that takes those options unchanged; `objects`,
+    /// `live_owned_object_markers`, `transactions`, `effects` and the ledger
+    /// buckets install caches of their own.
     fn open_with_db_options(
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
@@ -337,6 +339,10 @@ impl AuthorityPerpetualTables {
         table_options.extend(HistoricLedger::extra_column_family_options(
             &path,
             &ledger_db_options,
+        ));
+        table_options.extend(EpochMarkers::extra_column_family_options(
+            &path,
+            &db_options,
         ));
         let table_options = DBMapTableConfigMap::new(table_options);
         let tables = Self::open_tables_read_write(
