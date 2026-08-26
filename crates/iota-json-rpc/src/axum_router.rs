@@ -206,14 +206,8 @@ async fn process_raw_request<L: Logger>(
             return blocked_response;
         }
     }
-    if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
-        // handle response tallying
-        let response = process_request(request, api_version, service.call_data()).await;
-        if let Some(traffic_controller) = &service.traffic_controller {
-            handle_traffic_resp(traffic_controller.clone(), client, &response);
-        }
-
-        response
+    let response = if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
+        process_request(request, api_version, service.call_data()).await
     } else if let Ok(_batch) = serde_json::from_str::<Vec<&RawValue>>(raw_request) {
         MethodResponse::error(
             Id::Null,
@@ -222,7 +216,13 @@ async fn process_raw_request<L: Logger>(
     } else {
         let (id, code) = prepare_error(raw_request);
         MethodResponse::error(id, ErrorObject::from(code))
+    };
+    // A request the node cannot parse is tallied like any other request, so
+    // that a client cannot send malformed requests without a limit.
+    if let Some(traffic_controller) = &service.traffic_controller {
+        handle_traffic_resp(traffic_controller.clone(), client, &response);
     }
+    response
 }
 
 fn handle_traffic_req(
@@ -267,7 +267,9 @@ fn handle_traffic_resp(
 // TODO: refine error matching here
 fn normalize(err: ErrorCode) -> Weight {
     match err {
-        ErrorCode::InvalidRequest | ErrorCode::InvalidParams => Weight::one(),
+        ErrorCode::ParseError | ErrorCode::InvalidRequest | ErrorCode::InvalidParams => {
+            Weight::one()
+        }
         ErrorCode::ServerError(i) if i == TRANSACTION_NOT_FOUND_ERROR_CODE => Weight::zero(),
         // e.g. invalid client signature
         ErrorCode::ServerError(i) if i == TRANSACTION_EXECUTION_CLIENT_ERROR_CODE => Weight::one(),
@@ -295,6 +297,7 @@ mod tests {
 
     #[test]
     fn client_errors_have_full_error_weight() {
+        assert_eq!(normalize(ErrorCode::ParseError), Weight::one());
         assert_eq!(normalize(ErrorCode::InvalidParams), Weight::one());
         assert_eq!(
             normalize(ErrorCode::ServerError(

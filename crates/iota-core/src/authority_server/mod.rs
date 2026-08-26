@@ -212,10 +212,12 @@ impl ValidatorService {
         let ip = self.extract_client_ip(&request);
         self.check_traffic(ip)?;
         // TODO(#11095): move deserialization off the critical path (spawn_blocking).
-        let domain_req = request
-            .into_inner()
-            .try_into()
-            .map_err(|e| tonic::Status::internal(format!("request conversion failed: {e}")))?;
+        let domain_req = request.into_inner().try_into().map_err(|e| {
+            // A request that does not convert still costs the node work, so it
+            // charges the spam policy like any other request.
+            record_tally(self.traffic_controller.as_ref(), ip, Weight::one(), None);
+            tonic::Status::internal(format!("request conversion failed: {e}"))
+        })?;
         Ok((domain_req, ip))
     }
 
