@@ -85,10 +85,10 @@ authority-store-pruning-config:
   # only cost is query reach, since every retained transaction stays
   # fetchable by digest and still reports its checkpoint regardless of
   # index retention. It must not exceed that value while transaction
-  # pruning is enabled: the node refuses to start otherwise, since
-  # iotax_queryTransactionBlocks() would then return transactions the
-  # ledger has already pruned. Leaving this unset skips that check, but
-  # then the index keeps growing with no bound of its own.
+  # pruning is enabled: a node that maintains the store refuses to start
+  # otherwise, since iotax_queryTransactionBlocks() would then return
+  # transactions the ledger has already pruned. Leaving this unset skips
+  # that check, but then the index keeps growing with no bound of its own.
   # num-epochs-to-retain-for-indexes: 2
 
   # Number of recent per-epoch RocksDB databases to keep. Default: 3.
@@ -101,14 +101,10 @@ authority-store-pruning-config:
 ```
 
 All three run at the epoch boundary, where the node drops the epochs that have
-fallen outside each retention window. The two window rules differ, so read each
-parameter's own description above:
-
-- `num-epochs-to-retain` and `num-epochs-to-retain-for-checkpoints` count `N`
-  historic epochs on top of the epoch the node is in, keeping `N + 1` epochs in
-  total.
-- `num-epochs-to-retain-for-indexes` counts `N` epochs in total, the epoch the
-  node is entering being one of them.
+fallen outside each retention window, and all three count that window the same
+way: `N` historic epochs on top of the epoch the node is in, keeping `N + 1`
+epochs in total. The special values above are the exceptions — `u64::MAX` turns
+object pruning off, and `0` and `1` are identical for transaction pruning.
 
 :::info
 
