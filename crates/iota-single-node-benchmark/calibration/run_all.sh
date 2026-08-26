@@ -31,6 +31,20 @@ echo "=== run_all start $(date -u +%FT%TZ) on $(hostname) ==="
 
 stage() { echo; echo "--- $1 ($(date -u +%T)) ---"; }
 
+stage "prerequisites"
+missing=""
+for tool in cargo cc clang cmake pkg-config protoc python3; do
+  command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
+done
+pkg-config --exists openssl 2>/dev/null || missing="$missing libssl-dev"
+if [ -n "$missing" ]; then
+  echo "missing build prerequisites:$missing" >&2
+  echo "Debian/Ubuntu: sudo apt install -y build-essential clang cmake pkg-config libssl-dev protobuf-compiler python3" >&2
+  echo "Rust: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y" >&2
+  exit 1
+fi
+echo "all build prerequisites present"
+
 stage "machine state"
 bash "$here/machine_prep.sh" "$out"
 
