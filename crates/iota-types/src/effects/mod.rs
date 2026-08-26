@@ -220,21 +220,19 @@ pub trait TransactionEffectsAPIForTesting: TransactionEffectsAPI {
     // All of these should be #[cfg(test)], but they are used by tests in other
     // crates.
 
-    /// Returns a mutable reference to the execution status, for tests.
-    fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus;
-
     /// Returns a mutable reference to the gas cost summary, for tests.
     fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary;
-
-    /// Returns a mutable reference to the transaction digest, for tests.
-    fn transaction_digest_mut_for_testing(&mut self) -> &mut TransactionDigest;
 
     /// Returns a mutable reference to the dependency list, for tests.
     fn dependencies_mut_for_testing(&mut self) -> &mut Vec<TransactionDigest>;
 
-    /// Records `kind` as an input shared object without validating that it is
-    /// consistent with the rest of the effects. For tests only.
-    fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject);
+    /// Records a shared object these effects read without changing, for tests.
+    /// Unsafe: makes no attempt to keep the effects self-consistent.
+    fn unsafe_add_read_only_shared_object_for_testing(&mut self, object: ObjectReference);
+
+    /// Records a shared object these effects took mutably, for tests. Unsafe:
+    /// makes no attempt to keep the effects self-consistent.
+    fn unsafe_add_mutated_shared_object_for_testing(&mut self, object: ObjectReference);
 
     /// Records an entry that represents the pre-execution version of a still
     /// live object, without validating consistency with the rest of the
@@ -484,67 +482,49 @@ impl TransactionEffectsAPI for TransactionEffects {
 }
 
 impl TransactionEffectsAPIForTesting for TransactionEffects {
-    fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
-        &mut effects_version!(mut self).status
-    }
-
     fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary {
         &mut effects_version!(mut self).gas_cost_summary
-    }
-
-    fn transaction_digest_mut_for_testing(&mut self) -> &mut TransactionDigest {
-        &mut effects_version!(mut self).transaction_digest
     }
 
     fn dependencies_mut_for_testing(&mut self) -> &mut Vec<TransactionDigest> {
         &mut effects_version!(mut self).dependencies
     }
 
-    fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject) {
-        let v1 = effects_version!(mut self);
-        match kind {
-            InputSharedObject::Mutate(object_ref) => {
-                let (object_id, version, digest) = object_ref.into_parts();
-                v1.changed_objects.push(ChangedObject {
-                    object_id,
-                    input_state: ObjectIn::Data {
-                        version,
-                        digest,
-                        owner: Owner::Shared(OBJECT_START_VERSION),
-                    },
-                    output_state: ObjectOut::ObjectWrite {
-                        digest,
-                        owner: Owner::Shared(version),
-                    },
-                    id_operation: IdOperation::None,
-                })
-            }
-            InputSharedObject::ReadOnly(object_ref) => {
-                let (object_id, version, digest) = object_ref.into_parts();
-                v1.unchanged_shared_objects.push(UnchangedSharedObject {
-                    object_id,
-                    kind: UnchangedSharedKind::ReadOnlyRoot { version, digest },
-                })
-            }
-            InputSharedObject::ReadDeleted(object_id, version) => {
-                v1.unchanged_shared_objects.push(UnchangedSharedObject {
-                    object_id,
-                    kind: UnchangedSharedKind::ReadDeleted { version },
-                })
-            }
-            InputSharedObject::MutateDeleted(object_id, version) => {
-                v1.unchanged_shared_objects.push(UnchangedSharedObject {
-                    object_id,
-                    kind: UnchangedSharedKind::MutateDeleted { version },
-                })
-            }
-            InputSharedObject::Cancelled(object_id, version) => {
-                v1.unchanged_shared_objects.push(UnchangedSharedObject {
-                    object_id,
-                    kind: UnchangedSharedKind::Canceled { version },
-                })
-            }
-        }
+    fn unsafe_add_read_only_shared_object_for_testing(&mut self, object: ObjectReference) {
+        let ObjectReference {
+            object_id,
+            version,
+            digest,
+        } = object;
+        effects_version!(mut self)
+            .unchanged_shared_objects
+            .push(UnchangedSharedObject {
+                object_id,
+                kind: UnchangedSharedKind::ReadOnlyRoot { version, digest },
+            })
+    }
+
+    fn unsafe_add_mutated_shared_object_for_testing(&mut self, object: ObjectReference) {
+        let ObjectReference {
+            object_id,
+            version,
+            digest,
+        } = object;
+        effects_version!(mut self)
+            .changed_objects
+            .push(ChangedObject {
+                object_id,
+                input_state: ObjectIn::Data {
+                    version,
+                    digest,
+                    owner: Owner::Shared(OBJECT_START_VERSION),
+                },
+                output_state: ObjectOut::ObjectWrite {
+                    digest,
+                    owner: Owner::Shared(version),
+                },
+                id_operation: IdOperation::None,
+            })
     }
 
     fn unsafe_add_deleted_live_object_for_testing(&mut self, object_ref: ObjectReference) {

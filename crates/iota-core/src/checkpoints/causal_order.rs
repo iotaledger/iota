@@ -258,15 +258,10 @@ mod tests {
         let mut e2 = e(d(2), vec![]);
         let mut e3 = e(d(3), vec![]);
         let obj_digest = ObjectDigest::new(Default::default());
-        e5.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(
-            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
-        ));
-        e2.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(
-            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
-        ));
-        e3.unsafe_add_input_shared_object_for_testing(InputSharedObject::Mutate(
-            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
-        ));
+        let shared = ObjectReference::new(o(1), Version::from_u64(1), obj_digest);
+        e5.unsafe_add_read_only_shared_object_for_testing(shared);
+        e2.unsafe_add_read_only_shared_object_for_testing(shared);
+        e3.unsafe_add_mutated_shared_object_for_testing(shared);
 
         let r = extract(CausalOrder::causal_sort(vec![e5, e2, e3]));
         assert_eq!(r.len(), 3);
