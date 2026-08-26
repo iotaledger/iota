@@ -145,6 +145,7 @@ use crate::{
         authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
+        epoch_markers::EpochMarkers,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
         historic_ledger::HistoricLedger,
         historic_objects::HistoricObjects,
@@ -227,6 +228,7 @@ pub mod authority_per_epoch_store_pruner;
 
 pub mod authority_store_tables;
 pub mod authority_store_types;
+pub mod epoch_markers;
 pub mod epoch_start_configuration;
 pub mod historic_ledger;
 pub mod historic_objects;
@@ -986,6 +988,7 @@ pub struct AuthorityState {
 
     /// Superseded object versions, bucketed by epoch.
     historic_objects: Arc<HistoricObjects>,
+    epoch_markers: Arc<EpochMarkers>,
 
     /// Executed transactions keyed by checkpoint, bucketed by epoch.
     historic_ledger: Arc<HistoricLedger>,
@@ -2910,6 +2913,7 @@ impl AuthorityState {
             execution_cache_trait_pointers,
             rpc_indexes_store,
             historic_objects: store.get_historic_objects().clone(),
+            epoch_markers: store.get_epoch_markers().clone(),
             historic_ledger: store.get_historic_ledger().clone(),
             subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
             checkpoint_store,
@@ -3278,10 +3282,17 @@ impl AuthorityState {
         // Expiry blocks for as long as the deletes and drops take.
         let historic_objects = self.historic_objects.clone();
         let historic_ledger = self.historic_ledger.clone();
+        let epoch_markers = self.epoch_markers.clone();
         let checkpoint_store = self.checkpoint_store.clone();
         let rpc_indexes_store = self.rpc_indexes_store.clone();
         let metrics = self.metrics.clone();
         let expired = tokio::task::spawn_blocking(move || {
+            // Not configurable: a marker guards a race inside the epoch that
+            // wrote it, so the epoch being entered is the only one whose
+            // markers answer anything.
+            if let Err(err) = epoch_markers.expire(new_epoch) {
+                error!("Failed to expire the epoch marker buckets: {err:?}");
+            }
             if let Some(epochs_to_retain) = objects_to_retain {
                 if let Err(err) = historic_objects.prune(new_epoch, epochs_to_retain) {
                     error!("Failed to expire historic object buckets: {err:?}");

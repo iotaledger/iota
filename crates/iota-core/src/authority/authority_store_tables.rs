@@ -31,6 +31,7 @@ use crate::authority::{
     authority_store_types::{
         StoreObject, StoreObjectValueV2, StoreObjectWrapper, get_store_object, try_construct_object,
     },
+    epoch_markers::EpochMarkers,
     epoch_start_configuration::EpochStartConfiguration,
     historic_ledger::HistoricLedger,
     historic_objects::HistoricObjects,
@@ -261,7 +262,7 @@ impl AuthorityPerpetualTables {
     pub fn open_with_historic_objects(
         parent_path: &Path,
         db_options_override: Option<AuthorityPerpetualTablesOptions>,
-    ) -> Result<(Self, HistoricObjects, HistoricLedger), TypedStoreError> {
+    ) -> Result<(Self, HistoricObjects, HistoricLedger, EpochMarkers), TypedStoreError> {
         let (tables, db_options) = Self::open_with_db_options(parent_path, db_options_override);
         let mut historic_objects = HistoricObjects::open(
             tables.objects.db.clone(),
@@ -270,7 +271,8 @@ impl AuthorityPerpetualTables {
         )?;
         historic_objects.objects_pruned_through = tables.object_backlog_sweep_bound.get(&())?;
         let historic_ledger = HistoricLedger::open(tables.objects.db.clone(), &db_options)?;
-        Ok((tables, historic_objects, historic_ledger))
+        let epoch_markers = EpochMarkers::open(tables.objects.db.clone(), &db_options)?;
+        Ok((tables, historic_objects, historic_ledger, epoch_markers))
     }
 
     /// The perpetual tables and the base options their column families were
@@ -312,6 +314,10 @@ impl AuthorityPerpetualTables {
             &db_options,
         ));
         table_options.extend(HistoricLedger::extra_column_family_options(
+            &path,
+            &db_options,
+        ));
+        table_options.extend(EpochMarkers::extra_column_family_options(
             &path,
             &db_options,
         ));
