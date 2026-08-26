@@ -1630,7 +1630,7 @@ impl AuthorityStore {
         for effects in &transaction_effects {
             for modified in effects.modified_at_versions() {
                 let (object_id, version) = (modified.object_id, modified.version);
-                info!("Pruning object {} version {:?}", object_id, version);
+                info!("Pruning object {object_id} version {version:?}");
                 object_keys_to_prune.push(ObjectKey(object_id, version));
             }
         }
