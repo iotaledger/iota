@@ -822,6 +822,15 @@ impl NodeConfig {
         self.consensus_config.as_ref()
     }
 
+    /// Whether this node builds the RPC indexes, and so whether
+    /// `num-epochs-to-retain-for-indexes` has any effect on it.
+    ///
+    /// Only a fullnode serving an API builds them: a validator answers no
+    /// queries, and a fullnode with both APIs off has no reader for them.
+    pub fn maintains_rpc_indexes(&self) -> bool {
+        self.consensus_config().is_none() && (self.enable_jsonrpc_api || self.enable_grpc_api)
+    }
+
     pub fn genesis(&self) -> Result<&genesis::Genesis> {
         self.genesis.genesis()
     }
@@ -1743,7 +1752,7 @@ mod tests {
         default_grpc_api_config, default_periodic_compaction_threshold_days,
         default_traffic_controller_policy_config,
     };
-    use crate::{NodeConfig, object_storage_config::ObjectStoreType};
+    use crate::{ConsensusConfig, NodeConfig, object_storage_config::ObjectStoreType};
 
     const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
 
@@ -1879,6 +1888,43 @@ mod tests {
             ..Default::default()
         };
         assert!(config.check_index_retention_within_ledger().is_ok());
+    }
+
+    #[test]
+    fn a_fullnode_serving_an_api_builds_the_indexes() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        assert!(config.maintains_rpc_indexes());
+    }
+
+    #[test]
+    fn a_fullnode_with_both_apis_off_builds_no_indexes() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let mut config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        config.enable_jsonrpc_api = false;
+        config.enable_grpc_api = false;
+        assert!(!config.maintains_rpc_indexes());
+    }
+
+    #[test]
+    fn a_validator_builds_no_indexes_even_with_an_api_enabled() {
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let mut config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        config.enable_jsonrpc_api = true;
+        config.consensus_config = Some(ConsensusConfig {
+            db_path: PathBuf::from("/tmp/consensus"),
+            db_retention_epochs: None,
+            db_pruner_period_secs: None,
+            max_pending_transactions: None,
+            max_submit_position: None,
+            submit_delay_step_override_millis: None,
+            parameters: None,
+            graduated_load_shedding_soft_limit_pct: None,
+        });
+        assert!(!config.maintains_rpc_indexes());
     }
 
     #[test]
