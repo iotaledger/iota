@@ -221,28 +221,48 @@ impl<B> EpochBuckets<B> {
     /// resurrect it under the same name, and a reader holding the dropped
     /// bucket would silently read the new, empty one.
     pub(crate) fn ensure(&self, epoch: EpochId) -> Result<Arc<B>, TypedStoreError> {
-        let refuse_pruned = |earliest_retained: EpochId| {
-            if epoch < earliest_retained {
-                return Err(TypedStoreError::Pruned(format!(
-                    "the bucket of epoch {epoch} was pruned: only epochs from \
-                     {earliest_retained} on are retained"
-                )));
-            }
-            Ok(())
-        };
-        refuse_pruned(self.earliest_retained())?;
+        self.ensure_retained(epoch)?.ok_or_else(|| {
+            TypedStoreError::Pruned(format!(
+                "the bucket of epoch {epoch} was pruned: only epochs from {} on are retained",
+                self.earliest_retained()
+            ))
+        })
+    }
+
+    /// The bucket holding `epoch`'s rows, created if absent, and `None` when
+    /// `epoch` is below the retention floor.
+    ///
+    /// For a writer that can be handed rows of an epoch this node no longer
+    /// keeps. State sync carries a checkpoint of its own across a
+    /// reconfiguration that drops that checkpoint's epoch, so a write for an
+    /// expired epoch is ordinary rather than exceptional. It has nothing left
+    /// to land in: the rows are not retained, so declining to write them is
+    /// the outcome the retention already decided, and the alternative would be
+    /// recreating a column family every reader has been told is gone.
+    ///
+    /// A writer for which an expired epoch is a fault wants [`Self::ensure`],
+    /// which reports the same condition as an error.
+    pub(crate) fn ensure_retained(
+        &self,
+        epoch: EpochId,
+    ) -> Result<Option<Arc<B>>, TypedStoreError> {
+        if epoch < self.earliest_retained() {
+            return Ok(None);
+        }
         if let Some(bucket) = self.buckets.read().get(&epoch) {
-            return Ok(bucket.clone());
+            return Ok(Some(bucket.clone()));
         }
         let mut buckets = self.buckets.write();
         if let Some(bucket) = buckets.get(&epoch) {
-            return Ok(bucket.clone());
+            return Ok(Some(bucket.clone()));
         }
         // Re-check under the lock `prune` publishes under: the epoch may
         // have been pruned between the check above and taking the lock, and
         // recreating its column family would hand stale readers an empty
-        // bucket instead of an error.
-        refuse_pruned(self.earliest_retained())?;
+        // bucket instead of nothing.
+        if epoch < self.earliest_retained() {
+            return Ok(None);
+        }
         let cf_name = bucket_cf_name(self.cf_prefix, epoch);
         // The column family may already exist if a previous run crashed
         // between `create_cf` and the first batch write.
@@ -252,7 +272,7 @@ impl<B> EpochBuckets<B> {
         let bucket = Arc::new((self.reopen)(&self.db, &cf_name)?);
         buckets.insert(epoch, bucket.clone());
         self.publish_earliest_epoch(&buckets);
-        Ok(bucket)
+        Ok(Some(bucket))
     }
 
     /// Drops the buckets of expired epochs: with `epochs_to_retain` = N, the
@@ -525,6 +545,29 @@ mod tests {
         assert_eq!(earliest, Some(4));
         assert_eq!(buckets.earliest_epoch(), Some(4));
         assert_eq!(buckets.newest_epoch(), Some(6));
+    }
+
+    /// A writer handed an expired epoch is told there is no bucket, rather
+    /// than being refused or handed a recreated one. The refusing form stays
+    /// available for writers to which an expired epoch is a fault.
+    #[tokio::test]
+    async fn an_expired_epoch_has_no_bucket_for_a_writer_that_tolerates_it() {
+        let (buckets, _dir) = test_buckets(&[3, 4, 5]);
+        buckets.prune(2, |_, _| Ok(())).unwrap();
+        assert_eq!(buckets.earliest_retained(), 4);
+
+        assert!(buckets.ensure_retained(3).unwrap().is_none());
+        assert!(buckets.ensure(3).is_err());
+        // Declining the write left the retained set alone: nothing recreated
+        // the column family readers were told is gone.
+        assert_eq!(buckets.earliest_epoch(), Some(4));
+        assert_eq!(buckets.iter(false).len(), 2);
+
+        // A retained epoch is still handed over, and an epoch above the newest
+        // is still created on demand.
+        assert!(buckets.ensure_retained(4).unwrap().is_some());
+        assert!(buckets.ensure_retained(9).unwrap().is_some());
+        assert_eq!(buckets.newest_epoch(), Some(9));
     }
 
     /// A callback error must abort that epoch's drop instead of leaving the

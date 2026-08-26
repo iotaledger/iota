@@ -1475,7 +1475,16 @@ impl AuthorityStore {
         transaction: &VerifiedTransaction,
         transaction_effects: &TransactionEffects,
     ) -> IotaResult {
-        let bucket = self.historic_ledger.ensure(transaction_effects.epoch())?;
+        let Some(bucket) = self
+            .historic_ledger
+            .ensure_retained(transaction_effects.epoch())?
+        else {
+            debug!(
+                epoch = transaction_effects.epoch(),
+                "not filing transaction history whose epoch has been expired",
+            );
+            return Ok(());
+        };
         let mut write_batch = bucket.transactions.batch();
         write_batch
             .insert_batch_tagged(
@@ -1506,16 +1515,26 @@ impl AuthorityStore {
         // A checkpoint's transactions all executed in its epoch, so the bucket
         // is looked up once for the run and again only if another epoch does
         // turn up.
-        let mut current: Option<(EpochId, Arc<HistoricLedgerBucket>)> = None;
+        let mut current: Option<(EpochId, Option<Arc<HistoricLedgerBucket>>)> = None;
         for tx in transactions {
             let epoch = tx.effects.epoch();
             let bucket = match &current {
                 Some((current_epoch, bucket)) if *current_epoch == epoch => bucket.clone(),
                 _ => {
-                    let bucket = self.historic_ledger.ensure(epoch)?;
+                    let bucket = self.historic_ledger.ensure_retained(epoch)?;
                     current = Some((epoch, bucket.clone()));
                     bucket
                 }
+            };
+            // State sync can still be carrying a checkpoint whose epoch a
+            // reconfiguration has since dropped; its rows are not retained, so
+            // there is nothing left to file them in.
+            let Some(bucket) = bucket else {
+                debug!(
+                    epoch,
+                    "not filing transaction history whose epoch has been expired"
+                );
+                continue;
             };
             write_batch
                 .insert_batch_tagged(
