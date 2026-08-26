@@ -1629,9 +1629,9 @@ impl AuthorityStore {
         let mut object_keys_to_prune = vec![];
         for effects in &transaction_effects {
             for modified in effects.modified_at_versions() {
-                let (object_id, seq_number) = (modified.object_id, modified.version);
-                info!("Pruning object {} version {:?}", object_id, seq_number);
-                object_keys_to_prune.push(ObjectKey(object_id, seq_number));
+                let (object_id, version) = (modified.object_id, modified.version);
+                info!("Pruning object {} version {:?}", object_id, version);
+                object_keys_to_prune.push(ObjectKey(object_id, version));
             }
         }
 
