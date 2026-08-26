@@ -256,22 +256,16 @@ impl CheckpointReaderActor {
             }
         }
 
-        let manifest = historical_reader.get_manifest().await;
-
-        let files = historical_reader.verify_and_get_manifest_files(manifest)?;
+        let files = historical_reader.manifest_files().await;
 
         let start_index = match files.binary_search_by_key(&self.current_checkpoint_number, |s| {
             s.checkpoint_seq_range.start
         }) {
             Ok(index) => index,
-            Err(index) => index - 1,
+            Err(index) => index.saturating_sub(1),
         };
 
-        for metadata in files
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, metadata)| (index >= start_index).then_some(metadata))
-        {
+        for metadata in files.iter().skip(start_index) {
             // We check capacity before downloading the file. This way, once its
             // checkpoints are collected into memory we ensure that all will be
             // sent through the channel.
