@@ -243,3 +243,40 @@ resolve, so the flat-vector sweep keeps time as its response and the
 resident-memory slope comes from the struct tree (cheap to build, heavy in
 real memory, held in locals). First reading on the development machine:
 about 5.9 resident bytes per abstract locals byte (r² 0.999).
+
+## Running on a remote server
+
+The whole collection is designed to run unattended on a Linux machine and be
+copied back for inspection; every dataset carries its own manifest (machine,
+CPU, governor/turbo/SMT state, commit, binary hash), so results from several
+machines can sit side by side without confusion.
+
+```sh
+# on the server, once
+git clone <repo> iota && cd iota && git checkout protocol-research/feat/multidimensional-gas-metering
+# build prerequisites (Debian/Ubuntu): build-essential clang cmake pkg-config libssl-dev protobuf-compiler
+curl https://sh.rustup.rs -sSf | sh            # the toolchain is pinned by rust-toolchain.toml
+
+# every session: run inside tmux so an SSH drop does not kill the collection
+tmux new -s calibration
+crates/iota-single-node-benchmark/calibration/run_all.sh /data/calibration/$(date +%Y%m%d)
+# add --write-duration 14400 for a four-hour sustained write run
+
+# back on your machine
+rsync -az server:/data/calibration/ ~/calibration-data/server/
+```
+
+`run_all.sh` records the machine state (`machine_prep.sh`, which also sets
+the governor to `performance` and disables turbo/boost when it has root),
+builds the release binaries, runs the Stage 1 sweeps, the mixed workload, the
+cold reads (dropping the page cache when root or passwordless sudo is
+available — without it the cold numbers are lower bounds and the log says
+so), the optional sustained write run, then the fit and validation scores.
+Every stage is resumable: re-running the same command after an interruption
+skips finished runs.
+
+Put `OUT_DIR` on the NVMe the validator would use — the cold-read and
+write-side stages measure that disk. Keep the machine otherwise idle; the
+manifest's load average and the per-run `measured_ns` spread will show if it
+was not. `fio`, if installed, adds a 4k random-read baseline to
+`machine-state.txt`.

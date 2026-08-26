@@ -332,7 +332,7 @@ def main():
                         "fitted_ns_per_unit": w[columns.index(xf)],
                     }
 
-    # Per-sweep residuals: which shapes the model mispredicts.
+    # Per-sweep residuals: which workloads the model mispredicts.
     by_sweep = {}
     for i in hold:
         by_sweep.setdefault(rows[i]["sweep"], []).append(
