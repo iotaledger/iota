@@ -6,12 +6,14 @@
 mod sim_only_tests {
     use std::{path::PathBuf, time::Duration};
 
-    use iota_json_rpc_types::{IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI};
     use iota_macros::sim_test;
     use iota_node::IotaNode;
-    use iota_sdk_types::{ObjectId, TransactionDigest};
+    use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects};
     use iota_test_transaction_builder::publish_package;
-    use iota_types::{messages_checkpoint::CheckpointSequenceNumber, transaction::CallArg};
+    use iota_types::{
+        effects::TransactionEffectsAPI, messages_checkpoint::CheckpointSequenceNumber,
+        transaction::CallArg,
+    };
     use test_cluster::{TestCluster, TestClusterBuilder};
     use tokio::time::timeout;
 
@@ -150,10 +152,8 @@ mod sim_only_tests {
                     .build(),
             )
             .await
-            .effects
-            .unwrap()
             .created()[0]
-            .reference
+            .0
             .object_id;
 
         (package_id, object_id)
@@ -169,10 +169,8 @@ mod sim_only_tests {
                     .build(),
             )
             .await
-            .effects
-            .unwrap()
             .created()[0]
-            .reference
+            .0
             .object_id
     }
 
@@ -181,7 +179,7 @@ mod sim_only_tests {
         package_id: ObjectId,
         object_id: ObjectId,
         child_id: ObjectId,
-    ) -> IotaTransactionBlockEffects {
+    ) -> TransactionEffects {
         let object = test_cluster.wallet.get_object_ref(object_id).await.unwrap();
         let child = test_cluster.wallet.get_object_ref(child_id).await.unwrap();
         let effects = test_cluster
@@ -201,9 +199,7 @@ mod sim_only_tests {
                     )
                     .build(),
             )
-            .await
-            .effects
-            .unwrap();
+            .await;
         assert_eq!(effects.wrapped().len(), 1);
         assert!(
             test_cluster
@@ -219,7 +215,7 @@ mod sim_only_tests {
         test_cluster: &TestCluster,
         package_id: ObjectId,
         object_id: ObjectId,
-    ) -> IotaTransactionBlockEffects {
+    ) -> TransactionEffects {
         let object = test_cluster.wallet.get_object_ref(object_id).await.unwrap();
         let effects = test_cluster
             .sign_and_execute_transaction(
@@ -234,9 +230,7 @@ mod sim_only_tests {
                     )
                     .build(),
             )
-            .await
-            .effects
-            .unwrap();
+            .await;
         assert!(effects.deleted().is_empty());
         effects
     }
@@ -245,7 +239,7 @@ mod sim_only_tests {
         test_cluster: &TestCluster,
         package_id: ObjectId,
         object_id: ObjectId,
-    ) -> IotaTransactionBlockEffects {
+    ) -> TransactionEffects {
         let object = test_cluster.wallet.get_object_ref(object_id).await.unwrap();
         let effects = test_cluster
             .sign_and_execute_transaction(
@@ -260,9 +254,7 @@ mod sim_only_tests {
                     )
                     .build(),
             )
-            .await
-            .effects
-            .unwrap();
+            .await;
         assert_eq!(effects.deleted().len(), 1);
         effects
     }

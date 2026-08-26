@@ -5,7 +5,6 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use insta::assert_json_snapshot;
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_sdk_types::{
     Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag, Transaction,
     TypeTag, gas::GasCostSummary,
@@ -16,6 +15,7 @@ use iota_test_transaction_builder::{
 };
 use iota_types::{
     coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
+    effects::TransactionEffectsAPI,
     transaction::CallArg,
 };
 use serde::{Deserialize, Serialize};
@@ -231,8 +231,6 @@ async fn run_actual_costs()
         let gas_used = test_cluster
             .sign_and_execute_transaction(&tx)
             .await
-            .effects
-            .unwrap()
             .gas_cost_summary()
             .clone();
 
