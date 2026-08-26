@@ -194,6 +194,16 @@ impl HistoricCheckpoints {
         self.buckets.ensure(epoch)
     }
 
+    /// The bucket holding `epoch`'s checkpoint history, and `None` once that
+    /// epoch has been expired. See
+    /// [`crate::epoch_buckets::EpochBuckets::ensure_retained`].
+    pub fn ensure_retained(
+        &self,
+        epoch: EpochId,
+    ) -> Result<Option<Arc<HistoricCheckpointsBucket>>, TypedStoreError> {
+        self.buckets.ensure_retained(epoch)
+    }
+
     /// Drops the buckets of the epochs that have fallen outside
     /// `epochs_to_retain`, counted back from `executed_epoch` and including
     /// it, and returns the earliest epoch retained.
