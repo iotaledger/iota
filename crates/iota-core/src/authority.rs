@@ -114,7 +114,7 @@ use iota_types::{
     },
     traffic_control::{PolicyConfig, TrafficControlReconfigParams},
     transaction::*,
-    transaction_executor::{InputCheckRelaxations, SimulateTransactionResult, VmChecks},
+    transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 use itertools::Itertools;
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
@@ -2466,7 +2466,7 @@ impl AuthorityState {
                 authenticator_gas_budget,
                 protocol_config,
                 reference_gas_price,
-                InputCheckRelaxations::EXECUTION,
+                InputCheckRules::EXECUTION,
             )?;
 
             let owned_object_refs = authenticator_and_tx_checked_input_objects
@@ -2896,10 +2896,10 @@ impl AuthorityState {
 
         // Checks enabled -> DRY-RUN, it means we are simulating a real TX
         // Checks disabled -> DEV-INSPECT, more relaxed Move VM checks
-        let relaxations = if checks.enabled() {
-            InputCheckRelaxations::EXECUTION
+        let input_checks = if checks.enabled() {
+            InputCheckRules::EXECUTION
         } else {
-            InputCheckRelaxations::SIMULATION
+            InputCheckRules::SIMULATION
         };
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             protocol_config,
@@ -2911,7 +2911,7 @@ impl AuthorityState {
             VerifierLimitsSource::NodeConfig(&self.config.verifier_signing_config),
             authenticator_gas_budget,
             false,
-            relaxations,
+            input_checks,
         )?;
 
         // Create a new executor for the simulation
@@ -6833,7 +6833,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 is_execute_transaction_to_effects,
-                InputCheckRelaxations::EXECUTION,
+                InputCheckRules::EXECUTION,
             )?;
 
         Ok((
@@ -6901,7 +6901,7 @@ impl AuthorityState {
                 verifier_limits_source,
                 authenticator_gas_budget,
                 false,
-                InputCheckRelaxations::EXECUTION,
+                InputCheckRules::EXECUTION,
             )?;
 
         Ok((tx_checked_input_objects, per_authenticator_checked_inputs))
