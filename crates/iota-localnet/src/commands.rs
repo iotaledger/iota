@@ -531,34 +531,35 @@ async fn start(
         "Invalid faucet host and port: the faucet needs an IPv4 address"
     );
     #[cfg(feature = "indexer")]
-    let indexer_address = with_indexer
-        .map(|input| service_address(input, DEFAULT_INDEXER_PORT, "indexer"))
-        .transpose()?;
-    #[cfg(feature = "indexer")]
-    let graphql_address = with_graphql
-        .map(|input| service_address(input, DEFAULT_GRAPHQL_PORT, "graphql"))
-        .transpose()?;
-    // The GraphQL service binds a Prometheus listener beside its main port.
-    // Its own default is the fullnode metrics port, so the address is pinned
-    // here, where the port check also reads it.
-    #[cfg(feature = "indexer")]
-    let graphql_metrics_address = graphql_address
-        .map(|_| -> Result<SocketAddr, anyhow::Error> {
-            let address = parse_host_port_with_default_host(
-                graphql_metrics_address.unwrap_or_default(),
-                &Ipv4Addr::LOCALHOST.to_string(),
-                DEFAULT_GRAPHQL_METRICS_PORT,
-            )
-            .map_err(|_| anyhow!("Invalid graphql metrics host and port"))?;
-            // The service rebuilds the address as `host:port`, which an IPv6
-            // host needs brackets to survive.
-            ensure!(
-                address.is_ipv4(),
-                "graphql metrics configuration requires an IPv4 address"
-            );
-            Ok(address)
-        })
-        .transpose()?;
+    let (indexer_address, graphql_address, graphql_metrics_address) = {
+        let indexer_address = with_indexer
+            .map(|input| service_address(input, DEFAULT_INDEXER_PORT, "indexer"))
+            .transpose()?;
+        let graphql_address = with_graphql
+            .map(|input| service_address(input, DEFAULT_GRAPHQL_PORT, "graphql"))
+            .transpose()?;
+        // The GraphQL service binds a Prometheus listener beside its main
+        // port. Its own default is the fullnode metrics port, so the address
+        // is pinned here, where the port check also reads it.
+        let graphql_metrics_address = graphql_address
+            .map(|_| -> Result<SocketAddr, anyhow::Error> {
+                let address = parse_host_port_with_default_host(
+                    graphql_metrics_address.unwrap_or_default(),
+                    &Ipv4Addr::LOCALHOST.to_string(),
+                    DEFAULT_GRAPHQL_METRICS_PORT,
+                )
+                .map_err(|_| anyhow!("Invalid graphql metrics host and port"))?;
+                // The service rebuilds the address as `host:port`, which an
+                // IPv6 host needs brackets to survive.
+                ensure!(
+                    address.is_ipv4(),
+                    "graphql metrics configuration requires an IPv4 address"
+                );
+                Ok(address)
+            })
+            .transpose()?;
+        (indexer_address, graphql_address, graphql_metrics_address)
+    };
 
     if epoch_duration_ms.is_some() && genesis_blob_exists(config_dir.clone()) && !force_regenesis {
         bail!(

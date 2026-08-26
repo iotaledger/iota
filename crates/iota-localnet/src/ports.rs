@@ -95,6 +95,12 @@ impl BoundAddress {
     /// the host in its own address family. The IPv6 wildcard `[::]` also
     /// covers the IPv4 space on the default dual-stack setting, so it
     /// clashes across the families.
+    ///
+    /// Linux enforces this rule and refuses the second bind. macOS does not:
+    /// a listener sets `SO_REUSEADDR` there, so a wildcard address and a
+    /// specific address can hold one port together. A run that mixes the two
+    /// is therefore reported here, but would start on macOS. The rule stays
+    /// strict, because that run fails on Linux and in CI.
     fn clashes_with(&self, other: &Self) -> bool {
         if self.transport != other.transport || self.address.port() != other.address.port() {
             return false;
