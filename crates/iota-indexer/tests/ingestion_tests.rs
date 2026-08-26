@@ -649,7 +649,7 @@ mod ingestion_tests {
         let created1: Vec<_> = effects1
             .created()
             .into_iter()
-            .map(|(r, _)| (r.object_id, r.version))
+            .map(|created| (created.reference.object_id, created.reference.version))
             .collect();
         assert_eq!(
             created1.len(),
@@ -672,7 +672,7 @@ mod ingestion_tests {
         let created2: Vec<_> = effects2
             .created()
             .into_iter()
-            .map(|(r, _)| (r.object_id, r.version))
+            .map(|created| (created.reference.object_id, created.reference.version))
             .collect();
         assert_eq!(created2.len(), 1);
         let (created_coin_2, created_coin_2_version) = created2[0];
@@ -689,7 +689,7 @@ mod ingestion_tests {
         let created3: Vec<_> = effects3
             .created()
             .into_iter()
-            .map(|(r, _)| (r.object_id, r.version))
+            .map(|created| (created.reference.object_id, created.reference.version))
             .collect();
         assert_eq!(created3.len(), 1);
         let (created_coin_3, created_coin_3_version) = created3[0];
@@ -789,9 +789,9 @@ mod ingestion_tests {
         let gas_after_tx1 = effects1
             .mutated()
             .into_iter()
-            .find(|(r, _)| r.object_id == gas_object_id)
+            .find(|mutated| mutated.reference.object_id == gas_object_id)
             .expect("gas must be mutated by tx1")
-            .0
+            .reference
             .version;
         let created_coin_1 = effects1.created()[0].reference;
 
@@ -801,9 +801,9 @@ mod ingestion_tests {
         let gas_after_tx2 = effects2
             .mutated()
             .into_iter()
-            .find(|(r, _)| r.object_id == gas_object_id)
+            .find(|mutated| mutated.reference.object_id == gas_object_id)
             .expect("gas must be mutated by tx2")
-            .0
+            .reference
             .version;
         let created_coin_2 = effects2.created()[0].reference;
 
@@ -816,9 +816,9 @@ mod ingestion_tests {
         let gas_after_tx3 = effects3
             .mutated()
             .into_iter()
-            .find(|(r, _)| r.object_id == gas_object_id)
+            .find(|mutated| mutated.reference.object_id == gas_object_id)
             .expect("gas must be mutated by tx3")
-            .0
+            .reference
             .version;
         let created_coin_3 = effects3.created()[0].reference;
         sim.create_checkpoint();
@@ -913,9 +913,9 @@ mod ingestion_tests {
         let package_id = publish_fx
             .created()
             .into_iter()
-            .find(|(_, owner)| matches!(owner, Owner::Immutable))
+            .find(|created| matches!(created.owner, Owner::Immutable))
             .expect("publish must create an immutable package")
-            .0
+            .reference
             .object_id;
         sim.create_checkpoint();
 
@@ -940,9 +940,9 @@ mod ingestion_tests {
         let sword_v0 = mint_sword_fx
             .created()
             .into_iter()
-            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner, Owner::Address(_)))
             .expect("mint must create the sword")
-            .0;
+            .reference;
         sim.create_checkpoint();
 
         // cp3: mint a Warrior + equip sword
@@ -973,9 +973,9 @@ mod ingestion_tests {
         let warrior_v0 = equip_fx
             .created()
             .into_iter()
-            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner, Owner::Address(_)))
             .expect("equip tx must create the warrior")
-            .0;
+            .reference;
         let sword_wrapped_version = equip_fx
             .wrapped()
             .into_iter()
@@ -1005,15 +1005,15 @@ mod ingestion_tests {
         let sword_unwrapped_ref = unequip_fx
             .unwrapped()
             .into_iter()
-            .find(|(r, _)| r.object_id == sword_v0.object_id)
+            .find(|unwrapped| unwrapped.reference.object_id == sword_v0.object_id)
             .expect("sword must be unwrapped in the unequip tx")
-            .0;
+            .reference;
         let warrior_after_unequip = unequip_fx
             .mutated()
             .into_iter()
-            .find(|(r, _)| r.object_id == warrior_v0.object_id)
+            .find(|mutated| mutated.reference.object_id == warrior_v0.object_id)
             .expect("warrior must be mutated by unequip")
-            .0;
+            .reference;
         sim.create_checkpoint();
 
         // cp5: equip sword
@@ -1047,9 +1047,9 @@ mod ingestion_tests {
         let warrior_after_reequip = reequip_fx
             .mutated()
             .into_iter()
-            .find(|(r, _)| r.object_id == warrior_v0.object_id)
+            .find(|mutated| mutated.reference.object_id == warrior_v0.object_id)
             .expect("warrior must be mutated by re-equip")
-            .0;
+            .reference;
         sim.create_checkpoint();
 
         // cp6: destroy warrior
