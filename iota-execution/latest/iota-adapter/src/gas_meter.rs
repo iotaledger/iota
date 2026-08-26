@@ -8,6 +8,7 @@ use iota_types::gas_model::{
 };
 use move_binary_format::errors::PartialVMResult;
 use move_core_types::{
+    account_address::AccountAddress,
     gas_algebra::{AbstractMemorySize, InternalGas, NumArgs, NumBytes},
     language_storage::ModuleId,
 };
@@ -15,7 +16,7 @@ use move_vm_profiler::GasProfiler;
 use move_vm_types::{
     gas::{GasMeter, SimpleInstruction},
     loaded_data::runtime_types::Type,
-    views::{TypeView, ValueView},
+    views::{TypeView, ValueView, ValueVisitor},
 };
 
 pub struct IotaGasMeter<'g>(pub &'g mut GasStatus);
@@ -212,10 +213,14 @@ impl GasMeter for IotaGasMeter<'_> {
 
     fn charge_ld_const_after_deserialization(
         &mut self,
-        _val: impl ValueView,
+        val: impl ValueView,
     ) -> PartialVMResult<()> {
         // We already charged for this based on the bytes that we're loading so don't
-        // charge again.
+        // charge again. A container constant is still an allocation, though,
+        // and is recorded for the resource profile.
+        if is_container(&val) {
+            self.0.record_value_constructed();
+        }
         Ok(())
     }
 
@@ -255,6 +260,7 @@ impl GasMeter for IotaGasMeter<'_> {
         // The actual amount of memory on the stack is staying the same with the
         // addition of some extra size for the struct, so the size doesn't
         // really change much.
+        self.0.record_value_constructed();
         self.0.charge(1, 1, num_fields, STRUCT_SIZE.into(), 0)
     }
 
@@ -329,6 +335,7 @@ impl GasMeter for IotaGasMeter<'_> {
         let num_args = args.len() as u64;
         // The amount of data on the stack stays constant except we have some extra
         // metadata for the vector to hold the length of the vector.
+        self.0.record_value_constructed();
         self.0.charge(1, 1, num_args, VEC_SIZE.into(), 0)
     }
 
@@ -358,7 +365,9 @@ impl GasMeter for IotaGasMeter<'_> {
         _val: impl ValueView,
     ) -> PartialVMResult<()> {
         // The value was already on the stack, so we aren't increasing the number of
-        // bytes on the stack.
+        // bytes on the stack. Appending may grow the vector's allocation, so
+        // it counts as a value constructed for the resource profile.
+        self.0.record_value_constructed();
         self.0.charge(1, 0, 2, 0, REFERENCE_SIZE.into())
     }
 
@@ -416,6 +425,40 @@ impl GasMeter for IotaGasMeter<'_> {
     fn set_profiler(&mut self, profiler: GasProfiler) {
         self.0.profiler = Some(profiler);
     }
+}
+
+/// Whether a value is a container (struct, variant, or vector) rather than a
+/// scalar: containers are heap allocations, which the resource profile counts.
+fn is_container(val: &impl ValueView) -> bool {
+    struct IsContainer(bool);
+    impl ValueVisitor for IsContainer {
+        fn visit_u8(&mut self, _: usize, _: u8) {}
+        fn visit_u16(&mut self, _: usize, _: u16) {}
+        fn visit_u32(&mut self, _: usize, _: u32) {}
+        fn visit_u64(&mut self, _: usize, _: u64) {}
+        fn visit_u128(&mut self, _: usize, _: u128) {}
+        fn visit_u256(&mut self, _: usize, _: move_core_types::u256::U256) {}
+        fn visit_bool(&mut self, _: usize, _: bool) {}
+        fn visit_address(&mut self, _: usize, _: AccountAddress) {}
+        fn visit_struct(&mut self, _: usize, _: usize) -> bool {
+            self.0 = true;
+            false
+        }
+        fn visit_variant(&mut self, _: usize, _: usize) -> bool {
+            self.0 = true;
+            false
+        }
+        fn visit_vec(&mut self, _: usize, _: usize) -> bool {
+            self.0 = true;
+            false
+        }
+        fn visit_ref(&mut self, _: usize, _: bool) -> bool {
+            false
+        }
+    }
+    let mut visitor = IsContainer(false);
+    val.visit(&mut visitor);
+    visitor.0
 }
 
 fn abstract_memory_size(val: impl ValueView) -> AbstractMemorySize {

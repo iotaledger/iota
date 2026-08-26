@@ -124,6 +124,7 @@ pub struct GasStatus {
     package_bytes_loaded: u64,
     event_count: u64,
     event_bytes: u64,
+    values_constructed: u64,
 }
 
 impl GasStatus {
@@ -186,6 +187,7 @@ impl GasStatus {
             package_bytes_loaded: 0,
             event_count: 0,
             event_bytes: 0,
+            values_constructed: 0,
         }
     }
 
@@ -237,6 +239,7 @@ impl GasStatus {
             package_bytes_loaded: 0,
             event_count: 0,
             event_bytes: 0,
+            values_constructed: 0,
         }
     }
 
@@ -561,6 +564,13 @@ impl GasStatus {
         self.decrease_locals_size(dropped_size);
     }
 
+    /// Record one container value (struct or vector) constructed, or one
+    /// element appended to a vector, by bytecode — each is a heap allocation
+    /// the instruction count alone does not price. Profile-only.
+    pub fn record_value_constructed(&mut self) {
+        self.values_constructed = self.values_constructed.saturating_add(1);
+    }
+
     /// Record the distinct non-system packages fetched for this transaction,
     /// for the read-I/O component of [`ResourceProfile`].
     pub fn record_package_loads(&mut self, count: u64, bytes: u64) {
@@ -686,6 +696,7 @@ impl GasStatus {
             deleted_object_count: 0,
             event_count: self.event_count,
             event_bytes: self.event_bytes,
+            values_constructed: self.values_constructed,
         }
     }
 }
@@ -979,5 +990,17 @@ mod tests {
         let profile = status.resource_profile();
         assert_eq!(profile.packages_loaded, 2);
         assert_eq!(profile.package_bytes_loaded, 5_000);
+    }
+
+    #[test]
+    fn value_construction_is_counted_without_charging() {
+        let cost_table = initial_cost_schedule_v1();
+        let mut status = GasStatus::new(cost_table, 1_000_000, 1, 1);
+        let before = status.gas_used_pre_gas_price();
+        for _ in 0..3 {
+            status.record_value_constructed();
+        }
+        assert_eq!(status.gas_used_pre_gas_price(), before);
+        assert_eq!(status.resource_profile().values_constructed, 3);
     }
 }
