@@ -216,6 +216,16 @@ impl<B> EpochBuckets<B> {
         self.earliest_retained_epoch.load(Ordering::Relaxed)
     }
 
+    /// The bucket holding `epoch`'s rows, `None` when there is none — either
+    /// because nothing has been written for that epoch yet or because it has
+    /// been pruned.
+    ///
+    /// For a reader that knows which epoch it wants and must not create a
+    /// column family to find out that the answer is nothing.
+    pub(crate) fn get(&self, epoch: EpochId) -> Option<Arc<B>> {
+        self.buckets.read().get(&epoch).cloned()
+    }
+
     /// The bucket holding `epoch`'s rows, created if absent. Pruned
     /// epochs are refused: recreating a pruned epoch's column family would
     /// resurrect it under the same name, and a reader holding the dropped

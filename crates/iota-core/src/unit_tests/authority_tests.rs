@@ -3072,7 +3072,7 @@ async fn test_authority_persist() {
     let tmp_dir = iota_common::tempdir();
     let path = tmp_dir.path().to_path_buf();
 
-    let (perpetual_tables, historic_objects, historic_ledger) =
+    let (perpetual_tables, historic_objects, historic_ledger, epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
     let historic_ledger = Arc::new(historic_ledger);
     // Create an authority
@@ -3080,6 +3080,7 @@ async fn test_authority_persist() {
         Arc::new(perpetual_tables),
         Arc::new(historic_objects),
         historic_ledger.clone(),
+        Arc::new(epoch_markers),
         &committee,
         &genesis,
     )
@@ -3110,12 +3111,13 @@ async fn test_authority_persist() {
     let seed = [1u8; 32];
     let (genesis, authority_key) = init_state_parameters_from_rng(&mut StdRng::from_seed(seed));
     let committee = genesis.committee().unwrap();
-    let (perpetual_tables, historic_objects, historic_ledger) =
+    let (perpetual_tables, historic_objects, historic_ledger, epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(&path, None).unwrap();
     let store = AuthorityStore::open_with_committee_for_testing(
         Arc::new(perpetual_tables),
         Arc::new(historic_objects),
         Arc::new(historic_ledger),
+        Arc::new(epoch_markers),
         &committee,
         &genesis,
     )

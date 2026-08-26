@@ -619,7 +619,7 @@ pub(crate) async fn backfill_checkpoint_summaries(
     // Open the stopped node's existing stores in place. The committee store
     // already holds the genesis committee (from restore/sync), so it is opened
     // without re-supplying one.
-    let (perpetual_db, historic_objects, historic_ledger) =
+    let (perpetual_db, historic_objects, historic_ledger, epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(&node_db_path.join("store"), None)?;
     let committee_store = Arc::new(CommitteeStore::open(node_db_path.join("epochs"), None)?);
     let checkpoint_store = CheckpointStore::new(&node_db_path.join("checkpoints"));
@@ -627,6 +627,7 @@ pub(crate) async fn backfill_checkpoint_summaries(
         Arc::new(perpetual_db),
         Arc::new(historic_objects),
         Arc::new(historic_ledger),
+        Arc::new(epoch_markers),
         false,
         &Registry::default(),
     )?;
@@ -845,7 +846,7 @@ pub async fn download_formal_snapshot(
         )?;
         fs::remove_dir_all(path.clone())?;
     }
-    let (perpetual_db, historic_objects, historic_ledger) =
+    let (perpetual_db, historic_objects, historic_ledger, epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(&path.join("store"), None)?;
     let perpetual_db = Arc::new(perpetual_db);
     let historic_objects = Arc::new(historic_objects);
@@ -1076,6 +1077,7 @@ pub async fn download_formal_snapshot(
         perpetual_db.clone(),
         historic_objects,
         historic_ledger,
+        Arc::new(epoch_markers),
         false,
         &Registry::default(),
     )?;
