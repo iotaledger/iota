@@ -123,11 +123,6 @@ pub async fn migrate(
     epoch: EpochId,
     epochs_to_retain_for_checkpoints: Option<u64>,
 ) -> IotaResult<()> {
-    info!(
-        "migrating the ledger and checkpoint history written before this build into the epoch \
-         buckets"
-    );
-
     // Each slice is a range scan and a write batch, both blocking.
     tokio::task::spawn_blocking(move || {
         LedgerBacklogMigration::new(
@@ -250,12 +245,16 @@ impl LedgerBacklogMigration {
     fn run(&self) -> IotaResult<()> {
         let mut counts = self.drain_ledger()?;
         counts.add(&self.drain_checkpoints()?);
-        info!(
-            moved = counts.moved,
-            expired = counts.expired,
-            floor = self.floor,
-            "the ledger backlog migration reached the end of the flat tables"
-        );
+        // Silent on a database with nothing to move: this stays in the startup
+        // path long after every database has been migrated.
+        if counts.moved > 0 || counts.expired > 0 {
+            info!(
+                moved = counts.moved,
+                expired = counts.expired,
+                floor = self.floor,
+                "the ledger backlog migration reached the end of the flat tables"
+            );
+        }
 
         // What the node still holds is what it may advertise: below the floor
         // the whole history is gone, and a state-sync peer told those
