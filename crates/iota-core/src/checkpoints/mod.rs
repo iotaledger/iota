@@ -535,17 +535,26 @@ impl CheckpointStore {
 
     /// The checkpoint `watermark` names.
     ///
-    /// Resolved by digest, so it costs a lookup the row itself does not, and
-    /// answers `None` for a checkpoint the store no longer holds. A caller
-    /// that only compares positions wants [`Self::get_watermark_seq_number`].
+    /// Read from `certified_checkpoints` by sequence number, which no
+    /// retention prunes, and checked against the digest the watermark row
+    /// carries. Resolving by digest instead would go through the per-epoch
+    /// buckets: at a retention of 0 the epoch holding this very checkpoint is
+    /// expired at the boundary, and the watermark the node still runs from
+    /// would stop resolving.
+    ///
+    /// `None` for a checkpoint the store no longer holds, or one whose
+    /// sequence number now names a different checkpoint. A caller that only
+    /// compares positions wants [`Self::get_watermark_seq_number`].
     fn get_watermark_checkpoint(
         &self,
         watermark: CheckpointWatermark,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
-        let Some((_sequence_number, digest)) = self.get_watermark(watermark)? else {
+        let Some((sequence_number, digest)) = self.get_watermark(watermark)? else {
             return Ok(None);
         };
-        self.get_checkpoint_by_digest(&digest)
+        Ok(self
+            .get_checkpoint_by_sequence_number(sequence_number)?
+            .filter(|checkpoint| *checkpoint.digest() == digest))
     }
 
     /// The sequence number of the checkpoint `watermark` names, read from the
@@ -756,8 +765,25 @@ impl CheckpointStore {
         // write that creates the bucket of an epoch whose first checkpoint has
         // not been executed yet. See [`HistoricCheckpoints`] for what that
         // means for retention.
+        //
+        // It can also arrive after the epoch has been expired: a sync task
+        // carries checkpoints of its own across a reconfiguration that drops
+        // them. The digest-keyed copy is then skipped, while the rows above go
+        // in regardless — `certified_checkpoints` is never pruned, so a
+        // checkpoint stays reachable by sequence number whatever its epoch's
+        // history has become.
         for checkpoint in checkpoints {
-            let bucket = self.historic_checkpoints.ensure(checkpoint.epoch())?;
+            let Some(bucket) = self
+                .historic_checkpoints
+                .ensure_retained(checkpoint.epoch())?
+            else {
+                debug!(
+                    checkpoint_seq = checkpoint.sequence_number(),
+                    epoch = checkpoint.epoch(),
+                    "not filing a checkpoint summary whose epoch has been expired",
+                );
+                continue;
+            };
             batch.insert_batch_tagged(
                 &bucket.checkpoint_by_digest,
                 [(checkpoint.digest(), checkpoint.serializable_ref())],
@@ -1044,8 +1070,18 @@ impl CheckpointStore {
             "Inserting checkpoint contents",
         );
         assert_eq!(checkpoint.contents_digest, contents.digest());
-        self.historic_checkpoints
-            .ensure(checkpoint.epoch())?
+        let Some(bucket) = self
+            .historic_checkpoints
+            .ensure_retained(checkpoint.epoch())?
+        else {
+            debug!(
+                checkpoint_seq = checkpoint.sequence_number(),
+                epoch = checkpoint.epoch(),
+                "not filing checkpoint contents whose epoch has been expired",
+            );
+            return Ok(());
+        };
+        bucket
             .checkpoint_content
             .insert(&contents.digest(), &contents)
     }
@@ -1089,7 +1125,17 @@ impl CheckpointStore {
         for (checkpoint, full_contents) in &checkpoints {
             let contents = full_contents.checkpoint_contents();
             assert_eq!(checkpoint.contents_digest, contents.digest());
-            let bucket = self.historic_checkpoints.ensure(checkpoint.epoch())?;
+            let Some(bucket) = self
+                .historic_checkpoints
+                .ensure_retained(checkpoint.epoch())?
+            else {
+                debug!(
+                    checkpoint_seq = checkpoint.sequence_number(),
+                    epoch = checkpoint.epoch(),
+                    "not filing checkpoint contents whose epoch has been expired",
+                );
+                continue;
+            };
             batch
                 .insert_batch_tagged(&bucket.checkpoint_content, [(contents.digest(), contents)])?;
         }
