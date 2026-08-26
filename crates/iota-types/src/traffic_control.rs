@@ -249,9 +249,9 @@ pub enum PolicyType {
 pub struct PolicyConfig {
     #[serde(default = "default_client_id_source")]
     pub client_id_source: ClientIdSource,
-    #[serde(default = "default_connection_blocklist_ttl_sec")]
+    #[serde(default = "default_blocklist_ttl_sec")]
     pub connection_blocklist_ttl_sec: u64,
-    #[serde(default)]
+    #[serde(default = "default_blocklist_ttl_sec")]
     pub proxy_blocklist_ttl_sec: u64,
     #[serde(default)]
     pub spam_policy_type: PolicyType,
@@ -280,8 +280,8 @@ impl Default for PolicyConfig {
     fn default() -> Self {
         Self {
             client_id_source: default_client_id_source(),
-            connection_blocklist_ttl_sec: default_connection_blocklist_ttl_sec(),
-            proxy_blocklist_ttl_sec: 0,
+            connection_blocklist_ttl_sec: default_blocklist_ttl_sec(),
+            proxy_blocklist_ttl_sec: default_blocklist_ttl_sec(),
             spam_policy_type: PolicyType::NoOp,
             error_policy_type: PolicyType::NoOp,
             spam_sample_rate: default_spam_sample_rate(),
@@ -316,7 +316,7 @@ pub fn default_client_id_source() -> ClientIdSource {
     ClientIdSource::SocketAddr
 }
 
-pub fn default_connection_blocklist_ttl_sec() -> u64 {
+pub fn default_blocklist_ttl_sec() -> u64 {
     60
 }
 pub fn default_dry_run() -> bool {
