@@ -14,10 +14,8 @@ use tracing::{info, warn};
 use crate::{
     authority::AuthorityStore,
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
+    progress_logger::PROGRESS_REPORT_INTERVAL,
 };
-
-/// How often long-running indexing work logs a progress line.
-pub(crate) const PROGRESS_REPORT_INTERVAL: Duration = Duration::from_secs(30);
 
 /// Make `LiveObjectIndexer`s for parallel indexing of the live object set
 pub trait ParMakeLiveObjectIndexer: Sync {
