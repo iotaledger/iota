@@ -23,7 +23,7 @@ const CHECKPOINT: u64 = 7;
 #[tokio::test]
 async fn ledger_rows_survive_a_reopen() {
     let dir = iota_common::tempdir();
-    let (perpetual, historic_objects, historic) =
+    let (perpetual, historic_objects, historic, epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let digest = TransactionDigest::random();
@@ -38,11 +38,12 @@ async fn ledger_rows_survive_a_reopen() {
     let weak_db = Arc::downgrade(&perpetual.objects.db);
     drop(bucket);
     drop(historic);
+    drop(epoch_markers);
     drop(historic_objects);
     drop(perpetual);
     assert!(wait_for_database_close(weak_db).await);
 
-    let (_perpetual, _historic_objects, reopened) =
+    let (_perpetual, _historic_objects, reopened, _epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     assert_eq!(reopened.earliest_bucket_epoch(), Some(3));
     assert_eq!(
@@ -61,7 +62,7 @@ async fn ledger_rows_survive_a_reopen() {
 #[tokio::test]
 async fn a_read_of_a_dropped_ledger_bucket_finds_nothing() {
     let dir = iota_common::tempdir();
-    let (perpetual, _historic_objects, historic) =
+    let (perpetual, _historic_objects, historic, _epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
 
     let digest = TransactionDigest::random();
@@ -341,7 +342,7 @@ async fn a_state_synced_transaction_lands_in_the_executing_epochs_bucket() {
 #[tokio::test]
 async fn contents_are_held_only_in_the_bucket_of_their_epoch() {
     let dir = iota_common::tempdir();
-    let (_perpetual, _historic_objects, historic) =
+    let (_perpetual, _historic_objects, historic, _epoch_markers) =
         AuthorityPerpetualTables::open_with_historic_objects(dir.path(), None).unwrap();
     let outputs = Scenario::new_outputs();
     let transaction = *outputs.transaction.digest();
