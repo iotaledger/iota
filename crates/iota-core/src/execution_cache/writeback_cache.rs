@@ -2423,6 +2423,17 @@ impl ObjectStore for WritebackCache {
         ObjectCacheRead::try_get_object_by_key(self, object_id, version)
             .map_err(StorageError::custom)
     }
+
+    /// Forwarded rather than left to the trait's default, which reads one key
+    /// at a time: [`ObjectCacheRead`] answers what the cache holds and then
+    /// takes the rest in a single batched read of the database.
+    fn try_multi_get_objects_by_key(
+        &self,
+        object_keys: &[ObjectKey],
+    ) -> StorageResult<Vec<Option<Object>>> {
+        ObjectCacheRead::try_multi_get_objects_by_key(self, object_keys)
+            .map_err(StorageError::custom)
+    }
 }
 
 impl ChildObjectResolver for WritebackCache {
