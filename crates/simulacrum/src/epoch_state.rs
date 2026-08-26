@@ -25,7 +25,7 @@ use iota_types::{
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     transaction::{ObjectReadResult, TransactionAPI, VerifiedTransaction},
-    transaction_executor::{InputCheckRelaxations, SimulateTransactionResult, VmChecks},
+    transaction_executor::{InputCheckRules, SimulateTransactionResult, VmChecks},
 };
 
 use crate::SimulatorStore;
@@ -163,7 +163,7 @@ impl EpochState {
             &self.bytecode_verifier_metrics,
             VerifierLimitsSource::NodeConfig(verifier_signing_config),
             authenticator_gas_budget,
-            InputCheckRelaxations::EXECUTION,
+            InputCheckRules::EXECUTION,
         )?;
 
         let transaction = transaction.data().transaction();
@@ -261,10 +261,10 @@ impl EpochState {
 
         // Checks enabled -> DRY-RUN (simulating a real TX)
         // Checks disabled -> DEV-INSPECT (more relaxed Move VM checks)
-        let relaxations = if checks.enabled() {
-            InputCheckRelaxations::EXECUTION
+        let input_checks = if checks.enabled() {
+            InputCheckRules::EXECUTION
         } else {
-            InputCheckRelaxations::SIMULATION
+            InputCheckRules::SIMULATION
         };
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             &self.protocol_config,
@@ -275,7 +275,7 @@ impl EpochState {
             &self.bytecode_verifier_metrics,
             VerifierLimitsSource::NodeConfig(verifier_signing_config),
             authenticator_gas_budget,
-            relaxations,
+            input_checks,
         )?;
 
         // Execute the simulation

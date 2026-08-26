@@ -136,7 +136,7 @@ impl VmChecks {
 /// Every field defaults to `false`, so a check added to the shared path applies
 /// to a simulation too until someone names it here and says why.
 #[derive(Default, Debug, Copy, Clone)]
-pub struct InputCheckRelaxations {
+pub struct InputCheckRules {
     /// Skip the bounds on the gas budget itself, so a caller whose gas is not
     /// settled runs out of gas rather than being rejected. The gas coins are
     /// still required to be address-owned and to cover whatever budget is set.
@@ -187,7 +187,7 @@ pub struct InputCheckRelaxations {
     pub any_receiving_object_digest: bool,
 }
 
-impl InputCheckRelaxations {
+impl InputCheckRules {
     /// No relaxations: exactly what a validator applies.
     pub const EXECUTION: Self = Self {
         unbounded_gas_budget: false,
