@@ -5,10 +5,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    Address, EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectChange, ObjectDigest,
-    ObjectId, ObjectReference, ObjectRemoveKind, ObjectVersion, OwnedObjectReference, Owner,
-    TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest, UnchangedSharedKind,
-    UnchangedSharedObject, Version, WriteKind,
+    Address, EpochId, ExecutionStatus, GasCostSummary, InputSharedObject, IntentScope,
+    ObjectChange, ObjectDigest, ObjectId, ObjectReference, ObjectRemoveKind, ObjectVersion,
+    OwnedObjectReference, Owner, TransactionDigest, TransactionEffectsDigest,
+    TransactionEventsDigest, UnchangedSharedKind, UnchangedSharedObject, Version, WriteKind,
     crypto::Intent,
     effects::{
         ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
@@ -56,40 +56,6 @@ impl Message for TransactionEffects {
 
     fn digest(&self) -> Self::DigestType {
         TransactionEffectsDigest::new(default_hash(self))
-    }
-}
-
-/// Description of a shared object that was used as input to a transaction.
-///
-/// Captures how each shared object was accessed during execution: whether it
-/// was mutated, read-only, deleted after mutable or read-only access, or
-/// cancelled.
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub enum InputSharedObject {
-    Mutate(ObjectReference),
-    ReadOnly(ObjectReference),
-    ReadDeleted(ObjectId, Version),
-    MutateDeleted(ObjectId, Version),
-    Cancelled(ObjectId, Version),
-}
-
-impl InputSharedObject {
-    pub fn id_and_version(&self) -> (ObjectId, Version) {
-        let (object_id, version, ..) = self.object_ref().into_parts();
-        (object_id, version)
-    }
-
-    pub fn object_ref(&self) -> ObjectReference {
-        match self {
-            InputSharedObject::Mutate(oref) | InputSharedObject::ReadOnly(oref) => *oref,
-            InputSharedObject::ReadDeleted(id, version)
-            | InputSharedObject::MutateDeleted(id, version) => {
-                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_DELETED)
-            }
-            InputSharedObject::Cancelled(id, version) => {
-                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_CANCELED)
-            }
-        }
     }
 }
 
@@ -200,11 +166,11 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
         self.input_shared_objects()
             .into_iter()
             .filter_map(|kind| match kind {
-                InputSharedObject::MutateDeleted(id, _) => Some(id),
+                InputSharedObject::MutateDeleted(object) => Some(object.object_id),
                 InputSharedObject::Mutate(..)
                 | InputSharedObject::ReadOnly(..)
                 | InputSharedObject::ReadDeleted(..)
-                | InputSharedObject::Cancelled(..) => None,
+                | InputSharedObject::Canceled(..) => None,
             })
             .collect()
     }
@@ -393,27 +359,7 @@ impl TransactionEffectsAPI for TransactionEffects {
     }
 
     fn input_shared_objects(&self) -> Vec<InputSharedObject> {
-        effects_version!(self)
-            .input_shared_objects()
-            .into_iter()
-            .map(|shared| match shared {
-                iota_sdk_types::InputSharedObject::Mutate(reference) => {
-                    InputSharedObject::Mutate(reference)
-                }
-                iota_sdk_types::InputSharedObject::ReadOnly(reference) => {
-                    InputSharedObject::ReadOnly(reference)
-                }
-                iota_sdk_types::InputSharedObject::ReadDeleted(object) => {
-                    InputSharedObject::ReadDeleted(object.object_id, object.version)
-                }
-                iota_sdk_types::InputSharedObject::MutateDeleted(object) => {
-                    InputSharedObject::MutateDeleted(object.object_id, object.version)
-                }
-                iota_sdk_types::InputSharedObject::Canceled(object) => {
-                    InputSharedObject::Cancelled(object.object_id, object.version)
-                }
-            })
-            .collect()
+        effects_version!(self).input_shared_objects()
     }
 
     fn created(&self) -> Vec<OwnedObjectReference> {
@@ -651,7 +597,7 @@ impl TransactionEffectsExt for TransactionEffects {
             .chain(
                 self.input_shared_objects()
                     .into_iter()
-                    .map(|r| r.object_ref()),
+                    .map(|shared| shared.object_reference()),
             )
             .chain(self.deleted())
             .chain(self.unwrapped_then_deleted())

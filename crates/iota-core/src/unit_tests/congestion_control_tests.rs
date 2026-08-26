@@ -10,14 +10,14 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
-    RandomnessRound, SharedObjectReference, Transaction, TransactionDigest, TransactionEffects,
-    TransactionKind, Version,
+    Address, ExecutionError, ExecutionStatus, Identifier, InputSharedObject, ObjectId,
+    ObjectReference, ObjectVersion, RandomnessRound, SharedObjectReference, Transaction,
+    TransactionDigest, TransactionEffects, TransactionKind, Version,
 };
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
-    effects::{InputSharedObject, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
@@ -474,14 +474,14 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
     assert_eq!(
         effects.input_shared_objects(),
         vec![
-            InputSharedObject::Cancelled(
+            InputSharedObject::Canceled(ObjectVersion::new(
                 shared_object_1.object_id,
                 Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
-            ),
-            InputSharedObject::Cancelled(
+            )),
+            InputSharedObject::Canceled(ObjectVersion::new(
                 shared_object_2.object_id,
                 Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
-            )
+            ))
         ]
     );
 
@@ -690,10 +690,10 @@ async fn test_congestion_control_debt_tracking() {
     // Tests shared object versions in effects are set correctly.
     assert_eq!(
         effects.input_shared_objects(),
-        vec![InputSharedObject::Cancelled(
+        vec![InputSharedObject::Canceled(ObjectVersion::new(
             shared_object_2.object_id,
             Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price).unwrap()
-        ),]
+        )),]
     );
 
     // Check that the debt stored in consensus quarantine is correct. Shared object
@@ -830,16 +830,16 @@ async fn test_congestion_control_debt_tracking() {
     assert_eq!(
         effects.input_shared_objects(),
         vec![
-            InputSharedObject::Cancelled(
+            InputSharedObject::Canceled(ObjectVersion::new(
                 shared_object_1.object_id,
                 Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
                     .unwrap()
-            ),
-            InputSharedObject::Cancelled(
+            )),
+            InputSharedObject::Canceled(ObjectVersion::new(
                 shared_object_2.object_id,
                 Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
                     .unwrap()
-            )
+            ))
         ]
     );
 
@@ -1498,11 +1498,11 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
                 assert!(*suggested_gas_price > 0);
                 assert_eq!(
                     effects.input_shared_objects(),
-                    vec![InputSharedObject::Cancelled(
+                    vec![InputSharedObject::Canceled(ObjectVersion::new(
                         shared_input,
                         Version::new_congested_with_suggested_gas_price(*suggested_gas_price)
                             .unwrap()
-                    )]
+                    ))]
                 );
                 cancellations += 1;
             }

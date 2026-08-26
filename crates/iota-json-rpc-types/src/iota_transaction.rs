@@ -1071,7 +1071,7 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
             shared_objects: native
                 .input_shared_objects()
                 .into_iter()
-                .map(|kind| kind.object_ref())
+                .map(|shared| shared.object_reference())
                 .collect(),
             transaction_digest: *native.transaction_digest(),
             created: to_owned_ref(native.created()),

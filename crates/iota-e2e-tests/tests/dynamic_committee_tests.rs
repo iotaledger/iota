@@ -199,7 +199,8 @@ impl StressTestRunner {
 
         println!("SHARED:");
         for kind in effects.input_shared_objects() {
-            let (obj_id, version) = kind.id_and_version();
+            let reference = kind.object_reference();
+            let (obj_id, version) = (reference.object_id, reference.version);
             let object = state
                 .get_object_store()
                 .get_object_by_key(&obj_id, version)

@@ -40,8 +40,8 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
-    ExecutionStatus, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
-    RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
+    ExecutionStatus, InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference,
+    Owner, RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
     TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
     TransactionKind, TypeTag, Version, WriteKind,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
@@ -72,7 +72,7 @@ use iota_types::{
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
-        InputSharedObject, SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
+        SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
         VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
@@ -6376,8 +6376,8 @@ impl NodeStateDump {
                 }
                 InputSharedObject::ReadDeleted(..)
                 | InputSharedObject::MutateDeleted(..)
-                | InputSharedObject::Cancelled(..) => (), /* TODO: consider record congested
-                                                           * objects. */
+                | InputSharedObject::Canceled(..) => (), /* TODO: consider record congested
+                                                          * objects. */
             }
         }
 

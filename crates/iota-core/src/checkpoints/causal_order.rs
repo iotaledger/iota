@@ -4,11 +4,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use iota_sdk_types::{TransactionDigest, TransactionEffects};
-use iota_types::{
-    effects::{InputSharedObject, TransactionEffectsAPI},
-    storage::ObjectKey,
-};
+use iota_sdk_types::{InputSharedObject, TransactionDigest, TransactionEffects};
+use iota_types::{effects::TransactionEffectsAPI, storage::ObjectKey};
 use tracing::trace;
 
 pub struct CausalOrder {
@@ -149,20 +146,20 @@ impl RWLockDependencyBuilder {
                             .or_default()
                             .push(obj_key);
                     }
-                    InputSharedObject::ReadDeleted(oid, version) => read_version
-                        .entry(ObjectKey(oid, version))
+                    InputSharedObject::ReadDeleted(object) => read_version
+                        .entry(ObjectKey(object.object_id, object.version))
                         .or_default()
                         .push(*effect.transaction_digest()),
-                    InputSharedObject::MutateDeleted(oid, version) => overwrite_versions
+                    InputSharedObject::MutateDeleted(object) => overwrite_versions
                         .entry(*effect.transaction_digest())
                         .or_default()
-                        .push(ObjectKey(oid, version)),
-                    InputSharedObject::Cancelled(..) => (), /* TODO: confirm that
-                                                             * consensus_commit_prologue is
-                                                             * always at the beginning of the
-                                                             * checkpoint, so that cancelled txn
-                                                             * don't need to worry about
-                                                             * dependency. */
+                        .push(ObjectKey(object.object_id, object.version)),
+                    InputSharedObject::Canceled(..) => (), /* TODO: confirm that
+                                                            * consensus_commit_prologue is
+                                                            * always at the beginning of the
+                                                            * checkpoint, so that cancelled txn
+                                                            * don't need to worry about
+                                                            * dependency. */
                 }
             }
         }
