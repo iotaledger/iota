@@ -758,7 +758,11 @@ mod tests {
 
         let config = FullnodeConfigBuilder::new()
             .with_config_directory(dir.path().to_path_buf())
-            .try_build_from_genesis_config(genesis_config.copy(), &[], Genesis::new_empty())
+            .try_build_from_genesis_config(
+                genesis_config.copy_with_private_keys(),
+                &[],
+                Genesis::new_empty(),
+            )
             .unwrap();
 
         assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9184");

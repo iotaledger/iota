@@ -1254,7 +1254,7 @@ mod test {
 
         let swarm = Swarm::builder()
             .with_fullnode_count(1)
-            .with_fullnode_genesis_config(fullnode_genesis_config.copy())
+            .with_fullnode_genesis_config(fullnode_genesis_config.copy_with_private_keys())
             .build();
 
         {

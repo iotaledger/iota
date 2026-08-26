@@ -62,9 +62,10 @@ pub struct ValidatorGenesisConfig {
 }
 
 impl ValidatorGenesisConfig {
-    /// A copy of this config. The key pair types do not implement `Clone`, so
-    /// this is not a `Clone` implementation.
-    pub fn copy(&self) -> Self {
+    /// A copy of this config, key pairs included. The key pair types do not
+    /// implement `Clone`, which is why this is not a `Clone` implementation
+    /// and why the name says what it copies.
+    pub fn copy_with_private_keys(&self) -> Self {
         Self {
             authority_key_pair: self.authority_key_pair.copy(),
             protocol_key_pair: self.protocol_key_pair.copy(),
