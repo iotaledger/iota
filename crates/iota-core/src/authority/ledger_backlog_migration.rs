@@ -57,12 +57,17 @@ use crate::{
         historic_ledger::{HistoricLedger, HistoricLedgerBucket},
     },
     checkpoints::CheckpointStore,
+    progress_logger::ProgressLogger,
 };
 
 /// Rows one slice moves before it writes its batch. A slice stops at this many
 /// wherever it is, so it bounds how much of a flat table the slice holds in
 /// memory and how much of it an interrupted run has to read again.
 const KEYS_PER_SLICE: usize = 5_000;
+
+/// Names the two halves of the migration in its progress lines.
+const LEDGER_PASS: &str = "ledger backlog migration";
+const CHECKPOINT_PASS: &str = "checkpoint backlog migration";
 
 /// How far the migration has got through the flat perpetual ledger tables.
 ///
@@ -279,6 +284,7 @@ impl LedgerBacklogMigration {
         use LedgerBacklogMigrationProgress as Progress;
 
         let mut counts = MigrationCounts::default();
+        let mut logger = None;
         loop {
             // Read back from disk rather than carried in memory, so a resumed
             // run and an uninterrupted one take the same path.
@@ -287,6 +293,24 @@ impl LedgerBacklogMigration {
                 .ledger_backlog_migration_progress
                 .get(&())?
                 .unwrap_or(Progress::Transactions(None));
+            let tables = &self.perpetual_tables;
+            let (step, total) = match &progress {
+                Progress::Transactions(_) => ("transactions", tables.transactions.estimated_len()?),
+                Progress::Events(_) => ("events", tables.events_2.estimated_len()?),
+                Progress::ExecutedEffects(_) => {
+                    ("executed effects", tables.executed_effects.estimated_len()?)
+                }
+                Progress::Effects(_) => ("effects", tables.effects.estimated_len()?),
+                Progress::TransactionCheckpoints(_) => (
+                    "transaction checkpoints",
+                    tables.executed_transactions_to_checkpoint.estimated_len()?,
+                ),
+                Progress::Done => {
+                    Self::close_step(&mut logger);
+                    return Ok(counts);
+                }
+            };
+            let logger = Self::open_step(&mut logger, LEDGER_PASS, step, total);
             let slice = match progress {
                 Progress::Transactions(from) => self.move_transactions(from)?,
                 Progress::Events(from) => self.move_events(from)?,
@@ -295,8 +319,9 @@ impl LedgerBacklogMigration {
                 Progress::TransactionCheckpoints(from) => {
                     self.move_transaction_checkpoints(from)?
                 }
-                Progress::Done => return Ok(counts),
+                Progress::Done => unreachable!("the step match above returns on Done"),
             };
+            logger.advance((slice.moved + slice.expired) as u64);
             counts.add(&slice);
         }
     }
@@ -307,6 +332,7 @@ impl LedgerBacklogMigration {
         use CheckpointBacklogMigrationProgress as Progress;
 
         let mut counts = MigrationCounts::default();
+        let mut logger = None;
         loop {
             let progress = self
                 .checkpoint_store
@@ -314,14 +340,51 @@ impl LedgerBacklogMigration {
                 .checkpoint_backlog_migration_progress
                 .get(&())?
                 .unwrap_or(Progress::Summaries(None));
+            let tables = &self.checkpoint_store.tables;
+            let (step, total) = match &progress {
+                Progress::Summaries(_) => {
+                    ("summaries", tables.checkpoint_by_digest.estimated_len()?)
+                }
+                Progress::ContentsWithoutSummary(_) => {
+                    ("contents", tables.checkpoint_content.estimated_len()?)
+                }
+                Progress::Done => {
+                    Self::close_step(&mut logger);
+                    return Ok(counts);
+                }
+            };
+            let logger = Self::open_step(&mut logger, CHECKPOINT_PASS, step, total);
             let slice = match progress {
                 Progress::Summaries(from) => self.move_checkpoint_summaries(from)?,
                 Progress::ContentsWithoutSummary(from) => {
                     self.move_contents_without_summary(from)?
                 }
-                Progress::Done => return Ok(counts),
+                Progress::Done => unreachable!("the step match above returns on Done"),
             };
+            logger.advance((slice.moved + slice.expired) as u64);
             counts.add(&slice);
+        }
+    }
+
+    /// The reporter for `step`, opening one when the walk reaches a new table
+    /// and closing the one it is leaving.
+    fn open_step<'a>(
+        logger: &'a mut Option<ProgressLogger>,
+        pass: &'static str,
+        step: &'static str,
+        total: u64,
+    ) -> &'a mut ProgressLogger {
+        if logger.as_ref().is_none_or(|open| open.step() != step) {
+            Self::close_step(logger);
+            *logger = Some(ProgressLogger::new(pass, step, total));
+        }
+        logger.as_mut().expect("open for this step")
+    }
+
+    /// Closes the step being reported, if any.
+    fn close_step(logger: &mut Option<ProgressLogger>) {
+        if let Some(open) = logger.take() {
+            open.finish();
         }
     }
 
