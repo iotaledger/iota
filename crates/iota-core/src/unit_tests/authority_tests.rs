@@ -2856,10 +2856,7 @@ async fn test_move_call_delete() {
     .unwrap();
     assert!(effects.status().is_success());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
-    let ObjectReference {
-        object_id: new_object_id1,
-        ..
-    } = effects.created()[0].reference;
+    let new_object_id1 = effects.created()[0].reference.object_id;
 
     let effects = create_move_object(
         &pkg_ref.object_id,
@@ -2872,10 +2869,7 @@ async fn test_move_call_delete() {
     .unwrap();
     assert!(effects.status().is_success());
     assert_eq!((effects.created().len(), effects.mutated().len()), (1, 1));
-    let ObjectReference {
-        object_id: new_object_id2,
-        ..
-    } = effects.created()[0].reference;
+    let new_object_id2 = effects.created()[0].reference.object_id;
 
     let effects = call_move(
         &authority_state,

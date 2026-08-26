@@ -289,10 +289,7 @@ async fn test_object_owning_another_object() {
     .await
     .unwrap();
     assert!(effects.status().is_success());
-    let ObjectReference {
-        object_id: parent_id,
-        ..
-    } = effects.created()[0].reference;
+    let parent_id = effects.created()[0].reference.object_id;
 
     // Create a child.
     let effects = call_move(
@@ -310,10 +307,7 @@ async fn test_object_owning_another_object() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectReference {
-        object_id: child_id,
-        ..
-    } = effects.created()[0].reference;
+    let child_id = effects.created()[0].reference.object_id;
 
     // Mutate the child directly should work fine.
     let effects = call_move(
@@ -410,10 +404,7 @@ async fn test_object_owning_another_object() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectReference {
-        object_id: new_parent_id,
-        ..
-    } = effects.created()[0].reference;
+    let new_parent_id = effects.created()[0].reference.object_id;
 
     // Transfer the child to the new_parent.
     let effects = call_move(
@@ -740,10 +731,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectReference {
-        object_id: parent_id,
-        ..
-    } = effects.created()[0].reference;
+    let parent_id = effects.created()[0].reference.object_id;
 
     // Create a child.
     let effects = call_move(
@@ -761,10 +749,7 @@ async fn test_create_then_delete_parent_child_wrap_separate() {
     .unwrap();
 
     assert!(effects.status().is_success());
-    let ObjectReference {
-        object_id: child_id,
-        ..
-    } = effects.created()[0].reference;
+    let child_id = effects.created()[0].reference.object_id;
 
     // Add the child to the parent.
     let effects = call_move(
@@ -1037,9 +1022,7 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].reference;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1080,10 +1063,7 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: parent_id,
-        ..
-    } = effects.created()[0].reference;
+    let parent_id = effects.created()[0].reference.object_id;
     let effects = call_move(
         &authority,
         &gas,
@@ -1105,10 +1085,7 @@ async fn test_entry_point_vector() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: child_id,
-        ..
-    } = effects.created()[0].reference;
+    let child_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let effects = call_move(
@@ -1167,9 +1144,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].reference;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1210,10 +1185,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: wrong_obj_id,
-        ..
-    } = effects.created()[0].reference;
+    let wrong_obj_id = effects.created()[0].reference.object_id;
     let effects = call_move(
         &authority,
         &gas,
@@ -1232,10 +1204,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: correct_obj_id,
-        ..
-    } = effects.created()[0].reference;
+    let correct_obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1277,10 +1246,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: shared_obj_id,
-        ..
-    } = effects.created()[0].reference;
+    let shared_obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one shared object
     let effects = call_move_(
         &authority,
@@ -1323,9 +1289,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].reference;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as argument
     let result = call_move(
@@ -1375,9 +1339,7 @@ async fn test_entry_point_vector_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].reference;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let result = call_move(
@@ -1450,9 +1412,7 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].reference;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1493,10 +1453,7 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: parent_id,
-        ..
-    } = effects.created()[0].reference;
+    let parent_id = effects.created()[0].reference.object_id;
     let effects = call_move(
         &authority,
         &gas,
@@ -1518,10 +1475,7 @@ async fn test_entry_point_vector_any() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: child_id,
-        ..
-    } = effects.created()[0].reference;
+    let child_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let effects = call_move(
@@ -1584,9 +1538,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].reference;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1627,10 +1579,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: wrong_obj_id,
-        ..
-    } = effects.created()[0].reference;
+    let wrong_obj_id = effects.created()[0].reference.object_id;
     let effects = call_move(
         &authority,
         &gas,
@@ -1649,10 +1598,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: correct_obj_id,
-        ..
-    } = effects.created()[0].reference;
+    let correct_obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one owned object
     let effects = call_move(
         &authority,
@@ -1694,10 +1640,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: shared_obj_id,
-        ..
-    } = effects.created()[0].reference;
+    let shared_obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing one shared object
     let effects = call_move_(
         &authority,
@@ -1740,9 +1683,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].reference;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as argument
     let result = call_move(
@@ -1792,9 +1733,7 @@ async fn test_entry_point_vector_any_error() {
         "{:?}",
         effects.status()
     );
-    let ObjectReference {
-        object_id: obj_id, ..
-    } = effects.created()[0].reference;
+    let obj_id = effects.created()[0].reference.object_id;
     // call a function with a vector containing the same owned object as another one
     // passed as a reference argument
     let result = call_move(
