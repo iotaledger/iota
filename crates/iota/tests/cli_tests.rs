@@ -2843,11 +2843,9 @@ async fn test_package_management_on_upgrade_command() -> Result<(), anyhow::Erro
     .await?;
 
     // Get Original Package ID and version
-    let ObjectReference {
-        object_id: expect_original_id,
-        ..
-    } = get_new_package_obj_from_response(&publish_response)
-        .ok_or_else(|| anyhow::anyhow!("No package object response"))?;
+    let expect_original_id = get_new_package_obj_from_response(&publish_response)
+        .ok_or_else(|| anyhow::anyhow!("No package object response"))?
+        .object_id;
 
     // Get Upgraded Package ID and version
     let ObjectReference {

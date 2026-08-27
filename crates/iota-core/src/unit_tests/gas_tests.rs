@@ -7,7 +7,8 @@ use std::sync::Arc;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Command, ExecutionError, ExecutionStatus, GasCostSummary, Identifier, ObjectId,
-    ObjectReference, Owner, Transaction, TransactionEffects, TransactionEvents, TransactionKind,
+    ObjectReference, OwnedObjectReference, Owner, Transaction, TransactionEffects,
+    TransactionEvents, TransactionKind,
 };
 use iota_types::{
     base_types::dbg_addr,
@@ -132,9 +133,9 @@ async fn publish_move_random_package(
     effects
         .created()
         .iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
-        .0
+        .reference
         .object_id
 }
 
@@ -216,7 +217,7 @@ where
         ExecutionError::InsufficientGas
     );
     // gas object in effects is first coin in vector of coins
-    assert_eq!(gas_coin_ids[0], effects.gas_object().0.object_id);
+    assert_eq!(gas_coin_ids[0], effects.gas_object().reference.object_id);
     //  gas at position 0 mutated
     assert_eq!(effects.mutated().len(), 1);
     // extra coins are deleted
@@ -229,7 +230,7 @@ where
                 .any(|deleted| deleted.object_id == *gas_coin_id)
         );
     }
-    let gas_ref = effects.gas_object().0;
+    let gas_ref = effects.gas_object().reference;
     let gas_object = authority_state.get_object(&gas_ref.object_id).unwrap();
     let final_value = GasCoin::try_from(&gas_object)?.value();
     let summary = effects.gas_cost_summary();
@@ -580,7 +581,7 @@ async fn test_transfer_iota_insufficient_gas() {
         ExecutionStatus::new_failure(ExecutionError::InsufficientGas, None)
     );
     // Ensure that the owner of the object did not change if the transfer failed.
-    assert_eq!(effects.mutated()[0].1, sender);
+    assert_eq!(effects.mutated()[0].owner, sender);
 }
 
 /// - All gas coins should be owned by an address (not shared or immutable)
@@ -741,7 +742,10 @@ async fn test_native_transfer_insufficient_gas_execution() {
     assert_eq!(gas_coin.value(), 0);
     // After a failed transfer, the version should have been incremented,
     // but the owner of the object should remain the same, unchanged.
-    let (object_ref, owner) = effects.mutated_excluding_gas()[0];
+    let OwnedObjectReference {
+        reference: object_ref,
+        owner,
+    } = effects.mutated_excluding_gas()[0];
     assert_eq!(object_ref.version, gas_object.version());
     assert_eq!(owner, gas_object.owner);
 
@@ -855,7 +859,7 @@ async fn test_move_call_gas() -> IotaResult {
     let tx = to_sender_signed_transaction(tx, &sender_key);
     let response = send_and_confirm_transaction(&authority_state, tx).await?;
     let effects = response.1.into_data();
-    let created_object_ref = effects.created()[0].0;
+    let created_object_ref = effects.created()[0].reference;
     assert!(effects.status().is_success());
     let gas_cost = effects.gas_cost_summary();
     assert!(gas_cost.storage_cost > 0);

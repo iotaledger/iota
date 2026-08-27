@@ -404,7 +404,7 @@ fn filter_locked_inputs_by_effects(
     let consumed: HashSet<ObjectReference> = effects
         .old_object_metadata()
         .into_iter()
-        .map(|(obj_ref, _owner)| obj_ref)
+        .map(|old| old.reference)
         .collect();
     Ok(owned_inputs
         .into_iter()

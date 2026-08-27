@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_sdk_types::IdOperation;
-use iota_types::effects::ObjectChange as NativeObjectChange;
+use iota_sdk_types::{IdOperation, ObjectChange as NativeObjectChange};
 
 use crate::types::{iota_address::IotaAddress, object::Object};
 
@@ -32,7 +31,7 @@ pub(crate) struct ObjectChange {
 impl ObjectChange {
     /// The address of the object that has changed.
     async fn address(&self) -> IotaAddress {
-        self.native.id.into()
+        self.native.object_id.into()
     }
 
     /// The contents of the object immediately before the transaction.
@@ -47,7 +46,7 @@ impl ObjectChange {
                 Object::at_version(version.as_u64(), self.checkpoint_viewed_at)
             }
         };
-        Object::query(ctx, self.native.id.into(), object_lookup)
+        Object::query(ctx, self.native.object_id.into(), object_lookup)
             .await
             .extend()
     }
@@ -64,7 +63,7 @@ impl ObjectChange {
                 Object::at_version(version.as_u64(), self.checkpoint_viewed_at)
             }
         };
-        Object::query(ctx, self.native.id.into(), object_lookup)
+        Object::query(ctx, self.native.object_id.into(), object_lookup)
             .await
             .extend()
     }

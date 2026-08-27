@@ -13,11 +13,11 @@ use iota_sdk_types::{
     Address, Argument, CanceledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
     ChangeEpochV4, Command, ConsensusCommitDigest, ConsensusDeterminedVersionAssignments,
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
-    GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SenderSignedTransaction, SharedObjectReference, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEvents, TransactionEventsDigest,
-    TransactionKind, TransferObjects, TypeTag, UserSignature, Version, VersionAssignment,
-    gas::GasCostSummary,
+    GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference,
+    OwnedObjectReference, Owner, ProgrammableTransaction, SenderSignedTransaction,
+    SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
+    TransactionEventsDigest, TransactionKind, TransferObjects, TypeTag, UserSignature, Version,
+    VersionAssignment, WriteKind, gas::GasCostSummary,
 };
 use iota_types::{
     base_types::EpochId,
@@ -31,7 +31,7 @@ use iota_types::{
     object::bounded_visitor::BoundedVisitor,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
-    storage::{DeleteKind, WriteKind},
+    storage::DeleteKind,
     transaction::{CallArg, InputObjectKind, TransactionAPI},
 };
 use move_binary_format::CompiledModule;
@@ -1035,7 +1035,7 @@ impl IotaTransactionBlockEffects {
                 .await;
         match native {
             TransactionEffects::V1(inner) => {
-                let mut inner = IotaTransactionBlockEffectsV1::from(*inner);
+                let mut inner = IotaTransactionBlockEffectsV1::from(TransactionEffects::V1(inner));
                 inner.status = clever_status;
                 inner.into()
             }
@@ -1062,18 +1062,16 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
             modified_at_versions: native
                 .modified_at_versions()
                 .into_iter()
-                .map(
-                    |(object_id, sequence_number)| IotaTransactionBlockEffectsModifiedAtVersions {
-                        object_id,
-                        sequence_number,
-                    },
-                )
+                .map(|modified| IotaTransactionBlockEffectsModifiedAtVersions {
+                    object_id: modified.object_id,
+                    sequence_number: modified.version,
+                })
                 .collect(),
             gas_used: native.gas_cost_summary().clone(),
             shared_objects: native
                 .input_shared_objects()
                 .into_iter()
-                .map(|kind| kind.object_ref())
+                .map(|shared| shared.object_reference())
                 .collect(),
             transaction_digest: *native.transaction_digest(),
             created: to_owned_ref(native.created()),
@@ -1083,8 +1081,8 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
             unwrapped_then_deleted: native.unwrapped_then_deleted().to_vec(),
             wrapped: native.wrapped().to_vec(),
             gas_object: OwnedObjectRef {
-                owner: native.gas_object().1,
-                reference: native.gas_object().0,
+                owner: native.gas_object().owner,
+                reference: native.gas_object().reference,
             },
             events_digest: native.events_digest().copied(),
             dependencies: native.dependencies().to_vec(),
@@ -1625,12 +1623,12 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
     }
 }
 
-fn to_owned_ref(owned_refs: Vec<(ObjectReference, Owner)>) -> Vec<OwnedObjectRef> {
+fn to_owned_ref(owned_refs: Vec<OwnedObjectReference>) -> Vec<OwnedObjectRef> {
     owned_refs
         .into_iter()
-        .map(|(oref, owner)| OwnedObjectRef {
-            owner,
-            reference: oref,
+        .map(|owned| OwnedObjectRef {
+            owner: owned.owner,
+            reference: owned.reference,
         })
         .collect()
 }

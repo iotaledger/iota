@@ -904,7 +904,7 @@ impl TestCluster {
             .transfer_iota(Some(amount), receiver)
             .build();
         let effects = self.sign_and_execute_transaction(&tx).await;
-        effects.created().first().unwrap().0.object_id
+        effects.created().first().unwrap().reference.object_id
     }
 
     /// Wait to catch up to the given checkpoint sequence

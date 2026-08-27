@@ -1218,7 +1218,7 @@ async fn test_access_old_object_pruned() {
     let effects = test_cluster
         .sign_and_execute_transaction(&tx_builder.transfer_iota(None, sender).build())
         .await;
-    let new_gas_version = effects.gas_object().0.version;
+    let new_gas_version = effects.gas_object().reference.version;
     test_cluster.force_new_epoch().await;
     // Construct a new transaction that uses the old gas object reference.
     let tx = test_cluster.sign_transaction(

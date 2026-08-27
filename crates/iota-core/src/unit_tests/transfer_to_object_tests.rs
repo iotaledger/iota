@@ -6,7 +6,8 @@ use std::{collections::HashSet, sync::Arc};
 
 use iota_sdk_types::{
     Address, ExecutionError, ExecutionStatus, Identifier, ObjectDigest, ObjectId, ObjectReference,
-    Owner, ProgrammableTransaction, SharedObjectReference, TransactionEffects, Version,
+    OwnedObjectReference, Owner, ProgrammableTransaction, SharedObjectReference,
+    TransactionEffects, Version,
 };
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
@@ -154,11 +155,9 @@ impl TestRunner {
                 .unwrap();
         }
 
-        if let Some(updated_cap) = effects
-            .mutated()
-            .into_iter()
-            .find_map(|(cap, _)| (cap.object_id == self.upgrade_cap.object_id).then_some(cap))
-        {
+        if let Some(updated_cap) = effects.mutated().into_iter().find_map(|mutated| {
+            (mutated.reference.object_id == self.upgrade_cap.object_id).then_some(mutated.reference)
+        }) {
             self.upgrade_cap = updated_cap;
         }
 
@@ -189,11 +188,9 @@ impl TestRunner {
                 .unwrap();
         }
 
-        if let Some(updated_cap) = effects
-            .mutated()
-            .into_iter()
-            .find_map(|(cap, _)| (cap.object_id == self.upgrade_cap.object_id).then_some(cap))
-        {
+        if let Some(updated_cap) = effects.mutated().into_iter().find_map(|mutated| {
+            (mutated.reference.object_id == self.upgrade_cap.object_id).then_some(mutated.reference)
+        }) {
             self.upgrade_cap = updated_cap;
         }
 
@@ -253,26 +250,26 @@ impl TestRunner {
 }
 
 fn get_parent_and_child(
-    created: Vec<(ObjectReference, Owner)>,
-) -> ((ObjectReference, Owner), (ObjectReference, Owner)) {
+    created: Vec<OwnedObjectReference>,
+) -> (OwnedObjectReference, OwnedObjectReference) {
     // make sure there is an object with an `Address` who matches the object ID
     // of another object.
     let created_addrs: HashSet<_> = created
         .iter()
-        .map(|(object_ref, _)| object_ref.object_id)
+        .map(|created| created.reference.object_id)
         .collect();
     let (child, parent_id) = created
         .iter()
-        .find_map(|child @ (_, owner)| match owner {
-            Owner::Address(j) if created_addrs.contains(&ObjectId::from(*j)) => {
-                Some((child, (*j).into()))
+        .find_map(|child| match child.owner {
+            Owner::Address(j) if created_addrs.contains(&ObjectId::from(j)) => {
+                Some((child, j.into()))
             }
             _ => None,
         })
         .unwrap();
     let parent = *created
         .iter()
-        .find(|(object_ref, _)| object_ref.object_id == parent_id)
+        .find(|created| created.reference.object_id == parent_id)
         .unwrap();
     (parent, *child)
 }
@@ -298,8 +295,8 @@ async fn test_tto_transfer() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::receiver(parent, child)
@@ -316,18 +313,18 @@ async fn test_tto_transfer() {
         assert!(effects.wrapped().is_empty());
         assert!(effects.dependencies().contains(transfer_digest));
 
-        for (obj_ref, owner) in effects.mutated().iter() {
-            if obj_ref.object_id == child.0 .object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            if obj_ref.object_id == child.reference .object_id {
                 // Child should be sent to 0x0
                 assert_eq!(owner, &Owner::Address(Address::ZERO));
                 // It's version should be bumped as well
-                assert!(obj_ref.version > child.0.version);
+                assert!(obj_ref.version > child.reference.version);
             }
-            if obj_ref.object_id == parent.0.object_id {
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
             }
         }
     }
@@ -349,15 +346,15 @@ async fn test_tto_intersection_input_and_receiving_objects() {
             .await;
 
         let (parent, child) = get_parent_and_child(effects.created());
-        let parent_receiving_arg = CallArg::Receiving(parent.0);
-        let child_receiving_arg = CallArg::Receiving(child.0);
+        let parent_receiving_arg = CallArg::Receiving(parent.reference);
+        let child_receiving_arg = CallArg::Receiving(child.reference);
 
         // Duplicate object reference between receiving and input object arguments.
         let IotaError::UserInput { error } = runner
             .signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::receiver(parent, child)
@@ -375,8 +372,8 @@ async fn test_tto_intersection_input_and_receiving_objects() {
         let IotaError::UserInput { error } = runner
             .signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::receiver(parent, child)
@@ -412,17 +409,17 @@ async fn test_tto_invalid_receiving_arguments() {
         let shared = *effects
             .created()
             .iter()
-            .find(|(_, owner)| matches!(owner, Owner::Shared(_)))
+            .find(|created| matches!(created.owner, Owner::Shared(_)))
             .unwrap();
         let immutable = *effects
             .created()
             .iter()
-            .find(|(_, owner)| matches!(owner, Owner::Immutable))
+            .find(|created| matches!(created.owner, Owner::Immutable))
             .unwrap();
         let object_owned = *effects
             .created()
             .iter()
-            .find(|(_, owner)| matches!(owner, Owner::Object(_)))
+            .find(|created| matches!(created.owner, Owner::Object(_)))
             .unwrap();
 
         #[expect(clippy::type_complexity)]
@@ -465,15 +462,15 @@ async fn test_tto_invalid_receiving_arguments() {
                 Box::new(|err| matches!(err, UserInputError::InvalidObjectDigest { .. })),
             ),
             (
-                Box::new(|_: ObjectReference| shared.0),
+                Box::new(|_: ObjectReference| shared.reference),
                 Box::new(|err| matches!(err, UserInputError::NotSharedObject)),
             ),
             (
-                Box::new(|_: ObjectReference| object_owned.0),
+                Box::new(|_: ObjectReference| object_owned.reference),
                 Box::new(|err| matches!(err, UserInputError::InvalidChildObjectArgument { .. })),
             ),
             (
-                Box::new(|_: ObjectReference| immutable.0),
+                Box::new(|_: ObjectReference| immutable.reference),
                 Box::new(|err| matches!(err, UserInputError::MutableParameterExpected { .. })),
             ),
         ];
@@ -481,8 +478,8 @@ async fn test_tto_invalid_receiving_arguments() {
         for (i, (mutate, expect)) in mutations.into_iter().enumerate() {
             let IotaError::UserInput { error } = runner.signing_error({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(mutate(child.0))).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(mutate(child.reference))).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::receiver(parent, child)
@@ -520,8 +517,8 @@ async fn test_tto_unused_receiver() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                builder.obj(CallArg::Receiving(child.0)).unwrap();
+                builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 builder.finish()
             })
             .await;
@@ -537,20 +534,20 @@ async fn test_tto_unused_receiver() {
         assert!(!effects
             .modified_at_versions()
             .iter()
-            .any(|(i, _)| i == &child.0 .object_id));
+            .any(|modified| modified.object_id == child.reference.object_id));
         // Since the parent was not used but it was an input object, it should be modified
         assert!(effects
             .modified_at_versions()
             .iter()
-            .any(|(i, _)| i == &parent.0.object_id));
+            .any(|modified| modified.object_id == parent.reference.object_id));
 
         // Make sure parent exists in mutated, and the version is bumped.
-        for (obj_ref, owner) in effects.mutated().iter() {
-            if obj_ref.object_id == parent.0.object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
             }
         }
     }
@@ -576,8 +573,8 @@ async fn test_tto_pass_receiving_by_refs() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::call_immut_ref(parent, child)
@@ -601,20 +598,20 @@ async fn test_tto_pass_receiving_by_refs() {
         assert!(!effects
             .modified_at_versions()
             .iter()
-            .any(|(i, _)| i == &child.0 .object_id));
+            .any(|modified| modified.object_id == child.reference.object_id));
         // Since the parent was not used but it was an input object, it should be modified
         assert!(effects
             .modified_at_versions()
             .iter()
-            .any(|(i, _)| i == &parent.0.object_id));
+            .any(|modified| modified.object_id == parent.reference.object_id));
 
         // Make sure parent exists in mutated, and the version is bumped.
-        for (obj_ref, owner) in effects.mutated().iter() {
-            if obj_ref.object_id == parent.0.object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
             }
         }
     }
@@ -640,8 +637,8 @@ async fn test_tto_delete() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::deleter(parent, child)
@@ -658,15 +655,15 @@ async fn test_tto_delete() {
         // Deleted should be non-empty
         assert_eq!(effects.deleted().len(), 1);
         // Deleted should contain the child object
-        assert_eq!(effects.deleted()[0].object_id, child.0 .object_id);
+        assert_eq!(effects.deleted()[0].object_id, child.reference .object_id);
 
         // Make sure parent exists in mutated, and the version is bumped.
-        for (obj_ref, owner) in effects.mutated().iter() {
-            if obj_ref.object_id == parent.0.object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
             }
         }
     }
@@ -692,8 +689,8 @@ async fn test_tto_wrap() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::wrapper(parent, child)
@@ -711,15 +708,15 @@ async fn test_tto_wrap() {
         // Wrapped should be non-empty
         assert_eq!(effects.wrapped().len(), 1);
         // Wrapped should contain the child object
-        assert_eq!(effects.wrapped()[0].object_id, child.0 .object_id);
+        assert_eq!(effects.wrapped()[0].object_id, child.reference .object_id);
 
         // Make sure parent exists in mutated, and the version is bumped.
-        for (obj_ref, owner) in effects.mutated().iter() {
-            if obj_ref.object_id == parent.0.object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
             }
         }
     }
@@ -746,8 +743,8 @@ async fn test_tto_unwrap_transfer() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M2::unwrap_receiver(parent, child)
@@ -765,23 +762,23 @@ async fn test_tto_unwrap_transfer() {
         assert_eq!(effects.unwrapped().len(), 1);
         // The now-unwrapped object should be sent to 0x0
         assert_eq!(
-            effects.unwrapped()[0].1,
+            effects.unwrapped()[0].owner,
             Owner::Address(Address::ZERO)
         );
 
         // Receiving object ID is deleted
         assert_eq!(effects.deleted().len(), 1);
         // Deleted should contain the child object id
-        assert_eq!(effects.deleted()[0].object_id, child.0 .object_id);
+        assert_eq!(effects.deleted()[0].object_id, child.reference .object_id);
 
-        for (obj_ref, owner) in effects.mutated().iter() {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
             // child ref should not be mutated since it was deleted
-            assert_ne!(obj_ref.object_id, child.0 .object_id);
-            if obj_ref.object_id == parent.0.object_id {
+            assert_ne!(obj_ref.object_id, child.reference .object_id);
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
             }
         }
     }
@@ -808,8 +805,8 @@ async fn test_tto_unwrap_delete() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M2::unwrap_deleter(parent, child)
@@ -825,19 +822,19 @@ async fn test_tto_unwrap_delete() {
 
         // The deleted should be of size 1, and should contain the child address
         assert_eq!(effects.deleted().len(), 1);
-        assert_eq!(effects.deleted()[0].object_id, child.0 .object_id);
+        assert_eq!(effects.deleted()[0].object_id, child.reference .object_id);
 
         // Unwrapped then deleted should be of size 1 since we deleted the inner object as well.
         assert_eq!(effects.unwrapped_then_deleted().len(), 1);
 
-        for (obj_ref, owner) in effects.mutated().iter() {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
             // child ref should not be mutated since it was deleted
-            assert_ne!(obj_ref.object_id, child.0 .object_id);
-            if obj_ref.object_id == parent.0.object_id {
+            assert_ne!(obj_ref.object_id, child.reference .object_id);
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
             }
         }
     }
@@ -864,8 +861,8 @@ async fn test_tto_unwrap_add_as_dynamic_field() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M2::unwrap_add_dyn(parent, child)
@@ -885,15 +882,15 @@ async fn test_tto_unwrap_add_as_dynamic_field() {
 
         // The deleted should be of size 1, and should contain the child address
         assert_eq!(effects.deleted().len(), 1);
-        assert_eq!(effects.deleted()[0].object_id, child.0 .object_id);
+        assert_eq!(effects.deleted()[0].object_id, child.reference .object_id);
 
-        for (obj_ref, owner) in effects.mutated().iter() {
-            assert_ne!(obj_ref.object_id, child.0 .object_id);
-            if obj_ref.object_id == parent.0.object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            assert_ne!(obj_ref.object_id, child.reference .object_id);
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
             }
         }
     }
@@ -934,8 +931,9 @@ async fn verify_tto_not_locked(
     let fake_parent = *effects
         .created()
         .iter()
-        .find(|(obj_ref, _)| {
-            obj_ref.object_id != parent.0.object_id && obj_ref.object_id != child.0.object_id
+        .find(|created| {
+            created.reference.object_id != parent.reference.object_id
+                && created.reference.object_id != child.reference.object_id
         })
         .unwrap();
 
@@ -946,9 +944,9 @@ async fn verify_tto_not_locked(
             {
                 let mut builder = ProgrammableTransactionBuilder::new();
                 let parent = builder
-                    .obj(CallArg::ImmutableOrOwned(fake_parent.0))
+                    .obj(CallArg::ImmutableOrOwned(fake_parent.reference))
                     .unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 if should_delete {
                     move_call!(builder, (runner.package.object_id)::M3::deleter(parent, child));
                 } else {
@@ -967,8 +965,10 @@ async fn verify_tto_not_locked(
         .lock_and_verify_transaction(
             {
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let parent = builder
+                    .obj(CallArg::ImmutableOrOwned(parent.reference))
+                    .unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 if should_delete {
                     move_call!(builder, (runner.package.object_id)::M3::deleter(parent, child));
                 } else {
@@ -1087,7 +1087,7 @@ async fn test_tto_valid_dependencies() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(Address::from(parent.0.object_id), child.0)
+                        .transfer_object(Address::from(parent.reference.object_id), child.reference)
                         .unwrap();
                     builder.finish()
                 },
@@ -1098,7 +1098,7 @@ async fn test_tto_valid_dependencies() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|(o, _)| o.object_id == child.0 .object_id)
+            .find(|mutated| mutated.reference.object_id == child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
@@ -1107,8 +1107,8 @@ async fn test_tto_valid_dependencies() {
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::receiver(parent, child)
@@ -1127,22 +1127,22 @@ async fn test_tto_valid_dependencies() {
         assert!(effects.wrapped().is_empty());
         assert!(effects.dependencies().contains(transfer_digest));
 
-        for (obj_ref, owner) in effects.mutated().iter() {
-            if obj_ref.object_id == child.0 .object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            if obj_ref.object_id == child.reference .object_id {
                 // Child should be sent to 0x0
                 assert_eq!(owner, &Owner::Address(Address::ZERO));
                 // It's version should be bumped as well
-                assert!(obj_ref.version > child.0.version);
+                assert!(obj_ref.version > child.reference.version);
                 // The child should be the max version
-                assert_eq!(obj_ref.version, child.0.version + 1);
+                assert_eq!(obj_ref.version, child.reference.version + 1);
             }
-            if obj_ref.object_id == parent.0.object_id {
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
                 // The child should be the max version
-                assert_eq!(obj_ref.version, child.0.version + 1);
+                assert_eq!(obj_ref.version, child.reference.version + 1);
             }
         }
     }
@@ -1186,7 +1186,7 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(Address::from(parent.0.object_id), child.0)
+                        .transfer_object(Address::from(parent.reference.object_id), child.reference)
                         .unwrap();
                     builder.finish()
                 },
@@ -1197,7 +1197,7 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|(o, _)| o.object_id == child.0 .object_id)
+            .find(|mutated| mutated.reference.object_id == child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
@@ -1206,8 +1206,8 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::deleter(parent, child)
@@ -1226,18 +1226,18 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
         // Deleted should be non-empty
         assert_eq!(effects.deleted().len(), 1);
         // Deleted should contain the child object
-        assert_eq!(effects.deleted()[0].object_id, child.0 .object_id);
+        assert_eq!(effects.deleted()[0].object_id, child.reference .object_id);
         assert!(effects.dependencies().contains(transfer_digest));
 
         // Make sure parent exists in mutated, and the version is bumped and is equal to the child's
         // version + 1 since the child has the highest version number in the transaction.
-        for (obj_ref, owner) in effects.mutated().iter() {
-            if obj_ref.object_id == parent.0.object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
-                assert_eq!(obj_ref.version, child.0.version + 1);
+                assert!(obj_ref.version > parent.reference.version);
+                assert_eq!(obj_ref.version, child.reference.version + 1);
             }
         }
     }
@@ -1281,7 +1281,7 @@ async fn test_tto_dependencies_dont_receive() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.reference.object_id), old_child.reference)
                         .unwrap();
                     builder.finish()
                 },
@@ -1292,21 +1292,21 @@ async fn test_tto_dependencies_dont_receive() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|(o, _)| o.object_id == old_child.0 .object_id)
+            .find(|mutated| mutated.reference.object_id == old_child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
         // ensure child version is greater than parent version, otherwise the check afterwards won't be
         // checking the correct thing.
-        assert!(parent.0.version < child.0.version);
+        assert!(parent.reference.version < child.reference.version);
 
         // Now dont receive the sent object but include it in the arguments for the PTB.
         let effects = runner
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::nop(parent, child)
@@ -1326,15 +1326,15 @@ async fn test_tto_dependencies_dont_receive() {
         // Not received so dependency is not added.
         assert!(!effects.dependencies().contains(transfer_digest));
 
-        for (obj_ref, owner) in effects.mutated().iter() {
-            assert_ne!(obj_ref.object_id, child.0 .object_id);
-            if obj_ref.object_id == parent.0.object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            assert_ne!(obj_ref.object_id, child.reference .object_id);
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
                 // Parent version is the largest in this transaction
-                assert_eq!(obj_ref.version, child.0.version + 1);
+                assert_eq!(obj_ref.version, child.reference.version + 1);
             }
         }
     }
@@ -1378,7 +1378,7 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.reference.object_id), old_child.reference)
                         .unwrap();
                     builder.finish()
                 },
@@ -1389,18 +1389,18 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|(o, _)| o.object_id == old_child.0 .object_id)
+            .find(|mutated| mutated.reference.object_id == old_child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
-        assert!(parent.0.version < child.0.version);
+        assert!(parent.reference.version < child.reference.version);
 
         let effects = runner
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::aborter(parent, child)
@@ -1420,16 +1420,16 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
         // Not received so dependency is not added.
         assert!(!effects.dependencies().contains(transfer_digest));
 
-        for (obj_ref, owner) in effects.mutated().iter() {
-            assert_ne!(obj_ref.object_id, child.0 .object_id);
-            if obj_ref.object_id == parent.0.object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            assert_ne!(obj_ref.object_id, child.reference .object_id);
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
                 // child version is the largest in this transaction, and even though it's not received
                 // it still contributes to the lamport version of the transaction.
-                assert_eq!(obj_ref.version, child.0.version + 1);
+                assert_eq!(obj_ref.version, child.reference.version + 1);
             }
         }
     }
@@ -1473,7 +1473,7 @@ async fn test_tto_dependencies_receive_and_abort() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.reference.object_id), old_child.reference)
                         .unwrap();
                     builder.finish()
                 },
@@ -1484,18 +1484,18 @@ async fn test_tto_dependencies_receive_and_abort() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|(o, _)| o.object_id == old_child.0 .object_id)
+            .find(|mutated| mutated.reference.object_id == old_child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
-        assert!(parent.0.version < child.0.version);
+        assert!(parent.reference.version < child.reference.version);
 
         let effects = runner
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::receive_abort(parent, child)
@@ -1515,15 +1515,15 @@ async fn test_tto_dependencies_receive_and_abort() {
         // Received but aborted -- dependency is still added.
         assert!(effects.dependencies().contains(transfer_digest));
 
-        for (obj_ref, owner) in effects.mutated().iter() {
-            assert_ne!(obj_ref.object_id, child.0 .object_id);
-            if obj_ref.object_id == parent.0.object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            assert_ne!(obj_ref.object_id, child.reference .object_id);
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
                 // Child version is the largest in this transaction even though it's not received
-                assert_eq!(obj_ref.version, child.0.version + 1);
+                assert_eq!(obj_ref.version, child.reference.version + 1);
             }
         }
     }
@@ -1567,7 +1567,7 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.reference.object_id), old_child.reference)
                         .unwrap();
                     builder.finish()
                 },
@@ -1578,18 +1578,18 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
         let child = *effects
             .mutated()
             .iter()
-            .find(|(o, _)| o.object_id == old_child.0 .object_id)
+            .find(|mutated| mutated.reference.object_id == old_child.reference .object_id)
             .unwrap();
         let transfer_digest = effects.transaction_digest();
 
-        assert!(parent.0.version < child.0.version);
+        assert!(parent.reference.version < child.reference.version);
 
         let effects = runner
             .run_with_gas_object(
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
-                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                    let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                    let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M4::receive_type_mismatch(parent, child)
@@ -1616,15 +1616,15 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
         // Received but there was a type mismatch -- dependency is still added.
         assert!(effects.dependencies().contains(transfer_digest));
 
-        for (obj_ref, owner) in effects.mutated().iter() {
-            assert_ne!(obj_ref.object_id, child.0 .object_id);
-            if obj_ref.object_id == parent.0.object_id {
+        for OwnedObjectReference { reference: obj_ref, owner } in effects.mutated().iter() {
+            assert_ne!(obj_ref.object_id, child.reference .object_id);
+            if obj_ref.object_id == parent.reference.object_id {
                 // owner of the parent stays the same
-                assert_eq!(owner, &parent.1);
+                assert_eq!(owner, &parent.owner);
                 // parent version is also bumped
-                assert!(obj_ref.version > parent.0.version);
+                assert!(obj_ref.version > parent.reference.version);
                 // Child version is the largest in this transaction even though it's not received
-                assert_eq!(obj_ref.version, child.0.version + 1);
+                assert_eq!(obj_ref.version, child.reference.version + 1);
             }
         }
     }
@@ -1652,14 +1652,14 @@ async fn receive_and_dof_interleave() {
         let shared = *effects
             .created()
             .iter()
-            .find(|(_, owner)| matches!(owner, Owner::Shared(_)))
+            .find(|created| matches!(created.owner, Owner::Shared(_)))
             .unwrap();
         let owned = *effects
             .created()
             .iter()
-            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner, Owner::Address(_)))
             .unwrap();
-        let Owner::Shared(initial_shared_version) = shared.1 else { unreachable!() };
+        let Owner::Shared(initial_shared_version) = shared.owner else { unreachable!() };
 
         let init_digest = effects.transaction_digest();
 
@@ -1669,12 +1669,12 @@ async fn receive_and_dof_interleave() {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
                         .obj(CallArg::Shared(SharedObjectReference::new(
-                            shared.0.object_id,
+                            shared.reference.object_id,
                             initial_shared_version,
                             true,
                         )))
                         .unwrap();
-                    let child = builder.obj(CallArg::Receiving(owned.0)).unwrap();
+                    let child = builder.obj(CallArg::Receiving(owned.reference)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M5::deleter(parent, child)
@@ -1691,12 +1691,12 @@ async fn receive_and_dof_interleave() {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
                         .obj(CallArg::Shared(SharedObjectReference::new(
-                            shared.0.object_id,
+                            shared.reference.object_id,
                             initial_shared_version,
                             true,
                         )))
                         .unwrap();
-                    let child = builder.obj(CallArg::ImmutableOrOwned(owned.0)).unwrap();
+                    let child = builder.obj(CallArg::ImmutableOrOwned(owned.reference)).unwrap();
                     move_call! {
                         builder,
                         (runner.package.object_id)::M5::add_dof(parent, child)
@@ -1737,8 +1737,8 @@ async fn test_have_deleted_owned_object() {
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(child.reference)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::send_back(parent, child)
@@ -1751,16 +1751,16 @@ async fn test_have_deleted_owned_object() {
 
         let cache = runner.authority_state.get_object_cache_reader().clone();
 
-        assert!(cache.get_object(&new_child.0.object_id).is_some());
+        assert!(cache.get_object(&new_child.reference.object_id).is_some());
         // Should not show as deleted for either versions
-        assert!(!cache.have_deleted_owned_object_at_version_or_after(&new_child.0.object_id, new_child.0.version, 0));
-        assert!(!cache.have_deleted_owned_object_at_version_or_after(&new_child.0.object_id, child.0.version, 0));
+        assert!(!cache.have_deleted_owned_object_at_version_or_after(&new_child.reference.object_id, new_child.reference.version, 0));
+        assert!(!cache.have_deleted_owned_object_at_version_or_after(&new_child.reference.object_id, child.reference.version, 0));
 
         let effects = runner
             .run({
                 let mut builder = ProgrammableTransactionBuilder::new();
-                let parent = builder.obj(CallArg::ImmutableOrOwned(new_parent.0)).unwrap();
-                let child = builder.obj(CallArg::Receiving(new_child.0)).unwrap();
+                let parent = builder.obj(CallArg::ImmutableOrOwned(new_parent.reference)).unwrap();
+                let child = builder.obj(CallArg::Receiving(new_child.reference)).unwrap();
                 move_call! {
                     builder,
                     (runner.package.object_id)::M1::deleter(parent, child)
@@ -1769,11 +1769,11 @@ async fn test_have_deleted_owned_object() {
             })
             .await;
 
-        let deleted_child = effects.deleted().into_iter().find(|object_ref| object_ref.object_id == new_child.0 .object_id).unwrap();
+        let deleted_child = effects.deleted().into_iter().find(|object_ref| object_ref.object_id == new_child.reference .object_id).unwrap();
         assert!(cache.get_object(&deleted_child.object_id).is_none());
         assert!(cache.have_deleted_owned_object_at_version_or_after(&deleted_child.object_id, deleted_child.version, 0));
-        assert!(cache.have_deleted_owned_object_at_version_or_after(&deleted_child.object_id, new_child.0.version, 0));
-        assert!(cache.have_deleted_owned_object_at_version_or_after(&deleted_child.object_id, child.0.version, 0));
+        assert!(cache.have_deleted_owned_object_at_version_or_after(&deleted_child.object_id, new_child.reference.version, 0));
+        assert!(cache.have_deleted_owned_object_at_version_or_after(&deleted_child.object_id, child.reference.version, 0));
         // Should not show as deleted for versions after this though
         assert!(!cache.have_deleted_owned_object_at_version_or_after(&deleted_child.object_id, deleted_child.version.next().unwrap(), 0));
         // Should not show as deleted for other epochs outside of our current epoch too

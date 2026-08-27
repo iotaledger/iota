@@ -77,7 +77,7 @@ pub async fn generate_ingestion(config: Config) -> Result<()> {
         let effects = sim.request_gas(sender, NANOS_PER_IOTA * 1000000)?;
         // Generate `1.chk` and includes the gas request transaction.
         sim.create_checkpoint();
-        effects.created()[0].0
+        effects.created()[0].reference
     };
 
     // When generating a workload that includes the genesis state, retain the
@@ -99,7 +99,7 @@ pub async fn generate_ingestion(config: Config) -> Result<()> {
                 .build();
             let tx = to_sender_signed_transaction(tx_data, &sender_key);
             let (effects, _) = sim.execute_transaction(tx)?;
-            gas_object = effects.gas_object().0;
+            gas_object = effects.gas_object().reference;
             tx_count += 1;
         }
 
