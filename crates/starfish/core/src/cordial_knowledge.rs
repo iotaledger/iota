@@ -46,8 +46,9 @@ const EVICTION_CHECK_INTERVAL: usize = 10_000;
 
 pub type Ancestors = Arc<[BlockRef]>;
 
-/// One author whose headers peers recently supplied or referenced as missing.
-/// Those peers are asked to keep including the author's headers.
+/// One author whose headers peers recently supplied in block bundles, or whose
+/// missing headers their blocks referenced. Those peers are asked to keep
+/// including the author's headers in block bundles.
 #[derive(Clone, Default)]
 struct MissingAuthor {
     /// Latest local own-block round when any peer supplied or referenced one of
