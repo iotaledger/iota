@@ -88,21 +88,29 @@ def load_dataset(root: Path):
     return rows, manifest
 
 
+def native_gas_field(rows):
+    """Datasets recorded before per-function native attribution carry only
+    `native_gas_by_module`; fall back to it so they stay refittable."""
+    if any("native_gas_by_function" in r["profile"] for r in rows):
+        return "native_gas_by_function", "native_calls_by_function"
+    return "native_gas_by_module", None
+
+
 def build_matrix(rows):
-    native_cols = sorted({
-        f for r in rows for f in r["profile"].get("native_gas_by_function", {})
-    })
-    columns = (BASE_PREDICTORS
-               + [f"native_gas[{f}]" for f in native_cols]
-               + [f"native_calls[{f}]" for f in native_cols])
+    gas_field, calls_field = native_gas_field(rows)
+    native_cols = sorted({f for r in rows for f in r["profile"].get(gas_field, {})})
+    columns = BASE_PREDICTORS + [f"native_gas[{f}]" for f in native_cols]
+    if calls_field:
+        columns += [f"native_calls[{f}]" for f in native_cols]
     xs, ys = [], []
     for r in rows:
         p = r["profile"]
         x = [float(p.get(c, 0)) for c in BASE_PREDICTORS]
-        per_fn_gas = p.get("native_gas_by_function", {})
-        per_fn_calls = p.get("native_calls_by_function", {})
+        per_fn_gas = p.get(gas_field, {})
         x += [float(per_fn_gas.get(f, 0)) for f in native_cols]
-        x += [float(per_fn_calls.get(f, 0)) for f in native_cols]
+        if calls_field:
+            per_fn_calls = p.get(calls_field, {})
+            x += [float(per_fn_calls.get(f, 0)) for f in native_cols]
         x.append(1.0)  # intercept, last column
         xs.append(x)
         ys.append(float(r["measured_ns"]))
