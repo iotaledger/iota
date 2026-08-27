@@ -46,8 +46,8 @@ const EVICTION_CHECK_INTERVAL: usize = 10_000;
 
 pub type Ancestors = Arc<[BlockRef]>;
 
-/// One author whose headers peers recently supplied in block bundles, or whose
-/// missing headers their blocks referenced. Those peers are asked to keep
+/// Tracks one author for which recent peer block bundles contained an accepted
+/// header or referenced a missing ancestor. Those peers are asked to keep
 /// including the author's headers in block bundles.
 #[derive(Clone, Default)]
 struct MissingAuthor {
@@ -89,8 +89,8 @@ pub(crate) struct CordialKnowledge {
     /// message from CordialKnowledge, we propagate the respected
     /// information for each connection.
     connection_knowledges: Vec<Arc<RwLock<ConnectionKnowledge>>>,
-    /// Authors whose headers peers recently supplied or referenced as missing,
-    /// indexed by author.
+    /// Authors for which recent peer block bundles contained an accepted header
+    /// or referenced a missing ancestor, indexed by author.
     missing_authors: Vec<Option<MissingAuthor>>,
     /// Highest local own-block round seen. It timestamps useful-header reports,
     /// so peer block rounds cannot leave requests active for too long.
@@ -117,7 +117,8 @@ pub enum CordialKnowledgeMessage {
     /// Update internal state about shards from which authorities are useful for
     /// the local node
     UsefulShardsFromPeers(BTreeMap<AuthorityIndex, Round>),
-    /// Authors whose headers one peer supplied or referenced as missing.
+    /// Authors for which the peer's block bundle contained an accepted header
+    /// or referenced a missing ancestor.
     UsefulHeadersFromPeer {
         peer: AuthorityIndex,
         authors: BTreeSet<AuthorityIndex>,
@@ -513,8 +514,8 @@ impl CordialKnowledge {
         }
     }
 
-    /// Record the authors whose headers one peer supplied or referenced as
-    /// missing.
+    /// Records authors for which the peer's block bundle contained an accepted
+    /// header or referenced a missing ancestor.
     fn handle_useful_headers_from_peer(
         &mut self,
         peer: AuthorityIndex,
