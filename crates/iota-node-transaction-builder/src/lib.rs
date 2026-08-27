@@ -2,19 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Node-internal implementation of the SDK's
-//! [`TransactionBuilderResolveClient`].
+//! [`TransactionBuilderLedgerClient`].
 //!
-//! [`NodeTransactionBuilderResolveClient`] backs the SDK
+//! [`NodeTransactionBuilderLedgerClient`] backs the SDK
 //! [`TransactionBuilder`](iota_sdk_transaction_builder::TransactionBuilder)
 //! with a node's local state instead of a remote gRPC or GraphQL endpoint.
 //! All reads go through [`GrpcStateReader`] — the same interface the gRPC
 //! server uses — so the client is available wherever that store is
 //! (fullnodes via `GrpcReadStore`, simulacrum in tests).
 //!
-//! The client is read-only: it resolves objects, gas, and protocol
-//! parameters for [`TransactionBuilder::finish`], but does not simulate or
-//! execute. [`estimate_tx_budget`] uses the trait default and returns
-//! `None`, so the gas budget must be set explicitly on the builder.
+//! The client is ledger-only: it resolves objects, gas, and protocol
+//! parameters, but does not simulate or execute, so transactions are built
+//! with an explicit gas budget via
+//! [`TransactionBuilder::finish_with_budget`].
 
 use std::sync::Arc;
 
@@ -22,7 +22,9 @@ use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{
     ProtocolConfig as NodeProtocolConfig, ProtocolConfigValue, ProtocolVersion,
 };
-use iota_sdk_transaction_builder::{ObjectsPage, ProtocolConfig, TransactionBuilderResolveClient};
+use iota_sdk_transaction_builder::{
+    ObjectsPage, ProtocolConfig, TransactionBuilderClientBase, TransactionBuilderLedgerClient,
+};
 use iota_sdk_types::{Address, Object, ObjectId, StructTag, Version};
 use iota_types::{
     error::IotaError,
@@ -33,14 +35,14 @@ use iota_types::{
 use typed_store_error::TypedStoreError;
 
 /// Default number of objects returned by
-/// [`TransactionBuilderResolveClient::objects`] when no limit is given.
+/// [`TransactionBuilderLedgerClient::objects`] when no limit is given.
 const DEFAULT_OBJECTS_PAGE_SIZE: usize = 50;
 
 /// Upper bound on the number of objects returned by
-/// [`TransactionBuilderResolveClient::objects`].
+/// [`TransactionBuilderLedgerClient::objects`].
 const MAX_OBJECTS_PAGE_SIZE: usize = 1000;
 
-/// Error type for [`NodeTransactionBuilderResolveClient`].
+/// Error type for [`NodeTransactionBuilderLedgerClient`].
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]
@@ -59,18 +61,18 @@ pub enum Error {
     UnsupportedProtocolVersion(u64),
 }
 
-/// A [`TransactionBuilderResolveClient`] backed directly by a node's local
+/// A [`TransactionBuilderLedgerClient`] backed directly by a node's local
 /// state.
 ///
-/// [`objects`](TransactionBuilderResolveClient::objects) requires the gRPC
+/// [`objects`](TransactionBuilderLedgerClient::objects) requires the gRPC
 /// indexes (the owned-object index) to be enabled and returns
 /// [`Error::IndexesDisabled`] otherwise.
 #[derive(Clone)]
-pub struct NodeTransactionBuilderResolveClient {
+pub struct NodeTransactionBuilderLedgerClient {
     reader: Arc<dyn GrpcStateReader>,
 }
 
-impl NodeTransactionBuilderResolveClient {
+impl NodeTransactionBuilderLedgerClient {
     pub fn new(reader: Arc<dyn GrpcStateReader>) -> Self {
         Self { reader }
     }
@@ -97,9 +99,11 @@ fn protocol_config_value_to_string(value: ProtocolConfigValue) -> String {
     }
 }
 
-impl TransactionBuilderResolveClient for NodeTransactionBuilderResolveClient {
+impl TransactionBuilderClientBase for NodeTransactionBuilderLedgerClient {
     type Error = Error;
+}
 
+impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
     async fn object(
         &self,
         object_id: ObjectId,

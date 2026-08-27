@@ -23,7 +23,7 @@ use iota_grpc_types::{
         },
     },
 };
-use iota_node_transaction_builder::NodeTransactionBuilderResolveClient;
+use iota_node_transaction_builder::NodeTransactionBuilderLedgerClient;
 use iota_sdk_types::TransactionDigest;
 use iota_types::{
     effects::TransactionEffectsAPI,
@@ -40,7 +40,7 @@ pub struct TransactionExecutionGrpcService {
     pub config: iota_config::node::GrpcApiConfig,
     pub reader: Arc<GrpcReader>,
     pub executor: Arc<dyn TransactionExecutor>,
-    pub builder_client: NodeTransactionBuilderResolveClient,
+    pub builder_client: NodeTransactionBuilderLedgerClient,
 }
 
 impl TransactionExecutionGrpcService {
@@ -49,7 +49,7 @@ impl TransactionExecutionGrpcService {
         reader: Arc<GrpcReader>,
         executor: Arc<dyn TransactionExecutor>,
     ) -> Self {
-        let builder_client = NodeTransactionBuilderResolveClient::new(reader.state_reader());
+        let builder_client = NodeTransactionBuilderLedgerClient::new(reader.state_reader());
         Self {
             config,
             reader,

@@ -98,7 +98,7 @@ use iota_network::{
     randomness, state_sync,
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
-use iota_node_transaction_builder::NodeTransactionBuilderResolveClient;
+use iota_node_transaction_builder::NodeTransactionBuilderLedgerClient;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     RandomnessRound,
@@ -1752,12 +1752,12 @@ impl IotaNode {
 
     /// Read-only client for the SDK's `TransactionBuilder` backed by this
     /// node's local state instead of a remote endpoint.
-    pub fn transaction_builder_resolve_client(&self) -> NodeTransactionBuilderResolveClient {
+    pub fn transaction_builder_ledger_client(&self) -> NodeTransactionBuilderLedgerClient {
         let reader = Arc::new(GrpcReadStore::new(
             self.state.clone(),
             self.state_sync_store.clone(),
         ));
-        NodeTransactionBuilderResolveClient::new(reader)
+        NodeTransactionBuilderLedgerClient::new(reader)
     }
 
     /// Subscribe to the quorum driver's effects stream; errors while the

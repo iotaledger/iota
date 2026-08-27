@@ -1,15 +1,13 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Tests for the node-internal [`TransactionBuilderResolveClient`]
+//! Tests for the node-internal [`TransactionBuilderLedgerClient`]
 //! implementation: the SDK `TransactionBuilder` resolves objects, gas, and
 //! protocol parameters directly from a fullnode's local state, without going
 //! through a public API.
 
 use iota_macros::sim_test;
-use iota_sdk_transaction_builder::{
-    TransactionBuilder, TransactionBuilderResolveClient, error::Error,
-};
+use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderLedgerClient};
 use iota_sdk_types::{StructTag, Transaction};
 use test_cluster::TestClusterBuilder;
 
@@ -25,7 +23,7 @@ async fn transaction_builder_via_node_internal_client() {
     let client = test_cluster
         .fullnode_handle
         .iota_node
-        .with(|node| node.transaction_builder_resolve_client());
+        .with(|node| node.transaction_builder_ledger_client());
 
     // Reads against local state.
     let reference_gas_price = client
@@ -73,21 +71,12 @@ async fn transaction_builder_via_node_internal_client() {
         .expect("listed object exists");
     assert_eq!(coin.id(), first_page.data[0].id());
 
-    // The client is read-only and cannot estimate the gas budget, so building
-    // without an explicit budget must fail.
-    let mut builder = TransactionBuilder::new(sender).with_client(client.clone());
+    // The client is ledger-only, so `finish()` (which estimates the budget)
+    // does not exist for it; the budget is passed explicitly instead, and the
+    // builder resolves gas coins and the gas price through the client.
+    let mut builder = TransactionBuilder::new(sender).with_client(client);
     builder.send_iota(recipient, 1_000_000u64);
-    assert!(matches!(
-        builder.finish().await,
-        Err(Error::MissingGasBudget)
-    ));
-
-    // With an explicit budget, the builder resolves gas coins and the gas
-    // price through the client and produces a valid transaction.
-    let mut builder = TransactionBuilder::new(sender).with_client(client.clone());
-    builder.send_iota(recipient, 1_000_000u64);
-    builder.gas_budget(50_000_000);
-    let transaction = builder.finish().await.unwrap();
+    let transaction = builder.finish_with_budget(50_000_000).await.unwrap();
     let Transaction::V1(transaction_v1) = &transaction else {
         panic!("the builder produces V1 transactions");
     };

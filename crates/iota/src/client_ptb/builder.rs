@@ -12,7 +12,7 @@ use iota_json::{is_receiving_argument, primitive_type};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::CompiledPackage;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_transaction_builder::TransactionBuilderResolveClient;
+use iota_sdk_transaction_builder::TransactionBuilderLedgerClient;
 use iota_sdk_types::{
     Address, Argument, Command, Identifier, Object, ObjectData, ObjectId, Owner,
     ProgrammableTransaction, SharedObjectReference, TypeTag, move_package::MovePackage,
