@@ -46,15 +46,16 @@ const EVICTION_CHECK_INTERVAL: usize = 10_000;
 
 pub type Ancestors = Arc<[BlockRef]>;
 
-/// One author whose blocks are missing, and the peers that referenced one of
-/// them. Referencing records that the author is needed and that the peer holds
-/// what we lack; those peers are asked to push the author's headers.
+/// One author whose headers peers recently supplied or referenced as missing.
+/// Those peers are asked to keep including the author's headers.
 #[derive(Clone, Default)]
 struct MissingAuthor {
-    /// Own round of the last bundle referencing a missing block of this author.
-    last_missing_round: Round,
-    /// Peers that referenced such a block, and when. Never the author itself.
-    referencing_peers: BTreeMap<AuthorityIndex, Round>,
+    /// Latest local own-block round when any peer supplied or referenced one of
+    /// this author's headers.
+    last_useful_round: Round,
+    /// Peers that supplied or referenced one of this author's headers, stamped
+    /// with the latest local own-block round when they did. Never the author.
+    useful_peers: BTreeMap<AuthorityIndex, Round>,
 }
 
 /// Manages the global cordial knowledge state.
@@ -86,14 +87,15 @@ pub(crate) struct CordialKnowledge {
     /// message from CordialKnowledge, we propagate the respected
     /// information for each connection.
     connection_knowledges: Vec<Arc<RwLock<ConnectionKnowledge>>>,
-    /// Authors whose blocks are missing, indexed by author.
+    /// Authors whose headers peers recently supplied or referenced as missing,
+    /// indexed by author.
     missing_authors: Vec<Option<MissingAuthor>>,
-    /// Highest own block round seen. Every round in `missing_authors` is this
-    /// clock read on arrival, never one taken from a peer's block.
-    own_round: Round,
-    /// Whether each connection was left a non-empty set last time, so one that
-    /// becomes empty is cleared exactly once.
-    advertised_to_connection: Vec<bool>,
+    /// Highest local own-block round seen. It timestamps useful-header reports,
+    /// so peer block rounds cannot leave requests active for too long.
+    latest_own_block_round: Round,
+    /// Whether headers are currently requested from each peer. This ensures an
+    /// empty set is sent once when the last request is removed.
+    has_useful_headers_from_peer: Vec<bool>,
 }
 
 /// High-level messages sent to the CordialKnowledge task.
@@ -113,11 +115,10 @@ pub enum CordialKnowledgeMessage {
     /// Update internal state about shards from which authorities are useful for
     /// the local node
     UsefulShardsFromPeers(BTreeMap<AuthorityIndex, Round>),
-    /// What one peer's bundle said about headers: whose missing ancestors it
-    /// referenced. Rounds are stamped on receipt.
-    HeadersFromPeer {
+    /// Authors whose headers one peer supplied or referenced as missing.
+    UsefulHeadersFromPeer {
         peer: AuthorityIndex,
-        missing_authors: BTreeSet<AuthorityIndex>,
+        authors: BTreeSet<AuthorityIndex>,
     },
 }
 
@@ -128,7 +129,7 @@ impl CordialKnowledgeMessage {
             CordialKnowledgeMessage::NewHeader { .. } => "New header",
             CordialKnowledgeMessage::NewShard(_) => "New shard",
             CordialKnowledgeMessage::UsefulShardsFromPeers(_) => "Useful authors for shards",
-            CordialKnowledgeMessage::HeadersFromPeer { .. } => "Headers from peer",
+            CordialKnowledgeMessage::UsefulHeadersFromPeer { .. } => "Useful headers from peer",
         }
     }
 }
@@ -228,16 +229,17 @@ impl CordialKnowledgeHandle {
             }
         }
 
-        // Report the missing authors this peer referenced, so the task can ask
-        // it to push their headers.
-        let missing_authors = missing_ancestors
+        // Accepted headers remain useful input even when they arrive before the
+        // block that references them and therefore prevent a missing ancestor.
+        let useful_header_authors = additional_block_headers
             .iter()
-            .map(|block_ref| block_ref.author)
+            .map(|header| header.author())
+            .chain(missing_ancestors.iter().map(|block_ref| block_ref.author))
             .collect::<BTreeSet<_>>();
-        if !missing_authors.is_empty() {
-            let cordial_knowledge_message = CordialKnowledgeMessage::HeadersFromPeer {
+        if !useful_header_authors.is_empty() {
+            let cordial_knowledge_message = CordialKnowledgeMessage::UsefulHeadersFromPeer {
                 peer,
-                missing_authors,
+                authors: useful_header_authors,
             };
             if let Err(TrySendError::Closed(_)) =
                 cordial_knowledge_sender.try_send(cordial_knowledge_message)
@@ -293,8 +295,8 @@ impl CordialKnowledge {
                 last_useful_shards_from_peer_round: vec![None; num_authorities],
                 connection_knowledges: connection_knowledges.clone(),
                 missing_authors: vec![None; num_authorities],
-                own_round: Round::MIN,
-                advertised_to_connection: vec![false; num_authorities],
+                latest_own_block_round: Round::MIN,
+                has_useful_headers_from_peer: vec![false; num_authorities],
             },
             connection_knowledges,
             cordial_knowledge_sender,
@@ -372,7 +374,7 @@ impl CordialKnowledge {
                             .map(|_| Vec::new())
                             .collect();
 
-                    let own_round_before_batch = self.own_round;
+                    let own_block_round_before_batch = self.latest_own_block_round;
                     for msg in batch {
                         if let Some(vec_connection_knowledge_msgs) = self.process_message(msg) {
                             for (index, msgs) in
@@ -383,11 +385,12 @@ impl CordialKnowledge {
                         }
                     }
 
-                    // The advertisement only leaves in a bundle carrying an own
-                    // block, so the clock moving is when a fresh choice can be
-                    // used.
-                    if self.own_round > own_round_before_batch {
-                        self.append_advertisement_msgs(&mut vec_connection_knowledge_msgs_batch);
+                    // Requested authors can be sent only with an own block, so
+                    // refresh each peer's requests after processing a newer one.
+                    if self.latest_own_block_round > own_block_round_before_batch {
+                        self.append_useful_headers_from_peer_msgs(
+                            &mut vec_connection_knowledge_msgs_batch,
+                        );
                     }
 
                     if processed_since_eviction >= EVICTION_CHECK_INTERVAL {
@@ -465,11 +468,8 @@ impl CordialKnowledge {
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
                 self.handle_useful_shards_from(useful_shards_from_peer)
             }
-            CordialKnowledgeMessage::HeadersFromPeer {
-                peer,
-                missing_authors,
-            } => {
-                self.handle_headers_from_peer(peer, missing_authors);
+            CordialKnowledgeMessage::UsefulHeadersFromPeer { peer, authors } => {
+                self.handle_useful_headers_from_peer(peer, authors);
                 None
             }
         }
@@ -511,80 +511,79 @@ impl CordialKnowledge {
         }
     }
 
-    /// Record the missing authors one peer's bundle referenced.
-    fn handle_headers_from_peer(
+    /// Record the authors whose headers one peer supplied or referenced as
+    /// missing.
+    fn handle_useful_headers_from_peer(
         &mut self,
         peer: AuthorityIndex,
-        missing_authors: BTreeSet<AuthorityIndex>,
+        authors: BTreeSet<AuthorityIndex>,
     ) {
         let own_index = self.context.own_index;
-        let own_round = self.own_round;
-        for author in missing_authors {
+        let latest_own_block_round = self.latest_own_block_round;
+        for author in authors {
             if author == own_index {
                 continue;
             }
             let state = self.missing_authors[author].get_or_insert_default();
-            state.last_missing_round = own_round;
+            state.last_useful_round = latest_own_block_round;
             // A connection to the author never holds that author's own headers,
             // so it can never push them.
             if peer != author && peer != own_index {
-                state.referencing_peers.insert(peer, own_round);
+                state.useful_peers.insert(peer, latest_own_block_round);
             }
         }
     }
 
-    /// Refresh which peers are asked to push each missing author's headers, and
-    /// prepare the resulting set for every connection. A peer is asked while
-    /// its reference to a missing block of the author is recent; an author is
-    /// released once none of its blocks has been reported missing for a while.
-    fn append_advertisement_msgs(
+    /// Refresh which authors each peer is asked to supply. Accepted headers and
+    /// references to missing headers both keep a request active.
+    fn append_useful_headers_from_peer_msgs(
         &mut self,
         vec_connection_knowledge_msgs_batch: &mut [Vec<ConnectionKnowledgeMessage>],
     ) {
         // The healthy steady state: nothing to ask and nothing to clear, and the
         // gauge was zeroed by the pass that emptied the last of it.
         if self.missing_authors.iter().all(Option::is_none)
-            && !self.advertised_to_connection.iter().any(|asked| *asked)
+            && !self.has_useful_headers_from_peer.iter().any(|asked| *asked)
         {
             return;
         }
 
         let own_index = self.context.own_index;
-        let own_round = self.own_round;
-        let is_stale =
-            |round: Round| own_round.saturating_sub(round) > MAX_ROUND_GAP_FOR_USEFUL_PARTS;
+        let latest_own_block_round = self.latest_own_block_round;
+        let is_stale = |round: Round| {
+            latest_own_block_round.saturating_sub(round) > MAX_ROUND_GAP_FOR_USEFUL_PARTS
+        };
 
         let mut missing_authors: i64 = 0;
-        let mut sets: Vec<BTreeMap<AuthorityIndex, Round>> =
+        let mut useful_headers_from_peer: Vec<BTreeMap<AuthorityIndex, Round>> =
             vec![BTreeMap::new(); self.context.committee.size()];
         for (author_index, state) in self.missing_authors.iter_mut().enumerate() {
             if state
                 .as_ref()
-                .is_some_and(|missing| is_stale(missing.last_missing_round))
+                .is_some_and(|missing| is_stale(missing.last_useful_round))
             {
                 *state = None;
             }
             let Some(missing) = state else { continue };
-            missing
-                .referencing_peers
-                .retain(|_, round| !is_stale(*round));
+            missing.useful_peers.retain(|_, round| !is_stale(*round));
             missing_authors += 1;
             let author = AuthorityIndex::from(author_index as u8);
-            for peer in missing.referencing_peers.keys() {
-                sets[peer.value()].insert(author, own_round);
+            for peer in missing.useful_peers.keys() {
+                useful_headers_from_peer[peer.value()].insert(author, latest_own_block_round);
             }
         }
 
-        for (peer_index, set) in sets.into_iter().enumerate() {
+        for (peer_index, authors) in useful_headers_from_peer.into_iter().enumerate() {
             if peer_index == own_index.value() {
                 continue;
             }
-            let non_empty = !set.is_empty();
-            if non_empty || self.advertised_to_connection[peer_index] {
-                vec_connection_knowledge_msgs_batch[peer_index]
-                    .push(ConnectionKnowledgeMessage::SetUsefulHeadersFromPeer(set));
+            let non_empty = !authors.is_empty();
+            if non_empty || self.has_useful_headers_from_peer[peer_index] {
+                vec_connection_knowledge_msgs_batch[peer_index].push(
+                    ConnectionKnowledgeMessage::SetUsefulHeadersFromPeer(authors),
+                );
             }
-            self.advertised_to_connection[peer_index] = non_empty;
+            self.has_useful_headers_from_peer[peer_index] = non_empty;
         }
 
         self.context
@@ -715,7 +714,7 @@ impl CordialKnowledge {
         let own_index = self.context.own_index.value();
 
         if block_author == own_index {
-            self.own_round = max(self.own_round, block_round);
+            self.latest_own_block_round = max(self.latest_own_block_round, block_round);
         }
 
         // Pre-allocate message buffers
@@ -1348,7 +1347,7 @@ mod tests {
             (0..cordial_knowledge.context.committee.size())
                 .map(|_| Vec::new())
                 .collect();
-        cordial_knowledge.append_advertisement_msgs(&mut batch);
+        cordial_knowledge.append_useful_headers_from_peer_msgs(&mut batch);
         batch
     }
 
@@ -1363,7 +1362,7 @@ mod tests {
     }
 
     fn report_missing(cordial_knowledge: &mut CordialKnowledge, peer: u8, missing_author: u8) {
-        cordial_knowledge.handle_headers_from_peer(
+        cordial_knowledge.handle_useful_headers_from_peer(
             AuthorityIndex::new_for_test(peer),
             BTreeSet::from([AuthorityIndex::new_for_test(missing_author)]),
         );
@@ -1383,7 +1382,7 @@ mod tests {
     #[tokio::test]
     async fn test_referencing_a_missing_block_asks_the_peer() {
         let (mut cordial_knowledge, connection_knowledges) = cordial_knowledge_for_test(6);
-        cordial_knowledge.own_round = 10;
+        cordial_knowledge.latest_own_block_round = 10;
         let author = AuthorityIndex::new_for_test(5);
 
         report_missing(&mut cordial_knowledge, 1, 5);
@@ -1407,19 +1406,41 @@ mod tests {
         );
     }
 
-    /// The handle reports what a bundle said to the task; it no longer writes
-    /// the asked authors into the connection itself.
+    /// An accepted header renews the request even when it prevents the
+    /// referencing block from reporting a missing ancestor.
     #[tokio::test]
-    async fn test_report_useful_authors_leaves_the_asked_authors_to_the_task() {
+    async fn test_accepted_header_keeps_peer_asked() {
         let peer = AuthorityIndex::new_for_test(1);
+        let author = AuthorityIndex::new_for_test(3);
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        let cordial_knowledge = CordialKnowledge::start(context, dag_state);
+        let (
+            mut cordial_knowledge,
+            connection_knowledges,
+            cordial_knowledge_sender,
+            _eviction_rounds_sender,
+        ) = CordialKnowledge::new(context, dag_state);
+        let handle = CordialKnowledgeHandle {
+            cordial_knowledge_sender,
+            connection_knowledges,
+            cordial_knowledge_handle: Mutex::new(None),
+        };
 
-        let missing = BlockRef::new(5, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN);
-        cordial_knowledge
+        cordial_knowledge.latest_own_block_round = 10;
+        report_missing(
+            &mut cordial_knowledge,
+            peer.value() as u8,
+            author.value() as u8,
+        );
+        recompute(&mut cordial_knowledge);
+
+        cordial_knowledge.latest_own_block_round = 10 + MAX_ROUND_GAP_FOR_USEFUL_PARTS;
+        let accepted = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(10 + MAX_ROUND_GAP_FOR_USEFUL_PARTS, author.value() as u8).build(),
+        );
+        handle
             .report_useful_authors(
                 peer,
                 &SerializedBlockBundleParts {
@@ -1429,13 +1450,20 @@ mod tests {
                     useful_headers_authors_bitmask: AuthoritySet::default(),
                     useful_shards_authors_bitmask: AuthoritySet::default(),
                 },
-                &[],
-                &BTreeSet::from([missing]),
+                &[accepted],
+                &BTreeSet::new(),
                 7,
             )
             .unwrap();
 
-        assert!(asks_nothing(&cordial_knowledge.connection_knowledges[peer]));
+        assert!(asks_nothing(&handle.connection_knowledges[peer]));
+        while let Ok(message) = cordial_knowledge.cordial_knowledge_receiver.try_recv() {
+            let _ = cordial_knowledge.process_message(message);
+        }
+
+        cordial_knowledge.latest_own_block_round = 10 + MAX_ROUND_GAP_FOR_USEFUL_PARTS + 1;
+        let batch = recompute(&mut cordial_knowledge);
+        assert_eq!(asked_authors(&batch[peer]), Some(BTreeSet::from([author])));
     }
 
     /// An author cannot push its own headers, and the local node is never a
@@ -1444,7 +1472,7 @@ mod tests {
     async fn test_author_and_own_index_are_never_asked() {
         let (mut cordial_knowledge, _connection_knowledges) = cordial_knowledge_for_test(5);
         let own_index = cordial_knowledge.context.own_index;
-        cordial_knowledge.own_round = 10;
+        cordial_knowledge.latest_own_block_round = 10;
         let author = AuthorityIndex::new_for_test(3);
 
         // The author is the only peer that referenced its own missing block, and
@@ -1454,17 +1482,17 @@ mod tests {
 
         assert!(cordial_knowledge.missing_authors[own_index].is_none());
         let state = cordial_knowledge.missing_authors[author].as_ref().unwrap();
-        assert!(!state.referencing_peers.contains_key(&author));
+        assert!(!state.useful_peers.contains_key(&author));
         let batch = recompute(&mut cordial_knowledge);
         assert!(batch.iter().all(|msgs| msgs.is_empty()));
     }
 
-    /// Once none of the author's blocks has been reported missing for a while,
+    /// Once no peer supplies or references the author's headers for a while,
     /// every connection that was asking is cleared exactly once.
     #[tokio::test]
-    async fn test_asking_stops_when_the_author_is_no_longer_missing() {
+    async fn test_asking_stops_without_useful_header_input() {
         let (mut cordial_knowledge, connection_knowledges) = cordial_knowledge_for_test(6);
-        cordial_knowledge.own_round = 10;
+        cordial_knowledge.latest_own_block_round = 10;
         let author = AuthorityIndex::new_for_test(5);
 
         report_missing(&mut cordial_knowledge, 1, 5);
@@ -1477,7 +1505,7 @@ mod tests {
         }
         assert!(!asks_nothing(&connection_knowledges[1]));
 
-        cordial_knowledge.own_round = 10 + MAX_ROUND_GAP_FOR_USEFUL_PARTS + 1;
+        cordial_knowledge.latest_own_block_round = 10 + MAX_ROUND_GAP_FOR_USEFUL_PARTS + 1;
         let mut batch = recompute(&mut cordial_knowledge);
 
         assert!(cordial_knowledge.missing_authors[author].is_none());
@@ -1495,20 +1523,20 @@ mod tests {
         assert!(batch.iter().all(|msgs| msgs.is_empty()));
     }
 
-    /// A peer stops being asked once its reference is old, even while the
-    /// author is still missing through another peer.
+    /// A peer stops being asked once its last useful input is old, even while
+    /// another peer keeps the author active.
     #[tokio::test]
-    async fn test_asking_stops_when_the_reference_ages() {
+    async fn test_asking_stops_when_one_peer_input_ages() {
         let (mut cordial_knowledge, _connection_knowledges) = cordial_knowledge_for_test(6);
         let author = AuthorityIndex::new_for_test(5);
 
-        cordial_knowledge.own_round = 10;
+        cordial_knowledge.latest_own_block_round = 10;
         report_missing(&mut cordial_knowledge, 1, 5);
-        cordial_knowledge.own_round = 30;
+        cordial_knowledge.latest_own_block_round = 30;
         report_missing(&mut cordial_knowledge, 2, 5);
         recompute(&mut cordial_knowledge);
 
-        cordial_knowledge.own_round = 10 + MAX_ROUND_GAP_FOR_USEFUL_PARTS + 1;
+        cordial_knowledge.latest_own_block_round = 10 + MAX_ROUND_GAP_FOR_USEFUL_PARTS + 1;
         let batch = recompute(&mut cordial_knowledge);
 
         assert_eq!(asked_authors(&batch[1]), Some(BTreeSet::new()));
@@ -1520,17 +1548,14 @@ mod tests {
     #[tokio::test]
     async fn test_rounds_are_stamped_from_the_local_clock() {
         let (mut cordial_knowledge, _connection_knowledges) = cordial_knowledge_for_test(5);
-        cordial_knowledge.own_round = 42;
+        cordial_knowledge.latest_own_block_round = 42;
         let author = AuthorityIndex::new_for_test(4);
 
         report_missing(&mut cordial_knowledge, 1, 4);
 
         let state = cordial_knowledge.missing_authors[author].as_ref().unwrap();
-        assert_eq!(state.last_missing_round, 42);
-        assert_eq!(
-            state.referencing_peers[&AuthorityIndex::new_for_test(1)],
-            42
-        );
+        assert_eq!(state.last_useful_round, 42);
+        assert_eq!(state.useful_peers[&AuthorityIndex::new_for_test(1)], 42);
         let batch = recompute(&mut cordial_knowledge);
         match &batch[1][..] {
             [ConnectionKnowledgeMessage::SetUsefulHeadersFromPeer(set)] => {
