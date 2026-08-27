@@ -529,8 +529,6 @@ impl CordialKnowledge {
             }
             let state = self.missing_authors[author].get_or_insert_default();
             state.last_useful_round = latest_own_block_round;
-            // A connection to the author never holds that author's own headers,
-            // so it can never push them.
             if peer != author && peer != own_index {
                 state.useful_peers.insert(peer, latest_own_block_round);
             }
