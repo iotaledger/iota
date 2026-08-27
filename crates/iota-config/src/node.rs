@@ -831,13 +831,26 @@ impl NodeConfig {
     /// not start with. They also reject the known cases where a node would
     /// start and ignore part of the config.
     pub fn validate(&self) -> Result<()> {
-        // A validator never starts the gRPC server, so an enabled API there
-        // is a setting the node would ignore.
-        if self.is_validator() && self.enable_grpc_api {
-            anyhow::bail!(
-                "`enable-grpc-api` is set, but validators do not expose the gRPC API; turn it \
-                 off, or move the API to a fullnode"
-            );
+        // The settings a validator must not carry: it never starts the gRPC
+        // server, and snapshot publication is a fullnode role.
+        if self.is_validator() {
+            if self.enable_grpc_api {
+                anyhow::bail!(
+                    "`enable-grpc-api` is set, but validators do not expose the gRPC API; turn \
+                     it off, or move the API to a fullnode"
+                );
+            }
+            if self
+                .state_snapshot_write_config
+                .object_store_config
+                .is_some()
+            {
+                anyhow::bail!(
+                    "`state-snapshot-write-config.object-store-config` is set, but snapshot \
+                     upload is only supported on fullnodes; remove the setting or move the \
+                     upload to a fullnode"
+                );
+            }
         }
         // In a file, an absent key deserializes to the default config, and a
         // config built in code carries it too. `None` here therefore means an
@@ -846,19 +859,6 @@ impl NodeConfig {
             anyhow::bail!(
                 "`enable-grpc-api` is set but `grpc-api-config` is `null`; give it a value, \
                  remove the key to take the default config, or turn off `enable-grpc-api`"
-            );
-        }
-        // Snapshot publication is a fullnode-only role.
-        if self.is_validator()
-            && self
-                .state_snapshot_write_config
-                .object_store_config
-                .is_some()
-        {
-            anyhow::bail!(
-                "`state-snapshot-write-config.object-store-config` is set, but snapshot upload \
-                 is only supported on fullnodes; remove the setting or move the upload to a \
-                 fullnode"
             );
         }
         // The uploader builds the store at startup, which needs a backend.
