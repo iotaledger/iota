@@ -6,9 +6,7 @@
 
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use iota_protocol_config::{Chain, ProtocolVersion};
-use iota_sdk_types::{
-    ObjectReference, Owner as SdkOwner, SenderSignedTransaction, Transaction, UserSignature,
-};
+use iota_sdk_types::{OwnedObjectReference, SenderSignedTransaction, Transaction, UserSignature};
 use iota_types::{
     effects::TransactionEffectsAPI,
     object::{Object, ObjectInner},
@@ -102,12 +100,12 @@ pub fn simulate(req: JsValue, fetch_object: js_sys::Function) -> Result<JsValue,
         _ => None,
     };
 
-    fn changed((obj, owner): (ObjectReference, SdkOwner)) -> ChangedObject {
+    fn changed(obj: OwnedObjectReference) -> ChangedObject {
         ChangedObject {
-            object_id: obj.object_id().to_string(),
-            version: obj.version().as_u64(),
-            digest: obj.digest().to_string(),
-            owner: Owner::from(&owner),
+            object_id: obj.reference.object_id().to_string(),
+            version: obj.reference.version().as_u64(),
+            digest: obj.reference.digest().to_string(),
+            owner: Owner::from(&obj.owner),
         }
     }
     let mutated: Vec<ChangedObject> = result.effects.mutated().into_iter().map(changed).collect();
