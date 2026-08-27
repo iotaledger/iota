@@ -5,7 +5,7 @@
 use std::{collections::HashMap, num::NonZeroUsize, sync::Arc};
 
 use async_trait::async_trait;
-use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
+use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
 use iota_json_rpc_types::{
@@ -164,10 +164,7 @@ impl ReadApi {
     ) -> IndexerResult<bool> {
         let result = self
             .fullnode_grpc_client
-            .get_transactions(
-                &[digest],
-                Some(ReadMask::from(TransactionField::TRANSACTION_DIGEST)),
-            )
+            .get_transactions([digest], TransactionField::TRANSACTION_DIGEST)
             .await?
             .into_inner()
             .pop()

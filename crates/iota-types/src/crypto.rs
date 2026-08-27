@@ -627,7 +627,7 @@ macro_rules! random_key_pair_from_sdk {
     ($private_key:ty, $variant:ident) => {
         impl RandomKeyPair for $private_key {
             fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
-                let kp = <$private_key>::generate(rng);
+                let kp = <$private_key>::random_with(rng);
                 let public = PublicKey::$variant(BytesRepresentation(kp.public_key().into_inner()));
                 (Address::from(&public), kp)
             }

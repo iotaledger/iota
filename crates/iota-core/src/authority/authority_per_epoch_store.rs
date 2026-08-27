@@ -31,7 +31,7 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, CancelledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
+    Address, CanceledTransaction, CheckpointTimestamp, ObjectId, ObjectReference, RandomnessRound,
     TransactionDigest, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
     VersionAssignment,
     checkpoint::{CheckpointContents, CheckpointSummary},
@@ -4098,7 +4098,7 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        let mut cancelled_transactions: Vec<CancelledTransaction> = Vec::new();
+        let mut canceled_transactions: Vec<CanceledTransaction> = Vec::new();
 
         let mut shared_input_next_version = HashMap::new();
         for txn in transactions.iter() {
@@ -4112,7 +4112,7 @@ impl AuthorityPerEpochStore {
                         self.protocol_config
                             .congestion_control_gas_price_feedback_mechanism(),
                     );
-                    cancelled_transactions.push(CancelledTransaction {
+                    canceled_transactions.push(CanceledTransaction {
                         digest: *txn.digest(),
                         version_assignments,
                     });
@@ -4123,13 +4123,13 @@ impl AuthorityPerEpochStore {
 
         fail_point_arg!(
             "additional_cancelled_txns_for_tests",
-            |additional_cancelled_txns: Vec<CancelledTransaction>| {
-                cancelled_transactions.extend(additional_cancelled_txns);
+            |additional_cancelled_txns: Vec<CanceledTransaction>| {
+                canceled_transactions.extend(additional_cancelled_txns);
             }
         );
 
         let transaction = consensus_commit_info
-            .create_consensus_commit_prologue_transaction(self.epoch(), cancelled_transactions);
+            .create_consensus_commit_prologue_transaction(self.epoch(), canceled_transactions);
         let consensus_commit_prologue_root = match self
             .process_consensus_system_transaction(&transaction)
         {
@@ -4516,7 +4516,7 @@ impl AuthorityPerEpochStore {
             .consensus_handler_deferred_transactions
             .inc_by(total_deferred_txns as u64);
         authority_metrics
-            .consensus_handler_cancelled_transactions
+            .consensus_handler_canceled_transactions
             .inc_by(cancelled_txns.len() as u64);
         authority_metrics
             .consensus_handler_max_object_costs

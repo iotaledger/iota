@@ -189,10 +189,10 @@ impl IndexedEvent {
             senders: vec![event.sender],
             package: event.package_id,
             module: event.module.to_string(),
-            event_type: event.type_.to_canonical_string(/* with_prefix */ true),
-            event_type_package: event.type_.address().into(),
-            event_type_module: event.type_.module().to_string(),
-            event_type_name: event.type_.name().to_string(),
+            event_type: event.struct_tag.to_canonical_string(/* with_prefix */ true),
+            event_type_package: event.struct_tag.address().into(),
+            event_type_module: event.struct_tag.module().to_string(),
+            event_type_name: event.struct_tag.name().to_string(),
             bcs: event.contents.clone(),
             timestamp_ms,
         }
@@ -222,7 +222,7 @@ impl EventIndex {
         event: &iota_sdk_types::Event,
     ) -> Self {
         let type_instantiation = event
-            .type_
+            .struct_tag
             .to_canonical_string(/* with_prefix */ true)
             .splitn(3, "::")
             .collect::<Vec<_>>()[2]
@@ -233,9 +233,9 @@ impl EventIndex {
             sender: event.sender,
             emit_package: event.package_id,
             emit_module: event.module.to_string(),
-            type_package: event.type_.address().into(),
-            type_module: event.type_.module().to_string(),
-            type_name: event.type_.name().to_string(),
+            type_package: event.struct_tag.address().into(),
+            type_module: event.struct_tag.module().to_string(),
+            type_name: event.struct_tag.name().to_string(),
             type_instantiation,
         }
     }

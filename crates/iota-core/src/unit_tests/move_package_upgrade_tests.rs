@@ -1282,10 +1282,15 @@ async fn test_upgraded_types_in_one_txn() {
         .authority_state
         .get_transaction_events(effects.transaction_digest())
         .unwrap();
-    events.sort_by(|a, b| a.type_.name().as_str().cmp(b.type_.name().as_str()));
+    events.sort_by(|a, b| {
+        a.struct_tag
+            .name()
+            .as_str()
+            .cmp(b.struct_tag.name().as_str())
+    });
     assert!(events.len() == 2);
-    assert_eq!(events[0].type_, e1_type);
-    assert_eq!(events[1].type_, e2_type);
+    assert_eq!(events[0].struct_tag, e1_type);
+    assert_eq!(events[1].struct_tag, e2_type);
 }
 
 #[tokio::test]

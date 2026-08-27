@@ -490,7 +490,8 @@ impl KeyToolCommand {
                         let tx = bcs::from_bytes::<SenderSignedData>(&tx_bytes).map_err(|e| {
                             anyhow!("Failed to decode as signature or transaction: {e}")
                         })?;
-                        tx.0.signatures
+                        tx.into_signed_transaction()
+                            .signatures
                             .into_iter()
                             .next()
                             .ok_or_else(|| anyhow!("Transaction has no signatures"))?
@@ -930,7 +931,7 @@ impl KeyToolCommand {
                     Err(_) => {
                         let deserialized_tx =
                             bcs::from_bytes::<SenderSignedTransaction>(&tx_bytes)?;
-                        deserialized_tx.0.transaction
+                        deserialized_tx.into_signed_transaction().transaction
                     }
                 };
                 CommandOutput::TxDigest(TxDigestOutput {

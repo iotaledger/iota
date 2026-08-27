@@ -563,7 +563,7 @@ async fn get_transaction_block() {
 async fn is_transaction_not_present() {
     let cluster = TestClusterBuilder::new().build().await;
     let rng = StdRng::from_seed([1; 32]);
-    let digest = TransactionDigest::generate(rng);
+    let digest = TransactionDigest::random_with(rng);
 
     assert!(
         !cluster

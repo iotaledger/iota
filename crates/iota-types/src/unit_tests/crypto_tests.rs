@@ -8,7 +8,7 @@ use super::*;
 
 #[test]
 fn serde_keypair() {
-    let ikp = IotaKeyPair::Ed25519(Ed25519PrivateKey::generate(StdRng::from_seed([0; 32])));
+    let ikp = IotaKeyPair::Ed25519(Ed25519PrivateKey::random_with(StdRng::from_seed([0; 32])));
     let encoded = ikp.encode().unwrap();
     assert_eq!(
         encoded,

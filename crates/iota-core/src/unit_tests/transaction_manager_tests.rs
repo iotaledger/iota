@@ -715,7 +715,7 @@ async fn transaction_manager_receiving_object_ready_if_current_version_greater()
 // that for cancelled transaction, transaction manager only waits for all
 // non-shared objects to be available before outputting the transaction.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
-async fn transaction_manager_with_cancelled_transactions() {
+async fn transaction_manager_with_canceled_transactions() {
     // Initialize an authority state, with gas objects and 3 shared objects.
     let (owner, _keypair) = deterministic_random_account_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
@@ -765,7 +765,7 @@ async fn transaction_manager_with_cancelled_transactions() {
         .set_shared_object_versions_for_testing(
             cancelled_transaction.digest(),
             &[
-                VersionAssignment::new(shared_object_1.id(), Version::CANCELLED_READ),
+                VersionAssignment::new(shared_object_1.id(), Version::CANCELED_READ),
                 VersionAssignment::new(
                     shared_object_2.id(),
                     Version::new_congested_with_suggested_gas_price(101).unwrap(),

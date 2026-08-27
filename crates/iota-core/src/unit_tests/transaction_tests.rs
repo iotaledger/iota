@@ -226,8 +226,8 @@ async fn test_user_sends_consensus_commit_prologue_v1() {
             commit_timestamp_ms: 42,
             consensus_commit_digest: ConsensusCommitDigest::default(),
             consensus_determined_version_assignments:
-                ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                    cancelled_transactions: Vec::new(),
+                ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                    canceled_transactions: Vec::new(),
                 },
         },
     ))

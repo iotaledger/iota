@@ -195,7 +195,7 @@ impl LocalVm {
         let auth_digests = signed
             .compute_auth_digests()
             .map_err(|e| VmSdkError::SignatureVerification(e.into()))?;
-        let transaction = signed.0.transaction;
+        let transaction = signed.into_signed_transaction().transaction;
 
         // A `MoveAuthenticator` on a protocol version that predates Move
         // authentication cannot be run; reject it with a typed error rather
@@ -302,7 +302,7 @@ impl LocalVm {
         let auth_digests = signed
             .compute_auth_digests()
             .map_err(|e| VmSdkError::SignatureVerification(e.into()))?;
-        let transaction = signed.0.transaction;
+        let transaction = signed.into_signed_transaction().transaction;
 
         let env = ExecutionEnv::new(self, &DebugConfig::default())?;
         let backend = StoreBackend::new(self.store.as_ref());

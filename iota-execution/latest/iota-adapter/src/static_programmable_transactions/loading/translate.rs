@@ -107,8 +107,8 @@ fn command(env: &Env, command: Command) -> Result<L::Command, ExecutionError> {
                 arguments,
             }))
         }
-        Command::MakeMoveVector(MakeMoveVector { type_, elements }) => {
-            let type_argument = type_.map(|ty| env.load_type_input(0, ty)).transpose()?;
+        Command::MakeMoveVector(MakeMoveVector { type_tag, elements }) => {
+            let type_argument = type_tag.map(|ty| env.load_type_input(0, ty)).transpose()?;
             L::Command::MakeMoveVec(type_argument, elements)
         }
         Command::TransferObjects(TransferObjects { objects, address }) => {

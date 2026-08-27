@@ -579,7 +579,7 @@ impl TestCheckpointDataBuilder {
                 package_id: ObjectId::SYSTEM,
                 module: Identifier::from_static("iota_system_state_inner"),
                 sender: TestCheckpointDataBuilder::derive_address(0),
-                type_: StructTag::new_system_epoch_info_event(),
+                struct_tag: StructTag::new_system_epoch_info_event(),
                 contents: bcs::to_bytes(&system_epoch_info_event).unwrap(),
             }])
         } else {
@@ -1023,7 +1023,7 @@ mod tests {
                 package_id: ObjectId::ZERO,
                 module: Identifier::from_static("test"),
                 sender: TestCheckpointDataBuilder::derive_address(0),
-                type_: StructTag::new_gas(),
+                struct_tag: StructTag::new_gas(),
                 contents: vec![],
             }])
             .finish_transaction()

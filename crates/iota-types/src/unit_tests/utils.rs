@@ -83,7 +83,7 @@ pub fn create_fake_transaction() -> Transaction {
 
 pub fn make_transaction_data(sender: Address) -> TransactionData {
     let object =
-        Object::immutable_with_id_for_testing(ObjectId::generate(StdRng::from_seed([0; 32])));
+        Object::immutable_with_id_for_testing(ObjectId::random_with(StdRng::from_seed([0; 32])));
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
         builder.transfer_iota(dbg_addr(2), None);
@@ -162,9 +162,9 @@ pub fn keys() -> Vec<IotaKeyPair> {
 
 pub fn multisig_keys() -> (Ed25519PrivateKey, Secp256k1PrivateKey, Secp256r1PrivateKey) {
     let mut seed = StdRng::from_seed([0; 32]);
-    let kp1 = Ed25519PrivateKey::generate(&mut seed);
-    let kp2 = Secp256k1PrivateKey::generate(&mut seed);
-    let kp3 = Secp256r1PrivateKey::generate(&mut seed);
+    let kp1 = Ed25519PrivateKey::random_with(&mut seed);
+    let kp2 = Secp256k1PrivateKey::random_with(&mut seed);
+    let kp3 = Secp256r1PrivateKey::random_with(&mut seed);
 
     (kp1, kp2, kp3)
 }
@@ -299,7 +299,7 @@ mod passkey {
     /// padding, satisfying the length requirement without needing a real
     /// WebAuthn round-trip.
     pub fn make_passkey_authenticator_sig() -> UserSignature {
-        let r1_kp = Secp256r1PrivateKey::generate(rand::thread_rng());
+        let r1_kp = Secp256r1PrivateKey::random_with(rand::thread_rng());
         let user_sig: SimpleSignature = r1_kp.sign(&[0u8; 32]);
         let client_data_json = r#"{"type":"webauthn.get","challenge":"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","origin":"https://test.iota.org"}"#;
         let passkey =

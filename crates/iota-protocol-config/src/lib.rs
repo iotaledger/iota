@@ -181,7 +181,7 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             Start publishing package metadata using module metadata as a
 //             dynamic field.
 //             Report a failure of the Move authentication with a distinct
-//             `MoveAuthenticationError` execution error.
+//             `MoveAuthentication` execution error.
 //             Enable the optimistic commit rule (StarfishSpeed) in Starfish
 //             consensus on devnet.
 // Version 32: Move validator count limits (min/max validator count) and
@@ -586,7 +586,7 @@ struct FeatureFlags {
     package_metadata_with_dynamic_module_metadata: bool,
 
     // If true, a failure of the Move authentication is reported with a distinct
-    // `MoveAuthenticationError` execution error.
+    // `MoveAuthentication` execution error.
     #[serde(skip_serializing_if = "is_false")]
     report_move_authentication_error: bool,
 

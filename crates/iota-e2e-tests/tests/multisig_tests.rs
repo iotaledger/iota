@@ -346,7 +346,7 @@ async fn test_multisig_e2e() {
     );
 
     // 7. mismatch pks in sig with multisig address fails to execute.
-    let pk3: PublicKey = Secp256r1PrivateKey::generate(rand::thread_rng())
+    let pk3: PublicKey = Secp256r1PrivateKey::random_with(rand::thread_rng())
         .public_key()
         .into();
     let wrong_multisig_pk = MultiSigPublicKey::new_unchecked(

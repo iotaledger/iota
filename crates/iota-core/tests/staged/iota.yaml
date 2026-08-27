@@ -43,7 +43,7 @@ CallArg:
       Object:
         NEWTYPE:
           TYPENAME: ObjectArg
-CancelledTransaction:
+CanceledTransaction:
   STRUCT:
     - digest:
         TYPENAME: TransactionDigest
@@ -267,11 +267,11 @@ ConsensusCommitPrologueV1:
 ConsensusDeterminedVersionAssignments:
   ENUM:
     0:
-      CancelledTransactions:
+      CanceledTransactions:
         STRUCT:
-          - cancelled_transactions:
+          - canceled_transactions:
               SEQ:
-                TYPENAME: CancelledTransaction
+                TYPENAME: CanceledTransaction
 DeleteKind:
   ENUM:
     0:
@@ -321,6 +321,8 @@ EndOfEpochTransactionKind:
       ChangeEpochV4:
         NEWTYPE:
           TYPENAME: ChangeEpochV4
+    4:
+      TransactionDenyRulesCreate: UNIT
 Event:
   STRUCT:
     - package_id:
@@ -445,7 +447,7 @@ ExecutionError:
     32:
       InputObjectDeleted: UNIT
     33:
-      ExecutionCancelledDueToSharedObjectCongestion:
+      ExecutionCanceledDueToSharedObjectCongestion:
         STRUCT:
           - congested_objects:
               SEQ:
@@ -461,9 +463,9 @@ ExecutionError:
         STRUCT:
           - coin_type: STR
     36:
-      ExecutionCancelledDueToRandomnessUnavailable: UNIT
+      ExecutionCanceledDueToRandomnessUnavailable: UNIT
     37:
-      ExecutionCancelledDueToSharedObjectCongestionV2:
+      ExecutionCanceledDueToSharedObjectCongestionV2:
         STRUCT:
           - congested_objects:
               SEQ:
@@ -472,16 +474,20 @@ ExecutionError:
     38:
       InvalidLinkage: UNIT
     39:
-      MoveAuthenticationError:
+      MoveAuthentication:
         STRUCT:
           - error:
               TYPENAME: ExecutionError
     40:
+      ExecutionCanceledDueToExecutionWorkerCongestion:
+        STRUCT:
+          - suggested_gas_price: U64
+    41:
       MoveVectorElemTooBig:
         STRUCT:
           - value_size: U64
           - max_scaled_size: U64
-    41:
+    42:
       MoveRawValueTooBig:
         STRUCT:
           - value_size: U64
@@ -823,6 +829,35 @@ Transaction:
       V1:
         NEWTYPE:
           TYPENAME: TransactionV1
+TransactionDenyRulesUpdate:
+  STRUCT:
+    - epoch: U64
+    - round: U64
+    - added_addresses:
+        SEQ:
+          TYPENAME: Address
+    - removed_addresses:
+        SEQ:
+          TYPENAME: Address
+    - added_objects:
+        SEQ:
+          TYPENAME: ObjectId
+    - removed_objects:
+        SEQ:
+          TYPENAME: ObjectId
+    - added_packages:
+        SEQ:
+          TYPENAME: ObjectId
+    - removed_packages:
+        SEQ:
+          TYPENAME: ObjectId
+    - package_publish_disabled: BOOL
+    - package_upgrade_disabled: BOOL
+    - shared_object_disabled: BOOL
+    - user_transaction_disabled: BOOL
+    - receiving_objects_disabled: BOOL
+    - move_authenticator_disabled: BOOL
+    - deny_rules_obj_initial_shared_version: U64
 TransactionDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
@@ -901,6 +936,10 @@ TransactionKind:
       RandomnessStateUpdate:
         NEWTYPE:
           TYPENAME: RandomnessStateUpdate
+    6:
+      TransactionDenyRulesUpdate:
+        NEWTYPE:
+          TYPENAME: TransactionDenyRulesUpdate
 TransactionV1:
   STRUCT:
     - kind:
@@ -992,7 +1031,7 @@ UnchangedSharedKind:
         STRUCT:
           - version: U64
     3:
-      Cancelled:
+      Canceled:
         STRUCT:
           - version: U64
     4:

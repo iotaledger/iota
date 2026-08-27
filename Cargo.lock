@@ -820,6 +820,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-channel"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "924ed96dd52d1b75e9c1a3e6275715fd320f5f9439fb5a4a11fa51f4221158d2"
+dependencies = [
+ "concurrent-queue",
+ "event-listener-strategy",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "async-compression"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1807,8 +1819,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90dbd31c98227229239363921e60fcf5e558e43ec69094d46fc4996f08d1d5bc"
 dependencies = [
  "bitcoin_hashes",
- "rand 0.8.6",
- "rand_core 0.6.4",
+ "rand 0.7.3",
+ "rand_core 0.5.1",
  "serde",
  "unicode-normalization",
 ]
@@ -2502,6 +2514,15 @@ dependencies = [
  "rustversion",
  "ryu",
  "static_assertions",
+]
+
+[[package]]
+name = "concurrent-queue"
+version = "2.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
+dependencies = [
+ "crossbeam-utils",
 ]
 
 [[package]]
@@ -3878,6 +3899,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40404c3f5f511ec4da6fe866ddf6a717c309fdbb69fbbad7b0f3edab8f2e835f"
 
 [[package]]
+name = "event-listener"
+version = "5.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a23add41df1562121a9393cb065eab5146a1242410f23a644851e90cfd669d2"
+dependencies = [
+ "parking",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "event-listener-strategy"
+version = "0.5.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8be9f3dfaaffdae2972880079a491a1a8bb7cbed0b8dd7a347f668b4150a3b93"
+dependencies = [
+ "event-listener",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "expect-test"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4335,6 +4376,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9e5c1b78ca4aae1ac06c48a526a655760685149f0d465d21f37abfe57ce075c6"
 
 [[package]]
+name = "futures-lite"
+version = "2.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f78e10609fe0e0b3f4157ffab1876319b5b0db102a2c60dc4626306dc46b44ad"
+dependencies = [
+ "fastrand",
+ "futures-core",
+ "futures-io",
+ "parking",
+ "pin-project-lite",
+]
+
+[[package]]
 name = "futures-macro"
 version = "0.3.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4612,6 +4666,24 @@ dependencies = [
  "rand 0.8.6",
  "smallvec",
  "spinning_top",
+]
+
+[[package]]
+name = "graphql-ws-client"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ed4014479884e14949429415d7249eb07ae3099240d99d0e4fd0e6b6f41684c"
+dependencies = [
+ "async-channel",
+ "cynic",
+ "futures-lite",
+ "futures-sink",
+ "futures-timer",
+ "pin-project",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tungstenite",
 ]
 
 [[package]]
@@ -7435,7 +7507,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-crypto"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e58bbe3bcc958597f48af9afaa8ab127b1334034#e58bbe3bcc958597f48af9afaa8ab127b1334034"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4bb13fae510674a8e4dac7d28ac4d35d9cd36d59#4bb13fae510674a8e4dac7d28ac4d35d9cd36d59"
 dependencies = [
  "base64ct",
  "bech32 0.11.1",
@@ -7461,8 +7533,9 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e58bbe3bcc958597f48af9afaa8ab127b1334034#e58bbe3bcc958597f48af9afaa8ab127b1334034"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4bb13fae510674a8e4dac7d28ac4d35d9cd36d59#4bb13fae510674a8e4dac7d28ac4d35d9cd36d59"
 dependencies = [
+ "async-stream",
  "base64ct",
  "bcs",
  "chrono",
@@ -7470,6 +7543,7 @@ dependencies = [
  "derive_more 2.1.1",
  "futures",
  "getrandom 0.2.15",
+ "graphql-ws-client",
  "iota-sdk-graphql-client-build",
  "iota-sdk-transaction-builder",
  "iota-sdk-types",
@@ -7480,6 +7554,7 @@ dependencies = [
  "strum 0.27.2",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-tungstenite",
  "tracing",
  "url",
  "variadics_please",
@@ -7490,7 +7565,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-graphql-client-build"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e58bbe3bcc958597f48af9afaa8ab127b1334034#e58bbe3bcc958597f48af9afaa8ab127b1334034"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4bb13fae510674a8e4dac7d28ac4d35d9cd36d59#4bb13fae510674a8e4dac7d28ac4d35d9cd36d59"
 dependencies = [
  "cynic-codegen",
 ]
@@ -7498,7 +7573,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-client"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e58bbe3bcc958597f48af9afaa8ab127b1334034#e58bbe3bcc958597f48af9afaa8ab127b1334034"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4bb13fae510674a8e4dac7d28ac4d35d9cd36d59#4bb13fae510674a8e4dac7d28ac4d35d9cd36d59"
 dependencies = [
  "async-stream",
  "base64 0.22.1",
@@ -7517,7 +7592,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-grpc-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e58bbe3bcc958597f48af9afaa8ab127b1334034#e58bbe3bcc958597f48af9afaa8ab127b1334034"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4bb13fae510674a8e4dac7d28ac4d35d9cd36d59#4bb13fae510674a8e4dac7d28ac4d35d9cd36d59"
 dependencies = [
  "bcs",
  "iota-sdk-types",
@@ -7533,7 +7608,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-transaction-builder"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e58bbe3bcc958597f48af9afaa8ab127b1334034#e58bbe3bcc958597f48af9afaa8ab127b1334034"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4bb13fae510674a8e4dac7d28ac4d35d9cd36d59#4bb13fae510674a8e4dac7d28ac4d35d9cd36d59"
 dependencies = [
  "base64ct",
  "bcs",
@@ -7552,7 +7627,7 @@ dependencies = [
 [[package]]
 name = "iota-sdk-types"
 version = "0.0.1-alpha.1"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=e58bbe3bcc958597f48af9afaa8ab127b1334034#e58bbe3bcc958597f48af9afaa8ab127b1334034"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=4bb13fae510674a8e4dac7d28ac4d35d9cd36d59#4bb13fae510674a8e4dac7d28ac4d35d9cd36d59"
 dependencies = [
  "base64ct",
  "bcs",
@@ -10678,6 +10753,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "parking"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f38d5652c16fde515bb1ecef450ab0f6a219d619a7274976324d5e377f7dceba"
+
+[[package]]
 name = "parking_lot"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11432,7 +11513,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "343d3bd7056eda839b03204e68deff7d1b13aba7af2b2fd16890697274262ee7"
 dependencies = [
  "heck 0.5.0",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "log",
  "multimap",
  "petgraph 0.8.3",
@@ -11466,7 +11547,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.13.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -14028,9 +14109,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.52.2"
+version = "1.53.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "110a78583f19d5cdb2c5ccf321d1290344e71313c6c37d43520d386027d18386"
+checksum = "202caea871b69668250d242070849eb495be178ed697a3e98aebce5bc81a0bed"
 dependencies = [
  "bytes",
  "libc",
@@ -14085,8 +14166,12 @@ checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
 dependencies = [
  "futures-util",
  "log",
+ "rustls",
+ "rustls-pki-types",
  "tokio",
+ "tokio-rustls",
  "tungstenite",
+ "webpki-roots 0.26.6",
 ]
 
 [[package]]
@@ -14669,6 +14754,8 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.9.2",
+ "rustls",
+ "rustls-pki-types",
  "sha1",
  "thiserror 2.0.18",
  "utf-8",
@@ -14681,7 +14768,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
- "rand 0.8.6",
+ "rand 0.7.3",
  "static_assertions",
 ]
 

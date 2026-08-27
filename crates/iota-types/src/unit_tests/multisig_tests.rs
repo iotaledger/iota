@@ -33,7 +33,7 @@ fn verify_rejects_signature_pubkey_scheme_mismatch() {
     );
 
     // Sign with the Secp256k1 key even though the committee member is Ed25519.
-    let secp_sig: Secp256k1Signature = kp2.sign(&*intent_msg.signing_digest());
+    let secp_sig: Secp256k1Signature = kp2.sign(&intent_msg.signing_digest());
     let multisig = MultiSig::new_unchecked(
         vec![MultisigMemberSignature::Secp256k1(secp_sig)],
         0b1,

@@ -8,7 +8,7 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, CancelledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError,
+    Address, CanceledTransaction, ConsensusDeterminedVersionAssignments, ExecutionError,
     ExecutionStatus, ObjectId, ObjectReference, ProgrammableTransaction, SharedObjectReference,
     TransactionKind, UnchangedSharedKind, Version, VersionAssignment,
 };
@@ -644,8 +644,8 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
         scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_transactions = vec![
-            CancelledTransaction {
+        let canceled_transactions = vec![
+            CanceledTransaction {
                 digest: *scheduled_transactions[1].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -664,7 +664,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
                     ),
                 ],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *scheduled_transactions[3].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -686,8 +686,8 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
         ];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                cancelled_transactions
+            ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                canceled_transactions
             }
         );
     } else {
@@ -711,7 +711,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
     // The first transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[1].status() {
         assert!(command.is_none());
-        if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        if let ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
             congested_objects,
             suggested_gas_price,
         } = error
@@ -726,7 +726,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             );
             assert_eq!(*suggested_gas_price, REFERENCE_GAS_PRICE_FOR_TESTS);
         } else {
-            panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
+            panic!("ExecutionError must be ExecutionCanceledDueToSharedObjectCongestionV2.");
         }
     } else {
         panic!("The transaction must be cancelled.")
@@ -738,7 +738,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
         vec![
             (
                 tester.shared_counter_1.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::new_congested_with_suggested_gas_price(
                         REFERENCE_GAS_PRICE_FOR_TESTS
                     )
@@ -747,7 +747,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             ),
             (
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::new_congested_with_suggested_gas_price(
                         REFERENCE_GAS_PRICE_FOR_TESTS
                     )
@@ -760,7 +760,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
     // The third transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[3].status() {
         assert!(command.is_none());
-        if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        if let ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
             congested_objects,
             suggested_gas_price,
         } = error
@@ -775,7 +775,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price_2);
         } else {
-            panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
+            panic!("ExecutionError must be ExecutionCanceledDueToSharedObjectCongestionV2.");
         }
     } else {
         panic!("The transaction must be cancelled.")
@@ -787,7 +787,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
         vec![
             (
                 tester.shared_counter_1.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_2
                     )
@@ -796,7 +796,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
             ),
             (
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_2
                     )
@@ -808,7 +808,7 @@ async fn transaction_duration_exceeds_max_execution_duration_per_commit() {
 }
 
 // Test that everything works well if the gas price feedback mechanism is
-// turned off: specifically, old `ExecutionCancelledDueToSharedObjectCongestion`
+// turned off: specifically, old `ExecutionCanceledDueToSharedObjectCongestion`
 // and `Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK` should appear.
 #[sim_test]
 async fn gas_price_feedback_mechanism_is_turned_off() {
@@ -867,7 +867,7 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
         scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_transactions = vec![CancelledTransaction {
+        let canceled_transactions = vec![CanceledTransaction {
             digest: *scheduled_transactions[2].digest(),
             version_assignments: vec![
                 VersionAssignment::new(
@@ -882,8 +882,8 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
         }];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                cancelled_transactions
+            ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                canceled_transactions
             }
         );
     } else {
@@ -917,7 +917,7 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
     // The second transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[2].status() {
         assert!(command.is_none());
-        if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestion { congested_objects } =
+        if let ExecutionError::ExecutionCanceledDueToSharedObjectCongestion { congested_objects } =
             error
         {
             // Check is returned congested_objects are correct.
@@ -929,7 +929,7 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
                 ]
             );
         } else {
-            panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestion.");
+            panic!("ExecutionError must be ExecutionCanceledDueToSharedObjectCongestion.");
         }
     } else {
         panic!("The second transaction must be cancelled.")
@@ -942,13 +942,13 @@ async fn gas_price_feedback_mechanism_is_turned_off() {
         vec![
             (
                 tester.shared_counter_1.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
                 }
             ),
             (
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
                 }
             ),
@@ -1018,7 +1018,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
         scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_transactions = vec![CancelledTransaction {
+        let canceled_transactions = vec![CanceledTransaction {
             digest: *scheduled_transactions[2].digest(),
             version_assignments: vec![
                 VersionAssignment::new(
@@ -1035,8 +1035,8 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
         }];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                cancelled_transactions
+            ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                canceled_transactions
             }
         );
     } else {
@@ -1060,7 +1060,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
     // The second transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[2].status() {
         assert!(command.is_none());
-        if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        if let ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
             congested_objects,
             suggested_gas_price,
         } = error
@@ -1075,7 +1075,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
         } else {
-            panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
+            panic!("ExecutionError must be ExecutionCanceledDueToSharedObjectCongestionV2.");
         }
     } else {
         panic!("The second transaction must be cancelled.")
@@ -1088,7 +1088,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
         vec![
             (
                 tester.shared_counter_1.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
@@ -1097,7 +1097,7 @@ async fn gas_price_feedback_mechanism_with_max_gas_price() {
             ),
             (
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
@@ -1173,8 +1173,8 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                cancelled_transactions: vec![]
+            ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                canceled_transactions: vec![]
             }
         );
     } else {
@@ -1254,7 +1254,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
         scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_transactions = vec![CancelledTransaction {
+        let canceled_transactions = vec![CanceledTransaction {
             digest: *scheduled_transactions[2].digest(),
             version_assignments: vec![
                 VersionAssignment::new(
@@ -1271,8 +1271,8 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
         }];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                cancelled_transactions
+            ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                canceled_transactions
             }
         );
     } else {
@@ -1306,7 +1306,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
     // The second scheduled transaction should be cancelled
     if let ExecutionStatus::Failure { error, command } = effects_vec[2].status() {
         assert!(command.is_none());
-        if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+        if let ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
             congested_objects,
             suggested_gas_price,
         } = error
@@ -1321,7 +1321,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             );
             assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
         } else {
-            panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
+            panic!("ExecutionError must be ExecutionCanceledDueToSharedObjectCongestionV2.");
         }
     } else {
         panic!("The second transaction must be cancelled.")
@@ -1334,7 +1334,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
         vec![
             (
                 tester.shared_counter_1.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
@@ -1343,7 +1343,7 @@ async fn gas_price_feedback_mechanism_for_multiple_commits() {
             ),
             (
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
@@ -1436,8 +1436,8 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
         scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_transactions = vec![
-            CancelledTransaction {
+        let canceled_transactions = vec![
+            CanceledTransaction {
                 digest: *certificates[4].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
@@ -1447,7 +1447,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     .unwrap(),
                 )],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[5].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
@@ -1457,7 +1457,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     .unwrap(),
                 )],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[6].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -1476,7 +1476,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     ),
                 ],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[7].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -1495,7 +1495,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     ),
                 ],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[10].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -1514,7 +1514,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     ),
                 ],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[11].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -1533,7 +1533,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     ),
                 ],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[12].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -1555,8 +1555,8 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
         ];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                cancelled_transactions
+            ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                canceled_transactions
             }
         );
     } else {
@@ -1584,7 +1584,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     for effects in effects_vec.iter().skip(7).take(2) {
         if let ExecutionStatus::Failure { error, command } = effects.status() {
             assert!(command.is_none());
-            if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            if let ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
                 congested_objects,
                 suggested_gas_price,
             } = error
@@ -1596,7 +1596,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     expected_suggested_gas_price_for_object_2
                 );
             } else {
-                panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
+                panic!("ExecutionError must be ExecutionCanceledDueToSharedObjectCongestionV2.");
             }
         } else {
             panic!("Transaction should have been be cancelled.")
@@ -1607,7 +1607,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
             effects.unchanged_shared_objects(),
             vec![(
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price_for_object_2
                     )
@@ -1620,7 +1620,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
     for effects in effects_vec.iter().skip(9).take(5) {
         if let ExecutionStatus::Failure { error, command } = effects.status() {
             assert!(command.is_none());
-            if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            if let ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
                 congested_objects,
                 suggested_gas_price,
             } = error
@@ -1638,7 +1638,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                     expected_suggested_gas_price_for_both_objects
                 );
             } else {
-                panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
+                panic!("ExecutionError must be ExecutionCanceledDueToSharedObjectCongestionV2.");
             }
         } else {
             panic!("Transaction should have been be cancelled.")
@@ -1650,7 +1650,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
             vec![
                 (
                     tester.shared_counter_1.object_id,
-                    UnchangedSharedKind::Cancelled {
+                    UnchangedSharedKind::Canceled {
                         version: Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects
                         )
@@ -1659,7 +1659,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_tx_count_mode() {
                 ),
                 (
                     tester.shared_counter_2.object_id,
-                    UnchangedSharedKind::Cancelled {
+                    UnchangedSharedKind::Canceled {
                         version: Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price_for_both_objects
                         )
@@ -1760,8 +1760,8 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
         scheduled_transactions[0].data().transaction().kind()
     {
         // Check if `ConsensusDeterminedVersionAssignments` are correct.
-        let cancelled_transactions = vec![
-            CancelledTransaction {
+        let canceled_transactions = vec![
+            CanceledTransaction {
                 digest: *certificates[4].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
@@ -1771,7 +1771,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                     .unwrap(),
                 )],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[5].digest(),
                 version_assignments: vec![VersionAssignment::new(
                     tester.shared_counter_2.object_id,
@@ -1781,7 +1781,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                     .unwrap(),
                 )],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[6].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -1800,7 +1800,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                     ),
                 ],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[7].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -1819,7 +1819,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                     ),
                 ],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[10].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -1838,7 +1838,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                     ),
                 ],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[11].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -1857,7 +1857,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                     ),
                 ],
             },
-            CancelledTransaction {
+            CanceledTransaction {
                 digest: *certificates[12].digest(),
                 version_assignments: vec![
                     VersionAssignment::new(
@@ -1879,8 +1879,8 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
         ];
         assert_eq!(
             prologue_tx.consensus_determined_version_assignments,
-            ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                cancelled_transactions
+            ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                canceled_transactions
             }
         );
     } else {
@@ -1909,7 +1909,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
     for effects in effects_vec.iter().skip(7).take(2) {
         if let ExecutionStatus::Failure { error, command } = effects.status() {
             assert!(command.is_none());
-            if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            if let ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
                 congested_objects,
                 suggested_gas_price,
             } = error
@@ -1918,7 +1918,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 assert_eq!(*congested_objects, vec![tester.shared_counter_2.object_id]);
                 assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
             } else {
-                panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
+                panic!("ExecutionError must be ExecutionCanceledDueToSharedObjectCongestionV2.");
             }
         } else {
             panic!("Transaction should have been be cancelled.")
@@ -1929,7 +1929,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
             effects.unchanged_shared_objects(),
             vec![(
                 tester.shared_counter_2.object_id,
-                UnchangedSharedKind::Cancelled {
+                UnchangedSharedKind::Canceled {
                     version: Version::new_congested_with_suggested_gas_price(
                         expected_suggested_gas_price
                     )
@@ -1952,7 +1952,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
 
         if let ExecutionStatus::Failure { error, command } = effects.status() {
             assert!(command.is_none());
-            if let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+            if let ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
                 congested_objects,
                 suggested_gas_price,
             } = error
@@ -1967,7 +1967,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 );
                 assert_eq!(*suggested_gas_price, expected_suggested_gas_price);
             } else {
-                panic!("ExecutionError must be ExecutionCancelledDueToSharedObjectCongestionV2.");
+                panic!("ExecutionError must be ExecutionCanceledDueToSharedObjectCongestionV2.");
             }
         } else {
             panic!("Transaction should have been be cancelled.")
@@ -1979,7 +1979,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
             vec![
                 (
                     tester.shared_counter_1.object_id,
-                    UnchangedSharedKind::Cancelled {
+                    UnchangedSharedKind::Canceled {
                         version: Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price
                         )
@@ -1988,7 +1988,7 @@ async fn gas_price_feedback_mechanism_non_trivial_case_total_gas_budget_mode() {
                 ),
                 (
                     tester.shared_counter_2.object_id,
-                    UnchangedSharedKind::Cancelled {
+                    UnchangedSharedKind::Canceled {
                         version: Version::new_congested_with_suggested_gas_price(
                             expected_suggested_gas_price
                         )

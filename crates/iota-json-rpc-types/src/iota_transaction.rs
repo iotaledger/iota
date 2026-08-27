@@ -11,7 +11,7 @@ use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{CleverError, ErrorConstants, PackageStore, Resolver};
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
+    Address, Argument, CanceledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
     ChangeEpochV4, Command, ConsensusCommitDigest, ConsensusDeterminedVersionAssignments,
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
     GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
@@ -1206,7 +1206,7 @@ impl IotaTransactionBlockEvents {
                 .drain(..)
                 .enumerate()
                 .map(|(seq, event)| {
-                    let layout = resolver.get_annotated_layout(&event.type_)?;
+                    let layout = resolver.get_annotated_layout(&event.struct_tag)?;
                     IotaEvent::try_from(event, tx_digest, seq as u64, timestamp_ms, layout)
                 })
                 .collect::<Result<_, _>>()?,
@@ -1226,7 +1226,7 @@ impl IotaTransactionBlockEvents {
                 .drain(..)
                 .enumerate()
                 .map(|(seq, event)| {
-                    let layout = get_layout_from_struct_tag(event.type_.clone(), resolver)?;
+                    let layout = get_layout_from_struct_tag(event.struct_tag.clone(), resolver)?;
                     IotaEvent::try_from(event, tx_digest, seq as u64, timestamp_ms, layout)
                 })
                 .collect::<Result<_, _>>()?,
@@ -1887,7 +1887,7 @@ pub struct IotaConsensusCommitPrologueV1 {
 #[schemars(rename = "ConsensusDeterminedVersionAssignments")]
 pub enum IotaConsensusDeterminedVersionAssignments {
     // Cancelled transaction version assignment.
-    CancelledTransactions(
+    CanceledTransactions(
         #[serde_as(as = "Vec<(Base58Schema, Vec<(ObjectIdSchema, serde_with::Same)>)>")]
         #[schemars(with = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64)>)>")]
         Vec<(TransactionDigest, Vec<(ObjectId, SequenceNumberU64)>)>,
@@ -1899,10 +1899,10 @@ impl From<ConsensusDeterminedVersionAssignments> for IotaConsensusDeterminedVers
         consensus_determined_version_assignments: ConsensusDeterminedVersionAssignments,
     ) -> Self {
         match consensus_determined_version_assignments {
-            ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                cancelled_transactions,
-            } => IotaConsensusDeterminedVersionAssignments::CancelledTransactions(
-                cancelled_transactions
+            ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                canceled_transactions,
+            } => IotaConsensusDeterminedVersionAssignments::CanceledTransactions(
+                canceled_transactions
                     .into_iter()
                     .map(|cancelled| {
                         (
@@ -1928,11 +1928,11 @@ impl From<IotaConsensusDeterminedVersionAssignments> for ConsensusDeterminedVers
         iota_consensus_determined_version_assignments: IotaConsensusDeterminedVersionAssignments,
     ) -> Self {
         match iota_consensus_determined_version_assignments {
-            IotaConsensusDeterminedVersionAssignments::CancelledTransactions(assignments) => {
-                ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                    cancelled_transactions: assignments
+            IotaConsensusDeterminedVersionAssignments::CanceledTransactions(assignments) => {
+                ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                    canceled_transactions: assignments
                         .into_iter()
-                        .map(|(digest, version_assignments)| CancelledTransaction {
+                        .map(|(digest, version_assignments)| CanceledTransaction {
                             digest,
                             version_assignments: version_assignments
                                 .into_iter()
@@ -2251,7 +2251,7 @@ impl From<Command> for IotaCommand {
             ),
             Command::Publish(cmd) => IotaCommand::Publish(cmd.dependencies),
             Command::MakeMoveVector(cmd) => IotaCommand::MakeMoveVec(
-                cmd.type_.map(|tag| tag.to_string()),
+                cmd.type_tag.map(|tag| tag.to_string()),
                 cmd.elements.into_iter().map(IotaArgument::from).collect(),
             ),
             Command::Upgrade(cmd) => IotaCommand::Upgrade(

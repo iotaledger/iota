@@ -1381,7 +1381,7 @@ fn auth_digest_for_move_authenticator_equals_authenticator_digest() {
 
 #[test]
 fn auth_digest_for_regular_signature_is_hash_of_sig_bytes() {
-    let kp = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(rand::thread_rng()));
     let sender = kp.public_key().derive_address();
     let tx = make_transaction(sender, &kp);
     let sig = tx.signatures().first().unwrap();
@@ -1413,7 +1413,7 @@ fn compute_auth_digests_non_sponsored_move_authenticator() {
 
 #[test]
 fn compute_auth_digests_non_sponsored_regular_signature() {
-    let kp = SimpleKeypair::from(Ed25519PrivateKey::generate(rand::thread_rng()));
+    let kp = SimpleKeypair::from(Ed25519PrivateKey::random_with(rand::thread_rng()));
     let sender = kp.public_key().derive_address();
     let tx = make_transaction(sender, &kp);
     let sig = tx.signatures().first().unwrap();

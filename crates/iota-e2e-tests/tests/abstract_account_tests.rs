@@ -362,7 +362,7 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
 ///    and it passed
 ///
 /// With `report_move_authentication_error` enabled (the latest protocol config)
-/// the failure surfaces as a distinct `MoveAuthenticationError` that wraps the
+/// the failure surfaces as a distinct `MoveAuthentication` that wraps the
 /// underlying abort and carries no command index.
 #[sim_test]
 async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Error> {
@@ -475,8 +475,8 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         command.is_none(),
         "Expected the authentication failure to carry no command index",
     );
-    let ExecutionError::MoveAuthenticationError { error } = &error else {
-        panic!("Expected a MoveAuthenticationError, got: {error:?}");
+    let ExecutionError::MoveAuthentication { error } = &error else {
+        panic!("Expected a MoveAuthentication, got: {error:?}");
     };
     assert!(
         matches!(
@@ -486,7 +486,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
             && function_name.as_ref().is_some_and(|f|f.as_str() == "authenticate_ed25519")
             && ErrorBitset::from_u64(*abort_code).unwrap().error_code() == Some(0)
         ),
-        "Expected failure to be a MoveAuthenticationError wrapping a Move abort in basic_keyed_aa::authenticate_ed25519",
+        "Expected failure to be a MoveAuthentication wrapping a Move abort in basic_keyed_aa::authenticate_ed25519",
     );
 
     Ok(())
@@ -611,7 +611,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
 /// Validators originally sign the transaction (authentication runs
 /// pre-consensus and passes), but post-consensus the AA object is read as a
 /// cancelled shared object and the transaction fails with
-/// `ExecutionCancelledDueToSharedObjectCongestionV2`.
+/// `ExecutionCanceledDueToSharedObjectCongestionV2`.
 #[sim_test]
 async fn test_abstract_account_shared_object_congestion_cancellation() -> Result<(), anyhow::Error>
 {
@@ -689,11 +689,11 @@ async fn test_abstract_account_shared_object_congestion_cancellation() -> Result
         command.is_none(),
         "Expected the congestion cancellation to carry no command index",
     );
-    let ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+    let ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
         congested_objects, ..
     } = &error
     else {
-        panic!("Expected an ExecutionCancelledDueToSharedObjectCongestionV2 error, got: {error:?}");
+        panic!("Expected an ExecutionCanceledDueToSharedObjectCongestionV2 error, got: {error:?}");
     };
     assert!(
         congested_objects.contains(&aa_ref.object_id),
@@ -1912,7 +1912,7 @@ async fn test_sponsored_tx_sender_aa_fails_post_consensus_when_only_sponsor_runs
     assert!(
         matches!(
             &error,
-            ExecutionError::MoveAuthenticationError { error }
+            ExecutionError::MoveAuthentication { error }
             if matches!(&**error, ExecutionError::MoveAbort { .. })
         ),
         "Expected a Move authentication error wrapping the failed ED25519 authentication's abort, got: {error:?}"

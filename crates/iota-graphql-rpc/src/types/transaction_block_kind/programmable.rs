@@ -406,7 +406,7 @@ impl ProgrammableTransaction {
                     .collect(),
             }),
             N::MakeMoveVector(cmd) => P::MakeMoveVec(MakeMoveVecTransaction {
-                type_: cmd.type_.map(Into::into),
+                type_: cmd.type_tag.map(Into::into),
                 elements: cmd
                     .elements
                     .into_iter()

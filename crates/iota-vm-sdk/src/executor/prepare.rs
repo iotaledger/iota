@@ -669,12 +669,14 @@ pub(super) fn decode_one_event(
     resolver: &mut dyn LayoutResolver,
 ) -> Result<DecodedEvent, VmSdkError> {
     let layout = resolver
-        .get_annotated_layout(&event.type_)
-        .map_err(|e| ExecutionError::new(format!("resolve layout for {}: {e}", event.type_)))?;
+        .get_annotated_layout(&event.struct_tag)
+        .map_err(|e| {
+            ExecutionError::new(format!("resolve layout for {}: {e}", event.struct_tag))
+        })?;
     // `BoundedVisitor` bounds the deserialized value's depth and allocation,
     // like every node-side decoder of externally-sourced bytes.
     let value = BoundedVisitor::deserialize_value(&event.contents, &layout.into_layout())
-        .map_err(|e| ExecutionError::new(format!("bcs deserialize {}: {e}", event.type_)))?;
+        .map_err(|e| ExecutionError::new(format!("bcs deserialize {}: {e}", event.struct_tag)))?;
 
     Ok(DecodedEvent {
         event: event.clone(),

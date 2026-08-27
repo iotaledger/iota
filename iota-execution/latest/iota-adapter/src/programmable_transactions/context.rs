@@ -1315,7 +1315,7 @@ mod checked {
                     package_id,
                     module,
                     sender,
-                    type_: tag,
+                    struct_tag: tag,
                     contents,
                 }
             })

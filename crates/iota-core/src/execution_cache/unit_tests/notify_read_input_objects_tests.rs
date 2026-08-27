@@ -42,7 +42,7 @@ async fn test_writeback_immediate_return_canceled_shared() {
     let cache = create_writeback_cache().await;
     let canceled_key = InputKey::VersionedObject {
         id: ObjectId::random(),
-        version: Version::CANCELLED_READ,
+        version: Version::CANCELED_READ,
     };
     let receiving_keys = HashSet::new();
     let epoch = &0;

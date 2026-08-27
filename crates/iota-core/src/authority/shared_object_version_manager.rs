@@ -174,14 +174,14 @@ impl SharedObjVerManager {
                                 Version::CONGESTED_PRIOR_TO_GAS_PRICE_FEEDBACK
                             }
                         } else {
-                            Version::CANCELLED_READ
+                            Version::CANCELED_READ
                         }
                     }
                     Some(CancelConsensusTransactionReason::DkgFailed) => {
                         if id == &ObjectId::RANDOMNESS_STATE {
                             Version::RANDOMNESS_UNAVAILABLE
                         } else {
-                            Version::CANCELLED_READ
+                            Version::CANCELED_READ
                         }
                     }
                     None => unreachable!("cancelled transaction should have cancellation info"),
@@ -590,7 +590,7 @@ mod tests {
                             Version::new_congested_with_suggested_gas_price(suggested_gas_price)
                                 .unwrap(),
                         ),
-                        VersionAssignment::new(id2, Version::CANCELLED_READ),
+                        VersionAssignment::new(id2, Version::CANCELED_READ),
                     ]
                 ),
                 (
@@ -600,7 +600,7 @@ mod tests {
                 (
                     transactions[3].key(),
                     vec![
-                        VersionAssignment::new(id1, Version::CANCELLED_READ),
+                        VersionAssignment::new(id1, Version::CANCELED_READ),
                         VersionAssignment::new(
                             id2,
                             Version::new_congested_with_suggested_gas_price(suggested_gas_price)
@@ -615,7 +615,7 @@ mod tests {
                             ObjectId::RANDOMNESS_STATE,
                             Version::RANDOMNESS_UNAVAILABLE
                         ),
-                        VersionAssignment::new(id2, Version::CANCELLED_READ)
+                        VersionAssignment::new(id2, Version::CANCELED_READ)
                     ]
                 ),
             ]

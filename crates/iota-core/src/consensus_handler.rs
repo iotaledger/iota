@@ -13,7 +13,7 @@ use arc_swap::ArcSwap;
 use iota_common::random_util::randomize_cache_capacity_in_tests;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc, monitored_scope, spawn_monitored_task};
-use iota_sdk_types::{CancelledTransaction, ConsensusCommitDigest, TransactionDigest};
+use iota_sdk_types::{CanceledTransaction, ConsensusCommitDigest, TransactionDigest};
 use iota_types::{
     base_types::AuthorityName,
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
@@ -889,14 +889,14 @@ impl ConsensusCommitInfo {
     fn consensus_commit_prologue_v1_transaction(
         &self,
         epoch: u64,
-        cancelled_transactions: Vec<CancelledTransaction>,
+        canceled_transactions: Vec<CanceledTransaction>,
     ) -> VerifiedExecutableTransaction {
         let transaction = VerifiedTransaction::new_consensus_commit_prologue_v1(
             epoch,
             self.round,
             self.timestamp,
             self.consensus_commit_digest,
-            cancelled_transactions,
+            canceled_transactions,
         );
         VerifiedExecutableTransaction::new_system(transaction, epoch)
     }
@@ -904,9 +904,9 @@ impl ConsensusCommitInfo {
     pub fn create_consensus_commit_prologue_transaction(
         &self,
         epoch: u64,
-        cancelled_transactions: Vec<CancelledTransaction>,
+        canceled_transactions: Vec<CanceledTransaction>,
     ) -> VerifiedExecutableTransaction {
-        self.consensus_commit_prologue_v1_transaction(epoch, cancelled_transactions)
+        self.consensus_commit_prologue_v1_transaction(epoch, canceled_transactions)
     }
 }
 

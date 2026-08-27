@@ -17,7 +17,7 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
+    Address, Argument, CanceledTransaction, CertificateDigest, Command, ConsensusCommitDigest,
     ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, EndOfEpochTransactionKind,
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
     MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
@@ -428,7 +428,9 @@ impl CommandExt for Command {
                 .iter()
                 .map(|id| InputObjectKind::MovePackage(*id))
                 .collect(),
-            Command::MakeMoveVector(MakeMoveVector { type_: Some(t), .. }) => {
+            Command::MakeMoveVector(MakeMoveVector {
+                type_tag: Some(t), ..
+            }) => {
                 let mut packages = BTreeSet::new();
                 add_type_tag_packages(&mut packages, t);
                 packages
@@ -436,7 +438,7 @@ impl CommandExt for Command {
                     .map(InputObjectKind::MovePackage)
                     .collect()
             }
-            Command::MakeMoveVector(MakeMoveVector { type_: None, .. })
+            Command::MakeMoveVector(MakeMoveVector { type_tag: None, .. })
             | Command::TransferObjects(_)
             | Command::SplitCoins(_)
             | Command::MergeCoins(_) => vec![],
@@ -464,7 +466,7 @@ impl CommandExt for Command {
                 );
             }
             Command::MakeMoveVector(MakeMoveVector {
-                type_: ty_opt,
+                type_tag: ty_opt,
                 elements: args,
             }) => {
                 // ty_opt.is_none() ==> !args.is_empty()
@@ -1940,12 +1942,14 @@ impl SenderSignedTransactionAPI for SenderSignedData {
     }
 
     fn add_signature(&mut self, new_signature: Signature) {
-        self.0.signatures.push(new_signature.into());
+        self.signed_transaction_mut()
+            .signatures
+            .push(new_signature.into());
     }
 
     fn get_signer_sig_mapping(&self) -> IotaResult<BTreeMap<Address, &UserSignature>> {
         let mut mapping = BTreeMap::new();
-        for sig in &self.0.signatures {
+        for sig in &self.signed_transaction().signatures {
             let address = sig.derive_address();
             mapping.insert(address, sig);
         }
@@ -1957,11 +1961,11 @@ impl SenderSignedTransactionAPI for SenderSignedData {
     }
 
     fn transaction_mut_for_testing(&mut self) -> &mut TransactionData {
-        &mut self.0.transaction
+        &mut self.signed_transaction_mut().transaction
     }
 
     fn tx_signatures_mut_for_testing(&mut self) -> &mut Vec<UserSignature> {
-        &mut self.0.signatures
+        &mut self.signed_transaction_mut().signatures
     }
 
     fn serialized_size(&self) -> IotaResult<usize> {
@@ -2379,7 +2383,7 @@ impl VerifiedTransaction {
         round: u64,
         commit_timestamp_ms: CheckpointTimestamp,
         consensus_commit_digest: ConsensusCommitDigest,
-        cancelled_transactions: Vec<CancelledTransaction>,
+        canceled_transactions: Vec<CanceledTransaction>,
     ) -> Self {
         ConsensusCommitPrologueV1 {
             epoch,
@@ -2389,8 +2393,8 @@ impl VerifiedTransaction {
             commit_timestamp_ms,
             consensus_commit_digest,
             consensus_determined_version_assignments:
-                ConsensusDeterminedVersionAssignments::CancelledTransactions {
-                    cancelled_transactions,
+                ConsensusDeterminedVersionAssignments::CanceledTransactions {
+                    canceled_transactions,
                 },
         }
         .pipe(TransactionKind::ConsensusCommitPrologueV1)

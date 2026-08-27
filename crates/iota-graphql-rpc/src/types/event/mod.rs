@@ -137,7 +137,7 @@ impl Event {
     #[graphql(flatten)]
     async fn move_value(&self) -> Result<MoveValue> {
         Ok(MoveValue::new(
-            self.native.type_.clone().into(),
+            self.native.struct_tag.clone().into(),
             Base64::from(self.native.contents.clone()),
         ))
     }
@@ -312,7 +312,7 @@ impl Event {
                 sender,
                 package_id,
                 module,
-                type_,
+                struct_tag: type_,
                 contents,
             },
             checkpoint_viewed_at,

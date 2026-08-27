@@ -419,7 +419,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     ///
     /// # fn main() {
     /// let mut simulacrum = Simulacrum::new();
-    /// let address = simulacrum.with_rng(|rng| Address::generate(rng));
+    /// let address = simulacrum.with_rng(|rng| Address::random_with(rng));
     /// simulacrum.request_gas(address, NANOS_PER_IOTA).unwrap();
     ///
     /// // `account` now has a Coin<IOTA> object with single IOTA in it.

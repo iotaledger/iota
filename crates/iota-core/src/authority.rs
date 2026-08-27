@@ -315,7 +315,7 @@ pub struct AuthorityMetrics {
     pub consensus_handler_scores: IntGaugeVec,
     pub consensus_handler_deferred_transactions: IntCounter,
     pub consensus_handler_congested_transactions: IntCounter,
-    pub consensus_handler_cancelled_transactions: IntCounter,
+    pub consensus_handler_canceled_transactions: IntCounter,
     /// Number of user transactions dropped during a consensus commit because
     /// post-consensus conflict/lock validation rejected them. Distinct from
     /// `consensus_handler_load_shedding_dropped_transactions`.
@@ -753,8 +753,8 @@ impl AuthorityMetrics {
                 "Number of transactions deferred by consensus handler due to congestion",
                 registry,
             ).unwrap(),
-            consensus_handler_cancelled_transactions: register_int_counter_with_registry!(
-                "consensus_handler_cancelled_transactions",
+            consensus_handler_canceled_transactions: register_int_counter_with_registry!(
+                "consensus_handler_canceled_transactions",
                 "Number of transactions cancelled by consensus handler",
                 registry,
             ).unwrap(),
@@ -4774,7 +4774,7 @@ impl AuthorityState {
                 tx_digest,
                 event_seq as u64,
                 Some(timestamp),
-                layout_resolver.get_annotated_layout(&e.type_)?,
+                layout_resolver.get_annotated_layout(&e.struct_tag)?,
             )?)
         }
         Ok(events)
