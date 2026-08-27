@@ -429,9 +429,9 @@ impl Validator {
             .iter()
             .map(|(_, exchange_rate)| exchange_rate);
 
-        let avg_apy = Some(mean_apy_from_exchange_rates(rates));
+        let apy_basis_points = mean_apy_from_exchange_rates(rates) * 10000.0;
 
-        Ok(avg_apy.map(|x| (x * 10000.0) as i32))
+        Ok(Some(try_into_int(apy_basis_points as i64)?))
     }
 }
 

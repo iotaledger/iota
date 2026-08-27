@@ -30,13 +30,8 @@ impl ScalarType for UInt53 {
             return Err(InputValueError::custom("Expected an unsigned integer."));
         };
 
-        if n > MAX_UINT53 {
-            return Err(InputValueError::custom(
-                "Value exceeds the maximum of UInt53 (2^53 - 1).",
-            ));
-        }
-
-        Ok(UInt53(n))
+        Self::try_from(n)
+            .map_err(|_| InputValueError::custom("Value exceeds the maximum of UInt53 (2^53 - 1)."))
     }
 
     fn to_value(&self) -> Value {
