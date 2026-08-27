@@ -688,17 +688,28 @@ impl CheckpointStore {
         let Some(last) = checkpoints.last() else {
             return Ok(());
         };
-        debug!(
-            checkpoint_seq = last.sequence_number(),
-            "Updating highest synced checkpoint",
-        );
-        self.tables.watermarks.insert(
-            &CheckpointWatermark::HighestSynced,
-            &(last.sequence_number(), *last.digest()),
-        )?;
-        for checkpoint in checkpoints {
-            self.synced_checkpoint_notify_read
-                .notify(&checkpoint.sequence_number(), checkpoint);
+
+        // Only ever forwards, like the other two: another writer advances this
+        // as well, and moving it back offers contents that may not be there.
+        let previous = self.get_highest_synced_checkpoint_seq_number()?;
+        if previous.is_none_or(|previous_seq_number| previous_seq_number < last.sequence_number()) {
+            debug!(
+                checkpoint_seq = last.sequence_number(),
+                "Updating highest synced checkpoint",
+            );
+            self.tables.watermarks.insert(
+                &CheckpointWatermark::HighestSynced,
+                &(last.sequence_number(), *last.digest()),
+            )?;
+
+            // A reader parks only below the watermark, so only what this
+            // write has just passed can have anyone waiting on it.
+            for checkpoint in checkpoints.iter().filter(|c| {
+                previous.is_none_or(|previous_seq_number| previous_seq_number < c.sequence_number())
+            }) {
+                self.synced_checkpoint_notify_read
+                    .notify(&checkpoint.sequence_number(), checkpoint);
+            }
         }
         Ok(())
     }
@@ -800,6 +811,39 @@ impl CheckpointStore {
     /// WARNING: This method is very subtle and can corrupt the database if used
     /// incorrectly. It should only be used in one-off cases or tests after
     /// fully understanding the risk.
+    /// Sets the verified watermark to `checkpoint` whether or not that moves
+    /// it forwards.
+    ///
+    /// Only for tooling that deliberately rewinds it. Every path the node
+    /// takes goes through [`Self::update_highest_verified_checkpoint`], which
+    /// only ever advances it.
+    pub fn set_highest_verified_checkpoint_subtle(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<(), TypedStoreError> {
+        self.tables.watermarks.insert(
+            &CheckpointWatermark::HighestVerified,
+            &(checkpoint.sequence_number(), *checkpoint.digest()),
+        )
+    }
+
+    /// Sets the synced watermark to `checkpoint` whether or not that moves it
+    /// forwards.
+    ///
+    /// Only for tooling that deliberately rewinds it. Every path the node
+    /// takes goes through
+    /// [`Self::multi_update_highest_synced_checkpoint`], which only ever
+    /// advances it.
+    pub fn set_highest_synced_checkpoint_subtle(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<(), TypedStoreError> {
+        self.tables.watermarks.insert(
+            &CheckpointWatermark::HighestSynced,
+            &(checkpoint.sequence_number(), *checkpoint.digest()),
+        )
+    }
+
     pub fn set_highest_executed_checkpoint_subtle(
         &self,
         checkpoint: &VerifiedCheckpoint,

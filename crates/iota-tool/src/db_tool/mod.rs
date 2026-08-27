@@ -415,7 +415,7 @@ pub fn set_checkpoint_watermark(
         else {
             bail!("Checkpoint {highest_verified} not found");
         };
-        checkpoint_db.update_highest_verified_checkpoint(&checkpoint)?;
+        checkpoint_db.set_highest_verified_checkpoint_subtle(&checkpoint)?;
     }
     if let Some(highest_synced) = options.highest_synced {
         let Some(checkpoint) = checkpoint_db.get_checkpoint_by_sequence_number(highest_synced)?
@@ -434,7 +434,7 @@ pub fn set_checkpoint_watermark(
                  Setting highest_synced without contents would cause the executor to panic."
             );
         }
-        checkpoint_db.update_highest_synced_checkpoint(&checkpoint)?;
+        checkpoint_db.set_highest_synced_checkpoint_subtle(&checkpoint)?;
     }
     Ok(())
 }
