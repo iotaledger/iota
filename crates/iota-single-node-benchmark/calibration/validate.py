@@ -41,7 +41,8 @@ def predict(artifact, profile):
     for c in BASE_PREDICTORS:
         if c in w:
             total += w[c] * profile.get(c, 0)
-    for fn, gas in profile.get("native_gas_by_function", {}).items():
+    gas_map = profile.get("native_gas_by_function") or profile.get("native_gas_by_module", {})
+    for fn, gas in gas_map.items():
         total += w.get(f"native_gas[{fn}]", 0.0) * gas
     for fn, calls in profile.get("native_calls_by_function", {}).items():
         total += w.get(f"native_calls[{fn}]", 0.0) * calls
