@@ -20,7 +20,7 @@ use rand::{SeedableRng as _, rngs::StdRng, thread_rng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
-    sync::oneshot,
+    sync::{oneshot, watch},
     task::JoinSet,
     time::{Instant, MissedTickBehavior},
 };
@@ -141,6 +141,8 @@ pub(crate) struct FastCommitSyncer<C: NetworkClient> {
     // Shared components wrapper.
     inner: Arc<Inner<C>>,
 
+    block_stream_reset_sender: watch::Sender<()>,
+
     // States only used by the scheduler.
 
     // Inflight requests to fetch commits from different authorities.
@@ -179,6 +181,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         header_synchronizer: Arc<HeaderSynchronizerHandle>,
         misbehavior_store: Arc<MisbehaviorStore>,
         fast_sync_active: Arc<AtomicBool>,
+        block_stream_reset_sender: watch::Sender<()>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -200,6 +203,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         );
         FastCommitSyncer {
             inner,
+            block_stream_reset_sender,
             inflight_fetches: JoinSet::new(),
             pending_fetches: BTreeSet::new(),
             fetched_ranges: BTreeMap::new(),
@@ -269,28 +273,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 );
 
                 match Self::fetch_headers_for_reinitialization(self.inner.clone()).await {
-                    Ok(headers) => {
-                        if let Err(e) = self
-                            .inner
-                            .core_thread_dispatcher
-                            .reinitialize_components(headers)
-                            .await
-                        {
-                            warn!(
-                                "[{}] Failed to reinitialize components: {}",
-                                self.inner.sync_type.as_str(),
-                                e
-                            );
-                        } else {
-                            self.inner
-                                .header_synchronizer
-                                .clear_verified_headers_cache();
-                            info!(
-                                "[{}] Components reinitialized, fast sync complete",
-                                self.inner.sync_type.as_str()
-                            );
-                        }
-                    }
+                    Ok(headers) => self.reinitialize_components(headers).await,
                     Err(e) => {
                         warn!(
                             "[{}] Failed to fetch headers for cached rounds: {}",
@@ -324,6 +307,42 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             if let Some(flag) = &self.inner.fast_sync_active {
                 flag.store(active, Ordering::Relaxed);
             }
+        }
+    }
+
+    async fn reinitialize_components(&self, headers: Vec<VerifiedBlockHeader>) {
+        if let Err(e) = self
+            .inner
+            .core_thread_dispatcher
+            .reinitialize_components(headers)
+            .await
+        {
+            warn!(
+                "[{}] Failed to reinitialize components: {}",
+                self.inner.sync_type.as_str(),
+                e
+            );
+            return;
+        }
+
+        self.inner
+            .header_synchronizer
+            .clear_verified_headers_cache();
+        info!(
+            "[{}] Components reinitialized, fast sync complete",
+            self.inner.sync_type.as_str()
+        );
+        if self
+            .inner
+            .context
+            .parameters
+            .enable_block_stream_reset_on_fast_sync_exit
+        {
+            self.block_stream_reset_sender.send_replace(());
+            info!(
+                "[{}] Signaled block stream reset",
+                self.inner.sync_type.as_str()
+            );
         }
     }
 
@@ -1088,7 +1107,8 @@ mod tests {
 
     use crate::{
         authority_node::tests::make_authority_with_params, commit::CommittedSubDag,
-        commit_consumer::CommitConsumerMonitor,
+        commit_consumer::CommitConsumerMonitor, commit_syncer::tests::FakeNetworkClient,
+        context::Context, core_thread::tests::MockCoreThreadDispatcher,
     };
 
     mod fetch_once {
@@ -1114,7 +1134,7 @@ mod tests {
             },
             commit_vote_monitor::CommitVoteMonitor,
             context::Context,
-            core_thread::tests::MockCoreThreadDispatcher,
+            core_thread::{CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
             dag_state::DagState,
             encoder::create_encoder,
             error::ConsensusError,
@@ -1130,8 +1150,24 @@ mod tests {
             context: Arc<Context>,
             network_client: Arc<FakeNetworkClient>,
         ) -> Arc<Inner<FakeNetworkClient>> {
-            let block_verifier = Arc::new(NoopBlockVerifier {});
             let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+            let (block_stream_reset_sender, _) = tokio::sync::watch::channel(());
+            make_syncer(
+                context,
+                network_client,
+                core_thread_dispatcher,
+                block_stream_reset_sender,
+            )
+            .inner
+        }
+
+        pub(crate) fn make_syncer<D: CoreThreadDispatcher>(
+            context: Arc<Context>,
+            network_client: Arc<FakeNetworkClient>,
+            core_thread_dispatcher: Arc<D>,
+            block_stream_reset_sender: tokio::sync::watch::Sender<()>,
+        ) -> FastCommitSyncer<FakeNetworkClient> {
+            let block_verifier = Arc::new(NoopBlockVerifier {});
             let store: Arc<dyn Store> = Arc::new(MemStore::new());
             let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
             let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
@@ -1166,8 +1202,8 @@ mod tests {
                 header_synchronizer,
                 misbehavior_store,
                 Arc::new(AtomicBool::new(false)),
+                block_stream_reset_sender,
             )
-            .inner
         }
 
         /// A complete `fetch_commits_and_transactions` response for commit
@@ -1514,6 +1550,45 @@ mod tests {
                 "unexpected error: {err:?}"
             );
             assert_unprovable_faults(&inner, vec![0; 4]);
+        }
+    }
+
+    #[tokio::test]
+    async fn block_stream_reset_requires_successful_reinitialization_and_enabled_flag() {
+        for (enabled, should_fail, expect_reset) in [
+            (true, false, true),
+            (false, false, false),
+            (true, true, false),
+        ] {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context
+                .parameters
+                .enable_block_stream_reset_on_fast_sync_exit = enabled;
+            let context = Arc::new(context);
+            let network_client = Arc::new(FakeNetworkClient::default());
+            let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+            core_thread_dispatcher.set_reinitialize_components_should_fail(should_fail);
+            let (block_stream_reset_sender, block_stream_reset_receiver) =
+                tokio::sync::watch::channel(());
+            let syncer = fetch_once::make_syncer(
+                context,
+                network_client,
+                core_thread_dispatcher.clone(),
+                block_stream_reset_sender,
+            );
+
+            syncer.reinitialize_components(Vec::new()).await;
+
+            assert_eq!(core_thread_dispatcher.reinitialize_components_calls(), 1);
+            assert_eq!(
+                block_stream_reset_receiver.has_changed().unwrap(),
+                expect_reset,
+                "enabled={enabled}, should_fail={should_fail}"
+            );
+            syncer.inner.header_synchronizer.stop().await.unwrap();
         }
     }
 

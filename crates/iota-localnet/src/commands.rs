@@ -56,6 +56,11 @@ const DEFAULT_FAUCET_PORT: u16 = 9123;
 const DEFAULT_GRPC_PORT: u16 = 50051;
 #[cfg(feature = "indexer")]
 const DEFAULT_GRAPHQL_PORT: u16 = 9125;
+/// Metrics port a local network gives the GraphQL service, overriding the
+/// `9184` the service picks by default, which the fullnode metrics endpoint
+/// already holds. Metrics endpoints stay on `127.0.0.1`, as the node ones do.
+#[cfg(feature = "indexer")]
+const DEFAULT_GRAPHQL_METRICS_PORT: u16 = 9126;
 #[cfg(feature = "indexer")]
 const DEFAULT_INDEXER_PORT: u16 = 9124;
 /// Port base of the fullnode layout, see
@@ -96,6 +101,13 @@ pub struct IndexerFeatureArgs {
             value_name = "GRAPHQL_HOST_PORT"
         )]
     with_graphql: Option<String>,
+    /// Bind the GraphQL metrics endpoint to this host and port instead of
+    /// 127.0.0.1:9126. This flag accepts a port, a host, or both (e.g.,
+    /// `--graphql-metrics-address=9127`, `--graphql-metrics-address=0.0.0.0`,
+    /// or `--graphql-metrics-address=0.0.0.0:9127`). It has no effect without
+    /// `--with-graphql`.
+    #[arg(long, value_name = "GRAPHQL_METRICS_HOST_PORT")]
+    graphql_metrics_address: Option<String>,
     /// Port for the Indexer Postgres DB. Default port is 5432.
     #[arg(long, default_value = "5432")]
     pg_port: u16,
@@ -126,6 +138,7 @@ impl IndexerFeatureArgs {
         Self {
             with_indexer: None,
             with_graphql: None,
+            graphql_metrics_address: None,
             pg_port: 5432,
             pg_host: "localhost".to_string(),
             pg_db_name: "iota_indexer".to_string(),
@@ -405,6 +418,7 @@ async fn start(
     let IndexerFeatureArgs {
         mut with_indexer,
         with_graphql,
+        graphql_metrics_address,
         pg_port,
         pg_host,
         pg_db_name,
@@ -718,10 +732,28 @@ async fn start(
         let graphql_address = parse_host_port(input, DEFAULT_GRAPHQL_PORT)
             .map_err(|_| anyhow!("Invalid graphql host and port"))?;
         tracing::info!("Starting the GraphQL service at {graphql_address}");
+        // The metrics address the service picks by default collides with the
+        // fullnode metrics endpoint, which binds `FULLNODE_PORT_BASE` before
+        // this runs.
+        let graphql_metrics_address = parse_host_port_with_default_host(
+            graphql_metrics_address.unwrap_or_default(),
+            &Ipv4Addr::LOCALHOST.to_string(),
+            DEFAULT_GRAPHQL_METRICS_PORT,
+        )
+        .map_err(|_| anyhow!("Invalid graphql metrics host and port"))?;
+        // The service rebuilds the address as `host:port`, which an IPv6 host
+        // needs brackets to survive.
+        ensure!(
+            graphql_metrics_address.is_ipv4(),
+            "graphql metrics configuration requires an IPv4 address"
+        );
+        tracing::info!("Serving the GraphQL metrics at {graphql_metrics_address}");
         let graphql_connection_config = ConnectionConfig {
             port: graphql_address.port(),
             host: graphql_address.ip().to_string(),
             db_url: pg_address,
+            prom_host: graphql_metrics_address.ip().to_string(),
+            prom_port: graphql_metrics_address.port(),
             ..Default::default()
         };
         start_graphql_server_with_fn_rpc(
@@ -1143,7 +1175,16 @@ pub fn parse_host_port(
     input: String,
     default_port_if_missing: u16,
 ) -> Result<SocketAddr, AddrParseError> {
-    let default_host = "0.0.0.0";
+    parse_host_port_with_default_host(input, "0.0.0.0", default_port_if_missing)
+}
+
+/// Same as [`parse_host_port`], for an endpoint whose host defaults to
+/// something other than `0.0.0.0`.
+pub fn parse_host_port_with_default_host(
+    input: String,
+    default_host: &str,
+    default_port_if_missing: u16,
+) -> Result<SocketAddr, AddrParseError> {
     let mut input = input;
     if input.contains("localhost") {
         input = input.replace("localhost", "127.0.0.1");
@@ -1156,5 +1197,56 @@ pub fn parse_host_port(
         format!("{default_host}:{input}").parse::<SocketAddr>()
     } else {
         format!("{default_host}:{default_port_if_missing}").parse::<SocketAddr>()
+    }
+}
+
+#[cfg(all(test, feature = "indexer"))]
+mod tests {
+    use super::*;
+
+    /// Every service port of a local network is fixed, so a collision is a
+    /// startup failure rather than a test flake. The fullnode metrics
+    /// endpoint and the GraphQL metrics endpoint shared `9184` once.
+    #[test]
+    fn service_ports_do_not_collide() {
+        let mut ports = vec![
+            DEFAULT_FAUCET_PORT,
+            DEFAULT_GRPC_PORT,
+            DEFAULT_GRAPHQL_PORT,
+            DEFAULT_INDEXER_PORT,
+            DEFAULT_GRAPHQL_METRICS_PORT,
+            9000, // fullnode JSON-RPC, see `fullnode_rpc_port`
+        ];
+        // The fullnode owns `FULLNODE_PORT_BASE` and the two ports above it,
+        // each validator the ten ports above its own base.
+        ports.extend((0..3).map(|offset| FULLNODE_PORT_BASE + offset));
+        ports.extend((0..10 * DEFAULT_COMMITTEE_SIZE as u16).map(|o| VALIDATOR_PORT_BASE + o));
+
+        let unique = ports.iter().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(unique.len(), ports.len(), "two services share a port");
+    }
+
+    /// An endpoint that keeps its host on localhost must stay there when only
+    /// a port is given, and when nothing is given at all.
+    #[test]
+    fn a_metrics_address_defaults_to_localhost() {
+        let localhost = Ipv4Addr::LOCALHOST.to_string();
+        let parse = |input: &str| {
+            parse_host_port_with_default_host(
+                input.to_string(),
+                &localhost,
+                DEFAULT_GRAPHQL_METRICS_PORT,
+            )
+            .unwrap()
+        };
+
+        assert_eq!(parse(""), SocketAddr::from(([127, 0, 0, 1], 9126)));
+        assert_eq!(parse("9127"), SocketAddr::from(([127, 0, 0, 1], 9127)));
+        assert_eq!(parse("localhost"), SocketAddr::from(([127, 0, 0, 1], 9126)));
+        assert_eq!(parse("0.0.0.0"), SocketAddr::from(([0, 0, 0, 0], 9126)));
+        assert_eq!(
+            parse("0.0.0.0:9127"),
+            SocketAddr::from(([0, 0, 0, 0], 9127))
+        );
     }
 }

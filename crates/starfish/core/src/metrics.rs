@@ -326,6 +326,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) dropped_far_future_headers_total: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
+    pub(crate) block_stream_resets: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
     pub(crate) subscribed_by: IntGaugeVec,
     pub(crate) commit_sync_inflight_fetches: IntGaugeVec,
@@ -1197,6 +1198,12 @@ impl NodeMetrics {
                 "subscriber_connection_attempts",
                 "The number of connection attempts per peer",
                 &["authority", "status"],
+                registry,
+            ).unwrap(),
+            block_stream_resets: register_int_counter_vec_with_registry!(
+                "block_stream_resets",
+                "The number of block stream subscriptions reset after fast sync, per peer",
+                &["authority"],
                 registry,
             ).unwrap(),
             subscribed_to: register_int_gauge_vec_with_registry!(
