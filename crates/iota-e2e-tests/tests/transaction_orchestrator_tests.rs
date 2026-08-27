@@ -15,7 +15,7 @@ use iota_core::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectReference, OwnedObjectReference, TransactionExpiration};
+use iota_sdk_types::{ObjectReference, TransactionExpiration};
 use iota_storage::{
     key_value_store::TransactionKeyValueStore, key_value_store_metrics::KeyValueStoreMetrics,
 };
@@ -627,15 +627,7 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
     let mut expected_output_objects = fx
         .all_changed_objects()
         .into_iter()
-        .map(
-            |(
-                OwnedObjectReference {
-                    reference: object_ref,
-                    ..
-                },
-                _,
-            )| object_ref,
-        )
+        .map(|(owned_object_ref, _)| owned_object_ref.reference)
         .collect::<Vec<_>>();
     expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
@@ -1220,15 +1212,7 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
     let mut expected_output_objects = fx
         .all_changed_objects()
         .into_iter()
-        .map(
-            |(
-                OwnedObjectReference {
-                    reference: object_ref,
-                    ..
-                },
-                _,
-            )| object_ref,
-        )
+        .map(|(owned_object_ref, _)| owned_object_ref.reference)
         .collect::<Vec<_>>();
     expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
