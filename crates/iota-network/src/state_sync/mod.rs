@@ -913,25 +913,24 @@ where
     ) {
         let highest_verified_checkpoint = self
             .store
-            .try_get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint_seq_number()
             .expect("store operation should not fail");
         let highest_synced_checkpoint = self
             .store
-            .try_get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint_seq_number()
             .expect("store operation should not fail");
 
-        if highest_verified_checkpoint.sequence_number()
-            > highest_synced_checkpoint.sequence_number()
+        if highest_verified_checkpoint > highest_synced_checkpoint
             // Skip if we aren't connected to any peers that can help
             && self
                 .peer_heights
                 .read()
                 .unwrap()
                 .highest_known_checkpoint_sequence_number()
-                > Some(highest_synced_checkpoint.sequence_number())
+                > Some(highest_synced_checkpoint)
         {
             let _ = target_sequence_channel.send_if_modified(|num| {
-                let new_num = highest_verified_checkpoint.sequence_number();
+                let new_num = highest_verified_checkpoint;
                 if *num == new_num {
                     return false;
                 }
@@ -1665,9 +1664,8 @@ where
     // retrying failed content syncs at the front of the queue, blocking
     // the watermark from advancing past them.
     if store
-        .try_get_highest_synced_checkpoint()
+        .try_get_highest_synced_checkpoint_seq_number()
         .expect("store operation should not fail")
-        .sequence_number()
         >= checkpoint.sequence_number()
     {
         debug!("checkpoint was already created via consensus output");

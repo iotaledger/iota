@@ -172,18 +172,18 @@ impl WriteStore for SharedInMemoryStore {
         Ok(())
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        self.inner_mut()
-            .update_highest_synced_checkpoint(checkpoint);
-        Ok(())
-    }
-
     fn try_update_highest_verified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<()> {
         self.inner_mut()
             .update_highest_verified_checkpoint(checkpoint);
+        Ok(())
+    }
+
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        self.inner_mut()
+            .update_highest_synced_checkpoint(checkpoint);
         Ok(())
     }
 
@@ -399,18 +399,6 @@ impl InMemoryStore {
         Ok(())
     }
 
-    pub fn update_highest_synced_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
-        if !self.checkpoints.contains_key(checkpoint.digest()) {
-            panic!("store should already contain checkpoint");
-        }
-        if let Some(highest_synced_checkpoint) = self.highest_synced_checkpoint {
-            if highest_synced_checkpoint.0 >= checkpoint.sequence_number {
-                return;
-            }
-        }
-        self.highest_synced_checkpoint = Some((checkpoint.sequence_number(), *checkpoint.digest()));
-    }
-
     pub fn update_highest_verified_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
         if !self.checkpoints.contains_key(checkpoint.digest()) {
             panic!("store should already contain checkpoint");
@@ -422,6 +410,18 @@ impl InMemoryStore {
         }
         self.highest_verified_checkpoint =
             Some((checkpoint.sequence_number(), *checkpoint.digest()));
+    }
+
+    pub fn update_highest_synced_checkpoint(&mut self, checkpoint: &VerifiedCheckpoint) {
+        if !self.checkpoints.contains_key(checkpoint.digest()) {
+            panic!("store should already contain checkpoint");
+        }
+        if let Some(highest_synced_checkpoint) = self.highest_synced_checkpoint {
+            if highest_synced_checkpoint.0 >= checkpoint.sequence_number {
+                return;
+            }
+        }
+        self.highest_synced_checkpoint = Some((checkpoint.sequence_number(), *checkpoint.digest()));
     }
 
     pub fn checkpoints(&self) -> &HashMap<CheckpointDigest, VerifiedCheckpoint> {
@@ -600,16 +600,16 @@ impl WriteStore for SingleCheckpointSharedInMemoryStore {
         Ok(())
     }
 
-    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
-        self.0.try_update_highest_synced_checkpoint(checkpoint)?;
-        Ok(())
-    }
-
     fn try_update_highest_verified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<()> {
         self.0.try_update_highest_verified_checkpoint(checkpoint)?;
+        Ok(())
+    }
+
+    fn try_update_highest_synced_checkpoint(&self, checkpoint: &VerifiedCheckpoint) -> Result<()> {
+        self.0.try_update_highest_synced_checkpoint(checkpoint)?;
         Ok(())
     }
 

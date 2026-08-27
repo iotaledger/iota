@@ -92,9 +92,8 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
                 .as_secs_f64(),
         );
 
-        let highest_verified_checkpoint = checkpoint_store
-            .get_highest_verified_checkpoint()?
-            .map(|x| x.sequence_number());
+        let highest_verified_checkpoint =
+            checkpoint_store.get_highest_verified_checkpoint_seq_number()?;
 
         if Some(checkpoint_seq) > highest_verified_checkpoint {
             debug!(

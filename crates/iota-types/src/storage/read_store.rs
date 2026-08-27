@@ -124,6 +124,13 @@ pub trait ReadStore: ObjectStore {
             .expect("storage access failed")
     }
 
+    /// The sequence number of the highest synced checkpoint, without the
+    /// checkpoint itself. See
+    /// [`Self::try_get_highest_verified_checkpoint_seq_number`].
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        Ok(self.try_get_highest_synced_checkpoint()?.sequence_number())
+    }
+
     /// Lowest available checkpoint for which transaction and checkpoint data
     /// can be requested.
     ///
@@ -496,6 +503,10 @@ impl<T: ReadStore + ?Sized> ReadStore for &T {
         (*self).try_get_highest_synced_checkpoint()
     }
 
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (*self).try_get_highest_synced_checkpoint_seq_number()
+    }
+
     fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
         (*self).try_get_lowest_available_checkpoint()
     }
@@ -619,6 +630,10 @@ impl<T: ReadStore + ?Sized> ReadStore for Box<T> {
         (**self).try_get_highest_synced_checkpoint()
     }
 
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (**self).try_get_highest_synced_checkpoint_seq_number()
+    }
+
     fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
         (**self).try_get_lowest_available_checkpoint()
     }
@@ -740,6 +755,10 @@ impl<T: ReadStore + ?Sized> ReadStore for Arc<T> {
 
     fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         (**self).try_get_highest_synced_checkpoint()
+    }
+
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        (**self).try_get_highest_synced_checkpoint_seq_number()
     }
 
     fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
