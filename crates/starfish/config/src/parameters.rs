@@ -145,6 +145,14 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_enable_fast_commit_syncer")]
     pub enable_fast_commit_syncer: bool,
 
+    /// Reconnect block streams after fast commit sync reinitializes consensus,
+    /// discarding bundles buffered against the previous state. Enabled by
+    /// default; operators can disable it locally. Has no effect unless
+    /// `enable_fast_commit_syncer` is also enabled, since only fast sync
+    /// signals the reset.
+    #[serde(default = "Parameters::default_enable_block_stream_reset_on_fast_sync_exit")]
+    pub enable_block_stream_reset_on_fast_sync_exit: bool,
+
     /// Ask commit-sync peers that have voted for the end of the requested
     /// range before those that have not, since a vote means the peer has
     /// solidified every commit in the range. Peers without an observed vote
@@ -461,6 +469,10 @@ impl Parameters {
         true
     }
 
+    pub(crate) fn default_enable_block_stream_reset_on_fast_sync_exit() -> bool {
+        true
+    }
+
     pub(crate) fn default_enable_commit_sync_peer_selection_by_commit_votes() -> bool {
         // Enabled by default. Ordering only, so it cannot diverge consensus.
         true
@@ -519,6 +531,8 @@ impl Default for Parameters {
             fast_commit_sync_batch_size: Parameters::default_fast_commit_sync_batch_size(),
             commit_sync_gap_threshold: Parameters::default_commit_sync_gap_threshold(),
             enable_fast_commit_syncer: Parameters::default_enable_fast_commit_syncer(),
+            enable_block_stream_reset_on_fast_sync_exit:
+                Parameters::default_enable_block_stream_reset_on_fast_sync_exit(),
             enable_commit_sync_peer_selection_by_commit_votes:
                 Parameters::default_enable_commit_sync_peer_selection_by_commit_votes(),
             enable_starfish_speed_adaptive_acknowledgments:
