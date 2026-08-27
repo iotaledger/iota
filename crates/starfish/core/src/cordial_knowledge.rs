@@ -51,11 +51,12 @@ pub type Ancestors = Arc<[BlockRef]>;
 /// including the author's headers in block bundles.
 #[derive(Clone, Default)]
 struct MissingAuthor {
-    /// Latest local own-block round when any peer supplied or referenced one of
-    /// this author's headers.
+    /// Latest local own-block round when a peer's block bundle supplied one of
+    /// this author's headers or exposed one as a missing ancestor.
     last_useful_round: Round,
-    /// Peers that supplied or referenced one of this author's headers, stamped
-    /// with the latest local own-block round when they did. Never the author.
+    /// Peers whose block bundles supplied one of this author's headers or
+    /// exposed one as a missing ancestor, and the latest local own-block round
+    /// when that happened. Does not contain the author.
     useful_peers: BTreeMap<AuthorityIndex, Round>,
 }
 
