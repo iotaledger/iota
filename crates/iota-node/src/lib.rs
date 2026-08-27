@@ -2843,6 +2843,6 @@ genesis:
             .unwrap_err();
 
         let err = format!("{err:#}");
-        assert!(err.contains("`grpc-api-config` is missing"), "{err}");
+        assert!(err.contains("`grpc-api-config` is `null`"), "{err}");
     }
 }

@@ -839,12 +839,13 @@ impl NodeConfig {
                  off, or move the API to a fullnode"
             );
         }
-        // In a file, an absent key deserializes to the default config. `None`
-        // here therefore means an explicit `null`, or a config built in code.
+        // In a file, an absent key deserializes to the default config, and a
+        // config built in code carries it too. `None` here therefore means an
+        // explicit `null`.
         if self.enable_grpc_api && self.grpc_api_config.is_none() {
             anyhow::bail!(
-                "`enable-grpc-api` is set but `grpc-api-config` is missing; set \
-                 `grpc-api-config` or turn off `enable-grpc-api`"
+                "`enable-grpc-api` is set but `grpc-api-config` is `null`; give it a value, \
+                 remove the key to take the default config, or turn off `enable-grpc-api`"
             );
         }
         // Snapshot publication is a fullnode-only role.
@@ -1765,13 +1766,15 @@ mod tests {
 
     #[test]
     fn validate_requires_a_grpc_config_when_the_api_is_enabled() {
+        // An absent key gives the default config, so only an explicit `null`
+        // reaches this rule.
         let mut config = template_config();
         config.grpc_api_config = None;
         config.validate().unwrap();
 
         config.enable_grpc_api = true;
         let err = config.validate().unwrap_err().to_string();
-        assert!(err.contains("`grpc-api-config` is missing"), "{err}");
+        assert!(err.contains("`grpc-api-config` is `null`"), "{err}");
 
         config.grpc_api_config = Some(GrpcApiConfig::default());
         config.validate().unwrap();
