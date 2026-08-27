@@ -416,11 +416,24 @@ async fn test_simple_conflict() {
 /// Two transactions in the same commit reference the same owned object at
 /// different versions, with the stale one ordered first (the scenario from
 /// issue #10922). Because owned-object locks are keyed by the full
-/// `ObjectReference`, the two never falsely conflict; the stale transaction is
-/// dropped by the version check in `handle_transaction_validation_checks`
-/// (Check #5) and the fresh transaction is kept and acquires the lock.
+/// `ObjectReference`, the two never falsely conflict.
+///
+/// Neither is dropped here. The stale reference makes the input load in
+/// `handle_transaction_validation_checks` fail with
+/// `ObjectVersionUnavailableForConsumption`, but that outcome depends on how
+/// far this node has executed: a validator that has not yet applied the
+/// predecessor still holds the object at version 1, so the same transaction
+/// loads fine there. Dropping would therefore put different transactions in
+/// the same sequenced set on different validators and fork the checkpoint (see
+/// `test_v1_transient_missing_input_must_not_drop`). Both are kept, and the
+/// stale one is rejected at execution, where every validator sees the same
+/// object versions.
+///
+/// One consequence: the stale transaction acquires a lock on its own stale
+/// ref, which a dropped transaction never did. The ref differs from the fresh
+/// transaction's by version, so it blocks nothing.
 #[sim_test]
-async fn test_stale_version_dropped_fresh_kept() {
+async fn test_stale_and_fresh_versions_both_kept() {
     telemetry_subscribers::init_for_testing();
 
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
@@ -495,36 +508,26 @@ async fn test_stale_version_dropped_fresh_kept() {
         .await
         .unwrap();
 
-    let (dropped_digests, dropped_errors): (Vec<TransactionDigest>, Vec<IotaError>) =
-        dropped.into_iter().unzip();
+    let dropped_digests: Vec<TransactionDigest> =
+        dropped.into_iter().map(|(digest, _)| digest).collect();
 
-    assert_eq!(transactions.len(), 1, "Only the fresh tx should remain");
     assert_eq!(
-        dropped_digests,
-        vec![*verified_stale.digest()],
-        "Only the stale tx should be dropped"
+        transactions.len(),
+        2,
+        "both txs should be kept; the stale one is rejected at execution"
     );
     assert!(
-        matches!(
-            dropped_errors[0],
-            IotaError::UserInput {
-                error: UserInputError::ObjectVersionUnavailableForConsumption { .. }
-            }
-        ),
-        "Stale tx should be dropped because its version is unavailable, got {:?}",
-        dropped_errors[0]
+        dropped_digests.is_empty(),
+        "nothing should be dropped post-consensus, got {dropped_digests:?}"
     );
 
-    // The fresh tx acquired the lock on the live ref; the stale tx never locked
-    // anything.
+    // Each tx locked the ref it referenced. The two refs differ by version, so
+    // the stale tx's lock does not block the fresh one.
     assert_eq!(locks.get(&fresh_ref), Some(verified_fresh.digest()));
-    assert!(
-        !locks.contains_key(&stale_ref),
-        "Stale tx must not acquire a lock"
-    );
+    assert_eq!(locks.get(&stale_ref), Some(verified_stale.digest()));
 
     // Both transactions passed dedup, so both digests are reported for soft-lock
-    // release — the dropped stale tx as well as the kept fresh tx.
+    // release.
     assert_eq!(user_tx_digests.len(), 2);
     assert!(user_tx_digests.contains(verified_stale.digest()));
     assert!(user_tx_digests.contains(verified_fresh.digest()));
