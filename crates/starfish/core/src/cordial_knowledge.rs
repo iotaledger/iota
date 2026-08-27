@@ -541,14 +541,6 @@ impl CordialKnowledge {
         &mut self,
         vec_connection_knowledge_msgs_batch: &mut [Vec<ConnectionKnowledgeMessage>],
     ) {
-        // The healthy steady state: nothing to ask and nothing to clear, and the
-        // gauge was zeroed by the pass that emptied the last of it.
-        if self.missing_authors.iter().all(Option::is_none)
-            && !self.has_useful_headers_from_peer.iter().any(|asked| *asked)
-        {
-            return;
-        }
-
         let own_index = self.context.own_index;
         let latest_own_block_round = self.latest_own_block_round;
         let is_stale = |round: Round| {
