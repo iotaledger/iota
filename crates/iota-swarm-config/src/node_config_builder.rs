@@ -591,7 +591,10 @@ impl FullnodeConfigBuilder {
                     ..Default::default()
                 })
             } else {
-                None
+                // The default config, as a file without the key deserializes
+                // to. A later `--node-config-override` that turns the API on
+                // then needs nothing else.
+                Some(GrpcApiConfig::default())
             }
         });
 

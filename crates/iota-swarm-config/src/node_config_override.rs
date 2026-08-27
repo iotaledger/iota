@@ -967,26 +967,35 @@ mod tests {
     }
 
     #[test]
-    fn enabling_the_grpc_api_alone_is_rejected() {
-        // The API is off on a built fullnode, which leaves `grpc-api-config`
-        // an explicit `null`, so turning it on alone leaves the node unable
-        // to start. A validator never starts the gRPC server at all.
+    fn enabling_the_grpc_api_alone_is_enough_on_a_fullnode() {
+        // A built fullnode carries the default gRPC config, as a file
+        // without the key does, so one override turns the API on.
         let enable: NodeConfigOverride = "enable-grpc-api=true".parse().unwrap();
-        for (mut config, expected) in [
-            (
-                test_config(),
-                "`enable-grpc-api` is set but `grpc-api-config` is missing",
-            ),
-            (
-                validator_test_config(),
-                "validators do not expose the gRPC API",
-            ),
-        ] {
-            assert!(!config.enable_grpc_api);
-            assert!(config.grpc_api_config.is_none());
-            let err = format!("{:#}", enable.apply_to(&mut config).unwrap_err());
-            assert!(err.contains(expected), "{err}");
-        }
+        let mut config = test_config();
+        assert!(!config.enable_grpc_api);
+        enable.apply_to(&mut config).unwrap();
+        assert!(config.enable_grpc_api);
+        assert_eq!(
+            config.grpc_api_config.unwrap().address,
+            GrpcApiConfig::default().address
+        );
+
+        // Clearing the config first is the case the node refuses.
+        let mut config = test_config();
+        let clear: NodeConfigOverride = "grpc-api-config=null".parse().unwrap();
+        let err = format!(
+            "{:#}",
+            apply_node_config_overrides([&clear, &enable], &mut config).unwrap_err()
+        );
+        assert!(err.contains("`grpc-api-config` is `null`"), "{err}");
+
+        // A validator never starts the gRPC server at all.
+        let mut config = validator_test_config();
+        let err = format!("{:#}", enable.apply_to(&mut config).unwrap_err());
+        assert!(
+            err.contains("validators do not expose the gRPC API"),
+            "{err}"
+        );
     }
 
     #[test]

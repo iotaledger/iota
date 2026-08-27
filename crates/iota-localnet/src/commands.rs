@@ -498,9 +498,9 @@ async fn start(
         eprintln!(
             "{}",
             "[warning] The --with-grpc flag is deprecated. Use `--node-config-override \
-             fullnode:enable-grpc-api=true` together with `--node-config-override \
-             fullnode:grpc-api-config={address: <HOST:PORT>}`, which leaves the rest of the \
-             gRPC API config at its default."
+             fullnode:enable-grpc-api=true`, which serves the API at the default address, \
+             and add `--node-config-override fullnode:grpc-api-config={address: <HOST:PORT>}` \
+             to serve it elsewhere."
                 .yellow()
                 .bold()
         );
