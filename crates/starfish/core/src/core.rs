@@ -36,8 +36,8 @@ use crate::{
     authority_set::AuthoritySet,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockHeaderV2, BlockRef, BlockTimestampMs,
-        GENESIS_ROUND, Round, SignedBlockHeader, Slot, StrongVote, TransactionsCommitment,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
+        CommitmentVerifiedTransactions, GENESIS_ROUND, Round, SignedBlockHeader, Slot, StrongVote,
+        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
     },
     block_manager::BlockManager,
     block_rate_limiter::BlockRateLimiter,
@@ -508,7 +508,7 @@ impl Core {
     /// fetched from peers.
     pub(crate) fn add_transactions(
         &mut self,
-        transactions: Vec<VerifiedTransactions>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
         source: DataSource,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::add_transactions");
@@ -580,7 +580,7 @@ impl Core {
         // First, collect and add all transactions from certified commits.
         // Transactions must be added before processing commits to ensure they are
         // available when creating new commits.
-        let all_transactions: Vec<VerifiedTransactions> = certified_commits
+        let all_transactions: Vec<CommitmentVerifiedTransactions> = certified_commits
             .commits()
             .iter()
             .flat_map(|commit| commit.transactions())
@@ -1197,7 +1197,7 @@ impl Core {
         }
 
         // Construct verified transactions to be used for storing and broadcasting
-        let verified_transactions = VerifiedTransactions::new(
+        let verified_transactions = CommitmentVerifiedTransactions::new(
             transactions,
             verified_block_header.transaction_ref(),
             Some(verified_block_header.digest()),

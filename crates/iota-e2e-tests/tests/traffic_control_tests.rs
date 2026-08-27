@@ -13,13 +13,14 @@ use fastcrypto::encoding::Base64;
 use iota_core::authority_client::{
     make_network_authority_clients_with_network_config, validator::ValidatorAPI,
 };
+use iota_json_rpc_api::TRANSACTION_NOT_FOUND_ERROR_CODE;
 use iota_json_rpc_types::{
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
 use iota_macros::sim_test;
 use iota_network::default_iota_network_config;
-use iota_sdk_types::UserSignature;
+use iota_sdk_types::{TransactionDigest, UserSignature};
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_traffic_controller::{
@@ -514,6 +515,39 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
 }
 
 #[tokio::test]
+async fn unknown_transaction_does_not_trigger_fullnode_error_policy() {
+    telemetry_subscribers::init_for_testing();
+    let policy_config = PolicyConfig {
+        connection_blocklist_ttl_sec: 3,
+        error_policy_type: PolicyType::TestNConnIP(1),
+        dry_run: false,
+        ..Default::default()
+    };
+    let test_cluster = TestClusterBuilder::new()
+        .with_fullnode_policy_config(Some(policy_config))
+        .build()
+        .await;
+
+    let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
+    let digest = TransactionDigest::from([42; 32]);
+
+    for request_number in 1..=2 {
+        let response: Result<IotaTransactionBlockResponse, _> = jsonrpc_client
+            .request("iota_getTransactionBlock", rpc_params![digest])
+            .await;
+        let error = response.expect_err("an unknown transaction should return an error");
+        let jsonrpsee::core::ClientError::Call(error) = error else {
+            panic!("request {request_number} returned a non-JSON-RPC error: {error}");
+        };
+        assert_eq!(error.code(), TRANSACTION_NOT_FOUND_ERROR_CODE);
+
+        if request_number == 1 {
+            tokio::time::sleep(Duration::from_millis(500)).await;
+        }
+    }
+}
+
+#[tokio::test]
 async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::Error> {
     telemetry_subscribers::init_for_testing();
     // Under the P-COOL flow `handle_transaction` is rejected before signature
@@ -533,11 +567,11 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     let tmp_dir = iota_common::tempdir();
     let firewall_config = RemoteFirewallConfig {
         remote_fw_url: format!("http://127.0.0.1:{port}"),
-        delegate_spam_blocking: true,
-        delegate_error_blocking: false,
+        delegate_spam_blocking: false,
+        delegate_error_blocking: true,
         destination_port: 8080,
         drain_path: tmp_dir.path().join("drain"),
-        drain_timeout_secs: 10,
+        drain_timeout_secs: 300,
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
         .committee_size(NonZeroUsize::new(4).unwrap())
@@ -569,23 +603,34 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     // await for the server to start
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
-    // it should take no more than 4 requests to be added to the blocklist
+    // The error policy blocks on the fourth tally, thus the firewall gets the
+    // block before the loop ends.
     for _ in 0..n {
-        let response = auth_client.handle_transaction(tx.clone(), None).await;
-        if let Err(err) = response {
-            if err.to_string().contains("Too many requests") {
-                return Ok(());
-            }
-        }
+        // The firewall holds the block, thus the node never rejects the request
+        // itself.
+        let err = auth_client
+            .handle_transaction(tx.clone(), None)
+            .await
+            .expect_err("Expected the bad signature to be rejected");
+        assert!(
+            !err.to_string().contains("Too many requests"),
+            "Expected the firewall to hold the block, not the node: {err}"
+        );
         // Yield to the async executor so that the background `run_tally_loop` task
         // can process the pending tally and update the blocklist before the next
         // request. Without this, the single-threaded tokio test runtime may never
         // schedule the tally loop between iterations, causing the test to be flaky.
         tokio::task::yield_now().await;
     }
-    // Allow time for the async HTTP delegation to the firewall server to complete.
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-    let fw_blocklist = server.list_addresses_rpc().await;
+    // The delegation request to the firewall server is asynchronous.
+    let mut fw_blocklist = Vec::new();
+    for _ in 0..50 {
+        fw_blocklist = server.list_addresses_rpc().await;
+        if !fw_blocklist.is_empty() {
+            break;
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    }
     assert!(
         !fw_blocklist.is_empty(),
         "Expected blocklist to be non-empty"

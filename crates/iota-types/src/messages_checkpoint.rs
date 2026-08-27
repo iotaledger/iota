@@ -32,7 +32,7 @@ use crate::{
     base_types::{ExecutionData, ExecutionDigests, VerifiedExecutionData, random_object_ref},
     committee::{Committee, EpochId},
     crypto::{
-        AccountKeyPair, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
+        AccountPrivateKey, AggregateAuthoritySignature, AuthoritySignInfo, AuthoritySignInfoTrait,
         AuthorityStrongQuorumSignInfo, VerificationObligation, default_hash, get_key_pair,
     },
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
@@ -608,7 +608,7 @@ impl FullCheckpointContents {
     }
 
     pub fn random_for_testing() -> Self {
-        let (a, key): (_, AccountKeyPair) = get_key_pair();
+        let (a, key): (_, AccountPrivateKey) = get_key_pair();
         let transaction = TransactionEnvelope::from_data_and_signer(
             Transaction::new_transfer(
                 a,

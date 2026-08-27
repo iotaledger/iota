@@ -1633,7 +1633,7 @@ async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
 ) -> anyhow::Result<Vec<T>> {
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
-    let nft_type = T::type_(iota_names_config.package_address);
+    let nft_type = T::struct_tag(iota_names_config.package_address);
     let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
         client
             .read_api()
@@ -1868,8 +1868,8 @@ impl IotaNamesNftProxy {
 
     fn type_(&self, package_id: Address) -> StructTag {
         match self {
-            IotaNamesNftProxy::Name(_) => NameRegistration::type_(package_id),
-            IotaNamesNftProxy::Subname(_) => SubnameRegistration::type_(package_id),
+            IotaNamesNftProxy::Name(_) => NameRegistration::struct_tag(package_id),
+            IotaNamesNftProxy::Subname(_) => SubnameRegistration::struct_tag(package_id),
         }
     }
 
@@ -2027,7 +2027,7 @@ async fn fetch_package_id_by_module_and_name(
         .get_dynamic_fields(names_config.object_id, None, None)
         .await?;
     for dynamic_field in dynamic_fields_page.data {
-        if let TypeTag::Struct(ref tag) = dynamic_field.name.type_ {
+        if let TypeTag::Struct(ref tag) = dynamic_field.name.type_tag {
             for param in tag.type_params() {
                 if let TypeTag::Struct(ref param_tag) = param {
                     if param_tag.module() == module_name && param_tag.name() == struct_name {

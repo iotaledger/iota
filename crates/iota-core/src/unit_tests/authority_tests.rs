@@ -38,7 +38,7 @@ use iota_types::{
     base_types::{AuthorityName, TxContext, dbg_addr, dbg_object_id, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKey, AuthoritySignInfo, get_key_pair,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKey, AuthoritySignInfo, get_key_pair,
         random_committee_key_pairs_of_size,
     },
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
@@ -159,7 +159,7 @@ async fn construct_shared_object_transaction_with_version(
     ObjectId,
     ObjectId,
 ) {
-    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     // Initialize an authority with a (owned) gas object and a shared object.
     let gas_object_id = ObjectId::random();
@@ -171,7 +171,7 @@ async fn construct_shared_object_transaction_with_version(
             None,
             &gas_object_id,
             &sender,
-            &keypair,
+            &sender_key,
             &package.object_id,
             "object_basics",
             "share",
@@ -229,7 +229,7 @@ async fn construct_shared_object_transaction_with_version(
     (
         validator,
         fullnode,
-        VerifiedTransaction::new_unchecked(to_sender_signed_transaction(tx, &keypair)),
+        VerifiedTransaction::new_unchecked(to_sender_signed_transaction(tx, &sender_key)),
         gas_object_id,
         shared_object_id,
     )
@@ -271,7 +271,7 @@ async fn test_dry_run_transaction_block() {
 
 #[tokio::test]
 async fn test_dry_run_no_gas_big_transfer() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
@@ -299,7 +299,7 @@ async fn test_dry_run_no_gas_big_transfer() {
 
 #[tokio::test]
 async fn test_dev_inspect_object_by_bytes() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -435,7 +435,7 @@ async fn test_dev_inspect_object_by_bytes() {
 
 #[tokio::test]
 async fn test_dev_inspect_unowned_object() {
-    let (alice, alice_key): (_, AccountKeyPair) = get_key_pair();
+    let (alice, alice_key): (_, AccountPrivateKey) = get_key_pair();
     let alice_gas_id = ObjectId::random();
     let (validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(alice, alice_gas_id)]).await;
@@ -502,7 +502,7 @@ async fn test_dev_inspect_unowned_object() {
 #[tokio::test]
 async fn test_dev_inspect_dynamic_field() {
     let (test_object1_bytes, test_object2_bytes) = {
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_object_id = ObjectId::random();
         let (validator, fullnode, object_basics) =
             init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)])
@@ -606,7 +606,7 @@ async fn test_dev_inspect_dynamic_field() {
 
 #[tokio::test]
 async fn test_dev_inspect_return_values() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (validator, fullnode, object_basics) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -1093,7 +1093,7 @@ async fn test_dry_run_on_validator() {
 // run results in not being able to access the dynamic field object
 #[tokio::test]
 async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (validator, fullnode) = init_state_validator_with_fullnode().await;
     let (validator, object_basics) = publish_object_basics(validator).await;
@@ -1204,6 +1204,37 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
         .unwrap();
     assert_eq!(result.effects.deleted().len(), 0);
     assert_eq!(execution_error_source(&result), Some("VMError with status ABORTED with sub status 1 at location Module ModuleId { address: 0000000000000000000000000000000000000000000000000000000000000002, name: Identifier(\"dynamic_field\") } at code offset 0 in function definition 13".to_string()));
+
+    // dry run against the current parent: the field object is loaded at
+    // runtime and removed, so it must appear in the returned input objects at
+    // its pre-state version even though it is not a declared input
+    let field = effects.created()[0].0;
+    let pt = ProgrammableTransaction {
+        inputs: vec![CallArg::ImmutableOrOwned(new_parent.object_ref())],
+        commands: vec![Command::new_move_call(
+            object_basics.object_id,
+            Identifier::from_static("object_basics"),
+            Identifier::from_static("remove_field"),
+            vec![],
+            vec![Argument::Input(0)],
+        )],
+    };
+    let tx = Transaction::new_programmable(
+        sender,
+        vec![gas_object_ref],
+        pt,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_OBJECT_BASICS,
+        rgp,
+    );
+    let result = fullnode
+        .simulate_transaction(tx, VmChecks::Enabled)
+        .unwrap();
+    assert_eq!(result.effects.status(), &ExecutionStatus::Success);
+    let field_input = result
+        .input_objects
+        .get(&field.object_id)
+        .expect("runtime-loaded field object should be in the input objects");
+    assert_eq!(field_input.version(), field.version);
 }
 
 /// A gas payment that names an object which is not a gas coin is rejected, in
@@ -1329,7 +1360,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
 
 #[tokio::test]
 async fn test_handle_transfer_transaction_bad_signature() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
@@ -1365,7 +1396,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
     .await
     .unwrap();
 
-    let unknown_key = AccountKeyPair::random();
+    let unknown_key = AccountPrivateKey::random();
     let mut bad_signature_transfer_transaction = transfer_transaction.clone().into_inner();
     *bad_signature_transfer_transaction
         .data_mut_for_testing()
@@ -1410,7 +1441,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
 
 #[tokio::test]
 async fn test_handle_transfer_transaction_with_max_sequence_number() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id: ObjectId = ObjectId::random();
     let gas_object_id = ObjectId::random();
     let recipient = dbg_addr(2);
@@ -1515,7 +1546,7 @@ async fn test_handle_transfer_transaction_unknown_sender() {
 
 #[tokio::test]
 async fn test_handle_transfer_transaction_ok() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
@@ -1601,8 +1632,8 @@ async fn test_handle_transfer_transaction_ok() {
 
 #[tokio::test]
 async fn test_handle_sponsored_transaction() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (sponsor, sponsor_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (sponsor, sponsor_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
@@ -1671,7 +1702,7 @@ async fn test_handle_sponsored_transaction() {
     );
 
     // Verify wrong gas owner gives error, using another address
-    let (wrong_owner, wrong_owner_key): (_, AccountKeyPair) = get_key_pair();
+    let (wrong_owner, wrong_owner_key): (_, AccountPrivateKey) = get_key_pair();
     let tx = Transaction::new_with_gas_data(
         tx_kind.clone(),
         sender,
@@ -1700,7 +1731,7 @@ async fn test_handle_sponsored_transaction() {
     );
 
     // Sponsor sig is valid but it doesn't actually own the gas object
-    let (third_party, third_party_key): (_, AccountKeyPair) = get_key_pair();
+    let (third_party, third_party_key): (_, AccountPrivateKey) = get_key_pair();
     let tx = Transaction::new_with_gas_data(
         tx_kind,
         sender,
@@ -1731,7 +1762,7 @@ async fn test_handle_sponsored_transaction() {
 
 #[tokio::test]
 async fn test_transfer_package() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
@@ -1762,7 +1793,7 @@ async fn test_transfer_package() {
 // We expect it to fail early during transaction handle phase.
 #[tokio::test]
 async fn test_immutable_gas() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let mut_object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, mut_object_id)]).await;
@@ -1796,7 +1827,7 @@ async fn test_immutable_gas() {
 // We expect it to fail early during transaction handle phase.
 #[tokio::test]
 async fn test_objected_owned_gas() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let parent_object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, parent_object_id)]).await;
@@ -1844,7 +1875,7 @@ fn make_dependent_module(m: &CompiledModule) -> CompiledModule {
 // Test that publishing a module that depends on an existing one works
 #[tokio::test]
 async fn test_publish_dependent_module_ok() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object = Object::with_id_owner_for_testing(gas_payment_object_id, sender);
     let gas_payment_object_ref = gas_payment_object.object_ref();
@@ -1914,7 +1945,7 @@ async fn test_publish_dependent_module_ok() {
 // Test that publishing a module with no dependencies works
 #[tokio::test]
 async fn test_publish_module_no_dependencies_ok() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let authority = init_state_with_objects(vec![]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
     let gas_payment_object_id = ObjectId::random();
@@ -1965,7 +1996,7 @@ async fn test_publish_module_no_dependencies_ok() {
 
 #[tokio::test]
 async fn test_publish_non_existing_dependent_module() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object = Object::with_id_owner_for_testing(gas_payment_object_id, sender);
     let gas_payment_object_ref = gas_payment_object.object_ref();
@@ -2040,7 +2071,7 @@ async fn test_publish_non_existing_dependent_module() {
 // make sure that publishing a package above the size limit fails
 #[tokio::test]
 async fn test_package_size_limit() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_payment_object_id = ObjectId::random();
     let gas_payment_object =
         Object::with_id_owner_gas_for_testing(gas_payment_object_id, sender, u64::MAX);
@@ -2093,7 +2124,7 @@ async fn test_package_size_limit() {
 
 #[tokio::test]
 async fn test_handle_move_transaction() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_payment_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_payment_object_id)]).await;
@@ -2121,7 +2152,7 @@ async fn test_handle_move_transaction() {
 
 #[sim_test]
 async fn test_conflicting_transactions() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = dbg_addr(2);
     let recipient2 = dbg_addr(3);
     let object_id = ObjectId::random();
@@ -2225,7 +2256,7 @@ async fn test_conflicting_transactions() {
 
 #[tokio::test]
 async fn test_handle_transfer_transaction_double_spend() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
@@ -2263,7 +2294,7 @@ async fn test_handle_transfer_transaction_double_spend() {
 
 #[tokio::test]
 async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
@@ -2293,7 +2324,7 @@ async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
 
 #[tokio::test]
 async fn test_missing_package() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, _object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -2327,9 +2358,9 @@ async fn test_missing_package() {
 
 #[tokio::test]
 async fn test_type_argument_dependencies() {
-    let (s1, s1_key): (_, AccountKeyPair) = get_key_pair();
-    let (s2, s2_key): (_, AccountKeyPair) = get_key_pair();
-    let (s3, s3_key): (_, AccountKeyPair) = get_key_pair();
+    let (s1, s1_key): (_, AccountPrivateKey) = get_key_pair();
+    let (s2, s2_key): (_, AccountPrivateKey) = get_key_pair();
+    let (s3, s3_key): (_, AccountPrivateKey) = get_key_pair();
     let gas1 = ObjectId::random();
     let gas2 = ObjectId::random();
     let gas3 = ObjectId::random();
@@ -2534,7 +2565,7 @@ async fn try_execute_immediately_panics_on_already_executed_digest_mismatch() {
 
 #[tokio::test]
 async fn test_handle_confirmation_transaction_ok() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
@@ -2593,7 +2624,7 @@ async fn test_handle_confirmation_transaction_ok() {
 
 #[tokio::test]
 async fn test_handle_confirmation_transaction_idempotent() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();
@@ -2646,7 +2677,7 @@ async fn test_handle_confirmation_transaction_idempotent() {
 
 #[tokio::test]
 async fn test_move_call_mutable_object_not_mutated() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -2733,8 +2764,8 @@ async fn test_move_call_insufficient_gas() {
     // This test attempts to trigger a transaction execution that would fail due to
     // insufficient gas. We want to ensure that even though the transaction
     // failed to execute, all objects are mutated properly.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (recipient, recipient_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let (recipient, recipient_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_object_id1 = ObjectId::random();
     let gas_object_id2 = ObjectId::random();
@@ -2809,7 +2840,7 @@ async fn test_move_call_insufficient_gas() {
 
 #[tokio::test]
 async fn test_move_call_delete() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -2897,7 +2928,7 @@ async fn test_get_latest_parent_entry_genesis() {
 
 #[tokio::test]
 async fn test_get_latest_parent_entry() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, pkg_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -3092,7 +3123,7 @@ async fn test_idempotent_reversed_confirmation() {
     // certificate, and then receive the raw transaction latter. We should still
     // ensure idempotent response and be able to get back the same result.
     let recipient = dbg_addr(2);
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     let object = Object::with_owner_for_testing(sender);
     let object_ref = object.object_ref();
@@ -3134,7 +3165,7 @@ async fn test_idempotent_reversed_confirmation() {
 async fn test_invalid_mutable_clock_parameter() {
     // User transactions that take the singleton Clock object at `0x6` by mutable
     // reference will fail to sign, to prevent transactions bottlenecking on it.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -3180,7 +3211,7 @@ async fn test_invalid_randomness_parameter() {
     // User transactions that take the singleton Randomness object at `0x8` by
     // mutable reference will fail to sign, to prevent transactions
     // bottlenecking on it.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -3233,7 +3264,7 @@ async fn test_invalid_randomness_parameter() {
 async fn test_invalid_object_ownership() {
     // User transaction that attempts to mutate an object it does not own will fail
     // to sign.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let invalid_owner = Address::random();
 
     let recipient = dbg_addr(2);
@@ -3282,7 +3313,7 @@ async fn test_invalid_object_ownership() {
 #[tokio::test]
 async fn test_valid_immutable_clock_parameter() {
     // User transactions can take an immutable reference of the singleton Clock.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -3342,7 +3373,7 @@ async fn test_genesis_iota_system_state_object() {
 
 #[tokio::test]
 async fn test_transfer_iota_no_amount() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
@@ -3393,7 +3424,7 @@ async fn test_transfer_iota_no_amount() {
 
 #[tokio::test]
 async fn test_transfer_iota_with_amount() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
@@ -3440,7 +3471,7 @@ async fn test_transfer_iota_with_amount() {
 #[tokio::test]
 async fn test_store_revert_transfer_iota() {
     // This test checks the correctness of revert_state_update in IotaDataStore.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = Address::random();
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
@@ -3497,7 +3528,7 @@ fn build_and_commit(
 
 #[tokio::test]
 async fn test_store_revert_wrap_move_call() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -3576,7 +3607,7 @@ async fn test_store_revert_wrap_move_call() {
 
 #[tokio::test]
 async fn test_store_revert_unwrap_move_call() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -3691,11 +3722,11 @@ async fn test_store_get_dynamic_field() {
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
     assert_eq!(json!(true), fields[0].name.value);
-    assert_eq!(TypeTag::Bool, fields[0].name.type_)
+    assert_eq!(TypeTag::Bool, fields[0].name.type_tag)
 }
 
 async fn create_and_retrieve_df_info(function: &Identifier) -> (Address, Vec<DynamicFieldInfo>) {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -3784,7 +3815,7 @@ async fn test_dynamic_field_struct_name_parsing() {
     assert_eq!(json!({"name_str": "Test Name"}), fields[0].name.value);
     assert_eq!(
         TypeTag::from_str("0x0::object_basics::Name").unwrap(),
-        fields[0].name.type_
+        fields[0].name.type_tag
     )
 }
 
@@ -3798,7 +3829,7 @@ async fn test_dynamic_field_bytearray_name_parsing() {
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
     assert_eq!(
         TypeTag::from_str("vector<u8>").unwrap(),
-        fields[0].name.type_
+        fields[0].name.type_tag
     );
     assert_eq!(json!("Test Name".as_bytes()), fields[0].name.value);
 }
@@ -3810,7 +3841,10 @@ async fn test_dynamic_field_address_name_parsing() {
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicField));
-    assert_eq!(TypeTag::from_str("address").unwrap(), fields[0].name.type_);
+    assert_eq!(
+        TypeTag::from_str("address").unwrap(),
+        fields[0].name.type_tag
+    );
     assert_eq!(json!(sender), fields[0].name.value);
 }
 
@@ -3824,7 +3858,7 @@ async fn test_dynamic_object_field_struct_name_parsing() {
     assert_eq!(json!({"name_str": "Test Name"}), fields[0].name.value);
     assert_eq!(
         TypeTag::from_str("0x0::object_basics::Name").unwrap(),
-        fields[0].name.type_
+        fields[0].name.type_tag
     )
 }
 
@@ -3838,7 +3872,7 @@ async fn test_dynamic_object_field_bytearray_name_parsing() {
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
     assert_eq!(
         TypeTag::from_str("vector<u8>").unwrap(),
-        fields[0].name.type_
+        fields[0].name.type_tag
     );
     assert_eq!(json!("Test Name".as_bytes()), fields[0].name.value);
 }
@@ -3850,13 +3884,16 @@ async fn test_dynamic_object_field_address_name_parsing() {
 
     assert_eq!(fields.len(), 1);
     assert!(matches!(fields[0].type_, DynamicFieldType::DynamicObject));
-    assert_eq!(TypeTag::from_str("address").unwrap(), fields[0].name.type_);
+    assert_eq!(
+        TypeTag::from_str("address").unwrap(),
+        fields[0].name.type_tag
+    );
     assert_eq!(json!(sender), fields[0].name.value);
 }
 
 #[tokio::test]
 async fn test_store_revert_add_ofield() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -3966,7 +4003,7 @@ async fn test_store_revert_add_ofield() {
 
 #[tokio::test]
 async fn test_store_revert_remove_ofield() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, object_basics) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
@@ -4089,7 +4126,7 @@ async fn test_store_revert_remove_ofield() {
 
 #[tokio::test]
 async fn test_iter_live_object_set() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let receiver = Address::random();
     let gas = ObjectId::random();
     let obj_id = ObjectId::random();
@@ -4391,7 +4428,7 @@ pub async fn call_move(
     authority: &AuthorityState,
     gas_object_id: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     package: &ObjectId,
     module: &'_ str,
     function: &'_ str,
@@ -4419,7 +4456,7 @@ pub async fn call_move_(
     fullnode: Option<&AuthorityState>,
     gas_object_id: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     package: &ObjectId,
     module: &'_ str,
     function: &'_ str,
@@ -4462,7 +4499,7 @@ pub async fn execute_programmable_transaction(
     authority: &AuthorityState,
     gas_object_id: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     pt: ProgrammableTransaction,
     gas_unit: u64,
 ) -> IotaResult<TransactionEffects> {
@@ -4484,7 +4521,7 @@ pub async fn execute_programmable_transaction_with_shared(
     authority: &AuthorityState,
     gas_object_id: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     pt: ProgrammableTransaction,
     gas_unit: u64,
 ) -> IotaResult<TransactionEffects> {
@@ -4506,7 +4543,7 @@ pub async fn build_programmable_transaction(
     authority: &AuthorityState,
     gas_object_id: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     pt: ProgrammableTransaction,
     gas_unit: u64,
 ) -> IotaResult<TransactionEnvelope> {
@@ -4524,7 +4561,7 @@ async fn execute_programmable_transaction_(
     fullnode: Option<&AuthorityState>,
     gas_object_id: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     pt: ProgrammableTransaction,
     with_shared: bool, // Move call includes shared objects
     gas_unit: u64,
@@ -4549,7 +4586,7 @@ async fn call_move_with_gas_coins(
     gas_object_ids: &[ObjectId],
     gas_budget: u64,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     package: &ObjectId,
     module: &'_ str,
     function: &'_ str,
@@ -4592,7 +4629,7 @@ pub async fn create_move_object(
     authority: &AuthorityState,
     gas_object_id: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
 ) -> IotaResult<TransactionEffects> {
     call_move(
         authority,
@@ -4617,7 +4654,7 @@ async fn create_move_object_with_gas_coins(
     gas_object_ids: &[ObjectId],
     gas_budget: u64,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
 ) -> IotaResult<TransactionEffects> {
     call_move_with_gas_coins(
         authority,
@@ -4645,7 +4682,7 @@ pub async fn wrap_object(
     object_id: &ObjectId,
     gas_object_id: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
 ) -> IotaResult<TransactionEffects> {
     call_move(
         authority,
@@ -4668,7 +4705,7 @@ pub async fn add_ofield(
     inner_object_id: &ObjectId,
     gas_object_id: &ObjectId,
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
 ) -> IotaResult<TransactionEffects> {
     call_move(
         authority,
@@ -4794,7 +4831,7 @@ fn execution_error_source(result: &SimulateTransactionResult) -> Option<String> 
 #[cfg(test)]
 async fn make_test_transaction(
     sender: &Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     owned_objects: &[Object],
     shared_objects: &[(ObjectId, Version, bool)],
     gas_object_ref: &ObjectReference,
@@ -4873,7 +4910,7 @@ async fn make_test_transaction(
 
 async fn prepare_authority_and_shared_object_cert()
 -> (Arc<AuthorityState>, VerifiedCertificate, ObjectId) {
-    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     // Initialize an authority with a (owned) gas object and a shared object.
     let gas_object_id = ObjectId::random();
@@ -4892,7 +4929,7 @@ async fn prepare_authority_and_shared_object_cert()
 
     let certificate = make_test_transaction(
         &sender,
-        &keypair,
+        &sender_key,
         &[],
         &[(shared_object_id, initial_shared_version, true)],
         &gas_object_ref,
@@ -4977,7 +5014,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     let gas_objects = create_gas_objects(2, sender);
     let shared_object_id = ObjectId::random();
@@ -5110,7 +5147,7 @@ async fn test_consensus_commit_prologue_generation(#[values(false, true)] pcool:
 async fn test_consensus_message_processed() {
     telemetry_subscribers::init_for_testing();
 
-    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
@@ -5156,7 +5193,7 @@ async fn test_consensus_message_processed() {
     for _ in 0..50 {
         let certificate = make_test_transaction(
             &sender,
-            &keypair,
+            &sender_key,
             &[],
             &[(shared_object_id, initial_shared_version, true)],
             &gas_object_ref,
@@ -5845,7 +5882,7 @@ async fn test_gas_smashing() {
     // budget
     async fn create_obj(
         sender: Address,
-        sender_key: AccountKeyPair,
+        sender_key: AccountPrivateKey,
         gas_coins: Vec<Object>,
         gas_budget: u64,
     ) -> (Arc<AuthorityState>, TransactionEffects) {
@@ -5894,7 +5931,7 @@ async fn test_gas_smashing() {
         budget: u64,
         success: bool,
     ) -> u64 {
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_coins = make_gas_coins(sender, reference_gas_used, coin_num);
         let gas_coin_ids: Vec<_> = gas_coins.iter().map(|obj| obj.id()).collect();
         let (state, effects) = create_obj(sender, sender_key, gas_coins, budget).await;
@@ -5984,7 +6021,7 @@ async fn test_for_inc_201_dev_inspect() {
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
-        events.data[0].type_.name().to_string()
+        events.data[0].struct_tag.name().to_string()
     );
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }
@@ -5993,7 +6030,7 @@ async fn test_for_inc_201_dev_inspect() {
 async fn test_for_inc_201_dry_run() {
     use iota_move_build::BuildConfig;
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -6029,14 +6066,14 @@ async fn test_for_inc_201_dry_run() {
     assert_eq!(1, events.data.len());
     assert_eq!(
         "PublishEvent".to_string(),
-        events.data[0].type_.name().to_string()
+        events.data[0].struct_tag.name().to_string()
     );
     assert_eq!(json!({"foo":"bar"}), events.data[0].parsed_json);
 }
 
 #[tokio::test]
 async fn test_function_not_found() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (_, fullnode, _) =
         init_state_with_ids_and_object_basics_with_fullnode(vec![(sender, gas_object_id)]).await;
@@ -6079,7 +6116,7 @@ async fn test_function_not_found() {
 
 #[tokio::test]
 async fn test_arity_mismatch() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let obj_id = ObjectId::random();
     let (_, authority, _) =
@@ -6129,7 +6166,7 @@ async fn test_arity_mismatch() {
 async fn test_publish_transitive_dependencies_ok() {
     use iota_move_build::BuildConfig;
 
-    let (sender, key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
     let rgp = state.reference_gas_price_for_testing().unwrap();
@@ -6327,7 +6364,7 @@ async fn test_publish_transitive_dependencies_ok() {
 async fn test_publish_missing_dependency() {
     use iota_move_build::BuildConfig;
 
-    let (sender, key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
@@ -6373,7 +6410,7 @@ async fn test_publish_missing_dependency() {
 async fn test_publish_missing_transitive_dependency() {
     use iota_move_build::BuildConfig;
 
-    let (sender, key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
@@ -6419,7 +6456,7 @@ async fn test_publish_missing_transitive_dependency() {
 async fn test_publish_not_a_package_dependency() {
     use iota_move_build::BuildConfig;
 
-    let (sender, key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
@@ -6493,7 +6530,7 @@ fn create_shared_objects(num: u32) -> Vec<Object> {
 async fn test_consensus_handler_per_object_congestion_control(
     mode: PerObjectCongestionControlMode,
 ) {
-    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     // In this test, we tests transactions that operate on 2 shared objects. The
     // idea is that one of them is more expensive to operate on than the other.
@@ -6559,7 +6596,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     for (index, gas_object) in gas_objects_commit_1.iter().enumerate() {
         let certificate = make_test_transaction(
             &sender,
-            &keypair,
+            &sender_key,
             &[],
             &[(
                 if index < 5 {
@@ -6636,7 +6673,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     for gas_object in gas_objects_commit_2.iter() {
         let certificate = make_test_transaction(
             &sender,
-            &keypair,
+            &sender_key,
             &[],
             &[(shared_objects[1].id(), OBJECT_START_VERSION, true)],
             &gas_object.object_ref(),
@@ -6727,7 +6764,7 @@ async fn test_consensus_handler_per_object_congestion_control_using_tx_count() {
 async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     telemetry_subscribers::init_for_testing();
 
-    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     // Test setup. We will create some shared object transactions with one that will
     // be cancelled at round 3.
@@ -6778,7 +6815,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     for gas_object in gas_objects.iter() {
         let certificate = make_test_transaction(
             &sender,
-            &keypair,
+            &sender_key,
             &[],
             &[(shared_objects[0].id(), OBJECT_START_VERSION, true)],
             &gas_object.object_ref(),
@@ -6797,7 +6834,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     // congested object.
     let cancelled_txn = make_test_transaction(
         &sender,
-        &keypair,
+        &sender_key,
         &owned_objects_cancelled_txn,
         &[
             (shared_objects[0].id(), OBJECT_START_VERSION, true),
@@ -6976,7 +7013,7 @@ async fn test_post_consensus_white_flag_simple_conflict() {
     });
 
     // Setup: Two transactions competing for the same owned object
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = dbg_addr(2);
     let recipient2 = dbg_addr(3);
     let object_id = ObjectId::random();
@@ -7098,7 +7135,7 @@ async fn survivor_executes(use_execution_scheduler: bool) {
     });
 
     // Setup: two transactions competing for the same owned object.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient1 = dbg_addr(2);
     let recipient2 = dbg_addr(3);
     let object_id = ObjectId::random();
@@ -7256,7 +7293,7 @@ async fn execution_scheduler_counts_executing_transaction() {
     // Select the ExecutionScheduler; this invariant is about its accounting.
     set_scheduler_env(true);
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -7352,7 +7389,7 @@ async fn execution_scheduler_drops_executing_guard_on_epoch_termination() {
 
     set_scheduler_env(true);
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -7446,7 +7483,7 @@ async fn duplicate_enqueue_executes_once_execution_scheduler() {
 async fn duplicate_enqueue_executes_once(use_execution_scheduler: bool) {
     set_scheduler_env(use_execution_scheduler);
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
@@ -7527,7 +7564,7 @@ async fn test_post_consensus_white_flag_no_conflict() {
     });
 
     // Setup: Two transactions using different objects
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object1_id = ObjectId::random();
     let object2_id = ObjectId::random();
@@ -7642,7 +7679,7 @@ async fn test_post_consensus_white_flag_conflict_different_commits() {
 
     // Test that a transaction in a second commit is dropped if it conflicts
     // with a lock from a first commit that was persisted to DB
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas1_id = ObjectId::random();
@@ -7783,7 +7820,7 @@ async fn test_single_authority_reconfigure() {
 async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
     telemetry_subscribers::init_for_testing();
 
-    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
     // One shared object both transactions contend on, plus a distinct gas coin
     // each so the only contention is the shared object (congestion), not the gas.
@@ -7841,7 +7878,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
             rgp,
         )
         .unwrap();
-        let tx = to_sender_signed_transaction(tx, &keypair);
+        let tx = to_sender_signed_transaction(tx, &sender_key);
         epoch_store.verify_transaction(tx).unwrap()
     };
     let tx1 = make_user_tx(&gas_objects[0]);
@@ -7933,7 +7970,7 @@ async fn test_pcool_deferred_tx_not_dropped_next_round_but_executed() {
 async fn test_consensus_queue_graduated_load_shedding() {
     telemetry_subscribers::init_for_testing();
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object1 = Object::with_owner_for_testing(sender);
     let gas_object2 = Object::with_owner_for_testing(sender);
 
@@ -8055,16 +8092,67 @@ async fn authority_with_deny_rule_governance(enabled: bool) -> Arc<AuthorityStat
         .await
 }
 
+/// The end-of-epoch transaction creates the `TransactionDenyRules` object
+/// exactly when on-chain deny rule governance is enabled and the object does
+/// not exist at epoch start.
+#[rstest::rstest]
+#[tokio::test]
+async fn advance_epoch_tx_creates_deny_rules_object_under_flag(
+    #[values(false, true)] enabled: bool,
+) {
+    use iota_sdk_types::gas::GasCostSummary;
+    use iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID;
+
+    use crate::authority::epoch_start_configuration::EpochStartConfigTrait;
+
+    let mut protocol_config =
+        ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    if enabled {
+        protocol_config.set_deny_rule_governance_for_testing(true);
+        protocol_config.set_deny_rule_governance_on_chain_for_testing(true);
+        protocol_config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+        protocol_config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+    }
+    let authority = TestAuthorityBuilder::new()
+        .with_protocol_config(protocol_config)
+        .build()
+        .await;
+    let epoch_store = authority.epoch_store_for_testing();
+    assert!(
+        epoch_store
+            .epoch_start_config()
+            .transaction_deny_rules_obj_initial_shared_version()
+            .is_none()
+    );
+
+    // One full score for the single-validator test committee.
+    let (_, _, effects) = authority
+        .create_and_execute_advance_epoch_tx(
+            &epoch_store,
+            &GasCostSummary::new(0, 0, 0, 0, 0),
+            1, // checkpoint
+            0, // epoch_start_timestamp_ms
+            vec![u16::MAX as u64 + 1],
+        )
+        .await
+        .expect("advance epoch tx must succeed");
+
+    let created = effects
+        .created()
+        .iter()
+        .any(|(object_ref, _)| object_ref.object_id == IOTA_TRANSACTION_DENY_RULES_OBJECT_ID);
+    assert_eq!(created, enabled);
+}
+
 /// A `TransactionDenyRuleProposal` whose declared authority matches `author` is
 /// recorded through the consensus pipeline and its rules become active for the
 /// next commit; a proposal whose author does not match the consensus block
 /// author is dropped by `verify_consensus_transaction`.
 #[tokio::test]
 async fn deny_rule_proposal_through_consensus_updates_active_set() {
-    use iota_sdk_types::Address;
+    use iota_sdk_types::{Address, DenyRuleSet};
     use iota_types::{
-        deny_rule_governance::{DenyRuleConfig, DenyRuleSet},
-        messages_consensus::TransactionDenyRuleProposal,
+        deny_rule_governance::DenyRuleConfig, messages_consensus::TransactionDenyRuleProposal,
     };
 
     let authority = authority_with_deny_rule_governance(true).await;
@@ -8192,10 +8280,8 @@ async fn deny_rule_proposal_ignored_when_flag_disabled() {
     );
 }
 
-fn rules_denying(
-    address: iota_sdk_types::Address,
-) -> iota_types::deny_rule_governance::DenyRuleSet {
-    iota_types::deny_rule_governance::DenyRuleSet {
+fn rules_denying(address: iota_sdk_types::Address) -> iota_sdk_types::DenyRuleSet {
+    iota_sdk_types::DenyRuleSet {
         denied_addresses: [address].into(),
         ..Default::default()
     }
@@ -8203,7 +8289,7 @@ fn rules_denying(
 
 #[tokio::test]
 async fn test_effects_equivocation_prevented_at_signing_not_execution() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let gas_object_id = ObjectId::random();

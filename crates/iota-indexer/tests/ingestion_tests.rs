@@ -23,11 +23,8 @@ mod ingestion_tests {
             obj_indices::StoredObjectVersion,
             objects::{StoredCheckpointedObject, StoredObject},
             transactions::{StoredTransaction, TxGlobalOrder},
-            tx_indices::StoredTxDigest,
         },
-        schema::{
-            checkpointed_objects, checkpoints, objects, transactions, tx_digests, tx_global_order,
-        },
+        schema::{checkpointed_objects, checkpoints, objects, transactions, tx_global_order},
         store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
@@ -220,14 +217,6 @@ mod ingestion_tests {
 
         let digest = effects.transaction_digest();
 
-        let stored_tx_digest = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            tx_digests::table
-                .filter(tx_digests::tx_digest.eq(digest.inner().to_vec()))
-                .select(StoredTxDigest::as_select())
-                .first::<StoredTxDigest>(conn)
-        })
-        .context("failed reading `tx_global_order` from PostgresDB")?;
-
         let stored_global_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             tx_global_order::table
                 .filter(tx_global_order::tx_digest.eq(digest.inner().to_vec()))
@@ -236,10 +225,7 @@ mod ingestion_tests {
         })
         .context("failed reading `tx_global_order` from PostgresDB")?;
 
-        assert_eq!(
-            stored_global_order.global_sequence_number,
-            stored_tx_digest.tx_sequence_number
-        );
+        assert!(stored_global_order.tx_sequence_number.is_some());
         let expected_optimistic_sequence_number = -1;
         assert_eq!(
             stored_global_order.optimistic_sequence_number,
@@ -264,7 +250,6 @@ mod ingestion_tests {
         sim.create_checkpoint();
         let digest = *effects.transaction_digest();
 
-        let global_sequence_number = 123;
         let emulate_insertion_order_set_earlier_by_optimistic_indexing =
             move |pg_store: &PgIndexerStore| {
                 transactional_blocking_with_retry!(
@@ -272,9 +257,8 @@ mod ingestion_tests {
                     |conn| {
                         let insertable = TxGlobalOrder {
                             tx_digest: digest.inner().to_vec(),
-                            global_sequence_number,
                             optimistic_sequence_number: None,
-                            chk_tx_sequence_number: None,
+                            tx_sequence_number: None,
                         };
                         insert_or_ignore_into!(tx_global_order::table, insertable, conn);
                         Ok::<(), IndexerError>(())
@@ -305,7 +289,9 @@ mod ingestion_tests {
         })
         .context("failed reading `tx_global_order` from PostgresDB")?;
 
-        assert_eq!(stored.global_sequence_number, global_sequence_number);
+        // The checkpoint upsert must fill in the sequence number without
+        // replacing the row inserted by the optimistic path.
+        assert!(stored.tx_sequence_number.is_some());
         let expected_optimistic_sequence_number = 1;
         assert_eq!(
             stored.optimistic_sequence_number,
@@ -449,7 +435,7 @@ mod ingestion_tests {
         assert!(err.is_none());
 
         sim.create_checkpoint(); // checkpoint 1
-        sim.advance_epoch(); // checkpoint 2 and epoch 1
+        sim.advance_epoch(false); // checkpoint 2 and epoch 1
 
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();

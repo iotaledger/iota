@@ -6,11 +6,11 @@ use std::collections::{HashMap, HashSet};
 use iota_grpc_client::read_mask_fields::CheckpointResponseField;
 use iota_grpc_types::v1::types::{Address as ProtoAddress, ObjectId as ProtoObjectId};
 use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, SignedTransaction, Transaction,
-    TransactionDigest, TypeTag,
+    Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, SignedTransaction, StructTag,
+    Transaction, TransactionDigest, TypeTag,
 };
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
-use iota_types::{effects::TransactionEffectsAPI, gas_coin::GAS};
+use iota_types::effects::TransactionEffectsAPI;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 // --- Shared example package names used by filter tests ---
@@ -358,8 +358,16 @@ pub fn assert_transfer_derived_changes(
 ) {
     let gas = grpc_net_gas_usage(executed_transaction) as i128;
     let mut expected = vec![
-        (Owner::Address(sender), GAS::type_tag(), -(amount + gas)),
-        (Owner::Address(recipient), GAS::type_tag(), amount),
+        (
+            Owner::Address(sender),
+            TypeTag::from(StructTag::new_gas()),
+            -(amount + gas),
+        ),
+        (
+            Owner::Address(recipient),
+            TypeTag::from(StructTag::new_gas()),
+            amount,
+        ),
     ];
     expected.sort();
     assert_eq!(

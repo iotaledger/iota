@@ -17,8 +17,8 @@ use itertools::Itertools as _;
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
 use starfish_config::{
-    AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper, Epoch,
-    ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
+    AuthorityIndex, Committee, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper,
+    Epoch, ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
 };
 use tracing::instrument;
 
@@ -26,7 +26,7 @@ use crate::{
     authority_set::AuthoritySet,
     commit::CommitVote,
     context::Context,
-    encoder::{ShardEncoder, create_encoder},
+    encoder::{ShardEncoder, create_encoder_for_committee},
     error::{ConsensusError, ConsensusResult},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -943,13 +943,24 @@ impl TransactionsCommitment {
     /// Commitment over an empty transaction list. The value depends on the
     /// committee size through the erasure-coding shard counts.
     pub(crate) fn compute_empty_transactions_commitment(
-        context: &Arc<Context>,
+        committee: &Committee,
     ) -> TransactionsCommitment {
-        let mut encoder = create_encoder(context);
+        let info_length = committee.info_length();
+        let parity_length = committee.size() - info_length;
+        let mut encoder = create_encoder_for_committee(committee);
         let serialized = Transaction::serialize(&[])
             .expect("Serializing an empty transaction list should not fail");
-        Self::compute_transactions_commitment(&serialized, context, &mut encoder)
+        let encoded_shards = encoder
+            .encode_serialized_data(&serialized, info_length, parity_length)
+            .expect("Encoding empty transactions should not fail");
+        let authority = committee
+            .authorities()
+            .next()
+            .expect("Committee should not be empty")
+            .0;
+        Self::compute_merkle_root_and_proof(&encoded_shards, authority)
             .expect("Computing the empty transactions commitment should not fail")
+            .0
     }
 }
 
@@ -1307,9 +1318,11 @@ impl fmt::Debug for VerifiedBlockHeader {
     }
 }
 
-/// VerifiedTransactions are transactions that correspond to an existing block
+/// Transactions whose serialized bytes match the transactions commitment in
+/// `transaction_ref`: they are the bytes the author committed to. Transaction
+/// validity is a separate check, run on the ingest routes.
 #[derive(Clone, Debug)]
-pub struct VerifiedTransactions {
+pub struct CommitmentVerifiedTransactions {
     transactions: Vec<Transaction>,
 
     /// Commitment of transactions in the block
@@ -1326,13 +1339,13 @@ pub struct VerifiedTransactions {
     serialized: Bytes,
 }
 
-impl PartialEq for VerifiedTransactions {
+impl PartialEq for CommitmentVerifiedTransactions {
     fn eq(&self, other: &Self) -> bool {
         self.transactions_commitment() == other.transactions_commitment()
     }
 }
 
-impl VerifiedTransactions {
+impl CommitmentVerifiedTransactions {
     pub(crate) fn new(
         transactions: Vec<Transaction>,
         transaction_ref: TransactionRef,
@@ -1348,10 +1361,11 @@ impl VerifiedTransactions {
     }
 
     /// Test-only constructor. Wraps `transactions` against the slot of
-    /// `header` so the resulting `VerifiedTransactions` can be dropped into a
-    /// test-constructed `CommittedSubDag`. Used by downstream crates'
-    /// consensus-handler tests; production code must go through
-    /// `VerifiedTransactions::new` during block reception.
+    /// `header` so the resulting `CommitmentVerifiedTransactions` can be
+    /// dropped into a test-constructed `CommittedSubDag`. Used by
+    /// downstream crates' consensus-handler tests; production code must go
+    /// through `CommitmentVerifiedTransactions::new` during block
+    /// reception.
     pub fn new_for_test(header: &VerifiedBlockHeader, transactions: Vec<Transaction>) -> Self {
         let serialized: Bytes = bcs::to_bytes(&transactions)
             .expect("Serialization should not fail")
@@ -1396,9 +1410,8 @@ impl VerifiedTransactions {
         self.transaction_ref
     }
 
-    /// Returns the leader round of the sub-dag.
-    pub fn transactions(&self) -> Vec<Transaction> {
-        self.transactions.clone()
+    pub fn transactions(&self) -> &[Transaction] {
+        &self.transactions
     }
 
     pub fn serialized(&self) -> &Bytes {
@@ -1428,13 +1441,13 @@ pub struct VerifiedBlock {
     pub verified_block_header: VerifiedBlockHeader,
 
     /// The transactions in the block.
-    pub verified_transactions: VerifiedTransactions,
+    pub verified_transactions: CommitmentVerifiedTransactions,
 }
 
 impl VerifiedBlock {
     pub fn new(
         verified_block_header: VerifiedBlockHeader,
-        verified_transactions: VerifiedTransactions,
+        verified_transactions: CommitmentVerifiedTransactions,
     ) -> Self {
         Self {
             verified_block_header,
@@ -1445,7 +1458,7 @@ impl VerifiedBlock {
     #[cfg(test)]
     pub fn new_for_test(block_header: BlockHeader) -> Self {
         let verified_block_header = VerifiedBlockHeader::new_for_test(block_header);
-        let verified_transactions = VerifiedTransactions::new(
+        let verified_transactions = CommitmentVerifiedTransactions::new(
             vec![],
             verified_block_header.transaction_ref(),
             Some(verified_block_header.digest()),
@@ -1460,7 +1473,7 @@ impl VerifiedBlock {
     #[cfg(test)]
     pub fn new_with_transaction_for_test(block_header: BlockHeader, tx: u8) -> Self {
         let verified_block_header = VerifiedBlockHeader::new_for_test(block_header);
-        let verified_transactions = VerifiedTransactions::new(
+        let verified_transactions = CommitmentVerifiedTransactions::new(
             vec![],
             verified_block_header.transaction_ref(),
             Some(verified_block_header.digest()),
@@ -1517,7 +1530,7 @@ pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
             let verified_block_header = VerifiedBlockHeader::new_verified(signed_block, serialized);
             VerifiedBlock {
                 verified_block_header: verified_block_header.clone(),
-                verified_transactions: VerifiedTransactions::new_empty_from_ref(
+                verified_transactions: CommitmentVerifiedTransactions::new_empty_from_ref(
                     verified_block_header.transaction_ref(),
                     Some(verified_block_header.digest()),
                 ),

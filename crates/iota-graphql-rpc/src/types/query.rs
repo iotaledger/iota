@@ -10,8 +10,8 @@ use iota_indexer::apis::ReadApi;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{ReadApiServer, WriteApiServer};
 use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
-use iota_sdk_types::{ObjectReference, Transaction, TransactionKind, TypeTag};
-use iota_types::{gas_coin::GAS, transaction::TransactionAPI};
+use iota_sdk_types::{ObjectReference, StructTag, Transaction, TransactionKind, TypeTag};
+use iota_types::transaction::TransactionAPI;
 use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
 
@@ -443,7 +443,7 @@ impl Query {
         let Watermark { checkpoint, .. } = *ctx.data()?;
 
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        let coin = type_.map_or_else(GAS::type_tag, |t| t.0);
+        let coin = type_.map_or_else(|| TypeTag::from(StructTag::new_gas()), |t| t.0);
         Coin::paginate(
             ctx.data_unchecked(),
             page,

@@ -89,7 +89,7 @@ pub type AuthoritySignature = BLS12381Signature;
 pub type AggregateAuthoritySignature = BLS12381AggregateSignature;
 pub type AggregateAuthoritySignatureAsBytes = BLS12381AggregateSignatureAsBytes;
 
-pub type AccountKeyPair = Ed25519PrivateKey;
+pub type AccountPrivateKey = Ed25519PrivateKey;
 
 pub type NetworkKeyPair = Ed25519KeyPair;
 pub type NetworkPublicKey = Ed25519PublicKey;
@@ -509,9 +509,10 @@ macro_rules! random_key_pair_from_sdk {
     ($private_key:ty, $variant:ident) => {
         impl RandomKeyPair for $private_key {
             fn generate_with_address(seed: [u8; 32]) -> (Address, Self) {
-                let kp = <$private_key>::random_with(StdRng::from_seed(seed));
-                let public = PublicKey::$variant(BytesRepresentation(kp.public_key().into_inner()));
-                (Address::from(&public), kp)
+                let key = <$private_key>::random_with(StdRng::from_seed(seed));
+                let public =
+                    PublicKey::$variant(BytesRepresentation(key.public_key().into_inner()));
+                (Address::from(&public), key)
             }
         }
     };
@@ -539,19 +540,19 @@ pub fn random_committee_key_pairs_of_size(size: usize) -> Vec<AuthorityKeyPair> 
             // exact the results to be the same. We should eliminate them.
             let key_pair = get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut rng);
             get_key_pair_from_rng::<AuthorityKeyPair, _>(&mut rng);
-            get_key_pair_from_rng::<AccountKeyPair, _>(&mut rng);
-            get_key_pair_from_rng::<AccountKeyPair, _>(&mut rng);
+            get_key_pair_from_rng::<AccountPrivateKey, _>(&mut rng);
+            get_key_pair_from_rng::<AccountPrivateKey, _>(&mut rng);
             key_pair.1
         })
         .collect()
 }
 
-pub fn deterministic_random_account_key() -> (Address, AccountKeyPair) {
+pub fn deterministic_random_account_private_key() -> (Address, AccountPrivateKey) {
     let mut rng = StdRng::from_seed([0; 32]);
     get_key_pair_from_rng(&mut rng)
 }
 
-pub fn get_account_key_pair() -> (Address, AccountKeyPair) {
+pub fn get_account_private_key() -> (Address, AccountPrivateKey) {
     get_key_pair()
 }
 

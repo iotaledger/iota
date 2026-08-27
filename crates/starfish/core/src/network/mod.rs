@@ -131,12 +131,17 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// Returns serialized commits, serialized headers voting for the last
     /// commit, and serialized transactions (as SerializedTransactionsV2 which
     /// includes TransactionRef). Used in the fast commit syncer.
+    ///
+    /// When the response stream is cut by an error after commits were
+    /// received, the buffers hold what arrived and the error is returned
+    /// alongside them, so the caller can attribute missing transactions to
+    /// the connection rather than to the peer's data.
     async fn fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)>;
 
     /// Fetches the latest block from `peer` for the requested `authorities`.
     /// The latest blocks are returned in the serialised format of

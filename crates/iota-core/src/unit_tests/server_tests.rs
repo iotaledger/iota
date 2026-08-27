@@ -18,7 +18,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::{AuthorityName, dbg_addr, dbg_object_id, random_object_ref},
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
+        AccountPrivateKey, AuthorityKeyPair, AuthoritySignInfo, AuthoritySignature,
         IotaAuthoritySignature, get_authority_key_pair, get_key_pair,
     },
     error::IotaError,
@@ -293,7 +293,7 @@ async fn test_get_checkpoint_happy_path() {
 async fn build_shared_object_transaction(
     state: &AuthorityState,
     sender: Address,
-    sender_key: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     gas_object_id: ObjectId,
     pkg_ref: iota_sdk_types::ObjectReference,
 ) -> TransactionEnvelope {
@@ -408,7 +408,7 @@ async fn setup_v2_transfer_tx() -> (
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -516,7 +516,7 @@ async fn test_v2_submit_tx_invalid_signature() {
     });
 
     let sender = Address::random();
-    let wrong_key = AccountKeyPair::random();
+    let wrong_key = AccountPrivateKey::random();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -581,7 +581,7 @@ async fn test_v2_submit_tx_feature_flag_disabled() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -640,7 +640,7 @@ async fn test_v2_submit_tx_already_executed() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -708,7 +708,7 @@ async fn test_v2_submit_tx_refuses_contradicting_previously_signed() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -802,7 +802,7 @@ async fn test_v2_submit_tx_multiple_transactions() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id1 = ObjectId::random();
     let gas_id2 = ObjectId::random();
 
@@ -853,7 +853,7 @@ async fn test_v2_submit_tx_invalid_transaction() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
 
     let authority_state = TestAuthorityBuilder::new()
@@ -917,7 +917,7 @@ async fn test_v2_submit_tx_gas_object_validation() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
 
     let authority_state = TestAuthorityBuilder::new()
@@ -975,7 +975,7 @@ async fn test_v2_submit_tx_different_gas_prices_accepted() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id1 = ObjectId::random();
     let gas_id2 = ObjectId::random();
 
@@ -1050,7 +1050,7 @@ async fn test_v2_submit_tx_oversized_transaction() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_id = ObjectId::random();
 
     let authority_state = TestAuthorityBuilder::new()
@@ -1173,7 +1173,7 @@ async fn test_v2_get_tx_status_already_executed() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -1248,7 +1248,7 @@ async fn test_v2_get_tx_status_already_executed_with_details() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -1321,7 +1321,7 @@ async fn test_v2_get_tx_status_refuses_contradicting_previously_signed() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -1417,7 +1417,7 @@ async fn test_v2_get_tx_status_allows_matching_previously_signed() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let gas_id = ObjectId::random();
 
@@ -1501,7 +1501,7 @@ async fn test_v2_get_tx_status_multiple_queries() {
         config
     });
 
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id1 = ObjectId::random();
     let gas_id1 = ObjectId::random();
     let object_id2 = ObjectId::random();

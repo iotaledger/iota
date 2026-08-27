@@ -19,7 +19,7 @@ expression: "results.join(\"\\n\")"
  === BUILT PTB === 
 Input 0: Pure([0])
 Command 0: Command: Make Move Vector
-├── Type: 0x1::option::Option<u64>
+├── Type Tag: 0x1::option::Option<u64>
 └── Elements
     └── 0: Input(0)
 Command 1: Command: Move Call

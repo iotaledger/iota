@@ -18,7 +18,7 @@ use iota_json_rpc_types::{
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, Version};
-use iota_types::{gas_coin::GAS, quorum_driver_types::ExecuteTransactionRequestType};
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -573,7 +573,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
                     package_object_id: ObjectId::FRAMEWORK,
                     module: "pay".to_string(),
                     function: "split".to_string(),
-                    type_arguments: type_args![GAS::type_tag()]?,
+                    type_arguments: type_args![TypeTag::from(StructTag::new_gas())]?,
                     arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?
                         .into_iter()
                         .map(PtbInput::CallArg)
@@ -766,7 +766,7 @@ async fn test_move_call() -> Result<(), anyhow::Error> {
             package_id,
             module,
             function,
-            type_args![GAS::type_tag()]?,
+            type_args![TypeTag::from(StructTag::new_gas())]?,
             call_args!(coin.object_id, 10)?,
             Some(gas.object_id),
             10_000_000.into(),

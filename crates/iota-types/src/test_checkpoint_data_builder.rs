@@ -19,7 +19,6 @@ use crate::{
     effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExtForTesting},
     event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    gas_coin::GAS,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummaryExt,
     },
@@ -167,7 +166,7 @@ impl TestCheckpointDataBuilder {
             object_idx,
             Owner::Shared(Version::MIN_VALID_INCL),
             GAS_VALUE_FOR_TESTING,
-            GAS::type_tag(),
+            TypeTag::from(StructTag::new_gas()),
         )
     }
 
@@ -181,7 +180,12 @@ impl TestCheckpointDataBuilder {
             .as_ref()
             .unwrap()
             .sender_idx;
-        self.create_coin_object(object_idx, sender_idx, balance, GAS::type_tag())
+        self.create_coin_object(
+            object_idx,
+            sender_idx,
+            balance,
+            TypeTag::from(StructTag::new_gas()),
+        )
     }
 
     /// Create a new coin object in the transaction.
@@ -577,7 +581,7 @@ impl TestCheckpointDataBuilder {
                 package_id: ObjectId::SYSTEM,
                 module: Identifier::from_static("iota_system_state_inner"),
                 sender: TestCheckpointDataBuilder::derive_address(0),
-                type_: StructTag::new_system_epoch_info_event(),
+                struct_tag: StructTag::new_system_epoch_info_event(),
                 contents: bcs::to_bytes(&system_epoch_info_event).unwrap(),
             }])
         } else {
@@ -1021,7 +1025,7 @@ mod tests {
                 package_id: ObjectId::ZERO,
                 module: Identifier::from_static("test"),
                 sender: TestCheckpointDataBuilder::derive_address(0),
-                type_: StructTag::new_gas(),
+                struct_tag: StructTag::new_gas(),
                 contents: vec![],
             }])
             .finish_transaction()

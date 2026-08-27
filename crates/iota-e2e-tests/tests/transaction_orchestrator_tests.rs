@@ -1453,7 +1453,7 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
     let handle = &test_cluster.fullnode_handle.iota_node;
     let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
     let rgp = context.get_reference_gas_price().await?;
-    let recipient = iota_types::crypto::get_key_pair::<iota_types::crypto::AccountKeyPair>().0;
+    let recipient = iota_types::crypto::get_key_pair::<iota_types::crypto::AccountPrivateKey>().0;
 
     // Submit bursts of concurrent transfers (each using a distinct gas object)
     // until one is cancelled: only one transaction fits per commit, so any
@@ -1594,7 +1594,7 @@ async fn test_execution_worker_congestion_cancellation_validator_restart()
     let handle = &test_cluster.fullnode_handle.iota_node;
     let orchestrator = handle.with(|n| n.transaction_orchestrator().as_ref().unwrap().clone());
     let rgp = context.get_reference_gas_price().await?;
-    let recipient = iota_types::crypto::get_key_pair::<iota_types::crypto::AccountKeyPair>().0;
+    let recipient = iota_types::crypto::get_key_pair::<iota_types::crypto::AccountPrivateKey>().0;
 
     let submit_transfer = |address, gas_object: ObjectReference, gas_price: u64| {
         let data = iota_sdk_types::Transaction::new_transfer_iota(

@@ -22,9 +22,9 @@ use iota_sdk_types::{
     Event, GasPayment, GenesisObject, GenesisTransaction, Identifier, Input, MakeMoveVector,
     MergeCoins, MoveAuthenticator, MoveCall, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
     Owner, ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate,
-    SenderSignedTransaction, SharedObjectReference, SplitCoins, Transaction, TransactionDigest,
-    TransactionExpiration, TransactionKind, TransactionV1, TransferObjects, TypeTag, Upgrade,
-    UserSignature, Version,
+    SenderSignedTransaction, SharedObjectReference, SplitCoins, Transaction,
+    TransactionDenyRulesUpdate, TransactionDigest, TransactionExpiration, TransactionKind,
+    TransactionV1, TransferObjects, TypeTag, Upgrade, UserSignature, Version,
     crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 use itertools::Either;
@@ -155,6 +155,9 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
+            // Creates the TransactionDenyRules object; there is no input to
+            // reference yet.
+            Self::TransactionDenyRulesCreate => vec![],
             _ => unimplemented!(
                 "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
             ),
@@ -243,6 +246,14 @@ impl EndOfEpochTransactionKindExt for EndOfEpochTransactionKind {
                 if !config.pass_validator_scores_to_advance_epoch() {
                     return Err(UserInputError::Unsupported(
                         "passing of validator scores required".to_string(),
+                    ));
+                }
+            }
+            Self::TransactionDenyRulesCreate => {
+                if !config.deny_rule_governance_on_chain() {
+                    return Err(UserInputError::Unsupported(
+                        "on-chain deny rule governance not supported at current protocol version"
+                            .to_string(),
                     ));
                 }
             }
@@ -424,7 +435,9 @@ impl CommandExt for Command {
                 .iter()
                 .map(|id| InputObjectKind::MovePackage(*id))
                 .collect(),
-            Command::MakeMoveVector(MakeMoveVector { type_: Some(t), .. }) => {
+            Command::MakeMoveVector(MakeMoveVector {
+                type_tag: Some(t), ..
+            }) => {
                 let mut packages = BTreeSet::new();
                 add_type_tag_packages(&mut packages, t);
                 packages
@@ -432,7 +445,7 @@ impl CommandExt for Command {
                     .map(InputObjectKind::MovePackage)
                     .collect()
             }
-            Command::MakeMoveVector(MakeMoveVector { type_: None, .. })
+            Command::MakeMoveVector(MakeMoveVector { type_tag: None, .. })
             | Command::TransferObjects(_)
             | Command::SplitCoins(_)
             | Command::MergeCoins(_) => vec![],
@@ -460,7 +473,7 @@ impl CommandExt for Command {
                 );
             }
             Command::MakeMoveVector(MakeMoveVector {
-                type_: ty_opt,
+                type_tag: ty_opt,
                 elements: args,
             }) => {
                 // ty_opt.is_none() ==> !args.is_empty()
@@ -763,6 +776,9 @@ impl TransactionKindExt for TransactionKind {
                     EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
                     }
+                    // Never the last end-of-epoch kind; a change-epoch kind
+                    // always follows it.
+                    EndOfEpochTransactionKind::TransactionDenyRulesCreate => None,
                     _ => unimplemented!(
                         "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
                     ),
@@ -795,6 +811,13 @@ impl TransactionKindExt for TransactionKind {
                     true,
                 ))))
             }
+            Self::TransactionDenyRulesUpdate(update) => {
+                Either::Left(Either::Left(iter::once(SharedObjectReference::new(
+                    ObjectId::TRANSACTION_DENY_RULES,
+                    update.deny_rules_obj_initial_shared_version,
+                    true,
+                ))))
+            }
             Self::EndOfEpoch(txns) => Either::Left(Either::Right(
                 txns.iter().flat_map(|txn| txn.shared_input_objects()),
             )),
@@ -817,6 +840,7 @@ impl TransactionKindExt for TransactionKind {
             | TransactionKind::ConsensusCommitPrologueV1(_)
             | TransactionKind::AuthenticatorStateUpdateV1Deprecated
             | TransactionKind::RandomnessStateUpdate(_)
+            | TransactionKind::TransactionDenyRulesUpdate(_)
             | TransactionKind::EndOfEpoch(_) => vec![],
             TransactionKind::Programmable(pt) => pt.receiving_objects(),
             _ => unimplemented!(
@@ -848,6 +872,13 @@ impl TransactionKindExt for TransactionKind {
                 vec![InputObjectKind::SharedMoveObject {
                     id: ObjectId::RANDOMNESS_STATE,
                     initial_shared_version: update.randomness_obj_initial_shared_version,
+                    mutable: true,
+                }]
+            }
+            Self::TransactionDenyRulesUpdate(update) => {
+                vec![InputObjectKind::SharedMoveObject {
+                    id: ObjectId::TRANSACTION_DENY_RULES,
+                    initial_shared_version: update.deny_rules_obj_initial_shared_version,
                     mutable: true,
                 }]
             }
@@ -907,6 +938,14 @@ impl TransactionKindExt for TransactionKind {
                 ));
             }
             TransactionKind::RandomnessStateUpdate(_) => (),
+            TransactionKind::TransactionDenyRulesUpdate(_) => {
+                if !config.deny_rule_governance_on_chain() {
+                    return Err(UserInputError::Unsupported(
+                        "on-chain deny rule governance not supported at current protocol version"
+                            .to_string(),
+                    ));
+                }
+            }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -929,6 +968,7 @@ impl TransactionKindExt for TransactionKind {
             #[allow(deprecated)]
             Self::AuthenticatorStateUpdateV1Deprecated => "AuthenticatorStateUpdateV1Deprecated",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
+            Self::TransactionDenyRulesUpdate(_) => "TransactionDenyRulesUpdate",
             Self::EndOfEpoch(_) => "EndOfEpoch",
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
@@ -2429,6 +2469,10 @@ impl VerifiedTransaction {
 
     pub fn new_end_of_epoch_transaction(txns: Vec<EndOfEpochTransactionKind>) -> Self {
         TransactionKind::EndOfEpoch(txns).pipe(Self::new_system_transaction)
+    }
+
+    pub fn new_transaction_deny_rules_update(update: TransactionDenyRulesUpdate) -> Self {
+        TransactionKind::TransactionDenyRulesUpdate(update).pipe(Self::new_system_transaction)
     }
 
     fn new_system_transaction(system_transaction: TransactionKind) -> Self {

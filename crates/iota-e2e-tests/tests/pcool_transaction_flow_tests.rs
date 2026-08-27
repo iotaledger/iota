@@ -40,10 +40,13 @@
 
 #![cfg(msim)]
 
+use std::str::FromStr;
+
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::base_types::dbg_addr;
+use iota_types::{base_types::dbg_addr, coin::CoinMetadata, transaction::CallArg};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Applies a thread-local protocol-config override that enables the P-COOL
@@ -237,4 +240,78 @@ async fn run_double_spend_resolves_to_single_winner(test_cluster: &TestCluster) 
         "exactly one of two conflicting owned-object transactions must finalize \
          under P-COOL (ok1={ok1}, ok2={ok2}); r1={r1:?}, r2={r2:?}"
     );
+}
+
+#[sim_test]
+async fn test_pcool_immutable_object_read_twice_transaction_manager() {
+    let (test_cluster, _guard) = build_pcool_cluster(false).await;
+    assert_scheduler(&test_cluster, false);
+    run_immutable_object_read_twice(&test_cluster).await;
+}
+
+#[sim_test]
+async fn test_pcool_immutable_object_read_twice_execution_scheduler() {
+    let (test_cluster, _guard) = build_pcool_cluster(true).await;
+    assert_scheduler(&test_cluster, true);
+    run_immutable_object_read_twice(&test_cluster).await;
+}
+
+/// I3: Any number of transactions may read an immutable object within one
+/// epoch. Reads the genesis `CoinMetadata` twice in a row — the reproduction
+/// from issue #12602, where the first read locked it for the whole epoch.
+async fn run_immutable_object_read_twice(test_cluster: &TestCluster) {
+    assert_pcool_active(test_cluster);
+
+    let sender = test_cluster.get_address_0();
+    let rgp = test_cluster.get_reference_gas_price().await;
+
+    // Resolved from the genesis objects rather than through `coin_read_api`:
+    // the RPC's package-object lookup sits behind a process-global cache
+    // (keyed only by package id and struct tag), which under MSIM_TEST_NUM > 1
+    // serves the object id from a previous iteration's genesis.
+    let metadata_id = test_cluster
+        .get_genesis()
+        .objects()
+        .iter()
+        .find(|object| {
+            object.data.as_opt_struct().is_some_and(|move_struct| {
+                CoinMetadata::is_coin_metadata_with_coin_type(move_struct.struct_tag())
+                    .is_some_and(StructTag::is_gas)
+            })
+        })
+        .expect("the IOTA coin metadata object exists at genesis")
+        .id();
+    let metadata_ref = test_cluster.get_latest_object_ref(&metadata_id).await;
+
+    // Sequential, not concurrent: the point is that the first read leaves no
+    // lock behind for the second to trip over.
+    for attempt in 1..=2 {
+        let gas = test_cluster
+            .wallet
+            .get_one_gas_object_owned_by_address(sender)
+            .await
+            .unwrap()
+            .unwrap();
+        let txn = TestTransactionBuilder::new(sender, gas, rgp)
+            .move_call(
+                ObjectId::FRAMEWORK,
+                "coin",
+                "get_decimals",
+                vec![CallArg::ImmutableOrOwned(metadata_ref)],
+            )
+            .with_type_args(vec![TypeTag::from_str("0x2::iota::IOTA").unwrap()])
+            .build();
+
+        let response = test_cluster
+            .wallet
+            .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&txn))
+            .await;
+
+        assert!(
+            response
+                .as_ref()
+                .is_ok_and(|r| r.status_ok().unwrap_or(false)),
+            "read {attempt} of an immutable object must finalize under P-COOL: {response:?}"
+        );
+    }
 }

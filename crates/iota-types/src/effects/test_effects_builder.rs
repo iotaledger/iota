@@ -268,7 +268,10 @@ impl TestEffectsBuilder {
                 )
             }))
             .collect();
-        let gas_object_id = self.transaction.transaction().gas()[0].object_id;
+        // A system transaction carries only a placeholder gas payment that
+        // never appears in the changed objects.
+        let gas_object_id = (!self.transaction.transaction().is_system_tx())
+            .then(|| self.transaction.transaction().gas()[0].object_id);
         let event_digest = self.events_digest;
         let dependencies = vec![];
 
@@ -281,7 +284,7 @@ impl TestEffectsBuilder {
             self.transaction.digest(),
             lamport_version,
             changed_objects,
-            Some(gas_object_id),
+            gas_object_id,
             event_digest,
             dependencies,
         )

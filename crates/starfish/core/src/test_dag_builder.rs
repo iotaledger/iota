@@ -16,9 +16,10 @@ use crate::{
     CommitRef, CommittedSubDag,
     authority_set::AuthoritySet,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
-        StrongVote, TestBlockHeader, TestBlockHeaderVersion, Transaction, TransactionsCommitment,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions, genesis_block_headers,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs,
+        CommitmentVerifiedTransactions, GENESIS_ROUND, Round, Slot, StrongVote, TestBlockHeader,
+        TestBlockHeaderVersion, Transaction, TransactionsCommitment, VerifiedBlock,
+        VerifiedBlockHeader, genesis_block_headers,
     },
     commit::{CertifiedCommit, CommitAPI, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
@@ -109,7 +110,7 @@ pub(crate) struct DagBuilder {
     // All blocks created by dag builder. Will be used to pretty print or to be
     // retrieved for testing/persiting to dag state.
     pub(crate) block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
-    pub(crate) transactions: BTreeMap<BlockRef, VerifiedTransactions>,
+    pub(crate) transactions: BTreeMap<BlockRef, CommitmentVerifiedTransactions>,
     // All the committed sub dags created by the dag builder.
     pub(crate) committed_sub_dags: Vec<(CommittedSubDag, TrustedCommit)>,
     pub(crate) last_committed_rounds: Vec<Round>,
@@ -214,7 +215,10 @@ impl DagBuilder {
             .collect::<Vec<VerifiedBlockHeader>>()
     }
 
-    pub(crate) fn transactions(&self, rounds: RangeInclusive<Round>) -> Vec<VerifiedTransactions> {
+    pub(crate) fn transactions(
+        &self,
+        rounds: RangeInclusive<Round>,
+    ) -> Vec<CommitmentVerifiedTransactions> {
         assert!(
             !self.transactions.is_empty(),
             "No transactions have been created, please make sure that you have called build method"
@@ -227,7 +231,7 @@ impl DagBuilder {
                     .then_some(verified_transactions)
             })
             .cloned()
-            .collect::<Vec<VerifiedTransactions>>()
+            .collect::<Vec<CommitmentVerifiedTransactions>>()
     }
 
     pub(crate) fn all_block_headers(&self) -> Vec<VerifiedBlockHeader> {
@@ -631,7 +635,7 @@ impl DagBuilder {
             )
             .unwrap();
 
-            let verified_transactions = VerifiedTransactions::new(
+            let verified_transactions = CommitmentVerifiedTransactions::new(
                 transactions,
                 TransactionRef::new(block_ref, commitment),
                 Some(block_ref.digest),
@@ -750,7 +754,7 @@ pub struct LayerBuilder<'a> {
 
     // Accumulated blocks to write to dag state
     block_headers: Vec<VerifiedBlockHeader>,
-    pub(crate) transactions: Vec<VerifiedTransactions>,
+    pub(crate) transactions: Vec<CommitmentVerifiedTransactions>,
 }
 
 #[expect(unused)]
@@ -1193,7 +1197,7 @@ impl<'a> LayerBuilder<'a> {
                         VerifiedBlockHeader::new_for_test(test_block_header)
                     };
 
-                let verified_transactions = VerifiedTransactions::new(
+                let verified_transactions = CommitmentVerifiedTransactions::new(
                     transactions,
                     block_header.transaction_ref(),
                     Some(block_header.digest()),

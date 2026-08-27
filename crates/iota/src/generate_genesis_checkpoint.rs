@@ -6,8 +6,8 @@ use camino::Utf8PathBuf;
 use iota_config::local_ip_utils;
 use iota_genesis_builder::{Builder, validator_info::ValidatorInfo};
 use iota_types::crypto::{
-    AccountKeyPair, AuthorityKeyPair, KeypairTraits, NetworkKeyPair, generate_proof_of_possession,
-    get_key_pair_from_rng,
+    AccountPrivateKey, AuthorityKeyPair, KeypairTraits, NetworkKeyPair,
+    generate_proof_of_possession, get_key_pair_from_rng,
 };
 
 #[tokio::main]
@@ -22,7 +22,7 @@ async fn main() {
             get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
         let protocol_key: NetworkKeyPair =
             get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
-        let account_key = AccountKeyPair::random();
+        let account_key = AccountPrivateKey::random();
         let network_key: NetworkKeyPair =
             get_key_pair_from_rng(&mut rand::rand_core::UnwrapErr(rand::rngs::SysRng)).1;
         let validator = ValidatorInfo {

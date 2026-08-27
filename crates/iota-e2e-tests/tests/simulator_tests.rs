@@ -10,6 +10,7 @@ use futures::{
 };
 use iota_macros::*;
 use iota_test_transaction_builder::make_transfer_iota_transaction;
+use iota_types::effects::TransactionEffectsAPI;
 use rand::{
     RngExt,
     distr::{Distribution, Uniform},
@@ -130,7 +131,10 @@ async fn test_net_determinism() {
     let mut test_cluster = TestClusterBuilder::new().build().await;
 
     let txn = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
-    let digest = test_cluster.execute_transaction(txn).await.digest;
+    let digest = *test_cluster
+        .execute_transaction(txn)
+        .await
+        .transaction_digest();
 
     sleep(Duration::from_millis(1000)).await;
 

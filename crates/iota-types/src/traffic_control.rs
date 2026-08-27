@@ -108,6 +108,8 @@ impl Weight {
 
     pub fn is_sampled(&self) -> bool {
         let mut rng = rand::rng();
+        // `Uniform::new` excludes the upper bound, so a weight of 1.0 accepts every
+        // sample.
         let sample = rand::distr::Uniform::new(0.0, 1.0)
             .unwrap()
             .sample(&mut rng);
