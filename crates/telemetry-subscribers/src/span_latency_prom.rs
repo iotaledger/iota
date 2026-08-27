@@ -24,23 +24,23 @@
 
 use std::time::Instant;
 
-use prometheus::{Registry, exponential_buckets, register_histogram_vec_with_registry};
+use prometheus_filtered::{Registry, exponential_buckets, register_histogram_vec_with_registry};
 use tracing::{Subscriber, span};
 
 /// A tokio_tracing Layer that records span latencies into Prometheus histograms
 pub struct PrometheusSpanLatencyLayer {
-    span_latencies: prometheus::HistogramVec,
+    span_latencies: prometheus_filtered::HistogramVec,
 }
 
 #[derive(Debug)]
 pub enum PrometheusSpanError {
     /// num_buckets must be positive >= 1
     ZeroOrNegativeNumBuckets,
-    Prometheus(prometheus::Error),
+    Prometheus(prometheus_filtered::Error),
 }
 
-impl From<prometheus::Error> for PrometheusSpanError {
-    fn from(err: prometheus::Error) -> Self {
+impl From<prometheus_filtered::Error> for PrometheusSpanError {
+    fn from(err: prometheus_filtered::Error) -> Self {
         Self::Prometheus(err)
     }
 }
@@ -116,7 +116,7 @@ mod tests {
 
     #[test]
     fn test_prom_span_latency_init() {
-        let registry = prometheus::Registry::new();
+        let registry = prometheus_filtered::Registry::new();
 
         let res = PrometheusSpanLatencyLayer::try_new(&registry, 0);
         assert!(matches!(

@@ -20,8 +20,8 @@ use iota_macros::fail_point;
 use iota_metrics::{
     GaugeGuard, TX_TYPE_SHARED_OBJ_TX, TX_TYPE_SINGLE_WRITER_TX, spawn_monitored_task,
 };
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    base_types::TransactionDigest,
     committee::{Committee, EpochId},
     error::{IotaError, IotaResult},
     messages_grpc::HandleCertificateRequestV1,
@@ -29,7 +29,7 @@ use iota_types::{
         ExecuteTransactionRequestV1, QuorumDriverEffectsQueueResult, QuorumDriverError,
         QuorumDriverResponse, QuorumDriverResult,
     },
-    transaction::{CertifiedTransaction, Transaction},
+    transaction::{CertifiedTransaction, SenderSignedTransactionAPI, TransactionEnvelope},
 };
 use tap::TapFallible;
 use tokio::{
@@ -208,7 +208,7 @@ impl<A: Clone> QuorumDriver<A> {
 
     pub fn notify(
         &self,
-        transaction: &Transaction,
+        transaction: &TransactionEnvelope,
         response: &QuorumDriverResult,
         total_attempts: u32,
     ) {
@@ -299,7 +299,7 @@ where
     #[instrument(level = "trace", skip_all)]
     pub(crate) async fn process_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<ProcessTransactionResult, Option<QuorumDriverError>> {
         let auth_agg = self.validators.load();

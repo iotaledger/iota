@@ -10,18 +10,18 @@ use std::{
 };
 
 use iota_config::node::AuthorityOverloadConfig;
-use iota_sdk_types::Owner;
+use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Address, Owner, TransactionDigest, TransactionEffects};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::TransactionDigest,
     committee::Committee,
-    crypto::{AccountKeyPair, get_key_pair},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    crypto::{AccountPrivateKey, get_key_pair},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     object::Object,
     transaction::{
-        CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction,
-        VerifiedCertificate,
+        CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        TransactionEnvelope, VerifiedCertificate,
     },
 };
 use itertools::Itertools;
@@ -40,14 +40,13 @@ use crate::{
         create_object_move_transaction, do_cert, do_transaction, extract_cert, get_latest_ref,
     },
     authority_server::{ValidatorService, ValidatorServiceMetrics},
-    checkpoints::CheckpointStore,
-    consensus_adapter::{
-        ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
-        MockConsensusClient,
-    },
+    consensus_adapter::ConsensusAdapter,
+    execution_scheduler::ExecutionSchedulerAPI,
     safe_client::SafeClient,
     test_authority_clients::LocalAuthorityClient,
-    test_utils::{make_transfer_object_move_transaction, make_transfer_object_transaction},
+    test_utils::{
+        make_transfer_object_move_transaction, make_transfer_object_transaction, set_scheduler_env,
+    },
     unit_test_utils::{init_local_authorities, init_local_authorities_with_overload_thresholds},
 };
 
@@ -250,12 +249,12 @@ async fn wait_for_certs(
 async fn execute_owned_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &Transaction,
+    tx: &TransactionEnvelope,
 ) -> (VerifiedCertificate, TransactionEffects) {
-    do_transaction(&authority_clients[0], txn).await;
-    do_transaction(&authority_clients[1], txn).await;
-    do_transaction(&authority_clients[2], txn).await;
-    let cert = extract_cert(authority_clients, committee, txn.digest())
+    do_transaction(&authority_clients[0], tx).await;
+    do_transaction(&authority_clients[1], tx).await;
+    do_transaction(&authority_clients[2], tx).await;
+    let cert = extract_cert(authority_clients, committee, tx.digest())
         .await
         .try_into_verified_for_testing(committee, &Default::default())
         .unwrap();
@@ -272,7 +271,7 @@ pub async fn do_cert_with_shared_objects(
     send_consensus(authority, cert).await;
     authority
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[*cert.digest()])
+        .notify_read_executed_effects_for_testing("", &[*cert.digest()])
         .await
         .pop()
         .unwrap()
@@ -281,12 +280,12 @@ pub async fn do_cert_with_shared_objects(
 async fn execute_shared_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &Transaction,
+    tx: &TransactionEnvelope,
 ) -> (VerifiedCertificate, TransactionEffects) {
-    do_transaction(&authority_clients[0], txn).await;
-    do_transaction(&authority_clients[1], txn).await;
-    do_transaction(&authority_clients[2], txn).await;
-    let cert = extract_cert(authority_clients, committee, txn.digest())
+    do_transaction(&authority_clients[0], tx).await;
+    do_transaction(&authority_clients[1], tx).await;
+    do_transaction(&authority_clients[2], tx).await;
+    let cert = extract_cert(authority_clients, committee, tx.digest())
         .await
         .try_into_verified_for_testing(committee, &Default::default())
         .unwrap();
@@ -299,12 +298,29 @@ async fn execute_shared_on_first_three_authorities(
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_execution_with_dependencies() {
+    execution_with_dependencies(false).await;
+}
+
+/// The same long, out-of-dependency-order backlog must drain to completion
+/// under the `ExecutionScheduler`, whose per-transaction tasks wake each other
+/// through `notify_read` rather than the `TransactionManager`'s dependency
+/// graph. A regression that failed to wake a waiter when its dependency's
+/// output is written would deadlock the backlog invisibly.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn test_execution_with_dependencies_execution_scheduler() {
+    execution_with_dependencies(true).await;
+}
+
+async fn execution_with_dependencies(use_execution_scheduler: bool) {
     telemetry_subscribers::init_for_testing();
+    // Select the scheduler before the authorities are built (the env vars are
+    // read by ExecutionSchedulerWrapper::new).
+    set_scheduler_env(use_execution_scheduler);
 
     // ---- Initialize a network with three accounts, each with 10 gas objects.
 
     const NUM_ACCOUNTS: usize = 3;
-    let accounts: Vec<(_, AccountKeyPair)> =
+    let accounts: Vec<(_, AccountPrivateKey)> =
         (0..NUM_ACCOUNTS).map(|_| get_key_pair()).collect_vec();
 
     const NUM_GAS_OBJECTS_PER_ACCOUNT: usize = 10;
@@ -319,6 +335,10 @@ async fn test_execution_with_dependencies() {
 
     let (aggregator, authorities, _genesis, package) =
         init_local_authorities(4, all_gas_objects.clone()).await;
+    assert_eq!(
+        authorities[3].uses_execution_scheduler(),
+        use_execution_scheduler
+    );
     let authority_clients: Vec<_> = authorities
         .iter()
         .map(|a| aggregator.authority_clients[&a.name].clone())
@@ -335,7 +355,7 @@ async fn test_execution_with_dependencies() {
     let mut executed_shared_certs = Vec::new();
 
     // Initialize an object owned by 1st account.
-    let (addr1, key1): &(_, AccountKeyPair) = &accounts[0];
+    let (addr1, key1): &(_, AccountPrivateKey) = &accounts[0];
     let gas_ref = get_latest_ref(authority_clients[0].clone(), gas_objects[0][0].id()).await;
     let tx1 = create_object_move_transaction(*addr1, key1, *addr1, 100, package, gas_ref, rgp);
     let (cert, effects1) =
@@ -449,7 +469,7 @@ async fn test_execution_with_dependencies() {
         .collect();
     authorities[3]
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .notify_read_executed_effects_for_testing("", &digests)
         .await;
 }
 
@@ -460,14 +480,14 @@ fn make_socket_addr() -> std::net::SocketAddr {
 async fn try_sign_on_first_three_authorities(
     authority_clients: &[Arc<SafeClient<LocalAuthorityClient>>],
     committee: &Committee,
-    txn: &Transaction,
+    tx: &TransactionEnvelope,
 ) -> IotaResult<VerifiedCertificate> {
     for client in authority_clients.iter().take(3) {
         client
-            .handle_transaction(txn.clone(), Some(make_socket_addr()))
+            .handle_transaction(tx.clone(), Some(make_socket_addr()))
             .await?;
     }
-    extract_cert(authority_clients, committee, txn.digest())
+    extract_cert(authority_clients, committee, tx.digest())
         .await
         .try_into_verified_for_testing(committee, &Default::default())
 }
@@ -477,7 +497,7 @@ async fn test_per_object_overload() {
     telemetry_subscribers::init_for_testing();
 
     // Initialize a network with 1 account and 2000 gas objects.
-    let (addr, key): (_, AccountKeyPair) = get_key_pair();
+    let (addr, key): (_, AccountPrivateKey) = get_key_pair();
     const NUM_GAS_OBJECTS_PER_ACCOUNT: usize = 2000;
     let gas_objects = (0..NUM_GAS_OBJECTS_PER_ACCOUNT)
         .map(|_| Object::with_owner_for_testing(addr))
@@ -512,7 +532,7 @@ async fn test_per_object_overload() {
     for authority in authorities.iter().take(3) {
         authority
             .get_transaction_cache_reader()
-            .notify_read_executed_effects(&[*create_counter_cert.digest()])
+            .notify_read_executed_effects_for_testing("", &[*create_counter_cert.digest()])
             .await
             .pop()
             .unwrap();
@@ -526,7 +546,7 @@ async fn test_per_object_overload() {
     send_consensus(&authorities[3], &create_counter_cert).await;
     let create_counter_effects = authorities[3]
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[*create_counter_cert.digest()])
+        .notify_read_executed_effects_for_testing("", &[*create_counter_cert.digest()])
         .await
         .pop()
         .unwrap();
@@ -579,10 +599,21 @@ async fn test_per_object_overload() {
             shared_counter_initial_version,
         )
         .build_and_sign(&key);
-    let res = authorities[3]
-        .transaction_manager()
-        .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
-    let message = format!("{res:?}");
+    // ExecutionScheduler registers per-object pending state asynchronously (in
+    // the per-transaction task), whereas TransactionManager does it
+    // synchronously at enqueue. Poll until the overload condition is observed so
+    // the assertion holds for both schedulers.
+    let mut message = String::new();
+    for _ in 0..200 {
+        let res = authorities[3]
+            .execution_scheduler()
+            .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
+        message = format!("{res:?}");
+        if message.contains("TooManyTransactionsPendingOnObject") {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
     assert!(
         message.contains("TooManyTransactionsPendingOnObject"),
         "{}",
@@ -595,7 +626,7 @@ async fn test_txn_age_overload() {
     telemetry_subscribers::init_for_testing();
 
     // Initialize a network with 1 account and 3 gas objects.
-    let (addr, key): (_, AccountKeyPair) = get_key_pair();
+    let (addr, key): (_, AccountPrivateKey) = get_key_pair();
     let gas_objects = (0..3)
         .map(|_| Object::with_owner_for_testing(addr))
         .collect_vec();
@@ -637,7 +668,7 @@ async fn test_txn_age_overload() {
     for authority in authorities.iter().take(3) {
         authority
             .get_transaction_cache_reader()
-            .notify_read_executed_effects(&[*create_counter_cert.digest()])
+            .notify_read_executed_effects_for_testing("", &[*create_counter_cert.digest()])
             .await
             .pop()
             .unwrap();
@@ -651,7 +682,7 @@ async fn test_txn_age_overload() {
     send_consensus(&authorities[3], &create_counter_cert).await;
     let create_counter_effects = authorities[3]
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[*create_counter_cert.digest()])
+        .notify_read_executed_effects_for_testing("", &[*create_counter_cert.digest()])
         .await
         .pop()
         .unwrap();
@@ -705,7 +736,7 @@ async fn test_txn_age_overload() {
         )
         .build_and_sign(&key);
     let res = authorities[3]
-        .transaction_manager()
+        .execution_scheduler()
         .check_execution_overload(authorities[3].overload_config(), shared_txn.data());
     let message = format!("{res:?}");
     assert!(
@@ -721,10 +752,17 @@ async fn test_txn_age_overload() {
 async fn test_authority_txn_signing_pushback() {
     telemetry_subscribers::init_for_testing();
 
+    // Load shedding at signing only applies to the pre-consensus flow, which
+    // `handle_transaction` serves.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
+
     // Create one sender, two recipients addresses, and 2 gas objects.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (recipient1, _): (_, AccountKeyPair) = get_key_pair();
-    let (recipient2, _): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let recipient1 = Address::random();
+    let recipient2 = Address::random();
     let gas_object1 = Object::with_owner_for_testing(sender);
     let gas_object2 = Object::with_owner_for_testing(sender);
 
@@ -740,22 +778,12 @@ async fn test_authority_txn_signing_pushback() {
         .with_authority_overload_config(overload_config)
         .build()
         .await;
-    authority_state
-        .insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()])
-        .await;
+    authority_state.insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()]);
 
     // Create a validator service around the `authority_state`.
     let epoch_store = authority_state.epoch_store_for_testing();
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
     let validator_service = Arc::new(ValidatorService::new_for_tests(
         authority_state.clone(),
@@ -789,7 +817,6 @@ async fn test_authority_txn_signing_pushback() {
     // Check that the input object should be locked by the above transaction.
     let lock_tx = authority_state
         .get_transaction_lock(&gas_object1.object_ref(), &epoch_store)
-        .await
         .unwrap()
         .unwrap();
     assert_eq!(tx.digest(), lock_tx.digest());
@@ -852,9 +879,16 @@ async fn test_authority_txn_signing_pushback() {
 async fn test_authority_txn_execution_pushback() {
     telemetry_subscribers::init_for_testing();
 
+    // Load shedding at execution only applies to the pre-consensus flow, which
+    // `handle_certificate` serves.
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(false);
+        config
+    });
+
     // Create one sender, one recipient addresses, and 2 gas objects.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (recipient, _): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let recipient = Address::random();
     let gas_object1 = Object::with_owner_for_testing(sender);
     let gas_object2 = Object::with_owner_for_testing(sender);
 
@@ -872,21 +906,11 @@ async fn test_authority_txn_execution_pushback() {
         .with_authority_overload_config(overload_config)
         .build()
         .await;
-    authority_state
-        .insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()])
-        .await;
+    authority_state.insert_genesis_objects(&[gas_object1.clone(), gas_object2.clone()]);
 
     // Create a validator service around the `authority_state`.
-    let consensus_adapter = Arc::new(ConsensusAdapter::new(
-        Arc::new(MockConsensusClient::new()),
-        CheckpointStore::new_for_tests(),
+    let consensus_adapter = Arc::new(ConsensusAdapter::new_for_testing_with_authority_name(
         authority_state.name,
-        Arc::new(ConnectionMonitorStatusForTests {}),
-        100_000,
-        100_000,
-        None,
-        None,
-        ConsensusAdapterMetrics::new_test(),
     ));
     let validator_service = Arc::new(ValidatorService::new_for_tests(
         authority_state.clone(),

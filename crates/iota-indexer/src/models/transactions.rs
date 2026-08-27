@@ -11,11 +11,9 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
 };
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{Event, TypeTag};
-use iota_types::{
-    digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEvents},
-    transaction::SenderSignedData,
+use iota_sdk_types::{
+    Event, SenderSignedTransaction, TransactionDigest, TransactionEffects, TransactionEvents,
+    TypeTag,
 };
 use move_core_types::annotated_value::{MoveDatatypeLayout, MoveTypeLayout};
 #[cfg(feature = "shared_test_runtime")]
@@ -32,15 +30,7 @@ use crate::{
 pub struct TxGlobalOrder {
     /// Sequence number of transaction according to checkpoint ordering.
     /// Set after transaction is checkpoint-indexed.
-    pub chk_tx_sequence_number: Option<i64>,
-    /// Number that represents the global ordering between optimistic and
-    /// checkpointed transactions.
-    ///
-    /// Optimistic transactions will share the same number as checkpointed
-    /// transactions. In this case, ties are resolved by the
-    /// `(global_sequence_number, optimistic_sequence_number)` pair that
-    /// guarantees deterministic ordering.
-    pub global_sequence_number: i64,
+    pub tx_sequence_number: Option<i64>,
     pub tx_digest: Vec<u8>,
     /// Monotonically increasing number that represents the order
     /// of execution of optimistic transactions.
@@ -60,8 +50,7 @@ pub const CHECKPOINT_TX_OPTIMISTIC_SEQ: i64 = -1;
 impl From<&IndexedTransaction> for TxGlobalOrder {
     fn from(tx: &IndexedTransaction) -> Self {
         Self {
-            chk_tx_sequence_number: Some(tx.tx_sequence_number as i64),
-            global_sequence_number: tx.tx_sequence_number as i64,
+            tx_sequence_number: Some(tx.tx_sequence_number as i64),
             tx_digest: tx.tx_digest.into_inner().to_vec(),
             optimistic_sequence_number: Some(CHECKPOINT_TX_OPTIMISTIC_SEQ),
         }
@@ -277,9 +266,9 @@ impl StoredTransaction {
             .then_some(self.checkpoint_sequence_number as u64);
 
         let transaction = if options.show_input {
-            let sender_signed_data = self.try_into_sender_signed_data()?;
+            let sender_signed_tx = self.try_into_sender_signed_transaction()?;
             let tx_block = IotaTransactionBlock::try_from_with_package_resolver(
-                sender_signed_data,
+                sender_signed_tx,
                 package_resolver,
                 tx_digest,
             )
@@ -401,15 +390,15 @@ impl StoredTransaction {
         })
     }
 
-    pub fn try_into_sender_signed_data(&self) -> IndexerResult<SenderSignedData> {
-        let sender_signed_data: SenderSignedData =
-            bcs::from_bytes(&self.raw_transaction).map_err(|e| {
+    pub fn try_into_sender_signed_transaction(&self) -> IndexerResult<SenderSignedTransaction> {
+        let sender_signed_tx: SenderSignedTransaction = bcs::from_bytes(&self.raw_transaction)
+            .map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
-                    "Can't convert raw_transaction of {} into SenderSignedData. Error: {e}",
+                    "Can't convert raw_transaction of {} into SenderSignedTransaction. Error: {e}",
                     self.tx_sequence_number
                 ))
             })?;
-        Ok(sender_signed_data)
+        Ok(sender_signed_tx)
     }
 
     pub async fn try_into_iota_transaction_effects(
@@ -465,7 +454,7 @@ pub async fn tx_events_to_iota_tx_events(
 
     for tx_event in tx_events.iter() {
         let package_resolver_clone = package_resolver.clone();
-        let event_type = tx_event.type_.clone();
+        let event_type = tx_event.struct_tag.clone();
         iota_event_futures.push(tokio::task::spawn(async move {
             let resolver = package_resolver_clone;
             resolver

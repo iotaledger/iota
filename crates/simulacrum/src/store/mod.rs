@@ -5,14 +5,15 @@
 use std::collections::BTreeMap;
 
 use iota_config::genesis;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version, checkpoint::CheckpointContents,
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
     committee::{Committee, EpochId},
-    digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     error::{IotaResult, UserInputError},
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber, VerifiedCheckpoint},
+    messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::Object,
     storage::{BackingStore, ChildObjectResolver},
     transaction::{
@@ -55,7 +56,7 @@ pub trait SimulatorStore:
 
     fn get_object(&self, id: &ObjectId) -> Option<Object>;
 
-    fn get_object_at_version(&self, id: &ObjectId, version: SequenceNumber) -> Option<Object>;
+    fn get_object_at_version(&self, id: &ObjectId, version: Version) -> Option<Object>;
 
     fn get_system_state(&self) -> iota_types::iota_system_state::IotaSystemState;
 
@@ -68,7 +69,7 @@ pub trait SimulatorStore:
         epoch: EpochId,
     ) -> Option<&iota_types::iota_system_state::IotaSystemState>;
 
-    fn owned_objects(&self, owner: IotaAddress) -> Box<dyn Iterator<Item = Object> + '_>;
+    fn owned_objects(&self, owner: Address) -> Box<dyn Iterator<Item = Object> + '_>;
 
     fn insert_checkpoint(&mut self, checkpoint: VerifiedCheckpoint);
 
@@ -93,7 +94,7 @@ pub trait SimulatorStore:
     fn update_objects(
         &mut self,
         written_objects: BTreeMap<ObjectId, Object>,
-        deleted_objects: Vec<ObjectRef>,
+        deleted_objects: Vec<ObjectReference>,
     );
 
     fn backing_store(&self) -> &dyn BackingStore;
@@ -113,7 +114,7 @@ pub trait SimulatorStore:
         &self,
         _tx_digest: &TransactionDigest,
         input_object_kinds: &[InputObjectKind],
-        receiving_object_refs: &[ObjectRef],
+        receiving_object_refs: &[ObjectReference],
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         let mut input_objects = Vec::new();
         for kind in input_object_kinds {

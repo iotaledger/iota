@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use iota_sdk_types::{ObjectId, TypeTag};
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
 };
 
@@ -18,7 +18,7 @@ use crate::authority::{
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_same_module_type_param() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -77,7 +77,7 @@ async fn test_same_module_type_param() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_different_module_type_param() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -137,7 +137,7 @@ async fn test_different_module_type_param() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_nested_type_param() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -203,7 +203,7 @@ async fn test_nested_type_param() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_nested_type_param_different_module() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -269,7 +269,7 @@ async fn test_nested_type_param_different_module() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_different_package_type_param() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 
@@ -340,7 +340,7 @@ async fn test_different_package_type_param() {
 #[tokio::test]
 #[cfg_attr(msim, ignore)]
 async fn test_nested_type_param_different_package() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
 

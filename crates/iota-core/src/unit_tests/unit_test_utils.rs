@@ -11,11 +11,11 @@ use iota_framework::BuiltInFramework;
 use iota_genesis_builder::validator_info::ValidatorInfo;
 use iota_move_build::test_utils::compile_basics_package;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_types::{ObjectId, TransactionDigest};
 use iota_types::{
-    base_types::{IotaAddress, TransactionDigest},
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
         generate_proof_of_possession, get_key_pair,
     },
     object::Object,
@@ -56,13 +56,13 @@ async fn init_genesis(
         let authority_pubkey_bytes = authority_key_pair.public().into();
         let protocol_key_pair: NetworkKeyPair = get_key_pair().1;
         let protocol_pubkey = protocol_key_pair.public().clone();
-        let account_key_pair: IotaKeyPair = get_key_pair::<AccountKeyPair>().1.into();
+        let account_key_pair: SimpleKeypair = AccountPrivateKey::random().into();
         let network_key_pair: NetworkKeyPair = get_key_pair().1;
         let validator_info = ValidatorInfo {
             name: format!("validator-{i}"),
             authority_key: authority_pubkey_bytes,
             protocol_key: protocol_pubkey,
-            account_address: IotaAddress::from(&account_key_pair.public()),
+            account_address: account_key_pair.public_key().derive_address(),
             network_key: network_key_pair.public().clone(),
             gas_price: 1,
             commission_rate: 0,
@@ -73,16 +73,18 @@ async fn init_genesis(
             image_url: String::new(),
             project_url: String::new(),
         };
-        let pop =
-            generate_proof_of_possession(&authority_key_pair, (&account_key_pair.public()).into());
+        let pop = generate_proof_of_possession(
+            &authority_key_pair,
+            account_key_pair.public_key().derive_address(),
+        );
         builder = builder.add_validator(validator_info, pop);
         key_pairs.push((authority_pubkey_bytes, authority_key_pair));
     }
     for (_, key) in &key_pairs {
         builder = builder.add_validator_signature(key);
     }
-    let genesis_build_effects = builder.build();
-    (genesis_build_effects.genesis, key_pairs, pkg_id)
+    let genesis = builder.build();
+    (genesis, key_pairs, pkg_id)
 }
 
 #[cfg(test)]

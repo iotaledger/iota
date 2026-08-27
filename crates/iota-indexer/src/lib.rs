@@ -10,7 +10,7 @@ use iota_grpc_client::Client as GrpcClient;
 use iota_json_rpc::{JsonRpcServerBuilder, ServerHandle, ServerType};
 use iota_metrics::spawn_monitored_task;
 use metrics::IndexerMetrics;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
@@ -38,6 +38,7 @@ pub mod optimistic_indexing;
 pub mod processors;
 pub mod pruning;
 pub mod read;
+pub mod restore;
 pub mod schema;
 pub mod store;
 pub mod system_package_task;

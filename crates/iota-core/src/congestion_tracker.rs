@@ -4,11 +4,11 @@
 
 use std::collections::{HashMap, hash_map::Entry};
 
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Transaction, TransactionEffects};
 use iota_types::{
-    effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
+    effects::{InputSharedObject, TransactionEffectsAPI},
     messages_checkpoint::{CheckpointTimestamp, VerifiedCheckpoint},
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionAPI,
 };
 use moka::{ops::compute::Op, sync::Cache};
 
@@ -138,17 +138,26 @@ fn get_congested_objects_and_feedback_suggested_gas_price(
     match status {
         ExecutionStatus::Failure {
             error:
-                ExecutionError::ExecutionCancelledDueToSharedObjectCongestion { congested_objects },
+                ExecutionError::ExecutionCanceledDueToSharedObjectCongestion { congested_objects },
             ..
         } => Some((congested_objects, None)),
         ExecutionStatus::Failure {
             error:
-                ExecutionError::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                ExecutionError::ExecutionCanceledDueToSharedObjectCongestionV2 {
                     congested_objects,
                     suggested_gas_price,
                 },
             ..
         } => Some((congested_objects, Some(*suggested_gas_price))),
+        // Execution-worker congestion names no object, so there is no
+        // per-object congestion info to update.
+        ExecutionStatus::Failure {
+            error:
+                ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
+                    suggested_gas_price,
+                },
+            ..
+        } => Some((&[], Some(*suggested_gas_price))),
         _ => None,
     }
 }
@@ -183,7 +192,7 @@ impl CongestionTracker {
                         effects.transaction_digest()
                     )
                 })
-                .transaction_data()
+                .transaction()
                 .gas_price();
 
             // Skip system transactions
@@ -235,7 +244,7 @@ impl CongestionTracker {
     #[allow(dead_code)]
     pub fn get_prediction_suggested_gas_price_legacy(
         &self,
-        transaction: &TransactionData,
+        transaction: &Transaction,
     ) -> Option<u64> {
         self.get_suggested_gas_price_for_objects(
             transaction
@@ -248,7 +257,7 @@ impl CongestionTracker {
 
     /// Get the largest hotness value among all mutable input shared objects
     /// accessed by `transaction`.
-    pub fn get_prediction_suggested_gas_price(&self, transaction: &TransactionData) -> Option<u64> {
+    pub fn get_prediction_suggested_gas_price(&self, transaction: &Transaction) -> Option<u64> {
         let (_, hotness) = self
             .get_max_hotness_per_tx(
                 transaction

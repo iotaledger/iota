@@ -4,8 +4,6 @@ tags: [move-sc]
 teams:
   - iotaledger/vm-language
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/objects/object-ownership/wrapped.json';
 
 In programming, nesting complex data structures within others is common for organizing information.
 Move allows you to structure data by embedding a `struct` type within another `struct`, which is known as wrapping.
@@ -139,7 +137,7 @@ public fun request_swap(
 
 In this function, the `Object` is passed by value, fully consuming it and wrapping it into a `SwapRequest`.
 The wrapper object is then sent to the service operator.
-The example also uses [`coin::into_balance`](../../../../developer/references/framework/iota/coin.mdx#function-into_balance)
+The example also uses [`coin::into_balance`](../../../../developer/references/framework/iota/coin.mdx#iota_coin_into_balance)
 to wrap the fee's [`Coin`](../../../../developer/references/framework/iota/coin.mdx) into a
 [`Balance`](../../../../developer/references/framework/iota/balance.mdx).
 
@@ -247,7 +245,7 @@ and passes a `sword` by value to wrap it into the `warrior`.
 
 Since `Sword` is an object type without `drop` ability,
 the warrior can't drop that sword if he's already equipped another.
-If you call [`option::fill`](../../../../developer/references/framework/std/option.mdx#function-fill) without checking and taking out the existing sword,
+If you call [`option::fill`](../../../../developer/references/framework/std/option.mdx#std_option_fill) without checking and taking out the existing sword,
 an error will occur.
 Therefore, `equip_sword` should start by checking whether there is already a sword equipped. If so, remove it out and send it back to the sender, in this case, the player's inventory.
 
@@ -272,5 +270,3 @@ public struct Farm has key {
 ```
 
 The `Farm` object can now contain a collection of `Pet` objects, which can only be accessed through the `Farm`.
-
-<Quiz questions={questions} />

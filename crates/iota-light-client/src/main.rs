@@ -20,15 +20,10 @@ use iota_light_client::{
 };
 use iota_package_resolver::Resolver;
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{CheckpointDigest, ObjectData, ObjectId, ObjectReference, TransactionDigest};
 use iota_types::{
-    base_types::ObjectRef,
-    committee::Committee,
-    digests::{CheckpointDigest, TransactionDigest},
-    effects::TransactionEffectsExt,
-    event::EventID,
-    full_checkpoint_content::CheckpointData,
-    object::{Data, bounded_visitor::BoundedVisitor},
+    committee::Committee, effects::TransactionEffectsExt, event::EventID,
+    full_checkpoint_content::CheckpointData, object::bounded_visitor::BoundedVisitor,
 };
 use tracing::{debug, error, info};
 
@@ -148,7 +143,7 @@ pub async fn main() -> Result<()> {
             let object = get_verified_object(&config, object_id).await?;
             println!("Successfully verified object: {object_id}");
 
-            if let Data::Struct(move_object) = &object.data {
+            if let ObjectData::Struct(move_object) = &object.data {
                 let object_type = move_object.struct_tag();
 
                 let type_layout = resolver.type_layout(move_object.type_tag()).await?;
@@ -157,7 +152,7 @@ pub async fn main() -> Result<()> {
                     BoundedVisitor::deserialize_value(move_object.contents(), &type_layout)
                         .context("Failed to deserialize object")?;
 
-                let ObjectRef {
+                let ObjectReference {
                     object_id,
                     version,
                     digest: hash,
@@ -187,7 +182,9 @@ pub async fn main() -> Result<()> {
 
             if let Some(events) = &events {
                 for event in &events.0 {
-                    let type_layout = resolver.type_layout(event.type_.clone().into()).await?;
+                    let type_layout = resolver
+                        .type_layout(event.struct_tag.clone().into())
+                        .await?;
 
                     let result = BoundedVisitor::deserialize_value(&event.contents, &type_layout)
                         .context("Failed to deserialize event")?;
@@ -197,7 +194,7 @@ pub async fn main() -> Result<()> {
                         event.package_id,
                         event.module,
                         event.sender,
-                        event.type_,
+                        event.struct_tag,
                         serde_json::to_string(&result).expect("JSON deserialization error")
                     );
                 }
@@ -293,7 +290,7 @@ pub async fn main() -> Result<()> {
                 }
                 let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
                 let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
-                committee.replace(Committee::new(epoch + 1, authorities.into_iter().collect()));
+                committee.replace(Committee::from_committee_members(epoch + 1, &authorities));
             }
 
             let targets = ProofTargets {
@@ -344,7 +341,7 @@ pub async fn main() -> Result<()> {
                 };
                 let summary = read_checkpoint_summary(&config, end_of_epoch_seq)?.into_data();
                 let authorities = summary.end_of_epoch_data.unwrap().next_epoch_committee;
-                Committee::new(epoch, authorities.into_iter().collect())
+                Committee::from_committee_members(epoch, &authorities)
             };
 
             proof::verify_proof(&committee, &proof)?;

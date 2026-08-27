@@ -9,16 +9,15 @@ use clap::Parser;
 use iota_move_build::{decorate_warnings, implicit_deps};
 use iota_move_natives::{
     NativesCostTable, authentication_context::AuthenticationContext, object_runtime::ObjectRuntime,
-    test_scenario::InMemoryTestStore, transaction_context::TransactionContext,
+    protocol_config::ProtocolConfigTestOverrides, test_scenario::InMemoryTestStore,
+    transaction_context::TransactionContext,
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_types::{Address, TransactionDigest};
 use iota_types::{
-    auth_context::AuthContext,
-    base_types::{IotaAddress, TxContext},
-    digests::TransactionDigest,
-    gas_model::tables::initial_cost_schedule_for_unit_tests,
-    in_memory_storage::InMemoryStorage,
+    auth_context::AuthContext, base_types::TxContext,
+    gas_model::tables::initial_cost_schedule_for_unit_tests, in_memory_storage::InMemoryStorage,
     metrics::LimitsMetrics,
 };
 use move_cli::base::{
@@ -126,7 +125,7 @@ pub fn run_move_unit_tests(
 
 fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions) {
     // Use a throwaway metrics registry for testing.
-    let registry = prometheus::Registry::new();
+    let registry = prometheus_filtered::Registry::new();
     let metrics = Arc::new(LimitsMetrics::new(&registry));
     let store = Lazy::force(&TEST_STORE);
     let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
@@ -143,12 +142,13 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
         0, // epoch id
     ));
     ext.add(NativesCostTable::from_protocol_config(&protocol_config));
+    ext.add(ProtocolConfigTestOverrides::default());
     ext.add(AuthenticationContext::new_for_testing(Rc::new(
         RefCell::new(AuthContext::new_for_testing()),
     )));
     ext.add(TransactionContext::new_for_testing(Rc::new(RefCell::new(
         TxContext::new_from_components(
-            &IotaAddress::ZERO,
+            &Address::ZERO,
             &TransactionDigest::default(),
             &0,
             0,

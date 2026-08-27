@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 pub(crate) use reed_solomon_simd::ReedSolomonEncoder;
+use starfish_config::Committee;
 
 use crate::{block_header::Shard, context::Context, error::ConsensusError};
 
@@ -98,6 +99,14 @@ impl ShardEncoder for TrivialEncoder {
     }
 }
 
+/// Length of every shard encoding a payload of `payload_bytes`, which is the
+/// payload split `info_length` ways with room for the u32 length prefix,
+/// rounded up to satisfy the encoder's alignment requirement.
+pub(crate) fn shard_bytes(payload_bytes: usize, info_length: usize) -> usize {
+    let shard_bytes = (payload_bytes + 4).div_ceil(info_length);
+    shard_bytes + (shard_bytes % 2)
+}
+
 /// Creates shards from serialized transactions, padding as necessary to
 /// ensure each shard is of equal length. The number of shards created is
 /// equal to `info_length`.
@@ -108,13 +117,7 @@ fn create_shards_from_serialized_transactions(
     let bytes_length = serialized.len();
     let mut statements_with_len: Vec<u8> = (bytes_length as u32).to_le_bytes().to_vec();
     statements_with_len.extend_from_slice(serialized);
-    // increase the length by 4 for u32
-    let mut shard_bytes = (bytes_length + 4).div_ceil(info_length);
-
-    // Ensure shard_bytes meets alignment requirements.
-    if !shard_bytes.is_multiple_of(2) {
-        shard_bytes += 1;
-    }
+    let shard_bytes = shard_bytes(bytes_length, info_length);
 
     let length_with_padding = shard_bytes * info_length;
     statements_with_len.resize(length_with_padding, 0);
@@ -126,8 +129,14 @@ fn create_shards_from_serialized_transactions(
     data
 }
 pub(crate) fn create_encoder(context: &Arc<Context>) -> Box<dyn ShardEncoder + Send + Sync> {
-    let info_length = context.committee.info_length();
-    let parity_length = context.committee.size() - info_length;
+    create_encoder_for_committee(&context.committee)
+}
+
+pub(crate) fn create_encoder_for_committee(
+    committee: &Committee,
+) -> Box<dyn ShardEncoder + Send + Sync> {
+    let info_length = committee.info_length();
+    let parity_length = committee.size() - info_length;
     if info_length == 0 {
         panic!("Info length must be greater than 0");
     }

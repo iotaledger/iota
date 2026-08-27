@@ -4,30 +4,33 @@
 
 use std::{num::NonZeroUsize, path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use bytes::Bytes;
 use iota_config::object_storage_config::{ObjectStoreConfig, ObjectStoreType};
 use iota_core::{
-    authority::authority_store_tables::AuthorityPerpetualTables,
-    checkpoints::CheckpointStore,
-    db_checkpoint_handler::{STATE_SNAPSHOT_COMPLETED_MARKER, SUCCESS_MARKER},
+    authority::authority_store_tables::AuthorityPerpetualTables, checkpoints::CheckpointStore,
 };
+use iota_sdk_types::CheckpointCommitment;
 use iota_storage::{
     FileCompression,
     object_store::util::{
-        EPOCH_METADATA_FILENAME, EpochMetadata, find_all_dirs_with_epoch_prefix,
+        EPOCH_METADATA_FILENAME, EpochMetadata, SUCCESS_MARKER, find_all_dirs_with_epoch_prefix,
         find_missing_epochs_dirs, path_to_filesystem, put, run_manifest_update_loop,
     },
 };
-use iota_types::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest;
+use iota_types::{digests::ChainIdentifier, messages_checkpoint::ECMHLiveObjectSetDigest};
 use object_store::DynObjectStore;
-use prometheus::{
+use prometheus_filtered::{
     IntCounter, IntGauge, Registry, register_int_counter_with_registry,
     register_int_gauge_with_registry,
 };
 use tracing::{debug, error, info};
 
 use crate::writer::StateSnapshotWriterV1;
+
+/// Default parallelism for uploading a snapshot's files to the remote store,
+/// used when `state_snapshot_write_config.concurrency` is unset (`0`).
+const DEFAULT_UPLOAD_CONCURRENCY: usize = 20;
 
 pub struct StateSnapshotUploaderMetrics {
     pub first_missing_state_snapshot_epoch: IntGauge,
@@ -61,8 +64,7 @@ pub struct StateSnapshotUploader {
     db_checkpoint_path: PathBuf,
     /// Store on local disk where db checkpoints are written to
     db_checkpoint_store: Arc<DynObjectStore>,
-    /// Checkpoint store; needed to fetch epoch state commitments for
-    /// verification
+    /// Source of per-epoch `EpochInfoV2` rows and epoch state commitments.
     checkpoint_store: Arc<CheckpointStore>,
     /// Directory path on local disk where state snapshots are staged for upload
     staging_path: PathBuf,
@@ -73,6 +75,8 @@ pub struct StateSnapshotUploader {
     /// Time interval to check for presence of new db checkpoint (default: 60
     /// secs)
     interval: Duration,
+    /// Parallelism for uploading a snapshot's files to the remote store.
+    concurrency: NonZeroUsize,
     metrics: Arc<StateSnapshotUploaderMetrics>,
 }
 
@@ -81,6 +85,7 @@ impl StateSnapshotUploader {
         db_checkpoint_path: &std::path::Path,
         staging_path: &std::path::Path,
         snapshot_store_config: ObjectStoreConfig,
+        concurrency: usize,
         interval_s: u64,
         registry: &Registry,
         checkpoint_store: Arc<CheckpointStore>,
@@ -103,6 +108,8 @@ impl StateSnapshotUploader {
             staging_store: staging_store_config.make()?,
             snapshot_store: snapshot_store_config.make()?,
             interval: Duration::from_secs(interval_s),
+            concurrency: NonZeroUsize::new(concurrency)
+                .unwrap_or(NonZeroUsize::new(DEFAULT_UPLOAD_CONCURRENCY).unwrap()),
             metrics: StateSnapshotUploaderMetrics::new(registry),
         }))
     }
@@ -119,8 +126,19 @@ impl StateSnapshotUploader {
     }
 
     /// Uploads state snapshots to remote store if they are missing.
-    async fn upload_state_snapshot_to_object_store(&self, missing_epochs: Vec<u64>) -> Result<()> {
+    pub(crate) async fn upload_state_snapshot_to_object_store(
+        &self,
+        missing_epochs: Vec<u64>,
+    ) -> Result<()> {
         let last_missing_epoch = missing_epochs.last().cloned().unwrap_or(0);
+        // Chain identifier = genesis checkpoint digest; tags each manifest.
+        let chain_id = ChainIdentifier::from(
+            *self
+                .checkpoint_store
+                .get_checkpoint_by_sequence_number(0)?
+                .context("genesis checkpoint missing from checkpoint store")?
+                .digest(),
+        );
         // Finds all local checkpoints db by epoch
         let local_checkpoints_by_epoch =
             find_all_dirs_with_epoch_prefix(&self.db_checkpoint_store, None).await?;
@@ -135,8 +153,10 @@ impl StateSnapshotUploader {
                     &self.staging_path,
                     &self.staging_store,
                     &self.snapshot_store,
+                    self.checkpoint_store.clone(),
+                    chain_id,
                     FileCompression::Zstd,
-                    NonZeroUsize::new(20).unwrap(),
+                    self.concurrency,
                 )
                 .await?;
                 let db = Arc::new(AuthorityPerpetualTables::open(
@@ -148,27 +168,26 @@ impl StateSnapshotUploader {
                     .get_epoch_state_commitments(*epoch)
                     .expect("Expected last checkpoint of epoch to have end of epoch data")
                     .expect("Expected end of epoch data to be present");
-                let ECMHLiveObjectSetDigest(state_hash_commitment) = commitments
+                let CheckpointCommitment::EcmhLiveObjectSet { digest } = *commitments
                     .last()
                     .expect("Expected at least one commitment")
-                    .clone();
+                else {
+                    unimplemented!(
+                        "a new CheckpointCommitment variant was added and must be handled"
+                    )
+                };
                 state_snapshot_writer
-                    .write(*epoch, db, state_hash_commitment)
+                    .write(*epoch, db, ECMHLiveObjectSetDigest { digest })
                     .await?;
                 info!("State snapshot creation successful for epoch: {}", *epoch);
-                // Records the on-chain start timestamp of this epoch (= timestamp of the
-                // last checkpoint of the previous epoch, which is when advance_epoch ran;
-                // for epoch 0, the genesis checkpoint at sequence 0) in each epoch bucket,
+                // Records the on-chain end timestamp of this epoch (= timestamp of the
+                // last checkpoint of the epoch) in each epoch bucket,
                 // which will be read when updating the MANIFEST file.
-                let epoch_start_checkpoint = if *epoch == 0 {
-                    self.checkpoint_store.get_checkpoint_by_sequence_number(0)?
-                } else {
-                    self.checkpoint_store
-                        .get_epoch_last_checkpoint(*epoch - 1)?
-                };
-                if let Some(checkpoint) = epoch_start_checkpoint {
+                let epoch_end_checkpoint =
+                    self.checkpoint_store.get_epoch_last_checkpoint(*epoch)?;
+                if let Some(checkpoint) = epoch_end_checkpoint {
                     let metadata = EpochMetadata {
-                        epoch_start_timestamp_ms: checkpoint.timestamp_ms,
+                        epoch_end_timestamp_ms: checkpoint.timestamp_ms,
                     };
                     put(
                         &self.snapshot_store,
@@ -178,32 +197,17 @@ impl StateSnapshotUploader {
                     .await?;
                 } else {
                     error!(
-                        "Could not determine epoch start timestamp for epoch {epoch}; skipping metadata write"
+                        "Could not determine epoch end timestamp for epoch {epoch}; skipping metadata write"
                     );
                 }
                 // Drops marker in the output directory that upload completed successfully
                 let bytes = Bytes::from_static(b"success");
                 let success_marker = db_path.child(SUCCESS_MARKER);
                 put(&self.snapshot_store, &success_marker, bytes.clone()).await?;
-                let state_snapshot_completed_marker =
-                    db_path.child(STATE_SNAPSHOT_COMPLETED_MARKER);
-                put(
-                    &self.db_checkpoint_store.clone(),
-                    &state_snapshot_completed_marker,
-                    bytes.clone(),
-                )
-                .await?;
+                self.remove_db_checkpoint(db_path).await;
                 info!("State snapshot completed for epoch: {epoch}");
             } else {
-                let bytes = Bytes::from_static(b"success");
-                let state_snapshot_completed_marker =
-                    db_path.child(STATE_SNAPSHOT_COMPLETED_MARKER);
-                put(
-                    &self.db_checkpoint_store.clone(),
-                    &state_snapshot_completed_marker,
-                    bytes.clone(),
-                )
-                .await?;
+                self.remove_db_checkpoint(db_path).await;
                 info!("State snapshot skipped for epoch: {epoch}");
             }
         }
@@ -248,5 +252,20 @@ impl StateSnapshotUploader {
     async fn get_missing_epochs(&self) -> Result<Vec<u64>> {
         let missing_epochs = find_missing_epochs_dirs(&self.snapshot_store, SUCCESS_MARKER).await?;
         Ok(missing_epochs.to_vec())
+    }
+
+    /// Deletes a local db checkpoint directory once the state snapshot for its
+    /// epoch is no longer needed. A failure is only logged: a directory that
+    /// cannot be deleted must not block snapshot uploads for later epochs.
+    async fn remove_db_checkpoint(&self, db_path: &object_store::path::Path) {
+        let result = match path_to_filesystem(self.db_checkpoint_path.clone(), db_path) {
+            Ok(local_db_path) => tokio::fs::remove_dir_all(&local_db_path)
+                .await
+                .map_err(anyhow::Error::from),
+            Err(err) => Err(err),
+        };
+        if let Err(err) = result {
+            error!("Failed to remove local db checkpoint dir {db_path}: {err:?}");
+        }
     }
 }

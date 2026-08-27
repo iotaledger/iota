@@ -5,7 +5,7 @@ use async_graphql::OneofObject;
 use iota_indexer::models::{events::StoredEvent, transactions::StoredTransaction};
 use iota_json_rpc_types::{Filter, IotaTransactionKind};
 use iota_sdk_types::ObjectId;
-use iota_types::transaction::TransactionDataAPI;
+use iota_types::transaction::TransactionAPI;
 
 use crate::types::{
     iota_address::IotaAddress,
@@ -58,16 +58,16 @@ impl Filter<StoredTransaction> for SubscriptionTransactionFilter {
         match self {
             Kind(kind) => transaction.transaction_kind == IotaTransactionKind::from(kind) as i16,
             SigningAddress(address) => transaction
-                .try_into_sender_signed_data()
-                .map(|data| data.transaction_data().sender() == (*address).into())
+                .try_into_sender_signed_transaction()
+                .map(|data| data.transaction().sender() == (*address).into())
                 .unwrap_or_default(),
             Function(name) => {
                 let move_call = MoveCall::from(name);
 
                 transaction
-                    .try_into_sender_signed_data()
+                    .try_into_sender_signed_transaction()
                     .map(|data| {
-                        data.transaction_data()
+                        data.transaction()
                             .move_calls()
                             .iter()
                             .any(|(p, m, f)| move_call.matches_transaction_move_call(p, m, f))
@@ -107,8 +107,8 @@ struct ModuleFunction<'a> {
 
 /// A data type that converts [`FqNameFilter`] into a representation of move
 /// calls in transactions, enabling easy filtering by fully qualified names as
-/// returned by the [`move_calls`](TransactionDataAPI::move_calls) method on
-/// types implementing [`TransactionDataAPI`].
+/// returned by the [`move_calls`](TransactionAPI::move_calls) method on
+/// types implementing [`TransactionAPI`].
 struct MoveCall<'a> {
     /// Package ID of the move call.
     package: ObjectId,

@@ -15,8 +15,12 @@ use tokio::time::Instant;
 #[cfg(test)]
 use crate::metrics::test_metrics;
 use crate::{
-    block_header::{BlockTimestampMs, Round},
+    block_header::{
+        BlockTimestampMs, CommitmentVerifiedTransactions, Round, TransactionsCommitment,
+    },
     metrics::Metrics,
+    peer_responsiveness::PeerResponsiveness,
+    transaction_ref::GenericTransactionRef,
 };
 
 /// Context contains per-epoch configuration and metrics shared by all
@@ -37,6 +41,11 @@ pub(crate) struct Context {
     pub metrics: Arc<Metrics>,
     /// Access to local clock
     pub clock: Arc<Clock>,
+    /// Tracks per-peer responsiveness and ranks candidates for synchronizer
+    /// peer selection. Shared per epoch.
+    pub peer_responsiveness: Arc<PeerResponsiveness>,
+    /// Commitment over an empty transaction list for this committee.
+    pub(crate) empty_transactions_commitment: TransactionsCommitment,
 }
 
 impl Context {
@@ -49,6 +58,9 @@ impl Context {
         metrics: Arc<Metrics>,
         clock: Arc<Clock>,
     ) -> Self {
+        let peer_responsiveness = PeerResponsiveness::new(&committee, metrics.clone());
+        let empty_transactions_commitment =
+            TransactionsCommitment::compute_empty_transactions_commitment(&committee);
         Self {
             epoch_start_timestamp_ms,
             own_index,
@@ -57,11 +69,24 @@ impl Context {
             protocol_config,
             metrics,
             clock,
+            peer_responsiveness,
+            empty_transactions_commitment,
         }
     }
 
     pub(crate) fn authority_hostname(&self, authority: AuthorityIndex) -> &str {
         self.committee.authority(authority).hostname.as_str()
+    }
+
+    pub(crate) fn empty_transactions_for_ref(
+        &self,
+        transaction_ref: GenericTransactionRef,
+    ) -> Option<CommitmentVerifiedTransactions> {
+        let GenericTransactionRef::TransactionRef(transaction_ref) = transaction_ref else {
+            return None;
+        };
+        (transaction_ref.transactions_commitment == self.empty_transactions_commitment)
+            .then(|| CommitmentVerifiedTransactions::new_empty_from_ref(transaction_ref, None))
     }
 
     /// Lower bound (inclusive) on the round of an acknowledgment or non-own
@@ -87,6 +112,11 @@ impl Context {
             committee,
             Parameters {
                 db_path: temp_dir.keep(),
+                commit_recovery_batch_size: 3,
+                // Keep peer selection deterministic (no responsiveness ranking)
+                // for the many tests that rely on stable peer order; tests that
+                // exercise ranking opt in explicitly.
+                enable_peer_responsiveness_ranking: false,
                 ..Default::default()
             },
             ProtocolConfig::get_for_max_version_UNSAFE(),
@@ -110,6 +140,8 @@ impl Context {
 
     #[cfg(test)]
     pub(crate) fn with_committee(mut self, committee: Committee) -> Self {
+        self.empty_transactions_commitment =
+            TransactionsCommitment::compute_empty_transactions_commitment(&committee);
         self.committee = committee;
         self
     }

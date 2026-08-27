@@ -116,8 +116,6 @@ tx_senders = 3
 > [!NOTE]
 > All retention values must be greater than 0.
 
-The legacy `--epochs-to-keep` CLI argument is still supported but deprecated, and will be removed in v1.28.0. If both `--pruning-config-path` and `--epochs-to-keep` are provided, the config file takes precedence.
-
 #### Default behavior
 
 - If no pruning configuration is provided, pruning is disabled.
@@ -137,6 +135,36 @@ When pruning is enabled, the following tables are subject to pruning:
 | **By checkpoint** (DELETE)                        | `checkpoints`, `pruner_cp_watermark`                                             |
 | **By transaction** (DELETE)                       | `event_*` (7 index tables), `tx_*` (10 index tables including `tx_global_order`) |
 | **By global sequence number** (DELETE with LIMIT) | `optimistic_transactions`                                                        |
+
+### Restore from a formal snapshot
+
+The indexer can initialize its database from a formal snapshot of the network instead of ingesting every checkpoint from genesis. A formal snapshot is a minimal, cryptographically verifiable capture of the end-of-epoch object state. Full nodes bootstrap from the same snapshots.
+
+For a target epoch, restoring the indexer involves downloading the snapshot, verifying it against the committee chain, and writing the live object state plus the epoch, protocol, and other data derived from it (display, packages, object-version mapping).
+
+The `restore` command exposes `run` and `available-epochs`:
+
+```sh
+iota-indexer restore --network <mainnet|testnet|devnet> run [OPTIONS]
+      --staging-path <STAGING_PATH>   Local directory to stage the downloaded MANIFEST and .ref files
+      --genesis-path <GENESIS_PATH>   Path to the genesis blob used to verify the snapshot
+      --epoch <EPOCH>                 Epoch to download [default: latest available]
+      --num-parallel-downloads <N>    Parallel downloads [default: host available parallelism]
+```
+
+`--genesis-path` is the network's genesis blob: the trusted resource the committee chain is verified against, and the snapshot is in turn verified against that committee chain.
+
+To list the epochs for which a formal snapshot is available:
+
+```sh
+# epochs are returned as a sorted JSON array, newest first
+iota-indexer restore --network <mainnet|testnet|devnet> available-epochs [| jq .[i] ] # i: 0,1,2,...
+```
+
+When the restore finishes it leaves the database at the target epoch's final checkpoint, and the prunable history tables only start populating from the checkpoints that follow the restore point. So, when configuring a retention policy, the restore epoch must sit at least a full retention window behind the tip. For example, to keep 30 epochs of data, restore from an epoch about 30 epochs behind the tip.
+
+> [!WARNING]
+> Like `--reset-db`, `restore` drops every table and re-applies all migrations before restoring. Run it only against a database you intend to rebuild or initialize, since it affects any reader sharing the same database.
 
 ### Backfilling of data
 
@@ -206,10 +234,6 @@ To view help information:
 ```sh
 cargo run --bin iota-indexer -- help
 ```
-
-#### Deprecated flags
-
-`--objects-snapshot-min-checkpoint-lag` / `--objects-snapshot-sleep-duration` (and the `OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG` env var) are deprecated and will be removed in v1.31.0. The `objects_snapshot` pipeline has been removed; these flags are now no-ops.
 
 ### Experimental Features
 

@@ -18,10 +18,8 @@ use iota_names::{
     registry::NameRecord,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_types::{Address, ObjectId, TransactionDigest, TypeTag};
 use iota_types::{
-    base_types::IotaAddress,
-    digests::TransactionDigest,
     dynamic_field::{DynamicFieldName, Field},
     event::EventID,
     object::ObjectRead,
@@ -49,7 +47,7 @@ impl IndexerApi {
 
     async fn get_owned_objects_internal(
         &self,
-        address: IotaAddress,
+        address: Address,
         query: Option<IotaObjectResponseQuery>,
         cursor: Option<ObjectId>,
         limit: usize,
@@ -114,7 +112,7 @@ impl IndexerApi {
         // Try as Dynamic Field
         let id = iota_types::dynamic_field::derive_dynamic_field_id(
             parent_object_id,
-            &name.type_,
+            &name.type_tag,
             &name_bcs_value,
         )
         .map_err(internal_error)?;
@@ -133,7 +131,9 @@ impl IndexerApi {
 
         // Try as Dynamic Field Object
         let dynamic_object_field_struct =
-            iota_types::dynamic_field::DynamicFieldInfo::dynamic_object_field_wrapper(name.type_);
+            iota_types::dynamic_field::DynamicFieldInfo::dynamic_object_field_wrapper(
+                name.type_tag,
+            );
         let dynamic_object_field_type = TypeTag::Struct(Box::new(dynamic_object_field_struct));
         let dynamic_object_field_id = iota_types::dynamic_field::derive_dynamic_field_id(
             parent_object_id,
@@ -173,7 +173,7 @@ async fn construct_object_response(
         )),
         ObjectRead::Exists(object_ref, o, layout) => {
             if options.show_display {
-                match reader.get_display_fields(&o, &layout).await {
+                match reader.get_rendered_display_fields(&o, &layout).await {
                     Ok(rendered_fields) => Ok(IotaObjectResponse::new_with_data(
                         IotaObjectData::new(object_ref, o, layout, &options, rendered_fields)?,
                     )),
@@ -193,7 +193,7 @@ async fn construct_object_response(
         ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
             IotaObjectResponseError::Deleted {
                 object_id: object_ref.object_id,
-                version: object_ref.version,
+                version: object_ref.version.into(),
                 digest: object_ref.digest,
             },
         )),
@@ -204,7 +204,7 @@ async fn construct_object_response(
 impl IndexerApiServer for IndexerApi {
     async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         query: Option<IotaObjectResponseQuery>,
         cursor: Option<ObjectId>,
         limit: Option<usize>,
@@ -447,7 +447,7 @@ impl IndexerApiServer for IndexerApi {
         }
     }
 
-    async fn iota_names_reverse_lookup(&self, address: IotaAddress) -> RpcResult<Option<String>> {
+    async fn iota_names_reverse_lookup(&self, address: Address) -> RpcResult<Option<String>> {
         let reverse_record_id = self.iota_names_config.reverse_record_field_id(&address);
 
         let Some(field_reverse_record_object) = self
@@ -459,7 +459,7 @@ impl IndexerApiServer for IndexerApi {
         };
 
         let name = field_reverse_record_object
-            .to_rust::<Field<IotaAddress, Name>>()
+            .to_rust::<Field<Address, Name>>()
             .map_err(|e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "Malformed Object {reverse_record_id}: {e}"
@@ -483,15 +483,15 @@ impl IndexerApiServer for IndexerApi {
 
     async fn iota_names_find_all_registration_nfts(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
-            filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
-                self.iota_names_config.package_address,
-            ))),
+            filter: Some(IotaObjectDataFilter::StructType(
+                NameRegistration::struct_tag(self.iota_names_config.package_address),
+            )),
             options,
         };
 

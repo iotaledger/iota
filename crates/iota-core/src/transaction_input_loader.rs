@@ -5,8 +5,9 @@
 use std::{collections::HashMap, sync::Arc};
 
 use iota_common::fatal;
+use iota_sdk_types::{ObjectReference, TransactionDigest};
 use iota_types::{
-    base_types::{EpochId, ObjectRef, TransactionDigest},
+    base_types::EpochId,
     error::{IotaError, IotaResult, UserInputError},
     storage::ObjectKey,
     transaction::{
@@ -19,7 +20,7 @@ use once_cell::unsync::OnceCell;
 use tracing::instrument;
 
 use crate::{
-    authority::authority_per_epoch_store::{AuthorityPerEpochStore, CertLockGuard},
+    authority::authority_per_epoch_store::{AuthorityPerEpochStore, TxLockGuard},
     execution_cache::ObjectCacheRead,
 };
 
@@ -45,7 +46,7 @@ impl TransactionInputLoader {
         &self,
         _tx_digest_for_caching: Option<&TransactionDigest>,
         input_object_kinds: &[InputObjectKind],
-        receiving_objects: &[ObjectRef],
+        receiving_objects: &[ObjectReference],
         epoch_id: EpochId,
     ) -> IotaResult<(InputObjects, ReceivingObjects)> {
         // Length of input_object_kinds have been checked via validity_check() for
@@ -144,7 +145,7 @@ impl TransactionInputLoader {
         // Important to hold the _tx_lock, otherwise it would be possible for a concurrent
         // execution of the same tx to enter this point after the first execution has
         // finished and the shared locks have been deleted.
-        _tx_lock: &CertLockGuard,
+        _tx_lock: &TxLockGuard,
         input_object_kinds: &[InputObjectKind],
         epoch_id: EpochId,
     ) -> IotaResult<InputObjects> {
@@ -153,6 +154,20 @@ impl TransactionInputLoader {
         let mut results = vec![None; input_object_kinds.len()];
         let mut object_keys = Vec::with_capacity(input_object_kinds.len());
         let mut fetches = Vec::with_capacity(input_object_kinds.len());
+        let mut gas_object_cancellation = None;
+        // A gas-object cancellation version can only exist when
+        // execution-worker congestion control is active, and only for
+        // transactions without shared inputs (version assignment puts the
+        // cancellation on the shared inputs otherwise). Skip the
+        // assigned-versions probe for all other transactions so they stay on
+        // the pre-existing fast path.
+        let check_gas_object_cancellation = epoch_store
+            .protocol_config()
+            .concurrent_execution_workers()
+            .is_some()
+            && !input_object_kinds
+                .iter()
+                .any(|kind| matches!(kind, InputObjectKind::SharedMoveObject { .. }));
 
         for (i, input) in input_object_kinds.iter().enumerate() {
             match input {
@@ -170,6 +185,35 @@ impl TransactionInputLoader {
                     continue;
                 }
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
+                    // A cancelled transaction without shared inputs carries
+                    // its cancellation version on the gas object. Unlike a
+                    // cancelled shared input, the object is still read
+                    // normally: the cancelled execution charges gas to it.
+                    if check_gas_object_cancellation {
+                        if let Some(assigned_versions) = assigned_shared_versions_cell
+                            .get_or_init(|| {
+                                epoch_store.get_assigned_shared_object_versions(tx_key).map(
+                                    |versions| {
+                                        versions
+                                            .into_iter()
+                                            .map(|v| (v.object_id, v.version))
+                                            .collect()
+                                    },
+                                )
+                            })
+                            .as_ref()
+                        {
+                            if let Some(version) = assigned_versions.get(&objref.object_id) {
+                                assert!(
+                                    version.is_canceled(),
+                                    "non-shared input {} of {tx_key:?} has a non-cancellation \
+                                        assigned version {version:?}",
+                                    objref.object_id,
+                                );
+                                gas_object_cancellation = Some((objref.object_id, *version));
+                            }
+                        }
+                    }
                     object_keys.push(objref.into());
                     fetches.push((i, input));
                 }
@@ -200,13 +244,11 @@ impl TransactionInputLoader {
                     let version = assigned_shared_versions.get(id).unwrap_or_else(|| {
                         panic!("Shared object version should have been assigned. key: {tx_key:?}, obj id: {id}")
                     });
-                    if version.is_cancelled() {
+                    if version.is_canceled() {
                         // Do not need to fetch shared object for cancelled transaction.
                         results[i] = Some(ObjectReadResult {
                             input_object_kind: *input,
-                            object: ObjectReadResultKind::CancelledTransactionSharedObject(
-                                *version,
-                            ),
+                            object: ObjectReadResultKind::CancelledTransactionObject(*version),
                         })
                     } else {
                         object_keys.push(ObjectKey(*id, *version));
@@ -255,11 +297,15 @@ impl TransactionInputLoader {
             });
         }
 
-        Ok(results
+        let mut input_objects: InputObjects = results
             .into_iter()
             .map(Option::unwrap)
             .collect::<Vec<_>>()
-            .into())
+            .into();
+        if let Some((gas_object_id, version)) = gas_object_cancellation {
+            input_objects.set_gas_object_cancellation(gas_object_id, version);
+        }
+        Ok(input_objects)
     }
 }
 
@@ -267,13 +313,13 @@ impl TransactionInputLoader {
 impl TransactionInputLoader {
     fn read_receiving_objects_for_signing(
         &self,
-        receiving_objects: &[ObjectRef],
+        receiving_objects: &[ObjectReference],
         epoch_id: EpochId,
     ) -> IotaResult<ReceivingObjects> {
         let mut receiving_results = Vec::with_capacity(receiving_objects.len());
         for objref in receiving_objects {
             // Note: the digest is checked later in check_transaction_input
-            let ObjectRef {
+            let ObjectReference {
                 object_id, version, ..
             } = *objref;
 

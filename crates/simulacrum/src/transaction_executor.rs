@@ -11,8 +11,8 @@ use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 use anyhow::Result;
 use async_trait::async_trait;
+use iota_sdk_types::{Transaction, TransactionDigest};
 use iota_types::{
-    digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -21,7 +21,6 @@ use iota_types::{
         QuorumDriverError,
     },
     storage,
-    transaction::TransactionData,
     transaction_executor::{
         SimulateTransactionResult, TransactionExecutor as TransactionExecutorTrait, VmChecks,
     },
@@ -47,6 +46,7 @@ impl TransactionExecutorTrait for TransactionExecutor {
     async fn execute_transaction(
         &self,
         request: ExecuteTransactionRequestV1,
+        _skip_certification: bool,
         _client_addr: Option<std::net::SocketAddr>,
     ) -> Result<ExecuteTransactionResponseV1, QuorumDriverError> {
         let simulacrum = &*self.simulacrum;
@@ -124,7 +124,7 @@ impl TransactionExecutorTrait for TransactionExecutor {
 
     fn simulate_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: VmChecks,
     ) -> Result<SimulateTransactionResult, iota_types::error::IotaError> {
         self.simulacrum.simulate_transaction(transaction, checks)

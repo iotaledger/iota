@@ -12,9 +12,9 @@ use std::{
 use async_trait::async_trait;
 use iota_config::genesis::Genesis;
 use iota_metrics::spawn_monitored_task;
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
     crypto::AuthorityKeyPair,
-    digests::TransactionDigest,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
     iota_system_state::IotaSystemState,
@@ -27,7 +27,7 @@ use iota_types::{
         ObjectInfoResponse, SystemStateRequest, TransactionInfoRequest, TransactionInfoResponse,
         TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
-    transaction::{Transaction, VerifiedTransaction},
+    transaction::{TransactionEnvelope, VerifiedTransaction},
 };
 use tracing::info;
 
@@ -72,7 +72,7 @@ impl ValidatorPeerAPI for LocalAuthorityClient {
 impl ValidatorV2API for LocalAuthorityClient {
     async fn submit_tx(
         &self,
-        _transactions: Vec<Transaction>,
+        _transactions: Vec<TransactionEnvelope>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()
@@ -114,7 +114,7 @@ impl ValidatorV2API for LocalAuthorityClient {
 impl ValidatorAPI for LocalAuthorityClient {
     async fn handle_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         _client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError> {
         if self.fault_config.fail_before_handle_transaction {
@@ -265,7 +265,7 @@ impl LocalAuthorityClient {
                     .await?;
                 // let certificate = certificate.verify(epoch_store.committee())?;
                 state.enqueue_certificates_for_execution(vec![certificate.clone()], &epoch_store);
-                let effects = state.notify_read_effects(&certificate).await?;
+                let effects = state.notify_read_effects("", &certificate).await?;
                 state.sign_effects(effects, &epoch_store)?
             }
         }
@@ -307,6 +307,8 @@ impl LocalAuthorityClient {
     }
 }
 
+type GetTxStatusResult = IotaResult<Vec<(TransactionDigest, TxStatusUpdate)>>;
+
 #[derive(Clone)]
 pub struct MockAuthorityApi {
     delay: Duration,
@@ -314,6 +316,7 @@ pub struct MockAuthorityApi {
     handle_object_info_request_result: Option<IotaResult<ObjectInfoResponse>>,
     handle_capability_notification_result:
         Option<IotaResult<HandleCapabilityNotificationResponseV1>>,
+    tx_status_stub: Arc<Mutex<Option<GetTxStatusResult>>>,
 }
 
 impl MockAuthorityApi {
@@ -323,6 +326,7 @@ impl MockAuthorityApi {
             count,
             handle_object_info_request_result: None,
             handle_capability_notification_result: None,
+            tx_status_stub: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -335,6 +339,10 @@ impl MockAuthorityApi {
         result: IotaResult<HandleCapabilityNotificationResponseV1>,
     ) {
         self.handle_capability_notification_result = Some(result);
+    }
+
+    pub fn stub_tx_status(&self, response: GetTxStatusResult) {
+        *self.tx_status_stub.lock().unwrap() = Some(response);
     }
 }
 
@@ -351,7 +359,7 @@ impl ValidatorPeerAPI for MockAuthorityApi {
 impl ValidatorV2API for MockAuthorityApi {
     async fn submit_tx(
         &self,
-        _transactions: Vec<Transaction>,
+        _transactions: Vec<TransactionEnvelope>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()
@@ -361,7 +369,13 @@ impl ValidatorV2API for MockAuthorityApi {
         _request: GetTxStatusRequest,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
-        unimplemented!()
+        let Some(result) = self.tx_status_stub.lock().unwrap().clone() else {
+            return Err(IotaError::Unknown(
+                "MockAuthorityApi::get_tx_status was called without a stub".to_string(),
+            ));
+        };
+        tokio::time::sleep(self.delay).await;
+        result
     }
     async fn notify_capabilities_v2(
         &self,
@@ -386,7 +400,7 @@ impl ValidatorAPI for MockAuthorityApi {
     /// Initiate a new transaction to an IOTA or Primary account.
     async fn handle_transaction(
         &self,
-        _transaction: Transaction,
+        _transaction: TransactionEnvelope,
         _client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError> {
         unimplemented!();
@@ -486,7 +500,7 @@ impl ValidatorPeerAPI for HandleTransactionTestAuthorityClient {
 impl ValidatorV2API for HandleTransactionTestAuthorityClient {
     async fn submit_tx(
         &self,
-        _transactions: Vec<Transaction>,
+        _transactions: Vec<TransactionEnvelope>,
         _client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         unimplemented!()
@@ -516,7 +530,7 @@ impl ValidatorV2API for HandleTransactionTestAuthorityClient {
 impl ValidatorAPI for HandleTransactionTestAuthorityClient {
     async fn handle_transaction(
         &self,
-        _transaction: Transaction,
+        _transaction: TransactionEnvelope,
         _client_addr: Option<SocketAddr>,
     ) -> Result<HandleTransactionResponse, IotaError> {
         if let Some(duration) = self.sleep_duration_before_responding {

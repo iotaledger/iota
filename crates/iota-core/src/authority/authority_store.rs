@@ -2,19 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{iter, mem, ops::Not, sync::Arc, thread};
+use std::{iter, mem, sync::Arc, thread};
 
 use either::Either;
 use fastcrypto::hash::{HashFunction, Sha3_256};
 use futures::stream::FuturesUnordered;
 use iota_common::sync::notify_read::NotifyRead;
 use iota_config::{migration_tx_data::MigrationTxData, node::AuthorityStorePruningConfig};
+use iota_genesis_common::MigrationTxDataExt;
 use iota_macros::fail_point_arg;
+use iota_sdk_types::{TransactionEffects, TransactionEvents, Version};
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
 use iota_types::{
-    base_types::{SequenceNumber, VerifiedExecutionData},
-    digests::TransactionEventsDigest,
-    effects::{TransactionEffects, TransactionEffectsExt, TransactionEvents},
+    base_types::VerifiedExecutionData,
+    effects::TransactionEffectsExt,
     error::UserInputError,
     execution::TypeLayoutStore,
     fp_bail, fp_ensure,
@@ -22,6 +23,7 @@ use iota_types::{
     iota_system_state::{
         get_iota_system_state, iota_system_state_summary::IotaSystemStateSummaryV2,
     },
+    messages_checkpoint::CheckpointContentsExt,
     storage::{
         BackingPackageStore, MarkerValue, ObjectKey, ObjectOrTombstone, ObjectStore, get_module,
     },
@@ -73,32 +75,38 @@ impl AuthorityStoreMetrics {
             iota_conservation_check_latency: register_int_gauge_with_registry!(
                 "iota_conservation_check_latency",
                 "Number of seconds took to scan all live objects in the store for IOTA conservation check",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_live_object_count: register_int_gauge_with_registry!(
                 "iota_conservation_live_object_count",
                 "Number of live objects in the store",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_live_object_size: register_int_gauge_with_registry!(
                 "iota_conservation_live_object_size",
                 "Size in bytes of live objects in the store",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_imbalance: register_int_gauge_with_registry!(
                 "iota_conservation_imbalance",
                 "Total amount of IOTA in the network - 10B * 10^9. This delta shows the amount of imbalance",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_storage_fund: register_int_gauge_with_registry!(
                 "iota_conservation_storage_fund",
                 "Storage Fund pool balance (only includes the storage fund proper that represents object storage)",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             iota_conservation_storage_fund_imbalance: register_int_gauge_with_registry!(
                 "iota_conservation_storage_fund_imbalance",
                 "Imbalance of storage fund, computed with storage_fund_balance - total_object_storage_rebates",
-                registry,
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             epoch_flags: register_int_gauge_vec_with_registry!(
                 "epoch_flags",
@@ -285,13 +293,6 @@ impl AuthorityStore {
                     .insert(transaction.digest(), genesis.events())
                     .unwrap();
             }
-            let event_digests = genesis.events().digest();
-            let events = genesis
-                .events()
-                .iter()
-                .enumerate()
-                .map(|(i, e)| ((event_digests, i), e));
-            store.perpetual_tables.events.multi_insert(events).unwrap();
 
             // Initialize with migration data if genesis contained migration transactions
             if let Some(migration_transactions) = migration_tx_data {
@@ -334,17 +335,6 @@ impl AuthorityStore {
                         .effects
                         .insert(&effects.digest(), effects)
                         .expect("cannot insert migration effects");
-                    let events_iter = events
-                        .iter()
-                        .enumerate()
-                        .map(|(i, e)| ((events.digest(), i), e));
-                    store
-                        .perpetual_tables
-                        .events
-                        .multi_insert(events_iter)
-                        .unwrap();
-
-                    // Insert to events_2 table
                     if effects.events_digest().is_some() {
                         store
                             .perpetual_tables
@@ -403,31 +393,7 @@ impl AuthorityStore {
         &self,
         digest: &TransactionDigest,
     ) -> Result<Option<TransactionEvents>, TypedStoreError> {
-        // For now, during this transition period, if we don't find events for a
-        // particular Transaction we need to fallback to try and read from the
-        // older table. Once the migration has finished and we've removed the
-        // older events table we can stop doing the fallback
-        if let Some(events) = self.perpetual_tables.events_2.get(digest)? {
-            return Ok(Some(events));
-        }
-
-        self.get_executed_effects(digest)?
-            .and_then(|effects| effects.events_digest().copied())
-            .and_then(|events_digest| self.get_events_by_events_digest(&events_digest).transpose())
-            .transpose()
-    }
-
-    pub fn get_events_by_events_digest(
-        &self,
-        event_digest: &TransactionEventsDigest,
-    ) -> Result<Option<TransactionEvents>, TypedStoreError> {
-        let data = self
-            .perpetual_tables
-            .events
-            .safe_range_iter((*event_digest, 0)..=(*event_digest, usize::MAX))
-            .map_ok(|(_, event)| event)
-            .collect::<Result<Vec<_>, TypedStoreError>>()?;
-        Ok(data.is_empty().not().then_some(TransactionEvents(data)))
+        self.perpetual_tables.events_2.get(digest)
     }
 
     pub fn multi_get_events(
@@ -498,7 +464,7 @@ impl AuthorityStore {
     pub fn get_marker_value(
         &self,
         object_id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>> {
         let object_key = (epoch_id, ObjectKey(*object_id, *version));
@@ -512,14 +478,11 @@ impl AuthorityStore {
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>> {
-        let min_key = (epoch_id, ObjectKey::min_for_id(object_id));
-        let max_key = (epoch_id, ObjectKey::max_for_id(object_id));
-
+    ) -> IotaResult<Option<(Version, MarkerValue)>> {
         let marker_entry = self
             .perpetual_tables
             .object_per_epoch_marker_table
-            .reversed_safe_iter_with_bounds(Some(min_key), Some(max_key))?
+            .safe_iter_with_prefix_reversed(&(epoch_id, *object_id))
             .next();
         match marker_entry {
             Some(Ok(((epoch, key), marker))) => {
@@ -603,7 +566,7 @@ impl AuthorityStore {
 
     /// A function that acquires all locks associated with the objects (in order
     /// to avoid deadlocks).
-    fn acquire_locks(&self, input_objects: &[ObjectRef]) -> Vec<MutexGuard> {
+    fn acquire_locks(&self, input_objects: &[ObjectReference]) -> Vec<MutexGuard> {
         self.mutex_table
             .acquire_locks(input_objects.iter().map(|object_ref| object_ref.digest))
     }
@@ -663,15 +626,12 @@ impl AuthorityStore {
         version: VersionNumber,
         epoch_id: EpochId,
     ) -> Result<bool, IotaError> {
-        let object_key = ObjectKey::max_for_id(object_id);
-        let marker_key = (epoch_id, object_key);
-
         // Find the most recent version of the object that was deleted or wrapped.
         // Return true if the version is >= `version`. Otherwise return false.
         let marker_entry = self
             .perpetual_tables
             .object_per_epoch_marker_table
-            .reversed_safe_iter_with_bounds(None, Some(marker_key))?
+            .safe_iter_with_prefix_reversed(&(epoch_id, *object_id))
             .next();
         match marker_entry.transpose()? {
             Some(((epoch, key), marker)) => {
@@ -695,17 +655,21 @@ impl AuthorityStore {
         // We only side load objects with a genesis parent transaction.
         debug_assert!(object.previous_transaction == TransactionDigest::GENESIS_MARKER);
         let object_ref = object.object_ref();
-        self.insert_object_direct(object_ref, &object)
+        self.insert_genesis_object_direct(object_ref, &object)
     }
 
     /// Insert an object directly into the store, and also update relevant
     /// tables NOTE: does not handle transaction lock.
     /// This is used to insert genesis objects
-    fn insert_object_direct(&self, object_ref: ObjectRef, object: &Object) -> IotaResult {
+    fn insert_genesis_object_direct(
+        &self,
+        object_ref: ObjectReference,
+        object: &Object,
+    ) -> IotaResult {
         let mut write_batch = self.perpetual_tables.objects.batch();
 
-        // Insert object
-        let store_object = get_store_object(object.clone());
+        // Genesis objects are produced by the genesis checkpoint (sequence 0).
+        let store_object = get_store_object(object.clone(), Some(0));
         write_batch.insert_batch(
             &self.perpetual_tables.objects,
             std::iter::once((ObjectKey::from(object_ref), store_object)),
@@ -731,11 +695,15 @@ impl AuthorityStore {
         let mut batch = self.perpetual_tables.objects.batch();
         let ref_and_objects: Vec<_> = objects.iter().map(|o| (o.object_ref(), o)).collect();
 
+        // Genesis objects are produced by the genesis checkpoint (sequence 0).
         batch.insert_batch(
             &self.perpetual_tables.objects,
-            ref_and_objects
-                .iter()
-                .map(|(oref, o)| (ObjectKey::from(oref), get_store_object((*o).clone()))),
+            ref_and_objects.iter().map(|(oref, o)| {
+                (
+                    ObjectKey::from(oref),
+                    get_store_object((*o).clone(), Some(0)),
+                )
+            }),
         )?;
 
         let non_child_object_refs: Vec<_> = ref_and_objects
@@ -758,35 +726,24 @@ impl AuthorityStore {
     ) -> IotaResult<()> {
         let mut hasher = Sha3_256::default();
         let mut batch = perpetual_db.objects.batch();
-        for object in live_objects {
-            hasher.update(object.object_reference().digest.inner());
-            match object {
-                LiveObject::Normal(object) => {
-                    let store_object_wrapper = get_store_object(object.clone());
-                    batch.insert_batch(
-                        &perpetual_db.objects,
-                        std::iter::once((
-                            ObjectKey::from(object.object_ref()),
-                            store_object_wrapper,
-                        )),
-                    )?;
-                    if !object.is_child_object() {
-                        Self::initialize_live_object_markers(
-                            &perpetual_db.live_owned_object_markers,
-                            &mut batch,
-                            &[object.object_ref()],
-                        )?;
-                    }
-                }
-                LiveObject::Wrapped(object_key) => {
-                    batch.insert_batch(
-                        &perpetual_db.objects,
-                        std::iter::once::<(ObjectKey, StoreObjectWrapper)>((
-                            object_key,
-                            StoreObject::Wrapped.into(),
-                        )),
-                    )?;
-                }
+        for live_object in live_objects {
+            hasher.update(live_object.object_reference().digest.inner());
+            let LiveObject {
+                object,
+                previous_transaction_checkpoint,
+            } = live_object;
+            let store_object_wrapper =
+                get_store_object(object.clone(), previous_transaction_checkpoint);
+            batch.insert_batch(
+                &perpetual_db.objects,
+                std::iter::once((ObjectKey::from(object.object_ref()), store_object_wrapper)),
+            )?;
+            if !object.is_child_object() {
+                Self::initialize_live_object_markers(
+                    &perpetual_db.live_owned_object_markers,
+                    &mut batch,
+                    &[object.object_ref()],
+                )?;
             }
         }
         let sha3_digest = hasher.finalize().digest;
@@ -819,10 +776,17 @@ impl AuthorityStore {
     /// Internally it checks that all locks for active inputs are at the correct
     /// version, and then writes objects, certificates, parents and clean up
     /// locks atomically.
+    ///
+    /// `checkpoint_sequence_number` is stamped onto each newly written object's
+    /// `StoreObjectValueV2.previous_transaction_checkpoint` field.
+    ///
+    /// **Invariant** Every `TransactionOutputs` in `tx_outputs` must belong to
+    /// the checkpoint identified by `checkpoint_sequence_number`.
     #[instrument(level = "debug", skip_all)]
     pub fn build_db_batch(
         &self,
         epoch_id: EpochId,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
         tx_outputs: &[Arc<TransactionOutputs>],
     ) -> IotaResult<DBBatch> {
         let mut written = Vec::with_capacity(tx_outputs.len());
@@ -832,7 +796,12 @@ impl AuthorityStore {
 
         let mut write_batch = self.perpetual_tables.transactions.batch();
         for outputs in tx_outputs {
-            self.write_one_transaction_outputs(&mut write_batch, epoch_id, outputs)?;
+            self.write_one_transaction_outputs(
+                &mut write_batch,
+                epoch_id,
+                checkpoint_sequence_number,
+                outputs,
+            )?;
         }
         // test crashing before writing the batch
         fail_point!("crash");
@@ -855,6 +824,7 @@ impl AuthorityStore {
         &self,
         write_batch: &mut DBBatch,
         epoch_id: EpochId,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
         tx_outputs: &TransactionOutputs,
     ) -> IotaResult {
         let TransactionOutputs {
@@ -900,7 +870,8 @@ impl AuthorityStore {
         let new_objects = written.iter().map(|(id, new_object)| {
             let version = new_object.version();
             trace!(?id, ?version, "writing object");
-            let store_object = get_store_object(new_object.clone());
+            let store_object =
+                get_store_object(new_object.clone(), Some(checkpoint_sequence_number));
             (ObjectKey(*id, version), store_object)
         });
 
@@ -913,15 +884,6 @@ impl AuthorityStore {
                 [(transaction_digest, events)],
             )?;
         }
-
-        // Continue writing events into the old table for now keyed off of events digest
-        let event_digest = events.digest();
-        let events = events
-            .iter()
-            .enumerate()
-            .map(|(i, e)| ((event_digest, i), e));
-
-        write_batch.insert_batch(&self.perpetual_tables.events, events)?;
 
         self.initialize_live_object_markers_impl(write_batch, new_live_object_markers_to_init)?;
 
@@ -939,7 +901,7 @@ impl AuthorityStore {
                 [(transaction_digest, effects_digest)],
             )?;
 
-        debug!(effects_digest = ?effects.digest(), "commit_certificate finished");
+        debug!(effects_digest = ?effects.digest(), "commit_transaction finished");
 
         Ok(())
     }
@@ -959,7 +921,7 @@ impl AuthorityStore {
     pub fn acquire_transaction_locks(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
         transaction: VerifiedSignedTransaction,
     ) -> IotaResult {
         let tx_digest = *transaction.digest();
@@ -1032,7 +994,7 @@ impl AuthorityStore {
     /// this object
     pub(crate) fn get_lock(
         &self,
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaLockResult {
         if self
@@ -1062,28 +1024,15 @@ impl AuthorityStore {
     pub(crate) fn get_latest_live_version_for_object_id(
         &self,
         object_id: ObjectId,
-    ) -> IotaResult<ObjectRef> {
+    ) -> IotaResult<ObjectReference> {
         let mut iterator = self
             .perpetual_tables
             .live_owned_object_markers
-            .reversed_safe_iter_with_bounds(
-                None,
-                Some(ObjectRef::new(
-                    object_id,
-                    SequenceNumber::MAX_VALID_EXCL,
-                    ObjectDigest::MAX,
-                )),
-            )?;
+            .safe_iter_with_prefix_reversed(&object_id);
         Ok(iterator
             .next()
             .transpose()?
-            .and_then(|value| {
-                if value.0.object_id == object_id {
-                    Some(value)
-                } else {
-                    None
-                }
-            })
+            .filter(|&value| value.0.object_id == object_id)
             .ok_or_else(|| {
                 IotaError::from(UserInputError::ObjectNotFound {
                     object_id,
@@ -1098,7 +1047,7 @@ impl AuthorityStore {
     /// least one of the objects.
     /// Returns UserInputError::ObjectVersionUnavailableForConsumption if at
     /// least one object lock is not initialized     at the given version.
-    pub fn check_owned_objects_are_live(&self, objects: &[ObjectRef]) -> IotaResult {
+    pub fn check_owned_objects_are_live(&self, objects: &[ObjectReference]) -> IotaResult {
         let live_markers = self
             .perpetual_tables
             .live_owned_object_markers
@@ -1124,7 +1073,7 @@ impl AuthorityStore {
     fn initialize_live_object_markers_impl(
         &self,
         write_batch: &mut DBBatch,
-        objects: &[ObjectRef],
+        objects: &[ObjectReference],
     ) -> IotaResult {
         AuthorityStore::initialize_live_object_markers(
             &self.perpetual_tables.live_owned_object_markers,
@@ -1134,9 +1083,9 @@ impl AuthorityStore {
     }
 
     pub fn initialize_live_object_markers(
-        live_object_marker_table: &DBMap<ObjectRef, ()>,
+        live_object_marker_table: &DBMap<ObjectReference, ()>,
         write_batch: &mut DBBatch,
-        objects: &[ObjectRef],
+        objects: &[ObjectReference],
     ) -> IotaResult {
         trace!(?objects, "initialize_live_object_markers");
 
@@ -1151,7 +1100,7 @@ impl AuthorityStore {
     fn delete_live_object_markers(
         &self,
         write_batch: &mut DBBatch,
-        objects: &[ObjectRef],
+        objects: &[ObjectReference],
     ) -> IotaResult {
         trace!(?objects, "delete_live_object_markers");
         write_batch.delete_batch(
@@ -1165,7 +1114,7 @@ impl AuthorityStore {
     pub(crate) fn reset_locks_and_live_markers_for_test(
         &self,
         transactions: &[TransactionDigest],
-        objects: &[ObjectRef],
+        objects: &[ObjectReference],
         epoch_store: &AuthorityPerEpochStore,
     ) {
         for tx in transactions {
@@ -1217,13 +1166,8 @@ impl AuthorityStore {
             &self.perpetual_tables.executed_effects,
             iter::once(tx_digest),
         )?;
-        if let Some(events_digest) = effects.events_digest() {
+        if effects.events_digest().is_some() {
             write_batch.delete_batch(&self.perpetual_tables.events_2, [tx_digest])?;
-            write_batch.schedule_delete_range(
-                &self.perpetual_tables.events,
-                &(*events_digest, usize::MIN),
-                &(*events_digest, usize::MAX),
-            )?;
         }
 
         let tombstones = effects
@@ -1298,7 +1242,7 @@ impl AuthorityStore {
     pub fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         self.perpetual_tables
             .find_object_lt_or_eq_version(object_id, version)
@@ -1317,7 +1261,7 @@ impl AuthorityStore {
     pub fn get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectId,
-    ) -> Result<Option<ObjectRef>, IotaError> {
+    ) -> Result<Option<ObjectReference>, IotaError> {
         self.perpetual_tables
             .get_latest_object_ref_or_tombstone(object_id)
     }
@@ -1327,9 +1271,9 @@ impl AuthorityStore {
     pub fn get_latest_object_ref_if_alive(
         &self,
         object_id: ObjectId,
-    ) -> Result<Option<ObjectRef>, IotaError> {
+    ) -> Result<Option<ObjectReference>, IotaError> {
         match self.get_latest_object_ref_or_tombstone(object_id)? {
-            Some(objref) if objref.digest.is_object_alive() => Ok(Some(objref)),
+            Some(objref) if objref.digest.is_alive() => Ok(Some(objref)),
             _ => Ok(None),
         }
     }
@@ -1458,38 +1402,30 @@ impl AuthorityStore {
         let (mut total_iota, mut total_storage_rebate) = thread::scope(|s| {
             let pending_tasks = FuturesUnordered::new();
             for o in self.iter_live_object_set() {
-                match o {
-                    LiveObject::Normal(object) => {
-                        size += object.object_size_for_gas_metering();
-                        count += 1;
-                        pending_objects.push(object);
-                        if count % 1_000_000 == 0 {
-                            let mut task_objects = vec![];
-                            mem::swap(&mut pending_objects, &mut task_objects);
-                            pending_tasks.push(s.spawn(move || {
-                                let mut layout_resolver =
-                                    executor.type_layout_resolver(Box::new(type_layout_store));
-                                let mut total_storage_rebate = 0;
-                                let mut total_iota = 0;
-                                for object in task_objects {
-                                    total_storage_rebate += object.storage_rebate;
-                                    // get_total_iota includes storage rebate, however all storage
-                                    // rebate is also stored in
-                                    // the storage fund, so we need to subtract it here.
-                                    total_iota +=
-                                        object.get_total_iota(layout_resolver.as_mut()).unwrap()
-                                            - object.storage_rebate;
-                                }
-                                if count % 50_000_000 == 0 {
-                                    info!("Processed {} objects", count);
-                                }
-                                (total_iota, total_storage_rebate)
-                            }));
+                let object = o.object;
+                size += object.object_size_for_gas_metering();
+                count += 1;
+                pending_objects.push(object);
+                if count % 1_000_000 == 0 {
+                    let mut task_objects = vec![];
+                    mem::swap(&mut pending_objects, &mut task_objects);
+                    pending_tasks.push(s.spawn(move || {
+                        let mut layout_resolver =
+                            executor.type_layout_resolver(Box::new(type_layout_store));
+                        let mut total_storage_rebate = 0;
+                        let mut total_iota = 0;
+                        for object in task_objects {
+                            total_storage_rebate += object.storage_rebate;
+                            // get_total_iota includes storage rebate, however all storage rebate is
+                            // also stored in the storage fund, so we need to subtract it here.
+                            total_iota += object.get_total_iota(layout_resolver.as_mut()).unwrap()
+                                - object.storage_rebate;
                         }
-                    }
-                    LiveObject::Wrapped(_) => {
-                        unreachable!("Explicitly asked to not include wrapped tombstones")
-                    }
+                        if count % 50_000_000 == 0 {
+                            info!("Processed {} objects", count);
+                        }
+                        (total_iota, total_storage_rebate)
+                    }));
                 }
             }
             pending_tasks.into_iter().fold((0, 0), |init, result| {
@@ -1709,10 +1645,7 @@ impl AuthorityStore {
     pub fn count_object_versions(&self, object_id: ObjectId) -> usize {
         self.perpetual_tables
             .objects
-            .safe_iter_with_bounds(
-                Some(ObjectKey(object_id, VersionNumber::MIN_VALID_INCL)),
-                Some(ObjectKey(object_id, VersionNumber::MAX_VALID_EXCL)),
-            )
+            .safe_iter_with_prefix(&object_id)
             .collect::<Result<Vec<_>, _>>()
             .unwrap()
             .len()
@@ -1736,7 +1669,7 @@ impl GlobalStateHashStore for AuthorityStore {
         Ok(self
             .perpetual_tables
             .root_state_hash_by_epoch
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?)
     }
@@ -1821,5 +1754,5 @@ pub type IotaLockResult = IotaResult<ObjectLockStatus>;
 pub enum ObjectLockStatus {
     Initialized,
     LockedToTx { locked_by_tx: LockDetails }, // no need to use wrapper, not stored or serialized
-    LockedAtDifferentVersion { locked_ref: ObjectRef },
+    LockedAtDifferentVersion { locked_ref: ObjectReference },
 }

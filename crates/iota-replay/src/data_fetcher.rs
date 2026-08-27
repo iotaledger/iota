@@ -15,12 +15,13 @@ use iota_json_rpc_types::{
 };
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::IotaClient;
-use iota_sdk_types::{EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind};
+use iota_sdk_types::{
+    EndOfEpochTransactionKind, ObjectId, SenderSignedTransaction, StructTag, TransactionDigest,
+    TransactionKind, Version,
+};
 use iota_types::{
-    base_types::{SequenceNumber, VersionNumber},
-    digests::{ChainIdentifier, TransactionDigest},
-    object::Object,
-    transaction::{SenderSignedData, TransactionDataAPI},
+    base_types::VersionNumber, digests::ChainIdentifier, object::Object,
+    transaction::TransactionAPI,
 };
 use lru::LruCache;
 use parking_lot::RwLock;
@@ -36,7 +37,7 @@ pub(crate) trait DataFetcher {
     /// Fetch the specified versions of objects
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectId, SequenceNumber)],
+        objects: &[(ObjectId, Version)],
     ) -> Result<Vec<Object>, ReplayEngineError>;
 
     /// Fetch the latest versions of objects
@@ -60,7 +61,7 @@ pub(crate) trait DataFetcher {
     async fn get_loaded_child_objects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError>;
+    ) -> Result<Vec<(ObjectId, Version)>, ReplayEngineError>;
 
     async fn get_latest_checkpoint_sequence_number(&self) -> Result<u64, ReplayEngineError>;
 
@@ -130,7 +131,7 @@ impl DataFetcher for Fetchers {
     #![allow(implied_bounds_entailment)]
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectId, SequenceNumber)],
+        objects: &[(ObjectId, Version)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.multi_get_versioned(objects).await,
@@ -171,7 +172,7 @@ impl DataFetcher for Fetchers {
     async fn get_loaded_child_objects(
         &self,
         tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, Version)>, ReplayEngineError> {
         match self {
             Fetchers::Remote(q) => q.get_loaded_child_objects(tx_digest).await,
             Fetchers::NodeStateDump(q) => q.get_loaded_child_objects(tx_digest).await,
@@ -489,7 +490,7 @@ impl DataFetcher for RemoteFetcher {
     async fn get_loaded_child_objects(
         &self,
         _: &TransactionDigest,
-    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, Version)>, ReplayEngineError> {
         Ok(vec![])
     }
 
@@ -545,11 +546,21 @@ impl DataFetcher for RemoteFetcher {
         // Fetch full transaction content
         let tx_info = self.get_transaction(&epoch_change_tx).await?;
 
-        let orig_tx: SenderSignedData = bcs::from_bytes(&tx_info.raw_transaction).unwrap();
-        let tx_kind_orig = orig_tx.transaction_data().kind();
+        let orig_tx: SenderSignedTransaction = bcs::from_bytes(&tx_info.raw_transaction).unwrap();
+        let tx_kind_orig = orig_tx.transaction().kind();
 
         if let TransactionKind::EndOfEpoch(kinds) = tx_kind_orig {
-            if let Some(kind) = kinds.iter().next() {
+            // The end-of-epoch list can carry object-creation kinds ahead of
+            // the change-epoch kind that holds the epoch info.
+            if let Some(kind) = kinds.iter().find(|kind| {
+                matches!(
+                    kind,
+                    EndOfEpochTransactionKind::ChangeEpoch(_)
+                        | EndOfEpochTransactionKind::ChangeEpochV2(_)
+                        | EndOfEpochTransactionKind::ChangeEpochV3(_)
+                        | EndOfEpochTransactionKind::ChangeEpochV4(_)
+                )
+            }) {
                 let (epoch_start_timestamp_ms, reference_gas_price) = match kind {
                     EndOfEpochTransactionKind::ChangeEpoch(change) => {
                         let rgp = if let serde_json::Value::Object(ref w) = event.parsed_json {
@@ -663,7 +674,10 @@ fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, Rep
             Err(ReplayEngineError::ObjectNotExist { id })
         }
         IotaPastObjectResponse::VersionNotFound(id, version) => {
-            Err(ReplayEngineError::ObjectVersionNotFound { id, version })
+            Err(ReplayEngineError::ObjectVersionNotFound {
+                id,
+                version: version.into(),
+            })
         }
         IotaPastObjectResponse::VersionTooHigh {
             object_id,
@@ -671,8 +685,8 @@ fn convert_past_obj_response(resp: IotaPastObjectResponse) -> Result<Object, Rep
             latest_version,
         } => Err(ReplayEngineError::ObjectVersionTooHigh {
             id: object_id,
-            asked_version,
-            latest_version,
+            asked_version: asked_version.into(),
+            latest_version: latest_version.into(),
         }),
     }
 }
@@ -704,7 +718,7 @@ pub fn extract_epoch_and_version(ev: IotaEvent) -> Result<(u64, u64), ReplayEngi
 #[derive(Clone)]
 pub struct NodeStateDumpFetcher {
     pub node_state_dump: NodeStateDump,
-    pub object_ref_pool: BTreeMap<(ObjectId, SequenceNumber), Object>,
+    pub object_ref_pool: BTreeMap<(ObjectId, Version), Object>,
     pub latest_object_version_pool: BTreeMap<ObjectId, Object>,
 
     // Used when we need to fetch data from remote such as
@@ -758,7 +772,7 @@ impl NodeStateDumpFetcher {
 impl DataFetcher for NodeStateDumpFetcher {
     async fn multi_get_versioned(
         &self,
-        objects: &[(ObjectId, SequenceNumber)],
+        objects: &[(ObjectId, Version)],
     ) -> Result<Vec<Object>, ReplayEngineError> {
         let mut resp = vec![];
         match objects.iter().try_for_each(|(id, version)| {
@@ -820,7 +834,7 @@ impl DataFetcher for NodeStateDumpFetcher {
     async fn get_loaded_child_objects(
         &self,
         _tx_digest: &TransactionDigest,
-    ) -> Result<Vec<(ObjectId, SequenceNumber)>, ReplayEngineError> {
+    ) -> Result<Vec<(ObjectId, Version)>, ReplayEngineError> {
         Ok(self
             .node_state_dump
             .loaded_child_objects

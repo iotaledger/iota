@@ -6,10 +6,9 @@ use diesel::prelude::*;
 use iota_json_rpc::coin_api::parse_to_struct_tag;
 use iota_json_rpc_types::{Balance, Coin as IotaCoin};
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, Version};
 use iota_types::{
-    base_types::{ObjectIdParseError, ObjectRef, SequenceNumber},
-    digests::ObjectDigest,
+    base_types::ObjectIdParseError,
     dynamic_field::{DynamicFieldType, Field},
     object::{Object, ObjectRead, PastObjectRead},
 };
@@ -85,6 +84,7 @@ impl TryFrom<IndexedObject> for StoredCheckpointedObject {
         } else {
             None
         };
+        let object_type = object.data.opt_object_type();
 
         Ok(Self {
             object_id: object.id().as_bytes().to_vec(),
@@ -94,12 +94,10 @@ impl TryFrom<IndexedObject> for StoredCheckpointedObject {
             checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
             owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
-            object_type: object
-                .type_()
-                .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
-            object_type_module: object.type_().map(|t| t.module().to_string()),
-            object_type_name: object.type_().map(|t| t.name().to_string()),
+            object_type: object_type.map(|t| t.to_canonical_string(/* with_prefix */ true)),
+            object_type_package: object_type.map(|t| t.address().as_bytes().to_vec()),
+            object_type_module: object_type.map(|t| t.module().to_string()),
+            object_type_name: object_type.map(|t| t.name().to_string()),
             serialized_object: Some(bcs::to_bytes(&object).unwrap()),
             coin_type,
             coin_balance: coin_balance.map(|b| b as i64),
@@ -168,47 +166,58 @@ impl StoredHistoryObject {
             ))
         })?;
 
-        if let ObjectStatus::WrappedOrDeleted = object_status {
-            let object_ref = ObjectRef::new(
-                ObjectId::from_bytes(self.object_id.clone())
-                    .map_err(|_| IndexerError::ObjectIdParse(ObjectIdParseError::TryFromSlice))?,
-                SequenceNumber::from_u64(self.object_version as u64),
-                ObjectDigest::OBJECT_DELETED,
-            );
-            return Ok(PastObjectRead::ObjectDeleted(object_ref));
-        }
+        match object_status {
+            ObjectStatus::Active => {
+                let object: Object = self.try_into()?;
+                let object_ref = object.object_ref();
 
-        let object: Object = self.try_into()?;
-        let object_ref = object.object_ref();
+                let Some(move_object) = object.data.as_opt_struct().cloned() else {
+                    return Ok(PastObjectRead::VersionFound(object_ref, object, None));
+                };
 
-        let Some(move_object) = object.data.as_struct_opt().cloned() else {
-            return Ok(PastObjectRead::VersionFound(object_ref, object, None));
-        };
+                let move_type_layout = package_resolver
+                    .type_layout(move_object.type_tag())
+                    .await
+                    .map_err(|e| {
+                    IndexerError::ResolveMoveStruct(format!(
+                        "failed to convert into object read for obj {}:{}, type: {}. error: {e}",
+                        object.id(),
+                        object.version(),
+                        move_object.struct_tag(),
+                    ))
+                })?;
 
-        let move_type_layout = package_resolver
-            .type_layout(move_object.type_tag())
-            .await
-            .map_err(|e| {
-                IndexerError::ResolveMoveStruct(format!(
-                    "failed to convert into object read for obj {}:{}, type: {}. error: {e}",
-                    object.id(),
-                    object.version(),
-                    move_object.struct_tag(),
+                let move_struct_layout = match move_type_layout {
+                    MoveTypeLayout::Struct(s) => Ok(s),
+                    _ => Err(IndexerError::ResolveMoveStruct(
+                        "MoveTypeLayout is not a Struct".to_string(),
+                    )),
+                }?;
+
+                Ok(PastObjectRead::VersionFound(
+                    object_ref,
+                    object,
+                    Some(*move_struct_layout),
                 ))
-            })?;
-
-        let move_struct_layout = match move_type_layout {
-            MoveTypeLayout::Struct(s) => Ok(s),
-            _ => Err(IndexerError::ResolveMoveStruct(
-                "MoveTypeLayout is not a Struct".to_string(),
-            )),
-        }?;
-
-        Ok(PastObjectRead::VersionFound(
-            object_ref,
-            object,
-            Some(*move_struct_layout),
-        ))
+            }
+            ObjectStatus::WrappedOrDeleted => {
+                let object_ref = ObjectReference::new(
+                    ObjectId::from_bytes(self.object_id.clone()).map_err(|_| {
+                        IndexerError::ObjectIdParse(ObjectIdParseError::TryFromSlice)
+                    })?,
+                    Version::from_u64(self.object_version as u64),
+                    ObjectDigest::OBJECT_DELETED,
+                );
+                Ok(PastObjectRead::ObjectDeleted(object_ref))
+            }
+            ObjectStatus::NotYetCreated => {
+                Err(IndexerError::PersistentStorageDataCorruption(format!(
+                    "Object {} at version {} has status NotYetCreated for past object read",
+                    ObjectId::from_bytes(self.object_id.clone()).unwrap(),
+                    self.object_version,
+                )))
+            }
+        }
     }
 }
 
@@ -216,14 +225,22 @@ impl TryFrom<StoredHistoryObject> for Object {
     type Error = IndexerError;
 
     fn try_from(o: StoredHistoryObject) -> Result<Self, Self::Error> {
-        let serialized_object = o.serialized_object.ok_or_else(|| {
+        Self::try_from(&o)
+    }
+}
+
+impl TryFrom<&StoredHistoryObject> for Object {
+    type Error = IndexerError;
+
+    fn try_from(o: &StoredHistoryObject) -> Result<Self, Self::Error> {
+        let serialized_object = o.serialized_object.as_ref().ok_or_else(|| {
             IndexerError::Serde(format!(
                 "Failed to deserialize object: {:?}, error: object is None",
                 o.object_id
             ))
         })?;
 
-        bcs::from_bytes(&serialized_object).map_err(|e| {
+        bcs::from_bytes(serialized_object).map_err(|e| {
             IndexerError::Serde(format!(
                 "Failed to deserialize object: {:?}, error: {e}",
                 o.object_id
@@ -256,21 +273,20 @@ impl TryFrom<IndexedObject> for StoredBackwardHistoryObject {
         } else {
             None
         };
+        let object_type = object.data.opt_object_type();
 
         Ok(Self {
             object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
-            object_status: BackwardHistoryObjectStatus::Active as i16,
+            object_status: ObjectStatus::Active as i16,
             object_digest: Some(object.digest().into_inner().to_vec()),
             superseded_at_checkpoint: checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
             owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
-            object_type: object
-                .type_()
-                .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
-            object_type_module: object.type_().map(|t| t.module().to_string()),
-            object_type_name: object.type_().map(|t| t.name().to_string()),
+            object_type: object_type.map(|t| t.to_canonical_string(/* with_prefix */ true)),
+            object_type_package: object_type.map(|t| t.address().as_bytes().to_vec()),
+            object_type_module: object_type.map(|t| t.module().to_string()),
+            object_type_name: object_type.map(|t| t.name().to_string()),
             serialized_object: Some(bcs::to_bytes(&object).unwrap()),
             coin_type,
             coin_balance: coin_balance.map(|b| b as i64),
@@ -339,18 +355,17 @@ impl From<IndexedObject> for StoredObject {
         } else {
             None
         };
+        let object_type = object.data.opt_object_type();
         Self {
             object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
             object_digest: object.digest().into_inner().to_vec(),
             owner_type: owner_type as i16,
             owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
-            object_type: object
-                .type_()
-                .map(|t| t.to_canonical_string(/* with_prefix */ true)),
-            object_type_package: object.type_().map(|t| t.address().as_bytes().to_vec()),
-            object_type_module: object.type_().map(|t| t.module().to_string()),
-            object_type_name: object.type_().map(|t| t.name().to_string()),
+            object_type: object_type.map(|t| t.to_canonical_string(/* with_prefix */ true)),
+            object_type_package: object_type.map(|t| t.address().as_bytes().to_vec()),
+            object_type_module: object_type.map(|t| t.module().to_string()),
+            object_type_name: object_type.map(|t| t.name().to_string()),
             serialized_object: bcs::to_bytes(&object).unwrap(),
             coin_type,
             coin_balance: coin_balance.map(|b| b as i64),
@@ -363,16 +378,24 @@ impl From<IndexedObject> for StoredObject {
     }
 }
 
-impl TryFrom<StoredObject> for Object {
+impl TryFrom<&StoredObject> for Object {
     type Error = IndexerError;
 
-    fn try_from(o: StoredObject) -> Result<Self, Self::Error> {
+    fn try_from(o: &StoredObject) -> Result<Self, Self::Error> {
         bcs::from_bytes(&o.serialized_object).map_err(|e| {
             IndexerError::Serde(format!(
                 "Failed to deserialize object: {:?}, error: {}",
                 o.object_id, e
             ))
         })
+    }
+}
+
+impl TryFrom<StoredObject> for Object {
+    type Error = IndexerError;
+
+    fn try_from(o: StoredObject) -> Result<Self, Self::Error> {
+        Self::try_from(&o)
     }
 }
 
@@ -384,7 +407,7 @@ impl StoredObject {
         let oref = self.get_object_ref()?;
         let object: iota_types::object::Object = self.try_into()?;
 
-        let Some(move_object) = object.data.as_struct_opt().cloned() else {
+        let Some(move_object) = object.data.as_opt_struct().cloned() else {
             return Ok(ObjectRead::Exists(oref, object, None));
         };
 
@@ -409,7 +432,7 @@ impl StoredObject {
         Ok(ObjectRead::Exists(oref, object, Some(*move_struct_layout)))
     }
 
-    pub fn get_object_ref(&self) -> Result<ObjectRef, IndexerError> {
+    pub fn get_object_ref(&self) -> Result<ObjectReference, IndexerError> {
         let object_id = ObjectId::from_bytes(self.object_id.clone()).map_err(|_| {
             IndexerError::Serde(format!("Can't convert {:?} to object_id", self.object_id))
         })?;
@@ -420,7 +443,7 @@ impl StoredObject {
                     self.object_digest
                 ))
             })?;
-        Ok(ObjectRef::new(
+        Ok(ObjectReference::new(
             object_id,
             (self.object_version as u64).into(),
             object_digest,
@@ -434,7 +457,7 @@ impl StoredObject {
     {
         let object: Object = bcs::from_bytes(&self.serialized_object).ok()?;
 
-        let object = object.data.as_struct_opt()?;
+        let object = object.data.as_opt_struct()?;
         let ty = object.struct_tag();
 
         if !ty.is_dynamic_field() {
@@ -466,7 +489,7 @@ impl StoredObject {
 ///
 /// ```ignore
 /// use iota_indexer::models::objects::{StoredObject, StoredObjects};
-/// use iota_types::digests::TransactionDigest;
+/// use iota_sdk_types::TransactionDigest;
 ///
 /// fn construct_data() -> Vec<(StoredObject, TransactionDigest)> {
 ///     Default::default()
@@ -518,7 +541,7 @@ impl TryFrom<StoredObject> for IotaCoin {
 
     fn try_from(o: StoredObject) -> Result<Self, Self::Error> {
         let object: Object = o.clone().try_into()?;
-        let ObjectRef {
+        let ObjectReference {
             object_id,
             version,
             digest,
@@ -583,12 +606,12 @@ impl TryFrom<CoinBalance> for Balance {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::{Identifier, Owner, StructTag, TypeTag};
+    use iota_sdk_types::{
+        Address, Identifier, MoveStruct, ObjectData, Owner, StructTag, TransactionDigest, TypeTag,
+    };
     use iota_types::{
-        base_types::IotaAddress,
-        digests::TransactionDigest,
         gas_coin::GasCoin,
-        object::{Data, MoveObject, MoveObjectExt, ObjectInner},
+        object::{MoveStructExt, ObjectInner},
     };
 
     use super::*;
@@ -644,7 +667,7 @@ mod tests {
         // 0xe7::vec_coin::VecCoin<vector<0x2::coin::Coin<0x2::iota::IOTA>>>
         let vec_coins_type = TypeTag::Vector(Box::new(StructTag::new_gas_coin().into()));
         let object_type = StructTag::new(
-            IotaAddress::from_short_hex("0xe7").unwrap(),
+            Address::from_short_hex("0xe7").unwrap(),
             Identifier::from_static("vec_coin"),
             Identifier::from_static("VecCoin"),
             vec![vec_coins_type],
@@ -654,12 +677,12 @@ mod tests {
         let gas = 10;
 
         let contents = bcs::to_bytes(&vec![GasCoin::new(id, gas)]).unwrap();
-        let data = Data::Struct(
-            MoveObject::new_from_execution_with_limit(object_type, 1.into(), contents, 256)
+        let data = ObjectData::Struct(
+            MoveStruct::new_from_execution_with_limit(object_type, 1.into(), contents, 256)
                 .unwrap(),
         );
 
-        let owner = IotaAddress::STD;
+        let owner = Address::STD;
 
         let object = ObjectInner {
             owner: Owner::Address(owner),
@@ -685,17 +708,6 @@ mod tests {
             }
         }
     }
-}
-
-/// Status of an object in the backward history table.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BackwardHistoryObjectStatus {
-    /// The object existed and was active before being superseded.
-    Active = 0,
-    /// The object was wrapped or deleted (no data available).
-    WrappedOrDeleted = 1,
-    /// The object did not exist yet (it was created in this checkpoint).
-    NotYetCreated = 2,
 }
 
 #[derive(Queryable, Insertable, Selectable, Debug, Identifiable, Clone, QueryableByName)]
@@ -725,7 +737,7 @@ impl StoredBackwardHistoryObject {
     pub fn from_empty(
         object_id: ObjectId,
         object_version: i64,
-        status: BackwardHistoryObjectStatus,
+        status: ObjectStatus,
         superseded_at_checkpoint: i64,
     ) -> Self {
         Self {

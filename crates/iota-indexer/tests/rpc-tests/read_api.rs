@@ -5,7 +5,7 @@ use std::{fs::File, path::Path, str::FromStr, sync::Arc};
 
 use hex::FromHex;
 use iota_indexer::{
-    config::PruningOptions,
+    config::RetentionConfig,
     models::transactions::StoredTransaction,
     store::{PgIndexerStore, package_resolver::IndexerStorePackageResolver},
     test_utils::{TestDatabase, db_url},
@@ -21,15 +21,17 @@ use iota_json_rpc_types::{
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_types::{
+    Address, Identifier, ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version,
+};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
     publish_simple_warrior_package,
 };
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
-    digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
+    crypto::{AccountPrivateKey, get_key_pair},
+    digests::ChainIdentifier,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
     utils::to_sender_signed_transaction,
@@ -375,7 +377,7 @@ fn get_checkpoint_by_digest_not_found() {
 
         assert!(rpc_call_error_msg_matches(
             result,
-            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(Digest(\"11111111111111111111111111111111\")) not found`"}"#,
+            r#"{"code":-32603,"message":"Invalid argument with error: `Checkpoint Digest(11111111111111111111111111111111) not found`"}"#,
         ));
     });
 }
@@ -940,7 +942,7 @@ fn get_newly_indexed_optimistic_transaction() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -951,15 +953,15 @@ fn get_newly_indexed_optimistic_transaction() -> Result<(), anyhow::Error> {
             .await;
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
-        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_key, client, &package_id).await?;
+        let basic_obj_2 = create_basic_object(sender, &sender_key, client, &package_id).await?;
 
         // Update the object to generate new event
         let res = crate::coin_api::execute_move_call(
             client,
             sender,
-            &sender_kp,
+            &sender_key,
             package_id,
             "object_basics".to_string(),
             "update".to_string(),
@@ -1030,7 +1032,7 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1041,15 +1043,15 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
             .await;
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
-        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_key, client, &package_id).await?;
+        let basic_obj_2 = create_basic_object(sender, &sender_key, client, &package_id).await?;
 
         // Update the object to generate new event
         let res = crate::coin_api::execute_move_call(
             client,
             sender,
-            &sender_kp,
+            &sender_key,
             package_id,
             "object_basics".to_string(),
             "update".to_string(),
@@ -1080,7 +1082,7 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
             &result_optimistic[0].package_id,
             &result_optimistic[0].transaction_module,
             &result_optimistic[0].sender,
-            &result_optimistic[0].type_,
+            &result_optimistic[0].struct_tag,
             &result_optimistic[0].parsed_json,
             &result_optimistic[0].bcs,
         );
@@ -1095,7 +1097,7 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
             &result_checkpointed[0].package_id,
             &result_checkpointed[0].transaction_module,
             &result_checkpointed[0].sender,
-            &result_checkpointed[0].type_,
+            &result_checkpointed[0].struct_tag,
             &result_checkpointed[0].parsed_json,
             &result_checkpointed[0].bcs,
         );
@@ -1487,10 +1489,10 @@ fn try_get_past_object_object_not_exists() {
         indexer_wait_for_checkpoint(store, 1).await;
 
         let object_id = ObjectId::random();
-        let version = SequenceNumber::default();
+        let version = Version::default();
 
         let result = client
-            .try_get_past_object(object_id, version, None)
+            .try_get_past_object(object_id, version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1514,7 +1516,7 @@ fn try_get_past_object_version_found() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = Address::random();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1527,7 +1529,7 @@ fn try_get_past_object_version_found() {
         wait_for_objects_history(tx_digest, store, client).await;
 
         let result = client
-            .try_get_past_object(gas_ref.object_id, gas_ref.version, None)
+            .try_get_past_object(gas_ref.object_id, gas_ref.version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1556,7 +1558,7 @@ fn try_get_past_object_version_not_found() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = Address::random();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1571,13 +1573,13 @@ fn try_get_past_object_version_not_found() {
         let missing_version = gas_ref.version.previous().unwrap();
 
         let result = client
-            .try_get_past_object(gas_ref.object_id, missing_version, None)
+            .try_get_past_object(gas_ref.object_id, missing_version.into(), None)
             .await
             .expect("rpc call should succeed");
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::VersionNotFound(gas_ref.object_id, missing_version),
+            IotaPastObjectResponse::VersionNotFound(gas_ref.object_id, missing_version.into()),
             "mismatch in VersionNotFound response"
         );
     });
@@ -1595,7 +1597,7 @@ fn try_get_past_object_version_too_high() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = Address::random();
 
         let (gas_ref, tx_digest) = cluster
             .fund_address_and_return_gas_and_tx(
@@ -1611,7 +1613,7 @@ fn try_get_past_object_version_too_high() {
         let asked_version = latest_version.next().unwrap();
 
         let result = client
-            .try_get_past_object(gas_ref.object_id, asked_version, None)
+            .try_get_past_object(gas_ref.object_id, asked_version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1619,8 +1621,8 @@ fn try_get_past_object_version_too_high() {
             result,
             IotaPastObjectResponse::VersionTooHigh {
                 object_id: gas_ref.object_id,
-                asked_version,
-                latest_version,
+                asked_version: asked_version.into(),
+                latest_version: latest_version.into(),
             },
             "mismatch in VersionTooHigh response"
         );
@@ -1655,13 +1657,13 @@ fn try_get_past_object_object_deleted() {
         let deleted_version = nft_object_ref.version.next().unwrap();
 
         let result = client
-            .try_get_object_before_version(nft_object_id, SequenceNumber::MAX_VALID_EXCL)
+            .try_get_object_before_version(nft_object_id, Version::MAX_VALID_EXCL)
             .await
             .expect("rpc call should succeed");
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::ObjectDeleted(ObjectRef::new(
+            IotaPastObjectResponse::ObjectDeleted(ObjectReference::new(
                 nft_object_ref.object_id,
                 deleted_version,
                 ObjectDigest::OBJECT_DELETED,
@@ -1671,13 +1673,13 @@ fn try_get_past_object_object_deleted() {
 
         // Retrieve the deleted object at that version
         let result = client
-            .try_get_past_object(nft_object_id, deleted_version, None)
+            .try_get_past_object(nft_object_id, deleted_version.into(), None)
             .await
             .expect("rpc call should succeed");
 
         assert_eq!(
             result,
-            IotaPastObjectResponse::ObjectDeleted(ObjectRef::new(
+            IotaPastObjectResponse::ObjectDeleted(ObjectReference::new(
                 nft_object_ref.object_id,
                 deleted_version,
                 ObjectDigest::OBJECT_DELETED,
@@ -1687,7 +1689,11 @@ fn try_get_past_object_object_deleted() {
 
         // Try fetching the object before the deleted version.
         let result = client
-            .try_get_past_object(nft_object_id, deleted_version.previous().unwrap(), None)
+            .try_get_past_object(
+                nft_object_id,
+                deleted_version.previous().unwrap().into(),
+                None,
+            )
             .await
             .expect("rpc call should succeed");
 
@@ -1719,9 +1725,9 @@ fn try_multi_get_past_objects() {
         let object_1 = ObjectId::random();
         let object_2 = ObjectId::random();
         let object_3 = ObjectId::random();
-        let version_1 = SequenceNumber::default();
-        let version_2 = SequenceNumber::default();
-        let version_3 = SequenceNumber::default();
+        let version_1 = Version::default();
+        let version_2 = Version::default();
+        let version_3 = Version::default();
 
         let requests = vec![
             IotaGetPastObjectRequest {
@@ -1757,7 +1763,7 @@ fn try_multi_get_past_objects() {
         );
 
         // Create valid objects
-        let (sender, _): (_, AccountKeyPair) = get_key_pair();
+        let sender = Address::random();
         let (gas_ref_1, tx_digest_1) = cluster
             .fund_address_and_return_gas_and_tx(
                 cluster.get_reference_gas_price().await,
@@ -1798,12 +1804,12 @@ fn try_multi_get_past_objects() {
             .expect("rpc call should succeed");
 
         let past_object_response_1 = client
-            .try_get_past_object(gas_ref_1.object_id, gas_ref_1.version, None)
+            .try_get_past_object(gas_ref_1.object_id, gas_ref_1.version.into(), None)
             .await
             .expect("rpc call should succeed");
 
         let past_object_response_2 = client
-            .try_get_past_object(gas_ref_2.object_id, gas_ref_2.version, None)
+            .try_get_past_object(gas_ref_2.object_id, gas_ref_2.version.into(), None)
             .await
             .expect("rpc call should succeed");
 
@@ -1854,8 +1860,8 @@ fn try_get_object_before_version() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+        let receiver = Address::random();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1885,7 +1891,7 @@ fn try_get_object_before_version() {
             )
             .await
             .expect("transfer should succeed");
-        execute_tx_and_wait_for_indexer_checkpoint(client, store, tx_bytes, &keypair).await;
+        execute_tx_and_wait_for_indexer_checkpoint(client, store, tx_bytes, &sender_key).await;
 
         let object_ref = cluster.get_latest_object_ref(&gas_ref.object_id).await;
 
@@ -1971,10 +1977,7 @@ fn get_chain_identifier_with_pruning_enabled() {
         let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
             Some("test_get_chain_identifier_with_pruning_enabled"),
             None,
-            Some(PruningOptions {
-                epochs_to_keep: Some(1),
-                ..Default::default()
-            }),
+            Some(RetentionConfig::new(1, Default::default())),
         )
         .await;
 
@@ -2027,7 +2030,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
     runtime.block_on(async move {
         // 1) Set up wallet and fund it
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -2040,7 +2043,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
         // 2) Publish the `Warrior` package
         let (package_id, tx_digest) =
-            publish_simple_warrior_package(&cluster.wallet, &keypair, address, gas).await;
+            publish_simple_warrior_package(&cluster.wallet, &key, address, gas).await;
         indexer_wait_for_transaction(tx_digest, store, client).await;
 
         // 3) Mint a `Sword`
@@ -2065,7 +2068,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2078,7 +2081,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .created()
             .iter()
             .map(|sword| sword.reference)
-            .collect::<Vec<ObjectRef>>();
+            .collect::<Vec<ObjectReference>>();
 
         let sword_object_ref = *sword_object_ref
             .first()
@@ -2116,7 +2119,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let wrap_transaction_res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2167,7 +2170,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
             .created()
             .iter()
             .map(|warrior| warrior.reference)
-            .collect::<Vec<ObjectRef>>();
+            .collect::<Vec<ObjectReference>>();
 
         let warrior_object_ref = *warrior_object_ref
             .first()
@@ -2202,7 +2205,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let unwrap_then_delete_transaction_res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2290,7 +2293,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let delete_warrior_transaction_res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2355,7 +2358,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
 
     runtime.block_on(async move {
         // 1) Set up the wallet and fund it with gas
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -2368,7 +2371,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
 
         // 2) Publish the `Warrior` package
         let (package_id, tx_digest) =
-            publish_simple_warrior_package(&cluster.wallet, &keypair, address, gas).await;
+            publish_simple_warrior_package(&cluster.wallet, &key, address, gas).await;
         indexer_wait_for_transaction(tx_digest, store, client).await;
 
         // 3) In a single PTB: create and wrap Sword
@@ -2415,7 +2418,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let create_and_wrap_tx_res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2461,7 +2464,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let unwrap_transaction_res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2475,7 +2478,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
             .unwrapped()
             .iter()
             .map(|sword| sword.reference)
-            .collect::<Vec<ObjectRef>>();
+            .collect::<Vec<ObjectReference>>();
 
         assert_eq!(
             sword_object_ref.len(),
@@ -2526,7 +2529,7 @@ fn is_transaction_not_present() {
 
     runtime.block_on(async {
         let rng = StdRng::from_seed([1; 32]);
-        let digest = TransactionDigest::generate(rng);
+        let digest = TransactionDigest::random_with(rng);
 
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -2582,8 +2585,8 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let keypair = IotaKeyPair::Ed25519(keypair);
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
+        let keypair = SimpleKeypair::from(key);
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

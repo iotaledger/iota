@@ -18,7 +18,6 @@ http.workspace = true
 http-body.workspace = true
 hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http1", "http2", "ring", "tls12"] }
 hyper-util.workspace = true
-idna = "1.1.0"
 multiaddr.workspace = true
 once_cell.workspace = true
 pin-project-lite.workspace = true
@@ -34,6 +33,15 @@ tracing.workspace = true
 
 # internal dependencies
 iota-http.workspace = true
+iota-multiaddr.workspace = true
+
+[dev-dependencies]
+# external dependencies
+fastcrypto = { workspace = true, features = ["copy_key"] }
+rand.workspace = true
+
+# internal dependencies
+iota-tls.workspace = true
 
 [lints]
 workspace = true

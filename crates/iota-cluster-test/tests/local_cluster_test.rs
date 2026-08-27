@@ -35,8 +35,6 @@ async fn test_iota_cluster() {
         pg_address: Some(pg_address),
         config_dir: None,
         graphql_address: Some(graphql_address.into()),
-        local_migration_snapshots: Default::default(),
-        remote_migration_snapshots: Default::default(),
     };
 
     let _cluster = LocalNewCluster::start(&opts).await.unwrap();

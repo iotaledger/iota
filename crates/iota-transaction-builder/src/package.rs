@@ -7,12 +7,12 @@ use std::result::Result;
 use anyhow::{Ok, anyhow, bail};
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_sdk_types::{
-    Argument, Identifier, ObjectId, Owner, TransactionKind, move_package::MovePackage,
+    Address, Argument, Identifier, ObjectId, Owner, SharedObjectReference, Transaction,
+    TransactionKind, move_package::MovePackage,
 };
 use iota_types::{
-    base_types::IotaAddress,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI},
 };
 
 use crate::TransactionBuilder;
@@ -22,7 +22,7 @@ impl TransactionBuilder {
     /// [`iota_sdk_types::Command::Publish`] for the provided package.
     pub async fn publish_tx_kind(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
     ) -> Result<TransactionKind, anyhow::Error> {
@@ -38,17 +38,17 @@ impl TransactionBuilder {
     /// Publish a new move package.
     pub async fn publish(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         compiled_modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let gas_price = self.0.get_reference_gas_price().await?;
         let gas = self
             .select_gas(sender, gas, gas_budget, vec![], gas_price)
             .await?;
-        Ok(TransactionData::new_module(
+        Ok(Transaction::new_module(
             sender,
             gas,
             compiled_modules,
@@ -84,11 +84,13 @@ impl TransactionBuilder {
             let mut builder = ProgrammableTransactionBuilder::new();
             let capability_arg = match capability_owner {
                 Owner::Address(_) => CallArg::ImmutableOrOwned(upgrade_capability.object_ref()),
-                Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
-                    upgrade_capability.object_ref().object_id,
-                    initial_shared_version,
-                    true,
-                )),
+                Owner::Shared(initial_shared_version) => {
+                    CallArg::Shared(SharedObjectReference::new(
+                        upgrade_capability.object_ref().object_id,
+                        initial_shared_version,
+                        true,
+                    ))
+                }
                 Owner::Immutable => {
                     bail!("Upgrade capability is stored immutably and cannot be used for upgrades")
                 }
@@ -128,7 +130,7 @@ impl TransactionBuilder {
     /// Upgrade an existing move package.
     pub async fn upgrade(
         &self,
-        sender: IotaAddress,
+        sender: Address,
         package_id: ObjectId,
         compiled_modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
@@ -136,7 +138,7 @@ impl TransactionBuilder {
         upgrade_policy: u8,
         gas: impl Into<Option<ObjectId>>,
         gas_budget: u64,
-    ) -> anyhow::Result<TransactionData> {
+    ) -> anyhow::Result<Transaction> {
         let gas_price = self.0.get_reference_gas_price().await?;
         let gas = self
             .select_gas(sender, gas, gas_budget, vec![], gas_price)
@@ -155,7 +157,7 @@ impl TransactionBuilder {
         let digest = MovePackage::compute_digest_for_modules_and_deps(&compiled_modules, &dep_ids)
             .into_inner()
             .to_vec();
-        TransactionData::new_upgrade(
+        Transaction::new_upgrade(
             sender,
             gas,
             package_id,

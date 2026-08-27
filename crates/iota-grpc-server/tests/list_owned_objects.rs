@@ -22,13 +22,12 @@ use iota_grpc_types::{
         types::Address as ProtoAddress,
     },
 };
-use iota_sdk_types::{MoveObjectType, ObjectId, Owner, StructTag};
+use iota_sdk_types::{
+    Address, MoveObjectType, MoveStruct, ObjectId, Owner, StructTag, TransactionDigest,
+};
 use iota_types::{
-    base_types::IotaAddress,
-    crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
     gas_coin::GasCoin,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
+    object::{MoveStructExt, OBJECT_START_VERSION, Object},
     storage::{AccountOwnedObjectInfo, OwnedObjectCursor},
 };
 use prost_types::FieldMask;
@@ -39,9 +38,9 @@ use tonic::transport::Channel;
 // ---------------------------------------------------------------------------
 
 /// Create a gas-coin `Object` owned by `owner` with the given `object_id`.
-fn make_gas_coin(owner: IotaAddress, object_id: ObjectId, balance: u64) -> Object {
+fn make_gas_coin(owner: Address, object_id: ObjectId, balance: u64) -> Object {
     let contents = GasCoin::new(object_id, balance).to_bcs_bytes();
-    let move_obj = MoveObject::new_from_execution_with_limit(
+    let move_struct = MoveStruct::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
@@ -49,7 +48,7 @@ fn make_gas_coin(owner: IotaAddress, object_id: ObjectId, balance: u64) -> Objec
     )
     .unwrap();
     Object::new_move(
-        move_obj,
+        move_struct,
         Owner::Address(owner),
         TransactionDigest::GENESIS_MARKER,
     )
@@ -57,14 +56,14 @@ fn make_gas_coin(owner: IotaAddress, object_id: ObjectId, balance: u64) -> Objec
 
 /// Create a large gas-coin `Object` with `padding` extra bytes in BCS.
 fn make_large_gas_coin(
-    owner: IotaAddress,
+    owner: Address,
     object_id: ObjectId,
     balance: u64,
     padding: usize,
 ) -> Object {
     let mut contents = GasCoin::new(object_id, balance).to_bcs_bytes();
     contents.extend(vec![0u8; padding]);
-    let move_obj = MoveObject::new_from_execution_with_limit(
+    let move_struct = MoveStruct::new_from_execution_with_limit(
         StructTag::new_gas_coin(),
         OBJECT_START_VERSION,
         contents,
@@ -72,7 +71,7 @@ fn make_large_gas_coin(
     )
     .unwrap();
     Object::new_move(
-        move_obj,
+        move_struct,
         Owner::Address(owner),
         TransactionDigest::GENESIS_MARKER,
     )
@@ -82,9 +81,9 @@ fn make_large_gas_coin(
 /// mock, with the cursor sorted by `(type_id_hash, params_hash,
 /// inverted_balance, object_id)`.
 fn make_owned_entry(
-    owner: IotaAddress,
+    owner: Address,
     object_id: ObjectId,
-    type_: MoveObjectType,
+    object_type: MoveObjectType,
     type_id_hash: u64,
     params_hash: u64,
     balance: Option<u64>,
@@ -93,7 +92,7 @@ fn make_owned_entry(
         owner,
         object_id,
         version: OBJECT_START_VERSION,
-        type_,
+        object_type,
     };
     let cursor = OwnedObjectCursor {
         object_type_identifier: type_id_hash,
@@ -104,7 +103,7 @@ fn make_owned_entry(
     (info, cursor)
 }
 
-fn owner_proto(addr: IotaAddress) -> ProtoAddress {
+fn owner_proto(addr: Address) -> ProtoAddress {
     ProtoAddress::default().with_address(addr.into_bytes().to_vec())
 }
 
@@ -154,7 +153,7 @@ async fn paginate_all(
 }
 
 /// Set up a mock with `count` gas-coin objects for a single owner.
-fn make_coin_mock(owner: IotaAddress, count: usize) -> (MockGrpcStateReader, Vec<ObjectId>) {
+fn make_coin_mock(owner: Address, count: usize) -> (MockGrpcStateReader, Vec<ObjectId>) {
     let coin_type: MoveObjectType = StructTag::new_gas_coin().into();
     let type_id_hash = 42u64; // arbitrary stable hash for Coin
     let params_hash = 99u64; // arbitrary stable hash for <IOTA>
@@ -215,7 +214,7 @@ fn make_coin_mock(owner: IotaAddress, count: usize) -> (MockGrpcStateReader, Vec
 /// exactly once, in the expected order, with no duplicates or gaps.
 #[tokio::test]
 async fn paginate_one_at_a_time() {
-    let (owner, _): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let owner = Address::random();
     let (mock, _expected_ids) = make_coin_mock(owner, 5);
     let expected_count = mock.owned_objects.len();
 
@@ -276,7 +275,7 @@ async fn paginate_one_at_a_time() {
 /// All items fit in a single page → `next_page_token` must be `None`.
 #[tokio::test]
 async fn single_page_no_token() {
-    let (owner, _): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let owner = Address::random();
     let (mock, _) = make_coin_mock(owner, 3);
 
     let (handle, _reader) = start_test_server(Arc::new(mock), |_| {}).await;
@@ -303,7 +302,7 @@ async fn single_page_no_token() {
 /// When the owner has no objects the response should be empty with no token.
 #[tokio::test]
 async fn empty_result() {
-    let (owner, _): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let owner = Address::random();
     let mock = MockGrpcStateReader::default();
 
     let (handle, _reader) = start_test_server(Arc::new(mock), |_| {}).await;
@@ -326,7 +325,7 @@ async fn empty_result() {
 /// Sending garbage bytes as `page_token` should return `InvalidArgument`.
 #[tokio::test]
 async fn invalid_page_token() {
-    let (owner, _): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let owner = Address::random();
     let mock = MockGrpcStateReader::default();
 
     let (handle, _reader) = start_test_server(Arc::new(mock), |_| {}).await;
@@ -350,8 +349,8 @@ async fn invalid_page_token() {
 /// different owner.
 #[tokio::test]
 async fn mismatched_owner_in_page_token() {
-    let (owner_a, _): (IotaAddress, AccountKeyPair) = get_key_pair();
-    let (owner_b, _): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let owner_a = Address::random();
+    let owner_b = Address::random();
     let (mock, _) = make_coin_mock(owner_a, 3);
 
     let (handle, _reader) = start_test_server(Arc::new(mock), |_| {}).await;
@@ -396,7 +395,7 @@ async fn mismatched_owner_in_page_token() {
 /// response should contain fewer items and include a `next_page_token`.
 #[tokio::test]
 async fn message_size_triggers_pagination() {
-    let (owner, _): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let owner = Address::random();
 
     let coin_type: MoveObjectType = StructTag::new_gas_coin().into();
     let type_id_hash = 42u64;
@@ -478,7 +477,7 @@ async fn message_size_triggers_pagination() {
 /// be returned across paginated calls.
 #[tokio::test]
 async fn type_filter_with_pagination() {
-    let (owner, _): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let owner = Address::random();
 
     let coin_type: MoveObjectType = StructTag::new_gas_coin().into();
     let coin_id_hash = 42u64;
@@ -557,7 +556,7 @@ async fn type_filter_with_pagination() {
     let total_all: usize = all_responses.iter().map(|r| r.objects.len()).sum();
     assert_eq!(total_all, 5, "unfiltered should return all 5 objects");
 
-    // With type filter → only 3 coin objects matching the `GasCoin::type_()`.
+    // With type filter → only 3 coin objects matching the GasCoin type.
     let filtered_base = ListOwnedObjectsRequest::default()
         .with_owner(owner_proto(owner))
         .with_page_size(2)

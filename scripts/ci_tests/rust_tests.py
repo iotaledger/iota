@@ -195,7 +195,7 @@ class RustTestOrchestrator:
             'manifest_path': get_arg_with_default('manifest_path', './Cargo.toml'),
             'manifest_path_external': get_arg_with_default('manifest_path_external', './external-crates/move/Cargo.toml'),
             'no_capture': get_arg_with_default('no_capture', False),
-            'simtest_timeout': get_arg_with_default('simtest_timeout', 180000),
+            'simtest_timeout': get_arg_with_default('simtest_timeout', 360000),
             'base_branch': get_arg_with_default('base_branch', 'origin/develop'),
             'dry_run': get_arg_with_default('dry_run', False),
             'no_fail_fast': get_arg_with_default('no_fail_fast', False),
@@ -819,8 +819,8 @@ class RustTestOrchestrator:
     # check for unused dependencies with cargo-udeps.
     def run_unused_deps(self) -> int:
         commands = [
-            "cargo +nightly-2026-01-07 ci-udeps --all-features",
-            "cargo +nightly-2026-01-07 ci-udeps --no-default-features"
+            "cargo +nightly-2026-06-29 ci-udeps --all-features",
+            "cargo +nightly-2026-06-29 ci-udeps --no-default-features"
         ]
         
         for cmd in commands:

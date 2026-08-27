@@ -5,11 +5,11 @@
 
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 
+use iota_sdk_types::{TransactionDigest, TransactionEffectsDigest};
 use iota_types::{
     base_types::*,
     committee::*,
     crypto::AuthorityPublicKeyBytes,
-    digests::TransactionDigest,
     effects::{SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     fp_ensure,
@@ -25,7 +25,7 @@ use iota_types::{
     messages_safe_client::PlainTransactionInfoResponse,
     transaction::*,
 };
-use prometheus::{
+use prometheus_filtered::{
     Histogram, HistogramVec, IntCounterVec, Registry, core::GenericCounter,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
 };
@@ -86,10 +86,13 @@ impl SafeClientMetricsBase {
 /// Prometheus metrics which can be displayed in Grafana, queried and alerted on
 #[derive(Clone)]
 pub struct SafeClientMetrics {
-    total_requests_handle_transaction_info_request: GenericCounter<prometheus::core::AtomicU64>,
-    total_ok_responses_handle_transaction_info_request: GenericCounter<prometheus::core::AtomicU64>,
-    total_requests_handle_object_info_request: GenericCounter<prometheus::core::AtomicU64>,
-    total_ok_responses_handle_object_info_request: GenericCounter<prometheus::core::AtomicU64>,
+    total_requests_handle_transaction_info_request:
+        GenericCounter<prometheus_filtered::core::AtomicU64>,
+    total_ok_responses_handle_transaction_info_request:
+        GenericCounter<prometheus_filtered::core::AtomicU64>,
+    total_requests_handle_object_info_request: GenericCounter<prometheus_filtered::core::AtomicU64>,
+    total_ok_responses_handle_object_info_request:
+        GenericCounter<prometheus_filtered::core::AtomicU64>,
     handle_transaction_latency: Histogram,
     handle_certificate_latency: Histogram,
     handle_obj_info_latency: Histogram,
@@ -174,17 +177,14 @@ impl SafeClientMetrics {
 /// See `SafeClientMetrics::new` for description of each metrics.
 /// The metrics are per validator client.
 #[derive(Clone)]
-pub struct SafeClient<C>
-where
-    C: Clone,
-{
+pub struct SafeClient<C> {
     authority_client: C,
     committee_store: Arc<CommitteeStore>,
     address: AuthorityPublicKeyBytes,
     metrics: SafeClientMetrics,
 }
 
-impl<C: Clone> SafeClient<C> {
+impl<C> SafeClient<C> {
     pub fn new(
         authority_client: C,
         committee_store: Arc<CommitteeStore>,
@@ -198,9 +198,7 @@ impl<C: Clone> SafeClient<C> {
             metrics,
         }
     }
-}
 
-impl<C: Clone> SafeClient<C> {
     pub fn authority_client(&self) -> &C {
         &self.authority_client
     }
@@ -258,7 +256,7 @@ impl<C: Clone> SafeClient<C> {
     fn check_transaction_info(
         &self,
         digest: &TransactionDigest,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         status: TransactionStatus,
     ) -> IotaResult<PlainTransactionInfoResponse> {
         fp_ensure!(
@@ -335,12 +333,12 @@ impl<C: Clone> SafeClient<C> {
 
 impl<C> SafeClient<C>
 where
-    C: AuthorityAPI + Send + Sync + Clone + 'static,
+    C: AuthorityAPI + Send + Sync + 'static,
 {
     /// Initiate a new transfer to an IOTA or Primary account.
     pub async fn handle_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<PlainTransactionInfoResponse, IotaError> {
         let _timer = self.metrics.handle_transaction_latency.start_timer();
@@ -508,7 +506,7 @@ where
             .handle_transaction_info_request(request.clone())
             .await?;
 
-        let transaction = Transaction::new(transaction_info.transaction);
+        let transaction = TransactionEnvelope::new(transaction_info.transaction);
         let transaction_info = self.check_transaction_info(
             &request.transaction_digest,
             transaction,
@@ -534,7 +532,7 @@ where
     #[instrument(level = "trace", skip_all, fields(authority = ?self.address.concise()))]
     pub async fn submit_tx(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
         client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         let _timer = self.metrics.submit_tx_latency.start_timer();

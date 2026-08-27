@@ -38,9 +38,8 @@ use iota_indexer::{
     },
     read::IndexerReader,
 };
-use iota_sdk_types::Event;
-use iota_types::digests::TransactionDigest;
-use prometheus::{Histogram, IntGauge};
+use iota_sdk_types::{Event, TransactionDigest};
+use prometheus_filtered::{Histogram, IntGauge};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
@@ -809,7 +808,7 @@ impl InMemory {
                 senders: vec![Some(native.sender.as_bytes().to_vec())],
                 package: native.package_id.as_bytes().to_vec(),
                 module: native.module.to_string(),
-                event_type: native.type_.to_canonical_string(with_prefix),
+                event_type: native.struct_tag.to_canonical_string(with_prefix),
                 timestamp_ms: tx.timestamp_ms,
                 bcs: native.contents,
             })

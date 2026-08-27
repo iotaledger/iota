@@ -66,7 +66,6 @@ members = [
   "crates/iota-adapter-transactional-tests",
   "crates/iota-analytics-indexer",
   "crates/iota-analytics-indexer-derive",
-  "crates/iota-archival",
   "crates/iota-authority-aggregation",
   "crates/iota-cluster-test",
   "crates/iota-common",
@@ -80,6 +79,7 @@ members = [
   "crates/iota-faucet",
   "crates/iota-framework",
   "crates/iota-framework-snapshot",
+  "crates/iota-framework-snapshot-manifest",
   "crates/iota-framework-tests",
   "crates/iota-genesis-builder",
   "crates/iota-genesis-common",
@@ -112,6 +112,7 @@ members = [
   "crates/iota-move",
   "crates/iota-move-build",
   "crates/iota-move-lsp",
+  "crates/iota-multiaddr",
   "crates/iota-names",
   "crates/iota-network",
   "crates/iota-network-stack",
@@ -130,13 +131,13 @@ members = [
   "crates/iota-replay",
   "crates/iota-rest-kv",
   "crates/iota-rpc-loadgen",
+  "crates/iota-rust-sdk",
   "crates/iota-sdk",
   "crates/iota-simulator",
   "crates/iota-single-node-benchmark",
   "crates/iota-snapshot",
   "crates/iota-source-validation",
   "crates/iota-source-validation-service",
-  "crates/iota-stardust-types",
   "crates/iota-storage",
   "crates/iota-swarm",
   "crates/iota-swarm-config",
@@ -144,17 +145,21 @@ members = [
   "crates/iota-test-transaction-builder",
   "crates/iota-tls",
   "crates/iota-tool",
+  "crates/iota-traffic-controller",
   "crates/iota-transaction-builder",
   "crates/iota-transaction-checks",
   "crates/iota-transactional-test-runner",
   "crates/iota-types",
   "crates/iota-upgrade-compatibility-transactional-tests",
   "crates/iota-verifier-transactional-tests",
+  "crates/iota-vm-sdk",
   "crates/prometheus-closure-metric",
+  "crates/prometheus-filtered",
   "crates/simulacrum",
   "crates/simulacrum-server",
   "crates/starfish/config",
   "crates/starfish/core",
+  "crates/starfish/dag-visualizer-proto",
   "crates/starfish/simtests",
   "crates/telemetry-subscribers",
   "crates/test-cluster",
@@ -171,7 +176,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.26.0-alpha"
+version = "1.31.0-alpha"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -228,7 +233,7 @@ uninlined_format_args = "warn"
 anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
 anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
 anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
-anyhow = "1.0.71"
+anyhow = "1.0.103"
 arc-swap = { version = "1.7.1", features = ["serde"] }
 async-graphql = { version = "7.1.0", default-features = false }
 async-recursion = "1.0.4"
@@ -265,20 +270,20 @@ derive_more = { version = "1.0", default-features = false }
 diesel = "2.3.5"
 dirs = "5.0"
 downcast = "0.11.0"
-ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 either = "1.8.0"
 enum_dispatch = "^0.3"
 expect-test = "1.4.0"
 eyre = "0.6.8"
-fastcrypto = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9" }
-fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9" }
-fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9", features = ["experimental"] }
-fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "69d496c71fb37e3d22fe85e5bbfd4256d61422b9", package = "fastcrypto-zkp" }
-flate2 = "1.0.28"
+fastcrypto = "=0.1.11"
+# Pinned by revision (a tag can be moved); keep in sync with the fastcrypto version above.
+fastcrypto-tbls = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a" }
+fastcrypto-vdf = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a", features = ["experimental"] }
+fastcrypto-zkp = { git = "https://github.com/MystenLabs/fastcrypto", rev = "47f8f6b747900bbc1662c4d4eecd2f7e7a29e16a", package = "fastcrypto-zkp" }
 fs_extra = "1.3.0"
 futures = "0.3.28"
-getset = "0.1"
+getrandom = { version = "0.2", features = ["js"] }
 git-version = "0.3.5"
+hdrhistogram = "7.5.4"
 hex = "0.4.3"
 http = "1"
 http-body = "1.0"
@@ -286,7 +291,6 @@ http-body-util = "0.1.2"
 humantime = "2.1.0"
 hyper = "1"
 hyper-util = { version = "0.1.20", features = ["tokio", "server-auto", "service"] }
-im = "15"
 indexmap = { version = "2.11.0", features = ["serde"] }
 indicatif = "0.18.3"
 insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }
@@ -297,8 +301,7 @@ jsonrpsee = { version = "0.24", features = ["server", "macros", "client", "ws-cl
 lru = "0.12"
 mockall = "0.11.4"
 moka = { version = "0.12.12", default-features = false, features = ["sync"] }
-more-asserts = "0.3.1"
-msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.52.2", package = "msim" }
+msim = { git = "https://github.com/iotaledger/iota-sim.git", branch = "tokio-1.53.1", package = "msim" }
 multiaddr = "0.18.2"
 nonempty = "0.9.0"
 num_cpus = "1.15.0"
@@ -316,9 +319,9 @@ prefix-hex = { version = "0.7.1", default-features = false }
 pretty_assertions = { version = "1.4.0" }
 primitive-types = { version = "0.12.2", default-features = false }
 proc-macro2 = "1.0.95"
-prometheus = "0.14.0"
 proptest = "1.6.0"
 prost = "0.14"
+prost-build = "0.14"
 prost-types = "0.14"
 quote = "1.0.23"
 rand = "0.8.5"
@@ -345,6 +348,7 @@ static_assertions = "1.1.0"
 strum = { version = "0.27.1", features = ["derive"] }
 strum_macros = "0.27.1"
 syn = { version = "1.0.104", features = ["full", "derive", "extra-traits"] }
+sysinfo = "0.39"
 tabled = { version = "0.12" }
 tap = "1.0.1"
 tempfile = "3.20.0"
@@ -352,7 +356,7 @@ test-fuzz = "3.0.4"
 thiserror = "1.0.40"
 # tokio is defined at a specific version to support patching with iota-sim
 # Do not upgrade without updating https://github.com/iotaledger/iota-sim first
-tokio = { version = "1.52.2", features = ["parking_lot"] }
+tokio = { version = "1.53.1", features = ["parking_lot"] }
 tokio-rustls = { version = "0.26.4", default-features = false, features = ["tls12", "ring"] }
 tokio-stream = { version = "0.1.18", features = ["sync", "net"] }
 tokio-util = "0.7.18"
@@ -370,11 +374,11 @@ uuid = { version = "1.1.2", features = ["v4", "fast-rng"] }
 
 # internal dependencies
 bin-version = { path = "crates/bin-version" }
+dag-visualizer-proto = { path = "crates/starfish/dag-visualizer-proto" }
 iota = { path = "crates/iota" }
 iota-adapter-transactional-tests = { path = "crates/iota-adapter-transactional-tests" }
 iota-analytics-indexer = { path = "crates/iota-analytics-indexer" }
 iota-analytics-indexer-derive = { path = "crates/iota-analytics-indexer-derive" }
-iota-archival = { path = "crates/iota-archival" }
 iota-authority-aggregation = { path = "crates/iota-authority-aggregation" }
 iota-cluster-test = { path = "crates/iota-cluster-test" }
 iota-common = { path = "crates/iota-common", default-features = false }
@@ -389,6 +393,7 @@ iota-execution = { path = "iota-execution" }
 iota-faucet = { path = "crates/iota-faucet" }
 iota-framework = { path = "crates/iota-framework" }
 iota-framework-snapshot = { path = "crates/iota-framework-snapshot" }
+iota-framework-snapshot-manifest = { path = "crates/iota-framework-snapshot-manifest" }
 iota-framework-tests = { path = "crates/iota-framework-tests" }
 iota-genesis-builder = { path = "crates/iota-genesis-builder" }
 iota-genesis-common = { path = "crates/iota-genesis-common" }
@@ -396,9 +401,9 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "0e26cd0dfabe4b99b47fb7846450b1d323db221f" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "5bab9e1f86e54d1065aef43567f604073607a077" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
-iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "0e26cd0dfabe4b99b47fb7846450b1d323db221f" }
+iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "5bab9e1f86e54d1065aef43567f604073607a077" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -420,6 +425,7 @@ iota-metrics-push-client = { path = "crates/iota-metrics-push-client" }
 iota-move = { path = "crates/iota-move" }
 iota-move-build = { path = "crates/iota-move-build" }
 iota-move-lsp = { path = "crates/iota-move-lsp" }
+iota-multiaddr = { path = "crates/iota-multiaddr" }
 iota-names = { path = "crates/iota-names" }
 iota-network = { path = "crates/iota-network" }
 iota-network-stack = { path = "crates/iota-network-stack" }
@@ -437,13 +443,14 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0e26cd0dfabe4b99b47fb7846450b1d323db221f", default-features = false }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0e26cd0dfabe4b99b47fb7846450b1d323db221f", default-features = false }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "5bab9e1f86e54d1065aef43567f604073607a077", default-features = false }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "5bab9e1f86e54d1065aef43567f604073607a077", default-features = false }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "5bab9e1f86e54d1065aef43567f604073607a077", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "5bab9e1f86e54d1065aef43567f604073607a077", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
 iota-source-validation-service = { path = "crates/iota-source-validation-service" }
-iota-stardust-types = { path = "crates/iota-stardust-types" }
 iota-storage = { path = "crates/iota-storage" }
 iota-swarm = { path = "crates/iota-swarm" }
 iota-swarm-config = { path = "crates/iota-swarm-config" }
@@ -451,12 +458,14 @@ iota-synthetic-ingestion = { path = "crates/iota-synthetic-ingestion" }
 iota-test-transaction-builder = { path = "crates/iota-test-transaction-builder" }
 iota-tls = { path = "crates/iota-tls" }
 iota-tool = { path = "crates/iota-tool" }
+iota-traffic-controller = { path = "crates/iota-traffic-controller" }
 iota-transaction-builder = { path = "crates/iota-transaction-builder" }
 iota-transaction-checks = { path = "crates/iota-transaction-checks" }
 iota-transactional-test-runner = { path = "crates/iota-transactional-test-runner" }
 iota-types = { path = "crates/iota-types" }
 iota-upgrade-compatibility-transactional-tests = { path = "crates/iota-upgrade-compatibility-transactional-tests" }
 iota-verifier-transactional-tests = { path = "crates/iota-verifier-transactional-tests" }
+iota-vm-sdk = { path = "crates/iota-vm-sdk" }
 move-abstract-interpreter = { path = "external-crates/move/crates/move-abstract-interpreter" }
 move-abstract-stack = { path = "external-crates/move/crates/move-abstract-stack" }
 move-analyzer = { path = "external-crates/move/crates/move-analyzer" }
@@ -482,6 +491,7 @@ move-vm-config = { path = "external-crates/move/crates/move-vm-config" }
 move-vm-profiler = { path = "external-crates/move/crates/move-vm-profiler" }
 move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/", features = ["tiered-gas"] }
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
+prometheus-filtered = { path = "crates/prometheus-filtered" }
 simulacrum = { path = "crates/simulacrum" }
 simulacrum-server = { path = "crates/simulacrum-server" }
 starfish-config = { path = "crates/starfish/config" }
@@ -493,3 +503,9 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
 typed-store = { path = "crates/typed-store" }
 typed-store-derive = { path = "crates/typed-store-derive" }
 typed-store-error = { path = "crates/typed-store-error" }
+
+# fastcrypto-tbls/-vdf/-zkp are only on git (vdf unpublished, tbls stale) and
+# pull fastcrypto via an in-repo path dep. Redirect it to the crates.io release
+# so the workspace shares a single fastcrypto instead of two conflicting copies.
+[patch."https://github.com/MystenLabs/fastcrypto"]
+fastcrypto = "=0.1.11"

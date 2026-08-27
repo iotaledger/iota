@@ -5,51 +5,60 @@
 mod causal_order;
 pub mod checkpoint_executor;
 mod checkpoint_output;
+mod epoch_info;
+mod full_checkpoint_contents_cache;
 mod metrics;
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fs::File,
+    future::Future,
     io::Write,
     path::Path,
+    pin::Pin,
     sync::{Arc, Weak},
+    task::{Context, Poll},
     time::{Duration, SystemTime},
 };
 
 use diffy::create_patch;
-use iota_common::{debug_fatal, fatal, random::get_rng, sync::notify_read::NotifyRead};
-use iota_macros::fail_point;
+use iota_common::{
+    debug_fatal, fatal,
+    random::get_rng,
+    sync::notify_read::{CHECKPOINT_BUILDER_NOTIFY_READ_TASK_NAME, NotifyRead},
+};
 use iota_metrics::{MonitoredFutureExt, monitored_future, monitored_scope};
 use iota_network::default_iota_network_config;
-use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{GasCostSummary, TransactionKind};
+use iota_sdk_types::{
+    CheckpointContentsDigest, CheckpointDigest, GasCostSummary, TransactionDigest,
+    TransactionEffects, TransactionKind, UserSignature,
+    checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary, EndOfEpochData},
+};
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, EpochId, TransactionDigest},
+    base_types::{AuthorityName, ConciseableName, EpochId, ExecutionData},
     committee::StakeUnit,
     crypto::AuthorityStrongQuorumSignInfo,
-    digests::{CheckpointContentsDigest, CheckpointDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{IotaError, IotaResult},
     event::SystemEpochInfoEvent,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
-    message_envelope::Message,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointCommitment, CheckpointContents, CheckpointRequest,
-        CheckpointResponse, CheckpointSequenceNumber, CheckpointSignatureMessage,
-        CheckpointSummary, CheckpointSummaryResponse, CheckpointTimestamp, EndOfEpochData,
-        FullCheckpointContents, SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint,
-        VerifiedCheckpointContents,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointRequest, CheckpointResponse,
+        CheckpointSequenceNumber, CheckpointSignatureMessage, CheckpointSummaryExt,
+        CheckpointSummaryResponse, CheckpointTimestamp, FullCheckpointContents,
+        SignedCheckpointSummary, TrustedCheckpoint, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
     messages_consensus::ConsensusTransactionKey,
-    signature::GenericSignature,
-    transaction::{TransactionDataAPI, TransactionKey},
+    storage::EpochInfoV2,
+    transaction::{TransactionAPI, TransactionEnvelope, TransactionKey},
 };
 use itertools::Itertools;
 use nonempty::NonEmpty;
 use parking_lot::Mutex;
+use pin_project_lite::pin_project;
 use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use tokio::{
@@ -66,6 +75,9 @@ use typed_store::{
 pub use crate::checkpoints::{
     checkpoint_output::{
         LogCheckpointOutput, SendCheckpointToStateSync, SubmitCheckpointToConsensus,
+    },
+    full_checkpoint_contents_cache::{
+        FullCheckpointContentsCache, FullCheckpointContentsCacheMetrics,
     },
     metrics::CheckpointMetrics,
 };
@@ -154,17 +166,21 @@ pub struct CheckpointStoreTables {
     /// Maps checkpoint contents digest to checkpoint contents
     pub(crate) checkpoint_content: DBMap<CheckpointContentsDigest, CheckpointContents>,
 
-    /// Maps checkpoint contents digest to checkpoint sequence number.
-    /// Entries from this table are deleted after state accumulation has
-    /// completed together with the corresponding full_checkpoint_content.
-    pub(crate) checkpoint_sequence_by_contents_digest:
-        DBMap<CheckpointContentsDigest, CheckpointSequenceNumber>,
+    /// Deprecated: the contents-digest to sequence-number mapping moved to
+    /// the in-memory [`FullCheckpointContentsCache`]. Dropped on open; not
+    /// migrated (entries were a short-lived cache).
+    #[allow(dead_code)]
+    #[deprecated_db_map]
+    checkpoint_sequence_by_contents_digest: Option<DBMap<(), ()>>,
 
-    /// Stores entire checkpoint contents from state sync, indexed by sequence
-    /// number, for efficient reads of full checkpoints. Entries from this
-    /// table are deleted after state accumulation has completed. See
-    /// NUM_SAVED_FULL_CHECKPOINT_CONTENTS.
-    full_checkpoint_content: DBMap<CheckpointSequenceNumber, FullCheckpointContents>,
+    /// Deprecated: full checkpoint contents moved to the in-memory
+    /// [`FullCheckpointContentsCache`]. Dropped on open; not migrated
+    /// (entries were a short-lived cache, and readers can reconstruct full
+    /// contents from `checkpoint_content` plus the transaction and effects
+    /// stores).
+    #[allow(dead_code)]
+    #[deprecated_db_map]
+    full_checkpoint_content: Option<DBMap<(), ()>>,
 
     /// Stores certified checkpoints
     pub(crate) certified_checkpoints: DBMap<CheckpointSequenceNumber, TrustedCheckpoint>,
@@ -178,7 +194,31 @@ pub struct CheckpointStoreTables {
 
     /// A map from epoch ID to the sequence number of the last checkpoint in
     /// that epoch.
+    ///
+    /// Written at certification time, before the boundary executes, so it
+    /// records the closing sequence number independently of the later-finalized
+    /// `epoch_info` row. Never pruned.
     epoch_last_checkpoint_map: DBMap<EpochId, CheckpointSequenceNumber>,
+
+    /// Per-epoch verified data (start-of-epoch identity plus its close-of-epoch
+    /// proof bundle ([`EpochInfoV2`])) keyed by epoch ID. Populated at every
+    /// epoch boundary by the checkpoint executor and seeded from a formal
+    /// snapshot's `EPOCH_INFO` on restore.
+    ///
+    /// Intentionally not pruned: callers (the snapshot writer, the gRPC API,
+    /// etc.) need full `[0, snapshot_epoch]` coverage, so
+    /// this table grows unboundedly with epoch count (one row per epoch, ever)
+    /// by design. Do not add it to `prune_checkpoints`.
+    ///
+    /// Completeness is tracked by `epoch_info_watermark`.
+    epoch_info: DBMap<EpochId, EpochInfoV2>,
+
+    /// Highest epoch whose `epoch_info` row is finalized (close-of-epoch proof
+    /// present), as a contiguous prefix `[0, watermark]`. Singleton keyed by
+    /// `()`. Advanced atomically with the close-of-epoch upsert in
+    /// `index_epoch`, and recomputed over a seeded prefix by
+    /// `insert_epoch_info`; only ever raised. Never pruned.
+    epoch_info_watermark: DBMap<(), EpochId>,
 
     /// Watermarks used to determine the highest verified, fully synced, and
     /// fully executed checkpoints
@@ -201,15 +241,24 @@ impl CheckpointStoreTables {
 
 pub struct CheckpointStore {
     pub(crate) tables: CheckpointStoreTables,
+    full_checkpoint_contents_cache: FullCheckpointContentsCache,
     synced_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
     executed_checkpoint_notify_read: NotifyRead<CheckpointSequenceNumber, VerifiedCheckpoint>,
 }
 
 impl CheckpointStore {
     pub fn new(path: &Path) -> Arc<Self> {
+        Self::new_with_contents_cache(path, FullCheckpointContentsCache::default())
+    }
+
+    pub fn new_with_contents_cache(
+        path: &Path,
+        contents_cache: FullCheckpointContentsCache,
+    ) -> Arc<Self> {
         let tables = CheckpointStoreTables::new(path, "checkpoint");
         Arc::new(Self {
             tables,
+            full_checkpoint_contents_cache: contents_cache,
             synced_checkpoint_notify_read: NotifyRead::new(),
             executed_checkpoint_notify_read: NotifyRead::new(),
         })
@@ -218,15 +267,6 @@ impl CheckpointStore {
     pub fn new_for_tests() -> Arc<Self> {
         let storage_dir = iota_common::tempdir().keep();
         CheckpointStore::new(storage_dir.as_path())
-    }
-
-    pub fn new_for_db_checkpoint_handler(path: &Path) -> Arc<Self> {
-        let tables = CheckpointStoreTables::new(path, "db_checkpoint");
-        Arc::new(Self {
-            tables,
-            synced_checkpoint_notify_read: NotifyRead::new(),
-            executed_checkpoint_notify_read: NotifyRead::new(),
-        })
     }
 
     pub fn open_readonly(path: &Path) -> CheckpointStoreTablesReadOnly {
@@ -246,7 +286,7 @@ impl CheckpointStore {
             "can't call insert_genesis_checkpoint with a checkpoint not in epoch 0"
         );
         assert_eq!(
-            *checkpoint.sequence_number(),
+            checkpoint.sequence_number(),
             0,
             "can't call insert_genesis_checkpoint with a checkpoint that doesn't have a sequence number of 0"
         );
@@ -304,26 +344,17 @@ impl CheckpointStore {
             .get(&sequence_number)
     }
 
-    /// Get checkpoint sequence number by contents digest.
+    /// Get full checkpoint contents by contents digest from the in-memory
+    /// contents cache.
     ///
-    /// Entries from this table are deleted after state accumulation has
-    /// completed together with the corresponding full_checkpoint_content.
-    pub fn get_sequence_number_by_contents_digest(
+    /// Returns `None` once the entry has been evicted; callers reconstruct
+    /// full contents from `checkpoint_content` and the transaction and
+    /// effects stores instead.
+    pub fn get_full_checkpoint_contents_by_digest(
         &self,
         digest: &CheckpointContentsDigest,
-    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
-        self.tables
-            .checkpoint_sequence_by_contents_digest
-            .get(digest)
-    }
-
-    pub fn delete_contents_digest_sequence_number_mapping(
-        &self,
-        digest: &CheckpointContentsDigest,
-    ) -> Result<(), TypedStoreError> {
-        self.tables
-            .checkpoint_sequence_by_contents_digest
-            .remove(digest)
+    ) -> Option<Arc<FullCheckpointContents>> {
+        self.full_checkpoint_contents_cache.get_by_digest(digest)
     }
 
     pub fn get_latest_certified_checkpoint(
@@ -332,7 +363,7 @@ impl CheckpointStore {
         Ok(self
             .tables
             .certified_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(_, v)| v.into()))
@@ -344,7 +375,7 @@ impl CheckpointStore {
         Ok(self
             .tables
             .locally_computed_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(_, v)| v))
@@ -461,18 +492,22 @@ impl CheckpointStore {
         self.tables.checkpoint_content.get(digest)
     }
 
+    /// Get full checkpoint contents from the in-memory contents cache.
+    ///
+    /// Returns `None` once the entry has been evicted; callers fall back to
+    /// loading the individual transactions and effects from their stores.
     pub fn get_full_checkpoint_contents_by_sequence_number(
         &self,
         seq: CheckpointSequenceNumber,
-    ) -> Result<Option<FullCheckpointContents>, TypedStoreError> {
-        self.tables.full_checkpoint_content.get(&seq)
+    ) -> Option<Arc<FullCheckpointContents>> {
+        self.full_checkpoint_contents_cache.get_by_seq(seq)
     }
 
     fn prune_local_summaries(&self) -> IotaResult {
         if let Some((last_local_summary, _)) = self
             .tables
             .locally_computed_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
         {
@@ -496,41 +531,41 @@ impl CheckpointStore {
     ) {
         if local_checkpoint != verified_checkpoint.data() {
             let verified_contents = self
-                .get_checkpoint_contents(&verified_checkpoint.content_digest)
+                .get_checkpoint_contents(&verified_checkpoint.contents_digest)
                 .map(|opt_contents| {
                     opt_contents
                         .map(|contents| format!("{contents:?}"))
                         .unwrap_or_else(|| {
                             format!(
                                 "Verified checkpoint contents not found, digest: {:?}",
-                                verified_checkpoint.content_digest,
+                                verified_checkpoint.contents_digest,
                             )
                         })
                 })
                 .map_err(|e| {
                     format!(
                         "Failed to get verified checkpoint contents, digest: {:?} error: {:?}",
-                        verified_checkpoint.content_digest, e
+                        verified_checkpoint.contents_digest, e
                     )
                 })
                 .unwrap_or_else(|err_msg| err_msg);
 
             let local_contents = self
-                .get_checkpoint_contents(&local_checkpoint.content_digest)
+                .get_checkpoint_contents(&local_checkpoint.contents_digest)
                 .map(|opt_contents| {
                     opt_contents
                         .map(|contents| format!("{contents:?}"))
                         .unwrap_or_else(|| {
                             format!(
                                 "Local checkpoint contents not found, digest: {:?}",
-                                local_checkpoint.content_digest
+                                local_checkpoint.contents_digest
                             )
                         })
                 })
                 .map_err(|e| {
                     format!(
                         "Failed to get local checkpoint contents, digest: {:?} error: {:?}",
-                        local_checkpoint.content_digest, e
+                        local_checkpoint.contents_digest, e
                     )
                 })
                 .unwrap_or_else(|err_msg| err_msg);
@@ -559,34 +594,54 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
+        self.multi_insert_certified_checkpoints(std::slice::from_ref(checkpoint))
+    }
+
+    /// Inserts a batch of certified checkpoints in a single write, like
+    /// [`Self::insert_certified_checkpoint`] for each of them.
+    pub fn multi_insert_certified_checkpoints(
+        &self,
+        checkpoints: &[VerifiedCheckpoint],
+    ) -> Result<(), TypedStoreError> {
+        let Some(last) = checkpoints.last() else {
+            return Ok(());
+        };
         debug!(
-            checkpoint_seq = checkpoint.sequence_number(),
-            "Inserting certified checkpoint",
+            checkpoint_seq = last.sequence_number(),
+            count = checkpoints.len(),
+            "Inserting certified checkpoints",
         );
         let mut batch = self.tables.certified_checkpoints.batch();
         batch
             .insert_batch(
                 &self.tables.certified_checkpoints,
-                [(checkpoint.sequence_number(), checkpoint.serializable_ref())],
+                checkpoints
+                    .iter()
+                    .map(|c| (c.sequence_number(), c.serializable_ref())),
             )?
             .insert_batch(
                 &self.tables.checkpoint_by_digest,
-                [(checkpoint.digest(), checkpoint.serializable_ref())],
-            )?;
-        if checkpoint.next_epoch_committee().is_some() {
-            batch.insert_batch(
+                checkpoints
+                    .iter()
+                    .map(|c| (c.digest(), c.serializable_ref())),
+            )?
+            .insert_batch(
                 &self.tables.epoch_last_checkpoint_map,
-                [(&checkpoint.epoch(), checkpoint.sequence_number())],
+                checkpoints
+                    .iter()
+                    .filter(|c| c.next_epoch_committee().is_some())
+                    .map(|c| (c.epoch(), c.sequence_number())),
             )?;
-        }
         batch.write()?;
 
-        if let Some(local_checkpoint) = self
-            .tables
-            .locally_computed_checkpoints
-            .get(checkpoint.sequence_number())?
-        {
-            self.check_for_checkpoint_fork(&local_checkpoint, checkpoint);
+        for checkpoint in checkpoints {
+            if let Some(local_checkpoint) = self
+                .tables
+                .locally_computed_checkpoints
+                .get(&checkpoint.sequence_number())?
+            {
+                self.check_for_checkpoint_fork(&local_checkpoint, checkpoint);
+            }
         }
 
         Ok(())
@@ -607,10 +662,10 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        if Some(*checkpoint.sequence_number())
+        if Some(checkpoint.sequence_number())
             > self
                 .get_highest_verified_checkpoint()?
-                .map(|x| *x.sequence_number())
+                .map(|x| x.sequence_number())
         {
             debug!(
                 checkpoint_seq = checkpoint.sequence_number(),
@@ -618,7 +673,7 @@ impl CheckpointStore {
             );
             self.tables.watermarks.insert(
                 &CheckpointWatermark::HighestVerified,
-                &(*checkpoint.sequence_number(), *checkpoint.digest()),
+                &(checkpoint.sequence_number(), *checkpoint.digest()),
             )?;
         }
 
@@ -629,13 +684,31 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        let seq = *checkpoint.sequence_number();
-        debug!(checkpoint_seq = seq, "Updating highest synced checkpoint",);
+        self.multi_update_highest_synced_checkpoint(std::slice::from_ref(checkpoint))
+    }
+
+    /// Marks a consecutive run of checkpoints as synced: writes the watermark
+    /// once, for the last checkpoint, but notifies waiters of every
+    /// checkpoint in the run.
+    pub fn multi_update_highest_synced_checkpoint(
+        &self,
+        checkpoints: &[VerifiedCheckpoint],
+    ) -> Result<(), TypedStoreError> {
+        let Some(last) = checkpoints.last() else {
+            return Ok(());
+        };
+        debug!(
+            checkpoint_seq = last.sequence_number(),
+            "Updating highest synced checkpoint",
+        );
         self.tables.watermarks.insert(
             &CheckpointWatermark::HighestSynced,
-            &(seq, *checkpoint.digest()),
+            &(last.sequence_number(), *last.digest()),
         )?;
-        self.synced_checkpoint_notify_read.notify(&seq, checkpoint);
+        for checkpoint in checkpoints {
+            self.synced_checkpoint_notify_read
+                .notify(&checkpoint.sequence_number(), checkpoint);
+        }
         Ok(())
     }
 
@@ -651,7 +724,7 @@ impl CheckpointStore {
         type ReadResult = Result<Vec<Option<VerifiedCheckpoint>>, TypedStoreError>;
 
         notify_read
-            .read(&[seq], |seqs| {
+            .read("notify_read_checkpoint_watermark", &[seq], |seqs| {
                 let seq = seqs[0];
                 let Some(highest) = get_watermark() else {
                     return Ok(vec![None]) as ReadResult;
@@ -699,18 +772,18 @@ impl CheckpointStore {
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
         if let Some(seq_number) = self.get_highest_executed_checkpoint_seq_number()? {
-            if seq_number >= *checkpoint.sequence_number() {
+            if seq_number >= checkpoint.sequence_number() {
                 return Ok(());
             }
             assert_eq!(
                 seq_number + 1,
-                *checkpoint.sequence_number(),
+                checkpoint.sequence_number(),
                 "Cannot update highest executed checkpoint to {} when current highest executed checkpoint is {}",
                 checkpoint.sequence_number(),
                 seq_number
             );
         }
-        let seq = *checkpoint.sequence_number();
+        let seq = checkpoint.sequence_number();
         debug!(checkpoint_seq = seq, "Updating highest executed checkpoint",);
         self.tables.watermarks.insert(
             &CheckpointWatermark::HighestExecuted,
@@ -727,7 +800,7 @@ impl CheckpointStore {
     ) -> Result<(), TypedStoreError> {
         self.tables.watermarks.insert(
             &CheckpointWatermark::HighestPruned,
-            &(*checkpoint.sequence_number(), *checkpoint.digest()),
+            &(checkpoint.sequence_number(), *checkpoint.digest()),
         )
     }
 
@@ -742,7 +815,7 @@ impl CheckpointStore {
     ) -> Result<(), TypedStoreError> {
         self.tables.watermarks.insert(
             &CheckpointWatermark::HighestExecuted,
-            &(*checkpoint.sequence_number(), *checkpoint.digest()),
+            &(checkpoint.sequence_number(), *checkpoint.digest()),
         )
     }
 
@@ -756,59 +829,125 @@ impl CheckpointStore {
         );
         self.tables
             .checkpoint_content
-            .insert(contents.digest(), &contents)
+            .insert(&contents.digest(), &contents)
     }
 
-    /// Inserts the full checkpoint contents along with the mapping from
-    /// contents digest to sequence number, and the checkpoint contents.
+    /// Persists the checkpoint contents in digest form and caches the full
+    /// contents in memory, where they serve the checkpoint executor's bulk
+    /// transaction loads and contents requests from state-sync peers.
     ///
-    /// The entries for mapping the contents digest to sequence number,
-    /// and the full_checkpoint_content are deleted after state accumulation has
-    /// completed. See NUM_SAVED_FULL_CHECKPOINT_CONTENTS.
+    /// INVARIANT: See [`Self::cache_full_checkpoint_contents`].
     pub fn insert_verified_checkpoint_contents(
         &self,
         checkpoint: &VerifiedCheckpoint,
         full_contents: VerifiedCheckpointContents,
     ) -> Result<(), TypedStoreError> {
-        let mut batch = self.tables.full_checkpoint_content.batch();
-        batch.insert_batch(
-            &self.tables.checkpoint_sequence_by_contents_digest,
-            [(&checkpoint.content_digest, checkpoint.sequence_number())],
-        )?;
-        let full_contents = full_contents.into_inner();
-        batch.insert_batch(
-            &self.tables.full_checkpoint_content,
-            [(checkpoint.sequence_number(), &full_contents)],
-        )?;
-
-        let contents = full_contents.into_checkpoint_contents();
-        assert_eq!(&checkpoint.content_digest, contents.digest());
-
-        batch.insert_batch(
-            &self.tables.checkpoint_content,
-            [(contents.digest(), &contents)],
-        )?;
-
-        batch.write()
+        self.multi_insert_verified_checkpoint_contents(vec![(checkpoint.clone(), full_contents)])
     }
 
-    pub fn delete_full_checkpoint_contents(
+    /// Batch variant of [`Self::insert_verified_checkpoint_contents`]:
+    /// persists all contents rows in a single write, then caches the full
+    /// contents.
+    ///
+    /// INVARIANT: See [`Self::cache_full_checkpoint_contents`].
+    pub fn multi_insert_verified_checkpoint_contents(
         &self,
-        seq: CheckpointSequenceNumber,
+        checkpoints: Vec<(VerifiedCheckpoint, VerifiedCheckpointContents)>,
     ) -> Result<(), TypedStoreError> {
-        self.tables.full_checkpoint_content.remove(&seq)
+        let checkpoints: Vec<_> = checkpoints
+            .into_iter()
+            .map(|(checkpoint, full_contents)| (checkpoint, full_contents.into_inner()))
+            .collect();
+
+        let mut batch = self.tables.checkpoint_content.batch();
+        for (checkpoint, full_contents) in &checkpoints {
+            let contents = full_contents.checkpoint_contents();
+            assert_eq!(checkpoint.contents_digest, contents.digest());
+            batch.insert_batch(
+                &self.tables.checkpoint_content,
+                [(contents.digest(), contents)],
+            )?;
+        }
+        batch.write()?;
+
+        for (checkpoint, full_contents) in checkpoints {
+            self.cache_full_checkpoint_contents(
+                checkpoint.sequence_number(),
+                checkpoint.contents_digest,
+                full_contents,
+            );
+        }
+        Ok(())
+    }
+
+    /// Whether [`Self::cache_full_checkpoint_contents`] would retain contents
+    /// for this sequence number, so callers can skip assembling contents that
+    /// the cache would reject (disabled cache, or an entry the lowest-seq
+    /// eviction would remove immediately).
+    pub fn should_cache_full_checkpoint_contents(&self, seq: CheckpointSequenceNumber) -> bool {
+        self.full_checkpoint_contents_cache.should_cache(seq)
+    }
+
+    /// Caches full checkpoint contents in memory without writing anything to
+    /// disk, so state-sync peers can be served without reconstructing the
+    /// contents. `contents_digest` must be the digest of `full_contents`.
+    ///
+    /// INVARIANT: The caller must have durably written the matching
+    /// `checkpoint_content` row (and the contained transactions and
+    /// effects) first for two reasons:
+    /// 1. once the cache evicts the entry (or after a restart), readers
+    ///    reconstruct the full contents from those stores.
+    /// 2. state-sync treats available contents as proof of that row and skips
+    ///    its own durable write, and the checkpoint executor panics on a
+    ///    missing row.
+    ///
+    /// Best-effort: a serialization failure is logged and the insert skipped;
+    /// readers fall back to reconstructing the contents from the durable
+    /// stores.
+    pub fn cache_full_checkpoint_contents(
+        &self,
+        sequence_number: CheckpointSequenceNumber,
+        contents_digest: CheckpointContentsDigest,
+        full_contents: FullCheckpointContents,
+    ) {
+        let size = match bcs::serialized_size(&full_contents) {
+            Ok(size) => size,
+            Err(e) => {
+                warn!(
+                    sequence_number,
+                    "failed to serialize full checkpoint contents for caching: {e}"
+                );
+                return;
+            }
+        };
+        self.full_checkpoint_contents_cache.insert(
+            sequence_number,
+            contents_digest,
+            Arc::new(full_contents),
+            size,
+        );
     }
 
     pub fn get_epoch_last_checkpoint(
         &self,
         epoch_id: EpochId,
     ) -> IotaResult<Option<VerifiedCheckpoint>> {
-        let seq = self.tables.epoch_last_checkpoint_map.get(&epoch_id)?;
+        let seq = self.get_epoch_last_checkpoint_seq_number(epoch_id)?;
         let checkpoint = match seq {
             Some(seq) => self.get_checkpoint_by_sequence_number(seq)?,
             None => None,
         };
         Ok(checkpoint)
+    }
+
+    /// Sequence number of `epoch_id`'s last checkpoint. Unlike
+    /// [`Self::get_epoch_last_checkpoint`], this does not require the summary
+    /// itself to still be present: the underlying map is never pruned.
+    pub fn get_epoch_last_checkpoint_seq_number(
+        &self,
+        epoch_id: EpochId,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        self.tables.epoch_last_checkpoint_map.get(&epoch_id)
     }
 
     pub fn insert_epoch_last_checkpoint(
@@ -818,7 +957,7 @@ impl CheckpointStore {
     ) -> IotaResult {
         self.tables
             .epoch_last_checkpoint_map
-            .insert(&epoch_id, checkpoint.sequence_number())?;
+            .insert(&epoch_id, &checkpoint.sequence_number())?;
         Ok(())
     }
 
@@ -862,29 +1001,6 @@ impl CheckpointStore {
                 .epoch_rolling_gas_cost_summary
                 .computation_cost,
         })
-    }
-
-    pub fn checkpoint_db(&self, path: &Path) -> IotaResult {
-        // This checkpoints the entire db and not one column family
-        self.tables
-            .checkpoint_content
-            .checkpoint_db(path)
-            .map_err(Into::into)
-    }
-
-    pub fn delete_highest_executed_checkpoint_test_only(&self) -> Result<(), TypedStoreError> {
-        let mut wb = self.tables.watermarks.batch();
-        wb.delete_batch(
-            &self.tables.watermarks,
-            std::iter::once(CheckpointWatermark::HighestExecuted),
-        )?;
-        wb.write()?;
-        Ok(())
-    }
-
-    pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
-        self.delete_highest_executed_checkpoint_test_only()?;
-        Ok(())
     }
 }
 
@@ -932,6 +1048,33 @@ impl CheckpointStateHasher {
         }
     }
 }
+
+/// A checkpoint produced by [`CheckpointBuilder::create_checkpoints`],
+/// written and cached by [`CheckpointBuilder::write_checkpoints`].
+struct BuiltCheckpoint {
+    summary: CheckpointSummary,
+    contents: CheckpointContents,
+    /// Full contents for the in-memory cache, assembled only when the cache
+    /// would retain them.
+    full_contents: Option<FullCheckpointContents>,
+}
+
+#[derive(Debug)]
+pub enum CheckpointBuilderError {
+    ChangeEpochTxAlreadyExecuted,
+    SystemPackagesMissing,
+    Retry(anyhow::Error),
+}
+
+impl<IotaError: std::error::Error + Send + Sync + 'static> From<IotaError>
+    for CheckpointBuilderError
+{
+    fn from(e: IotaError) -> Self {
+        Self::Retry(e.into())
+    }
+}
+
+pub type CheckpointBuilderResult<T = ()> = Result<T, CheckpointBuilderError>;
 
 pub struct CheckpointBuilder {
     state: Arc<AuthorityState>,
@@ -1022,13 +1165,29 @@ impl CheckpointBuilder {
         }
         info!("Starting CheckpointBuilder");
         loop {
-            self.maybe_build_checkpoints().await;
+            match self.maybe_build_checkpoints().await {
+                Ok(()) => {}
+                err @ Err(
+                    CheckpointBuilderError::ChangeEpochTxAlreadyExecuted
+                    | CheckpointBuilderError::SystemPackagesMissing,
+                ) => {
+                    info!("CheckpointBuilder stopping: {:?}", err);
+                    return;
+                }
+                Err(CheckpointBuilderError::Retry(inner)) => {
+                    let msg = format!("{inner:?}");
+                    debug_fatal!("Error while making checkpoint, will retry in 1s: {}", msg);
+                    tokio::time::sleep(Duration::from_secs(1)).await;
+                    self.metrics.checkpoint_errors.inc();
+                    continue;
+                }
+            }
 
             self.notify.notified().await;
         }
     }
 
-    async fn maybe_build_checkpoints(&mut self) {
+    async fn maybe_build_checkpoints(&mut self) -> CheckpointBuilderResult {
         let _scope = monitored_scope("BuildCheckpoints");
 
         // Collect info about the most recently built checkpoint.
@@ -1036,14 +1195,21 @@ impl CheckpointBuilder {
             .epoch_store
             .last_built_checkpoint_builder_summary()
             .expect("epoch should not have ended");
-        let mut last_height = summary.clone().and_then(|s| s.checkpoint_height);
-        let mut last_timestamp = summary.map(|s| s.summary.timestamp_ms);
+        let mut last_height = summary.as_ref().and_then(|s| s.checkpoint_height);
+        let mut last_timestamp = summary.as_ref().map(|s| s.summary.timestamp_ms);
+        let mut last_seq = summary.map(|s| s.summary.sequence_number);
 
         let min_checkpoint_interval_ms = self
             .epoch_store
             .protocol_config()
             .min_checkpoint_interval_ms_as_option()
             .unwrap_or_default();
+        // When set, the interval may additionally be amortized over this many
+        // recent checkpoints of the current epoch.
+        let checkpoint_rate_window_size = self
+            .epoch_store
+            .protocol_config()
+            .checkpoint_rate_window_size_as_option();
         let mut grouped_pending_checkpoints = Vec::new();
         let mut checkpoints_iter = self
             .epoch_store
@@ -1052,17 +1218,44 @@ impl CheckpointBuilder {
             .into_iter()
             .peekable();
         while let Some((height, pending)) = checkpoints_iter.next() {
-            // Group PendingCheckpoints until:
-            // - minimum interval has elapsed ...
             let current_timestamp = pending.details().timestamp_ms;
-            let can_build = match last_timestamp {
+            // Strict interval against the immediately preceding checkpoint.
+            let adjacent_interval_elapsed = match last_timestamp {
                 Some(last_timestamp) => {
                     current_timestamp >= last_timestamp + min_checkpoint_interval_ms
                 }
                 None => true,
+            };
+            // Windowed arm: also allow building once the checkpoint `window`
+            // back is at least `window * interval` older. This recycles the
+            // slack the strict arm loses to discrete commit timestamps,
+            // holding the sustained rate at the ceiling, while the strict arm
+            // keeps every quiet gap — and thus checkpoint sizes — within one
+            // interval. Only checkpoints built in the current epoch are
+            // consulted: every validator builds all of them, so the look-back
+            // resolves identically everywhere and the gate stays
+            // deterministic. Until the window fills (epoch start, chain
+            // genesis) the arm is inert.
+            let interval_elapsed = adjacent_interval_elapsed
+                || checkpoint_rate_window_size.is_some_and(|window| {
+                    last_seq
+                        .and_then(|seq| (seq + 1).checked_sub(window))
+                        .and_then(|window_start_seq| {
+                            self.epoch_store
+                                .get_built_checkpoint_summary(window_start_seq)
+                                .expect("epoch store should not error reading a built checkpoint summary")
+                        })
+                        .is_some_and(|window_start| {
+                            current_timestamp
+                                >= window_start.timestamp_ms + window * min_checkpoint_interval_ms
+                        })
+                });
+            // Group PendingCheckpoints until:
+            // - the minimum interval has elapsed ...
+            let can_build = interval_elapsed
                 // - or, next PendingCheckpoint is last-of-epoch (since the last-of-epoch checkpoint
                 //   should be written separately) ...
-            } || checkpoints_iter
+                || checkpoints_iter
                 .peek()
                 .is_some_and(|(_, next_pending)| next_pending.details().last_of_epoch)
                 // - or, we have reached end of epoch.
@@ -1081,33 +1274,39 @@ impl CheckpointBuilder {
             // Min interval has elapsed, we can now coalesce and build a checkpoint.
             last_height = Some(height);
             last_timestamp = Some(current_timestamp);
+            let commits_in_checkpoint = grouped_pending_checkpoints.len();
             debug!(
-                checkpoint_commit_height = height,
-                "Making checkpoint at commit height"
+                checkpoint_commit_height_from = grouped_pending_checkpoints
+                    .first()
+                    .unwrap()
+                    .details()
+                    .checkpoint_height,
+                checkpoint_commit_height_to = last_height,
+                "Making checkpoint with commit height range"
             );
 
-            match self
+            let seq = self
                 .make_checkpoint(std::mem::take(&mut grouped_pending_checkpoints))
-                .await
-            {
-                Ok(seq) => {
-                    self.last_built.send_if_modified(|cur| {
-                        // when rebuilding checkpoints at startup, seq can be for an old checkpoint
-                        if seq > *cur {
-                            *cur = seq;
-                            true
-                        } else {
-                            false
-                        }
-                    });
+                .await?;
+
+            // Count only on success; a failed build retries the same
+            // group and would otherwise double-count it.
+            self.metrics
+                .commits_per_checkpoint
+                .observe(commits_in_checkpoint as f64);
+            // Advance the window anchor to the highest checkpoint just
+            // built (a single call may emit several when chunked).
+            last_seq = Some(seq);
+            self.last_built.send_if_modified(|cur| {
+                // when rebuilding checkpoints at startup, seq can be for an old checkpoint
+                if seq > *cur {
+                    *cur = seq;
+                    true
+                } else {
+                    false
                 }
-                Err(e) => {
-                    error!("Error while making checkpoint, will retry in 1s: {:?}", e);
-                    tokio::time::sleep(Duration::from_secs(1)).await;
-                    self.metrics.checkpoint_errors.inc();
-                    return;
-                }
-            }
+            });
+
             // Ensure that the task can be cancelled at end of epoch, even if no other await
             // yields execution.
             tokio::task::yield_now().await;
@@ -1116,6 +1315,8 @@ impl CheckpointBuilder {
             "Waiting for more checkpoints from consensus after processing {last_height:?}; {} pending checkpoints left unprocessed until next interval",
             grouped_pending_checkpoints.len(),
         );
+
+        Ok(())
     }
 
     #[instrument(level = "debug", skip_all, fields(last_height = pendings.last().unwrap().details().checkpoint_height
@@ -1123,9 +1324,50 @@ impl CheckpointBuilder {
     async fn make_checkpoint(
         &self,
         pendings: Vec<PendingCheckpoint>,
-    ) -> anyhow::Result<CheckpointSequenceNumber> {
+    ) -> CheckpointBuilderResult<CheckpointSequenceNumber> {
         let _scope = monitored_scope("CheckpointBuilder::make_checkpoint");
         let last_details = pendings.last().unwrap().details().clone();
+
+        // Stores the transactions that should be included in the checkpoint.
+        // Transactions will be recorded in the checkpoint in this order.
+        let highest_executed_sequence = self
+            .store
+            .get_highest_executed_checkpoint_seq_number()
+            .expect("db error")
+            .unwrap_or(0);
+
+        let (poll_count, result) = poll_count(self.resolve_checkpoint_transactions(pendings)).await;
+        let (sorted_tx_effects_included_in_checkpoint, all_roots) = result?;
+
+        let new_checkpoints = self
+            .create_checkpoints(
+                sorted_tx_effects_included_in_checkpoint,
+                &last_details,
+                &all_roots,
+            )
+            .await?;
+        let highest_sequence = new_checkpoints.last().summary.sequence_number();
+        if highest_sequence <= highest_executed_sequence && poll_count > 1 {
+            debug_fatal!(
+                "resolve_checkpoint_transactions should be instantaneous when executed checkpoint is ahead of checkpoint builder"
+            );
+        }
+
+        self.write_checkpoints(last_details.checkpoint_height, new_checkpoints)
+            .await?;
+        Ok(highest_sequence)
+    }
+
+    // Given the root transactions of the pending checkpoints, resolve the
+    // transactions that should be included in the checkpoint, and return them in
+    // the order they should be included in the checkpoint, together with all the
+    // resolved roots.
+    #[instrument(level = "debug", skip_all)]
+    async fn resolve_checkpoint_transactions(
+        &self,
+        pending_checkpoints: Vec<PendingCheckpoint>,
+    ) -> IotaResult<(Vec<TransactionEffects>, HashSet<TransactionDigest>)> {
+        let _scope = monitored_scope("CheckpointBuilder::resolve_checkpoint_transactions");
 
         // Keeps track of the effects that are already included in the current
         // checkpoint. This is used when there are multiple pending checkpoints
@@ -1134,117 +1376,100 @@ impl CheckpointBuilder {
         // pending checkpoints.
         let mut effects_in_current_checkpoint = BTreeSet::new();
 
-        // Stores the transactions that should be included in the checkpoint.
-        // Transactions will be recorded in the checkpoint in this order.
-        let mut sorted_tx_effects_included_in_checkpoint = Vec::new();
-        let mut all_roots = HashSet::new();
-        for pending_checkpoint in pendings.into_iter() {
+        let mut tx_effects = Vec::new();
+        let mut tx_roots = HashSet::new();
+
+        for pending_checkpoint in pending_checkpoints.into_iter() {
             let pending = pending_checkpoint.into_v1();
-            let (root_digests, txn_in_checkpoint) = self
-                .resolve_checkpoint_transactions(pending.roots, &mut effects_in_current_checkpoint)
+            debug!(
+                checkpoint_commit_height = pending.details.checkpoint_height,
+                roots = ?pending.roots,
+                "Resolving checkpoint transactions for pending checkpoint.",
+            );
+
+            let roots = &pending.roots;
+
+            self.metrics
+                .checkpoint_roots_count
+                .inc_by(roots.len() as u64);
+
+            let root_digests = self
+                .epoch_store
+                .notify_read_executed_digests(roots)
+                .in_monitored_scope("CheckpointNotifyDigests")
                 .await?;
-            sorted_tx_effects_included_in_checkpoint.extend(txn_in_checkpoint);
-            all_roots.extend(root_digests);
-        }
-        let new_checkpoints = self
-            .create_checkpoints(
-                sorted_tx_effects_included_in_checkpoint,
-                &last_details,
-                &all_roots,
-            )
-            .await?;
-        let highest_sequence = *new_checkpoints.last().0.sequence_number();
-        self.write_checkpoints(last_details.checkpoint_height, new_checkpoints)
-            .await?;
-        Ok(highest_sequence)
-    }
-
-    // Given the root transactions of a pending checkpoint, resolve the transactions
-    // should be included in the checkpoint, and return them in the order they
-    // should be included in the checkpoint. `effects_in_current_checkpoint`
-    // tracks the transactions that already exist in the current checkpoint.
-    #[instrument(level = "debug", skip_all)]
-    async fn resolve_checkpoint_transactions(
-        &self,
-        roots: Vec<TransactionKey>,
-        effects_in_current_checkpoint: &mut BTreeSet<TransactionDigest>,
-    ) -> IotaResult<(Vec<TransactionDigest>, Vec<TransactionEffects>)> {
-        let _scope = monitored_scope("CheckpointBuilder::resolve_checkpoint_transactions");
-
-        self.metrics
-            .checkpoint_roots_count
-            .inc_by(roots.len() as u64);
-
-        let root_digests = self
-            .epoch_store
-            .notify_read_executed_digests(&roots)
-            .in_monitored_scope("CheckpointNotifyDigests")
-            .await?;
-        let root_effects = self
-            .effects_store
-            .try_notify_read_executed_effects(&root_digests)
-            .in_monitored_scope("CheckpointNotifyRead")
-            .await?;
-
-        let consensus_commit_prologue = {
-            // If the roots contains consensus commit prologue transaction, we want to
-            // extract it, and put it to the front of the checkpoint.
-
-            let consensus_commit_prologue = self
-                .extract_consensus_commit_prologue(&root_digests, &root_effects)
+            let root_effects = self
+                .effects_store
+                .try_notify_read_executed_effects(
+                    CHECKPOINT_BUILDER_NOTIFY_READ_TASK_NAME,
+                    &root_digests,
+                )
+                .in_monitored_scope("CheckpointNotifyRead")
                 .await?;
 
-            // Get the un-included dependencies of the consensus commit prologue. We should
-            // expect no other dependencies that haven't been included in any
-            // previous checkpoints.
-            if let Some((ccp_digest, ccp_effects)) = &consensus_commit_prologue {
-                let unsorted_ccp = self.complete_checkpoint_effects(
-                    vec![ccp_effects.clone()],
-                    effects_in_current_checkpoint,
-                )?;
+            let consensus_commit_prologue = {
+                // If the roots contains consensus commit prologue transaction, we want to
+                // extract it, and put it to the front of the checkpoint.
 
-                // No other dependencies of this consensus commit prologue that haven't been
-                // included in any previous checkpoint.
-                if unsorted_ccp.len() != 1 {
-                    fatal!(
-                        "Expected 1 consensus commit prologue, got {:?}",
-                        unsorted_ccp
-                            .iter()
-                            .map(|e| e.transaction_digest())
-                            .collect::<Vec<_>>()
-                    );
+                let consensus_commit_prologue = self
+                    .extract_consensus_commit_prologue(&root_digests, &root_effects)
+                    .await?;
+
+                // Get the un-included dependencies of the consensus commit prologue. We should
+                // expect no other dependencies that haven't been included in
+                // any previous checkpoints.
+                if let Some((ccp_digest, ccp_effects)) = &consensus_commit_prologue {
+                    let unsorted_ccp = self.complete_checkpoint_effects(
+                        vec![ccp_effects.clone()],
+                        &mut effects_in_current_checkpoint,
+                    )?;
+
+                    // No other dependencies of this consensus commit prologue that haven't been
+                    // included in any previous checkpoint.
+                    if unsorted_ccp.len() != 1 {
+                        fatal!(
+                            "Expected 1 consensus commit prologue, got {:?}",
+                            unsorted_ccp
+                                .iter()
+                                .map(|e| e.transaction_digest())
+                                .collect::<Vec<_>>()
+                        );
+                    }
+                    assert_eq!(unsorted_ccp.len(), 1);
+                    assert_eq!(unsorted_ccp[0].transaction_digest(), ccp_digest);
                 }
-                assert_eq!(unsorted_ccp.len(), 1);
-                assert_eq!(unsorted_ccp[0].transaction_digest(), ccp_digest);
+                consensus_commit_prologue
+            };
+
+            let unsorted =
+                self.complete_checkpoint_effects(root_effects, &mut effects_in_current_checkpoint)?;
+
+            let _scope = monitored_scope("CheckpointBuilder::causal_sort");
+            let mut sorted: Vec<TransactionEffects> = Vec::with_capacity(unsorted.len() + 1);
+            if let Some((_ccp_digest, ccp_effects)) = consensus_commit_prologue {
+                #[cfg(debug_assertions)]
+                {
+                    // When consensus_commit_prologue is extracted, it should not be included in the
+                    // `unsorted`.
+                    for tx in unsorted.iter() {
+                        assert!(tx.transaction_digest() != &_ccp_digest);
+                    }
+                }
+                sorted.push(ccp_effects);
             }
-            consensus_commit_prologue
-        };
+            sorted.extend(CausalOrder::causal_sort(unsorted));
 
-        let unsorted =
-            self.complete_checkpoint_effects(root_effects, effects_in_current_checkpoint)?;
-
-        let _scope = monitored_scope("CheckpointBuilder::causal_sort");
-        let mut sorted: Vec<TransactionEffects> = Vec::with_capacity(unsorted.len() + 1);
-        if let Some((_ccp_digest, ccp_effects)) = consensus_commit_prologue {
-            #[cfg(debug_assertions)]
+            #[cfg(msim)]
             {
-                // When consensus_commit_prologue is extracted, it should not be included in the
-                // `unsorted`.
-                for tx in unsorted.iter() {
-                    assert!(tx.transaction_digest() != &_ccp_digest);
-                }
+                // Check consensus commit prologue invariants in sim test.
+                self.expensive_consensus_commit_prologue_invariants_check(&root_digests, &sorted);
             }
-            sorted.push(ccp_effects);
-        }
-        sorted.extend(CausalOrder::causal_sort(unsorted));
 
-        #[cfg(msim)]
-        {
-            // Check consensus commit prologue invariants in sim test.
-            self.expensive_consensus_commit_prologue_invariants_check(&root_digests, &sorted);
+            tx_effects.extend(sorted);
+            tx_roots.extend(root_digests);
         }
 
-        Ok((root_digests, sorted))
+        Ok((tx_effects, tx_roots))
     }
 
     // This function is used to extract the consensus commit prologue digest and
@@ -1271,7 +1496,7 @@ impl CheckpointBuilder {
             .try_get_transaction_block(&root_digests[0])?
             .expect("Transaction block must exist");
 
-        Ok(match first_tx.transaction_data().kind() {
+        Ok(match first_tx.transaction().kind() {
             TransactionKind::ConsensusCommitPrologueV1(_) => {
                 assert_eq!(first_tx.digest(), root_effects[0].transaction_digest());
                 Some((*first_tx.digest(), root_effects[0].clone()))
@@ -1285,14 +1510,18 @@ impl CheckpointBuilder {
     async fn write_checkpoints(
         &self,
         height: CheckpointHeight,
-        new_checkpoints: NonEmpty<(CheckpointSummary, CheckpointContents)>,
+        mut new_checkpoints: NonEmpty<BuiltCheckpoint>,
     ) -> IotaResult {
         let _scope = monitored_scope("CheckpointBuilder::write_checkpoints");
         let mut batch = self.store.tables.checkpoint_content.batch();
         let mut all_tx_digests =
-            Vec::with_capacity(new_checkpoints.iter().map(|(_, c)| c.size()).sum());
+            Vec::with_capacity(new_checkpoints.iter().map(|c| c.contents.len()).sum());
 
-        for (summary, contents) in &new_checkpoints {
+        // Write the new checkpoints to the DB storage.
+        for BuiltCheckpoint {
+            summary, contents, ..
+        } in &new_checkpoints
+        {
             debug!(
                 checkpoint_commit_height = height,
                 checkpoint_seq = summary.sequence_number,
@@ -1319,7 +1548,7 @@ impl CheckpointBuilder {
 
             self.metrics
                 .transactions_included_in_checkpoint
-                .inc_by(contents.size() as u64);
+                .inc_by(contents.len() as u64);
             let sequence_number = summary.sequence_number;
             self.metrics
                 .last_constructed_checkpoint
@@ -1338,20 +1567,39 @@ impl CheckpointBuilder {
 
         batch.write()?;
 
+        // Cache the full contents only now that the checkpoint_content rows
+        // are durable
+        for checkpoint in new_checkpoints.iter_mut() {
+            if let Some(full_contents) = checkpoint.full_contents.take() {
+                self.store.cache_full_checkpoint_contents(
+                    checkpoint.summary.sequence_number,
+                    checkpoint.summary.contents_digest,
+                    full_contents,
+                );
+            }
+        }
+
         // Send all checkpoint sigs to consensus. The messages including
         // MisbehaviorReports are also sent in this step.
-        for (summary, contents) in &new_checkpoints {
+        for BuiltCheckpoint {
+            summary, contents, ..
+        } in &new_checkpoints
+        {
             self.output
                 .checkpoint_created(summary, contents, &self.epoch_store, &self.store)
                 .await?;
         }
 
-        for (local_checkpoint, _) in &new_checkpoints {
+        for BuiltCheckpoint {
+            summary: local_checkpoint,
+            ..
+        } in &new_checkpoints
+        {
             if let Some(certified_checkpoint) = self
                 .store
                 .tables
                 .certified_checkpoints
-                .get(local_checkpoint.sequence_number())?
+                .get(&local_checkpoint.sequence_number())?
             {
                 self.store
                     .check_for_checkpoint_fork(local_checkpoint, &certified_checkpoint.into());
@@ -1359,23 +1607,27 @@ impl CheckpointBuilder {
         }
 
         self.notify_aggregator.notify_one();
-        self.epoch_store
-            .process_constructed_checkpoint(height, new_checkpoints);
+        self.epoch_store.process_constructed_checkpoint(
+            height,
+            new_checkpoints.map(|c| (c.summary, c.contents)),
+        );
         Ok(())
     }
 
     #[expect(clippy::type_complexity)]
     fn split_checkpoint_chunks(
         &self,
-        effects_and_transaction_sizes: Vec<(TransactionEffects, usize)>,
-        signatures: Vec<Vec<GenericSignature>>,
-    ) -> anyhow::Result<Vec<Vec<(TransactionEffects, Vec<GenericSignature>)>>> {
+        transactions_effects_and_sizes: Vec<(TransactionEnvelope, TransactionEffects, usize)>,
+        signatures: Vec<Vec<UserSignature>>,
+    ) -> CheckpointBuilderResult<
+        Vec<Vec<(TransactionEnvelope, TransactionEffects, Vec<UserSignature>)>>,
+    > {
         let _guard = monitored_scope("CheckpointBuilder::split_checkpoint_chunks");
         let mut chunks = Vec::new();
         let mut chunk = Vec::new();
         let mut chunk_size: usize = 0;
-        for ((effects, transaction_size), signatures) in
-            effects_and_transaction_sizes.into_iter().zip(signatures)
+        for ((transaction, effects, transaction_size), signatures) in
+            transactions_effects_and_sizes.into_iter().zip(signatures)
         {
             // Roll over to a new chunk after either max count or max size is reached.
             // The size calculation here is intended to estimate the size of the
@@ -1400,7 +1652,7 @@ impl CheckpointBuilder {
                 }
             }
 
-            chunk.push((effects, signatures));
+            chunk.push((transaction, effects, signatures));
             chunk_size += size;
         }
 
@@ -1452,7 +1704,7 @@ impl CheckpointBuilder {
         all_effects: Vec<TransactionEffects>,
         details: &PendingCheckpointInfo,
         all_roots: &HashSet<TransactionDigest>,
-    ) -> anyhow::Result<NonEmpty<(CheckpointSummary, CheckpointContents)>> {
+    ) -> CheckpointBuilderResult<NonEmpty<BuiltCheckpoint>> {
         let _scope = monitored_scope("CheckpointBuilder::create_checkpoints");
 
         let total = all_effects.len();
@@ -1460,6 +1712,7 @@ impl CheckpointBuilder {
             Self::load_last_built_checkpoint_summary(&self.epoch_store, &self.store)?;
         let last_checkpoint_seq = last_checkpoint.as_ref().map(|(seq, _)| *seq);
         debug!(
+            checkpoint_commit_height = details.checkpoint_height,
             next_checkpoint_seq = last_checkpoint_seq.unwrap_or_default() + 1,
             checkpoint_timestamp = details.timestamp_ms,
             "Creating checkpoint(s) for {} transactions",
@@ -1492,7 +1745,7 @@ impl CheckpointBuilder {
             {
                 let (transaction, size) = transaction_and_size
                     .unwrap_or_else(|| panic!("Could not find executed transaction {effects:?}"));
-                match transaction.inner().transaction_data().kind() {
+                match transaction.inner().transaction().kind() {
                     #[allow(deprecated)]
                     TransactionKind::ConsensusCommitPrologueV1(_)
                     | TransactionKind::AuthenticatorStateUpdateV1Deprecated => {
@@ -1515,10 +1768,9 @@ impl CheckpointBuilder {
                         // already.
                         let digest = *effects.transaction_digest();
                         if !all_roots.contains(&digest) {
-                            // In whiteflag flow, user transactions are submitted as
+                            // In P-COOL flow, user transactions are submitted as
                             // UserTransaction, not as Certificate.
-                            let key = if self.epoch_store.protocol_config().enable_white_flag_flow()
-                            {
+                            let key = if self.epoch_store.protocol_config().enable_pcool_flow() {
                                 ConsensusTransactionKey::UserTransaction(digest)
                             } else {
                                 ConsensusTransactionKey::Certificate(digest)
@@ -1545,7 +1797,12 @@ impl CheckpointBuilder {
             signatures.len()
         );
 
-        let chunks = self.split_checkpoint_chunks(all_effects_and_transaction_sizes, signatures)?;
+        let transactions_effects_and_sizes = transactions
+            .into_iter()
+            .zip(all_effects_and_transaction_sizes)
+            .map(|(transaction, (effects, size))| (transaction.into_inner(), effects, size))
+            .collect();
+        let chunks = self.split_checkpoint_chunks(transactions_effects_and_sizes, signatures)?;
         let chunks_count = chunks.len();
 
         let mut checkpoints = Vec::with_capacity(chunks_count);
@@ -1555,7 +1812,7 @@ impl CheckpointBuilder {
         );
 
         let epoch = self.epoch_store.epoch();
-        for (index, transactions) in chunks.into_iter().enumerate() {
+        for (index, chunk) in chunks.into_iter().enumerate() {
             let first_checkpoint_of_epoch = index == 0
                 && last_checkpoint
                     .as_ref()
@@ -1579,17 +1836,15 @@ impl CheckpointBuilder {
                         "Decrease of checkpoint timestamp, possibly due to epoch change. Sequence: {}, previous: {}, current: {}",
                         sequence_number, last_checkpoint.timestamp_ms, timestamp_ms,
                     );
-                    if self
-                        .epoch_store
-                        .protocol_config()
-                        .consensus_median_timestamp_with_checkpoint_enforcement()
-                    {
-                        timestamp_ms = last_checkpoint.timestamp_ms;
-                    }
+                    timestamp_ms = last_checkpoint.timestamp_ms;
                 }
             }
 
-            let (mut effects, mut signatures): (Vec<_>, Vec<_>) = transactions.into_iter().unzip();
+            let (chunk_transactions, mut effects, mut signatures): (
+                Vec<TransactionEnvelope>,
+                Vec<TransactionEffects>,
+                Vec<Vec<UserSignature>>,
+            ) = chunk.into_iter().multiunzip();
             let epoch_rolling_gas_cost_summary =
                 self.get_epoch_total_gas_cost(last_checkpoint.as_ref().map(|(_, c)| c), &effects);
 
@@ -1660,13 +1915,13 @@ impl CheckpointBuilder {
                 self.metrics.highest_accumulated_epoch.set(epoch as i64);
                 info!("Epoch {epoch} root state hash digest: {root_state_digest:?}");
 
-                let epoch_commitments = vec![root_state_digest.into()];
+                let epoch_commitments = vec![CheckpointCommitment::EcmhLiveObjectSet {
+                    digest: root_state_digest.digest,
+                }];
 
                 Some(EndOfEpochData {
-                    next_epoch_committee: committee.voting_rights,
-                    next_epoch_protocol_version: ProtocolVersion::new(
-                        system_state_obj.protocol_version(),
-                    ),
+                    next_epoch_committee: committee.committee_members(),
+                    next_epoch_protocol_version: system_state_obj.protocol_version(),
                     epoch_commitments,
                     epoch_supply_change,
                 })
@@ -1681,7 +1936,7 @@ impl CheckpointBuilder {
                 signatures,
             );
 
-            let num_txns = contents.size() as u64;
+            let num_txns = contents.len() as u64;
 
             let network_total_transactions = last_checkpoint
                 .as_ref()
@@ -1696,7 +1951,7 @@ impl CheckpointBuilder {
                 .copied()
                 .collect();
 
-            let summary = CheckpointSummary::new(
+            let summary = CheckpointSummary::new_with_protocol_config(
                 self.epoch_store.protocol_config(),
                 epoch,
                 sequence_number,
@@ -1719,8 +1974,32 @@ impl CheckpointBuilder {
                         .report_epoch_metrics_at_last_checkpoint(stats);
                 }
             }
+
+            // Assemble the full contents for faster checkpoint propagation to
+            // peers. End-of-epoch checkpoints carry an appended change-epoch
+            // transaction not tracked here; the executor caches those via its
+            // synced path.
+            let full_contents = (!last_checkpoint_of_epoch
+                && self
+                    .store
+                    .should_cache_full_checkpoint_contents(sequence_number))
+            .then(|| {
+                let execution_data = chunk_transactions
+                    .into_iter()
+                    .zip(effects.iter().cloned())
+                    .map(|(transaction, effects)| ExecutionData::new(transaction, effects));
+                FullCheckpointContents::from_contents_and_execution_data(
+                    contents.clone(),
+                    execution_data,
+                )
+            });
+
             last_checkpoint = Some((sequence_number, summary.clone()));
-            checkpoints.push((summary, contents));
+            checkpoints.push(BuiltCheckpoint {
+                summary,
+                contents,
+                full_contents,
+            });
         }
 
         Ok(NonEmpty::from_vec(checkpoints).expect("at least one checkpoint"))
@@ -1760,10 +2039,10 @@ impl CheckpointBuilder {
         epoch_total_gas_cost: &GasCostSummary,
         epoch_start_timestamp_ms: CheckpointTimestamp,
         checkpoint_effects: &mut Vec<TransactionEffects>,
-        signatures: &mut Vec<Vec<GenericSignature>>,
+        signatures: &mut Vec<Vec<UserSignature>>,
         checkpoint: CheckpointSequenceNumber,
         scores: Vec<u64>,
-    ) -> anyhow::Result<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
+    ) -> CheckpointBuilderResult<(IotaSystemState, Option<SystemEpochInfoEvent>)> {
         let (system_state, system_epoch_info_event, effects) = self
             .state
             .create_and_execute_advance_epoch_tx(
@@ -1883,7 +2162,7 @@ impl CheckpointBuilder {
             .filter_map(|tx| {
                 tx.as_ref().filter(|tx| {
                     matches!(
-                        tx.transaction_data().kind(),
+                        tx.transaction().kind(),
                         TransactionKind::ConsensusCommitPrologueV1(_)
                     )
                 })
@@ -1911,7 +2190,7 @@ impl CheckpointBuilder {
             // checkpoint.
             for tx in txs.iter().flatten() {
                 assert!(!matches!(
-                    tx.transaction_data().kind(),
+                    tx.transaction().kind(),
                     TransactionKind::ConsensusCommitPrologueV1(_)
                 ));
             }
@@ -1919,7 +2198,7 @@ impl CheckpointBuilder {
             // If there is one consensus commit prologue, it must be the first one in the
             // checkpoint.
             assert!(matches!(
-                txs[0].as_ref().unwrap().transaction_data().kind(),
+                txs[0].as_ref().unwrap().transaction().kind(),
                 TransactionKind::ConsensusCommitPrologueV1(_)
             ));
 
@@ -1927,7 +2206,7 @@ impl CheckpointBuilder {
 
             for tx in txs.iter().skip(1).flatten() {
                 assert!(!matches!(
-                    tx.transaction_data().kind(),
+                    tx.transaction().kind(),
                     TransactionKind::ConsensusCommitPrologueV1(_)
                 ));
             }
@@ -2093,7 +2372,7 @@ impl CheckpointAggregator {
             .store
             .tables
             .certified_checkpoints
-            .reversed_safe_iter_with_bounds(None, None)?
+            .safe_range_iter_reversed(..)
             .next()
             .transpose()?
             .map(|(seq, _)| seq + 1)
@@ -2182,9 +2461,9 @@ impl CheckpointSignatureAggregator {
                     format!("{digest} (total stake: {total_stake})")
                 })
                 .collect::<Vec<String>>();
-            error!(
-                checkpoint_seq = self.summary.sequence_number,
-                "Split brain detected in checkpoint signature aggregation! Remaining stake: {:?}, Digests by stake: {:?}",
+            debug_fatal!(
+                "Split brain detected in checkpoint signature aggregation for checkpoint {:?}. Remaining stake: {:?}, Digests by stake: {:?}",
+                self.summary.sequence_number,
                 self.signatures_by_digest.uncommitted_stake(),
                 digests_by_stake_messages,
             );
@@ -2311,7 +2590,7 @@ async fn diagnose_split_brain(
         .collect::<Vec<_>>();
 
     let local_checkpoint_contents = tables
-        .get_checkpoint_contents(&local_summary.content_digest)
+        .get_checkpoint_contents(&local_summary.contents_digest)
         .unwrap_or_else(|_| {
             panic!(
                 "Could not find checkpoint contents for digest {:?}",
@@ -2377,8 +2656,6 @@ async fn diagnose_split_brain(
     let mut file = File::create(checkpoint_fork_file_path).unwrap();
     write!(file, "{fork_logs_text}").unwrap();
     debug!("{}", fork_logs_text);
-
-    fail_point!("split_brain_reached");
 }
 
 pub trait CheckpointServiceNotify {
@@ -2614,7 +2891,7 @@ impl CheckpointServiceNotify for CheckpointService {
         if let Some(highest_verified_checkpoint) = self
             .tables
             .get_highest_verified_checkpoint()?
-            .map(|x| *x.sequence_number())
+            .map(|x| x.sequence_number())
         {
             if sequence <= highest_verified_checkpoint {
                 trace!(
@@ -2655,8 +2932,8 @@ impl CheckpointServiceNotify for CheckpointService {
 
 #[iota_macros::with_checked_arithmetic]
 mod checked {
-    use iota_sdk_types::GasCostSummary;
-    use iota_types::effects::{TransactionEffects, TransactionEffectsAPI};
+    use iota_sdk_types::{GasCostSummary, TransactionEffects};
+    use iota_types::effects::TransactionEffectsAPI;
     use itertools::MultiUnzip;
 
     #[expect(clippy::type_complexity)]
@@ -2706,6 +2983,72 @@ impl CheckpointServiceNotify for CheckpointServiceNoop {
     }
 }
 
+pin_project! {
+    pub struct PollCounter<Fut> {
+        #[pin]
+        future: Fut,
+        count: usize,
+    }
+}
+
+impl<Fut> PollCounter<Fut> {
+    pub fn new(future: Fut) -> Self {
+        Self { future, count: 0 }
+    }
+
+    pub fn count(&self) -> usize {
+        self.count
+    }
+}
+
+impl<Fut: Future> Future for PollCounter<Fut> {
+    type Output = (usize, Fut::Output);
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let this = self.project();
+        *this.count += 1;
+        match this.future.poll(cx) {
+            Poll::Ready(output) => Poll::Ready((*this.count, output)),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+fn poll_count<Fut>(future: Fut) -> PollCounter<Fut> {
+    PollCounter::new(future)
+}
+
+/// A verified checkpoint over the given contents at the given sequence
+/// number, with a placeholder signature; usable wherever verification is
+/// not re-run and no committee is needed.
+#[cfg(test)]
+pub(crate) fn test_checkpoint_with_contents(
+    sequence_number: CheckpointSequenceNumber,
+    full_contents: &FullCheckpointContents,
+) -> VerifiedCheckpoint {
+    let contents = full_contents.checkpoint_contents();
+    let summary = CheckpointSummary {
+        epoch: 0,
+        sequence_number,
+        network_total_transactions: full_contents.size() as u64,
+        contents_digest: contents.digest(),
+        previous_digest: None,
+        epoch_rolling_gas_cost_summary: GasCostSummary::default(),
+        end_of_epoch_data: None,
+        timestamp_ms: 0,
+        version_specific_data: Vec::new(),
+        checkpoint_commitments: Vec::new(),
+    };
+    let sig = AuthorityStrongQuorumSignInfo {
+        epoch: 0,
+        signature: Default::default(),
+        signers_map: Default::default(),
+    };
+    VerifiedCheckpoint::new_unchecked(
+        iota_types::message_envelope::Envelope::new_from_data_and_sig(summary, sig),
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -2715,23 +3058,228 @@ mod tests {
 
     use futures::{FutureExt as _, future::BoxFuture};
     use iota_macros::sim_test;
-    use iota_protocol_config::{Chain, ProtocolConfig};
-    use iota_sdk_types::{GenesisObject, Identifier, ObjectId, Owner, move_package::MovePackage};
+    use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+    use iota_sdk_types::{
+        GenesisObject, Identifier, ObjectData, ObjectId, Owner, TransactionEffects,
+        TransactionEffectsDigest, TransactionEvents, Version, move_package::MovePackage,
+    };
     use iota_types::{
-        base_types::{SequenceNumber, TransactionEffectsDigest},
-        crypto::Signature,
-        effects::{
-            TransactionEffects, TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting,
-            TransactionEvents,
-        },
+        effects::{TransactionEffectsAPIForTesting, TransactionEffectsExtForTesting},
         messages_checkpoint::SignedCheckpointSummary,
-        object,
         transaction::VerifiedTransaction,
     };
     use tokio::sync::mpsc;
 
     use super::*;
     use crate::authority::test_authority_builder::TestAuthorityBuilder;
+
+    #[tokio::test]
+    async fn insert_verified_checkpoint_contents_persists_digests_and_caches_full_contents() {
+        let tempdir = iota_common::tempdir();
+        let path = tempdir.path();
+
+        let full_contents = FullCheckpointContents::random_for_testing();
+        let checkpoint = test_checkpoint_with_contents(0, &full_contents);
+        let contents_digest = checkpoint.contents_digest;
+
+        {
+            let store = CheckpointStore::new(path);
+            store
+                .insert_verified_checkpoint_contents(
+                    &checkpoint,
+                    VerifiedCheckpointContents::new_unchecked(full_contents.clone()),
+                )
+                .unwrap();
+
+            // Full contents are served from the in-memory cache.
+            assert_eq!(
+                store
+                    .get_full_checkpoint_contents_by_sequence_number(0)
+                    .unwrap()
+                    .as_ref(),
+                &full_contents
+            );
+            assert_eq!(
+                store
+                    .get_full_checkpoint_contents_by_digest(&contents_digest)
+                    .unwrap()
+                    .as_ref(),
+                &full_contents
+            );
+            // The digest-form contents are durable.
+            assert_eq!(
+                store
+                    .get_checkpoint_contents(&contents_digest)
+                    .unwrap()
+                    .map(|c| c.digest()),
+                Some(contents_digest)
+            );
+        }
+
+        // Reopening drops the in-memory cache, but the digest-form contents
+        // survive for readers to reconstruct full contents from.
+        let store = CheckpointStore::new(path);
+        assert!(
+            store
+                .get_full_checkpoint_contents_by_sequence_number(0)
+                .is_none()
+        );
+        assert!(
+            store
+                .get_full_checkpoint_contents_by_digest(&contents_digest)
+                .is_none()
+        );
+        assert!(
+            store
+                .get_checkpoint_contents(&contents_digest)
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[tokio::test]
+    async fn cache_full_checkpoint_contents_serves_reads_without_disk_writes() {
+        let store = CheckpointStore::new_for_tests();
+        let full_contents = FullCheckpointContents::random_for_testing();
+        let checkpoint = test_checkpoint_with_contents(0, &full_contents);
+        let contents_digest = checkpoint.contents_digest;
+
+        store.cache_full_checkpoint_contents(
+            checkpoint.sequence_number(),
+            contents_digest,
+            full_contents.clone(),
+        );
+
+        assert_eq!(
+            store
+                .get_full_checkpoint_contents_by_sequence_number(0)
+                .unwrap()
+                .as_ref(),
+            &full_contents
+        );
+        assert_eq!(
+            store
+                .get_full_checkpoint_contents_by_digest(&contents_digest)
+                .unwrap()
+                .as_ref(),
+            &full_contents
+        );
+        // Cache-only: the digest-form contents row is untouched.
+        assert!(
+            store
+                .get_checkpoint_contents(&contents_digest)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    // State-sync skips its own durable `checkpoint_content` write when the
+    // full contents are already available, and the checkpoint executor panics
+    // on a missing row. So the builder must not serve contents from the cache
+    // before the row is durable.
+    #[tokio::test]
+    async fn builder_caches_full_contents_only_after_durable_contents_write() {
+        let state = TestAuthorityBuilder::new().build().await;
+
+        let tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
+        let digest = *tx.digest();
+        state
+            .database_for_testing()
+            .perpetual_tables
+            .transactions
+            .insert(&digest, tx.serializable_ref())
+            .unwrap();
+
+        let mut effects_map = HashMap::new();
+        commit_cert_for_test(
+            &mut effects_map,
+            state.clone(),
+            digest,
+            vec![],
+            GasCostSummary::new(1, 1, 1, 1, 1),
+        );
+        let effects = effects_map[&digest].clone();
+
+        let signature = iota_types::crypto::zero_ed25519_signature().into();
+        state
+            .epoch_store_for_testing()
+            .test_insert_user_signature(digest, vec![signature]);
+
+        let (output, _result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+
+        let tmp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+        let epoch_store = state.epoch_store_for_testing();
+
+        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            checkpoint_store.clone(),
+            epoch_store.clone(),
+            Arc::new(effects_map),
+            Arc::downgrade(&global_state_hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        // Drive the builder manually instead of spawning it, to observe the
+        // store between checkpoint creation and the durable batch write. The
+        // state hasher must stay alive: `create_checkpoints` sends to it.
+        let (builder, _aggregator, _hasher) = checkpoint_service.state.lock().take_unstarted();
+
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![digest], 0))
+            .unwrap();
+
+        let details = PendingCheckpointInfo {
+            timestamp_ms: 0,
+            last_of_epoch: false,
+            checkpoint_height: 0,
+        };
+        let new_checkpoints = builder
+            .create_checkpoints(vec![effects], &details, &HashSet::from([digest]))
+            .await
+            .unwrap();
+        let summary = new_checkpoints.first().summary.clone();
+
+        assert!(
+            checkpoint_store
+                .get_full_checkpoint_contents_by_sequence_number(summary.sequence_number)
+                .is_none(),
+            "full contents must not be served before the checkpoint_content row is durable"
+        );
+        assert!(
+            checkpoint_store
+                .get_checkpoint_contents(&summary.contents_digest)
+                .unwrap()
+                .is_none()
+        );
+
+        builder
+            .write_checkpoints(details.checkpoint_height, new_checkpoints)
+            .await
+            .unwrap();
+
+        assert!(
+            checkpoint_store
+                .get_checkpoint_contents(&summary.contents_digest)
+                .unwrap()
+                .is_some()
+        );
+        let cached = checkpoint_store
+            .get_full_checkpoint_contents_by_sequence_number(summary.sequence_number)
+            .expect("builder should cache full contents once the row is durable");
+        assert_eq!(
+            cached.checkpoint_contents().digest(),
+            summary.contents_digest
+        );
+    }
 
     #[sim_test]
     pub async fn checkpoint_builder_test() {
@@ -2740,47 +3288,67 @@ mod tests {
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
         protocol_config.set_min_checkpoint_interval_ms_for_testing(100);
+        // This test exercises the strict adjacent-checkpoint interval.
+        protocol_config.disable_checkpoint_rate_window_size_for_testing();
         let state = TestAuthorityBuilder::new()
             .with_protocol_config(protocol_config)
             .build()
             .await;
 
-        let dummy_tx = VerifiedTransaction::new_genesis_transaction(vec![], vec![]);
-        let dummy_tx_with_data = VerifiedTransaction::new_genesis_transaction(
-            vec![GenesisObject::new(
-                object::Data::Package(
-                    MovePackage::new(
-                        ObjectId::random(),
-                        SequenceNumber::default(),
-                        BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 40000])]),
-                        100_000,
-                        // no modules so empty type_origin_table as no types are defined in this
-                        // package
-                        Vec::new(),
-                        // no modules so empty linkage_table as no dependencies of this package
-                        // exist
-                        BTreeMap::new(),
-                    )
-                    .unwrap(),
-                ),
-                Owner::Immutable,
-            )],
-            vec![],
-        );
-        for i in 0..15 {
+        // Build distinct genesis transactions and assign their digests to
+        // indices so that, within any pending checkpoint, digest order matches
+        // index order: `CausalOrder` orders non-dependent transactions by
+        // digest, and the assertions below rely on that order. Transactions
+        // 15..20 carry a large payload to exercise size-based checkpoint
+        // splitting.
+        let make_tx = |seed: u8, payload_size: usize| {
+            let mut id = [0u8; 32];
+            id[0] = seed;
+            VerifiedTransaction::new_genesis_transaction(
+                vec![GenesisObject::new(
+                    ObjectData::Package(
+                        MovePackage::new(
+                            ObjectId::new(id),
+                            Version::default(),
+                            BTreeMap::from([(
+                                Identifier::new_unchecked("m"),
+                                vec![0u8; payload_size],
+                            )]),
+                            100_000,
+                            // no modules so empty type_origin_table as no types are defined in
+                            // this package
+                            Vec::new(),
+                            // no modules so empty linkage_table as no dependencies of this package
+                            // exist
+                            BTreeMap::new(),
+                        )
+                        .unwrap(),
+                    ),
+                    Owner::Immutable,
+                )],
+                vec![],
+            )
+        };
+
+        let mut small: Vec<_> = (0..15).map(|seed| make_tx(seed, 1)).collect();
+        small.sort_by_key(|tx| *tx.digest());
+
+        let mut large: Vec<_> = (0..5).map(|seed| make_tx(100 + seed, 40000)).collect();
+        large.sort_by_key(|tx| *tx.digest());
+
+        let txns: Vec<_> = small.into_iter().chain(large).collect();
+        let digests: Vec<TransactionDigest> = txns.iter().map(|tx| *tx.digest()).collect();
+
+        // Digest for test index `i`; ascending within the small (0..15) and
+        // large (15..20) pools, so index order implies digest order per pool.
+        let d = |i: u8| digests[i as usize];
+
+        for (tx, digest) in txns.iter().zip(&digests) {
             state
                 .database_for_testing()
                 .perpetual_tables
                 .transactions
-                .insert(&d(i), dummy_tx.serializable_ref())
-                .unwrap();
-        }
-        for i in 15..20 {
-            state
-                .database_for_testing()
-                .perpetual_tables
-                .transactions
-                .insert(&d(i), dummy_tx_with_data.serializable_ref())
+                .insert(digest, tx.serializable_ref())
                 .unwrap();
         }
 
@@ -2833,7 +3401,7 @@ mod tests {
         }
         let all_digests: Vec<_> = store.keys().copied().collect();
         for digest in all_digests {
-            let signature = Signature::Ed25519IotaSignature(Default::default()).into();
+            let signature = iota_types::crypto::zero_ed25519_signature().into();
             state
                 .epoch_store_for_testing()
                 .test_insert_user_signature(digest, vec![signature]);
@@ -2854,7 +3422,7 @@ mod tests {
 
         let checkpoint_service = CheckpointService::build(
             state.clone(),
-            checkpoint_store,
+            checkpoint_store.clone(),
             epoch_store.clone(),
             store,
             Arc::downgrade(&global_state_hasher),
@@ -2867,22 +3435,28 @@ mod tests {
         let _tasks = checkpoint_service.spawn(None).await;
 
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![4], 0))
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(0, vec![d(4)], 0))
             .unwrap();
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(1, vec![1, 3], 2000))
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(1, vec![d(1), d(3)], 2000))
             .unwrap();
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(2, vec![10, 11, 12, 13], 3000))
+            .write_and_notify_checkpoint_for_testing(
+                &epoch_store,
+                p(2, vec![d(10), d(11), d(12), d(13)], 3000),
+            )
             .unwrap();
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(3, vec![15, 16, 17], 4000))
+            .write_and_notify_checkpoint_for_testing(
+                &epoch_store,
+                p(3, vec![d(15), d(16), d(17)], 4000),
+            )
             .unwrap();
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(4, vec![5], 4001))
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(4, vec![d(5)], 4001))
             .unwrap();
         checkpoint_service
-            .write_and_notify_checkpoint_for_testing(&epoch_store, p(5, vec![6], 5000))
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(5, vec![d(6)], 5000))
             .unwrap();
 
         let (c1c, c1s) = result.recv().await.unwrap();
@@ -2905,6 +3479,29 @@ mod tests {
             c2s.epoch_rolling_gas_cost_summary,
             GasCostSummary::new(104, 104, 108, 104, 4)
         );
+
+        // The builder caches the full contents of each locally built checkpoint.
+        // The cached contents must match the checkpoint's transactions and hash
+        // to its content digest, so state-sync peers can be served from memory.
+        for (summary, digest_contents) in [(&c1s, &c1c), (&c2s, &c2c)] {
+            let cached = checkpoint_store
+                .get_full_checkpoint_contents_by_sequence_number(summary.sequence_number)
+                .expect("builder should cache full contents of a locally built checkpoint");
+            assert_eq!(&cached.checkpoint_contents(), digest_contents);
+            assert_eq!(
+                cached.checkpoint_contents().digest(),
+                summary.contents_digest
+            );
+            // A cached entry must imply a durable checkpoint_content row:
+            // state-sync skips its own durable write when contents are
+            // already available.
+            assert!(
+                checkpoint_store
+                    .get_checkpoint_contents(&summary.contents_digest)
+                    .unwrap()
+                    .is_some()
+            );
+        }
 
         // Pending at index 2 had 4 transactions, and we configured 3 transactions max.
         // Verify that we split into 2 checkpoints.
@@ -2962,9 +3559,174 @@ mod tests {
         assert_eq!(c2sc.sequence_number, 1);
     }
 
+    #[sim_test]
+    pub async fn checkpoint_builder_windowed_interval_test() {
+        telemetry_subscribers::init_for_testing();
+
+        // 100ms interval with a window of 3 checkpoints: a checkpoint is built
+        // when either 100ms passed since the previous one or the checkpoint 3
+        // back is >= 300ms older. The windowed arm permits sub-interval bursts
+        // while banked budget lasts; the adjacent arm caps every quiet gap at
+        // one interval regardless of window state.
+        let mut protocol_config =
+            ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        protocol_config.set_min_checkpoint_interval_ms_for_testing(100);
+        protocol_config.set_checkpoint_rate_window_size_for_testing(3);
+        let state = TestAuthorityBuilder::new()
+            .with_protocol_config(protocol_config)
+            .build()
+            .await;
+
+        // Distinct real transactions: only build timing is under test, but the
+        // builder pairs each stored transaction with its effects by digest, so
+        // effects must reference the digests of actually stored transactions.
+        let make_tx = |seed: u8| {
+            let mut id = [0u8; 32];
+            id[0] = seed;
+            VerifiedTransaction::new_genesis_transaction(
+                vec![GenesisObject::new(
+                    ObjectData::Package(
+                        MovePackage::new(
+                            ObjectId::new(id),
+                            Version::default(),
+                            BTreeMap::from([(Identifier::new_unchecked("m"), vec![0u8; 1])]),
+                            100_000,
+                            // no modules so empty type_origin_table as no types are defined in
+                            // this package
+                            Vec::new(),
+                            // no modules so empty linkage_table as no dependencies of this package
+                            // exist
+                            BTreeMap::new(),
+                        )
+                        .unwrap(),
+                    ),
+                    Owner::Immutable,
+                )],
+                vec![],
+            )
+        };
+        let txns: Vec<_> = (1..=8).map(make_tx).collect();
+        let digests: Vec<TransactionDigest> = txns.iter().map(|tx| *tx.digest()).collect();
+        // Digest for test index `i` (1-based).
+        let d = |i: u8| digests[(i - 1) as usize];
+
+        for tx in &txns {
+            state
+                .database_for_testing()
+                .perpetual_tables
+                .transactions
+                .insert(tx.digest(), tx.serializable_ref())
+                .unwrap();
+        }
+
+        let mut store = HashMap::<TransactionDigest, TransactionEffects>::new();
+        for i in 1..=8 {
+            commit_cert_for_test(
+                &mut store,
+                state.clone(),
+                d(i),
+                vec![],
+                GasCostSummary::new(11, 11, 12, 11, 1),
+            );
+        }
+        let all_digests: Vec<_> = store.keys().copied().collect();
+        for digest in all_digests {
+            let signature = iota_types::crypto::zero_ed25519_signature().into();
+            state
+                .epoch_store_for_testing()
+                .test_insert_user_signature(digest, vec![signature]);
+        }
+
+        let (output, mut result) = mpsc::channel::<(CheckpointContents, CheckpointSummary)>(10);
+        let (certified_output, _certified_result) = mpsc::channel::<CertifiedCheckpointSummary>(10);
+        let store = Arc::new(store);
+
+        let tmp_dir = iota_common::tempdir();
+        let checkpoint_store = CheckpointStore::new(tmp_dir.path());
+        let epoch_store = state.epoch_store_for_testing();
+
+        let global_state_hasher = Arc::new(GlobalStateHasher::new_for_tests(
+            state.get_global_state_hash_store().clone(),
+        ));
+
+        let checkpoint_service = CheckpointService::build(
+            state.clone(),
+            checkpoint_store,
+            epoch_store.clone(),
+            store,
+            Arc::downgrade(&global_state_hasher),
+            Box::new(output),
+            Box::new(certified_output),
+            CheckpointMetrics::new_for_tests(),
+            3,
+            100_000,
+        );
+        let _tasks = checkpoint_service.spawn(None).await;
+
+        // The windowed arm is inert until 3 checkpoints exist; the first three
+        // build via the adjacent arm, which their spread-out timestamps
+        // (0, 1000, 2000) satisfy while accruing burst budget.
+        // window_ms = 3 * 100 = 300.
+        for (height, root, timestamp_ms) in [(0, 1u8, 0), (1, 2, 1000), (2, 3, 2000)] {
+            checkpoint_service
+                .write_and_notify_checkpoint_for_testing(
+                    &epoch_store,
+                    p(height, vec![d(root)], timestamp_ms),
+                )
+                .unwrap();
+        }
+        // p3 @ 2010: adjacent red (< C2 + 100 = 2100) but windowed green
+        // (>= C0(0) + 300) -> builds, only 10ms after C2. A strict adjacent
+        // rule would instead coalesce it.
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(3, vec![d(4)], 2010))
+            .unwrap();
+        // p4 @ 2020: windowed green (>= C1(1000) + 300) -> builds, another
+        // sub-interval burst.
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(4, vec![d(5)], 2020))
+            .unwrap();
+        // Budget now spent: the window covers the tight 2000-2020 cluster.
+        // p5 @ 2030: adjacent red (< C4 + 100 = 2120), windowed red
+        // (< C2(2000) + 300 = 2300) -> coalesced.
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(5, vec![d(6)], 2030))
+            .unwrap();
+        // p6 @ 2130: windowed still red (< 2300), but adjacent green
+        // (>= 2120) -> builds, coalescing p5 and p6. A window-only gate would
+        // keep coalescing until 2300; the adjacent arm caps the gap.
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(6, vec![d(7)], 2130))
+            .unwrap();
+        // p7 @ 2300: windowed red (< C3(2010) + 300 = 2310), adjacent green
+        // (>= C5 + 100 = 2230) -> builds.
+        checkpoint_service
+            .write_and_notify_checkpoint_for_testing(&epoch_store, p(7, vec![d(8)], 2300))
+            .unwrap();
+
+        let mut built = Vec::new();
+        for _ in 0..7 {
+            let (contents, summary) = result.recv().await.unwrap();
+            built.push((summary.sequence_number, contents.iter().count()));
+        }
+
+        // Seven checkpoints, contiguous sequence numbers.
+        let sequence_numbers: Vec<_> = built.iter().map(|(seq, _)| *seq).collect();
+        assert_eq!(sequence_numbers, vec![0, 1, 2, 3, 4, 5, 6]);
+        // Bursts (seq 3, 4) stand alone despite sub-interval spacing; once the
+        // budget is spent, pendings coalesce only until the adjacent interval
+        // elapses (seq 5), never longer. A strict adjacent rule would build
+        // [0,1,2] and then coalesce the whole 2010-2130 cluster into one
+        // checkpoint; a window-only rule would coalesce p5-p7 into one
+        // checkpoint at 2300.
+        let sizes: Vec<_> = built.iter().map(|(_, size)| *size).collect();
+        assert_eq!(sizes, vec![1, 1, 1, 1, 1, 2, 1]);
+    }
+
     impl TransactionCacheRead for HashMap<TransactionDigest, TransactionEffects> {
         fn try_notify_read_executed_effects(
             &self,
+            _: &str,
             digests: &[TransactionDigest],
         ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffects>>> {
             std::future::ready(Ok(digests
@@ -2976,6 +3738,7 @@ mod tests {
 
         fn try_notify_read_executed_effects_digests(
             &self,
+            _: &str,
             digests: &[TransactionDigest],
         ) -> BoxFuture<'_, IotaResult<Vec<TransactionEffectsDigest>>> {
             std::future::ready(Ok(digests
@@ -3056,24 +3819,15 @@ mod tests {
         }
     }
 
-    fn p(i: u64, t: Vec<u8>, timestamp_ms: u64) -> PendingCheckpoint {
+    fn p(i: u64, roots: Vec<TransactionDigest>, timestamp_ms: u64) -> PendingCheckpoint {
         PendingCheckpoint::V1(PendingCheckpointContentsV1 {
-            roots: t
-                .into_iter()
-                .map(|t| TransactionKey::Digest(d(t)))
-                .collect(),
+            roots: roots.into_iter().map(TransactionKey::Digest).collect(),
             details: PendingCheckpointInfo {
                 timestamp_ms,
                 last_of_epoch: false,
                 checkpoint_height: i,
             },
         })
-    }
-
-    fn d(i: u8) -> TransactionDigest {
-        let mut bytes: [u8; 32] = Default::default();
-        bytes[0] = i;
-        TransactionDigest::new(bytes)
     }
 
     fn e(

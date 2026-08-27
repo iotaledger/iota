@@ -6,12 +6,12 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use iota_core::traffic_controller::TrafficController;
 use iota_grpc_types::v1::{
     ledger_service as grpc_ledger_service, move_package_service as grpc_move_package_service,
     service_methods, state_service as grpc_state_service,
     transaction_execution_service as grpc_tx_service,
 };
+use iota_traffic_controller::TrafficController;
 use iota_types::{traffic_control::ClientIdSource, transaction_executor::TransactionExecutor};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
@@ -21,7 +21,8 @@ use tonic::transport::{Identity, Server, ServerTlsConfig};
 use crate::{
     GrpcCheckpointDataBroadcaster, GrpcReader, GrpcServerMetrics, LedgerGrpcService,
     MovePackageGrpcService, StateGrpcService, TransactionExecutionGrpcService,
-    metrics::GrpcMetricsLayer, traffic_control::TrafficControlLayer,
+    metrics::GrpcMetricsLayer, server_timing::ServerTimingLayer,
+    traffic_control::TrafficControlLayer,
 };
 
 /// Handle to control a running gRPC server
@@ -207,11 +208,11 @@ pub async fn start_grpc_server(
 
         server_builder = server_builder
             .tls_config(tls)
-            .map_err(|e| anyhow::anyhow!("failed to configure TLS: {}", e))?;
+            .map_err(|e| anyhow::anyhow!("failed to configure TLS: {e}"))?;
     }
 
-    // Order matters: the metrics layer is outermost so it observes blocked requests
-    // too.
+    // Order matters: metrics outermost to observe blocked requests; server-timing
+    // innermost so the timer covers only accepted requests.
     let mut layered_builder = server_builder.layer(
         tower::ServiceBuilder::new()
             .option_layer(
@@ -222,7 +223,8 @@ pub async fn start_grpc_server(
             .option_layer(
                 traffic_controller
                     .map(|tc| TrafficControlLayer::new(tc, client_id_source.unwrap_or_default())),
-            ),
+            )
+            .layer(ServerTimingLayer),
     );
     let server_handle = build_and_spawn!(
         layered_builder,

@@ -75,7 +75,6 @@ pub enum PrunableTable {
     TxCallsMod,
     TxCallsFun,
     TxChangedObjects,
-    TxDigests,
     TxInputObjects,
     TxKinds,
     TxRecipients,
@@ -87,6 +86,16 @@ pub enum PrunableTable {
     PrunerCpWatermark,
     OptimisticTransactions,
     ObjectsBackwardHistory,
+}
+
+impl TryFrom<&StoredWatermark> for PrunableTable {
+    type Error = IndexerError;
+
+    fn try_from(watermark: &StoredWatermark) -> Result<Self, Self::Error> {
+        watermark.entity.as_str().parse().map_err(|_| {
+            IndexerError::Generic("watermark does not correspond to a prunable table".into())
+        })
+    }
 }
 
 /// Represents how a table is pruned
@@ -122,7 +131,7 @@ impl PruningStrategy {
 
     /// Exclusive upper bound of the pruning range for this strategy, taken
     /// from the watermark's `min_available_*` columns.
-    fn range_end(&self, watermark: &StoredWatermark) -> u64 {
+    pub(crate) fn range_end(&self, watermark: &StoredWatermark) -> u64 {
         match self {
             Self::ByEpochPartition => watermark.min_available_epoch as u64,
             Self::ByCheckpoint | Self::ByCheckpointWithLimit => watermark.min_available_cp as u64,
@@ -159,7 +168,6 @@ impl PrunableTable {
             | PrunableTable::TxCallsMod
             | PrunableTable::TxCallsFun
             | PrunableTable::TxChangedObjects
-            | PrunableTable::TxDigests
             | PrunableTable::TxInputObjects
             | PrunableTable::TxKinds
             | PrunableTable::TxRecipients
@@ -356,7 +364,7 @@ impl<'a> TablePruner<'a> {
                         "pruning task for table {} cancelled during delay",
                         self.table.as_ref()
                     );
-                    IndexerError::Generic("Pruning task cancelled".to_string())
+                    IndexerError::Generic("pruning task cancelled".to_string())
                 })?;
         }
 

@@ -14,7 +14,7 @@ use iota_grpc_types::{
         state_service::{GetCoinInfoRequest, GetCoinInfoResponse},
     },
 };
-use iota_sdk_types::Owner;
+use iota_sdk_types::{Address, Owner};
 
 use crate::{error::RpcError, types::GrpcReader, validation::object_id_proto};
 
@@ -89,9 +89,7 @@ pub(crate) fn get_coin_info(
             // to mint, so supply is fixed.
             let supply_state = match &object.owner {
                 Owner::Immutable => SupplyState::Fixed,
-                Owner::Address(addr) if *addr == iota_types::base_types::IotaAddress::ZERO => {
-                    SupplyState::Fixed
-                }
+                Owner::Address(addr) if *addr == Address::ZERO => SupplyState::Fixed,
                 _ => SupplyState::Unknown,
             };
 
@@ -134,7 +132,7 @@ pub(crate) fn get_coin_info(
     // updated to use it for consistency and better error handling.
     if let Some(regulated_object_id) = coin_info.regulated_coin_metadata_object_id {
         if let Some(object) = reader.get_object(&regulated_object_id)? {
-            if let Some(move_obj) = object.data.as_struct_opt() {
+            if let Some(move_obj) = object.data.as_opt_struct() {
                 match bcs::from_bytes::<iota_types::deny_list_v1::RegulatedCoinMetadata>(
                     move_obj.contents(),
                 ) {

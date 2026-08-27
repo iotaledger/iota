@@ -4,19 +4,17 @@
 
 use std::{collections::HashSet, sync::Arc};
 
-use iota_sdk_types::{ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner};
+use iota_sdk_types::{
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectDigest, ObjectId, ObjectReference,
+    Owner, ProgrammableTransaction, SharedObjectReference, TransactionEffects, Version,
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
-    crypto::{AccountKeyPair, get_key_pair},
-    digests::ObjectDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    crypto::{AccountPrivateKey, get_key_pair},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, ProgrammableTransaction, SharedObjectRef, TEST_ONLY_GAS_UNIT_FOR_PUBLISH,
-        VerifiedCertificate,
-    },
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, VerifiedCertificate},
 };
 
 use crate::{
@@ -62,12 +60,12 @@ macro_rules! transfer_test_runner {
 }
 
 struct TestRunner {
-    pub sender: IotaAddress,
-    pub sender_key: AccountKeyPair,
+    pub sender: Address,
+    pub sender_key: AccountPrivateKey,
     pub gas_object_ids: Vec<ObjectId>,
     pub authority_state: Arc<AuthorityState>,
-    pub package: ObjectRef,
-    pub upgrade_cap: ObjectRef,
+    pub package: ObjectReference,
+    pub upgrade_cap: ObjectReference,
     pub rgp: u64,
     pub aggressive_pruning_enabled: bool,
 }
@@ -79,7 +77,7 @@ impl TestRunner {
         aggressive_pruning_enabled: bool,
     ) -> Self {
         telemetry_subscribers::init_for_testing();
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let authority_state = TestAuthorityBuilder::new().build().await;
         let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -87,7 +85,7 @@ impl TestRunner {
         for _ in 0..num {
             let gas_object_id = ObjectId::random();
             let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
-            authority_state.insert_genesis_object(gas_object).await;
+            authority_state.insert_genesis_object(gas_object);
             gas_object_ids.push(gas_object_id);
         }
 
@@ -255,8 +253,8 @@ impl TestRunner {
 }
 
 fn get_parent_and_child(
-    created: Vec<(ObjectRef, Owner)>,
-) -> ((ObjectRef, Owner), (ObjectRef, Owner)) {
+    created: Vec<(ObjectReference, Owner)>,
+) -> ((ObjectReference, Owner), (ObjectReference, Owner)) {
     // make sure there is an object with an `Address` who matches the object ID
     // of another object.
     let created_addrs: HashSet<_> = created
@@ -321,7 +319,7 @@ async fn test_tto_transfer() {
         for (obj_ref, owner) in effects.mutated().iter() {
             if obj_ref.object_id == child.0 .object_id {
                 // Child should be sent to 0x0
-                assert_eq!(owner, &Owner::Address(IotaAddress::ZERO));
+                assert_eq!(owner, &Owner::Address(Address::ZERO));
                 // It's version should be bumped as well
                 assert!(obj_ref.version > child.0.version);
             }
@@ -429,19 +427,19 @@ async fn test_tto_invalid_receiving_arguments() {
 
         #[expect(clippy::type_complexity)]
         let mutations: Vec<(
-            Box<dyn FnOnce(ObjectRef) -> ObjectRef>,
+            Box<dyn FnOnce(ObjectReference) -> ObjectReference>,
             Box<dyn FnOnce(UserInputError) -> bool>,
         )> = vec![
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, SequenceNumber::MAX_VALID_EXCL, x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, Version::MAX_VALID_EXCL, x.digest)),
                 Box::new(|err| matches!(err, UserInputError::InvalidSequenceNumber)),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(ObjectId::ZERO, x.version, x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(ObjectId::ZERO, x.version, x.digest)),
                 Box::new(|err| matches!(err, UserInputError::ObjectNotFound { .. })),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, x.version.next().unwrap(), x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, x.version.next().unwrap(), x.digest)),
                 Box::new(|err| {
                     matches!(
                         err,
@@ -450,7 +448,7 @@ async fn test_tto_invalid_receiving_arguments() {
                 }),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, x.version.previous().unwrap(), x.digest)),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, x.version.previous().unwrap(), x.digest)),
                 Box::new(|err| {
                     matches!(
                         err,
@@ -459,23 +457,23 @@ async fn test_tto_invalid_receiving_arguments() {
                 }),
             ),
             (
-                Box::new(|_: ObjectRef| package_object_ref),
+                Box::new(|_: ObjectReference| package_object_ref),
                 Box::new(|err| matches!(err, UserInputError::MovePackageAsObject { .. })),
             ),
             (
-                Box::new(|x: ObjectRef| ObjectRef::new(x.object_id, x.version, ObjectDigest::random())),
+                Box::new(|x: ObjectReference| ObjectReference::new(x.object_id, x.version, ObjectDigest::random())),
                 Box::new(|err| matches!(err, UserInputError::InvalidObjectDigest { .. })),
             ),
             (
-                Box::new(|_: ObjectRef| shared.0),
+                Box::new(|_: ObjectReference| shared.0),
                 Box::new(|err| matches!(err, UserInputError::NotSharedObject)),
             ),
             (
-                Box::new(|_: ObjectRef| object_owned.0),
+                Box::new(|_: ObjectReference| object_owned.0),
                 Box::new(|err| matches!(err, UserInputError::InvalidChildObjectArgument { .. })),
             ),
             (
-                Box::new(|_: ObjectRef| immutable.0),
+                Box::new(|_: ObjectReference| immutable.0),
                 Box::new(|err| matches!(err, UserInputError::MutableParameterExpected { .. })),
             ),
         ];
@@ -768,7 +766,7 @@ async fn test_tto_unwrap_transfer() {
         // The now-unwrapped object should be sent to 0x0
         assert_eq!(
             effects.unwrapped()[0].1,
-            Owner::Address(IotaAddress::ZERO)
+            Owner::Address(Address::ZERO)
         );
 
         // Receiving object ID is deleted
@@ -1089,7 +1087,7 @@ async fn test_tto_valid_dependencies() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), child.0)
+                        .transfer_object(Address::from(parent.0.object_id), child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1132,7 +1130,7 @@ async fn test_tto_valid_dependencies() {
         for (obj_ref, owner) in effects.mutated().iter() {
             if obj_ref.object_id == child.0 .object_id {
                 // Child should be sent to 0x0
-                assert_eq!(owner, &Owner::Address(IotaAddress::ZERO));
+                assert_eq!(owner, &Owner::Address(Address::ZERO));
                 // It's version should be bumped as well
                 assert!(obj_ref.version > child.0.version);
                 // The child should be the max version
@@ -1188,7 +1186,7 @@ async fn test_tto_valid_dependencies_delete_on_receive() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), child.0)
+                        .transfer_object(Address::from(parent.0.object_id), child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1283,7 +1281,7 @@ async fn test_tto_dependencies_dont_receive() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1380,7 +1378,7 @@ async fn test_tto_dependencies_dont_receive_but_abort() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1475,7 +1473,7 @@ async fn test_tto_dependencies_receive_and_abort() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1569,7 +1567,7 @@ async fn test_tto_dependencies_receive_and_type_mismatch() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     builder
-                        .transfer_object(IotaAddress::from(parent.0.object_id), old_child.0)
+                        .transfer_object(Address::from(parent.0.object_id), old_child.0)
                         .unwrap();
                     builder.finish()
                 },
@@ -1670,7 +1668,7 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef::new(
+                        .obj(CallArg::Shared(SharedObjectReference::new(
                             shared.0.object_id,
                             initial_shared_version,
                             true,
@@ -1692,7 +1690,7 @@ async fn receive_and_dof_interleave() {
                 {
                     let mut builder = ProgrammableTransactionBuilder::new();
                     let parent = builder
-                        .obj(CallArg::Shared(SharedObjectRef::new(
+                        .obj(CallArg::Shared(SharedObjectReference::new(
                             shared.0.object_id,
                             initial_shared_version,
                             true,

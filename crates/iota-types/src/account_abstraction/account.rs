@@ -1,10 +1,8 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, StructTag};
+use iota_sdk_types::Identifier;
 use serde::{Deserialize, Serialize};
-
-use crate::base_types::IotaAddress;
 
 pub const ACCOUNT_MODULE_NAME: Identifier = Identifier::from_static("account");
 pub const AUTHENTICATOR_FUNCTION_REF_V1_KEY_STRUCT_NAME: Identifier =
@@ -19,15 +17,6 @@ pub struct AuthenticatorFunctionRefV1Key {
 }
 
 impl AuthenticatorFunctionRefV1Key {
-    pub fn tag() -> StructTag {
-        StructTag::new(
-            IotaAddress::FRAMEWORK,
-            ACCOUNT_MODULE_NAME,
-            AUTHENTICATOR_FUNCTION_REF_V1_KEY_STRUCT_NAME,
-            Vec::new(),
-        )
-    }
-
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
         bcs::to_bytes(&self).unwrap()
     }

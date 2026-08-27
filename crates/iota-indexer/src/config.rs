@@ -2,21 +2,19 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
+use std::{collections::HashMap, net::SocketAddr, num::NonZeroUsize, path::PathBuf};
 
 use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use iota_names::config::IotaNamesConfig;
-use iota_sdk_types::ObjectId;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::{Address, ObjectId};
 use serde::{Deserialize, Serialize};
 use strum::IntoEnumIterator;
-use tracing::warn;
 use url::Url;
 
 use crate::{
     backfill::BackfillKind, db::ConnectionPoolConfig, pruning::pruner::PrunableTable,
-    types::IndexerResult,
+    restore::Network, types::IndexerResult,
 };
 
 #[derive(Parser, Clone, Debug)]
@@ -42,13 +40,13 @@ pub struct IndexerConfig {
 pub struct IotaNamesOptions {
     #[arg(default_value_t = IotaNamesConfig::default().package_address)]
     #[arg(long = "iota-names-package-address")]
-    pub package_address: IotaAddress,
+    pub package_address: Address,
     #[arg(default_value_t = IotaNamesConfig::default().object_id)]
     #[arg(long = "iota-names-object-id")]
     pub object_id: ObjectId,
     #[arg(default_value_t = IotaNamesConfig::default().payments_package_address)]
     #[arg(long = "iota-names-payments-package-address")]
-    pub payments_package_address: IotaAddress,
+    pub payments_package_address: Address,
     #[arg(default_value_t = IotaNamesConfig::default().registry_id)]
     #[arg(long = "iota-names-registry-id")]
     pub registry_id: ObjectId,
@@ -272,8 +270,6 @@ pub enum Command {
         #[command(flatten)]
         ingestion_config: IngestionConfig,
         #[command(flatten)]
-        snapshot_config: SnapshotLagConfig,
-        #[command(flatten)]
         pruning_options: PruningOptions,
         #[arg(long)]
         reset_db: bool,
@@ -298,6 +294,39 @@ pub enum Command {
         #[command(flatten)]
         backfill_config: BackfillConfig,
     },
+    /// Bootstrap the Indexer database from a formal snapshot.
+    Restore {
+        /// Target network.
+        #[arg(long)]
+        network: Network,
+        #[command(subcommand)]
+        command: RestoreCommand,
+    },
+}
+
+#[derive(Subcommand, Clone, Debug)]
+pub enum RestoreCommand {
+    /// Start restoring from a formal snapshot of the target network.
+    Run {
+        /// Local directory used to stage the downloaded MANIFEST and `.ref`
+        /// files.
+        #[arg(long)]
+        staging_path: PathBuf,
+        /// Path to the genesis blob, required to verify the snapshot against
+        /// the committee chain.
+        #[arg(long)]
+        genesis_path: PathBuf,
+        /// Epoch to download. Defaults to the latest available epoch.
+        #[arg(long)]
+        epoch: Option<u64>,
+        /// Number of parallel downloads. Defaults to the available parallelism.
+        ///
+        /// Must be strictly positive.
+        #[arg(long)]
+        num_parallel_downloads: Option<NonZeroUsize>,
+    },
+    /// Print the epochs for which there is an available formal snapshot.
+    AvailableEpochs,
 }
 
 pub const DEFAULT_PRUNING_DELAY_MS: u64 = 2 * 60 * 60 * 1000; // 2 hours
@@ -305,10 +334,6 @@ pub const DEFAULT_PRUNING_BATCH_SIZE: u64 = 1000;
 
 #[derive(Args, Debug, Clone)]
 pub struct PruningOptions {
-    /// DEPRECATED: will be removed in v1.28.0. Use `--pruning-config-path`
-    /// pointing at a TOML retention config instead.
-    #[arg(long, env = "EPOCHS_TO_KEEP")]
-    pub epochs_to_keep: Option<u64>,
     /// Path to TOML file containing configuration for retention policies.
     #[arg(long)]
     pub pruning_config_path: Option<PathBuf>,
@@ -327,20 +352,14 @@ pub struct PruningOptions {
         value_parser = clap::value_parser!(u64).range(1..),
     )]
     pub pruning_batch_size: u64,
-    /// DEPRECATED: will be removed in v1.29.0. This parameter is no longer
-    /// used. Optimistic transactions are now pruned by the unified pruner.
-    #[arg(long, env = "OPTIMISTIC_PRUNER_BATCH_SIZE")]
-    pub optimistic_pruner_batch_size: Option<u64>,
 }
 
 impl Default for PruningOptions {
     fn default() -> Self {
         Self {
-            epochs_to_keep: None,
             pruning_config_path: None,
             pruning_delay_ms: DEFAULT_PRUNING_DELAY_MS,
             pruning_batch_size: DEFAULT_PRUNING_BATCH_SIZE,
-            optimistic_pruner_batch_size: None,
         }
     }
 }
@@ -362,25 +381,7 @@ impl PruningOptions {
     /// Loads default retention policy and overrides from file.
     pub fn load_from_file(&self) -> IndexerResult<Option<RetentionConfig>> {
         let Some(config_path) = self.pruning_config_path.as_ref() else {
-            let Some(epochs_to_keep) = self.epochs_to_keep else {
-                return Ok(None);
-            };
-            warn!(
-                "using the deprecated --epochs-to-keep argument for pruning configuration. \
-                 This argument will be removed in v1.28.0. \
-                 Please use --pruning-config-path to specify a TOML configuration file instead."
-            );
-            return Ok(Some(RetentionConfig::new(
-                epochs_to_keep,
-                Default::default(),
-            )));
-        };
-
-        if self.epochs_to_keep.is_some() {
-            warn!(
-                "the --epochs-to-keep argument will be ignored since --pruning-config-path is also provided. \
-                 Note that --epochs-to-keep is deprecated and will be removed in v1.28.0."
-            );
+            return Ok(None);
         };
 
         let contents = std::fs::read_to_string(config_path)
@@ -420,10 +421,6 @@ impl RetentionConfig {
         }
     }
 
-    pub fn new_with_default_retention_only_for_testing(epochs_to_keep: u64) -> Self {
-        Self::new(epochs_to_keep, HashMap::new())
-    }
-
     /// Consumes the struct and produces a mapping of every prunable table
     /// and its retention policy.
     ///
@@ -440,29 +437,6 @@ impl RetentionConfig {
         }
 
         overrides
-    }
-}
-
-#[derive(Args, Default, Debug, Clone)]
-pub struct SnapshotLagConfig {
-    /// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline
-    /// has been removed. This flag is a no-op.
-    #[arg(
-        long = "objects-snapshot-min-checkpoint-lag",
-        env = "OBJECTS_SNAPSHOT_MIN_CHECKPOINT_LAG"
-    )]
-    pub snapshot_min_lag: Option<usize>,
-
-    /// DEPRECATED: will be removed in v1.31.0. The objects_snapshot pipeline
-    /// has been removed. This flag is a no-op.
-    #[arg(long = "objects-snapshot-sleep-duration")]
-    pub sleep_duration: Option<u64>,
-}
-
-impl SnapshotLagConfig {
-    /// Returns `true` if any deprecated flag was explicitly provided.
-    pub fn is_set(&self) -> bool {
-        self.snapshot_min_lag.is_some() || self.sleep_duration.is_some()
     }
 }
 

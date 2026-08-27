@@ -47,7 +47,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!(" *** List active validators *** ");
     active_validators.for_each(|validator| {
         println!(
-            "Name: {}, Description: {}, IotaAddress: {:?}",
+            "Name: {}, Description: {}, Address: {:?}",
             validator.name, validator.description, validator.iota_address
         )
     });

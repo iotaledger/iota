@@ -102,10 +102,14 @@ jobs:
   split-cluster:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_split_cluster.yml
+    with:
+      isNightly: true
 
   split-cluster-sync-check:
     if: ${{ !inputs.rustTestsOnly && !inputs.simTestsOnly }}
     uses: ./.github/workflows/_split_cluster_sync_check.yml
+    with:
+      isNightly: true
 
   simtest:
     if: ${{ inputs.simTestsOnly || !inputs.rustTestsOnly }}

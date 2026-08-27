@@ -8,18 +8,17 @@ use anyhow;
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::{self, StreamExt};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{
+    Address, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version, checkpoint::CheckpointContents,
+};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
-    digests::{CheckpointDigest, TransactionDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult},
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
 use reqwest::{
@@ -129,7 +128,7 @@ pub enum Key {
     TransactionToCheckpoint(TransactionDigest),
     ObjectKey(ObjectKey),
     EventsByTransactionDigest(TransactionDigest),
-    TransactionDigestsByAddress(IotaAddress),
+    TransactionDigestsByAddress(Address),
 }
 
 impl Key {
@@ -141,8 +140,8 @@ impl Key {
     /// ```rust
     /// use std::str::FromStr;
     ///
+    /// use iota_sdk_types::TransactionDigest;
     /// use iota_storage::http_key_value_store::Key;
-    /// use iota_types::digests::TransactionDigest;
     ///
     /// let key = Key::new("tx", "7jb54RvJduLj9HdV9L41UJqZ5KWdzYY2rl1eL8AVl9o").unwrap();
     /// assert_eq!(
@@ -204,7 +203,7 @@ impl Key {
                 TransactionDigest::from_bytes(decoded_key.as_slice())?,
             )),
             ItemType::TransactionDigestsByAddress => Ok(Key::TransactionDigestsByAddress(
-                IotaAddress::from_bytes(decoded_key.as_slice())?,
+                Address::from_bytes(decoded_key.as_slice())?,
             )),
         }
     }
@@ -219,8 +218,8 @@ impl Key {
     ///
     /// # Example
     /// ```rust
+    /// use iota_sdk_types::TransactionDigest;
     /// use iota_storage::http_key_value_store::{ItemType, Key};
-    /// use iota_types::digests::TransactionDigest;
     ///
     /// let item_type = Key::CheckpointContents(1).item_type();
     /// assert_eq!(item_type, ItemType::CheckpointContents);
@@ -250,10 +249,10 @@ impl Key {
     /// # Examples
     ///
     /// ```rust
+    /// use iota_sdk_types::TransactionDigest;
     /// use iota_storage::http_key_value_store::{
     ///     ItemType, Key, TaggedKey, encode_digest, encode_object_key, encoded_tagged_key,
     /// };
-    /// use iota_types::digests::TransactionDigest;
     ///
     /// let tx_digest = TransactionDigest::random();
     /// // encode the tx_digest as base64 url
@@ -297,7 +296,7 @@ impl Key {
 
 #[derive(Clone, Debug)]
 enum Value {
-    Tx(Box<Transaction>),
+    Tx(Box<TransactionEnvelope>),
     Fx(Box<TransactionEffects>),
     Events(Box<TransactionEvents>),
     CheckpointContents(Box<CheckpointContents>),
@@ -493,7 +492,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
             .map(map_fetch)
             .map(|maybe_bytes| {
                 maybe_bytes.and_then(|(bytes, digest)| {
-                    deser_check_digest(digest, bytes, |tx: &Transaction| *tx.digest())
+                    deser_check_digest(digest, bytes, |tx: &TransactionEnvelope| *tx.digest())
                 })
             })
             .collect::<Vec<_>>();
@@ -603,7 +602,7 @@ impl TransactionKeyValueStoreTrait for HttpKVStore {
     async fn get_object(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         let key = Key::ObjectKey(ObjectKey(object_id, version));
         self.fetch(key)

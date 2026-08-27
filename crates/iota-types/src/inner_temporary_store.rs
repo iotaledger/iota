@@ -7,16 +7,17 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{Identifier, ObjectId, Owner};
+use iota_sdk_types::{ObjectId, Owner, TransactionEffects, TransactionEvents, Version};
 use move_binary_format::{CompiledModule, binary_config::BinaryConfig};
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 
 use crate::{
-    base_types::{SequenceNumber, VersionDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
+    base_types::VersionDigest,
+    effects::TransactionEffectsAPI,
     error::IotaResult,
     execution::DynamicallyLoadedObjectMetadata,
+    iota_sdk_types_conversions::identifier_core_to_sdk,
     move_package::MovePackageExt,
     object::Object,
     storage::{BackingPackageStore, InputKey, PackageObject},
@@ -36,7 +37,7 @@ pub struct InnerTemporaryStore {
     pub events: TransactionEvents,
     pub binary_config: BinaryConfig,
     pub runtime_packages_loaded_from_db: BTreeMap<ObjectId, PackageObject>,
-    pub lamport_version: SequenceNumber,
+    pub lamport_version: Version,
 }
 
 impl InnerTemporaryStore {
@@ -94,15 +95,19 @@ impl InnerTemporaryStore {
     }
 }
 
+/// Resolves modules out of a set of objects written by an execution, falling
+/// back to `fallback` for modules the execution did not write.
 pub struct TemporaryModuleResolver<'a, R> {
-    temp_store: &'a InnerTemporaryStore,
+    written: &'a WrittenObjects,
+    binary_config: BinaryConfig,
     fallback: R,
 }
 
 impl<'a, R> TemporaryModuleResolver<'a, R> {
-    pub fn new(temp_store: &'a InnerTemporaryStore, fallback: R) -> Self {
+    pub fn new(written: &'a WrittenObjects, binary_config: BinaryConfig, fallback: R) -> Self {
         Self {
-            temp_store,
+            written,
+            binary_config,
             fallback,
         }
     }
@@ -116,15 +121,12 @@ where
     type Item = Arc<CompiledModule>;
 
     fn get_module_by_id(&self, id: &ModuleId) -> anyhow::Result<Option<Self::Item>, Self::Error> {
-        let obj = self
-            .temp_store
-            .written
-            .get(&ObjectId::new(id.address().into_bytes()));
+        let obj = self.written.get(&ObjectId::new(id.address().into_bytes()));
         if let Some(o) = obj {
-            if let Some(p) = o.data.as_package_opt() {
+            if let Some(p) = o.data.as_opt_package() {
                 return Ok(Some(Arc::new(p.deserialize_module(
-                    &Identifier::new_unchecked(id.name().as_str()),
-                    &self.temp_store.binary_config,
+                    &identifier_core_to_sdk(id.name()),
+                    &self.binary_config,
                 )?)));
             }
         }
@@ -139,6 +141,17 @@ impl BackingPackageStore for InnerTemporaryStore {
             .get(package_id)
             .cloned()
             .map(PackageObject::new))
+    }
+}
+
+/// Resolves packages out of a map of objects, so that a caller holding only an
+/// execution's inputs or outputs — rather than the whole
+/// [`InnerTemporaryStore`] — can use them as a package store.
+pub struct ObjectMapPackageStore<'a>(pub &'a ObjectMap);
+
+impl BackingPackageStore for ObjectMapPackageStore<'_> {
+    fn get_package_object(&self, package_id: &ObjectId) -> IotaResult<Option<PackageObject>> {
+        Ok(self.0.get(package_id).cloned().map(PackageObject::new))
     }
 }
 

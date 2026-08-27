@@ -17,28 +17,34 @@ use iota_config::{
     Config, ExecutionCacheConfig, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
     NodeConfig, PersistedConfig,
     genesis::Genesis,
-    node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, GrpcApiConfig, RunWithRange},
+    transaction_deny_config::TransactionDenyConfig,
 };
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
 };
-use iota_genesis_builder::SnapshotSource;
+use iota_grpc_client::read_mask_fields::TransactionField;
 use iota_json_rpc_api::{IndexerApiClient, TransactionBuilderClient, WriteApiClient};
 use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
+    IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
     IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions,
 };
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_node::IotaNodeHandle;
-use iota_protocol_config::{Chain, ProtocolVersion};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
     apis::QuorumDriverApi,
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_transaction_builder::TransactionBuilder;
+use iota_sdk_types::{
+    Address, ExecutionStatus, ObjectId, ObjectReference, Transaction, TransactionDigest,
+    TransactionEffects, TransactionEvents,
+};
 use iota_swarm::memory::{Swarm, SwarmBuilder};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig, ValidatorGenesisConfig},
@@ -51,23 +57,21 @@ use iota_swarm_config::{
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{AuthorityName, ConciseableName, IotaAddress, ObjectRef},
+    base_types::{AuthorityName, ConciseableName},
     committee::{Committee, CommitteeTrait, EpochId},
-    crypto::{AccountKeyPair, IotaKeyPair, KeypairTraits, get_key_pair},
-    digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEvents},
+    crypto::{AccountPrivateKey, get_key_pair},
+    effects::TransactionEffectsAPI,
     error::IotaResult,
-    governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait,
     },
     messages_grpc::HandleCertificateRequestV1,
     object::Object,
-    quorum_driver_types::ExecuteTransactionRequestType,
+    quorum_driver_types::{ExecuteTransactionRequestType, ExecuteTransactionRequestV1},
     supported_protocol_versions::SupportedProtocolVersions,
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
-    transaction::{CertifiedTransaction, Transaction, TransactionData},
+    transaction::{CertifiedTransaction, TransactionEnvelope},
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -79,6 +83,10 @@ use tokio::{
 use tracing::{error, info};
 
 const NUM_VALIDATOR: usize = 4;
+
+/// How long the fullnode's gRPC API is asked to wait for an executed
+/// transaction to be included in a checkpoint before returning.
+const CHECKPOINT_INCLUSION_TIMEOUT_MS: u64 = 60_000;
 
 pub struct FullNodeHandle {
     pub iota_node: IotaNodeHandle,
@@ -104,8 +112,8 @@ impl FullNodeHandle {
 }
 
 struct Faucet {
-    address: IotaAddress,
-    keypair: Arc<tokio::sync::Mutex<IotaKeyPair>>,
+    address: Address,
+    keypair: Arc<tokio::sync::Mutex<SimpleKeypair>>,
 }
 
 pub struct TestCluster {
@@ -113,6 +121,39 @@ pub struct TestCluster {
     pub wallet: WalletContext,
     pub fullnode_handle: FullNodeHandle,
     faucet: Option<Faucet>,
+}
+
+/// Reverts the P-COOL protocol flag override when dropped.
+#[must_use = "the override only holds while the guard is alive"]
+pub struct PcoolFlowOverride;
+
+impl Drop for PcoolFlowOverride {
+    fn drop(&mut self) {
+        // SAFETY: paired with `override_pcool_flow`; both run on the test
+        // thread, outside the cluster's lifetime.
+        unsafe {
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE");
+            std::env::remove_var("IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW");
+        }
+    }
+}
+
+/// Sets the P-COOL protocol flag for every node of a test cluster built while
+/// the returned guard is alive.
+///
+/// `ProtocolConfig::apply_overrides_for_testing` is thread-local and does not
+/// reach the tasks a cluster spawns, so the flag goes through the protocol
+/// config environment overrides instead.
+pub fn override_pcool_flow(enabled: bool) -> PcoolFlowOverride {
+    // SAFETY: called before the cluster is built, on the test thread.
+    unsafe {
+        std::env::set_var("IOTA_PROTOCOL_CONFIG_OVERRIDE_ENABLE", "1");
+        std::env::set_var(
+            "IOTA_PROTOCOL_CONFIG_FEATURE_FLAGS_OVERRIDE_ENABLE_PCOOL_FLOW",
+            enabled.to_string(),
+        );
+    }
+    PcoolFlowOverride
 }
 
 impl TestCluster {
@@ -140,6 +181,20 @@ impl TestCluster {
         format!("http://{}", grpc_config.unwrap_or_default().address)
     }
 
+    /// Create a gRPC client connected to the fullnode's gRPC API.
+    pub fn grpc_client(&self) -> iota_grpc_client::Client {
+        iota_grpc_client::Client::new(self.grpc_url()).expect("failed to create gRPC client")
+    }
+
+    /// Create a gRPC-driven [`TransactionBuilder`] for `sender`, resolving
+    /// objects and gas through the fullnode's gRPC API.
+    pub fn grpc_transaction_builder(
+        &self,
+        sender: Address,
+    ) -> TransactionBuilder<iota_grpc_client::Client> {
+        TransactionBuilder::new(sender).with_client(self.grpc_client())
+    }
+
     pub fn wallet(&mut self) -> &WalletContext {
         &self.wallet
     }
@@ -148,22 +203,22 @@ impl TestCluster {
         &mut self.wallet
     }
 
-    pub fn get_addresses(&self) -> Vec<IotaAddress> {
+    pub fn get_addresses(&self) -> Vec<Address> {
         self.wallet.get_addresses()
     }
 
     // Helper function to get the 0th address in WalletContext
-    pub fn get_address_0(&self) -> IotaAddress {
+    pub fn get_address_0(&self) -> Address {
         self.get_addresses()[0]
     }
 
     // Helper function to get the 1st address in WalletContext
-    pub fn get_address_1(&self) -> IotaAddress {
+    pub fn get_address_1(&self) -> Address {
         self.get_addresses()[1]
     }
 
     // Helper function to get the 2nd address in WalletContext
-    pub fn get_address_2(&self) -> IotaAddress {
+    pub fn get_address_2(&self) -> Address {
         self.get_addresses()[2]
     }
 
@@ -267,11 +322,10 @@ impl TestCluster {
     pub async fn get_object_from_fullnode_store(&self, object_id: &ObjectId) -> Option<Object> {
         self.fullnode_handle
             .iota_node
-            .with_async(|node| async { node.state().get_object(object_id).await })
-            .await
+            .with(|node| node.state().get_object(object_id))
     }
 
-    pub async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectRef {
+    pub async fn get_latest_object_ref(&self, object_id: &ObjectId) -> ObjectReference {
         self.get_object_from_fullnode_store(object_id)
             .await
             .unwrap()
@@ -281,7 +335,7 @@ impl TestCluster {
     pub async fn get_object_or_tombstone_from_fullnode_store(
         &self,
         object_id: ObjectId,
-    ) -> ObjectRef {
+    ) -> ObjectReference {
         self.fullnode_handle
             .iota_node
             .state()
@@ -544,6 +598,12 @@ impl TestCluster {
             .expect("at least one node must be up to get highest protocol version")
     }
 
+    /// The protocol config for the highest observed protocol version in the
+    /// test cluster.
+    pub fn protocol_config(&self) -> ProtocolConfig {
+        ProtocolConfig::get_for_version(self.highest_protocol_version(), Chain::Unknown)
+    }
+
     pub async fn test_transaction_builder(&self) -> TestTransactionBuilder {
         let (sender, gas) = self.wallet.get_one_gas_object().await.unwrap().unwrap();
         self.test_transaction_builder_with_gas_object(sender, gas)
@@ -552,7 +612,7 @@ impl TestCluster {
 
     pub async fn test_transaction_builder_with_sender(
         &self,
-        sender: IotaAddress,
+        sender: Address,
     ) -> TestTransactionBuilder {
         let gas = self
             .wallet
@@ -566,52 +626,110 @@ impl TestCluster {
 
     pub async fn test_transaction_builder_with_gas_object(
         &self,
-        sender: IotaAddress,
-        gas: ObjectRef,
+        sender: Address,
+        gas: ObjectReference,
     ) -> TestTransactionBuilder {
         let rgp = self.get_reference_gas_price().await;
         TestTransactionBuilder::new(sender, gas, rgp)
     }
 
-    pub fn sign_transaction(&self, tx_data: &TransactionData) -> Transaction {
-        self.wallet.sign_transaction(tx_data)
+    pub fn sign_transaction(&self, tx: &Transaction) -> TransactionEnvelope {
+        self.wallet.sign_transaction(tx)
     }
 
-    pub async fn sign_and_execute_transaction(
-        &self,
-        tx_data: &TransactionData,
-    ) -> IotaTransactionBlockResponse {
-        let tx = self.wallet.sign_transaction(tx_data);
+    pub async fn sign_and_execute_transaction(&self, tx: &Transaction) -> TransactionEffects {
+        let tx = self.wallet.sign_transaction(tx);
         self.execute_transaction(tx).await
     }
 
-    /// Execute a transaction on the network and wait for it to be executed on
-    /// the rpc fullnode. Also expects the effects status to be
-    /// ExecutionStatus::Success. This function is recommended for
-    /// transaction execution since it most resembles the production path.
-    pub async fn execute_transaction(&self, tx: Transaction) -> IotaTransactionBlockResponse {
-        self.wallet.execute_transaction_must_succeed(tx).await
+    /// Execute a transaction via the fullnode's gRPC API and wait for it to be
+    /// included in a checkpoint executed by the fullnode, so subsequent reads
+    /// on the fullnode observe its outputs. Also expects the effects status to
+    /// be `ExecutionStatus::Success`.
+    pub async fn execute_transaction(&self, tx: TransactionEnvelope) -> TransactionEffects {
+        let executed = self
+            .grpc_client()
+            .execute_transaction(
+                tx.into(),
+                CHECKPOINT_INCLUSION_TIMEOUT_MS,
+                TransactionField::EFFECTS_BCS,
+            )
+            .await
+            .unwrap_or_else(|e| panic!("Transaction submission failed: {e}"))
+            .into_inner();
+        let effects = executed
+            .effects()
+            .expect("effects are requested in the read mask")
+            .effects()
+            .expect("effects BCS should deserialize");
+        assert!(
+            matches!(effects.status(), ExecutionStatus::Success),
+            "Transaction failed: {effects:?}"
+        );
+        effects
     }
 
-    /// Different from `execute_transaction` which returns RPC effects types,
-    /// this function returns raw effects, events and extra objects returned
-    /// by the validators, aggregated manually (without authority
-    /// aggregator). It also does not check whether the transaction is
-    /// executed successfully. In order to keep the fullnode up-to-date so
-    /// that latter queries can read consistent results, it calls
-    /// execute_transaction_may_fail again which goes through fullnode. This
-    /// is less efficient and verbose, but can be used if more details are
-    /// needed from the execution results, and if the transaction is
-    /// expected to fail.
+    /// Different from `execute_transaction`, this function returns raw
+    /// effects, events and extra objects returned by the validators,
+    /// aggregated manually (without authority aggregator). It also does not
+    /// check whether the transaction is executed successfully. In order to
+    /// keep the fullnode up-to-date so that latter queries can read consistent
+    /// results, it executes the transaction again through the fullnode's gRPC
+    /// API. This is less efficient and verbose, but can be used if more
+    /// details are needed from the execution results, and if the transaction
+    /// is expected to fail.
     pub async fn execute_transaction_return_raw_effects(
         &self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
+        if self.protocol_config().enable_pcool_flow() {
+            return self.execute_transaction_via_orchestrator(tx).await;
+        }
         let results = self
             .submit_transaction_to_validators(tx.clone(), &self.get_validator_pubkeys())
             .await?;
-        self.wallet.execute_transaction_may_fail(tx).await.unwrap();
+        self.grpc_client()
+            .execute_transaction(
+                tx.into(),
+                CHECKPOINT_INCLUSION_TIMEOUT_MS,
+                TransactionField::EFFECTS_BCS,
+            )
+            .await
+            .unwrap();
         Ok(results)
+    }
+
+    /// Drives a transaction through the fullnode's transaction orchestrator
+    /// and returns the raw effects and events.
+    ///
+    /// The P-COOL flow has no certificate to hand to individual validators, so
+    /// this is the counterpart of `submit_transaction_to_validators` for
+    /// callers that only need the raw execution results.
+    async fn execute_transaction_via_orchestrator(
+        &self,
+        tx: TransactionEnvelope,
+    ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
+        let orchestrator = self.fullnode_handle.iota_node.with(|node| {
+            node.transaction_orchestrator()
+                .expect("fullnodes run a transaction orchestrator")
+        });
+        let (response, _executed_locally) = orchestrator
+            .execute_transaction_block(
+                ExecuteTransactionRequestV1 {
+                    transaction: tx,
+                    include_events: true,
+                    include_input_objects: false,
+                    include_output_objects: false,
+                    include_auxiliary_data: false,
+                },
+                ExecuteTransactionRequestType::WaitForLocalExecution,
+                None,
+            )
+            .await?;
+        Ok((
+            response.effects.effects,
+            response.events.unwrap_or_default(),
+        ))
     }
 
     pub fn authority_aggregator(&self) -> Arc<AuthorityAggregator<NetworkAuthorityClient>> {
@@ -622,7 +740,7 @@ impl TestCluster {
 
     pub async fn create_certificate(
         &self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> anyhow::Result<CertifiedTransaction> {
         let agg = self.authority_aggregator();
@@ -640,7 +758,7 @@ impl TestCluster {
     /// certificates to, which is useful in some tests.
     pub async fn submit_transaction_to_validators(
         &self,
-        tx: Transaction,
+        tx: TransactionEnvelope,
         pubkeys: &[AuthorityName],
     ) -> anyhow::Result<(TransactionEffects, TransactionEvents)> {
         let agg = self.authority_aggregator();
@@ -711,8 +829,8 @@ impl TestCluster {
         &self,
         rgp: u64,
         amount: Option<u64>,
-        funding_address: IotaAddress,
-    ) -> (ObjectRef, TransactionDigest) {
+        funding_address: Address,
+    ) -> (ObjectReference, TransactionDigest) {
         let Faucet { address, keypair } = &self
             .faucet
             .as_ref()
@@ -766,8 +884,8 @@ impl TestCluster {
         &self,
         rgp: u64,
         amount: Option<u64>,
-        funding_address: IotaAddress,
-    ) -> ObjectRef {
+        funding_address: Address,
+    ) -> ObjectReference {
         let (object_ref, _tx_digest) = self
             .fund_address_and_return_gas_and_tx(rgp, amount, funding_address)
             .await;
@@ -776,8 +894,8 @@ impl TestCluster {
 
     pub async fn transfer_iota_must_exceed(
         &self,
-        sender: IotaAddress,
-        receiver: IotaAddress,
+        sender: Address,
+        receiver: Address,
         amount: u64,
     ) -> ObjectId {
         let tx = self
@@ -785,13 +903,8 @@ impl TestCluster {
             .await
             .transfer_iota(Some(amount), receiver)
             .build();
-        let effects = self
-            .sign_and_execute_transaction(&tx)
-            .await
-            .effects
-            .unwrap();
-        assert_eq!(&IotaExecutionStatus::Success, effects.status());
-        effects.created().first().unwrap().object_id()
+        let effects = self.sign_and_execute_transaction(&tx).await;
+        effects.created().first().unwrap().0.object_id
     }
 
     /// Wait to catch up to the given checkpoint sequence
@@ -827,7 +940,7 @@ impl TestCluster {
     /// Get all objects owned by an address
     pub async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         options: Option<IotaObjectDataOptions>,
     ) -> anyhow::Result<Vec<IotaObjectResponse>> {
         let page = self
@@ -847,8 +960,8 @@ impl TestCluster {
     /// by transferring them from one address to another
     pub async fn transfer_objects(
         &self,
-        sender: IotaAddress,
-        receiver: IotaAddress,
+        sender: Address,
+        receiver: Address,
         object_ids: Vec<ObjectId>,
         gas: ObjectId,
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -870,8 +983,8 @@ impl TestCluster {
     /// The object's type must allow public transfers
     pub async fn transfer_object(
         &self,
-        sender: IotaAddress,
-        receiver: IotaAddress,
+        sender: Address,
+        receiver: Address,
         object_id: ObjectId,
         gas: ObjectId,
         options: Option<IotaTransactionBlockResponseOptions>,
@@ -985,11 +1098,10 @@ pub struct TestClusterBuilder {
     validator_supported_protocol_versions_config: ProtocolVersionsConfig,
     // Default to validator_supported_protocol_versions_config, but can be overridden.
     fullnode_supported_protocol_versions_config: Option<ProtocolVersionsConfig>,
-    db_checkpoint_config_validators: DBCheckpointConfig,
-    db_checkpoint_config_fullnodes: DBCheckpointConfig,
     num_unpruned_validators: Option<usize>,
     config_dir: Option<PathBuf>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    transaction_deny_config: Option<TransactionDenyConfig>,
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
@@ -1018,17 +1130,16 @@ impl TestClusterBuilder {
             disable_fullnode_pruning: false,
             validator_supported_protocol_versions_config: ProtocolVersionsConfig::Default,
             fullnode_supported_protocol_versions_config: None,
-            db_checkpoint_config_validators: DBCheckpointConfig::default(),
-            db_checkpoint_config_fullnodes: DBCheckpointConfig::default(),
             num_unpruned_validators: None,
             config_dir: None,
             authority_overload_config: None,
+            transaction_deny_config: None,
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
             fullnode_policy_config: None,
             fullnode_fw_config: None,
-            fullnode_enable_grpc_api: false,
+            fullnode_enable_grpc_api: true,
             fullnode_grpc_api_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
@@ -1066,6 +1177,7 @@ impl TestClusterBuilder {
         self
     }
 
+    /// Enable or disable the fullnode's gRPC API. Enabled by default.
     pub fn with_fullnode_enable_grpc_api(mut self, enable: bool) -> Self {
         self.fullnode_enable_grpc_api = enable;
         self
@@ -1107,28 +1219,6 @@ impl TestClusterBuilder {
 
     pub fn disable_fullnode_pruning(mut self) -> Self {
         self.disable_fullnode_pruning = true;
-        self
-    }
-
-    pub fn with_enable_db_checkpoints_validators(mut self) -> Self {
-        self.db_checkpoint_config_validators = DBCheckpointConfig {
-            perform_db_checkpoints_at_epoch_end: true,
-            checkpoint_path: None,
-            object_store_config: None,
-            perform_index_db_checkpoints_at_epoch_end: None,
-            prune_and_compact_before_upload: None,
-        };
-        self
-    }
-
-    pub fn with_enable_db_checkpoints_fullnodes(mut self) -> Self {
-        self.db_checkpoint_config_fullnodes = DBCheckpointConfig {
-            perform_db_checkpoints_at_epoch_end: true,
-            checkpoint_path: None,
-            object_store_config: None,
-            perform_index_db_checkpoints_at_epoch_end: None,
-            prune_and_compact_before_upload: Some(true),
-        };
         self
     }
 
@@ -1179,13 +1269,17 @@ impl TestClusterBuilder {
 
     pub fn with_validator_candidates(
         mut self,
-        addresses: impl IntoIterator<Item = IotaAddress>,
+        addresses: impl IntoIterator<Item = Address>,
     ) -> Self {
+        let min_validator_joining_stake = self
+            .get_or_init_genesis_config()
+            .protocol_config()
+            .min_validator_joining_stake();
         self.get_or_init_genesis_config()
             .accounts
             .extend(addresses.into_iter().map(|address| AccountConfig {
                 address: Some(address),
-                gas_amounts: vec![DEFAULT_GAS_AMOUNT, MIN_VALIDATOR_JOINING_STAKE_NANOS],
+                gas_amounts: vec![DEFAULT_GAS_AMOUNT, min_validator_joining_stake],
             }));
         self
     }
@@ -1200,18 +1294,8 @@ impl TestClusterBuilder {
         self
     }
 
-    pub fn with_migration_data(mut self, migration_sources: Vec<SnapshotSource>) -> Self {
-        self.get_or_init_genesis_config().migration_sources = migration_sources;
-        self
-    }
-
     pub fn with_additional_accounts(mut self, accounts: Vec<AccountConfig>) -> Self {
         self.get_or_init_genesis_config().accounts.extend(accounts);
-        self
-    }
-
-    pub fn with_delegator(mut self, delegator: IotaAddress) -> Self {
-        self.get_or_init_genesis_config().delegator = Some(delegator);
         self
     }
 
@@ -1223,6 +1307,12 @@ impl TestClusterBuilder {
     pub fn with_authority_overload_config(mut self, config: AuthorityOverloadConfig) -> Self {
         assert!(self.network_config.is_none());
         self.authority_overload_config = Some(config);
+        self
+    }
+
+    pub fn with_transaction_deny_config(mut self, config: TransactionDenyConfig) -> Self {
+        assert!(self.network_config.is_none());
+        self.transaction_deny_config = Some(config);
         self
     }
 
@@ -1268,7 +1358,7 @@ impl TestClusterBuilder {
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
         // `NetworkConfig` can be used to configure and build the cluster.
         let faucet = self.network_config.is_none().then(|| {
-            let (faucet_address, faucet_keypair): (IotaAddress, AccountKeyPair) = get_key_pair();
+            let (faucet_address, faucet_key): (Address, AccountPrivateKey) = get_key_pair();
             let accounts = &mut self.get_or_init_genesis_config().accounts;
             accounts.push(AccountConfig {
                 address: Some(faucet_address),
@@ -1276,9 +1366,7 @@ impl TestClusterBuilder {
             });
             Faucet {
                 address: faucet_address,
-                keypair: Arc::new(tokio::sync::Mutex::new(IotaKeyPair::Ed25519(
-                    faucet_keypair,
-                ))),
+                keypair: Arc::new(tokio::sync::Mutex::new(SimpleKeypair::from(faucet_key))),
             }
         });
 
@@ -1293,7 +1381,17 @@ impl TestClusterBuilder {
         let fullnode_handle =
             FullNodeHandle::new(fullnode.get_node_handle().unwrap(), json_rpc_address).await;
 
-        wallet_conf.add_env(IotaEnv::new("localnet", fullnode_handle.rpc_url.clone()));
+        let mut localnet_env = IotaEnv::new("localnet", fullnode_handle.rpc_url.clone());
+        if self.fullnode_enable_grpc_api {
+            let grpc_address = fullnode
+                .config()
+                .grpc_api_config
+                .clone()
+                .unwrap_or_default()
+                .address;
+            localnet_env = localnet_env.with_grpc(Some(format!("http://{grpc_address}")));
+        }
+        wallet_conf.add_env(localnet_env);
         wallet_conf.set_active_env(Some("localnet".to_string()));
 
         wallet_conf
@@ -1319,7 +1417,6 @@ impl TestClusterBuilder {
                 NonZeroUsize::new(self.num_validators.unwrap_or(NUM_VALIDATOR)).unwrap(),
             )
             .with_objects(self.additional_objects.clone())
-            .with_db_checkpoint_config(self.db_checkpoint_config_validators.clone())
             .with_supported_protocol_versions_config(
                 self.validator_supported_protocol_versions_config.clone(),
             )
@@ -1332,7 +1429,6 @@ impl TestClusterBuilder {
                     .clone()
                     .unwrap_or(self.validator_supported_protocol_versions_config.clone()),
             )
-            .with_db_checkpoint_config(self.db_checkpoint_config_fullnodes.clone())
             .with_fullnode_run_with_range(self.fullnode_run_with_range)
             .with_fullnode_policy_config(self.fullnode_policy_config.clone())
             .with_fullnode_fw_config(self.fullnode_fw_config.clone());
@@ -1351,6 +1447,10 @@ impl TestClusterBuilder {
 
         if let Some(authority_overload_config) = self.authority_overload_config.take() {
             builder = builder.with_authority_overload_config(authority_overload_config);
+        }
+
+        if let Some(transaction_deny_config) = self.transaction_deny_config.take() {
+            builder = builder.with_transaction_deny_config(transaction_deny_config);
         }
 
         if let Some(execution_cache_config) = self.execution_cache_config.take() {
@@ -1406,11 +1506,7 @@ impl TestClusterBuilder {
 
         let network_config = swarm.config();
         // Create light config to save
-        let account_keys = network_config
-            .account_keys
-            .iter()
-            .map(|kp| kp.copy())
-            .collect();
+        let account_keys = network_config.account_keys.to_vec();
         let network_config_light = NetworkConfigLight::new(
             network_config.validator_configs.clone(),
             account_keys,
@@ -1420,7 +1516,7 @@ impl TestClusterBuilder {
 
         let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path)?);
         for key in &swarm.config().account_keys {
-            keystore.add_key(None, IotaKeyPair::Ed25519(key.copy()))?;
+            keystore.add_key(None, key.clone())?;
         }
 
         let active_address = keystore.addresses().first().cloned();

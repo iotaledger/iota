@@ -6,10 +6,8 @@
 
 use std::collections::BTreeMap;
 
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_types::{ObjectId, ObjectReference, TransactionDigest, TypeTag};
 use iota_types::{
-    base_types::ObjectRef,
-    digests::TransactionDigest,
     dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -17,7 +15,7 @@ use iota_types::{
 };
 
 use crate::{
-    errors::{IndexerError, IndexerResult},
+    errors::IndexerError,
     types::{IndexedDeletedObject, IndexedObject},
 };
 
@@ -46,7 +44,7 @@ impl<'chk> Extractor<'chk> {
 
     pub(crate) fn iter_removed_objects(
         &'chk self,
-    ) -> impl Iterator<Item = (ObjectRef, TransactionDigest)> + 'chk {
+    ) -> impl Iterator<Item = (ObjectReference, TransactionDigest)> + 'chk {
         let mut eventually_removed_object_refs = BTreeMap::new();
         for tx in self.checkpoint.transactions.iter() {
             let digest = tx.transaction.digest();
@@ -65,7 +63,7 @@ impl<'chk> Extractor<'chk> {
 /// Field or a Dynamic Object Field based on its type.
 pub(crate) fn extract_df_kind(o: &Object) -> Option<DynamicFieldType> {
     // Skip if not a move object
-    let move_object = o.data.as_struct_opt()?;
+    let move_object = o.data.as_opt_struct()?;
 
     if !move_object.struct_tag().is_dynamic_field() {
         return None;
@@ -96,18 +94,15 @@ pub(crate) struct LiveObject {
 }
 
 impl LiveObject {
-    pub fn new(
-        checkpoint_sequence_number: CheckpointSequenceNumber,
-        transaction_digest: TransactionDigest,
-        object: Object,
-    ) -> IndexerResult<Self> {
+    pub fn new(checkpoint_sequence_number: CheckpointSequenceNumber, object: Object) -> Self {
+        let transaction_digest = object.as_inner().previous_transaction();
         let df_kind = extract_df_kind(&object);
         let indexed_object =
             IndexedObject::from_object(Some(checkpoint_sequence_number), object, df_kind);
-        Ok(Self {
+        Self {
             indexed_object,
             transaction_digest,
-        })
+        }
     }
 
     pub(crate) fn split(self) -> (IndexedObject, TransactionDigest) {
@@ -140,7 +135,7 @@ impl RemovedObject {
     pub fn new(
         checkpoint_sequence_number: CheckpointSequenceNumber,
         transaction_digest: TransactionDigest,
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
     ) -> Self {
         let indexed_object = IndexedDeletedObject {
             checkpoint_sequence_number,
@@ -199,14 +194,8 @@ impl TryFrom<&CheckpointData> for CheckpointObjectChanges {
 
         let changed_objects = extractor
             .iter_live_objects()
-            .map(|obj| {
-                LiveObject::new(
-                    checkpoint_seq,
-                    obj.as_inner().previous_transaction,
-                    obj.clone(),
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+            .map(|obj| LiveObject::new(checkpoint_seq, obj.clone()))
+            .collect();
         Ok(Self {
             changed_objects,
             deleted_objects,

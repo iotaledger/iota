@@ -9,11 +9,8 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::{Context, bail};
-use iota_json_rpc_types::{IotaTransactionBlockResponse, get_new_package_obj_from_response};
-use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::ObjectId;
-use iota_types::base_types::IotaAddress;
+use anyhow::bail;
+use iota_sdk_types::{Address, ObjectId};
 use move_package::{
     lock_file::{self, LockFile, schema::ManagedPackage},
     resolution::resolution_graph::Package,
@@ -49,58 +46,21 @@ pub enum PublishedAtError {
 }
 
 /// Update the `Move.lock` file with automated address management info.
-/// Expects a wallet context, the publish or upgrade command, its response.
-/// The `Move.lock` principally file records the published address (i.e.,
-/// package ID) of a package under an environment determined by the wallet
-/// context config. See the `ManagedPackage` type in the lock file for a
-/// complete spec.
-pub async fn update_lock_file(
-    context: &WalletContext,
-    command: LockCommand,
-    install_dir: Option<PathBuf>,
-    lock_file: Option<PathBuf>,
-    response: &IotaTransactionBlockResponse,
-) -> Result<(), anyhow::Error> {
-    let object_ref = get_new_package_obj_from_response(response).context(
-        "Expected a valid published package response but didn't see \
-         one when attempting to update the `Move.lock`.",
-    )?;
-    update_lock_file_with_package_id(
-        context,
-        command,
-        install_dir,
-        lock_file,
-        object_ref.object_id,
-        object_ref.version.as_u64(),
-    )
-    .await
-}
-
-/// Update the `Move.lock` file with automated address management info.
-/// This variant accepts the package ID and version directly, allowing for
-/// updates when a single transaction publishes multiple packages.
-/// Expects a wallet context, the publish or upgrade command, and the package
-/// details. The `Move.lock` principally file records the published address
-/// (i.e., package ID) of a package under an environment determined by the
-/// wallet context config. See the `ManagedPackage` type in the lock file for a
-/// complete spec.
-pub async fn update_lock_file_with_package_id(
-    context: &WalletContext,
+///
+/// `chain_identifier` and `env_alias` identify the environment the published
+/// address is recorded under; callers resolve them from their wallet context.
+/// The `Move.lock` file principally records the published address (i.e.,
+/// package ID) of a package under that environment. See the `ManagedPackage`
+/// type in the lock file for a complete spec.
+pub fn update_lock_file_with_package_id(
+    chain_identifier: String,
+    env_alias: &str,
     command: LockCommand,
     install_dir: Option<PathBuf>,
     lock_file: Option<PathBuf>,
     original_id: ObjectId,
     version: u64,
 ) -> Result<(), anyhow::Error> {
-    let chain_identifier = context
-        .get_client()
-        .await
-        .context("Network issue: couldn't use client to connect to chain when updating Move.lock")?
-        .read_api()
-        .get_chain_identifier()
-        .await
-        .context("Network issue: couldn't determine chain identifier for updating Move.lock")?;
-
     let Some(lock_file) = lock_file else {
         bail!(
             "Expected a `Move.lock` file to exist after publishing \
@@ -109,16 +69,12 @@ pub async fn update_lock_file_with_package_id(
         )
     };
     let install_dir = install_dir.unwrap_or(PathBuf::from("."));
-    let env = context.active_env().context(
-        "Could not resolve environment from active wallet context. \
-         Try ensure `iota client active-env` is valid.",
-    )?;
 
     let mut lock = LockFile::from(install_dir, &lock_file)?;
     match command {
         LockCommand::Publish => lock_file::schema::update_managed_address(
             &mut lock,
-            env.alias(),
+            env_alias,
             lock_file::schema::ManagedAddressUpdate::Published {
                 chain_id: chain_identifier,
                 original_id: original_id.to_string(),
@@ -126,7 +82,7 @@ pub async fn update_lock_file_with_package_id(
         ),
         LockCommand::Upgrade => lock_file::schema::update_managed_address(
             &mut lock,
-            env.alias(),
+            env_alias,
             lock_file::schema::ManagedAddressUpdate::Upgraded {
                 latest_id: original_id.to_string(),
                 version,
@@ -148,8 +104,8 @@ pub fn set_package_id(
     package_path: &Path,
     install_dir: Option<PathBuf>,
     chain_id: &String,
-    id: IotaAddress,
-) -> Result<Option<IotaAddress>, anyhow::Error> {
+    id: Address,
+) -> Result<Option<Address>, anyhow::Error> {
     let lock_file_path = package_path.join(SourcePackageLayout::Lock.path());
     let Ok(mut lock_file) = File::open(lock_file_path.clone()) else {
         return Ok(None);
@@ -167,7 +123,7 @@ pub fn set_package_id(
     };
     lock_file::schema::set_original_id(&mut lock_for_update, &env, &id.to_canonical_string(true))?;
     lock_for_update.commit(lock_file_path)?;
-    let id = IotaAddress::from_str(&v.original_published_id)?;
+    let id = Address::from_str(&v.original_published_id)?;
     Ok(Some(id))
 }
 

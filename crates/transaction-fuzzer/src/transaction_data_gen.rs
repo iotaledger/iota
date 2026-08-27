@@ -2,11 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, TransactionExpiration, TransactionKind};
-use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber},
-    digests::ObjectDigest,
-    transaction::{GasData, TransactionData, TransactionDataV1},
+use iota_sdk_types::{
+    Address, GasPayment, ObjectDigest, ObjectId, ObjectReference, Transaction,
+    TransactionExpiration, TransactionKind, TransactionV1, Version,
 };
 use move_core_types::account_address::AccountAddress;
 use proptest::{arbitrary::*, collection::vec, prelude::*};
@@ -34,28 +32,25 @@ pub fn gen_transaction_expiration() -> impl Strategy<Value = TransactionExpirati
     ]
 }
 
-pub fn gen_object_ref() -> impl Strategy<Value = ObjectRef> {
-    (
-        any::<AccountAddress>(),
-        any::<SequenceNumber>(),
-        any::<[u8; 32]>(),
-    )
-        .prop_map(move |(addr, seq, seed)| {
-            ObjectRef::new(
+pub fn gen_object_ref() -> impl Strategy<Value = ObjectReference> {
+    (any::<AccountAddress>(), any::<Version>(), any::<[u8; 32]>()).prop_map(
+        move |(addr, seq, seed)| {
+            ObjectReference::new(
                 ObjectId::new(addr.into_bytes()),
                 seq,
                 ObjectDigest::new(seed),
             )
-        })
+        },
+    )
 }
 
-pub fn gen_gas_data(sender: IotaAddress) -> impl Strategy<Value = GasData> {
+pub fn gen_gas_data(sender: Address) -> impl Strategy<Value = GasPayment> {
     (
         vec(gen_object_ref(), 0..MAX_NUM_GAS_OBJS),
         gas_price_selection_strategy(),
         gas_budget_selection_strategy(),
     )
-        .prop_map(move |(obj_refs, price, budget)| GasData {
+        .prop_map(move |(obj_refs, price, budget)| GasPayment {
             objects: obj_refs,
             owner: sender,
             price,
@@ -69,7 +64,7 @@ pub fn gen_transaction_kind() -> impl Strategy<Value = TransactionKind> {
         .prop_map(TransactionKind::Programmable)
 }
 
-pub fn transaction_data_gen(sender: IotaAddress) -> impl Strategy<Value = TransactionData> {
+pub fn transaction_data_gen(sender: Address) -> impl Strategy<Value = Transaction> {
     TransactionDataGenBuilder::new(sender)
         .kind(gen_transaction_kind())
         .gas_data(gen_gas_data(sender))
@@ -79,22 +74,22 @@ pub fn transaction_data_gen(sender: IotaAddress) -> impl Strategy<Value = Transa
 
 pub struct TransactionDataGenBuilder<
     K: Strategy<Value = TransactionKind>,
-    G: Strategy<Value = GasData>,
+    G: Strategy<Value = GasPayment>,
     E: Strategy<Value = TransactionExpiration>,
 > {
     pub kind: Option<K>,
-    pub sender: IotaAddress,
+    pub sender: Address,
     pub gas_data: Option<G>,
     pub expiration: Option<E>,
 }
 
 impl<
     K: Strategy<Value = TransactionKind>,
-    G: Strategy<Value = GasData>,
+    G: Strategy<Value = GasPayment>,
     E: Strategy<Value = TransactionExpiration>,
 > TransactionDataGenBuilder<K, G, E>
 {
-    pub fn new(sender: IotaAddress) -> Self {
+    pub fn new(sender: Address) -> Self {
         Self {
             kind: None,
             sender,
@@ -118,19 +113,19 @@ impl<
         self
     }
 
-    pub fn finish(self) -> impl Strategy<Value = TransactionData> {
+    pub fn finish(self) -> impl Strategy<Value = Transaction> {
         (
             self.kind.expect("kind must be set"),
             Just(self.sender),
             self.gas_data.expect("gas_data must be set"),
             self.expiration.expect("expiration must be set"),
         )
-            .prop_map(|(kind, sender, gas_data, expiration)| TransactionDataV1 {
+            .prop_map(|(kind, sender, gas_data, expiration)| TransactionV1 {
                 kind,
                 sender,
                 gas_payment: gas_data,
                 expiration,
             })
-            .prop_map(TransactionData::V1)
+            .prop_map(Transaction::V1)
     }
 }

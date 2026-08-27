@@ -8,24 +8,26 @@
 use std::{sync::Arc, time::Instant};
 
 use async_trait::async_trait;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{
+    CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents, Version,
+    checkpoint::CheckpointContents,
+};
 use iota_types::{
-    base_types::{SequenceNumber, VersionNumber},
-    digests::{CheckpointDigest, TransactionDigest},
-    effects::{TransactionEffects, TransactionEvents},
+    base_types::VersionNumber,
     error::{IotaError, IotaResult, UserInputError},
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use tracing::instrument;
 
 use crate::key_value_store_metrics::KeyValueStoreMetrics;
 
-pub type KVStoreTransactionData = (Vec<Option<Transaction>>, Vec<Option<TransactionEffects>>);
+pub type KVStoreTransactionData = (
+    Vec<Option<TransactionEnvelope>>,
+    Vec<Option<TransactionEffects>>,
+);
 
 pub type KVStoreCheckpointData = (
     Vec<Option<CertifiedCheckpointSummary>>,
@@ -231,7 +233,7 @@ impl TransactionKeyValueStore {
     pub async fn multi_get_tx(
         &self,
         keys: &[TransactionDigest],
-    ) -> IotaResult<Vec<Option<Transaction>>> {
+    ) -> IotaResult<Vec<Option<TransactionEnvelope>>> {
         self.multi_get(keys, &[]).await.map(|(txns, _)| txns)
     }
 
@@ -244,7 +246,7 @@ impl TransactionKeyValueStore {
 
     /// Convenience method for fetching single digest, and returning an error if
     /// it's not found. Prefer using multi_get_tx whenever possible.
-    pub async fn get_tx(&self, digest: TransactionDigest) -> IotaResult<Transaction> {
+    pub async fn get_tx(&self, digest: TransactionDigest) -> IotaResult<TransactionEnvelope> {
         self.multi_get_tx(&[digest])
             .await?
             .into_iter()
@@ -387,11 +389,8 @@ pub trait TransactionKeyValueStoreTrait {
         digest: TransactionDigest,
     ) -> IotaResult<Option<CheckpointSequenceNumber>>;
 
-    async fn get_object(
-        &self,
-        object_id: ObjectId,
-        version: SequenceNumber,
-    ) -> IotaResult<Option<Object>>;
+    async fn get_object(&self, object_id: ObjectId, version: Version)
+    -> IotaResult<Option<Object>>;
 
     async fn multi_get_objects(&self, object_keys: &[ObjectKey])
     -> IotaResult<Vec<Option<Object>>>;
@@ -540,7 +539,7 @@ impl TransactionKeyValueStoreTrait for FallbackTransactionKVStore {
     async fn get_object(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>> {
         let mut res = self.primary.get_object(object_id, version).await?;
         if res.is_none() {

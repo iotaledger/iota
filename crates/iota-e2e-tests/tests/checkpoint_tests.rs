@@ -10,8 +10,10 @@ use std::{
     time::Duration,
 };
 
-use iota_macros::{register_fail_point, register_fail_point_if, sim_test};
+use iota_common::register_debug_fatal_handler;
+use iota_macros::{register_fail_point_if, sim_test};
 use iota_test_transaction_builder::make_transfer_iota_transaction;
+use iota_types::messages_checkpoint::CheckpointSummaryExt;
 use test_cluster::TestClusterBuilder;
 use tokio::time::sleep;
 use tracing::info;
@@ -58,14 +60,19 @@ async fn test_checkpoint_split_brain() {
             panic_timeout: None,
         });
     }
+
     let committee_size = 9;
     // count number of nodes that have reached split brain condition
     let count_split_brain_nodes: Arc<Mutex<AtomicUsize>> = Default::default();
     let count_clone = count_split_brain_nodes.clone();
-    register_fail_point("split_brain_reached", move || {
-        let counter = count_clone.lock().unwrap();
-        counter.fetch_add(1, Ordering::Relaxed);
-    });
+
+    register_debug_fatal_handler!(
+        "Split brain detected in checkpoint signature aggregation",
+        move || {
+            let counter = count_clone.lock().unwrap();
+            counter.fetch_add(1, Ordering::Relaxed);
+        }
+    );
 
     register_fail_point_if("cp_execution_nondeterminism", || true);
 
@@ -129,7 +136,7 @@ async fn test_checkpoint_timestamps_non_decreasing() {
         "Test did not run long enough to cross epochs"
     );
 
-    let mut current_seq = *highest_executed_checkpoint.sequence_number();
+    let mut current_seq = highest_executed_checkpoint.sequence_number();
     let mut prev_timestamp = highest_executed_checkpoint.timestamp();
     let mut checkpoints_checked = 0;
 

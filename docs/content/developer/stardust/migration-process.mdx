@@ -100,7 +100,7 @@ the `owner` of `B` to the address of `A` (the Alias ID), which is equivalent to 
 the same as if `B` would have been transferred (using either of `iota::transfer::{transfer,public_transfer}`) to the
 address of `A` (the Alias ID). The migrated alias `A` can then _receive_ `B` using the
 `stardust::address_unlock_condition::unlock_alias_address_owned_basic` function, which is essentially a wrapper around
-[`iota::transfer::receive`](../../developer/references/framework/iota/transfer.mdx#function-receive). There are
+[`iota::transfer::receive`](../../developer/references/framework/iota/transfer.mdx#iota_transfer_receive). There are
 equivalent unlock functions for the other possible variants of object ownership.
 
 ## Basic Outputs

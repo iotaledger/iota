@@ -93,7 +93,7 @@ mod tests {
 
     use arc_swap::ArcSwap;
     use iota_types::{committee::Committee, crypto::AuthorityPublicKeyBytes};
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use starfish_config::{Committee as ConsensusCommittee, local_committee_and_keys};
 
     use crate::{authority::AuthorityMetrics, scoring_decision::update_low_scoring_authorities};

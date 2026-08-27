@@ -10,6 +10,7 @@ use iota::table::Table;
 use iota::test_scenario;
 use iota::test_utils::{Self, assert_eq};
 use iota_system::governance_test_utils::{
+    Self,
     add_validator,
     add_validator_candidate,
     advance_epoch,
@@ -928,6 +929,55 @@ fun test_staking_pool_exchange_rate_getter() {
     // rate: 5 * NANOS_PER_IOTA * 200 / 210 = 4_878_048_780 new tokens. So the pool_token_amount
     // becomes 200 * NANOS_PER_IOTA + 4_878_048_780 = 204_878_048_780, while iota_amount stays at 210.
     assert_exchange_rate_eq(rates, 2, 210 * NANOS_PER_IOTA, 204_878_048_780);
+    test_scenario::return_shared(system_state);
+    scenario_val.end();
+}
+
+#[test]
+#[expected_failure(abort_code = validator_set::EMinJoiningStakeNotReached)]
+fun test_request_add_validator_below_protocol_config_min_stake_fails() {
+    governance_test_utils::set_up_iota_system_state(vector[VALIDATOR_ADDR_1, VALIDATOR_ADDR_2]);
+    let mut scenario_val = test_scenario::begin(NEW_VALIDATOR_ADDR);
+    let scenario = &mut scenario_val;
+
+    add_validator_candidate(
+        NEW_VALIDATOR_ADDR,
+        b"name1",
+        b"/ip4/127.0.0.1/udp/81",
+        NEW_VALIDATOR_PUBKEY,
+        NEW_VALIDATOR_POP,
+        scenario,
+    );
+    // One IOTA short of the min_validator_joining_stake protocol config
+    // value (2M IOTA).
+    stake_with(NEW_VALIDATOR_ADDR, NEW_VALIDATOR_ADDR, 1_999_999, scenario);
+
+    scenario.next_tx(NEW_VALIDATOR_ADDR);
+    let mut system_state = scenario.take_shared<IotaSystemState>();
+    system_state.request_add_validator(scenario.ctx());
+    test_scenario::return_shared(system_state);
+    scenario_val.end();
+}
+
+#[test]
+fun test_request_add_validator_at_protocol_config_min_stake() {
+    governance_test_utils::set_up_iota_system_state(vector[VALIDATOR_ADDR_1, VALIDATOR_ADDR_2]);
+    let mut scenario_val = test_scenario::begin(NEW_VALIDATOR_ADDR);
+    let scenario = &mut scenario_val;
+
+    add_validator_candidate(
+        NEW_VALIDATOR_ADDR,
+        b"name1",
+        b"/ip4/127.0.0.1/udp/81",
+        NEW_VALIDATOR_PUBKEY,
+        NEW_VALIDATOR_POP,
+        scenario,
+    );
+    stake_with(NEW_VALIDATOR_ADDR, NEW_VALIDATOR_ADDR, 2_000_000, scenario);
+
+    scenario.next_tx(NEW_VALIDATOR_ADDR);
+    let mut system_state = scenario.take_shared<IotaSystemState>();
+    system_state.request_add_validator(scenario.ctx());
     test_scenario::return_shared(system_state);
     scenario_val.end();
 }

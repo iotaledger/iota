@@ -3,17 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use anyhow::{anyhow, bail};
-use iota_sdk_types::Event;
+use iota_sdk_types::{
+    Event, ObjectReference, TransactionEffects, TransactionEvents,
+    checkpoint::{CheckpointContents, EndOfEpochData},
+};
 use iota_types::{
-    base_types::ObjectRef,
     committee::Committee,
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     event::EventID,
-    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContents, EndOfEpochData},
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointContentsExt},
     object::Object,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use serde::{Deserialize, Serialize};
 
@@ -36,7 +36,7 @@ pub struct Proof {
 #[derive(Default, Debug, Serialize, Deserialize)]
 pub struct ProofTargets {
     /// Objects that need to be certified.
-    pub objects: Vec<(ObjectRef, Object)>,
+    pub objects: Vec<(ObjectReference, Object)>,
 
     /// Events that need to be certified.
     pub events: Vec<(EventID, Event)>,
@@ -56,7 +56,7 @@ impl ProofTargets {
     /// verified proof will ensure that both the reference and content are
     /// correct. Note that some content is metadata such as the transaction
     /// that created this object.
-    pub fn add_object(mut self, object_ref: ObjectRef, object: Object) -> Self {
+    pub fn add_object(mut self, object_ref: ObjectReference, object: Object) -> Self {
         self.objects.push((object_ref, object));
         self
     }
@@ -84,7 +84,7 @@ pub struct TransactionProof {
     pub checkpoint_contents: CheckpointContents,
 
     /// The transaction being certified.
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
 
     /// The effects of the transaction being certified.
     pub effects: TransactionEffects,
@@ -130,9 +130,9 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
         };
 
         // Extract the end of epoch committee
-        let new_committee = Committee::new(
+        let new_committee = Committee::from_committee_members(
             summary.epoch().checked_add(1).unwrap(),
-            next_epoch_committee.iter().cloned().collect(),
+            next_epoch_committee,
         );
 
         if new_committee != *committee {
@@ -164,7 +164,7 @@ pub fn verify_proof(committee: &Committee, proof: &Proof) -> anyhow::Result<()> 
         if !contents_proof
             .checkpoint_contents
             .enumerate_transactions(summary)
-            .any(|x| x.1 == &digests)
+            .any(|x| x.1 == digests)
         {
             // Could not find the digest in the checkpoint contents
             bail!("Transaction digest not found in the checkpoint contents");

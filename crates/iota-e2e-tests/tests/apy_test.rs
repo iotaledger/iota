@@ -1,14 +1,13 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::ed25519::Ed25519KeyPair;
 use iota_json_rpc_api::{CoinReadApiClient, GovernanceReadApiClient};
 use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT, GenesisConfig};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    crypto::{IotaKeyPair, get_key_pair_from_rng},
+    crypto::{AccountPrivateKey, get_key_pair_from_rng},
     gas_coin::NANOS_PER_IOTA,
 };
 use test_cluster::TestClusterBuilder;
@@ -29,8 +28,9 @@ use test_cluster::TestClusterBuilder;
 /// This test uses the TestCluster which has limitations on how the validators
 /// can be set up. Only the validator committee size can be changed, but not
 /// their initial stakes, so this complicates the test a little. We use the
-/// default number of 4 validators and their initial stake of
-/// VALIDATOR_LOW_STAKE_THRESHOLD_NANOS. Note that in this case, each validator
+/// default number of 4 validators and their initial stake of the
+/// `validator_low_stake_threshold` protocol config parameter. Note that in
+/// this case, each validator
 /// has 25% of the total voting power which results in each pool getting 25% of
 /// the subsidy. In order to get the total stake up to the 3.5B IOTA, we
 /// would have to add that amount of stake to *each* pool. But: APY is
@@ -62,7 +62,7 @@ async fn test_apy() {
     let pool_stake = 3_500_000_000 * NANOS_PER_IOTA / 4;
     let mut rng = rand::thread_rng();
     let mut genesis_config = GenesisConfig::for_local_testing();
-    let (address, keypair): (_, Ed25519KeyPair) = get_key_pair_from_rng(&mut rng);
+    let (address, key): (_, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
     genesis_config.accounts.extend([AccountConfig {
         address: Some(address),
         gas_amounts: vec![DEFAULT_GAS_AMOUNT, pool_stake],
@@ -81,7 +81,7 @@ async fn test_apy() {
         .wallet
         .config_mut()
         .keystore_mut()
-        .add_key(None, IotaKeyPair::Ed25519(keypair))
+        .add_key(None, key)
         .unwrap();
 
     let ref_gas_price = test_cluster.get_reference_gas_price().await;

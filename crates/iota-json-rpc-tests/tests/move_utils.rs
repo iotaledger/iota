@@ -9,8 +9,7 @@ use iota_json_rpc_types::{
     MoveFunctionArgType, ObjectValueKind,
 };
 use iota_macros::sim_test;
-use iota_sdk_types::ObjectId;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::{Address, ObjectId};
 use test_cluster::TestClusterBuilder;
 
 #[sim_test]
@@ -63,6 +62,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "object",
             "object_bag",
             "object_table",
+            "module_metadata",
             "package",
             "pay",
             "poseidon",
@@ -79,6 +79,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "table_vec",
             "timelock",
             "token",
+            "transaction_deny_rules",
             "transfer",
             "transfer_policy",
             "tx_context",
@@ -128,7 +129,7 @@ async fn get_normalized_move_module() -> Result<(), anyhow::Error> {
         .await?;
 
     assert_eq!(move_module.file_format_version, 6);
-    assert_eq!(move_module.address, IotaAddress::FRAMEWORK.to_short_hex());
+    assert_eq!(move_module.address, Address::FRAMEWORK.to_short_hex());
     assert_eq!(move_module.name, module_name);
     assert_eq!(move_module.friends.len(), 0);
     assert_eq!(
@@ -256,7 +257,7 @@ async fn get_normalized_move_struct() -> Result<(), anyhow::Error> {
             type_arguments,
         } = &**inner;
 
-        assert_eq!(*address, IotaAddress::FRAMEWORK.to_short_hex());
+        assert_eq!(*address, Address::FRAMEWORK.to_short_hex());
         assert_eq!(module, "object");
         assert_eq!(name, "UID");
         assert_eq!(type_arguments.len(), 0);
@@ -274,7 +275,7 @@ async fn get_normalized_move_struct() -> Result<(), anyhow::Error> {
             name,
             type_arguments,
         } = &**inner;
-        assert_eq!(*address, IotaAddress::FRAMEWORK.to_short_hex());
+        assert_eq!(*address, Address::FRAMEWORK.to_short_hex());
         assert_eq!(module, "balance");
         assert_eq!(name, "Balance");
         assert_eq!(type_arguments.len(), 1);
@@ -351,7 +352,7 @@ async fn get_normalized_move_function() -> Result<(), anyhow::Error> {
                 name,
                 type_arguments,
             } = &**inner;
-            assert_eq!(*address, IotaAddress::FRAMEWORK.to_short_hex());
+            assert_eq!(*address, Address::FRAMEWORK.to_short_hex());
             assert_eq!(module, "coin");
             assert_eq!(name, "Coin");
             assert_eq!(type_arguments.len(), 1);
@@ -381,7 +382,7 @@ async fn get_normalized_move_function() -> Result<(), anyhow::Error> {
                 name,
                 type_arguments,
             } = &**inner;
-            assert_eq!(*address, IotaAddress::FRAMEWORK.to_short_hex());
+            assert_eq!(*address, Address::FRAMEWORK.to_short_hex());
             assert_eq!(module, "tx_context");
             assert_eq!(name, "TxContext");
             assert_eq!(type_arguments.len(), 0);
@@ -399,7 +400,7 @@ async fn get_normalized_move_function() -> Result<(), anyhow::Error> {
             name,
             type_arguments,
         } = &**inner;
-        assert_eq!(*address, IotaAddress::FRAMEWORK.to_short_hex());
+        assert_eq!(*address, Address::FRAMEWORK.to_short_hex());
         assert_eq!(module, "coin");
         assert_eq!(name, "Coin");
         assert_eq!(type_arguments.len(), 1);

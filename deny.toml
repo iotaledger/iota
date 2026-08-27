@@ -65,9 +65,28 @@ ignore = [
   # seed derives from the stack pointer and cannot be controlled by msim,
   # breaking simtest determinism (e.g. test_passive_reconfig_determinism).
   "RUSTSEC-2026-0002",
+  # `LruCache::pop()` is not panic-safe: a panic in a key's `Drop` skips
+  # `detach()` and leaves dangling pointers in the list. None of the key types
+  # we store have a `Drop` that can panic. Fixed in 0.18.2, which is blocked by
+  # the msim determinism problem described above.
+  "RUSTSEC-2026-0253",
   # proc-macro-error2 is unmaintained
   # Can be removed once `getset` updates: https://github.com/jbaublitz/getset/issues/132
   "RUSTSEC-2026-0173",
+  # quick-xml DoS advisories, only reachable transitively via `object_store`
+  # (cloud-storage list XML parsing). Fixed in quick-xml >=0.41.0, but no
+  # released `object_store` pulls it yet (latest 0.14.0 requires ^0.40.1), so
+  # there is no upgrade path. Remove once `object_store` updates quick-xml.
+  "RUSTSEC-2026-0194",
+  # Same as above
+  "RUSTSEC-2026-0195",
+  # `im` is unmaintained and its `OrdSet` insertion is unsound, together with
+  # its `bitmaps` dependency. Only reachable through `fastcrypto-zkp`; remove
+  # once that switches to `imbl`.
+  "RUSTSEC-2026-0248",
+  "RUSTSEC-2026-0251",
+  # `bitmaps` is also pulled in by `imbl-sized-chunks`
+  "RUSTSEC-2026-0247",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories

@@ -10,11 +10,9 @@ use iota_json_rpc_types::IotaArgument;
 use iota_sdk_types::{
     Argument as NativeArgument, Command as NativeProgrammableTransaction,
     MoveCall as NativeMoveCallTransaction,
+    ProgrammableTransaction as NativeProgrammableTransactionBlock, SharedObjectReference,
 };
-use iota_types::transaction::{
-    CallArg as NativeCallArg, ProgrammableTransaction as NativeProgrammableTransactionBlock,
-    SharedObjectRef,
-};
+use iota_types::transaction::CallArg as NativeCallArg;
 
 use crate::{
     consistency::ConsistentIndexCursor,
@@ -167,7 +165,7 @@ struct MakeMoveVecTransaction {
     /// If the elements are not objects, or the vector is empty, a type must be
     /// supplied.
     #[graphql(name = "type")]
-    type_: Option<MoveType>,
+    move_type: Option<MoveType>,
 
     /// The values to pack into the vector, all of the same type.
     elements: Vec<TransactionArgument>,
@@ -344,7 +342,7 @@ impl TransactionInput {
                 },
             }),
 
-            N::Shared(SharedObjectRef {
+            N::Shared(SharedObjectReference {
                 object_id: id,
                 initial_shared_version,
                 mutable,
@@ -408,7 +406,7 @@ impl ProgrammableTransaction {
                     .collect(),
             }),
             N::MakeMoveVector(cmd) => P::MakeMoveVec(MakeMoveVecTransaction {
-                type_: cmd.type_.map(Into::into),
+                move_type: cmd.type_tag.map(Into::into),
                 elements: cmd
                     .elements
                     .into_iter()

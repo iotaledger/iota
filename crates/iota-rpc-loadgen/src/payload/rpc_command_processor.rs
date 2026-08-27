@@ -20,16 +20,12 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseOptions,
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_sdk_types::{
-    ObjectId,
-    crypto::{Intent, IntentMessage},
-};
+use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Transaction, TransactionDigest};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
-    crypto::{AccountKeyPair, EncodeDecodeBase64, IotaKeyPair, Signature, get_key_pair},
-    digests::TransactionDigest,
+    crypto::{AccountPrivateKey, get_key_pair},
     quorum_driver_types::ExecuteTransactionRequestType,
-    transaction::{Transaction, TransactionData},
+    transaction::TransactionEnvelope,
 };
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::{sync::RwLock, time::sleep};
@@ -53,9 +49,9 @@ pub(crate) const MAX_NUM_NEW_OBJECTS_IN_SINGLE_TRANSACTION: usize = 120;
 pub struct RpcCommandProcessor {
     clients: Arc<RwLock<Vec<IotaClient>>>,
     // for equivocation prevention in `WaitForEffectsCert` mode
-    object_ref_cache: Arc<DashMap<ObjectId, ObjectRef>>,
+    object_ref_cache: Arc<DashMap<ObjectId, ObjectReference>>,
     transaction_digests: Arc<DashSet<TransactionDigest>>,
-    addresses: Arc<DashSet<IotaAddress>>,
+    addresses: Arc<DashSet<Address>>,
     data_dir: String,
 }
 
@@ -107,11 +103,11 @@ impl RpcCommandProcessor {
     pub(crate) async fn sign_and_execute(
         &self,
         client: &IotaClient,
-        keypair: &IotaKeyPair,
-        txn_data: TransactionData,
+        keypair: &SimpleKeypair,
+        tx: Transaction,
         request_type: ExecuteTransactionRequestType,
     ) -> IotaTransactionBlockResponse {
-        let resp = sign_and_execute(client, keypair, txn_data, request_type).await;
+        let resp = sign_and_execute(client, keypair, tx, request_type).await;
         let effects = resp.effects.as_ref().unwrap();
         let object_ref_cache = self.object_ref_cache.clone();
         // NOTE: for now we don't need to care about deleted objects
@@ -138,7 +134,7 @@ impl RpcCommandProcessor {
         &self,
         client: &IotaClient,
         object_id: &ObjectId,
-    ) -> ObjectRef {
+    ) -> ObjectReference {
         let object_ref_cache = self.object_ref_cache.clone();
         let current = object_ref_cache.get_mut(object_id);
         match current {
@@ -196,17 +192,17 @@ impl RpcCommandProcessor {
             debug!("dumping transaction digests to file {:?}", digests.len());
             write_data_to_file(
                 &digests,
-                &format!("{}/{}", &self.data_dir, CacheType::TransactionDigest),
+                &format!("{}/{}", self.data_dir, CacheType::TransactionDigest),
             )
             .unwrap();
         }
 
-        let addresses: Vec<IotaAddress> = self.addresses.iter().map(|x| *x).collect();
+        let addresses: Vec<Address> = self.addresses.iter().map(|x| *x).collect();
         if !addresses.is_empty() {
             debug!("dumping addresses to file {:?}", addresses.len());
             write_data_to_file(
                 &addresses,
-                &format!("{}/{}", &self.data_dir, CacheType::IotaAddress),
+                &format!("{}/{}", self.data_dir, CacheType::Address),
             )
             .unwrap();
         }
@@ -223,7 +219,7 @@ impl RpcCommandProcessor {
             debug!("dumping object_ids to file {:?}", object_ids.len());
             write_data_to_file(
                 &object_ids,
-                &format!("{}/{}", &self.data_dir, CacheType::ObjectId),
+                &format!("{}/{}", self.data_dir, CacheType::ObjectId),
             )
             .unwrap();
         }
@@ -379,7 +375,7 @@ fn write_data_to_file<T: Serialize>(data: &T, file_path: &str) -> Result<(), any
 }
 
 pub enum CacheType {
-    IotaAddress,
+    Address,
     TransactionDigest,
     ObjectId,
 }
@@ -387,7 +383,9 @@ pub enum CacheType {
 impl fmt::Display for CacheType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CacheType::IotaAddress => write!(f, "IotaAddress"),
+            // This is kept `IotaAddress` (as opposed to `Address`) to not invalidate existing
+            // caches
+            CacheType::Address => write!(f, "IotaAddress"),
             CacheType::TransactionDigest => write!(f, "TransactionDigest"),
             // This is kept `ObjectID` (as opposed to `ObjectId`) to not invalidate existing caches
             CacheType::ObjectId => write!(f, "ObjectID"),
@@ -397,9 +395,9 @@ impl fmt::Display for CacheType {
 
 // TODO(Will): Consider using enums for input and output? Would mean we need to
 // do checks any time we use generic load_cache_from_file
-pub fn load_addresses_from_file(filepath: String) -> Vec<IotaAddress> {
-    let path = format!("{}/{}", filepath, CacheType::IotaAddress);
-    let addresses: Vec<IotaAddress> = read_data_from_file(&path).expect("failed to read addresses");
+pub fn load_addresses_from_file(filepath: String) -> Vec<Address> {
+    let path = format!("{}/{}", filepath, CacheType::Address);
+    let addresses: Vec<Address> = read_data_from_file(&path).expect("failed to read addresses");
     addresses
 }
 
@@ -567,9 +565,9 @@ async fn prepare_new_signer_and_coins(
         DEFAULT_GAS_BUDGET,
     );
 
-    let primary_keypair = IotaKeyPair::decode_base64(&signer_info.encoded_keypair)
+    let primary_keypair = SimpleKeypair::from_bech32(&signer_info.encoded_keypair)
         .expect("decoding keypair should not fail");
-    let sender = IotaAddress::from(&primary_keypair.public());
+    let sender = primary_keypair.public_key().derive_address();
     let (coin, balance) = get_coin_with_max_balance(client, sender).await;
     // The balance needs to cover `pay_amount` plus
     // 1. gas fee for pay_iota from the primary address to the burner address
@@ -595,8 +593,8 @@ async fn prepare_new_signer_and_coins(
     // having a million coin objects in our address. We can also fetch directly
     // from the faucet, but in some environment that might not be possible when
     // faucet resource is scarce
-    let (burner_address, burner_keypair): (_, AccountKeyPair) = get_key_pair();
-    let burner_keypair = IotaKeyPair::Ed25519(burner_keypair);
+    let (burner_address, burner_key): (_, AccountPrivateKey) = get_key_pair();
+    let burner_keypair = SimpleKeypair::from(burner_key);
     let pay_amounts = split_amounts
         .iter()
         .map(|(amount, _)| *amount)
@@ -656,7 +654,12 @@ async fn prepare_new_signer_and_coins(
     }
     assert_eq!(results.len(), num_coins);
     debug!("Split off {} coins for gas payment {results:?}", num_coins);
-    (results, burner_keypair.encode_base64())
+    (
+        results,
+        burner_keypair
+            .to_bech32()
+            .expect("encoding keypair should not fail"),
+    )
 }
 
 /// Calculate the number of transactions needed to split the given number of
@@ -695,7 +698,7 @@ fn calculate_split_amounts(
     split_amounts
 }
 
-async fn get_coin_with_max_balance(client: &IotaClient, address: IotaAddress) -> (ObjectId, u64) {
+async fn get_coin_with_max_balance(client: &IotaClient, address: Address) -> (ObjectId, u64) {
     let coins = get_iota_coin_ids(client, address).await;
     assert!(!coins.is_empty());
     coins.into_iter().max_by(|a, b| a.1.cmp(&b.1)).unwrap()
@@ -706,7 +709,7 @@ fn get_coin_with_balance(coins: &[(ObjectId, u64)], target: u64) -> ObjectId {
 }
 
 // TODO: move this to the Rust SDK
-async fn get_iota_coin_ids(client: &IotaClient, address: IotaAddress) -> Vec<(ObjectId, u64)> {
+async fn get_iota_coin_ids(client: &IotaClient, address: Address) -> Vec<(ObjectId, u64)> {
     match client
         .coin_read_api()
         .get_coins(address, None, None, None)
@@ -726,13 +729,13 @@ async fn get_iota_coin_ids(client: &IotaClient, address: IotaAddress) -> Vec<(Ob
 
 async fn pay_iota(
     client: &IotaClient,
-    keypair: &IotaKeyPair,
+    keypair: &SimpleKeypair,
     input_coins: Vec<ObjectId>,
     gas_budget: u64,
-    recipients: Vec<IotaAddress>,
+    recipients: Vec<Address>,
     amounts: Vec<u64>,
 ) -> IotaTransactionBlockResponse {
-    let sender = IotaAddress::from(&keypair.public());
+    let sender = keypair.public_key().derive_address();
     let tx = client
         .transaction_builder()
         .pay(sender, input_coins, recipients, amounts, None, gas_budget)
@@ -749,12 +752,12 @@ async fn pay_iota(
 
 async fn split_coins(
     client: &IotaClient,
-    keypair: &IotaKeyPair,
+    keypair: &SimpleKeypair,
     coin_to_split: ObjectId,
     gas_payment: ObjectId,
     num_coins: u64,
 ) -> Vec<ObjectId> {
-    let sender = IotaAddress::from(&keypair.public());
+    let sender = keypair.public_key().derive_address();
     let split_coin_tx = client
         .transaction_builder()
         .split_coin_equal(
@@ -784,19 +787,14 @@ async fn split_coins(
 
 pub(crate) async fn sign_and_execute(
     client: &IotaClient,
-    keypair: &IotaKeyPair,
-    txn_data: TransactionData,
+    keypair: &SimpleKeypair,
+    tx: Transaction,
     request_type: ExecuteTransactionRequestType,
 ) -> IotaTransactionBlockResponse {
-    let signature = Signature::new_secure(
-        &IntentMessage::new(Intent::iota_transaction(), &txn_data),
-        keypair,
-    );
-
     let transaction_response = match client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(txn_data, vec![signature]),
+            TransactionEnvelope::from_data_and_signer(tx, vec![keypair]),
             IotaTransactionBlockResponseOptions::new().with_effects(),
             Some(request_type),
         )
@@ -813,14 +811,14 @@ pub(crate) async fn sign_and_execute(
             if let IotaExecutionStatus::Failure { error } = effects.status() {
                 panic!(
                     "transaction {} failed with error: {}. Transaction Response: {:?}",
-                    transaction_response.digest, error, &transaction_response
+                    transaction_response.digest, error, transaction_response
                 );
             }
         }
         None => {
             panic!(
                 "transaction {} has no effects. Response {:?}",
-                transaction_response.digest, &transaction_response
+                transaction_response.digest, transaction_response
             );
         }
     };

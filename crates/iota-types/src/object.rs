@@ -10,25 +10,25 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolConfig;
+pub use iota_sdk_types::Object as ObjectInner;
 use iota_sdk_types::{
-    MoveObjectType, ObjectId, Owner, StructTag, TypeTag, move_package::MovePackage,
+    Address, MoveStruct, ObjectData, ObjectId, ObjectReference, Owner, StructTag,
+    TransactionDigest, TypeTag, Version, move_package::MovePackage,
 };
-pub use iota_sdk_types::{MoveStruct as MoveObject, Object as ObjectInner, ObjectData as Data};
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::{layout::TypeLayoutBuilder, module_cache::GetModule};
-use move_core_types::annotated_value::{MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue};
+use move_core_types::annotated_value::{self, MoveStructLayout, MoveTypeLayout, MoveValue};
 use serde::{Deserialize, Serialize};
 
 use self::{balance_traversal::BalanceTraversal, bounded_visitor::BoundedVisitor};
 use crate::{
     balance::Balance,
-    base_types::{IotaAddress, ObjectRef, SequenceNumber, TransactionDigest},
     coin::{Coin, CoinMetadata, TreasuryCap},
-    crypto::deterministic_random_account_key,
+    crypto::deterministic_random_account_private_key,
     error::{
         ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
     },
-    gas_coin::{GAS, GasCoin},
+    gas_coin::GasCoin,
     iota_sdk_types_conversions::type_tag_sdk_to_core,
     layout_resolver::LayoutResolver,
     move_package::MovePackageExt,
@@ -40,31 +40,31 @@ pub mod bounded_visitor;
 pub mod option_visitor;
 
 pub const GAS_VALUE_FOR_TESTING: u64 = 300_000_000_000_000;
-pub const OBJECT_START_VERSION: SequenceNumber = SequenceNumber::from_u64(1);
+pub const OBJECT_START_VERSION: Version = Version::from_u64(1);
 
 /// Index marking the end of the object's ID + the beginning of its version
 pub const ID_END_INDEX: usize = ObjectId::LENGTH;
 
-mod move_object_ext {
+mod move_struct_ext {
     pub trait Sealed {}
-    impl Sealed for super::MoveObject {}
+    impl Sealed for super::MoveStruct {}
 }
 
-pub trait MoveObjectExt: Sized + move_object_ext::Sealed {
+pub trait MoveStructExt: Sized + move_struct_ext::Sealed {
     fn new_from_execution(
         tag: StructTag,
-        version: SequenceNumber,
+        version: Version,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
     ) -> Result<Self, ExecutionError>;
     fn new_from_execution_with_limit(
         tag: StructTag,
-        version: SequenceNumber,
+        version: Version,
         contents: Vec<u8>,
         max_move_object_size: u64,
     ) -> Result<Self, ExecutionError>;
-    fn new_gas_coin(version: SequenceNumber, id: ObjectId, value: u64) -> Self;
-    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectId, value: u64) -> Self;
+    fn new_gas_coin(version: Version, id: ObjectId, value: u64) -> Self;
+    fn new_coin(coin_type: TypeTag, version: Version, id: ObjectId, value: u64) -> Self;
     fn get_coin_value_unchecked(&self) -> u64;
     fn set_coin_value_unchecked(&mut self, value: u64);
     fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64);
@@ -78,14 +78,17 @@ pub trait MoveObjectExt: Sized + move_object_ext::Sealed {
         new_contents: Vec<u8>,
         max_move_object_size: u64,
     ) -> Result<(), ExecutionError>;
-    fn increment_version_to(&mut self, next: SequenceNumber);
-    fn decrement_version_to(&mut self, prev: SequenceNumber);
+    fn increment_version_to(&mut self, next: Version);
+    fn decrement_version_to(&mut self, prev: Version);
     fn get_layout(&self, resolver: &impl GetModule) -> Result<MoveStructLayout, IotaError>;
     fn get_struct_layout_from_struct_tag(
         struct_tag: StructTag,
         resolver: &impl GetModule,
     ) -> Result<MoveStructLayout, IotaError>;
-    fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError>;
+    fn to_move_struct(
+        &self,
+        layout: &MoveStructLayout,
+    ) -> Result<annotated_value::MoveStruct, IotaError>;
     fn object_size_for_gas_metering(&self) -> usize;
     fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError>;
     fn get_coin_balances(
@@ -94,12 +97,12 @@ pub trait MoveObjectExt: Sized + move_object_ext::Sealed {
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError>;
 }
 
-impl MoveObjectExt for MoveObject {
+impl MoveStructExt for MoveStruct {
     /// Creates a new Move object of type `tag` with BCS encoded bytes in
     /// `contents`.
     fn new_from_execution(
         tag: StructTag,
-        version: SequenceNumber,
+        version: Version,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
     ) -> Result<Self, ExecutionError> {
@@ -115,7 +118,7 @@ impl MoveObjectExt for MoveObject {
     /// `contents`. It allows to set a `max_move_object_size` for that.
     fn new_from_execution_with_limit(
         tag: StructTag,
-        version: SequenceNumber,
+        version: Version,
         contents: Vec<u8>,
         max_move_object_size: u64,
     ) -> Result<Self, ExecutionError> {
@@ -130,7 +133,7 @@ impl MoveObjectExt for MoveObject {
         Self::new(tag.into(), version, contents).map_err(ExecutionError::invariant_violation)
     }
 
-    fn new_gas_coin(version: SequenceNumber, id: ObjectId, value: u64) -> Self {
+    fn new_gas_coin(version: Version, id: ObjectId, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
 
         Self::new_from_execution_with_limit(
@@ -142,7 +145,7 @@ impl MoveObjectExt for MoveObject {
         .unwrap()
     }
 
-    fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectId, value: u64) -> Self {
+    fn new_coin(coin_type: TypeTag, version: Version, id: ObjectId, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
 
         Self::new_from_execution_with_limit(
@@ -235,7 +238,7 @@ impl MoveObjectExt for MoveObject {
 
     /// Sets the version of this object to a new value which is assumed to be
     /// higher (and checked to be higher in debug).
-    fn increment_version_to(&mut self, next: SequenceNumber) {
+    fn increment_version_to(&mut self, next: Version) {
         debug_assert!(
             self.version() < next,
             "Not an increment: {} to {next}",
@@ -245,7 +248,7 @@ impl MoveObjectExt for MoveObject {
     }
 
     /// Sets the version to a lower value (checked in debug).
-    fn decrement_version_to(&mut self, prev: SequenceNumber) {
+    fn decrement_version_to(&mut self, prev: Version) {
         debug_assert!(
             prev < self.version(),
             "Not a decrement: {} to {prev}",
@@ -281,7 +284,10 @@ impl MoveObjectExt for MoveObject {
     }
 
     /// Convert `self` to the JSON representation dictated by `layout`.
-    fn to_move_struct(&self, layout: &MoveStructLayout) -> Result<MoveStruct, IotaError> {
+    fn to_move_struct(
+        &self,
+        layout: &MoveStructLayout,
+    ) -> Result<annotated_value::MoveStruct, IotaError> {
         BoundedVisitor::deserialize_struct(self.contents(), layout).map_err(|e| {
             IotaError::ObjectSerialization {
                 error: e.to_string(),
@@ -304,7 +310,10 @@ impl MoveObjectExt for MoveObject {
     /// purposes
     fn get_total_iota(&self, layout_resolver: &mut dyn LayoutResolver) -> Result<u64, IotaError> {
         let balances = self.get_coin_balances(layout_resolver)?;
-        Ok(balances.get(&GAS::type_tag()).copied().unwrap_or(0))
+        Ok(balances
+            .get(&TypeTag::from(StructTag::new_gas()))
+            .copied()
+            .unwrap_or(0))
     }
 
     /// Get the total balances for all `Coin<T>` embedded in `self`.
@@ -357,7 +366,7 @@ impl Object {
     }
 
     pub fn new_from_genesis(
-        data: Data,
+        data: ObjectData,
         owner: Owner,
         previous_transaction: TransactionDigest,
     ) -> Self {
@@ -371,9 +380,9 @@ impl Object {
     }
 
     /// Create a new Move object
-    pub fn new_move(o: MoveObject, owner: Owner, previous_transaction: TransactionDigest) -> Self {
+    pub fn new_move(o: MoveStruct, owner: Owner, previous_transaction: TransactionDigest) -> Self {
         ObjectInner {
-            data: Data::Struct(o),
+            data: ObjectData::Struct(o),
             owner,
             previous_transaction,
             storage_rebate: 0,
@@ -381,7 +390,10 @@ impl Object {
         .into()
     }
 
-    pub fn new_package_from_data(data: Data, previous_transaction: TransactionDigest) -> Self {
+    pub fn new_package_from_data(
+        data: ObjectData,
+        previous_transaction: TransactionDigest,
+    ) -> Self {
         ObjectInner {
             data,
             owner: Owner::Immutable,
@@ -393,7 +405,7 @@ impl Object {
 
     // Note: this will panic if `modules` is empty
     pub fn new_from_package(package: MovePackage, previous_transaction: TransactionDigest) -> Self {
-        Self::new_package_from_data(Data::Package(package), previous_transaction)
+        Self::new_package_from_data(ObjectData::Package(package), previous_transaction)
     }
 
     pub fn new_package<'p>(
@@ -403,7 +415,7 @@ impl Object {
         dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         Ok(Self::new_package_from_data(
-            Data::Package(MovePackage::new_initial(
+            ObjectData::Package(MovePackage::new_initial(
                 modules,
                 protocol_config,
                 dependencies,
@@ -421,7 +433,7 @@ impl Object {
         dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         Ok(Self::new_package_from_data(
-            Data::Package(previous_package.new_upgraded(
+            ObjectData::Package(previous_package.new_upgraded(
                 new_package_id,
                 modules,
                 protocol_config,
@@ -445,12 +457,12 @@ impl Object {
     /// the object ID is not a known system package.
     pub fn new_system_package(
         modules: &[CompiledModule],
-        version: SequenceNumber,
+        version: Version,
         dependencies: Vec<ObjectId>,
         previous_transaction: TransactionDigest,
     ) -> Self {
         let ret = Self::new_package_from_data(
-            Data::Package(MovePackage::new_system(version, modules, dependencies)),
+            ObjectData::Package(MovePackage::new_system(version, modules, dependencies)),
             previous_transaction,
         );
 
@@ -475,12 +487,8 @@ impl std::ops::DerefMut for Object {
 }
 
 impl Object {
-    pub fn type_(&self) -> Option<&MoveObjectType> {
-        self.data.object_type()
-    }
-
     pub fn is_coin(&self) -> bool {
-        if let Some(move_object) = self.data.as_struct_opt() {
+        if let Some(move_object) = self.data.as_opt_struct() {
             move_object.struct_tag().is_coin()
         } else {
             false
@@ -490,7 +498,7 @@ impl Object {
     // TODO: use `MoveObj::get_balance_unsafe` instead.
     // context: https://github.com/iotaledger/iota/pull/10679#discussion_r1165877816
     pub fn as_coin_maybe(&self) -> Option<Coin> {
-        if let Some(move_object) = self.data.as_struct_opt() {
+        if let Some(move_object) = self.data.as_opt_struct() {
             let coin: Coin = bcs::from_bytes(move_object.contents()).ok()?;
             Some(coin)
         } else {
@@ -499,7 +507,7 @@ impl Object {
     }
 
     pub fn as_timelock_balance_maybe(&self) -> Option<TimeLock<Balance>> {
-        if let Some(move_object) = self.data.as_struct_opt() {
+        if let Some(move_object) = self.data.as_opt_struct() {
             Some(TimeLock::from_bcs_bytes(move_object.contents()).ok()?)
         } else {
             None
@@ -512,7 +520,7 @@ impl Object {
     /// coin--this function may panic or do something unexpected otherwise.
     pub fn get_coin_value_unchecked(&self) -> u64 {
         self.data
-            .as_struct_opt()
+            .as_opt_struct()
             .unwrap()
             .get_coin_value_unchecked()
     }
@@ -524,8 +532,8 @@ impl Object {
     pub fn object_size_for_gas_metering(&self) -> usize {
         let meta_data_size = size_of::<Owner>() + size_of::<TransactionDigest>() + size_of::<u64>();
         let data_size = match &self.data {
-            Data::Struct(m) => m.object_size_for_gas_metering(),
-            Data::Package(p) => p.size(),
+            ObjectData::Struct(m) => m.object_size_for_gas_metering(),
+            ObjectData::Package(p) => p.size(),
         };
         meta_data_size + data_size
     }
@@ -540,8 +548,8 @@ impl Object {
         resolver: &impl GetModule,
     ) -> Result<Option<MoveStructLayout>, IotaError> {
         match &self.data {
-            Data::Struct(m) => Ok(Some(m.get_layout(resolver)?)),
-            Data::Package(_) => Ok(None),
+            ObjectData::Struct(m) => Ok(Some(m.get_layout(resolver)?)),
+            ObjectData::Package(_) => Ok(None),
         }
     }
 
@@ -549,7 +557,7 @@ impl Object {
     /// like this: `S<T>`.
     /// Returns the inner parameter type `T`.
     pub fn get_move_template_type(&self) -> IotaResult<TypeTag> {
-        let move_struct = self.data.struct_tag().ok_or_else(|| IotaError::Type {
+        let move_struct = self.data.opt_struct_tag().ok_or_else(|| IotaError::Type {
             error: "Object must be a Move object".to_owned(),
         })?;
         fp_ensure!(
@@ -574,14 +582,14 @@ impl Object {
     ) -> Result<u64, IotaError> {
         Ok(self.storage_rebate
             + match &self.data {
-                Data::Struct(m) => m.get_total_iota(layout_resolver)?,
-                Data::Package(_) => 0,
+                ObjectData::Struct(m) => m.get_total_iota(layout_resolver)?,
+                ObjectData::Package(_) => 0,
             })
     }
 
     pub fn immutable_with_id_for_testing(id: ObjectId) -> Self {
-        let data = Data::Struct(
-            MoveObject::new(
+        let data = ObjectData::Struct(
+            MoveStruct::new(
                 StructTag::new_gas_coin().into(),
                 OBJECT_START_VERSION,
                 GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
@@ -608,14 +616,14 @@ impl Object {
     /// Make a new random test shared object.
     pub fn shared_for_testing() -> Object {
         let id = ObjectId::random();
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 10);
-        let owner = Owner::Shared(obj.version());
-        Object::new_move(obj, owner, TransactionDigest::GENESIS_MARKER)
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, id, 10);
+        let owner = Owner::Shared(move_struct.version());
+        Object::new_move(move_struct, owner, TransactionDigest::GENESIS_MARKER)
     }
 
-    pub fn with_id_owner_gas_for_testing(id: ObjectId, owner: IotaAddress, gas: u64) -> Self {
-        let data = Data::Struct(
-            MoveObject::new(
+    pub fn with_id_owner_gas_for_testing(id: ObjectId, owner: Address, gas: u64) -> Self {
+        let data = ObjectData::Struct(
+            MoveStruct::new(
                 StructTag::new_gas_coin().into(),
                 OBJECT_START_VERSION,
                 GasCoin::new(id, gas).to_bcs_bytes(),
@@ -632,8 +640,8 @@ impl Object {
     }
 
     pub fn treasury_cap_for_testing(struct_tag: StructTag, treasury_cap: TreasuryCap) -> Self {
-        let data = Data::Struct(
-            MoveObject::new(
+        let data = ObjectData::Struct(
+            MoveStruct::new(
                 StructTag::new_treasury_cap(struct_tag).into(),
                 OBJECT_START_VERSION,
                 bcs::to_bytes(&treasury_cap).expect("Failed to serialize"),
@@ -650,8 +658,8 @@ impl Object {
     }
 
     pub fn coin_metadata_for_testing(struct_tag: StructTag, metadata: CoinMetadata) -> Self {
-        let data = Data::Struct(
-            MoveObject::new(
+        let data = ObjectData::Struct(
+            MoveStruct::new(
                 StructTag::new_coin_metadata(struct_tag).into(),
                 OBJECT_START_VERSION,
                 bcs::to_bytes(&metadata).expect("Failed to serialize"),
@@ -668,8 +676,8 @@ impl Object {
     }
 
     pub fn with_object_owner_for_testing(id: ObjectId, owner: ObjectId) -> Self {
-        let data = Data::Struct(
-            MoveObject::new(
+        let data = ObjectData::Struct(
+            MoveStruct::new(
                 StructTag::new_gas_coin().into(),
                 OBJECT_START_VERSION,
                 GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
@@ -685,18 +693,14 @@ impl Object {
         .into()
     }
 
-    pub fn with_id_owner_for_testing(id: ObjectId, owner: IotaAddress) -> Self {
+    pub fn with_id_owner_for_testing(id: ObjectId, owner: Address) -> Self {
         // For testing, we provide sufficient gas by default.
         Self::with_id_owner_gas_for_testing(id, owner, GAS_VALUE_FOR_TESTING)
     }
 
-    pub fn with_id_owner_version_for_testing(
-        id: ObjectId,
-        version: SequenceNumber,
-        owner: Owner,
-    ) -> Self {
-        let data = Data::Struct(
-            MoveObject::new(
+    pub fn with_id_owner_version_for_testing(id: ObjectId, version: Version, owner: Owner) -> Self {
+        let data = ObjectData::Struct(
+            MoveStruct::new(
                 StructTag::new_gas_coin().into(),
                 version,
                 GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
@@ -712,16 +716,16 @@ impl Object {
         .into()
     }
 
-    pub fn with_owner_for_testing(owner: IotaAddress) -> Self {
+    pub fn with_owner_for_testing(owner: Address) -> Self {
         Self::with_id_owner_for_testing(ObjectId::random(), owner)
     }
 
     /// Generate a new gas coin worth `value` with a random object ID and owner
     /// For testing purposes only
-    pub fn new_gas_with_balance_and_owner_for_testing(value: u64, owner: IotaAddress) -> Self {
-        let obj = MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), value);
+    pub fn new_gas_with_balance_and_owner_for_testing(value: u64, owner: Address) -> Self {
+        let move_struct = MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), value);
         Object::new_move(
-            obj,
+            move_struct,
             Owner::Address(owner),
             TransactionDigest::GENESIS_MARKER,
         )
@@ -730,7 +734,7 @@ impl Object {
     /// Generate a new gas coin object with default balance and random owner.
     pub fn new_gas_for_testing() -> Self {
         let gas_object_id = ObjectId::random();
-        let (owner, _) = deterministic_random_account_key();
+        let (owner, _) = deterministic_random_account_private_key();
         Object::with_id_owner_for_testing(gas_object_id, owner)
     }
 }
@@ -741,7 +745,7 @@ pub fn generate_test_gas_objects() -> Vec<Object> {
         static GAS_OBJECTS: Vec<Object> = (0..50)
             .map(|_| {
                 let gas_object_id = ObjectId::random();
-                let (owner, _) = deterministic_random_account_key();
+                let (owner, _) = deterministic_random_account_private_key();
                 Object::with_id_owner_for_testing(gas_object_id, owner)
             })
             .collect();
@@ -754,8 +758,8 @@ pub fn generate_test_gas_objects() -> Vec<Object> {
 #[serde(tag = "status", content = "details")]
 pub enum ObjectRead {
     NotExists(ObjectId),
-    Exists(ObjectRef, Object, Option<MoveStructLayout>),
-    Deleted(ObjectRef),
+    Exists(ObjectReference, Object, Option<MoveStructLayout>),
+    Deleted(ObjectReference),
 }
 
 impl ObjectRead {
@@ -814,16 +818,16 @@ pub enum PastObjectRead {
     /// The object does not exist
     ObjectNotExists(ObjectId),
     /// The object is found to be deleted with this version
-    ObjectDeleted(ObjectRef),
+    ObjectDeleted(ObjectReference),
     /// The object exists and is found with this version
-    VersionFound(ObjectRef, Object, Option<MoveStructLayout>),
+    VersionFound(ObjectReference, Object, Option<MoveStructLayout>),
     /// The object exists but not found with this version
-    VersionNotFound(ObjectId, SequenceNumber),
+    VersionNotFound(ObjectId, Version),
     /// The asked object version is higher than the latest
     VersionTooHigh {
         object_id: ObjectId,
-        asked_version: SequenceNumber,
-        latest_version: SequenceNumber,
+        asked_version: Version,
+        latest_version: Version,
     },
 }
 
@@ -869,7 +873,7 @@ impl Display for PastObjectRead {
             Self::VersionNotFound(object_id, version) => {
                 write!(
                     f,
-                    "PastObjectRead::VersionNotFound ({object_id}, asked sequence number {version:?})"
+                    "PastObjectRead::VersionNotFound ({object_id}, asked version {version:?})"
                 )
             }
             Self::VersionTooHigh {
@@ -879,7 +883,7 @@ impl Display for PastObjectRead {
             } => {
                 write!(
                     f,
-                    "PastObjectRead::VersionTooHigh ({object_id}, asked sequence number {asked_version:?}, latest sequence number {latest_version:?})"
+                    "PastObjectRead::VersionTooHigh ({object_id}, asked version {asked_version:?}, latest version {latest_version:?})"
                 )
             }
         }
@@ -888,25 +892,20 @@ impl Display for PastObjectRead {
 
 #[cfg(test)]
 mod tests {
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{Address, ObjectId, TransactionDigest};
 
     use crate::{
-        base_types::{IotaAddress, TransactionDigest},
         gas_coin::GasCoin,
-        object::{MoveObjectExt, OBJECT_START_VERSION, Object, Owner},
+        object::{MoveStructExt, OBJECT_START_VERSION, Object, Owner},
     };
 
     // Ensure that object digest computation and bcs serialized format are not
     // inadvertently changed.
     #[test]
     fn test_object_digest_and_serialized_format() {
-        let g =
-            GasCoin::new_for_testing_with_id(ObjectId::ZERO, 123).to_object(OBJECT_START_VERSION);
-        let o = Object::new_move(
-            g,
-            Owner::Address(IotaAddress::ZERO),
-            TransactionDigest::ZERO,
-        );
+        let g = GasCoin::new_for_testing_with_id(ObjectId::ZERO, 123)
+            .to_move_struct(OBJECT_START_VERSION);
+        let o = Object::new_move(g, Owner::Address(Address::ZERO), TransactionDigest::ZERO);
         let bytes = bcs::to_bytes(&o).unwrap();
 
         assert_eq!(
@@ -932,7 +931,7 @@ mod tests {
     #[test]
     fn test_get_coin_value_unchecked() {
         fn test_for_value(v: u64) {
-            let g = GasCoin::new_for_testing(v).to_object(OBJECT_START_VERSION);
+            let g = GasCoin::new_for_testing(v).to_move_struct(OBJECT_START_VERSION);
             assert_eq!(g.get_coin_value_unchecked(), v);
             assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
         }
@@ -953,7 +952,7 @@ mod tests {
     #[test]
     fn test_set_coin_value_unchecked() {
         fn test_for_value(v: u64) {
-            let mut g = GasCoin::new_for_testing(u64::MAX).to_object(OBJECT_START_VERSION);
+            let mut g = GasCoin::new_for_testing(u64::MAX).to_move_struct(OBJECT_START_VERSION);
             g.set_coin_value_unchecked(v);
             assert_eq!(g.get_coin_value_unchecked(), v);
             assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);

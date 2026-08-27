@@ -10,11 +10,13 @@ use std::{
 
 use anyhow::{anyhow, bail};
 use fastcrypto::encoding::{Encoding, Hex};
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag, move_package::MovePackage};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, StructTag, TypeTag, move_package::MovePackage,
+};
 use iota_types::{
     base_types::{
-        IotaAddress, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext,
-        TxContextKind, is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
+        RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext, TxContextKind,
+        is_primitive_type_tag, move_ascii_str_layout, move_utf8_str_layout,
     },
     id::{self, RESOLVED_IOTA_ID},
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
@@ -131,7 +133,7 @@ impl IotaJsonValue {
     pub fn to_bcs_bytes(&self, ty: &MoveTypeLayout) -> Result<Vec<u8>, anyhow::Error> {
         let move_value = Self::to_move_value(&self.0, ty)?;
         R::MoveValue::simple_serialize(&move_value)
-            .ok_or_else(|| anyhow!("Unable to serialize {:?}. Expected {}", move_value, ty))
+            .ok_or_else(|| anyhow!("Unable to serialize {move_value:?}. Expected {ty}"))
     }
 
     pub fn from_bcs_bytes(
@@ -159,7 +161,7 @@ impl IotaJsonValue {
         self.0.clone()
     }
 
-    pub fn to_iota_address(&self) -> anyhow::Result<IotaAddress> {
+    pub fn to_iota_address(&self) -> anyhow::Result<Address> {
         json_value_to_iota_address(&self.0)
     }
 
@@ -221,15 +223,15 @@ impl IotaJsonValue {
             // most U32
             (JsonValue::Number(n), MoveTypeLayout::U8) => match n.as_u64() {
                 Some(x) => R::MoveValue::U8(u8::try_from(x)?),
-                None => bail!("{} is not a valid number. Only u8 allowed.", n),
+                None => bail!("{n} is not a valid number. Only u8 allowed."),
             },
             (JsonValue::Number(n), MoveTypeLayout::U16) => match n.as_u64() {
                 Some(x) => R::MoveValue::U16(u16::try_from(x)?),
-                None => bail!("{} is not a valid number. Only u16 allowed.", n),
+                None => bail!("{n} is not a valid number. Only u16 allowed."),
             },
             (JsonValue::Number(n), MoveTypeLayout::U32) => match n.as_u64() {
                 Some(x) => R::MoveValue::U32(u32::try_from(x)?),
-                None => bail!("{} is not a valid number. Only u32 allowed.", n),
+                None => bail!("{n} is not a valid number. Only u32 allowed."),
             },
 
             // u8, u16, u32, u64, u128, u256 can be encoded as String
@@ -267,7 +269,7 @@ impl IotaJsonValue {
                         struct_layout.type_
                     );
                 };
-                let addr = IotaAddress::from_str(s)?;
+                let addr = Address::from_str(s)?;
                 R::MoveValue::Address(AccountAddress::new(addr.into_bytes()))
             }
             (JsonValue::Object(o), MoveTypeLayout::Struct(struct_layout)) => {
@@ -338,14 +340,14 @@ impl Debug for IotaJsonValue {
     }
 }
 
-fn json_value_to_iota_address(value: &JsonValue) -> anyhow::Result<IotaAddress> {
+fn json_value_to_iota_address(value: &JsonValue) -> anyhow::Result<Address> {
     match value {
         JsonValue::String(s) => {
             let s = s.trim().to_lowercase();
             if !s.starts_with(HEX_PREFIX) {
                 bail!("Address hex string must start with 0x.",);
             }
-            Ok(IotaAddress::from_str(&s)?)
+            Ok(Address::from_str(&s)?)
         }
         JsonValue::Array(bytes) => {
             fn value_to_byte_array(v: &Vec<JsonValue>) -> Option<Vec<u8>> {
@@ -361,8 +363,8 @@ fn json_value_to_iota_address(value: &JsonValue) -> anyhow::Result<IotaAddress> 
                 Some(bytes)
             }
             let bytes = value_to_byte_array(bytes)
-                .ok_or_else(|| anyhow!("Invalid input: Cannot parse input into IotaAddress."))?;
-            Ok(IotaAddress::from_bytes(bytes)?)
+                .ok_or_else(|| anyhow!("Invalid input: Cannot parse input into Address."))?;
+            Ok(Address::from_bytes(bytes)?)
         }
         v => bail!("Unexpected arg {v} for expected type address"),
     }
@@ -378,7 +380,7 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
         ),
         MoveValue::Bool(v) => json!(v),
         MoveValue::Signer(v) | MoveValue::Address(v) => {
-            json!(IotaAddress::new(v.into_bytes()).to_string())
+            json!(Address::new(v.into_bytes()).to_string())
         }
         MoveValue::U8(v) => json!(v),
         MoveValue::U64(v) => json!(v.to_string()),
@@ -406,7 +408,7 @@ fn move_value_to_json(move_value: &MoveValue) -> Option<JsonValue> {
                 // option has a single vec field.
                 let (_, v) = fields.first()?;
                 if let MoveValue::Address(address) = v {
-                    json!(IotaAddress::new(address.into_bytes()))
+                    json!(Address::new(address.into_bytes()))
                 } else {
                     return None;
                 }
@@ -720,11 +722,7 @@ fn resolve_call_arg(
         return Ok(ResolvedCallArg::Pure(arg.to_bcs_bytes(&layout).map_err(
             |e| {
                 anyhow!(
-                    "Could not serialize argument of type {:?} at {} into {}. Got error: {:?}",
-                    param,
-                    idx,
-                    layout,
-                    e
+                    "Could not serialize argument of type {param:?} at {idx} into {layout}. Got error: {e:?}"
                 )
             },
         )?));
@@ -742,12 +740,7 @@ fn resolve_call_arg(
                 Ok(ResolvedCallArg::ObjVec(resolve_object_vec_arg(idx, arg)?))
             }
             _ => {
-                bail!(
-                    "Unexpected non-primitive vector arg {:?} at {} with value {:?}",
-                    param,
-                    idx,
-                    arg
-                );
+                bail!("Unexpected non-primitive vector arg {param:?} at {idx} with value {arg:?}");
             }
         },
         SignatureToken::Datatype(_)
@@ -756,12 +749,7 @@ fn resolve_call_arg(
             idx,
             &arg.to_json_value(),
         )?)),
-        _ => bail!(
-            "Unexpected non-primitive arg {:?} at {} with value {:?}",
-            param,
-            idx,
-            arg
-        ),
+        _ => bail!("Unexpected non-primitive arg {param:?} at {idx} with value {arg:?}"),
     }
 }
 
@@ -816,13 +804,7 @@ pub fn resolve_move_function_args(
                 .as_str()
                 == function.as_str()
         })
-        .ok_or_else(|| {
-            anyhow!(
-                "Could not resolve function {} in module {}",
-                function,
-                module_ident
-            )
-        })?;
+        .ok_or_else(|| anyhow!("Could not resolve function {function} in module {module_ident}"))?;
     let function_signature = module.function_handle_at(fdef.function);
     let parameters = &module.signature_at(function_signature.parameters).0;
 
@@ -898,7 +880,7 @@ macro_rules! call_arg {
                 IotaJsonValue::from_str(&self.to_string())
             }
         }
-        impl IotaJsonArg for iota_types::base_types::IotaAddress {
+        impl IotaJsonArg for iota_sdk_types::Address {
             fn to_iota_json(&self) -> anyhow::Result<IotaJsonValue> {
                 IotaJsonValue::from_str(&self.to_string())
             }

@@ -11,11 +11,8 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockResponseOptions,
     TransactionBlockBytes,
 };
-use iota_sdk_types::ObjectId;
-use iota_types::{
-    base_types::IotaAddress, gas_coin::GAS, quorum_driver_types::ExecuteTransactionRequestType,
-    storage::ReadStore,
-};
+use iota_sdk_types::{Address, ObjectId, StructTag};
+use iota_types::{quorum_driver_types::ExecuteTransactionRequestType, storage::ReadStore};
 use simulacrum::Simulacrum;
 use test_cluster::TestCluster;
 
@@ -33,11 +30,11 @@ fn get_or_init_shared_extended_api_simulacrum_env() -> &'static SimulacrumTestSe
 
             execute_simulacrum_transactions(&mut sim, 15);
             add_checkpoints(&mut sim, 300);
-            sim.advance_epoch();
+            sim.advance_epoch(false);
 
             execute_simulacrum_transactions(&mut sim, 10);
             add_checkpoints(&mut sim, 300);
-            sim.advance_epoch();
+            sim.advance_epoch(false);
 
             execute_simulacrum_transactions(&mut sim, 5);
             add_checkpoints(&mut sim, 300);
@@ -444,7 +441,7 @@ async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
             package_id,
             module,
             function,
-            type_args![GAS::type_tag()]?,
+            type_args![TypeTag::from(StructTag::new_gas())]?,
             call_args!(coin.object_id, 10)?,
             Some(gas.object_id),
             10_000_000.into(),
@@ -471,7 +468,7 @@ async fn execute_move_fn(cluster: &TestCluster) -> Result<(), anyhow::Error> {
 }
 
 fn execute_simulacrum_transaction(sim: &mut Simulacrum) {
-    let transfer_recipient = IotaAddress::random();
+    let transfer_recipient = Address::random();
     let (transaction, _) = sim.transfer_txn(transfer_recipient);
     sim.execute_transaction(transaction).unwrap();
 }

@@ -7,14 +7,10 @@ use std::{path::Path, str::FromStr};
 use fastcrypto::encoding::{Encoding, Hex};
 use iota_framework::BuiltInFramework;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{Identifier, ObjectId, StructTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TransactionDigest};
 use iota_types::{
-    base_types::{IotaAddress, TransactionDigest},
-    dynamic_field::derive_dynamic_field_id,
-    gas_coin::GasCoin,
-    iota_sdk_types_conversions::struct_tag_sdk_to_core,
-    object::Object,
-    parse_iota_type_tag,
+    dynamic_field::derive_dynamic_field_id, gas_coin::GasCoin,
+    iota_sdk_types_conversions::struct_tag_sdk_to_core, object::Object, parse_iota_type_tag,
 };
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_core_types::{
@@ -437,7 +433,7 @@ fn test_basic_args_linter_top_level() {
         BuiltInFramework::genesis_move_packages(),
     )
     .unwrap();
-    let package = example_package.data.as_package_opt().unwrap();
+    let package = example_package.data.as_opt_package().unwrap();
 
     let module = Identifier::from_static("resolve_args");
     let function = Identifier::from_static("foo");
@@ -456,7 +452,7 @@ fn test_basic_args_linter_top_level() {
     let foo_id = ObjectId::random();
     let bar_id = ObjectId::random();
     let baz_id = ObjectId::random();
-    let recipient_addr = IotaAddress::random();
+    let recipient_addr = Address::random();
 
     let foo = json!(foo_id.to_canonical_string(/* with_prefix */ true));
     let bar = json!([
@@ -597,7 +593,7 @@ fn test_from_str() {
     assert_eq!(object_id, test.0.as_str().unwrap());
 
     // test id with quotes
-    let test = IotaJsonValue::from_str(&format!("\"{}\"", &object_id)).unwrap();
+    let test = IotaJsonValue::from_str(&format!("\"{object_id}\"")).unwrap();
     assert!(test.0.is_string());
     assert_eq!(object_id, test.0.as_str().unwrap());
 

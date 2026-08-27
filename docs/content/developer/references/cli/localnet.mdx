@@ -53,9 +53,42 @@ iota-localnet start [OPTIONS]
 | `--epoch-duration-ms <MS>` | Epoch duration in milliseconds (default: `60000`). Only with `--force-regenesis` or auto-generated genesis. |
 | `--committee-size <N>` | Number of validators in the network (default: `1`). |
 | `--no-full-node` | Start the network without a fullnode. |
+| `--disable-fullnode-pruning` | Keep the fullnode's full history instead of pruning old object versions and checkpoints. Cannot be combined with `--no-full-node`. |
 | `--local-migration-snapshots <PATH>...` | Paths to local migration snapshot files. |
 | `--remote-migration-snapshots <URL>...` | Remotely stored migration snapshot URLs. |
 | `--delegator <ADDRESS>` | Specify the delegator address. |
+
+### Ports
+
+Every node port is fixed, so a local network binds the same ports on every run and on every machine.
+The metrics, admin interface, p2p, network and primary addresses are on `127.0.0.1`; the JSON-RPC, faucet, indexer, GraphQL and gRPC services listen on `0.0.0.0`.
+
+| Port | Used by |
+|--------|-------------|
+| `9000` | Fullnode JSON-RPC (change it with `--fullnode-rpc-port`). |
+| `9123` | Faucet (`--with-faucet`). |
+| `9124` | Indexer (`--with-indexer`). |
+| `9125` | GraphQL (`--with-graphql`). |
+| `9126` | GraphQL metrics (change it with `--graphql-metrics-address`). |
+| `9184` | Fullnode metrics. |
+| `9185` | Fullnode admin interface. |
+| `9186` | Fullnode p2p (UDP). |
+| `50051` | Fullnode gRPC API (`--with-grpc`). |
+
+Each validator owns a block of ten ports starting at `9200 + 10 * i`: validator 0 owns `9200`-`9209`, validator 1 owns `9210`-`9219`, and so on. Only the first five of a block are used; the other five are reserved so future endpoints don't shift the layout.
+
+| Port | Used by |
+|--------|-------------|
+| `9200 + 10 * i` | Validator network address (TCP). |
+| `9201 + 10 * i` | Validator p2p address (UDP). |
+| `9202 + 10 * i` | Validator metrics. |
+| `9203 + 10 * i` | Validator primary address (UDP). |
+| `9204 + 10 * i` | Validator admin interface. |
+| `9205 + 10 * i` to `9209 + 10 * i` | Reserved. |
+
+The default committee of 1 therefore owns `9200`-`9209`, and `--committee-size 4` owns `9200`-`9239`.
+A node fails to start if one of its ports is already taken, for instance by a second local network.
+The admin interface addresses can be changed with `iota-localnet genesis --admin-interface-address`.
 
 :::info Indexer options
 
@@ -65,14 +98,30 @@ When built with the `indexer` feature, additional options are available:
 |--------|-------------|
 | `--with-indexer[=HOST:PORT]` | Start an indexer (default: `0.0.0.0:9124`). Requires Postgres. |
 | `--with-graphql[=HOST:PORT]` | Start a GraphQL server (default: `0.0.0.0:9125`). Automatically enables indexer. |
+| `--graphql-metrics-address <HOST:PORT>` | Bind the GraphQL metrics endpoint elsewhere (default: `127.0.0.1:9126`). |
 | `--pg-port <PORT>` | Postgres port (default: `5432`). |
 | `--pg-host <HOST>` | Postgres hostname (default: `localhost`). |
 | `--pg-db-name <NAME>` | Postgres database name (default: `iota_indexer`). |
 | `--pg-user <USER>` | Postgres username (default: `postgres`). |
 | `--pg-password <PASS>` | Postgres password (default: `postgrespw`). |
+| `--pruning-config-path <PATH>` | Path to a TOML retention config for the indexer writer (see [Indexer pruning config file](#indexer-pruning-config-file) below). Without it the indexer keeps all data and its database grows without bound. |
 | `--data-ingestion-dir <DIR>` | Directory for dumping executed checkpoints. Defaults to a temp dir when `--with-indexer` is set. |
 
 :::
+
+#### Indexer pruning config file
+
+Controls retention of the **indexer** database only (not node/object pruning). A TOML file with a required `epochs_to_keep` default and optional per-table `[overrides]`:
+
+```toml
+epochs_to_keep = 10
+
+[overrides]
+transactions = 5
+```
+
+See [Pruning](https://github.com/iotaledger/iota/blob/develop/crates/iota-indexer/README.md#pruning) in the `iota-indexer` crate for the prunable tables, defaults, and timing.
+
 
 ### Examples
 

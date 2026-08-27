@@ -5,13 +5,13 @@
 use std::{path::Path, sync::Arc};
 
 use anyhow::Result;
-use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_package_resolver::Resolver;
+use iota_sdk_types::TransactionEffects;
 use iota_types::{
     SYSTEM_PACKAGE_ADDRESSES,
-    effects::{TransactionEffects, TransactionEffectsExt},
+    effects::TransactionEffectsExt,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     object::Object,
 };
@@ -163,10 +163,10 @@ impl ObjectHandler {
         object_status_tracker: &ObjectStatusTracker,
         state: &mut State,
     ) -> Result<()> {
-        let move_obj_opt = object.data.as_struct_opt();
+        let move_obj_opt = object.data.as_opt_struct();
         let move_struct = if let Some((tag, contents)) = object
             .struct_tag()
-            .and_then(|tag| object.data.as_struct_opt().map(|mo| (tag, mo.contents())))
+            .and_then(|tag| object.data.as_opt_struct().map(|mo| (tag, mo.contents())))
         {
             let move_struct = get_move_struct(&tag, contents, &state.resolver).await?;
             Some(move_struct)
@@ -175,9 +175,10 @@ impl ObjectHandler {
         };
         let (struct_tag, iota_move_struct) = if let Some(move_struct) = move_struct {
             match move_struct.into() {
-                IotaMoveStruct::WithTypes { type_, fields } => {
-                    (Some(type_), Some(IotaMoveStruct::WithFields(fields)))
-                }
+                IotaMoveStruct::WithTypes {
+                    struct_tag: tag,
+                    fields,
+                } => (Some(tag), Some(IotaMoveStruct::WithFields(fields))),
                 fields => (object.struct_tag(), Some(fields)),
             }
         } else {
@@ -201,7 +202,7 @@ impl ObjectHandler {
             initial_shared_version: initial_shared_version(object),
             previous_transaction: object.previous_transaction.to_base58(),
             storage_rebate: Some(object.storage_rebate),
-            bcs: Some(Base64::encode(bcs::to_bytes(object).unwrap())),
+            bcs: Some(object.to_base64()),
             coin_type: object.coin_type_opt().map(|t| t.to_string()),
             coin_balance: if object.coin_type_opt().is_some() {
                 Some(object.get_coin_value_unchecked())

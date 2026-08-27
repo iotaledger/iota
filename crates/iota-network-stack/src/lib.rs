@@ -6,10 +6,11 @@ pub mod anemo_ext;
 pub mod callback;
 pub mod client;
 pub mod codec;
+pub mod concurrency;
 pub mod config;
 pub mod grpc_timeout;
 pub mod metrics;
-pub mod multiaddr;
+pub use iota_multiaddr as multiaddr;
 pub mod server;
 
-pub use crate::multiaddr::Multiaddr;
+pub use iota_multiaddr::Multiaddr;

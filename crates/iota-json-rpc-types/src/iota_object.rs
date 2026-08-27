@@ -14,18 +14,16 @@ use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Identifier, ObjectId, Owner, StructTag,
+    Address, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner,
+    StructTag, TransactionDigest, Version,
     move_package::{MovePackage, TypeOrigin, UpgradeInfo},
 };
 use iota_types::{
-    base_types::{
-        IotaAddress, ObjectDigest, ObjectInfo, ObjectRef, ObjectType, SequenceNumber,
-        TransactionDigest,
-    },
+    base_types::{ObjectInfo, ObjectType},
     error::{ExecutionError, IotaError, IotaResult, UserInputError, UserInputResult},
     gas_coin::GasCoin,
     messages_checkpoint::CheckpointSequenceNumber,
-    object::{Data, MoveObject, MoveObjectExt, Object, ObjectInner, ObjectRead},
+    object::{MoveStructExt, Object, ObjectInner, ObjectRead},
 };
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::annotated_value::{MoveStructLayout, MoveValue};
@@ -38,10 +36,10 @@ use crate::{
     IotaMoveStruct, IotaMoveValue, IotaObjectResponseError, Page,
     iota_owner::OwnerSchema,
     iota_primitives::{
-        Base58 as Base58Schema, Base64 as Base64Schema, Identifier as IdentifierSchema,
-        IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema,
-        SequenceNumberString as SequenceNumberStringSchema,
-        SequenceNumberU64 as SequenceNumberU64Schema, StructTag as StructTagSchema,
+        Address as AddressSchema, Base58 as Base58Schema, Base64 as Base64Schema,
+        Identifier as IdentifierSchema, ObjectId as ObjectIdSchema,
+        SequenceNumberString as SequenceNumberStringSchema, SequenceNumberU64,
+        StructTag as StructTagSchema,
     },
 };
 
@@ -86,7 +84,7 @@ impl IotaObjectResponse {
             ObjectRead::Deleted(object_ref) => Ok(IotaObjectResponse::new_with_error(
                 IotaObjectResponseError::Deleted {
                     object_id: object_ref.object_id,
-                    version: object_ref.version,
+                    version: object_ref.version.into(),
                     digest: object_ref.digest,
                 },
             )),
@@ -157,7 +155,7 @@ impl IotaObjectResponse {
         })
     }
 
-    pub fn object_ref_if_exists(&self) -> Option<ObjectRef> {
+    pub fn object_ref_if_exists(&self) -> Option<ObjectReference> {
         match (&self.data, &self.error) {
             (Some(obj_data), None) => Some(obj_data.object_ref()),
             _ => None,
@@ -173,7 +171,7 @@ impl TryFrom<IotaObjectResponse> for ObjectInfo {
             object_id,
             version,
             digest,
-            type_,
+            object_type,
             owner,
             previous_transaction,
             ..
@@ -183,7 +181,7 @@ impl TryFrom<IotaObjectResponse> for ObjectInfo {
             object_id,
             version,
             digest,
-            type_: type_.ok_or_else(|| anyhow!("Object type not found for object."))?,
+            object_type: object_type.ok_or_else(|| anyhow!("Object type not found for object."))?,
             owner: owner.ok_or_else(|| anyhow!("Owner not found for object."))?,
             previous_transaction: previous_transaction
                 .ok_or_else(|| anyhow!("Transaction digest not found for object."))?,
@@ -207,7 +205,7 @@ pub struct IotaObjectData {
     /// Object version.
     #[serde_as(as = "SequenceNumberStringSchema")]
     #[schemars(with = "SequenceNumberStringSchema")]
-    pub version: SequenceNumber,
+    pub version: Version,
     /// Base64 string representing the object digest
     #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
@@ -217,7 +215,7 @@ pub struct IotaObjectData {
     #[schemars(with = "Option<String>")]
     #[serde_as(as = "Option<DisplayFromStr>")]
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub type_: Option<ObjectType>,
+    pub object_type: Option<ObjectType>,
     // Default to be None because otherwise it will be repeated for the getOwnedObjects endpoint
     /// The owner of this object. Default to be None unless
     /// IotaObjectDataOptions.showOwner is set to true
@@ -256,7 +254,7 @@ pub struct IotaObjectData {
 
 impl IotaObjectData {
     pub fn new(
-        object_ref: ObjectRef,
+        object_ref: ObjectReference,
         obj: Object,
         layout: impl Into<Option<MoveStructLayout>>,
         options: &IotaObjectDataOptions,
@@ -275,12 +273,12 @@ impl IotaObjectData {
             ..
         } = options;
 
-        let ObjectRef {
+        let ObjectReference {
             object_id,
             version,
             digest,
         } = object_ref;
-        let type_ = if *show_type {
+        let object_type = if *show_type {
             Some(Into::<ObjectType>::into(&obj))
         } else {
             None
@@ -288,13 +286,13 @@ impl IotaObjectData {
 
         let bcs: Option<IotaRawData> = if *show_bcs {
             let data = match obj.data.clone() {
-                Data::Struct(m) => {
+                ObjectData::Struct(m) => {
                     let layout = layout.clone().ok_or_else(|| {
                         anyhow!("Layout is required to convert Move object to json")
                     })?;
                     IotaRawData::try_from_object(m, layout)?
                 }
-                Data::Package(p) => IotaRawData::try_from_package(p)
+                ObjectData::Package(p) => IotaRawData::try_from_package(p)
                     .map_err(|e| anyhow!("Error getting raw data from package: {e:#?}"))?,
             };
             Some(data)
@@ -306,13 +304,13 @@ impl IotaObjectData {
 
         let content: Option<IotaParsedData> = if *show_content {
             let data = match obj.data {
-                Data::Struct(m) => {
+                ObjectData::Struct(m) => {
                     let layout = layout.ok_or_else(|| {
                         anyhow!("Layout is required to convert Move object to json")
                     })?;
                     IotaParsedData::try_from_object(m, layout)?
                 }
-                Data::Package(p) => IotaParsedData::try_from_package(p)?,
+                ObjectData::Package(p) => IotaParsedData::try_from_package(p)?,
             };
             Some(data)
         } else {
@@ -323,7 +321,7 @@ impl IotaObjectData {
             object_id,
             version,
             digest,
-            type_,
+            object_type,
             owner: if *show_owner { Some(obj.owner) } else { None },
             storage_rebate: if *show_storage_rebate {
                 Some(obj.storage_rebate)
@@ -341,19 +339,19 @@ impl IotaObjectData {
         })
     }
 
-    pub fn object_ref(&self) -> ObjectRef {
-        ObjectRef::new(self.object_id, self.version, self.digest)
+    pub fn object_ref(&self) -> ObjectReference {
+        ObjectReference::new(self.object_id, self.version, self.digest)
     }
 
     pub fn object_type(&self) -> anyhow::Result<ObjectType> {
-        self.type_
+        self.object_type
             .as_ref()
             .ok_or_else(|| anyhow!("type is missing for object {}", self.object_id))
             .cloned()
     }
 
     pub fn is_gas_coin(&self) -> bool {
-        match self.type_.as_ref() {
+        match self.object_type.as_ref() {
             Some(ObjectType::Struct(ty)) if ty.is_gas_coin() => true,
             Some(_) => false,
             None => false,
@@ -363,8 +361,8 @@ impl IotaObjectData {
 
 impl Display for IotaObjectData {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        let type_ = if let Some(type_) = &self.type_ {
-            type_.to_string()
+        let object_type = if let Some(tag) = &self.object_type {
+            tag.to_string()
         } else {
             "Unknown Type".into()
         };
@@ -372,7 +370,11 @@ impl Display for IotaObjectData {
         writeln!(
             writer,
             "{}",
-            format!("----- {type_} ({}[{}]) -----", self.object_id, self.version).bold()
+            format!(
+                "----- {object_type} ({}[{}]) -----",
+                self.object_id, self.version
+            )
+            .bold()
         )?;
         if let Some(owner) = self.owner {
             writeln!(writer, "{}: {owner}", "Owner".bold().bright_black())?;
@@ -417,14 +419,17 @@ impl TryFrom<&IotaObjectData> for GasCoin {
             .ok_or_else(|| anyhow!("Expect object content to not be empty"))?
         {
             IotaParsedData::MoveObject(o) => {
-                if o.type_.is_gas_coin() {
+                if o.struct_tag.is_gas_coin() {
                     return GasCoin::try_from(&o.fields);
                 }
             }
             IotaParsedData::Package(_) => {}
         }
 
-        bail!("Gas object type is not a gas coin: {:?}", object.type_)
+        bail!(
+            "Gas object type is not a gas coin: {:?}",
+            object.object_type
+        )
     }
 }
 
@@ -432,7 +437,11 @@ impl TryFrom<&IotaMoveStruct> for GasCoin {
     type Error = anyhow::Error;
     fn try_from(move_struct: &IotaMoveStruct) -> Result<Self, Self::Error> {
         match move_struct {
-            IotaMoveStruct::WithFields(fields) | IotaMoveStruct::WithTypes { type_: _, fields } => {
+            IotaMoveStruct::WithFields(fields)
+            | IotaMoveStruct::WithTypes {
+                struct_tag: _,
+                fields,
+            } => {
                 if let Some(IotaMoveValue::String(balance)) = fields.get("balance") {
                     if let Ok(balance) = balance.parse::<u64>() {
                         if let Some(IotaMoveValue::UID { id }) = fields.get("id") {
@@ -562,7 +571,7 @@ impl TryFrom<(ObjectInfo, IotaObjectDataOptions)> for IotaObjectResponse {
             object_id: object_info.object_id,
             version: object_info.version,
             digest: object_info.digest,
-            type_: show_type.then_some(object_info.type_),
+            object_type: show_type.then_some(object_info.object_type),
             owner: show_owner.then_some(object_info.owner),
             previous_transaction: show_previous_transaction
                 .then_some(object_info.previous_transaction),
@@ -605,15 +614,15 @@ impl TryInto<Object> for IotaObjectData {
     fn try_into(self) -> Result<Object, Self::Error> {
         let protocol_config = ProtocolConfig::get_for_min_version();
         let data = match self.bcs {
-            Some(IotaRawData::MoveObject(o)) => Data::Struct({
-                MoveObject::new_from_execution(
-                    o.type_().clone(),
-                    o.version,
+            Some(IotaRawData::MoveObject(o)) => ObjectData::Struct({
+                MoveStruct::new_from_execution(
+                    o.struct_tag().clone(),
+                    o.version.into(),
                     o.bcs_bytes,
                     &protocol_config,
                 )?
             }),
-            Some(IotaRawData::Package(p)) => Data::Package(MovePackage::new(
+            Some(IotaRawData::Package(p)) => ObjectData::Package(MovePackage::new(
                 p.id,
                 self.version,
                 p.module_map
@@ -656,17 +665,15 @@ pub struct ObjectRefSchema {
     #[schemars(with = "ObjectIdSchema")]
     pub object_id: ObjectId,
     /// Object version.
-    #[serde_as(as = "SequenceNumberU64Schema")]
-    #[schemars(with = "SequenceNumberU64Schema")]
-    pub version: SequenceNumber,
+    pub version: SequenceNumberU64,
     /// Base64 string representing the object digest
     #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
     pub digest: ObjectDigest,
 }
 
-impl SerializeAs<ObjectRef> for ObjectRefSchema {
-    fn serialize_as<S>(source: &ObjectRef, serializer: S) -> Result<S::Ok, S::Error>
+impl SerializeAs<ObjectReference> for ObjectRefSchema {
+    fn serialize_as<S>(source: &ObjectReference, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
@@ -675,8 +682,8 @@ impl SerializeAs<ObjectRef> for ObjectRefSchema {
     }
 }
 
-impl<'de> DeserializeAs<'de, ObjectRef> for ObjectRefSchema {
-    fn deserialize_as<D>(deserializer: D) -> Result<ObjectRef, D::Error>
+impl<'de> DeserializeAs<'de, ObjectReference> for ObjectRefSchema {
+    fn deserialize_as<D>(deserializer: D) -> Result<ObjectReference, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -685,32 +692,32 @@ impl<'de> DeserializeAs<'de, ObjectRef> for ObjectRefSchema {
     }
 }
 
-impl From<ObjectRef> for ObjectRefSchema {
-    fn from(oref: ObjectRef) -> Self {
+impl From<ObjectReference> for ObjectRefSchema {
+    fn from(oref: ObjectReference) -> Self {
         Self {
             object_id: oref.object_id,
-            version: oref.version,
+            version: oref.version.into(),
             digest: oref.digest,
         }
     }
 }
 
-impl From<ObjectRefSchema> for ObjectRef {
+impl From<ObjectRefSchema> for ObjectReference {
     fn from(oref: ObjectRefSchema) -> Self {
-        ObjectRef::new(oref.object_id, oref.version, oref.digest)
+        ObjectReference::new(oref.object_id, oref.version.into(), oref.digest)
     }
 }
 
 pub trait IotaData: Sized {
     type ObjectType;
     type PackageType;
-    fn try_from_object(object: MoveObject, layout: MoveStructLayout)
+    fn try_from_object(object: MoveStruct, layout: MoveStructLayout)
     -> Result<Self, anyhow::Error>;
     fn try_from_package(package: MovePackage) -> Result<Self, anyhow::Error>;
     fn try_as_move(&self) -> Option<&Self::ObjectType>;
     fn try_into_move(self) -> Option<Self::ObjectType>;
     fn try_as_package(&self) -> Option<&Self::PackageType>;
-    fn type_(&self) -> Option<&StructTag>;
+    fn struct_tag(&self) -> Option<&StructTag>;
 }
 
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, Eq, PartialEq)]
@@ -725,7 +732,7 @@ impl IotaData for IotaRawData {
     type ObjectType = IotaRawMoveObject;
     type PackageType = IotaRawMovePackage;
 
-    fn try_from_object(object: MoveObject, _: MoveStructLayout) -> Result<Self, anyhow::Error> {
+    fn try_from_object(object: MoveStruct, _: MoveStructLayout) -> Result<Self, anyhow::Error> {
         Ok(Self::MoveObject(object.into()))
     }
 
@@ -754,9 +761,9 @@ impl IotaData for IotaRawData {
         }
     }
 
-    fn type_(&self) -> Option<&StructTag> {
+    fn struct_tag(&self) -> Option<&StructTag> {
         match self {
-            Self::MoveObject(o) => Some(&o.type_),
+            Self::MoveObject(o) => Some(&o.struct_tag),
             Self::Package(_) => None,
         }
     }
@@ -775,7 +782,7 @@ impl IotaData for IotaParsedData {
     type PackageType = IotaMovePackage;
 
     fn try_from_object(
-        object: MoveObject,
+        object: MoveStruct,
         layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self::MoveObject(Box::new(
@@ -831,9 +838,9 @@ impl IotaData for IotaParsedData {
         }
     }
 
-    fn type_(&self) -> Option<&StructTag> {
+    fn struct_tag(&self) -> Option<&StructTag> {
         match self {
-            Self::MoveObject(o) => Some(&o.type_),
+            Self::MoveObject(o) => Some(&o.struct_tag),
             Self::Package(_) => None,
         }
     }
@@ -844,8 +851,8 @@ impl Display for IotaParsedData {
         let mut writer = String::new();
         match self {
             IotaParsedData::MoveObject(o) => {
-                writeln!(writer, "{}: {}", "type".bold().bright_black(), o.type_)?;
-                write!(writer, "{}", &o.fields)?;
+                writeln!(writer, "{}: {}", "type".bold().bright_black(), o.struct_tag)?;
+                write!(writer, "{}", o.fields)?;
             }
             IotaParsedData::Package(p) => {
                 write!(
@@ -866,13 +873,13 @@ impl IotaParsedData {
             ObjectRead::NotExists(id) => Err(anyhow::anyhow!("Object {id} does not exist")),
             ObjectRead::Exists(_object_ref, o, layout) => {
                 let data = match o.into_inner().data {
-                    Data::Struct(m) => {
+                    ObjectData::Struct(m) => {
                         let layout = layout.ok_or_else(|| {
                             anyhow!("Layout is required to convert Move object to json")
                         })?;
                         IotaParsedData::try_from_object(m, layout)?
                     }
-                    Data::Package(p) => IotaParsedData::try_from_package(p)?,
+                    ObjectData::Package(p) => IotaParsedData::try_from_package(p)?,
                 };
                 Ok(data)
             }
@@ -887,15 +894,15 @@ impl IotaParsedData {
 }
 
 pub trait IotaMoveObject: Sized {
-    fn try_from_layout(object: MoveObject, layout: MoveStructLayout)
+    fn try_from_layout(object: MoveStruct, layout: MoveStructLayout)
     -> Result<Self, anyhow::Error>;
 
-    fn try_from(o: MoveObject, resolver: &impl GetModule) -> Result<Self, anyhow::Error> {
+    fn try_from(o: MoveStruct, resolver: &impl GetModule) -> Result<Self, anyhow::Error> {
         let layout = o.get_layout(resolver)?;
         Self::try_from_layout(o, layout)
     }
 
-    fn type_(&self) -> &StructTag;
+    fn struct_tag(&self) -> &StructTag;
 }
 
 #[serde_as]
@@ -905,34 +912,38 @@ pub struct IotaParsedMoveObject {
     #[serde(rename = "type")]
     #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
-    pub type_: StructTag,
+    pub struct_tag: StructTag,
     pub fields: IotaMoveStruct,
 }
 
 impl IotaMoveObject for IotaParsedMoveObject {
     fn try_from_layout(
-        object: MoveObject,
+        object: MoveStruct,
         layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         let move_struct = object.to_move_struct(&layout)?.into();
 
         Ok(
-            if let IotaMoveStruct::WithTypes { type_, fields } = move_struct {
+            if let IotaMoveStruct::WithTypes {
+                struct_tag: tag,
+                fields,
+            } = move_struct
+            {
                 IotaParsedMoveObject {
-                    type_,
+                    struct_tag: tag,
                     fields: IotaMoveStruct::WithFields(fields),
                 }
             } else {
                 IotaParsedMoveObject {
-                    type_: object.struct_tag().clone(),
+                    struct_tag: object.struct_tag().clone(),
                     fields: move_struct,
                 }
             },
         )
     }
 
-    fn type_(&self) -> &StructTag {
-        &self.type_
+    fn struct_tag(&self) -> &StructTag {
+        &self.struct_tag
     }
 }
 
@@ -959,14 +970,14 @@ pub fn type_and_fields_from_move_event_data(
 ) -> IotaResult<(StructTag, serde_json::Value)> {
     match event_data.into() {
         IotaMoveValue::Struct(move_struct) => match &move_struct {
-            IotaMoveStruct::WithTypes { type_, .. } => {
-                Ok((type_.clone(), move_struct.clone().to_json_value()))
-            }
+            IotaMoveStruct::WithTypes {
+                struct_tag: tag, ..
+            } => Ok((tag.clone(), move_struct.clone().to_json_value())),
             _ => Err(IotaError::ObjectDeserialization {
                 error: "Found non-type IotaMoveStruct in MoveValue event".to_string(),
             }),
         },
-        IotaMoveValue::Variant(v) => Ok((v.type_.clone(), v.to_json_value())),
+        IotaMoveValue::Variant(v) => Ok((v.struct_tag.clone(), v.to_json_value())),
         IotaMoveValue::Vector(_)
         | IotaMoveValue::Number(_)
         | IotaMoveValue::Bool(_)
@@ -986,20 +997,18 @@ pub struct IotaRawMoveObject {
     #[serde(rename = "type")]
     #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
-    pub type_: StructTag,
-    #[serde_as(as = "SequenceNumberU64Schema")]
-    #[schemars(with = "SequenceNumberU64Schema")]
-    pub version: SequenceNumber,
+    pub struct_tag: StructTag,
+    pub version: SequenceNumberU64,
     #[serde_as(as = "Base64")]
     #[schemars(with = "Base64Schema")]
     pub bcs_bytes: Vec<u8>,
 }
 
-impl From<MoveObject> for IotaRawMoveObject {
-    fn from(o: MoveObject) -> Self {
+impl From<MoveStruct> for IotaRawMoveObject {
+    fn from(o: MoveStruct) -> Self {
         Self {
-            type_: o.struct_tag().clone(),
-            version: o.version(),
+            struct_tag: o.struct_tag().clone(),
+            version: o.version().into(),
             bcs_bytes: o.into_contents(),
         }
     }
@@ -1007,18 +1016,18 @@ impl From<MoveObject> for IotaRawMoveObject {
 
 impl IotaMoveObject for IotaRawMoveObject {
     fn try_from_layout(
-        object: MoveObject,
+        object: MoveStruct,
         _layout: MoveStructLayout,
     ) -> Result<Self, anyhow::Error> {
         Ok(Self {
-            type_: object.struct_tag().clone(),
-            version: object.version(),
+            struct_tag: object.struct_tag().clone(),
+            version: object.version().into(),
             bcs_bytes: object.into_contents(),
         })
     }
 
-    fn type_(&self) -> &StructTag {
-        &self.type_
+    fn struct_tag(&self) -> &StructTag {
+        &self.struct_tag
     }
 }
 
@@ -1091,16 +1100,14 @@ pub struct IotaUpgradeInfo {
     #[schemars(with = "ObjectIdSchema")]
     pub upgraded_id: ObjectId,
     /// The version of the package at `upgraded_id`.
-    #[serde_as(as = "SequenceNumberU64Schema")]
-    #[schemars(with = "SequenceNumberU64Schema")]
-    pub upgraded_version: SequenceNumber,
+    pub upgraded_version: SequenceNumberU64,
 }
 
 impl From<UpgradeInfo> for IotaUpgradeInfo {
     fn from(info: UpgradeInfo) -> Self {
         Self {
             upgraded_id: info.upgraded_id,
-            upgraded_version: info.upgraded_version,
+            upgraded_version: info.upgraded_version.into(),
         }
     }
 }
@@ -1109,7 +1116,7 @@ impl From<IotaUpgradeInfo> for UpgradeInfo {
     fn from(info: IotaUpgradeInfo) -> Self {
         Self {
             upgraded_id: info.upgraded_id,
-            upgraded_version: info.upgraded_version,
+            upgraded_version: info.upgraded_version.into(),
         }
     }
 }
@@ -1121,9 +1128,7 @@ pub struct IotaRawMovePackage {
     #[serde_as(as = "ObjectIdSchema")]
     #[schemars(with = "ObjectIdSchema")]
     pub id: ObjectId,
-    #[serde_as(as = "SequenceNumberU64Schema")]
-    #[schemars(with = "SequenceNumberU64Schema")]
-    pub version: SequenceNumber,
+    pub version: SequenceNumberU64,
     #[schemars(with = "BTreeMap<String, Base64Schema>")]
     #[serde_as(as = "BTreeMap<_, Base64>")]
     pub module_map: BTreeMap<String, Vec<u8>>,
@@ -1138,7 +1143,7 @@ impl From<MovePackage> for IotaRawMovePackage {
     fn from(p: MovePackage) -> Self {
         Self {
             id: p.id(),
-            version: p.version(),
+            version: p.version().into(),
             module_map: p
                 .modules
                 .into_iter()
@@ -1161,7 +1166,7 @@ impl IotaRawMovePackage {
     ) -> Result<MovePackage, ExecutionError> {
         Ok(MovePackage::new(
             self.id,
-            self.version,
+            self.version.into(),
             self.module_map
                 .iter()
                 .map(|(k, v)| (Identifier::new_unchecked(k), v.clone()))
@@ -1194,28 +1199,22 @@ pub enum IotaPastObjectResponse {
     ObjectDeleted(
         #[schemars(with = "ObjectRefSchema")]
         #[serde_as(as = "ObjectRefSchema")]
-        ObjectRef,
+        ObjectReference,
     ),
     /// The object exists but not found with this version
     VersionNotFound(
         #[serde_as(as = "ObjectIdSchema")]
         #[schemars(with = "ObjectIdSchema")]
         ObjectId,
-        #[serde_as(as = "SequenceNumberU64Schema")]
-        #[schemars(with = "SequenceNumberU64Schema")]
-        SequenceNumber,
+        SequenceNumberU64,
     ),
     /// The asked object version is higher than the latest
     VersionTooHigh {
         #[serde_as(as = "ObjectIdSchema")]
         #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
-        #[serde_as(as = "SequenceNumberU64Schema")]
-        #[schemars(with = "SequenceNumberU64Schema")]
-        asked_version: SequenceNumber,
-        #[serde_as(as = "SequenceNumberU64Schema")]
-        #[schemars(with = "SequenceNumberU64Schema")]
-        latest_version: SequenceNumber,
+        asked_version: SequenceNumberU64,
+        latest_version: SequenceNumberU64,
     },
 }
 
@@ -1231,7 +1230,7 @@ impl IotaPastObjectResponse {
             Self::VersionFound(o) => Ok(o),
             Self::VersionNotFound(id, seq_num) => Err(UserInputError::ObjectNotFound {
                 object_id: *id,
-                version: Some(*seq_num),
+                version: Some((*seq_num).into()),
             }),
             Self::VersionTooHigh {
                 object_id,
@@ -1239,8 +1238,8 @@ impl IotaPastObjectResponse {
                 latest_version,
             } => Err(UserInputError::ObjectSequenceNumberTooHigh {
                 object_id: *object_id,
-                asked_version: *asked_version,
-                latest_version: *latest_version,
+                asked_version: (*asked_version).into(),
+                latest_version: (*latest_version).into(),
             }),
         }
     }
@@ -1256,7 +1255,7 @@ impl IotaPastObjectResponse {
             Self::VersionFound(o) => Ok(o),
             Self::VersionNotFound(object_id, version) => Err(UserInputError::ObjectNotFound {
                 object_id,
-                version: Some(version),
+                version: Some(version.into()),
             }),
             Self::VersionTooHigh {
                 object_id,
@@ -1264,8 +1263,8 @@ impl IotaPastObjectResponse {
                 latest_version,
             } => Err(UserInputError::ObjectSequenceNumberTooHigh {
                 object_id,
-                asked_version,
-                latest_version,
+                asked_version: asked_version.into(),
+                latest_version: latest_version.into(),
             }),
         }
     }
@@ -1304,7 +1303,7 @@ pub struct IotaGetPastObjectRequest {
     /// the version of the queried object.
     #[schemars(with = "SequenceNumberStringSchema")]
     #[serde_as(as = "SequenceNumberStringSchema")]
-    pub version: SequenceNumber,
+    pub version: Version,
 }
 
 #[serde_as]
@@ -1337,9 +1336,9 @@ pub enum IotaObjectDataFilter {
         StructTag,
     ),
     AddressOwner(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     ObjectOwner(
         #[serde_as(as = "ObjectIdSchema")]
@@ -1385,7 +1384,7 @@ impl IotaObjectDataFilter {
             IotaObjectDataFilter::MatchAny(filters) => filters.iter().any(|f| f.matches(object)),
             IotaObjectDataFilter::MatchNone(filters) => !filters.iter().any(|f| f.matches(object)),
             IotaObjectDataFilter::StructType(s) => {
-                let obj_tag: StructTag = match &object.type_ {
+                let obj_tag: StructTag = match &object.object_type {
                     ObjectType::Package => return false,
                     ObjectType::Struct(s) => s.clone().into(),
                 };
@@ -1400,11 +1399,11 @@ impl IotaObjectDataFilter {
                 }
             }
             IotaObjectDataFilter::MoveModule { package, module } => {
-                matches!(&object.type_, ObjectType::Struct(s) if &ObjectId::from(s.address()) == package
+                matches!(&object.object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == package
                         && s.module() == module)
             }
             IotaObjectDataFilter::Package(p) => {
-                matches!(&object.type_, ObjectType::Struct(s) if &ObjectId::from(s.address()) == p)
+                matches!(&object.object_type, ObjectType::Struct(s) if &ObjectId::from(s.address()) == p)
             }
             IotaObjectDataFilter::AddressOwner(a) => {
                 matches!(object.owner, Owner::Address(addr) if &addr == a)

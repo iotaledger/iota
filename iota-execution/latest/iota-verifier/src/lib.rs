@@ -13,6 +13,7 @@ pub mod one_time_witness_verifier;
 pub mod private_generics;
 pub mod runtime_module_metadata;
 pub mod struct_with_key_verifier;
+pub mod view_function_verifier;
 
 use iota_types::error::{ExecutionError, ExecutionErrorKind};
 use move_core_types::{ident_str, identifier::IdentStr, vm_status::StatusCode};

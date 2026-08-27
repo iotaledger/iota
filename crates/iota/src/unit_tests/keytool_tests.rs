@@ -5,24 +5,22 @@
 use std::str::FromStr;
 
 use anyhow::Ok;
-use fastcrypto::{
-    ed25519::{Ed25519KeyPair, Ed25519PublicKey, Ed25519Signature},
-    encoding::{Base64, Encoding, Hex},
-    traits::{ToFromBytes, VerifyingKey},
-};
+use fastcrypto::encoding::{Base64, Encoding, Hex};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, StoredKey};
+use iota_sdk_crypto::{
+    ToFromBech32, ToFromBytes as _, Verifier as _,
+    ed25519::{Ed25519PrivateKey, Ed25519VerifyingKey},
+    secp256k1::Secp256k1PrivateKey,
+    simple::SimpleKeypair,
+};
 use iota_sdk_types::{
-    ObjectId,
-    crypto::{Intent, IntentScope, PublicKey, UserSignature},
+    Address, Ed25519PublicKey, Ed25519Signature, ObjectDigest, ObjectId, ObjectReference,
+    SignatureScheme, Transaction, Version,
+    crypto::{Intent, IntentScope, PublicKey, PublicKeyExt as _, SimpleSignature, UserSignature},
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectDigest, ObjectRef, SequenceNumber},
-    crypto::{
-        AuthorityKeyPair, Ed25519IotaSignature, EncodeDecodeBase64, IotaKeyPair,
-        IotaSignatureInner, Secp256k1IotaSignature, Secp256r1IotaSignature, Signature,
-        SignatureScheme, get_key_pair, get_key_pair_from_rng,
-    },
-    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
+    crypto::{AuthorityKeyPair, EncodeDecodeBase64, get_key_pair_from_rng},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
 };
 use rand::{SeedableRng, rngs::StdRng};
 use tempfile::TempDir;
@@ -31,7 +29,10 @@ use tokio::test;
 use super::{KeyToolCommand, write_keypair_to_file};
 use crate::{
     key_identity::KeyIdentity,
-    keytool::{CommandOutput, read_authority_keypair_from_file, read_keypair_from_file},
+    keytool::{
+        CommandOutput, lowercase_key_scheme, read_authority_keypair_from_file,
+        read_keypair_from_file,
+    },
     signing::sign_secure,
 };
 
@@ -44,7 +45,7 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 
     // Add another 3 Secp256k1 KeyPairs
     for _ in 0..3 {
-        keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
+        keystore.add_key(None, SimpleKeypair::from(Secp256k1PrivateKey::random()))?;
     }
 
     // List all addresses with flag
@@ -61,8 +62,8 @@ async fn test_addresses_command() -> Result<(), anyhow::Error> {
 async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
 
-    keystore.add_key(None, IotaKeyPair::Secp256k1(get_key_pair().1))?;
-    keystore.add_key(None, IotaKeyPair::Ed25519(get_key_pair().1))?;
+    keystore.add_key(None, SimpleKeypair::from(Secp256k1PrivateKey::random()))?;
+    keystore.add_key(None, SimpleKeypair::from(Ed25519PrivateKey::random()))?;
 
     for key in keystore
         .keys()
@@ -77,29 +78,30 @@ async fn test_flag_in_signature_and_keypair() -> Result<(), anyhow::Error> {
             Intent::iota_transaction(),
         )?;
         match sig {
-            Signature::Ed25519IotaSignature(_) => {
+            SimpleSignature::Ed25519 { .. } => {
                 // signature contains corresponding flag
                 assert_eq!(
-                    *sig.as_ref().first().unwrap(),
-                    Ed25519IotaSignature::SCHEME.flag()
+                    *sig.to_bytes().first().unwrap(),
+                    SignatureScheme::Ed25519.to_u8()
                 );
                 // keystore stores pubkey with corresponding flag
-                assert!(pk.flag() == Ed25519IotaSignature::SCHEME.flag())
+                assert!(pk.flag() == SignatureScheme::Ed25519.to_u8())
             }
-            Signature::Secp256k1IotaSignature(_) => {
+            SimpleSignature::Secp256k1 { .. } => {
                 assert_eq!(
-                    *sig.as_ref().first().unwrap(),
-                    Secp256k1IotaSignature::SCHEME.flag()
+                    *sig.to_bytes().first().unwrap(),
+                    SignatureScheme::Secp256k1.to_u8()
                 );
-                assert!(pk.flag() == Secp256k1IotaSignature::SCHEME.flag())
+                assert!(pk.flag() == SignatureScheme::Secp256k1.to_u8())
             }
-            Signature::Secp256r1IotaSignature(_) => {
+            SimpleSignature::Secp256r1 { .. } => {
                 assert_eq!(
-                    *sig.as_ref().first().unwrap(),
-                    Secp256r1IotaSignature::SCHEME.flag()
+                    *sig.to_bytes().first().unwrap(),
+                    SignatureScheme::Secp256r1.to_u8()
                 );
-                assert!(pk.flag() == Secp256r1IotaSignature::SCHEME.flag())
+                assert!(pk.flag() == SignatureScheme::Secp256r1.to_u8())
             }
+            _ => panic!("unexpected signature scheme"),
         }
     }
     Ok(())
@@ -110,8 +112,8 @@ async fn test_read_write_keystore_with_flag() {
     let dir = tempfile::TempDir::new().unwrap();
 
     // create Secp256k1 keypair
-    let kp_secp = IotaKeyPair::Secp256k1(get_key_pair().1);
-    let addr_secp: IotaAddress = (&kp_secp.public()).into();
+    let kp_secp = SimpleKeypair::from(Secp256k1PrivateKey::random());
+    let addr_secp: Address = kp_secp.public_key().derive_address();
     let fp_secp = dir.path().join(format!("{addr_secp}.key"));
     let fp_secp_2 = fp_secp.clone();
 
@@ -124,18 +126,15 @@ async fn test_read_write_keystore_with_flag() {
     assert!(kp_secp_read.is_ok());
 
     // KeyPair wrote into file is the same as read
-    assert_eq!(
-        kp_secp_read.unwrap().public().as_ref(),
-        kp_secp.public().as_ref()
-    );
+    assert_eq!(kp_secp_read.unwrap().to_bytes(), kp_secp.to_bytes());
 
     // read as AuthorityKeyPair fails
     let kp_secp_read = read_authority_keypair_from_file(fp_secp_2);
     assert!(kp_secp_read.is_err());
 
     // create Ed25519 keypair
-    let kp_ed = IotaKeyPair::Ed25519(get_key_pair().1);
-    let addr_ed: IotaAddress = (&kp_ed.public()).into();
+    let kp_ed = SimpleKeypair::from(Ed25519PrivateKey::random());
+    let addr_ed: Address = kp_ed.public_key().derive_address();
     let fp_ed = dir.path().join(format!("{addr_ed}.key"));
     let fp_ed_2 = fp_ed.clone();
 
@@ -148,10 +147,7 @@ async fn test_read_write_keystore_with_flag() {
     assert!(kp_ed_read.is_ok());
 
     // KeyPair wrote into file is the same as read
-    assert_eq!(
-        kp_ed_read.unwrap().public().as_ref(),
-        kp_ed.public().as_ref()
-    );
+    assert_eq!(kp_ed_read.unwrap().to_bytes(), kp_ed.to_bytes());
 
     // read from file as AuthorityKeyPair success
     let kp_ed_read = read_authority_keypair_from_file(fp_ed_2);
@@ -204,22 +200,23 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: private_key.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
         .await?;
-        let kp = IotaKeyPair::decode(private_key).unwrap();
-        let kp_from_hex = IotaKeyPair::Ed25519(
-            Ed25519KeyPair::from_bytes(&Hex::decode(private_key_hex).unwrap()).unwrap(),
+        let kp = SimpleKeypair::from_bech32(private_key).unwrap();
+        let kp_from_hex = SimpleKeypair::from(
+            Ed25519PrivateKey::from_bytes(Hex::decode(private_key_hex).unwrap()).unwrap(),
         );
-        assert_eq!(kp, kp_from_hex);
+        assert_eq!(kp.to_bytes(), kp_from_hex.to_bytes());
 
-        let kp_from_base64 = IotaKeyPair::decode_base64(private_key_base64).unwrap();
-        assert_eq!(kp, kp_from_base64);
+        let kp_from_base64 =
+            SimpleKeypair::from_bytes(Base64::decode(private_key_base64).unwrap()).unwrap();
+        assert_eq!(kp.to_bytes(), kp_from_base64.to_bytes());
 
-        let addr = IotaAddress::from_str(address).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let addr = Address::from_str(address).unwrap();
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
 
         // Export output shows the private key in Bech32
@@ -242,7 +239,7 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         let output = KeyToolCommand::Import {
             alias: None,
             input_string: private_key[1..].to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
@@ -253,7 +250,7 @@ async fn test_private_keys_import_export() -> Result<(), anyhow::Error> {
         let output = KeyToolCommand::Import {
             alias: None,
             input_string: addr.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
@@ -292,14 +289,14 @@ async fn test_mnemonics_ed25519() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: t[0].to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: None,
         }
         .execute(&mut keystore)
         .await?;
-        let kp = IotaKeyPair::decode(t[1]).unwrap();
-        let addr = IotaAddress::from_str(t[2]).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let kp = SimpleKeypair::from_bech32(t[1]).unwrap();
+        let addr = Address::from_str(t[2]).unwrap();
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -338,9 +335,9 @@ async fn test_mnemonics_secp256k1() -> Result<(), anyhow::Error> {
         }
         .execute(&mut keystore)
         .await?;
-        let kp = IotaKeyPair::decode(t[1]).unwrap();
-        let addr = IotaAddress::from_str(t[2]).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let kp = SimpleKeypair::from_bech32(t[1]).unwrap();
+        let addr = Address::from_str(t[2]).unwrap();
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
     }
     Ok(())
@@ -380,9 +377,9 @@ async fn test_mnemonics_secp256r1() -> Result<(), anyhow::Error> {
         .execute(&mut keystore)
         .await?;
 
-        let kp = IotaKeyPair::decode(sk).unwrap();
-        let addr = IotaAddress::from_str(address).unwrap();
-        assert_eq!(IotaAddress::from(&kp.public()), addr);
+        let kp = SimpleKeypair::from_bech32(sk).unwrap();
+        let addr = Address::from_str(address).unwrap();
+        assert_eq!(kp.public_key().derive_address(), addr);
         assert!(keystore.addresses().contains(&addr));
     }
 
@@ -396,7 +393,7 @@ async fn test_invalid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/1'/0'/0/0".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -408,7 +405,7 @@ async fn test_invalid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/0'/4218'/0'/0/0".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -420,7 +417,7 @@ async fn test_invalid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/54'/4218'/0'/0/0".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -462,7 +459,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/4218'/0'/0'/0'".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -474,7 +471,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/4218'/0'/0'/1'".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -486,7 +483,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
         KeyToolCommand::Import {
             alias: None,
             input_string: TEST_MNEMONIC.to_string(),
-            key_scheme: SignatureScheme::ED25519,
+            key_scheme: SignatureScheme::Ed25519,
             derivation_path: Some("m/44'/4218'/1'/0'/1'".parse().unwrap()),
         }
         .execute(&mut keystore)
@@ -524,7 +521,7 @@ async fn test_valid_derivation_path() -> Result<(), anyhow::Error> {
 async fn test_keytool_bls12381() -> Result<(), anyhow::Error> {
     let mut keystore = Keystore::from(InMemKeystore::new_insecure_for_tests(0));
     KeyToolCommand::Generate {
-        key_scheme: SignatureScheme::BLS12381,
+        key_scheme: SignatureScheme::Bls12381,
         derivation_path: None,
         word_length: None,
     }
@@ -541,17 +538,17 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     let sender = addresses.first().unwrap();
     let alias = keystore.get_alias_by_address(sender).unwrap();
 
-    // Create a dummy TransactionData
-    let gas = ObjectRef::new(
+    // Create a dummy Transaction
+    let gas = ObjectReference::new(
         ObjectId::random(),
-        SequenceNumber::default(),
+        Version::default(),
         ObjectDigest::random(),
     );
     let gas_price = 1;
-    let tx_data = TransactionData::new_pay_iota(
+    let tx = Transaction::new_pay_iota(
         *sender,
         vec![gas],
-        vec![IotaAddress::random()],
+        vec![Address::random()],
         vec![10000],
         gas,
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
@@ -563,7 +560,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // scope as PersonalMessage.
     KeyToolCommand::Sign {
         address: KeyIdentity::Address(*sender),
-        data: Base64::encode(bcs::to_bytes(&tx_data)?),
+        data: tx.to_base64(),
         intent: Some(Intent::iota_app(IntentScope::PersonalMessage)),
     }
     .execute(&mut keystore)
@@ -573,7 +570,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // default is used.
     KeyToolCommand::Sign {
         address: KeyIdentity::Address(*sender),
-        data: Base64::encode(bcs::to_bytes(&tx_data)?),
+        data: tx.to_base64(),
         intent: None,
     }
     .execute(&mut keystore)
@@ -583,7 +580,7 @@ async fn test_sign_command() -> Result<(), anyhow::Error> {
     // default is used. Use alias for signing instead of the address
     KeyToolCommand::Sign {
         address: KeyIdentity::Alias(alias),
-        data: Base64::encode(bcs::to_bytes(&tx_data)?),
+        data: tx.to_base64(),
         intent: None,
     }
     .execute(&mut keystore)
@@ -602,7 +599,7 @@ async fn test_sign_raw_command() -> Result<(), anyhow::Error> {
     let raw_data = Hex::encode_with_format("IOTA");
 
     let verify_sign_raw_output =
-        |output: CommandOutput, expected_address: &IotaAddress, expected_data: &str| {
+        |output: CommandOutput, expected_address: &Address, expected_data: &str| {
             let CommandOutput::SignRaw(sign_raw_data) = output else {
                 panic!("Expected SignRaw output");
             };
@@ -610,13 +607,14 @@ async fn test_sign_raw_command() -> Result<(), anyhow::Error> {
             assert_eq!(sign_raw_data.raw_data, expected_data);
             // Verify the signature with actual Ed25519 verification
             let ed_sig =
-                Ed25519Signature::from_bytes(&Hex::decode(&sign_raw_data.signature_hex).unwrap())
+                Ed25519Signature::from_bytes(Hex::decode(&sign_raw_data.signature_hex).unwrap())
                     .expect("Invalid Ed25519 signature bytes");
             let ed_pk =
-                Ed25519PublicKey::from_bytes(&Hex::decode(&sign_raw_data.public_key_hex).unwrap())
+                Ed25519PublicKey::from_bytes(Hex::decode(&sign_raw_data.public_key_hex).unwrap())
                     .expect("Invalid Ed25519 public key bytes");
             let data_bytes = Hex::decode(&sign_raw_data.raw_data).unwrap();
-            ed_pk
+            Ed25519VerifyingKey::new(&ed_pk)
+                .unwrap()
                 .verify(&data_bytes, &ed_sig)
                 .expect("Ed25519 signature verification failed");
         };
@@ -879,9 +877,9 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
         _ => panic!("Expected MoveAuthenticator variant"),
     }
 
-    // Test 3: Decode signature from a full SenderSignedData (transaction with
-    // signature) The fallback decodes the transaction and extracts the first
-    // signature
+    // Test 3: Decode signature from a full SenderSignedTransaction (transaction
+    // with signature) The fallback decodes the transaction and extracts the
+    // first signature
     let full_tx = "AQAAAAAAAgAIAMqaOwAAAAAAIBEREREVBOk1DmNdZc04zNLAKUNMajpIDYlHqbpqFbIVAgIAAQEAAAEBAwAAAAABAQARERERFQTpNQ5jXWXNOMzSwClDTGo6SA2JR6m6ahWyFQFODzG01xo0l0JIwq9SzbRyvRKR/9TvCUbh8lrerlLQWT9uOykAAAAAIBTjvmRbByY+0uGCBeTvSXQnUXonVSdJMuPOIwfGCZ/4ERERERUE6TUOY11lzTjM0sApQ0xqOkgNiUepumoVshXoAwAAAAAAAOBvPAAAAAAAAAFhAKFqV1NustAADKOOOfAZIA/9HrnmA9PqwAmOrqTs7OKjaEXylfywifj2XZyBmEJYodGE89xlkDOthe+bpBIrkwEoe8lptdiMUw3h3rcxQJf3bWp9zFLP4Eq3rpQOam52cw==";
     let output = KeyToolCommand::DecodeSig {
         sig: full_tx.to_string(),
@@ -917,4 +915,31 @@ async fn test_decode_sig() -> Result<(), anyhow::Error> {
     }
 
     Ok(())
+}
+
+/// The CLI takes a key scheme as a lowercase argument and echoes it back in its
+/// output, so every spelling it prints must parse as an argument again.
+#[test]
+async fn test_lowercase_key_scheme_parses_as_a_cli_argument() {
+    for scheme in [
+        SignatureScheme::Ed25519,
+        SignatureScheme::Secp256k1,
+        SignatureScheme::Secp256r1,
+        SignatureScheme::Multisig,
+        SignatureScheme::Bls12381,
+        SignatureScheme::PasskeyAuthenticator,
+        SignatureScheme::MoveAuthenticator,
+    ] {
+        let spelling = lowercase_key_scheme(scheme);
+        assert_eq!(
+            spelling,
+            spelling.to_lowercase(),
+            "{scheme} must be lowercase"
+        );
+        assert_eq!(
+            SignatureScheme::from_str(&spelling),
+            std::result::Result::Ok(scheme),
+            "{spelling} must parse back to {scheme}"
+        );
+    }
 }

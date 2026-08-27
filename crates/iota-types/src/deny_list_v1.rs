@@ -7,13 +7,13 @@ use std::{
     fmt,
 };
 
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TypeTag, Version};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tracing::{error, instrument};
 
 use crate::{
     IOTA_DENY_LIST_OBJECT_ID, MoveTypeTagTrait,
-    base_types::{EpochId, IotaAddress, SequenceNumber},
+    base_types::EpochId,
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
     error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
@@ -59,7 +59,7 @@ impl MoveTypeTagTrait for ConfigKey {
 
 /// Rust representation of the Move type 0x2::deny_list::AddressKey.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-struct AddressKey(IotaAddress);
+struct AddressKey(Address);
 
 impl MoveTypeTagTrait for AddressKey {
     fn get_type_tag() -> TypeTag {
@@ -85,13 +85,25 @@ impl MoveTypeTagTrait for GlobalPauseKey {
     }
 }
 
+/// Returns `Ok(())` if no input or receiving object's coin type is on a deny
+/// list for the given `address`.
+///
+/// With `cur_epoch = None`, the check reads the latest deny-list value, so
+/// denials take effect immediately; the result depends on how far the
+/// validator's execution has progressed, making it suitable only for
+/// validator-local decisions, such as pre-consensus admission. With
+/// `Some(epoch)`, the read is gated to the value settled before that epoch
+/// (entries written in epoch `E` activate in `E + 1`), making the result
+/// deterministic across validators; required where all validators must agree
+/// on the outcome, such as post-consensus validation.
 #[instrument(level = "trace", skip_all)]
 pub fn check_coin_deny_list_v1(
-    address: IotaAddress,
+    address: Address,
     tx_input_objects: &CheckedInputObjects,
     tx_receiving_objects: &ReceivingObjects,
     per_authenticator_input_objects: &Vec<&CheckedInputObjects>,
     object_store: &dyn ObjectStore,
+    cur_epoch: Option<EpochId>,
 ) -> UserInputResult {
     let coin_types = input_object_coin_types_for_denylist_check(
         tx_input_objects,
@@ -102,10 +114,10 @@ pub fn check_coin_deny_list_v1(
         let Some(deny_list) = get_per_type_coin_deny_list_v1(&coin_type, object_store) else {
             continue;
         };
-        if check_global_pause(&deny_list, object_store, None) {
+        if check_global_pause(&deny_list, object_store, cur_epoch) {
             return Err(UserInputError::CoinTypeGlobalPause { coin_type });
         }
-        if check_address_denied_by_config(&deny_list, address, object_store, None) {
+        if check_address_denied_by_config(&deny_list, address, object_store, cur_epoch) {
             return Err(UserInputError::AddressDeniedForCoin { address, coin_type });
         }
     }
@@ -128,7 +140,7 @@ pub fn check_coin_deny_list_v1_during_execution(
         let Some(coin_type) = obj.coin_type_opt() else {
             continue;
         };
-        let Some(owner) = obj.owner.as_address_opt() else {
+        let Some(owner) = obj.owner.as_opt_address() else {
             continue;
         };
         new_coin_owners
@@ -160,7 +172,7 @@ pub fn check_coin_deny_list_v1_during_execution(
 }
 
 fn check_new_regulated_coin_owners(
-    new_regulated_coin_owners: BTreeMap<String, (Config, BTreeSet<IotaAddress>)>,
+    new_regulated_coin_owners: BTreeMap<String, (Config, BTreeSet<Address>)>,
     cur_epoch: EpochId,
     object_store: &dyn ObjectStore,
 ) -> Result<(), ExecutionError> {
@@ -206,7 +218,7 @@ pub fn get_per_type_coin_deny_list_v1(
 #[instrument(level = "trace", skip_all)]
 pub fn check_address_denied_by_config(
     deny_config: &Config,
-    address: IotaAddress,
+    address: Address,
     object_store: &dyn ObjectStore,
     cur_epoch: Option<EpochId>,
 ) -> bool {
@@ -234,11 +246,11 @@ pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Objec
     }
 }
 
-pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> SequenceNumber {
+pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> Version {
     get_deny_list_root_object(object_store)
         .map(|obj| {
             obj.owner
-                .into_shared_opt()
+                .into_opt_shared()
                 .expect("Deny list object must be shared")
         })
         .expect("Deny list object must exist")

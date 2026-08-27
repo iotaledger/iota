@@ -15,16 +15,16 @@ use std::{
 
 use iota_config::WritebackCacheConfig;
 use iota_framework::BuiltInFramework;
-use iota_sdk_types::{Event, Identifier, ObjectId, Owner, StructTag};
+use iota_sdk_types::{Address, Event, Identifier, MoveStruct, ObjectId, Owner, StructTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, random_object_ref},
-    crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair_from_rng},
+    base_types::random_object_ref,
+    crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair_from_rng},
     effects::{TestEffectsBuilder, TransactionEffectsAPI},
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION},
+    object::{MoveStructExt, OBJECT_START_VERSION},
     storage::ChildObjectResolver,
 };
-use prometheus::default_registry;
+use prometheus_filtered::default_registry;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use tokio::sync::RwLock;
 
@@ -54,9 +54,9 @@ fn random_event() -> Event {
     Event {
         package_id: ObjectId::random(),
         module: Identifier::new("test").unwrap(),
-        sender: IotaAddress::random(),
-        type_: StructTag::new(
-            IotaAddress::random(),
+        sender: Address::random(),
+        struct_tag: StructTag::new(
+            Address::random(),
             Identifier::new("test").unwrap(),
             Identifier::new("test").unwrap(),
             vec![],
@@ -157,14 +157,14 @@ impl Scenario {
 
     fn new_outputs() -> TransactionOutputs {
         let mut rng = StdRng::from_seed([0; 32]);
-        let (sender, keypair): (IotaAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
-        let (receiver, _): (IotaAddress, AccountKeyPair) = get_key_pair_from_rng(&mut rng);
+        let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair_from_rng(&mut rng);
+        let receiver = Address::random();
 
         // Tx is opaque to the cache, so we just build a dummy tx. The only requirement
         // is that it has a unique digest every time.
         let tx = TestTransactionBuilder::new(sender, random_object_ref(), 100)
             .transfer(random_object_ref(), receiver)
-            .build_and_sign(&keypair);
+            .build_and_sign(&sender_key);
 
         let tx = VerifiedTransaction::new_unchecked(tx);
         let events: TransactionEvents = Default::default();
@@ -186,9 +186,9 @@ impl Scenario {
 
     fn new_object() -> Object {
         let id = ObjectId::random();
-        let (owner, _) = deterministic_random_account_key();
+        let (owner, _) = deterministic_random_account_private_key();
         Object::new_move(
-            MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
+            MoveStruct::new_gas_coin(OBJECT_START_VERSION, id, 100),
             Owner::Address(owner),
             TransactionDigest::ZERO,
         )
@@ -214,7 +214,7 @@ impl Scenario {
     fn new_child(owner: ObjectId) -> Object {
         let id = ObjectId::random();
         Object::new_move(
-            MoveObject::new_gas_coin(OBJECT_START_VERSION, id, 100),
+            MoveStruct::new_gas_coin(OBJECT_START_VERSION, id, 100),
             Owner::Object(owner),
             TransactionDigest::ZERO,
         )
@@ -225,7 +225,7 @@ impl Scenario {
         let mut inner = object.into_inner();
         inner
             .data
-            .as_struct_mut_opt()
+            .as_opt_mut_struct()
             .unwrap()
             .increment_version_to(version + delta);
         inner.into()
@@ -371,7 +371,7 @@ impl Scenario {
 
     // commit a transaction to the database
     pub async fn commit(&mut self, tx: TransactionDigest) {
-        let batch = self.cache().build_db_batch(1, &[tx]);
+        let batch = self.cache().build_db_batch(1, 0, &[tx]);
         self.cache().commit_transaction_outputs(1, batch, &[tx]);
         self.count_action();
     }
@@ -399,13 +399,10 @@ impl Scenario {
         self.objects.clear();
 
         self.store.iter_live_object_set().for_each(|o| {
-            let LiveObject::Normal(o) = o else {
-                panic!("expected normal object")
-            };
-            let id = o.id();
+            let id = o.object.id();
             // genesis objects are not managed by Scenario, ignore them
             if reverse_id_map.contains_key(&id) {
-                self.objects.insert(id, o);
+                self.objects.insert(id, o.object);
             }
         });
     }
@@ -531,7 +528,7 @@ impl Scenario {
             .clone()
     }
 
-    pub fn obj_ref(&self, short_id: u32) -> ObjectRef {
+    pub fn obj_ref(&self, short_id: u32) -> ObjectReference {
         self.object(short_id).object_ref()
     }
 
@@ -568,10 +565,32 @@ async fn test_committed() {
 
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
-        let batch = s.cache().build_db_batch(1, &[tx]);
+        // Distinct, recognizable checkpoint sequence number. Asserted below
+        // to lock the `build_db_batch` -> row -> read round-trip on the
+        // `WritebackCache` path.
+        let expected_checkpoint: u64 = 0xCAFE_F00D_BEEF_0042;
+        let batch = s.cache().build_db_batch(1, expected_checkpoint, &[tx]);
         s.cache().commit_transaction_outputs(1, batch, &[tx]);
         s.assert_not_dirty(&[1, 2]);
         s.assert_cached(&[1, 2]);
+
+        // Read the committed rows back from the perpetual store and assert
+        // each newly-written object's `previous_transaction_checkpoint`
+        // matches what was passed to `build_db_batch`. The test's own
+        // `id_map` bounds the assertion to the objects this scenario
+        // created (skipping any genesis rows from the test authority).
+        let tracked_ids: BTreeSet<_> = s.id_map.values().copied().collect();
+        let observed: BTreeMap<_, _> = s
+            .store
+            .perpetual_tables
+            .iter_live_object_set()
+            .filter(|entry| tracked_ids.contains(&entry.object_id()))
+            .map(|entry| (entry.object_id(), entry.previous_transaction_checkpoint))
+            .collect();
+        assert_eq!(observed.len(), tracked_ids.len());
+        for ckpt in observed.values() {
+            assert_eq!(*ckpt, Some(expected_checkpoint));
+        }
 
         s.reset_cache();
         s.assert_live(&[1, 2]);
@@ -720,7 +739,7 @@ async fn test_lt_or_eq() {
     Scenario::iterate(|mut s| async move {
         let check_all_versions = |s: &Scenario| {
             for i in 1u64..=3 {
-                let v = SequenceNumber::from_u64(i);
+                let v = Version::from_u64(i);
                 assert_eq!(
                     s.cache()
                         .find_object_lt_or_eq_version(s.obj_id(1), v)
@@ -771,8 +790,8 @@ async fn test_lt_or_eq_caching() {
         s.reset_cache();
 
         let check_version = |lookup_version: u64, expected_version: u64| {
-            let lookup_version = SequenceNumber::from_u64(lookup_version);
-            let expected_version = SequenceNumber::from_u64(expected_version);
+            let lookup_version = Version::from_u64(lookup_version);
+            let expected_version = Version::from_u64(expected_version);
             assert_eq!(
                 s.cache()
                     .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
@@ -831,12 +850,12 @@ async fn test_lt_or_eq_with_cached_tombstone() {
         s.reset_cache();
 
         let check_version = |lookup_version: u64, expected_version: Option<u64>| {
-            let lookup_version = SequenceNumber::from_u64(lookup_version);
+            let lookup_version = Version::from_u64(lookup_version);
             assert_eq!(
                 s.cache()
                     .find_object_lt_or_eq_version(s.obj_id(1), lookup_version)
                     .map(|v| v.version()),
-                expected_version.map(SequenceNumber::from_u64)
+                expected_version.map(Version::from_u64)
             );
         };
 
@@ -1211,7 +1230,7 @@ async fn latest_object_cache_race_test() {
     ));
 
     let object_id = ObjectId::random();
-    let owner = IotaAddress::random();
+    let owner = Address::random();
 
     // a writer thread that keeps writing new versions
     let writer = {
@@ -1393,7 +1412,7 @@ async fn concurrent_latest_object_cache_race_test() {
     ));
 
     let object_id = ObjectId::random();
-    let owner = IotaAddress::random();
+    let owner = Address::random();
 
     // write a new version on request
     let mut write_version = OBJECT_START_VERSION;
@@ -1504,8 +1523,8 @@ async fn concurrent_latest_object_cache_collision_test() {
         key_generation_hash(&object2_id)
     );
 
-    let owner1 = IotaAddress::random();
-    let owner2 = IotaAddress::random();
+    let owner1 = Address::random();
+    let owner2 = Address::random();
 
     // write a new version on request
     let mut write1_version = OBJECT_START_VERSION;

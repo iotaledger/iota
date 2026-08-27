@@ -20,7 +20,9 @@ use tracing::{info, warn};
 
 use crate::{
     VerifiedBlockHeader,
-    block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
+    block_header::{
+        BlockRef, CommitmentVerifiedTransactions, Round, VerifiedBlock, VerifiedOwnShard,
+    },
     commit::CertifiedCommits,
     commit_syncer::fast::FastSyncOutput,
     context::Context,
@@ -74,7 +76,11 @@ enum CoreThreadCommand {
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
     /// Add transactions to be processed and accepted
-    AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>, DataSource),
+    AddTransactions(
+        Vec<CommitmentVerifiedTransactions>,
+        oneshot::Sender<()>,
+        DataSource,
+    ),
     /// Add shards to the dag_state
     AddShards(Vec<VerifiedOwnShard>, oneshot::Sender<()>),
     /// Get missing transaction data that need to be synced
@@ -132,7 +138,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
 
     async fn add_transactions(
         &self,
-        transactions: Vec<VerifiedTransactions>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
         source: DataSource,
     ) -> Result<(), CoreError>;
 
@@ -213,6 +219,15 @@ impl CoreThread {
             self.fast_sync_ongoing
         );
 
+        // The per-command `Core::*` scopes nest, so they cannot be summed; this
+        // times the whole dispatch instead.
+        let handle_command = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["CoreThread::handle_command"]);
+
         loop {
             tokio::select! {
                 command = self.receiver.recv() => {
@@ -220,6 +235,7 @@ impl CoreThread {
                         break;
                     };
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
+                    let _scope = handle_command.start_timer();
 
                     // During fast sync, ignore all commands except AddSubdagFromFastSync and ReinitializeComponents
                     if self.fast_sync_ongoing && !matches!(command, CoreThreadCommand::AddSubdagFromFastSync(..) | CoreThreadCommand::ReinitializeComponents { .. }) {
@@ -301,7 +317,7 @@ impl CoreThread {
                                 "Reinitializing components with {} block headers, exiting fast sync mode",
                                 block_headers.len()
                             );
-                            self.core.reinitialize_components(block_headers)?;
+                            self.core.reinitialize_components(block_headers).await?;
                             self.fast_sync_ongoing = false;
                             sender.send(()).ok();
                         }
@@ -312,7 +328,13 @@ impl CoreThread {
                     let round = *self.rx_last_known_proposed_round.borrow();
                     self.core.set_last_known_proposed_round(round);
                     if !self.fast_sync_ongoing {
-                        self.core.new_block(round + 1, ReasonToCreateBlock::KnownLastBlock)?;
+                        // The locally stored last proposed block may already be at a higher
+                        // round than the synced `round` (e.g. after a crash where the block
+                        // was persisted but not yet broadcast). Passing `Round::MAX` defers
+                        // the actual round choice to the threshold clock inside `Core`, so
+                        // we always propose at the highest available round instead of
+                        // skipping the call because `last_proposed_round() >= round + 1`.
+                        self.core.new_block(Round::MAX, ReasonToCreateBlock::KnownLastBlock)?;
                     }
                 }
                 _ = self.rx_quorum_subscribers_exists.changed() => {
@@ -395,6 +417,13 @@ impl ChannelCoreThreadDispatcher {
     async fn send(&self, command: CoreThreadCommand) {
         self.context.metrics.node_metrics.core_lock_enqueued.inc();
         if let Some(sender) = self.sender.upgrade() {
+            // Sampled here rather than on dequeue so a stalled core thread,
+            // which stops dequeuing entirely, still reports its backlog.
+            self.context
+                .metrics
+                .node_metrics
+                .core_thread_command_queue_peak
+                .observe((CORE_THREAD_COMMANDS_CHANNEL_SIZE - sender.capacity()) as u64);
             if let Err(err) = sender.send(command).await {
                 warn!(
                     "Couldn't send command to core thread, probably is shutting down: {}",
@@ -447,7 +476,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
     async fn add_transactions(
         &self,
-        transactions: Vec<VerifiedTransactions>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
         source: DataSource,
     ) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
@@ -546,21 +575,24 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::time::Duration;
+
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
-    use tokio::time::Instant;
+    use tokio::time::{Instant, timeout};
 
     use super::*;
     use crate::{
         CommitConsumer, VerifiedBlockHeader,
+        block_header::{BlockHeaderAPI, TestBlockHeader, VerifiedBlock, genesis_blocks},
         block_manager::BlockManager,
         commit_observer::CommitObserver,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
-        core::CoreSignals,
+        core::{Core, CoreSignals},
         dag_state::DagState,
         leader_schedule::LeaderSchedule,
-        storage::mem_store::MemStore,
+        storage::{Store, WriteBatch, mem_store::MemStore},
         transaction::{TransactionClient, TransactionConsumer},
     };
 
@@ -573,6 +605,8 @@ pub(crate) mod tests {
         last_known_proposed_round: Mutex<Vec<Round>>,
         new_block_calls: Arc<Mutex<Vec<(Round, ReasonToCreateBlock, Instant)>>>,
         quorum_subscribers_exists: Mutex<bool>,
+        reinitialize_components_calls: Mutex<usize>,
+        reinitialize_components_should_fail: Mutex<bool>,
     }
 
     impl MockCoreThreadDispatcher {
@@ -612,6 +646,14 @@ pub(crate) mod tests {
             let mut binding = self.new_block_calls.lock();
             let all_calls = binding.drain(0..);
             all_calls.into_iter().collect()
+        }
+
+        pub(crate) fn set_reinitialize_components_should_fail(&self, should_fail: bool) {
+            *self.reinitialize_components_should_fail.lock() = should_fail;
+        }
+
+        pub(crate) fn reinitialize_components_calls(&self) -> usize {
+            *self.reinitialize_components_calls.lock()
         }
     }
 
@@ -655,7 +697,7 @@ pub(crate) mod tests {
 
         async fn add_transactions(
             &self,
-            _transactions: Vec<VerifiedTransactions>,
+            _transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!()
@@ -695,7 +737,12 @@ pub(crate) mod tests {
             &self,
             _block_headers: Vec<VerifiedBlockHeader>,
         ) -> Result<(), CoreError> {
-            unimplemented!()
+            *self.reinitialize_components_calls.lock() += 1;
+            if *self.reinitialize_components_should_fail.lock() {
+                Err(CoreError::Shutdown("test failure".to_owned()))
+            } else {
+                Ok(())
+            }
         }
 
         async fn new_block(
@@ -751,7 +798,8 @@ pub(crate) mod tests {
             dag_state.clone(),
             store,
             leader_schedule.clone(),
-        );
+        )
+        .await;
         let leader_schedule = Arc::new(LeaderSchedule::from_store(
             context.clone(),
             dag_state.clone(),
@@ -831,5 +879,136 @@ pub(crate) mod tests {
                 .await
                 .is_err()
         );
+    }
+
+    // Regression test for the restart-liveness fix in the
+    // `rx_last_known_proposed_round.changed()` handler.
+    //
+    // Scenario: validator restarts with a local last-proposed block at round 2
+    // (persisted to disk before broadcast). The synced last-known-proposed-round
+    // value the network reports is lower than the local round. The buggy handler
+    // called `core.new_block(synced + 1, ...)` which short-circuited because
+    // `last_proposed_round() >= synced + 1`, leaving the validator idle when
+    // it should be proposing at the threshold-clock round. The fix passes
+    // `Round::MAX` so `Core` defers the round choice to the threshold clock.
+    #[tokio::test]
+    async fn test_last_known_sync_wakes_threshold_clock_round() {
+        telemetry_subscribers::init_for_testing();
+
+        let (context, mut key_pairs) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+
+        // Build blocks at rounds 1 and 2 for ALL authorities, including own_index.
+        // Own_index having a block at round 2 is the precondition of the bug.
+        let mut last_round_blocks = genesis_blocks(&context);
+        let mut all_blocks = last_round_blocks.clone();
+        for round in 1..=2 {
+            let mut this_round_blocks = Vec::new();
+            for (index, _authority) in context.committee.authorities() {
+                let block = TestBlockHeader::new(round, index.value() as u8)
+                    .set_ancestors(last_round_blocks.iter().map(|b| b.reference()).collect())
+                    .build();
+                this_round_blocks.push(VerifiedBlock::new_for_test(block));
+            }
+            all_blocks.extend(this_round_blocks.clone());
+            last_round_blocks = this_round_blocks;
+        }
+        let (block_headers, block_transactions) = all_blocks
+            .into_iter()
+            .map(|b| (b.verified_block_header, b.verified_transactions))
+            .unzip();
+        store
+            .write(
+                WriteBatch::default()
+                    .block_headers(block_headers)
+                    .transactions(block_transactions),
+            )
+            .expect("Storage error");
+
+        // After loading the store, DagState should report local last proposed at 2
+        // and threshold clock at 3 (round 2 has a quorum from all 4 authorities).
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        assert_eq!(dag_state.read().get_last_proposed_block_header().round(), 2);
+        assert_eq!(dag_state.read().threshold_clock_round(), 3);
+
+        let block_manager = BlockManager::new(context.clone(), dag_state.clone());
+        let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
+        let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
+        let leader_schedule = Arc::new(LeaderSchedule::from_store(
+            context.clone(),
+            dag_state.clone(),
+        ));
+        let (sender, _commit_receiver) = unbounded_channel("consensus_output");
+        let commit_observer = CommitObserver::new(
+            context.clone(),
+            CommitConsumer::new(sender.clone(), 0),
+            dag_state.clone(),
+            store.clone(),
+            leader_schedule.clone(),
+        )
+        .await;
+
+        let (signals, signal_receivers) = CoreSignals::new(context.clone());
+        let mut block_receiver = signal_receivers.block_broadcast_receiver();
+
+        // `sync_last_known_own_block = true` gates proposing on
+        // `set_last_known_proposed_round`, which is the runtime condition this
+        // test simulates.
+        let core = Core::new(
+            context.clone(),
+            leader_schedule,
+            transaction_consumer,
+            block_manager,
+            true,
+            commit_observer,
+            signals,
+            key_pairs.remove(context.own_index.value()).1,
+            dag_state.clone(),
+            true,
+            Arc::new(CommitVoteMonitor::new(context.clone())),
+        );
+
+        let (core_dispatcher, handle) =
+            ChannelCoreThreadDispatcher::start(context.clone(), core, false);
+
+        // Before the last-known sync arrives, no new block should be proposed
+        // (the validator is waiting on the gate). A round-3 block leaking through
+        // here would mean `sync_last_known_own_block` isn't actually gating.
+        assert!(
+            timeout(Duration::from_millis(200), async {
+                loop {
+                    let block = block_receiver.recv().await.expect("block broadcast closed");
+                    if block.round() == 3 {
+                        return block;
+                    }
+                }
+            })
+            .await
+            .is_err(),
+            "round 3 must not be proposed before last-known sync completes",
+        );
+
+        // Network reports synced round = 1; locally we are at round 2. The buggy
+        // handler would call `core.new_block(1 + 1 = 2, ...)` which short-circuits
+        // because `last_proposed_round() >= 2`. The fix passes `Round::MAX` so
+        // `Core` runs `try_propose` at the threshold-clock round (3).
+        core_dispatcher
+            .set_last_known_proposed_round(1)
+            .expect("core thread should be running");
+
+        let proposed_block = timeout(Duration::from_secs(5), async {
+            loop {
+                let block = block_receiver.recv().await.expect("block broadcast closed");
+                if block.round() == 3 {
+                    return block;
+                }
+            }
+        })
+        .await
+        .expect("timed out waiting for threshold-clock proposal at round 3");
+        assert_eq!(proposed_block.author(), context.own_index);
+
+        handle.stop().await;
     }
 }

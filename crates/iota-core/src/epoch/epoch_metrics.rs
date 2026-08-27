@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{
+    IntCounter, IntGauge, MetricLevel, Registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
+};
 
 pub struct EpochMetrics {
     /// The current epoch ID. This is updated only when the AuthorityState
@@ -121,6 +124,26 @@ pub struct EpochMetrics {
 
     /// The number of shared object assignments in the quarantine.
     pub shared_object_assignments_size: IntGauge,
+
+    /// The number of consensus commits that injected deny-rule update
+    /// transactions.
+    pub deny_rule_updates_injected: IntCounter,
+
+    /// The number of injected deny-rule update transactions (one per chunk
+    /// of the delta).
+    pub deny_rule_update_transactions_injected: IntCounter,
+
+    /// Whether deny-rule removals are unlocked: enough announced stake this
+    /// epoch and the grace round floor passed.
+    pub deny_rule_removals_unlocked: IntGauge,
+
+    /// Set to 1, and never cleared, when the `TransactionDenyRules` object
+    /// diverged from the mirrored state at an epoch boundary.
+    pub deny_rule_mirror_divergence: IntGauge,
+
+    /// The number of injected deny-rule update transactions whose execution
+    /// failed — always an invariant violation.
+    pub deny_rule_update_execution_failures: IntCounter,
 }
 
 impl EpochMetrics {
@@ -129,13 +152,15 @@ impl EpochMetrics {
             current_epoch: register_int_gauge_with_registry!(
                 "current_epoch",
                 "Current epoch ID",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             current_voting_right: register_int_gauge_with_registry!(
                 "current_voting_right",
                 "Current voting right of the validator",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             epoch_checkpoint_count: register_int_gauge_with_registry!(
@@ -146,7 +171,8 @@ impl EpochMetrics {
             epoch_total_duration: register_int_gauge_with_registry!(
                 "epoch_total_duration",
                 "Total duration of the epoch",
-                registry
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             epoch_transaction_count: register_int_gauge_with_registry!(
                 "epoch_transaction_count",
@@ -156,7 +182,8 @@ impl EpochMetrics {
             epoch_total_gas_reward: register_int_gauge_with_registry!(
                 "epoch_total_gas_reward",
                 "Total amount of gas rewards (i.e. computation gas cost) in the epoch",
-                registry
+                registry;
+                MetricLevel::Warn,
             ).unwrap(),
             epoch_pending_certs_processed_time_since_epoch_close_ms: register_int_gauge_with_registry!(
                 "epoch_pending_certs_processed_time_since_epoch_close_ms",
@@ -191,7 +218,8 @@ impl EpochMetrics {
             is_safe_mode: register_int_gauge_with_registry!(
                 "is_safe_mode",
                 "Whether we are running in safe mode",
-                registry,
+                registry;
+                MetricLevel::Info,
             ).unwrap(),
             checkpoint_builder_advance_epoch_is_safe_mode: register_int_gauge_with_registry!(
                 "checkpoint_builder_advance_epoch_is_safe_mode",
@@ -242,12 +270,44 @@ impl EpochMetrics {
             consensus_quarantine_queue_size: register_int_gauge_with_registry!(
                 "consensus_quarantine_queue_size",
                 "The number of consensus output items in the quarantine",
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             shared_object_assignments_size: register_int_gauge_with_registry!(
                 "shared_object_assignments_size",
                 "The number of shared object assignments in the quarantine",
+                registry
+            )
+            .unwrap(),
+            deny_rule_updates_injected: register_int_counter_with_registry!(
+                "deny_rule_updates_injected",
+                "The number of consensus commits that injected deny-rule update transactions",
+                registry
+            )
+            .unwrap(),
+            deny_rule_update_transactions_injected: register_int_counter_with_registry!(
+                "deny_rule_update_transactions_injected",
+                "The number of injected deny-rule update transactions",
+                registry
+            )
+            .unwrap(),
+            deny_rule_removals_unlocked: register_int_gauge_with_registry!(
+                "deny_rule_removals_unlocked",
+                "Whether deny-rule removals are currently unlocked",
+                registry
+            )
+            .unwrap(),
+            deny_rule_mirror_divergence: register_int_gauge_with_registry!(
+                "deny_rule_mirror_divergence",
+                "Set to 1 when the TransactionDenyRules object diverged from the mirrored state \
+                 at an epoch boundary",
+                registry
+            )
+            .unwrap(),
+            deny_rule_update_execution_failures: register_int_counter_with_registry!(
+                "deny_rule_update_execution_failures",
+                "The number of injected deny-rule update transactions whose execution failed",
                 registry
             )
             .unwrap(),

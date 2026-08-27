@@ -11,27 +11,22 @@ use docs_examples::utils::{
     create_transaction_data, execute_ptb, execute_transaction, get_coin, publish_aa_package,
     request_tokens_from_faucet,
 };
-use fastcrypto::{
-    ed25519::Ed25519Signature,
-    encoding::{Encoding, Hex},
-    traits::Authenticator,
-};
+use fastcrypto::encoding::{Encoding, Hex};
 use iota_keys::keystore::{AccountKeystore, InMemKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
     rpc_types::{IotaTransactionBlockEffectsAPI, ObjectChange},
     types::{
-        crypto::SignatureScheme::ED25519,
-        programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::Transaction,
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::TransactionEnvelope,
     },
 };
-use iota_sdk_types::{Argument, Identifier, ObjectId, Owner, TypeTag};
+use iota_sdk_types::{
+    Address, Argument, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    SharedObjectReference, SignatureScheme, TypeTag, UserSignature,
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
-    crypto::PublicKey,
-    signature::GenericSignature,
-    transaction::{CallArg, SharedObjectRef},
-    utils::MoveAuthenticator,
+    crypto::PublicKey, move_authenticator::MoveAuthenticatorExt, transaction::CallArg,
 };
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
@@ -70,7 +65,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = InMemKeystore::new_insecure_for_tests(0);
 
     // Derive the address of the first account and set it as default
-    let publisher = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let publisher = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     println!("Publisher address: {publisher}");
 
@@ -104,7 +104,7 @@ async fn main() -> Result<(), anyhow::Error> {
         create_blacklist(&iota_client, &mut keystore, publisher, &package_id).await?;
 
     // Create an abstract account transaction
-    let recipient_a = IotaAddress::random();
+    let recipient_a = Address::random();
 
     println!("Recipient A address: {recipient_a}");
 
@@ -139,7 +139,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // Create an abstract account transaction after the account address is
     // blacklisted
-    let recipient_b = IotaAddress::random();
+    let recipient_b = Address::random();
 
     println!("Recipient B address: {recipient_b}");
 
@@ -185,7 +185,7 @@ async fn main() -> Result<(), anyhow::Error> {
     }
 
     // Create one more test transaction
-    let recipient_c = IotaAddress::random();
+    let recipient_c = Address::random();
 
     println!("Recipient C address: {recipient_c}");
 
@@ -223,11 +223,11 @@ async fn main() -> Result<(), anyhow::Error> {
 pub async fn create_account(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
-    publisher: IotaAddress,
+    publisher: Address,
     package_id: &ObjectId,
-    package_metadata_ref: ObjectRef,
+    package_metadata_ref: ObjectReference,
     pub_key: &PublicKey,
-) -> Result<ObjectRef> {
+) -> Result<ObjectReference> {
     // Create a PTB that creates an abstract account
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -293,9 +293,9 @@ pub async fn create_account(
 pub async fn create_blacklist(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
-    publisher: IotaAddress,
+    publisher: Address,
     package_id: &ObjectId,
-) -> Result<ObjectRef> {
+) -> Result<ObjectReference> {
     // Create a PTB that creates a blacklist shared object instance
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -338,15 +338,15 @@ pub async fn add_address_to_blacklist(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
     package_id: &ObjectId,
-    publisher: IotaAddress,
-    blacklist_ref: &ObjectRef,
-    address_to_add: IotaAddress,
+    publisher: Address,
+    blacklist_ref: &ObjectReference,
+    address_to_add: Address,
 ) -> Result<()> {
     // Create a PTB that adds an address to the blacklist
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        let blacklist_call_arg = builder.input(CallArg::Shared(SharedObjectRef::new(
+        let blacklist_call_arg = builder.input(CallArg::Shared(SharedObjectReference::new(
             blacklist_ref.object_id,
             blacklist_ref.version,
             true,
@@ -382,11 +382,11 @@ pub async fn add_address_to_blacklist(
 pub async fn create_test_transaction(
     iota_client: &IotaClient,
     keystore: &mut InMemKeystore,
-    publisher: IotaAddress,
-    recipient: IotaAddress,
-    account_ref: &ObjectRef,
-    blacklist_ref: &ObjectRef,
-) -> Result<Transaction> {
+    publisher: Address,
+    recipient: Address,
+    account_ref: &ObjectReference,
+    blacklist_ref: &ObjectReference,
+) -> Result<TransactionEnvelope> {
     let account_address = account_ref.object_id.into();
 
     // Create a PTB that sends some IOTA from the abstract account to the recipient
@@ -402,60 +402,73 @@ pub async fn create_test_transaction(
     let tx_digest = tx_data.digest();
 
     // Create a transaction
-    let account_call_arg = CallArg::Shared(SharedObjectRef::new(
-        account_ref.object_id,
-        account_ref.version,
-        false,
-    ));
-    let blacklist_call_arg = CallArg::Shared(SharedObjectRef::new(
+    let blacklist_call_arg = CallArg::Shared(SharedObjectReference::new(
         blacklist_ref.object_id,
         blacklist_ref.version,
         false,
     ));
 
-    let hex_encoded_signature: String =
-        Hex::encode(keystore.sign_hashed(&publisher, tx_digest.as_ref())?)
-            .chars()
-            .skip(2) // flag prefix length
-            .take(Ed25519Signature::LENGTH * 2)
-            .collect();
+    let hex_encoded_signature: String = Hex::encode(
+        keystore
+            .sign_hashed(&publisher, tx_digest.as_ref())?
+            .signature_bytes(),
+    );
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
 
-    let signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
-        vec![signature_call_arg, blacklist_call_arg],
-        vec![],
-        account_call_arg,
-    ));
+    let signature = UserSignature::MoveAuthenticator(
+        MoveAuthenticatorV1::new_with_shared_account_object(
+            vec![signature_call_arg, blacklist_call_arg],
+            vec![],
+            SharedObjectReference::new(account_ref.object_id, account_ref.version, false),
+        )
+        .into(),
+    );
 
-    Ok(Transaction::from_generic_sig_data(tx_data, vec![signature]))
+    Ok(TransactionEnvelope::from_user_sig_data(
+        tx_data,
+        vec![signature],
+    ))
 }
 
 /// Swaps the blacklist shared object in the transaction with a new one.
 pub fn swap_blacklist_in_transaction(
-    mut transaction: Transaction,
-    new_blacklist_ref: &ObjectRef,
-) -> Transaction {
-    let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectRef::new(
+    mut transaction: TransactionEnvelope,
+    new_blacklist_ref: &ObjectReference,
+) -> TransactionEnvelope {
+    let new_blacklist_ref_call_arg = CallArg::Shared(SharedObjectReference::new(
         new_blacklist_ref.object_id,
         new_blacklist_ref.version,
         false,
     ));
 
-    let new_sig = match &transaction.inner_mut().tx_signatures[0] {
-        GenericSignature::MoveAuthenticator(move_authenticator) => {
+    let new_sig = match &transaction.signed_transaction().signatures[0] {
+        UserSignature::MoveAuthenticator(move_authenticator) => {
             let signature_call_arg = move_authenticator.call_args()[0].clone();
-            let account_call_arg = move_authenticator.object_to_authenticate().clone();
 
-            GenericSignature::MoveAuthenticator(MoveAuthenticator::new_v1(
-                vec![signature_call_arg, new_blacklist_ref_call_arg],
-                vec![],
-                account_call_arg,
-            ))
+            let call_args = vec![signature_call_arg, new_blacklist_ref_call_arg];
+
+            // Rebuild the authenticator with the swapped blacklist, preserving
+            // the object being authenticated (immutable or shared).
+            let authenticator = match move_authenticator.object_to_authenticate() {
+                CallArg::ImmutableOrOwned(immutable) => {
+                    MoveAuthenticatorV1::new_with_immutable_account_object(
+                        call_args,
+                        vec![],
+                        *immutable,
+                    )
+                }
+                CallArg::Shared(shared) => {
+                    MoveAuthenticatorV1::new_with_shared_account_object(call_args, vec![], *shared)
+                }
+                _ => panic!("Expected ImmutableOrOwned or Shared object"),
+            };
+
+            UserSignature::MoveAuthenticator(authenticator.into())
         }
         _ => panic!("Expected MoveAuthenticator signature"),
     };
 
-    transaction.inner_mut().tx_signatures[0] = new_sig;
+    transaction.signed_transaction_mut().signatures[0] = new_sig;
 
     transaction
 }

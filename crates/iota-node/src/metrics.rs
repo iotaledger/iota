@@ -7,7 +7,7 @@ use std::{collections::HashSet, time::Duration};
 use iota_grpc_server::metrics::{LATENCY_SEC_BUCKETS, SPAM_LABEL, grpc_code_to_str};
 use iota_network::{api::VALIDATOR_METHOD_PATHS, tonic::Code};
 use iota_network_stack::metrics::MetricsCallbackProvider;
-use prometheus::{
+use prometheus_filtered::{
     HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
@@ -139,7 +139,7 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     use iota_metrics::start_prometheus_server;
-    use prometheus::{IntCounter, Registry};
+    use prometheus_filtered::{IntCounter, Registry};
 
     #[tokio::test]
     pub async fn test_metrics_endpoint_with_multiple_registries_add_remove() {
@@ -151,11 +151,11 @@ mod tests {
         tokio::task::yield_now().await;
 
         // now add a few registries to the service along side with metrics
-        let registry_1 = Registry::new_custom(Some("consensus".to_string()), None).unwrap();
+        let registry_1 = Registry::new_custom(Some("consensus".to_string()), None, None).unwrap();
         let counter_1 = IntCounter::new("counter_1", "a sample counter 1").unwrap();
         registry_1.register(Box::new(counter_1)).unwrap();
 
-        let registry_2 = Registry::new_custom(Some("iota".to_string()), None).unwrap();
+        let registry_2 = Registry::new_custom(Some("iota".to_string()), None, None).unwrap();
         let counter_2 = IntCounter::new("counter_2", "a sample counter 2").unwrap();
         registry_2.register(Box::new(counter_2.clone())).unwrap();
 

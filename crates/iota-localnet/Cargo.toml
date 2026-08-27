@@ -16,7 +16,6 @@ anyhow.workspace = true
 clap.workspace = true
 colored.workspace = true
 fastcrypto.workspace = true
-prometheus.workspace = true
 rand.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
@@ -26,14 +25,16 @@ tracing.workspace = true
 bin-version.workspace = true
 iota-config.workspace = true
 iota-faucet.workspace = true
-iota-genesis-builder.workspace = true
 iota-graphql-rpc = { workspace = true, optional = true }
 iota-indexer = { workspace = true, optional = true }
 iota-keys.workspace = true
 iota-sdk.workspace = true
+iota-sdk-crypto.workspace = true
+iota-sdk-types.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-types.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]
@@ -48,3 +49,4 @@ msim.workspace = true
 
 [features]
 indexer = ["dep:iota-indexer", "dep:iota-graphql-rpc"]
+dag-visualizer = ["iota-swarm/dag-visualizer"]

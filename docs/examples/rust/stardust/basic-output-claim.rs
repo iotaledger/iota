@@ -14,16 +14,17 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        crypto::SignatureScheme::ED25519,
-        gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::BasicOutput,
-        transaction::{CallArg, Transaction, TransactionData},
+        transaction::{CallArg, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{Argument, Identifier, ObjectId, TypeTag, crypto::Intent};
-use iota_types::transaction::TransactionDataAPI;
+use iota_sdk_types::{
+    Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
+    crypto::Intent,
+};
+use iota_types::transaction::TransactionAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/stardust_mix.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "rain flip mad lamp owner siren tower buddy wolf shy tray exit glad come dry tent they pond wrist web cliff mixed seek drum";
@@ -37,7 +38,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = setup_keystore()?;
 
     // Derive the address of the first account and set it as default
-    let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let sender = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     println!("Sender address: {sender}");
 
@@ -114,7 +120,7 @@ async fn main() -> Result<(), anyhow::Error> {
         ////// Command #1: extract the base token and native tokens bag.
         // Type argument for a Basic Output coming from the IOTA network, i.e., the IOTA
         // token or Gas type tag
-        let type_arguments = vec![GAS::type_tag()];
+        let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
         // Then pass the basic output object as input
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(basic_output_object_ref))?];
         // Finally call the basic_output::extract_assets function
@@ -157,7 +163,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             ////// Command #4: create a coin from the extracted IOTA balance
             // Type argument for the IOTA coin
-            let type_arguments = vec![GAS::type_tag()];
+            let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
             let arguments = vec![extracted_base_token];
             let new_iota_coin = builder.programmable_move_call(
                 ObjectId::FRAMEWORK,
@@ -178,7 +184,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create the transaction data that will be sent to the network
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -187,13 +193,13 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     // Sign the transaction
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&sender, &tx, Intent::iota_transaction())?;
 
     // Execute transaction
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

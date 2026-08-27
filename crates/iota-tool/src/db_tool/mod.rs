@@ -13,15 +13,12 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, ObjectId, TransactionDigest};
 use iota_types::{
-    base_types::EpochId,
-    digests::{CheckpointContentsDigest, TransactionDigest},
-    effects::TransactionEffectsAPI,
-    messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
-    storage::ObjectStore,
+    base_types::EpochId, effects::TransactionEffectsAPI,
+    messages_checkpoint::CheckpointSequenceNumber, storage::ObjectStore,
 };
-use typed_store::rocks::{MetricConf, safe_drop_db};
+use typed_store::rocks::MetricConf;
 
 use self::{
     db_dump::{StoreName, dump_table, duplicate_objects_summary, list_tables, table_summary},
@@ -45,7 +42,6 @@ pub enum DbToolCommand {
     PrintObject(PrintObjectOptions),
     PrintCheckpoint(PrintCheckpointOptions),
     PrintCheckpointContent(PrintCheckpointContentOptions),
-    ResetDB,
     RewindCheckpointExecution(RewindCheckpointExecutionOptions),
     Compact,
     PruneObjects,
@@ -192,7 +188,6 @@ pub async fn execute_db_tool_command(db_path: PathBuf, cmd: DbToolCommand) -> an
         DbToolCommand::PrintObject(o) => print_object(&db_path, o),
         DbToolCommand::PrintCheckpoint(d) => print_checkpoint(&db_path, d),
         DbToolCommand::PrintCheckpointContent(d) => print_checkpoint_content(&db_path, d),
-        DbToolCommand::ResetDB => reset_db_to_genesis(&db_path).await,
         DbToolCommand::RewindCheckpointExecution(d) => {
             rewind_checkpoint_execution(&db_path, d.epoch, d.checkpoint_sequence_number)
         }
@@ -304,7 +299,7 @@ pub fn print_checkpoint(path: &Path, opt: PrintCheckpointOptions) -> anyhow::Res
     print_checkpoint_content(
         path,
         PrintCheckpointContentOptions {
-            digest: checkpoint.content_digest,
+            digest: checkpoint.contents_digest,
         },
     )
 }
@@ -321,54 +316,6 @@ pub fn print_checkpoint_content(
             opt.digest
         ))?;
     println!("Checkpoint content: {contents:?}");
-    Ok(())
-}
-
-pub async fn reset_db_to_genesis(path: &Path) -> anyhow::Result<()> {
-    // Follow the below steps to test:
-    //
-    // Get a db snapshot. Either generate one by running stress locally and enabling
-    // db checkpoints or download one from S3 bucket (pretty big in size though).
-    // Download the snapshot for the epoch you want to restore to the local disk.
-    // You will find one snapshot per epoch in the S3 bucket. We need to place the
-    // snapshot in the dir where config is pointing to. If db-config in
-    // fullnode.yaml is /opt/iota/db/authorities_db and we want to restore from
-    // epoch 10, we want to copy the snapshot to /opt/iota/db/authorities_dblike
-    // this: aws s3 cp s3://myBucket/dir /opt/iota/db/authorities_db/
-    // --recursive —exclude “*” —include “epoch_10*” Mark downloaded snapshot as
-    // live: mv /opt/iota/db/authorities_db/epoch_10
-    // /opt/iota/db/authorities_db/live Reset the downloaded db to execute from
-    // genesis with: cargo run --package iota-tool -- db-tool --db-path
-    // /opt/iota/db/authorities_db/live reset-db Start the iota full node: cargo
-    // run --release --bin iota-node -- --config-path ~/db_checkpoints/fullnode.yaml
-    // A sample fullnode.yaml config would be:
-    // ---
-    // db-path:  /opt/iota/db/authorities_db
-    // network-address: /ip4/0.0.0.0/tcp/8080/http
-    // json-rpc-address: "0.0.0.0:9000"
-    // websocket-address: "0.0.0.0:9001"
-    // metrics-address: "0.0.0.0:9184"
-    // admin-interface-address: "127.0.0.1:1337"
-    // grpc-load-shed: ~
-    // grpc-concurrency-limit: ~
-    // p2p-config:
-    //   listen-address: "0.0.0.0:8084"
-    // genesis:
-    //   genesis-file-location:  <path to genesis blob for the network>
-    // authority-store-pruning-config:
-    //   num-latest-epoch-dbs-to-retain: 3
-    //   num-epochs-to-retain: 18446744073709551615
-    //   max-checkpoints-in-batch: 10
-    //   max-transactions-in-batch: 1000
-    safe_drop_db(
-        path.join("store").join("perpetual"),
-        std::time::Duration::from_secs(60),
-    )
-    .await?;
-
-    let checkpoint_db = CheckpointStore::new(&path.join("checkpoints"));
-    checkpoint_db.reset_db_for_execution_since_genesis()?;
-
     Ok(())
 }
 
@@ -400,9 +347,7 @@ pub fn rewind_checkpoint_execution(
         .unwrap_or_default();
     if checkpoint_sequence_number > highest_executed_sequence_number {
         bail!(
-            "Must rewind checkpoint execution to be not later than highest executed ({} > {})!",
-            checkpoint_sequence_number,
-            highest_executed_sequence_number
+            "Must rewind checkpoint execution to be not later than highest executed ({checkpoint_sequence_number} > {highest_executed_sequence_number})!"
         );
     }
     checkpoint_db.set_highest_executed_checkpoint_subtle(&checkpoint)?;
@@ -481,7 +426,7 @@ pub fn set_checkpoint_watermark(
         // will panic if it tries to execute a checkpoint whose contents are
         // missing from the store.
         if checkpoint_db
-            .get_checkpoint_contents(&checkpoint.content_digest)?
+            .get_checkpoint_contents(&checkpoint.contents_digest)?
             .is_none()
         {
             bail!(

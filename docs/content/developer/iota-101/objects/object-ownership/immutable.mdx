@@ -6,8 +6,6 @@ teams:
   - iotaledger/dev-tools
 description: Immutable objects on IOTA cannot be mutated, transferred, or deleted once frozen. These objects are ownerless and can be used by anyone on the network.
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/objects/object-ownership/immutable.json';
 
 In IOTA, objects can be either mutable or immutable.
 Immutable objects are unique in that they cannot be altered, transferred, or deleted after they are created.
@@ -18,7 +16,7 @@ Once an object is made immutable, it has no owner, making it accessible to anyon
 ### Using `public_freeze_object`
 
 To make an object immutable,
-use the [`transfer::public_freeze_object`](../../../../developer/references/framework/iota/transfer.mdx#function-public_freeze_object) function:
+use the [`transfer::public_freeze_object`](../../../../developer/references/framework/iota/transfer.mdx#iota_transfer_public_freeze_object) function:
 
 ```move
 public native fun public_freeze_object<T: key>(obj: T);
@@ -48,12 +46,12 @@ Once frozen, the object is no longer owned by anyone and can never be altered.
 
 ### Using `public_freeze_object`
 
-The [`public_freeze_object`](../../../../developer/references/framework/iota/transfer.mdx#function-public_freeze_object) function requires the object
+The [`public_freeze_object`](../../../../developer/references/framework/iota/transfer.mdx#iota_transfer_public_freeze_object) function requires the object
 to be passed by value.
 This ensures that after the function is called, no one can mutate the object,
 which would contradict its immutable status.
 
-Alternatively, you can create an immutable object directly upon its creation using the [`transfer::public_freeze_object`](../../../../developer/references/framework/iota/transfer.mdx#function-public_freeze_object) function:
+Alternatively, you can create an immutable object directly upon its creation using the [`transfer::public_freeze_object`](../../../../developer/references/framework/iota/transfer.mdx#iota_transfer_public_freeze_object) function:
 
 ```move
 public fun create_immutable(red: u8, green: u8, blue: u8, ctx: &mut TxContext) {
@@ -224,5 +222,3 @@ iota client call --package $PACKAGE --module "color_object" --function "update" 
 ```
 
 The response will indicate that you cannot pass an immutable object to a mutable argument.
-
-<Quiz questions={questions} />

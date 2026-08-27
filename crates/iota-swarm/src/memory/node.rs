@@ -118,7 +118,7 @@ impl Node {
                 iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
                 None,
             );
-            let channel = iota_network_stack::client::connect(&network_address, Some(tls_config))
+            let channel = iota_network_stack::client::connect(&network_address, tls_config)
                 .await
                 .map_err(|err| anyhow!(err.to_string()))
                 .map_err(HealthCheckError::Failure)

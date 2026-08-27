@@ -9,11 +9,8 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::type_and_fields_from_move_event_data;
 use iota_package_resolver::Resolver;
-use iota_sdk_types::{Event, TypeTag};
-use iota_types::{
-    SYSTEM_PACKAGE_ADDRESSES, digests::TransactionDigest, effects::TransactionEvents,
-    full_checkpoint_content::CheckpointData,
-};
+use iota_sdk_types::{Event, TransactionDigest, TransactionEvents, TypeTag};
+use iota_types::{SYSTEM_PACKAGE_ADDRESSES, full_checkpoint_content::CheckpointData};
 use move_core_types::annotated_value::MoveValue;
 use tokio::sync::Mutex;
 
@@ -119,12 +116,12 @@ impl EventHandler {
                 package_id,
                 module,
                 sender,
-                type_,
+                struct_tag,
                 contents,
             } = event;
             let layout = state
                 .resolver
-                .type_layout(TypeTag::Struct(Box::new(type_.clone())))
+                .type_layout(TypeTag::Struct(Box::new(struct_tag.clone())))
                 .await?;
             let move_value = MoveValue::simple_deserialize(contents, &layout)?;
             let (_, event_json) = type_and_fields_from_move_event_data(move_value)?;
@@ -137,7 +134,7 @@ impl EventHandler {
                 sender: sender.to_string(),
                 package: package_id.to_string(),
                 module: module.to_string(),
-                event_type: type_.to_string(),
+                event_type: struct_tag.to_string(),
                 bcs: Base64::encode(contents.clone()),
                 event_json: event_json.to_string(),
             };

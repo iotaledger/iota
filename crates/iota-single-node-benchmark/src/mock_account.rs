@@ -5,17 +5,17 @@
 use std::{collections::BTreeMap, sync::Arc};
 
 use futures::stream::FuturesUnordered;
+use iota_sdk_types::{Address, ObjectReference};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
-    crypto::{AccountKeyPair, get_account_key_pair},
+    crypto::{AccountPrivateKey, get_account_private_key},
     object::Object,
 };
 
 #[derive(Clone)]
 pub struct Account {
-    pub sender: IotaAddress,
-    pub keypair: Arc<AccountKeyPair>,
-    pub gas_objects: Arc<Vec<ObjectRef>>,
+    pub sender: Address,
+    pub private_key: Arc<AccountPrivateKey>,
+    pub gas_objects: Arc<Vec<ObjectReference>>,
 }
 
 /// Generate \num_accounts accounts and for each account generate
@@ -24,28 +24,28 @@ pub struct Account {
 pub async fn batch_create_account_and_gas(
     num_accounts: u64,
     gas_object_num_per_account: u64,
-) -> (BTreeMap<IotaAddress, Account>, Vec<Object>) {
+) -> (BTreeMap<Address, Account>, Vec<Object>) {
     let tasks: FuturesUnordered<_> = (0..num_accounts)
         .map(|_| {
             tokio::spawn(async move {
-                let (sender, keypair) = get_account_key_pair();
+                let (sender, private_key) = get_account_private_key();
                 let objects = (0..gas_object_num_per_account)
                     .map(|_| Object::with_owner_for_testing(sender))
                     .collect::<Vec<_>>();
-                (sender, keypair, objects)
+                (sender, private_key, objects)
             })
         })
         .collect();
     let mut accounts = BTreeMap::new();
     let mut genesis_gas_objects = vec![];
     for task in tasks {
-        let (sender, keypair, gas_objects) = task.await.unwrap();
+        let (sender, private_key, gas_objects) = task.await.unwrap();
         let gas_object_refs: Vec<_> = gas_objects.iter().map(|o| o.object_ref()).collect();
         accounts.insert(
             sender,
             Account {
                 sender,
-                keypair: Arc::new(keypair),
+                private_key: Arc::new(private_key),
                 gas_objects: Arc::new(gas_object_refs),
             },
         );

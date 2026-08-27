@@ -4,14 +4,15 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use iota_sdk_types::{Argument, Event, ObjectId, Owner, TypeTag};
+use iota_sdk_types::{
+    Argument, Event, ObjectData, ObjectDigest, ObjectId, ObjectReference, Owner, TransactionDigest,
+    TypeTag, Version,
+};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    base_types::{ObjectRef, SequenceNumber},
-    digests::{ObjectDigest, TransactionDigest},
-    object::{Data, MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     storage::BackingPackageStore,
 };
 
@@ -24,7 +25,7 @@ use crate::{
 ///    as a read-only shared object.
 /// 3. The transaction digest of the previous transaction that used this shared
 ///    object mutably or took it by value.
-pub type DeletedSharedObjectInfo = (ObjectId, SequenceNumber, bool, TransactionDigest);
+pub type DeletedSharedObjectInfo = (ObjectId, Version, bool, TransactionDigest);
 
 /// A sequence of information about deleted shared objects in the transaction's
 /// inputs.
@@ -32,14 +33,14 @@ pub type DeletedSharedObjects = Vec<DeletedSharedObjectInfo>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SharedInput {
-    Existing(ObjectRef),
+    Existing(ObjectReference),
     Deleted(DeletedSharedObjectInfo),
-    Cancelled((ObjectId, SequenceNumber)),
+    Cancelled((ObjectId, Version)),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
 pub struct DynamicallyLoadedObjectMetadata {
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: ObjectDigest,
     pub owner: Owner,
     pub storage_rebate: u64,
@@ -105,7 +106,7 @@ impl ExecutionResultsV1 {
 
     pub fn update_version_and_previous_tx(
         &mut self,
-        lamport_version: SequenceNumber,
+        lamport_version: Version,
         prev_tx: TransactionDigest,
         input_objects: &BTreeMap<ObjectId, Object>,
     ) {
@@ -116,12 +117,12 @@ impl ExecutionResultsV1 {
 
             // Update the version for the written object.
             match &mut obj.data {
-                Data::Struct(obj) => {
+                ObjectData::Struct(obj) => {
                     // Move objects all get the transaction's lamport timestamp
                     obj.increment_version_to(lamport_version);
                 }
 
-                Data::Package(pkg) => {
+                ObjectData::Package(pkg) => {
                     // Modified packages get their version incremented (this is a special case that
                     // only applies to system packages).  All other packages can only be created,
                     // and they are left alone.
@@ -141,7 +142,7 @@ impl ExecutionResultsV1 {
                 if self.created_object_ids.contains(id) {
                     assert_eq!(
                         *initial_shared_version,
-                        SequenceNumber::default(),
+                        Version::default(),
                         "Initial version should be blank before this point for {id}",
                     );
                     *initial_shared_version = lamport_version;
@@ -150,12 +151,12 @@ impl ExecutionResultsV1 {
                 // Update initial_shared_version for reshared objects
                 if let Some(previous_initial_shared_version) = input_objects
                     .get(id)
-                    .and_then(|obj| obj.owner.as_shared_opt())
+                    .and_then(|obj| obj.owner.as_opt_shared())
                 {
                     debug_assert!(!self.created_object_ids.contains(id));
                     debug_assert!(!self.deleted_object_ids.contains(id));
                     debug_assert!(
-                        *initial_shared_version == SequenceNumber::default()
+                        *initial_shared_version == Version::default()
                             || *initial_shared_version == *previous_initial_shared_version
                     );
 

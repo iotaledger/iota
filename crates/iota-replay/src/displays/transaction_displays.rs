@@ -8,12 +8,11 @@ use std::{
 };
 
 use iota_execution::Executor;
-use iota_sdk_types::{Argument, Command, MoveCall, TypeTag};
+use iota_sdk_types::{
+    Argument, Command, MoveCall, ProgrammableTransaction, TypeTag, utils::write_sep,
+};
 use iota_types::{
-    execution::ExecutionResult,
-    object::bounded_visitor::BoundedVisitor,
-    sdk_types::utils::write_sep,
-    transaction::{CallArg, ProgrammableTransaction},
+    execution::ExecutionResult, object::bounded_visitor::BoundedVisitor, transaction::CallArg,
 };
 use move_core_types::annotated_value::{MoveTypeLayout, MoveValue};
 use tabled::{
@@ -163,7 +162,7 @@ impl Display for Pretty<'_, Command> {
             }
             Command::MakeMoveVector(cmd) => {
                 write!(f, "MakeMoveVector:\n ┌")?;
-                if let Some(ty) = &cmd.type_ {
+                if let Some(ty) = &cmd.type_tag {
                     write!(f, "\n │ Type Tag: {ty}")?;
                 }
                 write!(f, "\n │ Arguments:\n │   ")?;

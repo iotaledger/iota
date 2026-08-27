@@ -7,13 +7,16 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use iota_common::{fatal, random_util::randomize_cache_capacity_in_tests};
-use iota_sdk_types::{ObjectId, RandomnessRound, VersionAssignment};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, RandomnessRound, TransactionDigest, UserSignature, Version,
+    VersionAssignment, checkpoint::CheckpointContents,
+};
 use iota_types::{
-    base_types::{AuthorityName, ObjectRef, SequenceNumber, TransactionDigest},
+    base_types::AuthorityName,
     error::IotaResult,
-    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
-    messages_consensus::VersionedDkgConfirmation,
-    signature::GenericSignature,
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
+    messages_consensus::{TransactionDenyRuleProposal, VersionedDkgConfirmation},
+    transaction::SenderSignedTransactionAPI,
 };
 use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::Mutex;
@@ -26,7 +29,9 @@ use crate::{
         authority_per_epoch_store::{
             LockDetails, LockDetailsWrapper, report_aggregator::DBReceivedReportsStatePerAuthority,
         },
-        shared_object_congestion_tracker::CongestionPerObjectDebt,
+        shared_object_congestion_tracker::{
+            CongestionPerObjectDebt, CongestionWorkerDebt, WorkerDebtSlots,
+        },
         shared_object_version_manager::AssignedTxAndVersions,
     },
     checkpoints::PendingCheckpoint,
@@ -50,13 +55,17 @@ pub(crate) struct ConsensusCommitOutput {
     consensus_commit_stats: Option<ExecutionIndicesWithStats>,
 
     // transaction scheduling state
-    next_shared_object_versions: Option<HashMap<ObjectId, SequenceNumber>>,
+    next_shared_object_versions: Option<HashMap<ObjectId, Version>>,
 
     // congestion control state
     // debts for shared objects with no randomness
     congestion_control_object_debts: Vec<(ObjectId, u64)>,
     // debts for shared objects with randomness
     congestion_control_randomness_object_debts: Vec<(ObjectId, u64)>,
+    // execution-worker debt carried over to the next commit (slots relative
+    // to the next commit's start); covers all transactions, which one tracker
+    // schedules. `None` when execution-worker congestion control is inactive.
+    congestion_control_worker_debt: Option<WorkerDebtSlots>,
     // TODO: If we delay committing consensus output until after all deferrals have been loaded,
     // we can move deferred_txns to the ConsensusOutputCache and save disk bandwidth.
     deferred_txns: Vec<(DeferralKey, Vec<DeferredTransaction>)>,
@@ -85,8 +94,24 @@ pub(crate) struct ConsensusCommitOutput {
     // within one commit.
     report_state_snapshots: BTreeMap<u8, DBReceivedReportsStatePerAuthority>,
 
-    // White flag owned object locks acquired in this commit
-    owned_object_locks: HashMap<ObjectRef, LockDetails>,
+    // P-COOL owned object locks acquired in this commit
+    owned_object_locks: HashMap<ObjectReference, LockDetails>,
+
+    // Latest overload-shed percentage advertised by each authority via
+    // OverloadNotificationV1 during this commit. Flushed to
+    // `authority_overload_notifications` atomically with `last_consensus_stats`
+    // so a partial pre-flush state can never be observed on disk.
+    overload_notifications: BTreeMap<AuthorityName, u8>,
+
+    // Newest deny rule proposal from each authority received during this
+    // commit. Flushed to `deny_rule_proposals` atomically with
+    // `last_consensus_stats`.
+    deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
+
+    // The mirror state reached by this commit's injected updates, when it
+    // injected any. Written to `deny_rule_mirror` atomically with
+    // `last_consensus_stats`.
+    deny_rule_mirror: Option<DenyRuleSet>,
 }
 
 impl ConsensusCommitOutput {
@@ -168,10 +193,7 @@ impl ConsensusCommitOutput {
         !self.report_state_snapshots.is_empty()
     }
 
-    pub fn set_next_shared_object_versions(
-        &mut self,
-        next_versions: HashMap<ObjectId, SequenceNumber>,
-    ) {
+    pub fn set_next_shared_object_versions(&mut self, next_versions: HashMap<ObjectId, Version>) {
         assert!(self.next_shared_object_versions.is_none());
         self.next_shared_object_versions = Some(next_versions);
     }
@@ -226,8 +248,40 @@ impl ConsensusCommitOutput {
         self.congestion_control_randomness_object_debts = object_debts;
     }
 
-    pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectRef, LockDetails>) {
+    pub fn set_congestion_control_worker_debt(&mut self, debt: WorkerDebtSlots) {
+        self.congestion_control_worker_debt = Some(debt);
+    }
+
+    pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectReference, LockDetails>) {
         self.owned_object_locks = locks;
+    }
+
+    pub fn record_overload_notification(&mut self, authority: AuthorityName, percentage: u8) {
+        self.overload_notifications.insert(authority, percentage);
+    }
+
+    /// Records `proposal`, keeping the newest generation per authority.
+    pub fn record_deny_rule_proposal(&mut self, proposal: TransactionDenyRuleProposal) {
+        if self
+            .deny_rule_proposals
+            .get(&proposal.authority)
+            .is_none_or(|existing| existing.generation < proposal.generation)
+        {
+            self.deny_rule_proposals
+                .insert(proposal.authority, proposal);
+        }
+    }
+
+    /// The deny rule proposals recorded during this commit so far.
+    pub(super) fn deny_rule_proposals(
+        &self,
+    ) -> &BTreeMap<AuthorityName, TransactionDenyRuleProposal> {
+        &self.deny_rule_proposals
+    }
+
+    /// Records the mirror state reached by this commit's injected updates.
+    pub fn record_deny_rule_mirror(&mut self, rules: DenyRuleSet) {
+        self.deny_rule_mirror = Some(rules);
     }
 
     pub fn write_to_batch(
@@ -338,6 +392,16 @@ impl ConsensusCommitOutput {
                 }),
         )?;
 
+        if let Some(debt) = self.congestion_control_worker_debt {
+            batch.insert_batch(
+                &tables.congestion_control_worker_debt,
+                [(
+                    SINGLETON_KEY,
+                    CongestionWorkerDebt::new(self.consensus_round, debt),
+                )],
+            )?;
+        }
+
         if !self.report_state_snapshots.is_empty() {
             batch.insert_batch(
                 &tables.received_reports_state,
@@ -352,6 +416,15 @@ impl ConsensusCommitOutput {
                     .into_iter()
                     .map(|(obj_ref, lock)| (obj_ref, LockDetailsWrapper::from(lock))),
             )?;
+        }
+        batch.insert_batch(
+            &tables.authority_overload_notifications,
+            self.overload_notifications,
+        )?;
+
+        batch.insert_batch(&tables.deny_rule_proposals, self.deny_rule_proposals)?;
+        if let Some(mirror) = self.deny_rule_mirror {
+            batch.insert_batch(&tables.deny_rule_mirror, [((), mirror)])?;
         }
 
         Ok(())
@@ -383,7 +456,7 @@ pub(crate) struct ConsensusOutputCache {
     // checkpoint builder The critical sections are small in both cases so a DashMap is
     // probably not helpful.
     pub(super) user_signatures_for_checkpoints:
-        Mutex<HashMap<TransactionDigest, Vec<GenericSignature>>>,
+        Mutex<HashMap<TransactionDigest, Vec<UserSignature>>>,
 
     executed_in_epoch: RwLock<DashMap<TransactionDigest, ()>>,
     executed_in_epoch_cache: MokaCache<TransactionDigest, ()>,
@@ -536,7 +609,7 @@ pub(crate) struct ConsensusOutputQuarantine {
     builder_digest_to_checkpoint: HashMap<TransactionDigest, CheckpointSequenceNumber>,
 
     // Any un-committed next versions are stored here.
-    shared_object_next_versions: RefCountedHashMap<ObjectId, SequenceNumber>,
+    shared_object_next_versions: RefCountedHashMap<ObjectId, Version>,
 
     // The most recent congestion control debts for objects. Uses a ref-count to track
     // which objects still exist in some element of output_queue.
@@ -548,8 +621,24 @@ pub(crate) struct ConsensusOutputQuarantine {
 
     processed_consensus_messages: RefCountedHashMap<SequencedConsensusTransactionKey, ()>,
 
-    // White flag owned object locks (aggregate across all quarantined commits)
-    owned_object_locks: HashMap<ObjectRef, LockDetails>,
+    // P-COOL owned object locks (aggregate across all quarantined commits)
+    owned_object_locks: HashMap<ObjectReference, LockDetails>,
+
+    // In-memory cache of the `authority_overload_notifications` table: the most
+    // recent load-shedding percentage each authority has broadcast, for the
+    // commits that have already been flushed to disk. Loaded once from the
+    // table when the epoch store is constructed and updated as commits are
+    // flushed, so the per-commit read path never has to iterate RocksDB. The
+    // disk table only exists for persistence across restarts. Notifications
+    // from commits still in `output_queue` are layered on top by
+    // `current_overload_notifications`.
+    cached_overload_notifications: HashMap<AuthorityName, u8>,
+
+    // In-memory cache of the `deny_rule_proposals` table, maintained exactly
+    // like `cached_overload_notifications`: seeded at construction, advanced
+    // as commits are flushed, overlaid with queued commits by
+    // `current_deny_rule_proposals`.
+    cached_deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
 
     metrics: Arc<EpochMetrics>,
 }
@@ -557,6 +646,8 @@ pub(crate) struct ConsensusOutputQuarantine {
 impl ConsensusOutputQuarantine {
     pub(super) fn new(
         highest_executed_checkpoint: CheckpointSequenceNumber,
+        cached_overload_notifications: HashMap<AuthorityName, u8>,
+        cached_deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
         authority_metrics: Arc<EpochMetrics>,
     ) -> Self {
         Self {
@@ -570,6 +661,8 @@ impl ConsensusOutputQuarantine {
             congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
             owned_object_locks: HashMap::new(),
+            cached_overload_notifications,
+            cached_deny_rule_proposals,
             metrics: authority_metrics,
         }
     }
@@ -588,7 +681,16 @@ impl ConsensusOutputQuarantine {
         self.insert_congestion_control_debts(&output);
         self.insert_processed_consensus_messages(&output);
         self.insert_owned_object_locks(&output);
+        let has_deny_rule_proposals = !output.deny_rule_proposals.is_empty();
         self.output_queue.push_back(output);
+
+        // Recompute the active deny rules whenever a commit recorded
+        // proposals, so the set applies from the next commit on. Computed
+        // inline: `epoch_store` methods that take the quarantine lock would
+        // self-deadlock here.
+        if has_deny_rule_proposals {
+            epoch_store.store_active_transaction_deny_rules(&self.current_deny_rule_proposals());
+        }
 
         self.metrics
             .consensus_quarantine_queue_size
@@ -726,6 +828,13 @@ impl ConsensusOutputQuarantine {
                 self.remove_processed_consensus_messages(&output);
                 self.remove_congestion_control_debts(&output);
                 self.remove_owned_object_locks(&output);
+                // Advance the in-memory caches in lockstep with the table
+                // writes below, so they stay equal to the persisted state once
+                // this commit leaves the queue.
+                self.cached_overload_notifications
+                    .extend(&output.overload_notifications);
+                self.cached_deny_rule_proposals
+                    .extend(output.deny_rule_proposals.clone());
                 epoch_store.remove_shared_version_assignments(
                     output
                         .pending_checkpoints
@@ -826,7 +935,7 @@ impl ConsensusOutputQuarantine {
         }
     }
 
-    pub(super) fn get_owned_object_lock(&self, obj_ref: &ObjectRef) -> Option<LockDetails> {
+    pub(super) fn get_owned_object_lock(&self, obj_ref: &ObjectReference) -> Option<LockDetails> {
         self.owned_object_locks.get(obj_ref).copied()
     }
 
@@ -867,8 +976,8 @@ impl ConsensusOutputQuarantine {
     pub(super) fn get_next_shared_object_versions(
         &self,
         tables: &AuthorityEpochTables,
-        objects_to_init: &[(ObjectId, SequenceNumber)],
-    ) -> IotaResult<Vec<Option<SequenceNumber>>> {
+        objects_to_init: &[(ObjectId, Version)],
+    ) -> IotaResult<Vec<Option<Version>>> {
         Ok(do_fallback_lookup(
             objects_to_init,
             |(object_id, _)| {
@@ -923,6 +1032,68 @@ impl ConsensusOutputQuarantine {
             .any(|output| output.pending_checkpoint_exists(index))
     }
 
+    /// Returns the current overload notifications keyed by authority: the
+    /// in-memory cache of the persisted table with every queued
+    /// (processed-but-not-yet-flushed) commit's notifications layered on top,
+    /// in commit (queue) order. Later commits overwrite earlier ones. This
+    /// reflects the logical state across the disk/queue split without
+    /// iterating the persisted state.
+    pub(super) fn current_overload_notifications(&self) -> HashMap<AuthorityName, u8> {
+        let mut notifications = self.cached_overload_notifications.clone();
+        for output in &self.output_queue {
+            for (authority, percentage) in &output.overload_notifications {
+                notifications.insert(*authority, *percentage);
+            }
+        }
+        notifications
+    }
+
+    #[cfg(test)]
+    pub(super) fn apply_cached_overload_notification_for_test(
+        &mut self,
+        authority: AuthorityName,
+        percentage: u8,
+    ) {
+        self.cached_overload_notifications
+            .insert(authority, percentage);
+    }
+
+    /// Returns the current deny rule proposals keyed by authority: the
+    /// in-memory cache of the persisted table with every queued
+    /// (processed-but-not-yet-flushed) commit's proposals layered on top.
+    pub(super) fn current_deny_rule_proposals(
+        &self,
+    ) -> BTreeMap<AuthorityName, TransactionDenyRuleProposal> {
+        let mut proposals = self.cached_deny_rule_proposals.clone();
+        for output in &self.output_queue {
+            for (authority, proposal) in &output.deny_rule_proposals {
+                proposals.insert(*authority, proposal.clone());
+            }
+        }
+        proposals
+    }
+
+    /// Returns the generation of `authority`'s newest recorded proposal, if
+    /// any. The record path keeps generations monotonic, so the newest queued
+    /// entry (or, failing that, the flushed one) is the maximum.
+    pub(super) fn deny_rule_proposal_generation(&self, authority: &AuthorityName) -> Option<u64> {
+        self.output_queue
+            .iter()
+            .rev()
+            .find_map(|output| output.deny_rule_proposals.get(authority))
+            .or_else(|| self.cached_deny_rule_proposals.get(authority))
+            .map(|proposal| proposal.generation)
+    }
+
+    #[cfg(test)]
+    pub(super) fn apply_cached_deny_rule_proposal_for_test(
+        &mut self,
+        proposal: TransactionDenyRuleProposal,
+    ) {
+        self.cached_deny_rule_proposals
+            .insert(proposal.authority, proposal);
+    }
+
     pub(super) fn get_randomness_last_round_timestamp(&self) -> Option<CheckpointTimestamp> {
         self.output_queue
             .iter()
@@ -958,28 +1129,20 @@ impl ConsensusOutputQuarantine {
         };
         let mut shared_input_object_ids: Vec<_> = transactions
             .iter()
+            // Only user transactions carry shared inputs to preload; which kinds
+            // those are lives in `as_sender_signed_transaction`. System transactions contribute
+            // none.
             .filter_map(|tx| match &tx.0.transaction {
-                SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                    kind: ConsensusTransactionKind::CertifiedTransaction(tx),
-                    ..
-                }) => Some(
-                    tx.shared_input_objects()
-                        .into_iter()
-                        .map(|obj| obj.object_id)
-                        .collect::<Vec<_>>(),
-                ),
-                SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                    kind: ConsensusTransactionKind::UserTransactionV1(tx),
-                    ..
-                }) => Some(
-                    tx.shared_input_objects()
-                        .into_iter()
-                        .map(|obj| obj.object_id)
-                        .collect::<Vec<_>>(),
-                ),
-                _ => None,
+                SequencedConsensusTransactionKind::External(ext) => {
+                    ext.kind.as_sender_signed_transaction()
+                }
+                SequencedConsensusTransactionKind::System(_) => None,
             })
-            .flatten()
+            .flat_map(|data| {
+                data.shared_input_objects()
+                    .into_iter()
+                    .map(|obj| obj.object_id)
+            })
             .collect();
         shared_input_object_ids.sort();
         shared_input_object_ids.dedup();
@@ -1020,6 +1183,46 @@ impl ConsensusOutputQuarantine {
                 let debt = debt.saturating_sub(per_commit_limit * num_rounds);
                 (object_id, debt)
             }))
+    }
+
+    /// Loads the execution-worker debt carried over into `current_round`
+    /// (aged for the elapsed commits), to seed the worker concurrency profile.
+    /// Reads the most recent debt from the in-memory quarantine, falling
+    /// back to the last checkpointed value in the epoch store. Returns an
+    /// empty debt when none is recorded.
+    pub(crate) fn load_initial_worker_debt(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        current_round: CommitRound,
+    ) -> IotaResult<WorkerDebtSlots> {
+        let tables = epoch_store.tables()?;
+        let per_commit_limit = epoch_store
+            .protocol_config()
+            .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
+            .unwrap_or_default();
+
+        // Most recent debt from a not-yet-checkpointed commit, else the
+        // last checkpointed value persisted in the epoch store.
+        let debt = self
+            .output_queue
+            .iter()
+            .rev()
+            .find_map(|output| {
+                output
+                    .congestion_control_worker_debt
+                    .clone()
+                    .map(|slots| CongestionWorkerDebt::new(output.consensus_round, slots))
+            })
+            .or_else(|| {
+                tables
+                    .congestion_control_worker_debt
+                    .get(&SINGLETON_KEY)
+                    .expect("db error")
+            });
+
+        Ok(debt
+            .map(|debt| debt.decayed(current_round, per_commit_limit))
+            .unwrap_or_default())
     }
 
     /// Used in testing to load debts. Only looks in the in-memory quarantine.

@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectData, StructTag};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -10,17 +10,14 @@ use super::unlock_conditions::{
 };
 use crate::{
     balance::Balance,
-    base_types::IotaAddress,
     collection_types::{Bag, VecMap},
     error::IotaError,
     id::UID,
-    object::{Data, Object},
+    object::Object,
 };
 
-pub const NFT_MODULE_NAME: Identifier = Identifier::from_static("nft");
 pub const NFT_OUTPUT_MODULE_NAME: Identifier = Identifier::from_static("nft_output");
 pub const NFT_OUTPUT_STRUCT_NAME: Identifier = Identifier::from_static("NftOutput");
-pub const NFT_STRUCT_NAME: Identifier = Identifier::from_static("Nft");
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY: &[u8] = b"nft";
 pub const NFT_DYNAMIC_OBJECT_FIELD_KEY_TYPE: &str = "vector<u8>";
 
@@ -91,7 +88,7 @@ pub struct Irc27Metadata {
     /// Contains a hash of the 32 bytes parsed from the BECH32 encoded IOTA
     /// address in the metadata, it is a legacy address. Royalties are not
     /// supported by the protocol and needed to be processed by an integrator.
-    pub royalties: VecMap<IotaAddress, FixedPoint32>,
+    pub royalties: VecMap<Address, FixedPoint32>,
 
     /// The human-readable name of the NFT creator.
     pub issuer_name: Option<String>,
@@ -115,29 +112,16 @@ pub struct Nft {
 
     /// The sender feature holds the last sender address assigned before the
     /// migration and is not supported by the protocol after it.
-    pub legacy_sender: Option<IotaAddress>,
+    pub legacy_sender: Option<Address>,
     /// The metadata feature.
     pub metadata: Option<Vec<u8>>,
     /// The tag feature.
     pub tag: Option<Vec<u8>>,
 
     /// The immutable issuer feature.
-    pub immutable_issuer: Option<IotaAddress>,
+    pub immutable_issuer: Option<Address>,
     /// The immutable metadata feature.
     pub immutable_metadata: Irc27Metadata,
-}
-
-impl Nft {
-    /// Returns the struct tag that represents the fully qualified path of an
-    /// [`Nft`] in its move package.
-    pub fn tag() -> StructTag {
-        StructTag::new(
-            IotaAddress::STARDUST,
-            NFT_MODULE_NAME,
-            NFT_STRUCT_NAME,
-            Vec::new(),
-        )
-    }
 }
 
 #[serde_as]
@@ -162,17 +146,6 @@ pub struct NftOutput {
 }
 
 impl NftOutput {
-    /// Returns the struct tag that represents the fully qualified path of an
-    /// [`NftOutput`] in its move package.
-    pub fn tag(type_param: TypeTag) -> StructTag {
-        StructTag::new(
-            IotaAddress::STARDUST,
-            NFT_OUTPUT_MODULE_NAME,
-            NFT_OUTPUT_STRUCT_NAME,
-            vec![type_param],
-        )
-    }
-
     /// Create an `NftOutput` from BCS bytes.
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
@@ -181,7 +154,7 @@ impl NftOutput {
     }
 
     pub fn is_nft_output(s: &StructTag) -> bool {
-        s.address() == IotaAddress::STARDUST
+        s.address() == Address::STARDUST
             && s.module() == &NFT_OUTPUT_MODULE_NAME
             && s.name() == &NFT_OUTPUT_STRUCT_NAME
     }
@@ -191,12 +164,12 @@ impl TryFrom<&Object> for NftOutput {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if NftOutput::is_nft_output(o.struct_tag()) {
                     return NftOutput::from_bcs_bytes(o.contents());
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

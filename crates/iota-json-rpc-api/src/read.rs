@@ -7,17 +7,11 @@ use iota_json_rpc_types::{
     IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, Page,
     ProtocolConfigResponse,
-    iota_primitives::{
-        Base58 as Base58Schema, ObjectId as ObjectIdSchema,
-        SequenceNumberU64 as SequenceNumberU64Schema,
-    },
+    iota_primitives::{Base58 as Base58Schema, ObjectId as ObjectIdSchema, SequenceNumberU64},
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_sdk_types::ObjectId;
-use iota_types::{
-    base_types::{SequenceNumber, TransactionDigest},
-    iota_serde::BigInt,
-};
+use iota_sdk_types::{ObjectId, TransactionDigest, Version};
+use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Provides methods for reading transaction related data such as transaction
@@ -99,8 +93,7 @@ pub trait ReadApi {
         #[schemars(with = "ObjectIdSchema")]
         object_id: ObjectId,
         /// the version of the queried object. If None, default to the latest known version
-        #[schemars(with = "SequenceNumberU64Schema")]
-        version: SequenceNumber,
+        version: SequenceNumberU64,
         /// options for specifying the content to be returned
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<IotaPastObjectResponse>;
@@ -123,7 +116,7 @@ pub trait ReadApi {
         /// the ID of the queried object
         object_id: ObjectId,
         /// the version of the queried object
-        version: SequenceNumber,
+        version: Version,
     ) -> RpcResult<IotaPastObjectResponse>;
 
     /// Note there is no software-level guarantee/SLA that objects with past

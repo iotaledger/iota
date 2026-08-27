@@ -21,25 +21,23 @@ mod ingestion_tests {
         models::{
             checkpoints::StoredCheckpoint,
             obj_indices::StoredObjectVersion,
-            objects::{BackwardHistoryObjectStatus, StoredCheckpointedObject, StoredObject},
+            objects::{StoredCheckpointedObject, StoredObject},
             transactions::{StoredTransaction, TxGlobalOrder},
-            tx_indices::StoredTxDigest,
         },
-        schema::{
-            checkpointed_objects, checkpoints, objects, transactions, tx_digests, tx_global_order,
-        },
+        schema::{checkpointed_objects, checkpoints, objects, transactions, tx_global_order},
         store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
     };
-    use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag};
+    use iota_sdk_types::{
+        Address, Identifier, ObjectId, ObjectReference, Owner, StructTag, Transaction,
+        TransactionEffects, Version,
+    };
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{IotaAddress, ObjectRef, SequenceNumber},
-        crypto::KeypairTraits,
-        effects::{TransactionEffects, TransactionEffectsAPI},
+        effects::TransactionEffectsAPI,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        transaction::{CallArg, Transaction, TransactionData, TransactionDataAPI},
+        transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use simulacrum::Simulacrum;
     use tempfile::tempdir;
@@ -93,7 +91,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -145,7 +143,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -183,7 +181,7 @@ mod ingestion_tests {
         );
         assert_eq!(
             db_object.object_type_package,
-            Some(IotaAddress::FRAMEWORK.as_bytes().to_vec())
+            Some(Address::FRAMEWORK.as_bytes().to_vec())
         );
         assert_eq!(db_object.object_type_module, Some("coin".to_string()));
         assert_eq!(db_object.object_type_name, Some("Coin".to_string()));
@@ -198,7 +196,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -219,14 +217,6 @@ mod ingestion_tests {
 
         let digest = effects.transaction_digest();
 
-        let stored_tx_digest = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            tx_digests::table
-                .filter(tx_digests::tx_digest.eq(digest.inner().to_vec()))
-                .select(StoredTxDigest::as_select())
-                .first::<StoredTxDigest>(conn)
-        })
-        .context("failed reading `tx_global_order` from PostgresDB")?;
-
         let stored_global_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             tx_global_order::table
                 .filter(tx_global_order::tx_digest.eq(digest.inner().to_vec()))
@@ -235,10 +225,7 @@ mod ingestion_tests {
         })
         .context("failed reading `tx_global_order` from PostgresDB")?;
 
-        assert_eq!(
-            stored_global_order.global_sequence_number,
-            stored_tx_digest.tx_sequence_number
-        );
+        assert!(stored_global_order.tx_sequence_number.is_some());
         let expected_optimistic_sequence_number = -1;
         assert_eq!(
             stored_global_order.optimistic_sequence_number,
@@ -255,7 +242,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute a simple transaction.
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (effects, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -263,7 +250,6 @@ mod ingestion_tests {
         sim.create_checkpoint();
         let digest = *effects.transaction_digest();
 
-        let global_sequence_number = 123;
         let emulate_insertion_order_set_earlier_by_optimistic_indexing =
             move |pg_store: &PgIndexerStore| {
                 transactional_blocking_with_retry!(
@@ -271,9 +257,8 @@ mod ingestion_tests {
                     |conn| {
                         let insertable = TxGlobalOrder {
                             tx_digest: digest.inner().to_vec(),
-                            global_sequence_number,
                             optimistic_sequence_number: None,
-                            chk_tx_sequence_number: None,
+                            tx_sequence_number: None,
                         };
                         insert_or_ignore_into!(tx_global_order::table, insertable, conn);
                         Ok::<(), IndexerError>(())
@@ -304,7 +289,9 @@ mod ingestion_tests {
         })
         .context("failed reading `tx_global_order` from PostgresDB")?;
 
-        assert_eq!(stored.global_sequence_number, global_sequence_number);
+        // The checkpoint upsert must fill in the sequence number without
+        // replacing the row inserted by the optimistic path.
+        assert!(stored.tx_sequence_number.is_some());
         let expected_optimistic_sequence_number = 1;
         assert_eq!(
             stored.optimistic_sequence_number,
@@ -395,7 +382,7 @@ mod ingestion_tests {
         let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
@@ -442,13 +429,13 @@ mod ingestion_tests {
         let data_ingestion_path = tmp_dir.path().to_path_buf();
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
-        let transfer_recipient = IotaAddress::random();
+        let transfer_recipient = Address::random();
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
         assert!(err.is_none());
 
         sim.create_checkpoint(); // checkpoint 1
-        sim.advance_epoch(); // checkpoint 2 and epoch 1
+        sim.advance_epoch(false); // checkpoint 2 and epoch 1
 
         let (transaction, _) = sim.transfer_txn(transfer_recipient);
         let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
@@ -485,8 +472,8 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // Execute several transfers to create mutations.
-        let recipient1 = IotaAddress::random();
-        let recipient2 = IotaAddress::random();
+        let recipient1 = Address::random();
+        let recipient2 = Address::random();
 
         let (tx1, _) = sim.transfer_txn(recipient1);
         let (_, err) = sim.execute_transaction(tx1).unwrap();
@@ -638,7 +625,7 @@ mod ingestion_tests {
         // This exercises the case where multiple transactions produce backward
         // history entries for the same checkpoint, and where the same object
         // (the gas coin) is mutated by both transactions within one checkpoint.
-        let recipient1 = IotaAddress::random();
+        let recipient1 = Address::random();
         let (tx1, _) = sim.transfer_txn(recipient1);
         let gas_ref_tx1 = tx1.gas()[0];
         let gas_object_id = gas_ref_tx1.object_id;
@@ -659,7 +646,7 @@ mod ingestion_tests {
 
         // Second transfer in the same checkpoint — uses the same gas object
         // (now at an updated version).
-        let recipient2 = IotaAddress::random();
+        let recipient2 = Address::random();
         let (tx2, _) = sim.transfer_txn(recipient2);
         let gas_version_before_tx2 = tx2.gas()[0].version;
         assert!(
@@ -680,7 +667,7 @@ mod ingestion_tests {
         sim.create_checkpoint();
 
         // --- checkpoint 2: one more transfer ---
-        let recipient3 = IotaAddress::random();
+        let recipient3 = Address::random();
         let (tx3, _) = sim.transfer_txn(recipient3);
         let gas_version_before_tx3 = tx3.gas()[0].version;
         let (effects3, err) = sim.execute_transaction(tx3).unwrap();
@@ -712,10 +699,7 @@ mod ingestion_tests {
         // minus one).
         let entry = find_backward_entry(&pg_store, created_coin_1.as_bytes(), 1)?
             .expect("created coin 1 must have a backward history entry at cp 1");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::NotYetCreated as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
             entry.object_version,
             created_coin_1_version.as_u64() as i64 - 1
@@ -725,10 +709,7 @@ mod ingestion_tests {
 
         let entry = find_backward_entry(&pg_store, created_coin_2.as_bytes(), 1)?
             .expect("created coin 2 must have a backward history entry at cp 1");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::NotYetCreated as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
             entry.object_version,
             created_coin_2_version.as_u64() as i64 - 1
@@ -742,10 +723,7 @@ mod ingestion_tests {
             2,
             "gas object should have 2 backward history entries in cp 1 (one per tx)"
         );
-        assert_eq!(
-            gas_entries[0].object_status,
-            BackwardHistoryObjectStatus::Active as i16
-        );
+        assert_eq!(gas_entries[0].object_status, ObjectStatus::Active as i16);
         assert_eq!(
             gas_entries[0].object_version,
             gas_version_before_tx1.as_u64() as i64
@@ -754,10 +732,7 @@ mod ingestion_tests {
         assert!(gas_entries[0].object_digest.is_some());
         assert!(gas_entries[0].owner_type.is_some());
 
-        assert_eq!(
-            gas_entries[1].object_status,
-            BackwardHistoryObjectStatus::Active as i16
-        );
+        assert_eq!(gas_entries[1].object_status, ObjectStatus::Active as i16);
         assert_eq!(
             gas_entries[1].object_version,
             gas_version_before_tx2.as_u64() as i64
@@ -768,10 +743,7 @@ mod ingestion_tests {
 
         let entry = find_backward_entry(&pg_store, created_coin_3.as_bytes(), 2)?
             .expect("created coin 3 must have a backward history entry at cp 2");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::NotYetCreated as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::NotYetCreated as i16);
         assert_eq!(
             entry.object_version,
             created_coin_3_version.as_u64() as i64 - 1
@@ -779,10 +751,7 @@ mod ingestion_tests {
 
         let entry = find_backward_entry(&pg_store, gas_object_id.as_bytes(), 2)?
             .expect("gas object must have a backward history entry at cp 2");
-        assert_eq!(
-            entry.object_status,
-            BackwardHistoryObjectStatus::Active as i16
-        );
+        assert_eq!(entry.object_status, ObjectStatus::Active as i16);
         assert_eq!(entry.object_version, gas_version_before_tx3.as_u64() as i64);
         assert!(entry.serialized_object.is_some());
 
@@ -799,7 +768,7 @@ mod ingestion_tests {
         sim.set_data_ingestion_path(data_ingestion_path.clone());
 
         // two transfers using the same gas object
-        let (tx1, _) = sim.transfer_txn(IotaAddress::random());
+        let (tx1, _) = sim.transfer_txn(Address::random());
         let gas_object_id = tx1.gas()[0].object_id;
         let (effects1, err) = sim.execute_transaction(tx1).unwrap();
         assert!(err.is_none());
@@ -812,7 +781,7 @@ mod ingestion_tests {
             .version;
         let created_coin_1 = effects1.created()[0].0;
 
-        let (tx2, _) = sim.transfer_txn(IotaAddress::random());
+        let (tx2, _) = sim.transfer_txn(Address::random());
         let (effects2, err) = sim.execute_transaction(tx2).unwrap();
         assert!(err.is_none());
         let gas_after_tx2 = effects2
@@ -827,7 +796,7 @@ mod ingestion_tests {
         sim.create_checkpoint();
 
         // one more transfer, separate checkpoint
-        let (tx3, _) = sim.transfer_txn(IotaAddress::random());
+        let (tx3, _) = sim.transfer_txn(Address::random());
         let (effects3, err) = sim.execute_transaction(tx3).unwrap();
         assert!(err.is_none());
         let gas_after_tx3 = effects3
@@ -851,12 +820,11 @@ mod ingestion_tests {
 
         indexer_wait_for_checkpoint(&pg_store, 2).await;
 
-        let make_version_row =
-            |id: ObjectId, version: SequenceNumber, cp: i64| StoredObjectVersion {
-                object_id: id.as_bytes().to_vec(),
-                object_version: version.as_u64() as i64,
-                cp_sequence_number: cp,
-            };
+        let make_version_row = |id: ObjectId, version: Version, cp: i64| StoredObjectVersion {
+            object_id: id.as_bytes().to_vec(),
+            object_version: version.as_u64() as i64,
+            cp_sequence_number: cp,
+        };
 
         // checkpoint 1: gas mutated twice + two coins created
         let mut cp1_expected = vec![
@@ -886,19 +854,19 @@ mod ingestion_tests {
     }
 
     /// Executes transaction in simulacrum, asserts success and returns effects.
-    fn execute_signed(sim: &Simulacrum, tx_data: TransactionData) -> TransactionEffects {
+    fn execute_signed(sim: &Simulacrum, tx: Transaction) -> TransactionEffects {
         let (sender, key) = sim.with_keystore(|ks| {
             let (s, k) = ks.accounts().next().unwrap();
-            (*s, k.copy())
+            (*s, k.clone())
         });
-        assert_eq!(tx_data.sender(), sender);
-        let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
+        assert_eq!(tx.sender(), sender);
+        let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
         let (effects, err) = sim.execute_transaction(tx).unwrap();
         assert!(err.is_none(), "tx failed: {err:?}");
         effects
     }
 
-    fn pick_gas(sim: &Simulacrum, sender: IotaAddress) -> ObjectRef {
+    fn pick_gas(sim: &Simulacrum, sender: Address) -> ObjectReference {
         sim.with_store(|s| {
             s.owned_objects(sender)
                 .find(|o| o.is_gas_coin())
@@ -1115,7 +1083,7 @@ mod ingestion_tests {
         indexer_wait_for_checkpoint(&pg_store, 6).await;
 
         let assert_present =
-            |rows: &[StoredObjectVersion], id: ObjectId, version: SequenceNumber, label: &str| {
+            |rows: &[StoredObjectVersion], id: ObjectId, version: Version, label: &str| {
                 assert!(
                     rows.iter().any(|r| r.object_id == id.as_bytes().to_vec()
                         && r.object_version == version.as_u64() as i64),

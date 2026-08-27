@@ -98,7 +98,7 @@ mod dynamic_field;
 mod event;
 mod object;
 pub mod object_runtime;
-mod protocol_config;
+pub mod protocol_config;
 mod random;
 pub mod test_scenario;
 mod test_utils;
@@ -1323,6 +1323,21 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             make_native!(protocol_config::is_feature_enabled),
         ),
         (
+            "protocol_config",
+            "get_attr",
+            make_native!(protocol_config::get_attr),
+        ),
+        (
+            "protocol_config",
+            "set_feature_enabled_for_testing",
+            make_native!(protocol_config::set_feature_enabled_for_testing),
+        ),
+        (
+            "protocol_config",
+            "set_attr_for_testing",
+            make_native!(protocol_config::set_attr_for_testing),
+        ),
+        (
             "vdf",
             "vdf_verify_internal",
             make_native!(vdf::vdf_verify_internal),
@@ -1355,11 +1370,33 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
                     func,
                 )
             });
-    let iota_system_natives: &[(&str, &str, NativeFunction)] = &[(
-        "validator",
-        "validate_metadata_bcs",
-        make_native!(validator::validate_metadata_bcs),
-    )];
+    let iota_system_natives: &[(&str, &str, NativeFunction)] = &[
+        (
+            "validator",
+            "validate_metadata_bcs",
+            make_native!(validator::validate_metadata_bcs),
+        ),
+        (
+            "protocol_config",
+            "is_feature_enabled",
+            make_native!(protocol_config::is_feature_enabled),
+        ),
+        (
+            "protocol_config",
+            "get_attr",
+            make_native!(protocol_config::get_attr),
+        ),
+        (
+            "protocol_config",
+            "set_feature_enabled_for_testing",
+            make_native!(protocol_config::set_feature_enabled_for_testing),
+        ),
+        (
+            "protocol_config",
+            "set_attr_for_testing",
+            make_native!(protocol_config::set_attr_for_testing),
+        ),
+    ];
     iota_system_natives
         .iter()
         .cloned()

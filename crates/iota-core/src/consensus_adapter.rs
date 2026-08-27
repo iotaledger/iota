@@ -21,10 +21,11 @@ use futures::{
     pin_mut,
     stream::FuturesUnordered,
 };
-use iota_metrics::{GaugeGuard, GaugeGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
+use iota_metrics::{GaugeGuard, InflightGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
+use iota_sdk_types::TransactionDigest;
 use iota_simulator::anemo::PeerId;
 use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
+    base_types::AuthorityName,
     committee::Committee,
     error::{IotaError, IotaResult},
     fp_ensure,
@@ -32,8 +33,8 @@ use iota_types::{
 };
 use itertools::Itertools;
 use parking_lot::RwLockReadGuard;
-use prometheus::{
-    Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, Registry,
+use prometheus_filtered::{
+    Histogram, HistogramVec, IntCounterVec, IntGauge, IntGaugeVec, MetricLevel, Registry,
     register_histogram_vec_with_registry, register_histogram_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry,
     register_int_gauge_with_registry,
@@ -90,7 +91,8 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_attempt",
                 "Counts the number of certificates the validator attempts to sequence.",
                 &["tx_type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_certificate_success: register_int_counter_vec_with_registry!(
@@ -111,14 +113,16 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_status",
                 "The status of the certificate sequencing as reported by consensus. The status can be either sequenced or garbage collected.",
                 &["tx_type", "status"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_certificate_inflight: register_int_gauge_vec_with_registry!(
                 "sequencing_certificate_inflight",
                 "The inflight requests to sequence certificates.",
                 &["tx_type"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_acknowledge_latency: register_histogram_vec_with_registry!(
@@ -134,7 +138,8 @@ impl ConsensusAdapterMetrics {
                 "The latency for sequencing a certificate.",
                 &["position", "tx_type", "processed_method"],
                 LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_certificate_authority_position: register_histogram_with_registry!(
@@ -162,7 +167,8 @@ impl ConsensusAdapterMetrics {
                 "sequencing_certificate_processed",
                 "The number of certificates that have been processed either by consensus or checkpoint.",
                 &["source"],
-                registry
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             sequencing_in_flight_semaphore_wait: register_int_gauge_with_registry!(
@@ -239,31 +245,55 @@ pub trait ConsensusClient: Sync + Send + 'static {
 pub struct ConsensusAdapter {
     /// The network client connecting to the consensus node of this authority.
     consensus_client: Arc<dyn ConsensusClient>,
+
     /// The checkpoint store for the validator
     checkpoint_store: Arc<CheckpointStore>,
+
     /// Authority pubkey.
     authority: AuthorityName,
-    /// The limit to number of inflight transactions at this node.
+
+    /// The hard limit on the number of inflight transactions at this node.
+    /// Used as the upper bound for graduated pre-consensus load shedding
+    /// (`graduated_load_shedding_soft_limit_pct`) in the certificate-less
+    /// (P-COOL) mode, and as the threshold for the binary
+    /// cutoff in `ConsensusAdapter::check_consensus_overload()` in both
+    /// certificate-less and certificate-based flows.
     max_pending_transactions: usize,
+
     /// Number of submitted transactions still inflight at this node.
     num_inflight_transactions: AtomicU64,
+
     /// Dictates the maximum position  from which will submit to consensus. Even
     /// if the is elected to submit from a higher position than this, it
     /// will "reset" to the max_submit_position.
     max_submit_position: Option<usize>,
+
     /// When provided it will override the current back off logic and will use
     /// this value instead as delay step.
     submit_delay_step_override: Option<Duration>,
+
     /// A structure to check the connection statuses populated by the Connection
     /// Monitor Listener
     connection_monitor_status: Arc<dyn CheckConnection>,
+
     /// A structure to check the reputation scores populated by Consensus
     low_scoring_authorities: ArcSwap<Arc<ArcSwap<HashMap<AuthorityName, u64>>>>,
+
     /// A structure to register metrics
     metrics: ConsensusAdapterMetrics,
+
     /// Semaphore limiting parallel submissions to consensus
     submit_semaphore: Semaphore,
+
+    /// Tracks consensus submission latency for adaptive submit-delay backoff.
     latency_observer: LatencyObserver,
+
+    /// Percentage of `max_pending_transactions` (hard limit) defining the soft
+    /// limit at which graduated pre-consensus load shedding begins. When
+    /// in-flight transactions are at or below the soft limit, no shedding
+    /// occurs; above it, the shedding rate scales linearly from 0% to 100% at
+    /// `max_pending_transactions`. Used in the certificate-less (P-COOL) mode.
+    graduated_load_shedding_soft_limit_pct: u32,
 }
 
 pub trait CheckConnection: Send + Sync {
@@ -296,6 +326,7 @@ impl ConsensusAdapter {
         max_submit_position: Option<usize>,
         submit_delay_step_override: Option<Duration>,
         metrics: ConsensusAdapterMetrics,
+        graduated_load_shedding_soft_limit_pct: u32,
     ) -> Self {
         let num_inflight_transactions = Default::default();
         let low_scoring_authorities =
@@ -313,7 +344,26 @@ impl ConsensusAdapter {
             metrics,
             submit_semaphore: Semaphore::new(max_pending_local_submissions),
             latency_observer: LatencyObserver::new(),
+            graduated_load_shedding_soft_limit_pct,
         }
+    }
+
+    /// Test-only: creates a consensus adapter with a `MockConsensusClient`,
+    /// default values for all parameters, and the given authority name.
+    #[cfg(test)]
+    pub fn new_for_testing_with_authority_name(authority_name: AuthorityName) -> Self {
+        Self::new(
+            Arc::new(MockConsensusClient::new()),
+            CheckpointStore::new_for_tests(),
+            authority_name,
+            Arc::new(ConnectionMonitorStatusForTests {}),
+            100_000,
+            100_000,
+            None,
+            None,
+            ConsensusAdapterMetrics::new_test(),
+            50,
+        )
     }
 
     pub fn swap_low_scoring_authorities(
@@ -332,8 +382,8 @@ impl ConsensusAdapter {
         let mut recovered = epoch_store.get_all_pending_consensus_transactions();
 
         let is_pending_consensus_certificates_empty =
-            if epoch_store.protocol_config().enable_white_flag_flow() {
-                // In the certificate-less mode, the list of pending consensus
+            if epoch_store.protocol_config().enable_pcool_flow() {
+                // In the P-COOL flow, the list of pending consensus
                 // certificates is always empty.
                 true
             } else {
@@ -386,7 +436,7 @@ impl ConsensusAdapter {
                     Some(certificate.digest())
                 }
                 ConsensusTransactionKind::UserTransactionV1(_) => {
-                    // White flag: no submit delay needed (number of submitting validators
+                    // P-COOL: no submit delay needed (number of submitting validators
                     // controlled through another mechanism)
                     None
                 }
@@ -579,15 +629,15 @@ impl ConsensusAdapter {
         if transactions.len() > 1 {
             // Soft-bundle batches must be homogeneous: either all
             // CertifiedTransaction (certificate flow) or all
-            // UserTransactionV1 (white-flag flow). submit_and_wait_inner
+            // UserTransactionV1 (P-COOL flow). submit_and_wait_inner
             // assumes a single transaction kind across the batch.
             for transaction in transactions {
+                // Routed through the shared user-transaction helpers rather than an
+                // inline match, so a new user-transaction kind is classified in one
+                // place (`ConsensusTransactionKind::is_user_transaction`) and becomes
+                // soft-bundle eligible automatically.
                 fp_ensure!(
-                    matches!(
-                        transaction.kind,
-                        ConsensusTransactionKind::CertifiedTransaction(_)
-                            | ConsensusTransactionKind::UserTransactionV1(_)
-                    ),
+                    transaction.is_user_certificate() || transaction.kind.is_user_transaction(),
                     IotaError::InvalidTxKindInSoftBundle
                 );
             }
@@ -598,29 +648,62 @@ impl ConsensusAdapter {
         Ok(self.submit_unchecked(transactions, epoch_store))
     }
 
+    /// Returns the limit on the number of inflight transactions at this node.
+    pub(super) fn max_pending_transactions(&self) -> usize {
+        self.max_pending_transactions
+    }
+
+    /// Returns the percentage of `max_pending_transactions` (hard limit)
+    /// defining the soft limit at which graduated pre-consensus load
+    /// shedding begins. Defaults to 50%. Used in the certificate-less
+    /// (P-COOL) mode.
+    pub(super) fn graduated_load_shedding_soft_limit_pct(&self) -> u32 {
+        self.graduated_load_shedding_soft_limit_pct
+    }
+
     /// Returns the number of transactions currently in-flight in consensus.
-    pub fn num_inflight_transactions(&self) -> u64 {
+    pub(super) fn num_inflight_transactions(&self) -> u64 {
         self.num_inflight_transactions.load(Ordering::Relaxed)
     }
 
-    /// Performs weakly consistent checks on internal buffers to quickly
-    /// discard transactions if we are overloaded
-    pub fn check_limits(&self) -> bool {
-        // First check total transactions (waiting and in submission)
+    /// Test-only: sets the number of in-flight transactions.
+    #[cfg(test)]
+    pub(super) fn set_num_inflight_transactions_for_testing(&self, value: u64) {
+        self.num_inflight_transactions
+            .store(value, Ordering::Relaxed);
+    }
+
+    /// Returns `true` if both hard limits allow another transaction:
+    /// (i) in-flight count is at or below `max_pending_transactions`, and
+    /// (ii) `submit_semaphore` has at least one available permit.
+    ///
+    /// Uses relaxed atomic reads: the two limits are not observed atomically.
+    fn check_consensus_hard_limits(&self) -> bool {
+        // First check total in-flight transactions (waiting and in submission).
+        // TODO: this check is redundant in the P-COOL flow - graduated
+        // shedding already rejects at 100% once `num_inflight_transactions`
+        // reaches `max_pending_transactions`. Remove when the certificate-based
+        // flow is removed from the codebase. The semaphore check below stays in
+        // either case, since it is a separate concurrency limit not covered
+        // by graduated shedding.
         if self.num_inflight_transactions.load(Ordering::Relaxed) as usize
             > self.max_pending_transactions
         {
             return false;
         }
-        // Then check if submit_semaphore has permits
+
+        // Then check if `submit_semaphore` has permits
         self.submit_semaphore.available_permits() > 0
     }
 
+    /// `IotaResult` wrapper for `check_consensus_hard_limits`. Returns
+    /// `TooManyTransactionsPendingConsensus` when the hard limits are exceeded.
     pub(crate) fn check_consensus_overload(&self) -> IotaResult {
         fp_ensure!(
-            self.check_limits(),
+            self.check_consensus_hard_limits(),
             IotaError::TooManyTransactionsPendingConsensus
         );
+
         Ok(())
     }
 
@@ -738,6 +821,8 @@ impl ConsensusAdapter {
                     | ConsensusTransactionKind::CapabilityNotificationV1(_)
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
+                    | ConsensusTransactionKind::OverloadNotificationV1(_, _, _)
+                    | ConsensusTransactionKind::TransactionDenyRuleProposal(_)
             ) {
             let transaction_keys = transaction_keys.clone();
             Some(CancelOnDrop(spawn_monitored_task!(async {
@@ -769,7 +854,7 @@ impl ConsensusAdapter {
             let _permit: SemaphorePermit = self
                 .submit_semaphore
                 .acquire()
-                .count_in_flight(&self.metrics.sequencing_in_flight_semaphore_wait)
+                .count_in_flight(self.metrics.sequencing_in_flight_semaphore_wait.clone())
                 .await
                 .expect("Consensus adapter does not close semaphore");
             let _in_flight_submission_guard =
@@ -853,24 +938,19 @@ impl ConsensusAdapter {
             .expect("Storage error when removing consensus transaction");
 
         let is_user_tx = is_soft_bundle
-            || if epoch_store.protocol_config().enable_white_flag_flow() {
-                // In the certificate-less mode, `UserTransactionV1` kind corresponds
-                // to user transactions.
-                matches!(
-                    transactions[0].kind,
-                    ConsensusTransactionKind::UserTransactionV1(_)
-                )
+            || if epoch_store.protocol_config().enable_pcool_flow() {
+                // In the P-COOL flow, `UserTransactionV1` kind corresponds
+                // to user transactions.  Routed through the shared predicate
+                // so a new user-transaction kind is classified in one place.
+                transactions[0].kind.is_user_transaction()
             } else {
                 // In the certificate mode, `CertifiedTransaction` kind corresponds
                 // to user transactions.
-                matches!(
-                    transactions[0].kind,
-                    ConsensusTransactionKind::CertifiedTransaction(_)
-                )
+                transactions[0].is_user_certificate()
             };
         let send_end_of_publish = if is_user_tx {
-            if epoch_store.protocol_config().enable_white_flag_flow() {
-                // In certificate-less mode, `EndOfPublish` is sent solely from
+            if epoch_store.protocol_config().enable_pcool_flow() {
+                // In the P-COOL flow, `EndOfPublish` is sent solely from
                 // `close_epoch`. There is no pending certificate drain to
                 // monitor here, and sending from this per-transaction callback
                 // would produce N duplicate EndOfPublish messages (one per
@@ -1212,7 +1292,7 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
     /// It transitions the reconfig state to reject new user transactions.
     /// `ConsensusAdapter` will send `EndOfPublish` once all pending
     /// transactions are drained (in the certificate mode) or right away
-    /// (in the certificate-less mode). Submission is asynchronous —
+    /// (in the P-COOL flow). Submission is asynchronous —
     /// a background task handles retries so this method returns promptly.
     fn close_epoch(&self, epoch_store: &Arc<AuthorityPerEpochStore>) {
         let send_end_of_publish = {
@@ -1222,10 +1302,10 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
                 return;
             }
 
-            let send_end_of_publish = if epoch_store.protocol_config().enable_white_flag_flow() {
-                // In certificate-less mode, there are no pending consensus
+            let send_end_of_publish = if epoch_store.protocol_config().enable_pcool_flow() {
+                // In the P-COOL flow, there are no pending consensus
                 // certificates, so `EndOfPublish` is always sent immediately.
-                debug!(epoch=?epoch_store.epoch(), "Closing epoch in certificate-less mode");
+                debug!(epoch=?epoch_store.epoch(), "Closing epoch in P-COOL mode");
 
                 true
             } else {
@@ -1423,8 +1503,8 @@ mod adapter_tests {
     use std::{sync::Arc, time::Duration};
 
     use fastcrypto::traits::KeyPair;
+    use iota_sdk_types::TransactionDigest;
     use iota_types::{
-        base_types::TransactionDigest,
         committee::Committee,
         crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, get_key_pair_from_rng},
     };
@@ -1473,10 +1553,11 @@ mod adapter_tests {
             Some(1),
             Some(Duration::from_secs(2)),
             ConsensusAdapterMetrics::new_test(),
+            50,
         );
 
         // transaction to submit
-        let tx_digest = TransactionDigest::generate(&mut rng);
+        let tx_digest = TransactionDigest::random_with(&mut rng);
 
         // Ensure that the original position is higher
         let (position, positions_moved, _) =
@@ -1503,6 +1584,7 @@ mod adapter_tests {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
+            50,
         );
 
         let (delay_step, position, positions_moved, _) =
@@ -1525,7 +1607,7 @@ mod adapter_tests {
         const NUM_TEST_TRANSACTIONS: usize = 1000;
 
         for _tx_idx in 0..NUM_TEST_TRANSACTIONS {
-            let tx_digest = TransactionDigest::generate(&mut rng);
+            let tx_digest = TransactionDigest::random_with(&mut rng);
 
             let mut zero_found = false;
             for (name, _) in committee.members() {

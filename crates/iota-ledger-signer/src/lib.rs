@@ -2,15 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_ledger::{Ledger, SignedTransaction};
-use iota_sdk::{
-    IotaClient,
-    types::{
-        base_types::IotaAddress,
-        crypto::{PublicKey, SignatureScheme},
-        transaction::TransactionData,
-    },
-};
-use iota_sdk_types::Intent;
+use iota_sdk::{IotaClient, types::crypto::PublicKey};
+use iota_sdk_types::{Address, Intent, SignatureScheme, Transaction};
 use tracing::warn;
 
 mod errors;
@@ -44,7 +37,7 @@ impl LedgerSigner {
         self.ledger.get_signature_scheme()
     }
 
-    pub fn get_address(&self) -> Result<IotaAddress, LedgerSignerError> {
+    pub fn get_address(&self) -> Result<Address, LedgerSignerError> {
         let public_key = self.ledger.get_public_key(&self.path)?;
         Ok(public_key.address)
     }
@@ -56,8 +49,8 @@ impl LedgerSigner {
 
     pub async fn sign_transaction(
         &self,
-        transaction: &TransactionData,
-        address: &IotaAddress,
+        transaction: &Transaction,
+        address: &Address,
     ) -> Result<SignedTransaction, LedgerSignerError> {
         let objects = if let Some(client) = &self.client {
             match utils::load_objects_with_client(client, transaction).await {
@@ -85,7 +78,7 @@ impl LedgerSigner {
     pub fn sign_message(
         &self,
         message: Vec<u8>,
-        address: &IotaAddress,
+        address: &Address,
     ) -> Result<SignedTransaction, LedgerSignerError> {
         self.ledger
             .sign_intent(

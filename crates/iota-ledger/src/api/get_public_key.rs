@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::ed25519::ED25519_PUBLIC_KEY_LENGTH;
-use iota_types::{
-    base_types::IotaAddress,
-    crypto::{PublicKey, SignatureScheme},
-};
+use iota_sdk_types::{Address, SignatureScheme};
+use iota_types::crypto::PublicKey;
 
 use crate::{
     Transport,
@@ -19,7 +17,7 @@ use crate::{
 
 pub struct PublicKeyResult {
     pub public_key: PublicKey,
-    pub address: IotaAddress,
+    pub address: Address,
 }
 
 impl Unpackable for PublicKeyResult {
@@ -32,7 +30,7 @@ impl Unpackable for PublicKeyResult {
         }
         let mut key = [0_u8; ED25519_PUBLIC_KEY_LENGTH];
         buf.read_exact(&mut key)?;
-        let public_key = PublicKey::try_from_bytes(SignatureScheme::ED25519, &key)
+        let public_key = PublicKey::try_from_bytes(SignatureScheme::Ed25519, &key)
             .map_err(|_| PackableError::InvalidData)?;
 
         if u8::unpack(buf)? != 32 {
@@ -41,7 +39,7 @@ impl Unpackable for PublicKeyResult {
         let mut address_buffer = [0_u8; 32];
         buf.read_exact(&mut address_buffer)?;
         let address =
-            IotaAddress::from_bytes(address_buffer).map_err(|_| PackableError::InvalidData)?;
+            Address::from_bytes(address_buffer).map_err(|_| PackableError::InvalidData)?;
 
         Ok(Self {
             public_key,

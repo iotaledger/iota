@@ -7,22 +7,23 @@ use std::{collections::BTreeMap, path::Path};
 use anyhow::Result;
 use async_recursion::async_recursion;
 use async_trait::async_trait;
+use iota_grpc_client::Client as GrpcClient;
 use iota_json::{is_receiving_argument, primitive_type};
-use iota_json_rpc_types::{IotaObjectData, IotaObjectDataOptions, IotaRawData};
 use iota_move::manage_package::resolve_lock_file_path;
 use iota_move_build::CompiledPackage;
-use iota_sdk::apis::ReadApi;
+use iota_sdk::wallet_context::WalletContext;
+use iota_sdk_transaction_builder::TransactionBuilderClient;
 use iota_sdk_types::{
-    Argument, Command, Identifier, ObjectId, Owner, ProgrammableTransaction, TypeTag,
-    move_package::MovePackage,
+    Address, Argument, Command, Identifier, Object, ObjectData, ObjectId, Owner,
+    ProgrammableTransaction, SharedObjectReference, TypeTag, move_package::MovePackage,
 };
 use iota_types::{
-    base_types::{IotaAddress, TxContext, TxContextKind, is_primitive_type_tag},
+    base_types::{TxContext, TxContextKind, is_primitive_type_tag},
     iota_sdk_types_conversions::type_tag_core_to_sdk,
     move_package::MovePackageExt,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     resolve_address,
-    transaction::{CallArg, SharedObjectRef},
+    transaction::CallArg,
 };
 use miette::Severity;
 use move_binary_format::{
@@ -125,20 +126,17 @@ impl<'a> Resolver<'a> for ToObject {
         loc: Span,
         obj_id: ObjectId,
     ) -> PTBResult<Argument> {
-        // Get the object from the reader to get metadata about the object.
+        // Get the object from the chain to get metadata about the object.
         let obj = builder.get_object(obj_id, loc).await?;
-        let owner = obj
-            .owner
-            .ok_or_else(|| err!(loc, "Unable to get owner info for object {obj_id}"))?;
         let object_ref = obj.object_ref();
         // Depending on the ownership of the object, we resolve it to different types of
         // object arguments for the transaction.
-        let obj_arg = match owner {
+        let obj_arg = match obj.owner() {
             Owner::Address(_) if self.is_receiving => CallArg::Receiving(object_ref),
             Owner::Immutable | Owner::Address(_) => CallArg::ImmutableOrOwned(object_ref),
-            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectRef::new(
+            Owner::Shared(initial_shared_version) => CallArg::Shared(SharedObjectReference::new(
                 object_ref.object_id,
-                initial_shared_version,
+                *initial_shared_version,
                 self.is_mut,
             )),
             Owner::Object(_) => {
@@ -161,17 +159,17 @@ impl<'a> Resolver<'a> for ToObject {
 
 /// A resolver that resolves object IDs that it encounters to pure PTB values.
 struct ToPure {
-    type_: TypeTag,
+    tag: TypeTag,
 }
 
 impl ToPure {
-    pub fn new(type_: TypeTag) -> Self {
-        Self { type_ }
+    pub fn new(tag: TypeTag) -> Self {
+        Self { tag }
     }
 
     pub fn new_from_layout(layout: MoveTypeLayout) -> Self {
         Self {
-            type_: type_tag_core_to_sdk(&(&layout).into()),
+            tag: type_tag_core_to_sdk(&(&layout).into()),
         }
     }
 }
@@ -184,7 +182,7 @@ impl<'a> Resolver<'a> for ToPure {
         loc: Span,
         argument: PTBArg,
     ) -> PTBResult<Argument> {
-        let value = argument.checked_to_pure_move_value(loc, &self.type_)?;
+        let value = argument.checked_to_pure_move_value(loc, &self.tag)?;
         builder.ptb.pure(value).map_err(|e| err!(loc, "{e}"))
     }
 
@@ -242,8 +240,12 @@ pub struct PTBBuilder<'a> {
     /// The arguments that we have resolved. This is a map from identifiers to
     /// the actual transaction arguments.
     resolved_arguments: BTreeMap<String, Argument>,
-    /// Read API for reading objects from chain. Needed for object resolution.
-    reader: &'a ReadApi,
+    /// Wallet context, used to create a JSON-RPC client on demand for the
+    /// package compilation paths of the publish and upgrade commands.
+    context: &'a WalletContext,
+    /// gRPC client for reading objects from chain. Needed for object
+    /// resolution.
+    grpc_client: &'a GrpcClient,
     /// The last command that we have added. This is used to support assignment
     /// commands.
     last_command: Option<Argument>,
@@ -300,14 +302,19 @@ impl ArgWithHistory {
 }
 
 impl<'a> PTBBuilder<'a> {
-    pub fn new(starting_env: BTreeMap<String, AccountAddress>, reader: &'a ReadApi) -> Self {
+    pub fn new(
+        starting_env: BTreeMap<String, AccountAddress>,
+        context: &'a WalletContext,
+        grpc_client: &'a GrpcClient,
+    ) -> Self {
         Self {
             addresses: starting_env,
             identifiers: BTreeMap::new(),
             arguments_to_resolve: BTreeMap::new(),
             resolved_arguments: BTreeMap::new(),
             ptb: ProgrammableTransactionBuilder::new(),
-            reader,
+            context,
+            grpc_client,
             last_command: None,
             errors: Vec::new(),
             stored_compile_upgrade: None,
@@ -449,44 +456,12 @@ impl<'a> PTBBuilder<'a> {
     }
 
     /// Resolve an object ID to a Move package.
-    async fn resolve_to_package(
-        &mut self,
-        package_id: ObjectId,
-        loc: Span,
-    ) -> PTBResult<MovePackage> {
-        let object = self
-            .reader
-            .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())
-            .await
-            .map_err(|e| err!(loc, "{e}"))?
-            .into_object()
-            .map_err(|e| err!(loc, "{e}"))?;
-        let Some(IotaRawData::Package(package)) = object.bcs else {
-            error!(
-                loc,
-                "BCS field in object '{}' is missing or not a package.", package_id
-            );
+    async fn resolve_to_package(&self, package_id: ObjectId, loc: Span) -> PTBResult<MovePackage> {
+        let object = self.get_object(package_id, loc).await?;
+        let ObjectData::Package(package) = object.data() else {
+            error!(loc, "Object '{}' is not a package.", package_id);
         };
-
-        MovePackage::new(
-            package.id,
-            package.version,
-            package
-                .module_map
-                .into_iter()
-                .map(|(k, v)| (Identifier::new_unchecked(k), v))
-                .collect(),
-            // This package came from on-chain and the tool runs locally, so don't worry about
-            // trying to enforce the package size limit.
-            u64::MAX,
-            package.type_origin_table,
-            package
-                .linkage_table
-                .into_iter()
-                .map(|(k, v)| (k, v.into()))
-                .collect(),
-        )
-        .map_err(|e| err!(loc, "{e}"))
+        Ok(package.clone())
     }
 
     /// Resolves the argument to the move call based on the type information of
@@ -814,20 +789,14 @@ impl<'a> PTBBuilder<'a> {
         }
     }
 
-    /// Fetch the `IotaObjectData` for an object ID -- this is used for object
-    /// resolution.
-    async fn get_object(&self, object_id: ObjectId, obj_loc: Span) -> PTBResult<IotaObjectData> {
-        let res = self
-            .reader
-            .get_object_with_options(
-                object_id,
-                IotaObjectDataOptions::new().with_type().with_owner(),
-            )
+    /// Fetch the [`Object`] with the given ID over gRPC -- this is used for
+    /// object resolution.
+    async fn get_object(&self, object_id: ObjectId, obj_loc: Span) -> PTBResult<Object> {
+        self.grpc_client
+            .object(object_id, None)
             .await
             .map_err(|e| err!(obj_loc, "{e}"))?
-            .into_object()
-            .map_err(|e| err!(obj_loc, "{e}"))?;
-        Ok(res)
+            .ok_or_else(|| err!(obj_loc, "Object {object_id} does not exist"))
     }
 
     /// Create a "did you mean" message for an identifier with the context of
@@ -997,7 +966,12 @@ impl<'a> PTBBuilder<'a> {
                     );
                 }
 
-                let chain_id = self.reader.get_chain_identifier().await.ok();
+                let client = self
+                    .context
+                    .get_client()
+                    .await
+                    .map_err(|e| err!(pkg_loc, "{e}"))?;
+                let chain_id = client.read_api().get_chain_identifier().await.ok();
                 let initial_dir = std::env::current_dir()
                     .map_err(|e| err!(pkg_loc, "Failed to get current directory: {e}"))?;
                 let build_config =
@@ -1008,7 +982,7 @@ impl<'a> PTBBuilder<'a> {
                         package_path,
                         build_config.install_dir.clone(),
                         chain_id,
-                        IotaAddress::ZERO,
+                        Address::ZERO,
                     )
                     .map_err(|e| err!(pkg_loc, "{e}"))?
                 } else {
@@ -1016,7 +990,7 @@ impl<'a> PTBBuilder<'a> {
                 };
 
                 let compile_result = compile_package(
-                    self.reader,
+                    client.read_api(),
                     build_config.clone(),
                     package_path,
                     false, // with_unpublished_dependencies
@@ -1234,7 +1208,12 @@ impl<'a> PTBBuilder<'a> {
             .canonicalize()
             .map_err(|e| err!(path_loc, "Failed to canonicalize package path: {e}"))?;
 
-        let chain_id = self.reader.get_chain_identifier().await.ok();
+        let client = self
+            .context
+            .get_client()
+            .await
+            .map_err(|e| err!(path_loc, "{e}"))?;
+        let chain_id = client.read_api().get_chain_identifier().await.ok();
         let build_config = MoveBuildConfig::default();
 
         let initial_dir = std::env::current_dir()
@@ -1246,7 +1225,7 @@ impl<'a> PTBBuilder<'a> {
                 &package_path,
                 build_config.install_dir.clone(),
                 chain_id,
-                IotaAddress::ZERO,
+                Address::ZERO,
             )
             .map_err(|e| err!(path_loc, "{e}"))?
         } else {
@@ -1254,7 +1233,7 @@ impl<'a> PTBBuilder<'a> {
         };
 
         let upgrade_result = upgrade_package(
-            self.reader,
+            client.read_api(),
             build_config.clone(),
             &package_path,
             ObjectId::new(upgrade_cap_id.into_bytes()),

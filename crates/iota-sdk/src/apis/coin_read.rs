@@ -8,8 +8,8 @@ use futures::{StreamExt, stream};
 use futures_core::Stream;
 use iota_json_rpc_api::CoinReadApiClient;
 use iota_json_rpc_types::{Balance, Coin, CoinPage, IotaCirculatingSupply, IotaCoinMetadata};
-use iota_sdk_types::ObjectId;
-use iota_types::{balance::Supply, base_types::IotaAddress};
+use iota_sdk_types::{Address, ObjectId};
+use iota_types::balance::Supply;
 
 use crate::{
     RpcClient,
@@ -38,12 +38,13 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
+    /// use iota_sdk::IotaClientBuilder;
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let coin_type = String::from("0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC");
     ///     let coins = iota
     ///         .coin_read_api()
@@ -54,7 +55,7 @@ impl CoinReadApi {
     /// ```
     pub async fn get_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: impl Into<Option<String>>,
         cursor: impl Into<Option<ObjectId>>,
         limit: impl Into<Option<usize>>,
@@ -74,12 +75,13 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
+    /// use iota_sdk::IotaClientBuilder;
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let coins = iota
     ///         .coin_read_api()
     ///         .get_all_coins(address, None, None)
@@ -89,7 +91,7 @@ impl CoinReadApi {
     /// ```
     pub async fn get_all_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: impl Into<Option<ObjectId>>,
         limit: impl Into<Option<usize>>,
     ) -> IotaRpcResult<CoinPage> {
@@ -110,12 +112,13 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
+    /// use iota_sdk::IotaClientBuilder;
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let coin_type = String::from("0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC");
     ///     let coins = iota.coin_read_api().get_coins_stream(address, coin_type);
     ///     Ok(())
@@ -123,7 +126,7 @@ impl CoinReadApi {
     /// ```
     pub fn get_coins_stream(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: impl Into<Option<String>>,
     ) -> impl Stream<Item = Coin> + '_ {
         let coin_type = coin_type.into();
@@ -173,12 +176,13 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
+    /// use iota_sdk::IotaClientBuilder;
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let coin_type = String::from("0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC");
     ///     let coins = iota
     ///         .coin_read_api()
@@ -189,7 +193,7 @@ impl CoinReadApi {
     /// ```
     pub async fn select_coins(
         &self,
-        address: IotaAddress,
+        address: Address,
         coin_type: impl Into<Option<String>>,
         amount: u128,
         exclude: Vec<ObjectId>,
@@ -221,19 +225,20 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
+    /// use iota_sdk::IotaClientBuilder;
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let balance = iota.coin_read_api().get_balance(address, None).await?;
     ///     Ok(())
     /// }
     /// ```
     pub async fn get_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: impl Into<Option<String>>,
     ) -> IotaRpcResult<Balance> {
         Ok(self.api.http.get_balance(owner, coin_type.into()).await?)
@@ -247,17 +252,18 @@ impl CoinReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
+    /// use iota_sdk::IotaClientBuilder;
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let all_balances = iota.coin_read_api().get_all_balances(address).await?;
     ///     Ok(())
     /// }
     /// ```
-    pub async fn get_all_balances(&self, owner: IotaAddress) -> IotaRpcResult<Vec<Balance>> {
+    pub async fn get_all_balances(&self, owner: Address) -> IotaRpcResult<Vec<Balance>> {
         Ok(self.api.http.get_all_balances(owner).await?)
     }
 

@@ -9,12 +9,10 @@ use std::{
 use anyhow::{Context, Result, anyhow};
 use backoff::future::retry;
 use bytes::Bytes;
-use futures::{StreamExt, TryStreamExt};
-use indicatif::ProgressBar;
+use futures::StreamExt;
 use itertools::Itertools;
 use object_store::{DynObjectStore, Error, ObjectStore, ObjectStoreExt, path::Path};
 use serde::{Deserialize, Serialize};
-use tokio::time::Instant;
 use tracing::{error, warn};
 use url::Url;
 
@@ -24,66 +22,44 @@ use crate::object_store::{
 
 pub const MANIFEST_FILENAME: &str = "MANIFEST";
 pub const EPOCH_METADATA_FILENAME: &str = "_epoch_metadata.json";
+/// Marker file written to an epoch directory in the store once all files for
+/// that epoch have been written.
+pub const SUCCESS_MARKER: &str = "_SUCCESS";
 
 #[derive(Serialize, Deserialize)]
-pub struct Manifest {
-    /// Epoch number paired with its start timestamp in ms (when known).
-    pub available_epochs: Vec<(u64, Option<u64>)>,
+pub struct RootManifest {
+    /// Epoch number paired with its end timestamp in ms (or 0 when unknown).
+    pub available_epochs: Vec<(u64, u64)>,
 }
 
-impl Manifest {
-    pub fn new(available_epochs: Vec<(u64, Option<u64>)>) -> Self {
-        Manifest { available_epochs }
+impl RootManifest {
+    pub fn new(available_epochs: Vec<(u64, u64)>) -> Self {
+        RootManifest { available_epochs }
     }
 
     pub fn epoch_exists(&self, epoch: u64) -> bool {
         self.available_epochs.iter().any(|(e, _)| *e == epoch)
     }
+
+    /// Parse a root MANIFEST from its JSON bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
+        Ok(serde_json::from_slice(bytes)?)
+    }
+
+    /// Serialize this root MANIFEST into its JSON bytes.
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
+        Ok(serde_json::to_vec(self)?)
+    }
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct EpochMetadata {
-    pub epoch_start_timestamp_ms: u64,
+    pub epoch_end_timestamp_ms: u64,
 }
 
 impl EpochMetadata {
     pub fn to_bytes(&self) -> Result<Bytes> {
         Ok(Bytes::from(serde_json::to_vec(self)?))
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct PerEpochManifest {
-    pub lines: Vec<String>,
-}
-
-impl PerEpochManifest {
-    pub fn new(lines: Vec<String>) -> Self {
-        PerEpochManifest { lines }
-    }
-
-    pub fn serialize_as_newline_delimited(&self) -> String {
-        self.lines.join("\n")
-    }
-
-    pub fn deserialize_from_newline_delimited(s: &str) -> PerEpochManifest {
-        PerEpochManifest {
-            lines: s.lines().map(String::from).collect(),
-        }
-    }
-
-    // Method to filter lines by a given prefix
-    pub fn filter_by_prefix(&self, prefix: &str) -> PerEpochManifest {
-        let filtered_lines = self
-            .lines
-            .iter()
-            .filter(|line| line.starts_with(prefix))
-            .cloned()
-            .collect();
-
-        PerEpochManifest {
-            lines: filtered_lines,
-        }
     }
 }
 
@@ -96,10 +72,6 @@ pub async fn get<S: ObjectStoreGetExt>(store: &S, src: &Path) -> Result<Bytes> {
     })
     .await?;
     Ok(bytes)
-}
-
-pub async fn exists<S: ObjectStoreGetExt>(store: &S, src: &Path) -> bool {
-    store.get_bytes(src).await.is_ok()
 }
 
 /// Writes bytes in the store with specified path.
@@ -134,67 +106,6 @@ pub async fn copy_file<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
     }
 }
 
-pub async fn copy_files<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
-    src: &[Path],
-    dest: &[Path],
-    src_store: &S,
-    dest_store: &D,
-    concurrency: NonZeroUsize,
-    progress_bar: Option<ProgressBar>,
-) -> Result<Vec<()>> {
-    let mut instant = Instant::now();
-    let progress_bar_clone = progress_bar.clone();
-    // Copies files from dest to src in parallel, and updates the progress bar if
-    // it's provided
-    let results = futures::stream::iter(src.iter().zip(dest.iter()))
-        .map(|(path_in, path_out)| async move {
-            let ret = copy_file(path_in, path_out, src_store, dest_store).await;
-            Ok((path_out.clone(), ret))
-        })
-        .boxed()
-        .buffer_unordered(concurrency.get())
-        .try_for_each(|(path, ret)| {
-            if let Some(progress_bar_clone) = &progress_bar_clone {
-                progress_bar_clone.inc(1);
-                progress_bar_clone.set_message(format!("file: {path}"));
-                instant = Instant::now();
-            }
-            futures::future::ready(ret)
-        })
-        .await;
-    Ok(results.into_iter().collect())
-}
-
-/// Copies all files in the directory from the source store to the destination
-/// store.
-pub async fn copy_recursively<S: ObjectStoreGetExt + ObjectStoreListExt, D: ObjectStorePutExt>(
-    dir: &Path,
-    src_store: &S,
-    dest_store: &D,
-    concurrency: NonZeroUsize,
-) -> Result<Vec<()>> {
-    let mut input_paths = vec![];
-    let mut output_paths = vec![];
-    let mut paths = src_store.list_objects(Some(dir)).await;
-    while let Some(res) = paths.next().await {
-        if let Ok(object_metadata) = res {
-            input_paths.push(object_metadata.location.clone());
-            output_paths.push(object_metadata.location);
-        } else {
-            return Err(res.err().unwrap().into());
-        }
-    }
-    copy_files(
-        &input_paths,
-        &output_paths,
-        src_store,
-        dest_store,
-        concurrency,
-        None,
-    )
-    .await
-}
-
 pub async fn delete_files<S: ObjectStoreDeleteExt>(
     files: &[Path],
     store: &S,
@@ -210,7 +121,7 @@ pub async fn delete_files<S: ObjectStoreDeleteExt>(
             })
         })
         .boxed()
-        .buffer_unordered(concurrency.get())
+        .buffer_unordered(concurrency.into())
         .collect()
         .await;
     results.into_iter().collect()
@@ -273,13 +184,14 @@ pub async fn find_all_dirs_with_epoch_prefix(
 }
 
 /// Finds all epochs in the store and returns them as a sorted list, paired
-/// with each epoch's start timestamp in ms when its metadata file is present.
-pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u64, Option<u64>)>> {
+/// with each epoch's end timestamp in ms when its metadata file is present, or
+/// 0 otherwise.
+pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u64, u64)>> {
     let remote_epoch_dirs = find_all_dirs_with_epoch_prefix(&object_store, None).await?;
     let mut out = vec![];
     let mut success_marker_found = false;
     for (epoch, path) in remote_epoch_dirs.iter().sorted() {
-        let success_marker = path.child("_SUCCESS");
+        let success_marker = path.child(SUCCESS_MARKER);
         let get_result = object_store.get(&success_marker).await;
         match get_result {
             Err(_) => {
@@ -289,17 +201,17 @@ pub async fn list_all_epochs(object_store: Arc<DynObjectStore>) -> Result<Vec<(u
             }
             Ok(_) => {
                 let metadata_path = path.child(EPOCH_METADATA_FILENAME);
-                let epoch_start_timestamp_ms = match object_store.get_bytes(&metadata_path).await {
+                let epoch_end_timestamp_ms = match object_store.get_bytes(&metadata_path).await {
                     Ok(bytes) => match serde_json::from_slice::<EpochMetadata>(&bytes) {
-                        Ok(metadata) => Some(metadata.epoch_start_timestamp_ms),
+                        Ok(metadata) => metadata.epoch_end_timestamp_ms,
                         Err(err) => {
                             warn!("Failed to parse epoch metadata for epoch {epoch}: {err}");
-                            None
+                            0
                         }
                     },
-                    Err(_) => None,
+                    Err(_) => 0,
                 };
-                out.push((*epoch, epoch_start_timestamp_ms));
+                out.push((*epoch, epoch_end_timestamp_ms));
                 success_marker_found = true;
             }
         }
@@ -321,9 +233,8 @@ pub async fn run_manifest_update_loop(
             _now = update_interval.tick() => {
                 if let Ok(available_epochs) = list_all_epochs(store.clone()).await {
                     let manifest_path = Path::from(MANIFEST_FILENAME);
-                    let manifest = Manifest { available_epochs };
-                    let bytes = serde_json::to_string(&manifest)?;
-                    put(&store, &manifest_path, Bytes::from(bytes)).await?;
+                    let manifest = RootManifest { available_epochs };
+                    put(&store, &manifest_path, Bytes::from(manifest.to_bytes()?)).await?;
                 }
             },
              _ = recv.recv() => break,
@@ -388,13 +299,13 @@ pub async fn find_missing_epochs_dirs(
         let get_result = store.get(&success_marker).await;
         match get_result {
             Err(Error::NotFound { .. }) => {
-                error!("No success marker found in db checkpoint for epoch: {epoch_num}");
+                error!("No success marker found in remote store for epoch: {epoch_num}");
                 missing_epochs.push(*epoch_num);
             }
             Err(_) => {
                 // Probably a transient error
                 warn!(
-                    "Failed while trying to read success marker in db checkpoint for epoch: {epoch_num}"
+                    "Failed while trying to read success marker in remote store for epoch: {epoch_num}"
                 );
             }
             Ok(_) => {
@@ -411,43 +322,6 @@ pub fn get_path(prefix: &str) -> Path {
     Path::from(prefix)
 }
 
-// Snapshot MANIFEST file is very simple. Just a newline delimited list of all
-// paths in the snapshot directory this simplicity enables easy parsing for
-// scripts to download snapshots
-pub async fn write_snapshot_manifest<S: ObjectStoreListExt + ObjectStorePutExt>(
-    dir: &Path,
-    store: &S,
-    epoch_prefix: String,
-) -> Result<()> {
-    let mut file_names = vec![];
-    let mut paths = store.list_objects(Some(dir)).await;
-    while let Some(res) = paths.next().await {
-        if let Ok(object_metadata) = res {
-            // trim the "epoch_XX/" dir prefix here
-            let mut path_str = object_metadata.location.to_string();
-            if path_str.starts_with(&epoch_prefix) {
-                path_str = String::from(&path_str[epoch_prefix.len()..]);
-                file_names.push(path_str);
-            } else {
-                warn!("{path_str}, should be coming from the files in the {epoch_prefix} dir",)
-            }
-        } else {
-            return Err(res.err().unwrap().into());
-        }
-    }
-
-    let epoch_manifest = PerEpochManifest::new(file_names);
-    let bytes = Bytes::from(epoch_manifest.serialize_as_newline_delimited());
-    put(
-        store,
-        &Path::from(format!("{dir}/{MANIFEST_FILENAME}")),
-        bytes,
-    )
-    .await?;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use std::{fs, num::NonZeroUsize};
@@ -456,102 +330,7 @@ mod tests {
     use object_store::path::Path;
     use tempfile::TempDir;
 
-    use crate::object_store::util::{
-        MANIFEST_FILENAME, copy_recursively, delete_recursively, write_snapshot_manifest,
-    };
-
-    #[tokio::test]
-    pub async fn test_copy_recursively() -> anyhow::Result<()> {
-        let input = TempDir::new()?;
-        let input_path = input.path();
-        let child = input_path.join("child");
-        fs::create_dir(&child)?;
-        let file1 = child.join("file1");
-        fs::write(file1, b"Lorem ipsum")?;
-        let grandchild = child.join("grand_child");
-        fs::create_dir(&grandchild)?;
-        let file2 = grandchild.join("file2");
-        fs::write(file2, b"Lorem ipsum")?;
-
-        let output = TempDir::new()?;
-        let output_path = output.path();
-
-        let input_store = ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::File),
-            directory: Some(input_path.to_path_buf()),
-            ..Default::default()
-        }
-        .make()?;
-
-        let output_store = ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::File),
-            directory: Some(output_path.to_path_buf()),
-            ..Default::default()
-        }
-        .make()?;
-
-        copy_recursively(
-            &Path::from("child"),
-            &input_store,
-            &output_store,
-            NonZeroUsize::new(1).unwrap(),
-        )
-        .await?;
-
-        assert!(output_path.join("child").exists());
-        assert!(output_path.join("child").join("file1").exists());
-        assert!(output_path.join("child").join("grand_child").exists());
-        assert!(
-            output_path
-                .join("child")
-                .join("grand_child")
-                .join("file2")
-                .exists()
-        );
-        let content = fs::read_to_string(output_path.join("child").join("file1"))?;
-        assert_eq!(content, "Lorem ipsum");
-        let content =
-            fs::read_to_string(output_path.join("child").join("grand_child").join("file2"))?;
-        assert_eq!(content, "Lorem ipsum");
-        Ok(())
-    }
-
-    #[tokio::test]
-    pub async fn test_write_snapshot_manifest() -> anyhow::Result<()> {
-        let input = TempDir::new()?;
-        let input_path = input.path();
-        let epoch_0 = input_path.join("epoch_0");
-        fs::create_dir(&epoch_0)?;
-        let file1 = epoch_0.join("file1");
-        fs::write(file1, b"Lorem ipsum")?;
-        let file2 = epoch_0.join("file2");
-        fs::write(file2, b"Lorem ipsum")?;
-        let grandchild = epoch_0.join("grand_child");
-        fs::create_dir(&grandchild)?;
-        let file3 = grandchild.join("file2.tar.gz");
-        fs::write(file3, b"Lorem ipsum")?;
-
-        let input_store = ObjectStoreConfig {
-            object_store: Some(ObjectStoreType::File),
-            directory: Some(input_path.to_path_buf()),
-            ..Default::default()
-        }
-        .make()?;
-
-        write_snapshot_manifest(
-            &Path::from("epoch_0"),
-            &input_store,
-            String::from("epoch_0/"),
-        )
-        .await?;
-
-        assert!(input_path.join("epoch_0").join(MANIFEST_FILENAME).exists());
-        let content = fs::read_to_string(input_path.join("epoch_0").join(MANIFEST_FILENAME))?;
-        assert!(content.contains("file2"));
-        assert!(content.contains("file1"));
-        assert!(content.contains("grand_child/file2.tar.gz"));
-        Ok(())
-    }
+    use crate::object_store::util::delete_recursively;
 
     #[tokio::test]
     pub async fn test_delete_recursively() -> anyhow::Result<()> {

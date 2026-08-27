@@ -6,8 +6,6 @@ iota-analytics-indexer:
   - "crates/iota-analytics-indexer/**"
 iota-analytics-indexer-derive:
   - "crates/iota-analytics-indexer-derive/**"
-iota-archival:
-  - "crates/iota-archival/**"
 iota-authority-aggregation:
   - "crates/iota-authority-aggregation/**"
 iota-cluster-test:
@@ -34,6 +32,8 @@ iota-framework:
   - "crates/iota-framework/**"
 iota-framework-snapshot:
   - "crates/iota-framework-snapshot/**"
+iota-framework-snapshot-manifest:
+  - "crates/iota-framework-snapshot-manifest/**"
 iota-framework-tests:
   - "crates/iota-framework-tests/**"
 iota-genesis-builder:
@@ -132,6 +132,8 @@ iota-rest-kv:
   - "crates/iota-rest-kv/**"
 iota-rpc-loadgen:
   - "crates/iota-rpc-loadgen/**"
+iota-rust-sdk:
+  - "crates/iota-rust-sdk/**"
 iota-sdk:
   - "crates/iota-sdk/**"
 iota-simulator:
@@ -158,6 +160,8 @@ iota-tls:
   - "crates/iota-tls/**"
 iota-tool:
   - "crates/iota-tool/**"
+iota-traffic-controller:
+  - "crates/iota-traffic-controller/**"
 iota-transaction-builder:
   - "crates/iota-transaction-builder/**"
 iota-transaction-checks:
@@ -170,6 +174,8 @@ iota-upgrade-compatibility-transactional-tests:
   - "crates/iota-upgrade-compatibility-transactional-tests/**"
 iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
+iota-vm-sdk:
+  - "crates/iota-vm-sdk/**"
 prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
 simulacrum:

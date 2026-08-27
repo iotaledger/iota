@@ -19,19 +19,6 @@ where
         .expect("failed to serialize via be_fix_int_ser method")
 }
 
-pub(crate) fn iterator_bounds<K>(
-    lower_bound: Option<K>,
-    upper_bound: Option<K>,
-) -> (Option<Vec<u8>>, Option<Vec<u8>>)
-where
-    K: Serialize,
-{
-    (
-        lower_bound.map(|b| be_fix_int_ser(&b)),
-        upper_bound.map(|b| be_fix_int_ser(&b)),
-    )
-}
-
 pub(crate) fn iterator_bounds_with_range<K>(
     range: impl RangeBounds<K>,
 ) -> (Option<Vec<u8>>, Option<Vec<u8>>)
@@ -54,7 +41,7 @@ where
                 key_buf.push(0);
             } else {
                 // Since we want exclusive, we need to increment the key to exclude the previous
-                big_endian_saturating_add_one(&mut key_buf);
+                big_endian_add_one(&mut key_buf);
             }
             Some(key_buf)
         }
@@ -64,15 +51,18 @@ where
         Bound::Included(upper_bound) => {
             let mut key_buf = be_fix_int_ser(&upper_bound);
 
-            // If the key is already at the limit, there's nowhere else to go, so no upper
-            // bound
-            if !is_max(&key_buf) {
-                // Since we want exclusive, we need to increment the key to get the upper bound
-                big_endian_saturating_add_one(&mut key_buf);
-                Some(key_buf)
+            if is_max(&key_buf) {
+                // No same-length key is greater than the maximum, but a longer key
+                // extending it still is. Append a zero byte so the (exclusive) upper
+                // bound is the first such key, keeping any extension out of an
+                // inclusive `..=max` range.
+                key_buf.push(0);
             } else {
-                None
+                // Rocksdb upper bound is exclusive, so increment to make the
+                // caller's inclusive bound inclusive.
+                big_endian_add_one(&mut key_buf);
             }
+            Some(key_buf)
         }
         Bound::Excluded(upper_bound) => {
             // Rocksdb upper bound is exclusive by default so nothing to do
@@ -83,21 +73,89 @@ where
     (iterator_lower_bound, iterator_upper_bound)
 }
 
-/// Given a vec<u8>, find the value which is one more than the vector
-/// if the vector was a big endian number.
-/// If the vector is already minimum, don't change it.
-fn big_endian_saturating_add_one(v: &mut [u8]) {
-    if is_max(v) {
-        return;
+/// Computes the raw byte bounds for a prefix scan over keys serialized with
+/// [`be_fix_int_ser`].
+///
+/// `prefix` must serialize to a prefix of the column family's key encoding —
+/// typically the leading field(s) of a tuple key. Returns the half-open byte
+/// range `[ser(prefix), ser(prefix) + 1)`, which selects exactly the keys that
+/// begin with `ser(prefix)`. When the serialized prefix is all `0xFF` there is
+/// no representable upper bound, so the scan runs to the end of the column
+/// family.
+pub(crate) fn prefix_iterator_bounds<P>(prefix: &P) -> (Option<Vec<u8>>, Option<Vec<u8>>)
+where
+    P: ?Sized + Serialize,
+{
+    let lower = be_fix_int_ser(prefix);
+    let upper = if is_max(&lower) {
+        None
+    } else {
+        let mut upper = lower.clone();
+        big_endian_add_one(&mut upper);
+        Some(upper)
+    };
+    (Some(lower), upper)
+}
+
+/// Computes the raw byte bounds for scanning `range` within the key range of
+/// `prefix`, for keys serialized with [`be_fix_int_ser`].
+///
+/// `range` bounds the part of the key that follows `prefix`; see
+/// [`prefix_iterator_bounds`] for the requirements on `prefix`. The returned
+/// bounds never leave the prefix, including at an inclusive bound on the
+/// maximum key.
+pub(crate) fn prefix_iterator_bounds_with_range<P, K>(
+    prefix: &P,
+    range: impl RangeBounds<K>,
+) -> (Option<Vec<u8>>, Option<Vec<u8>>)
+where
+    P: ?Sized + Serialize,
+    K: Serialize,
+{
+    let prefix_buf = be_fix_int_ser(prefix);
+    let (lower_bound, upper_bound) = iterator_bounds_with_range(range);
+
+    let mut iterator_lower_bound = prefix_buf.clone();
+    if let Some(lower_bound) = lower_bound {
+        iterator_lower_bound.extend_from_slice(&lower_bound);
     }
+
+    let iterator_upper_bound = match upper_bound {
+        Some(upper_bound) => {
+            let mut key_buf = prefix_buf;
+            key_buf.extend_from_slice(&upper_bound);
+            Some(key_buf)
+        }
+        // An unbounded range ends where the prefix ends.
+        None => prefix_iterator_bounds(prefix).1,
+    };
+
+    (Some(iterator_lower_bound), iterator_upper_bound)
+}
+
+/// Increments the big-endian integer in `v` by one, in place.
+///
+/// Callers must ensure `v` is not all-`0xFF` (each one checks `is_max` and
+/// handles that case separately).
+///
+/// # Panics
+///
+/// Panics if `v` is all-`0xFF`. Incrementing it would overflow, and silently
+/// wrapping to zero would emit a wrong key; panicking instead keeps a buggy
+/// caller from corrupting the keyspace.
+fn big_endian_add_one(v: &mut [u8]) {
     for i in (0..v.len()).rev() {
         if v[i] == u8::MAX {
             v[i] = 0;
         } else {
             v[i] += 1;
-            break;
+            return;
         }
     }
+    // Reaching here means no byte could be incremented, i.e. `v` was all-`0xFF`
+    // and the carry ran off the top — a violated precondition. Panic rather than
+    // return a silently-wrapped, incorrect key.
+    unreachable!("big_endian_add_one called on an all-0xFF value")
 }
 
 /// Check if all the bytes in the vector are 0xFF
@@ -114,7 +172,7 @@ fn test_helpers() {
     fn check_add(v: Vec<u8>) {
         let mut v = v;
         let num = Num32::from_big_endian(&v);
-        big_endian_saturating_add_one(&mut v);
+        big_endian_add_one(&mut v);
         assert!(num + 1 == Num32::from_big_endian(&v));
     }
 
@@ -123,13 +181,95 @@ fn test_helpers() {
         struct Num32(4);
     }
 
-    let mut v = vec![255; 32];
-    big_endian_saturating_add_one(&mut v);
-    assert!(Num32::MAX == Num32::from_big_endian(&v));
-
     check_add(vec![1; 32]);
     check_add(vec![6; 32]);
     check_add(vec![254; 32]);
 
     // TBD: More tests coming with randomized arrays
+}
+
+#[test]
+#[should_panic(expected = "all-0xFF")]
+fn big_endian_add_one_panics_on_max() {
+    big_endian_add_one(&mut [0xFFu8; 4]);
+}
+
+#[test]
+fn test_inclusive_upper_bound_at_max() {
+    // The missed case: an inclusive upper bound whose serialization is all-`0xFF`.
+    // The exclusive rocksdb upper bound must be the first key PAST it
+    // (`ser(hi) ++ [0]`), not `None`. With `None` the scan is unbounded, so a
+    // longer key that extends the max (and therefore sorts *after* it) is wrongly
+    // included in `..=hi`. Verify the actual inclusion/exclusion the bound yields,
+    // for single-byte, multi-byte and array maxima.
+    fn check_max<K: Serialize>(max: K) {
+        let hi = be_fix_int_ser(&max);
+        assert!(is_max(&hi), "test value must serialize to all-0xFF");
+        let (_, upper) = iterator_bounds_with_range::<K>((Bound::Unbounded, Bound::Included(max)));
+        let upper = upper.expect("inclusive upper at the max must be bounded, not None");
+
+        // `hi` itself stays inside the (exclusive) bound; a key extending it does not.
+        let mut extension = hi.clone();
+        extension.push(0);
+        assert!(hi < upper, "the max key itself must stay in range");
+        assert!(
+            extension >= upper,
+            "a key extending the max must be excluded"
+        );
+        assert_eq!(upper, extension, "bound must be exactly ser(hi) ++ [0]");
+    }
+    check_max(u8::MAX);
+    check_max(u64::MAX);
+    check_max([0xFFu8; 32]);
+
+    // Symmetric with the excluded-lower arm at the max.
+    let (lower, _) = iterator_bounds_with_range::<u8>((Bound::Excluded(u8::MAX), Bound::Unbounded));
+    assert_eq!(lower, Some(vec![0xFF, 0x00]));
+}
+
+#[test]
+fn prefixed_bounds_stay_within_the_prefix() {
+    // An inclusive upper bound at the maximum key must stay inside the prefix.
+    // Computing it over the whole `(prefix, key)` buffer would carry into the
+    // next prefix, whose keys can serialize more compactly and would then be
+    // scanned.
+    fn check_max<K: Serialize + Copy>(max: K) {
+        assert!(
+            is_max(&be_fix_int_ser(&max)),
+            "test value must serialize to all-0xFF"
+        );
+        let (lower, upper) = prefix_iterator_bounds_with_range(&0u8, ..=max);
+        let upper = upper.expect("an inclusive upper bound must be bounded, not None");
+
+        assert_eq!(lower, Some(be_fix_int_ser(&0u8)));
+        assert!(
+            be_fix_int_ser(&(0u8, max)) < upper,
+            "the maximum key of the prefix must stay in range"
+        );
+        assert!(
+            upper <= be_fix_int_ser(&1u8),
+            "the bound must not reach into the next prefix"
+        );
+    }
+    check_max(u8::MAX);
+    check_max(u32::MAX);
+    check_max(u64::MAX);
+
+    // The excluded-lower arm at the maximum is prefixed the same way.
+    let (lower, _) = prefix_iterator_bounds_with_range::<u8, u8>(
+        &0u8,
+        (Bound::Excluded(u8::MAX), Bound::Unbounded),
+    );
+    assert_eq!(lower, Some(vec![0x00, 0xFF, 0x00]));
+
+    // An unbounded range ends where the prefix ends, and at the maximum prefix
+    // it runs to the end of the column family — as for a plain prefix scan.
+    assert_eq!(
+        prefix_iterator_bounds_with_range::<u8, u32>(&0u8, ..),
+        (Some(vec![0x00]), Some(vec![0x01]))
+    );
+    assert_eq!(
+        prefix_iterator_bounds_with_range::<u8, u32>(&u8::MAX, ..),
+        prefix_iterator_bounds(&u8::MAX)
+    );
 }

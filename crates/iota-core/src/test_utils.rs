@@ -6,24 +6,21 @@ use std::{sync::Arc, time::Duration};
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_sdk_types::{
-    Identifier, ObjectId,
+    Address, Identifier, ObjectId, ObjectReference, Transaction, TransactionDigest,
     crypto::{Intent, IntentScope},
 };
 use iota_types::{
-    base_types::{
-        AuthorityName, ExecutionDigests, IotaAddress, ObjectRef, TransactionDigest,
-        random_object_ref,
-    },
+    base_types::{AuthorityName, ExecutionDigests, random_object_ref},
     committee::Committee,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, AuthoritySignInfo,
         AuthoritySignature, Signer,
     },
     effects::{SignedTransactionEffects, TestEffectsBuilder},
     error::IotaError,
     transaction::{
-        CallArg, CertifiedTransaction, SignedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        Transaction, TransactionData, TransactionDataAPI,
+        CallArg, CertifiedTransaction, SenderSignedTransactionAPI, SignedTransaction,
+        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
     },
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
@@ -38,11 +35,11 @@ const WAIT_FOR_TX_TIMEOUT: Duration = Duration::from_secs(15);
 pub async fn send_and_confirm_transaction(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     // Make the initial request
     let epoch_store = authority.load_epoch_store_one_call_per_task();
-    transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+    transaction.validity_check(&epoch_store.tx_validity_check_context())?;
     let transaction = epoch_store.verify_transaction(transaction)?;
     let response = authority
         .handle_transaction(&epoch_store, transaction.clone())
@@ -103,11 +100,12 @@ pub async fn wait_for_tx(digest: TransactionDigest, state: Arc<AuthorityState>) 
         WAIT_FOR_TX_TIMEOUT,
         state
             .get_transaction_cache_reader()
-            .try_notify_read_executed_effects(&[digest]),
+            .try_notify_read_executed_effects("", &[digest]),
     )
     .await
     {
-        Ok(_) => info!(?digest, "digest found"),
+        Ok(Ok(_)) => info!(?digest, "digest found"),
+        Ok(Err(e)) => panic!("failed to read effects of digest! {e}"),
         Err(e) => {
             warn!(?digest, "digest not found!");
             panic!("timed out waiting for effects of digest! {e}");
@@ -120,11 +118,12 @@ pub async fn wait_for_all_txes(digests: Vec<TransactionDigest>, state: Arc<Autho
         WAIT_FOR_TX_TIMEOUT,
         state
             .get_transaction_cache_reader()
-            .try_notify_read_executed_effects(&digests),
+            .try_notify_read_executed_effects("", &digests),
     )
     .await
     {
-        Ok(_) => info!(?digests, "all digests found"),
+        Ok(Ok(_)) => info!(?digests, "all digests found"),
+        Ok(Err(e)) => panic!("failed to read effects of digests! {e}"),
         Err(e) => {
             warn!(?digests, "some digests not found!");
             panic!("timed out waiting for effects of digests! {e}");
@@ -166,14 +165,14 @@ pub fn create_fake_cert_and_effect_digest<'a>(
 }
 
 pub fn make_transfer_iota_transaction(
-    gas_object: ObjectRef,
-    recipient: IotaAddress,
+    gas_object: ObjectReference,
+    recipient: Address,
     amount: Option<u64>,
-    sender: IotaAddress,
-    keypair: &AccountKeyPair,
+    sender: Address,
+    private_key: &AccountPrivateKey,
     gas_price: u64,
-) -> Transaction {
-    let data = TransactionData::new_transfer_iota(
+) -> TransactionEnvelope {
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         amount,
@@ -181,35 +180,35 @@ pub fn make_transfer_iota_transaction(
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
-    to_sender_signed_transaction(data, keypair)
+    to_sender_signed_transaction(tx, private_key)
 }
 
 pub fn make_pay_iota_transaction(
-    gas_object: ObjectRef,
-    coins: Vec<ObjectRef>,
-    recipients: Vec<IotaAddress>,
+    gas_object: ObjectReference,
+    coins: Vec<ObjectReference>,
+    recipients: Vec<Address>,
     amounts: Vec<u64>,
-    sender: IotaAddress,
-    keypair: &AccountKeyPair,
+    sender: Address,
+    private_key: &AccountPrivateKey,
     gas_price: u64,
     gas_budget: u64,
-) -> Transaction {
-    let data = TransactionData::new_pay_iota(
+) -> TransactionEnvelope {
+    let tx = Transaction::new_pay_iota(
         sender, coins, recipients, amounts, gas_object, gas_budget, gas_price,
     )
     .unwrap();
-    to_sender_signed_transaction(data, keypair)
+    to_sender_signed_transaction(tx, private_key)
 }
 
 pub fn make_transfer_object_transaction(
-    object_ref: ObjectRef,
-    gas_object: ObjectRef,
-    sender: IotaAddress,
-    keypair: &AccountKeyPair,
-    recipient: IotaAddress,
+    object_ref: ObjectReference,
+    gas_object: ObjectReference,
+    sender: Address,
+    private_key: &AccountPrivateKey,
+    recipient: Address,
     gas_price: u64,
-) -> Transaction {
-    let data = TransactionData::new_transfer(
+) -> TransactionEnvelope {
+    let tx = Transaction::new_transfer(
         recipient,
         object_ref,
         sender,
@@ -217,26 +216,26 @@ pub fn make_transfer_object_transaction(
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
         gas_price,
     );
-    to_sender_signed_transaction(data, keypair)
+    to_sender_signed_transaction(tx, private_key)
 }
 
 pub fn make_transfer_object_move_transaction(
-    src: IotaAddress,
-    keypair: &AccountKeyPair,
-    dest: IotaAddress,
-    object_ref: ObjectRef,
+    src: Address,
+    private_key: &AccountPrivateKey,
+    dest: Address,
+    object_ref: ObjectReference,
     framework_obj_id: ObjectId,
-    gas_object_ref: ObjectRef,
+    gas_object_ref: ObjectReference,
     gas_budget_in_units: u64,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     let args = vec![
         CallArg::ImmutableOrOwned(object_ref),
         CallArg::pure(&AccountAddress::new(dest.into_bytes())),
     ];
 
     to_sender_signed_transaction(
-        TransactionData::new_move_call(
+        Transaction::new_move_call(
             src,
             framework_obj_id,
             Identifier::from_static("object_basics"),
@@ -248,18 +247,18 @@ pub fn make_transfer_object_move_transaction(
             gas_price,
         )
         .unwrap(),
-        keypair,
+        private_key,
     )
 }
 
 /// Make a dummy tx that uses random object refs.
 pub fn make_dummy_tx(
-    receiver: IotaAddress,
-    sender: IotaAddress,
-    sender_sec: &AccountKeyPair,
-) -> Transaction {
-    Transaction::from_data_and_signer(
-        TransactionData::new_transfer(
+    receiver: Address,
+    sender: Address,
+    sender_sec: &AccountPrivateKey,
+) -> TransactionEnvelope {
+    TransactionEnvelope::from_data_and_signer(
+        Transaction::new_transfer(
             receiver,
             random_object_ref(),
             sender,
@@ -275,7 +274,7 @@ pub fn make_dummy_tx(
 pub fn make_cert_with_large_committee(
     committee: &Committee,
     key_pairs: &[AuthorityKeyPair],
-    transaction: &Transaction,
+    transaction: &TransactionEnvelope,
 ) -> CertifiedTransaction {
     // assumes equal weighting.
     let len = committee.voting_rights.len();
@@ -301,4 +300,18 @@ pub fn make_cert_with_large_committee(
     cert.verify_signatures_authenticated(committee, &Default::default())
         .unwrap();
     cert
+}
+
+/// Selects which scheduler `ExecutionSchedulerWrapper::new` builds. Both
+/// selector variables are set explicitly, so the choice holds regardless of
+/// `DEFAULT_USE_EXECUTION_SCHEDULER`. Call this before building the authority.
+pub fn set_scheduler_env(use_execution_scheduler: bool) {
+    // SAFETY (edition 2021): plain env mutation, no other threads race here.
+    if use_execution_scheduler {
+        std::env::set_var("ENABLE_EXECUTION_SCHEDULER", "1");
+        std::env::remove_var("ENABLE_TRANSACTION_MANAGER");
+    } else {
+        std::env::set_var("ENABLE_TRANSACTION_MANAGER", "1");
+        std::env::remove_var("ENABLE_EXECUTION_SCHEDULER");
+    }
 }

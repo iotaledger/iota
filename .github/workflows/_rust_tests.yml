@@ -214,7 +214,7 @@ jobs:
         run: rustup target add wasm32-unknown-unknown
 
       - name: Check Move VM crates compile to wasm32
-        run: cargo check -p iota-types -p iota-common -p iota-config -p iota-adapter-latest --target wasm32-unknown-unknown
+        run: cargo check -p iota-types -p iota-common -p iota-config -p iota-adapter-latest -p iota-vm-sdk --features iota-vm-sdk/wasm-bindgen --target wasm32-unknown-unknown
 
   check-wasm32-cancel:
     needs: [check-wasm32]
@@ -238,10 +238,10 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Run Cargo Udeps
-        run: cargo +nightly-2026-01-07 ci-udeps ${{ matrix.flags }}
+        run: cargo +nightly-2026-06-29 ci-udeps ${{ matrix.flags }}
 
       - name: Run Cargo Udeps (external crates)
-        run: cargo +nightly-2026-01-07 ci-udeps-external ${{ matrix.flags }}
+        run: cargo +nightly-2026-06-29 ci-udeps-external ${{ matrix.flags }}
 
   check-unused-deps-cancel:
     needs: [check-unused-deps]

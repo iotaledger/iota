@@ -5,8 +5,6 @@ teams:
   - iotaledger/vm-language
 description: Address-owned objects are owned by a specific IOTA 32-byte address, either an account address or an object ID, and are accessible only to their owner.
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/objects/object-ownership/address-owned.json';
 
 Address-owned objects in IOTA are tied to a specific 32-byte address,
 which can be either an account address (derived from a signature scheme)
@@ -27,8 +25,8 @@ public fun transfer<T: key>(obj: T, recipient: address)
 public fun public_transfer<T: key + store>(obj: T, recipient: address)
 ```
 
-- Use [`iota::transfer::transfer`](../../../../developer/references/framework/iota/transfer.mdx#function-transfer) when defining a [custom transfer policy](../transfers/custom-rules.mdx) for the object.
-- Use [`iota::transfer::public_transfer`](../../../../developer/references/framework/iota/transfer.mdx#function-public_transfer) if the object has the `store` capability and you do not need a custom policy.
+- Use [`iota::transfer::transfer`](../../../../developer/references/framework/iota/transfer.mdx#iota_transfer_transfer) when defining a [custom transfer policy](../transfers/custom-rules.mdx) for the object.
+- Use [`iota::transfer::public_transfer`](../../../../developer/references/framework/iota/transfer.mdx#iota_transfer_public_transfer) if the object has the `store` capability and you do not need a custom policy.
 
 After creating an address-owned object, its ownership can change over time by transferring it,
 adding it as a dynamic object field, or making it immutable.
@@ -58,5 +56,3 @@ iota::transfer::public_transfer(C, @0xB0B);
 ```
 
 After the transfer, `C` becomes owned by `0xB0B`, and `0xB0B` can use the 100 IOTA as needed.
-
-<Quiz questions={questions} />

@@ -3,10 +3,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use prometheus::{
-    Gauge, Histogram, IntCounter, IntCounterVec, Registry, register_gauge_with_registry,
-    register_histogram_with_registry, register_int_counter_vec_with_registry,
-    register_int_counter_with_registry,
+use prometheus_filtered::{
+    Gauge, Histogram, IntCounter, IntCounterVec, IntGauge, MetricLevel, Registry,
+    register_gauge_with_registry, register_histogram_with_registry,
+    register_int_counter_vec_with_registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
 };
 
 /// Metrics for the validator service.
@@ -35,6 +36,9 @@ pub struct ValidatorServiceMetrics {
     pub forwarded_header_not_included: IntCounter,
     pub client_id_source_config_mismatch: IntCounter,
     pub x_forwarded_for_num_hops: Gauge,
+    pub num_rejected_tx_soft_lock_conflict: IntCounter,
+    pub soft_lock_table_size: IntGauge,
+    pub num_rejected_tx_recently_resubmitted: IntCounter,
 }
 
 impl ValidatorServiceMetrics {
@@ -72,14 +76,16 @@ impl ValidatorServiceMetrics {
                 "validator_service_handle_transaction_latency",
                 "Latency of handling a transaction",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Info,
             )
                 .unwrap(),
             handle_certificate_consensus_latency: register_histogram_with_registry!(
                 "validator_service_handle_certificate_consensus_latency",
                 "Latency of handling a consensus transaction certificate",
                 iota_metrics::COARSE_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             submit_certificate_consensus_latency: register_histogram_with_registry!(
@@ -93,7 +99,8 @@ impl ValidatorServiceMetrics {
                 "validator_service_handle_certificate_non_consensus_latency",
                 "Latency of handling a non-consensus transaction certificate",
                 iota_metrics::SUBSECOND_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
                 .unwrap(),
             handle_soft_bundle_certificates_consensus_latency: register_histogram_with_registry!(
@@ -140,7 +147,8 @@ impl ValidatorServiceMetrics {
                 "validator_service_num_rejected_tx_during_overload",
                 "Number of rejected transaction due to system overload",
                 &["error_type"],
-                registry,
+                registry;
+                MetricLevel::Info,
             )
                 .unwrap(),
             num_rejected_cert_during_overload: register_int_counter_vec_with_registry!(
@@ -190,6 +198,24 @@ impl ValidatorServiceMetrics {
             x_forwarded_for_num_hops: register_gauge_with_registry!(
                 "validator_service_x_forwarded_for_num_hops",
                 "Number of hops in x-forwarded-for header",
+                registry,
+            )
+                .unwrap(),
+            num_rejected_tx_soft_lock_conflict: register_int_counter_with_registry!(
+                "validator_service_num_rejected_tx_soft_lock_conflict",
+                "Number of transactions rejected due to pre-consensus soft lock conflict on owned objects",
+                registry,
+            )
+                .unwrap(),
+            num_rejected_tx_recently_resubmitted: register_int_counter_with_registry!(
+                "validator_service_num_rejected_tx_recently_resubmitted",
+                "Number of transactions rejected as duplicate resubmissions of a transaction whose soft locks are still held",
+                registry,
+            )
+                .unwrap(),
+            soft_lock_table_size: register_int_gauge_with_registry!(
+                "validator_service_soft_lock_table_size",
+                "Current number of object refs held in the pre-consensus soft lock table",
                 registry,
             )
                 .unwrap(),

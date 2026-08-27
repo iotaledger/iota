@@ -4,6 +4,7 @@
 
 use std::{
     convert::Infallible,
+    num::NonZeroUsize,
     task::{Context, Poll},
 };
 
@@ -20,6 +21,7 @@ use tower_http::{
 };
 
 use crate::{
+    concurrency::ServiceConcurrencyLimit,
     config::Config,
     metrics::{
         DefaultMetricsCallbackProvider, GRPC_ENDPOINT_PATH_HEADER, MetricsCallbackProvider,
@@ -64,6 +66,33 @@ impl<M: MetricsCallbackProvider> ServerBuilder<M> {
         S::Future: Send + 'static,
     {
         self.router = self.router.add_service(svc);
+        self
+    }
+
+    /// Add a new service to this Server with its own concurrency limit,
+    /// enforced independently of every other service on this server.
+    ///
+    /// With `load_shed` enabled, requests over the limit are rejected
+    /// immediately with gRPC `RESOURCE_EXHAUSTED`; otherwise they wait for a
+    /// slot to free up.
+    pub fn add_service_with_concurrency_limit<S>(
+        mut self,
+        svc: S,
+        limit: NonZeroUsize,
+        load_shed: bool,
+    ) -> Self
+    where
+        S: Service<Request<Body>, Response = Response<Body>, Error = Infallible>
+            + NamedService
+            + Clone
+            + Send
+            + Sync
+            + 'static,
+        S::Future: Send + 'static,
+    {
+        self.router = self
+            .router
+            .add_service(ServiceConcurrencyLimit::new(svc, limit, load_shed));
         self
     }
 
@@ -200,21 +229,11 @@ mod test {
         time::Duration,
     };
 
+    use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
     use tonic::Code;
     use tonic_health::pb::{HealthCheckRequest, health_client::HealthClient};
 
     use crate::{Multiaddr, config::Config, metrics::MetricsCallbackProvider};
-
-    #[test]
-    fn document_multiaddr_limitation_for_unix_protocol() {
-        // You can construct a multiaddr by hand (ie binary format) just fine
-        let path = "/tmp/foo";
-        let addr = Multiaddr::new_internal(multiaddr::multiaddr!(Unix(path), Http));
-
-        // But it doesn't round-trip in the human readable format
-        let s = addr.to_string();
-        assert!(s.parse::<Multiaddr>().is_err());
-    }
 
     #[tokio::test]
     async fn test_metrics_layer_successful() {
@@ -251,15 +270,32 @@ mod test {
 
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let config = Config::new();
+        let keypair = Ed25519KeyPair::generate(&mut rand::thread_rng());
 
         let server = config
             .server_builder_with_metrics(metrics.clone())
-            .bind(&address, None)
+            .bind(
+                &address,
+                Some(iota_tls::create_rustls_server_config(
+                    keypair.copy().private(),
+                    "test".to_string(),
+                )),
+            )
             .await
             .unwrap();
 
         let address = server.local_addr().to_owned();
-        let channel = config.connect(&address, None).await.unwrap();
+        let channel = config
+            .connect(
+                &address,
+                iota_tls::create_rustls_client_config(
+                    keypair.public().to_owned(),
+                    "test".to_string(),
+                    None,
+                ),
+            )
+            .await
+            .unwrap();
         let mut client = HealthClient::new(channel);
 
         client
@@ -311,15 +347,31 @@ mod test {
 
         let address: Multiaddr = "/ip4/127.0.0.1/tcp/0/http".parse().unwrap();
         let config = Config::new();
+        let keypair = Ed25519KeyPair::generate(&mut rand::thread_rng());
 
         let server = config
             .server_builder_with_metrics(metrics.clone())
-            .bind(&address, None)
+            .bind(
+                &address,
+                Some(iota_tls::create_rustls_server_config(
+                    keypair.copy().private(),
+                    "test".to_string(),
+                )),
+            )
             .await
             .unwrap();
-
         let address = server.local_addr().to_owned();
-        let channel = config.connect(&address, None).await.unwrap();
+        let channel = config
+            .connect(
+                &address,
+                iota_tls::create_rustls_client_config(
+                    keypair.public().to_owned(),
+                    "test".to_string(),
+                    None,
+                ),
+            )
+            .await
+            .unwrap();
         let mut client = HealthClient::new(channel);
 
         // Call the healthcheck for a service that doesn't exist
@@ -338,9 +390,31 @@ mod test {
 
     async fn test_multiaddr(address: Multiaddr) {
         let config = Config::new();
-        let server_handle = config.server_builder().bind(&address, None).await.unwrap();
+        let keypair = Ed25519KeyPair::generate(&mut rand::thread_rng());
+
+        let server_handle = config
+            .server_builder()
+            .bind(
+                &address,
+                Some(iota_tls::create_rustls_server_config(
+                    keypair.copy().private(),
+                    "test".to_string(),
+                )),
+            )
+            .await
+            .unwrap();
         let address = server_handle.local_addr().to_owned();
-        let channel = config.connect(&address, None).await.unwrap();
+        let channel = config
+            .connect(
+                &address,
+                iota_tls::create_rustls_client_config(
+                    keypair.public().to_owned(),
+                    "test".to_string(),
+                    None,
+                ),
+            )
+            .await
+            .unwrap();
         let mut client = HealthClient::new(channel);
 
         client

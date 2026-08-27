@@ -19,7 +19,6 @@ anyhow = { workspace = true, features = ["backtrace"] }
 axum.workspace = true
 clap.workspace = true
 hyper.workspace = true
-prometheus.workspace = true
 serde.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
@@ -41,6 +40,7 @@ iota-source-validation.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 
 [dev-dependencies]

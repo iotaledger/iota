@@ -5,8 +5,6 @@ teams:
   - iotaledger/vm-language
 description: Dynamic fields and dynamic object fields on IOTA allow flexible storage and manipulation, with the ability to add, remove, and store heterogeneous values dynamically while only affecting gas costs when accessed.
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/objects/dynamic-fields/dynamic-fields.json';
 
 When working with object fields in IOTA, you typically use them to store primitive data or wrap other objects.
 However, there are some limitations to this approach:
@@ -146,7 +144,7 @@ public fun mutate_child_via_parent(parent: &mut Parent) {
 
 In this example, `mutate_child` directly modifies a `Child` object, while `mutate_child_via_parent` accesses
 and modifies a `Child` object that has been added as a dynamic field in a `Parent` object
-using the [`borrow_mut`](../../../../developer/references/framework/iota/dynamic_field.mdx#function-borrow_mut) function.
+using the [`borrow_mut`](../../../../developer/references/framework/iota/dynamic_field.mdx#iota_dynamic_field_borrow_mut) function.
 
 :::tip
 
@@ -182,7 +180,7 @@ The [`iota::dynamic_object_field`](../../../../developer/references/framework/io
 :::
 
 Once removed, the value can be used like any other value. 
-For instance, you can [`delete`](../../../../developer/references/framework/iota/object.mdx#function-delete)
+For instance, you can [`delete`](../../../../developer/references/framework/iota/object.mdx#iota_object_delete)
 or [`transfer`](../../../../developer/references/framework/iota/transfer.mdx) a removed object:
 
 ```move
@@ -214,5 +212,3 @@ where dynamic fields might hold a large number of key-value pairs.
 IOTA offers [`Table`](../../../../developer/references/framework/iota/table.mdx) and [`Bag`](../../../../developer/references/framework/iota/bag.mdx) collections
 built on dynamic fields, which include safeguards like entry counting to prevent accidental deletion when non-empty.
 For more information, refer to the [Tables and Bags](tables-bags.mdx) section.
-
-<Quiz questions={questions} />

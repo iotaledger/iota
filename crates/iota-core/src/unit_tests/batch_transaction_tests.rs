@@ -4,9 +4,9 @@
 
 use authority_tests::send_and_confirm_transaction;
 use bcs;
-use iota_sdk_types::{ExecutionStatus, Identifier, Owner};
+use iota_sdk_types::{Address, ExecutionStatus, Identifier, Owner};
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     utils::to_sender_signed_transaction,
 };
@@ -19,8 +19,8 @@ use crate::authority::authority_tests::init_state_with_ids_and_object_basics;
 async fn test_batch_transaction_ok() -> anyhow::Result<()> {
     // This test tests a successful normal batch transaction.
     // This batch transaction contains 5 transfers, and 5 Move calls.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (recipient, _): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let recipient = Address::random();
     const N: usize = 5;
     const TOTAL: usize = N + 1;
     let all_ids = (0..TOTAL).map(|_| ObjectId::random()).collect::<Vec<_>>();
@@ -34,11 +34,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         builder
             .transfer_object(
                 recipient,
-                authority_state
-                    .get_object(obj_id)
-                    .await
-                    .unwrap()
-                    .object_ref(),
+                authority_state.get_object(obj_id).unwrap().object_ref(),
             )
             .unwrap()
     }
@@ -58,12 +54,11 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
             )
             .unwrap();
     }
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![
             authority_state
                 .get_object(&all_ids[N])
-                .await
                 .unwrap()
                 .object_ref(),
         ],
@@ -72,7 +67,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         rgp,
     );
 
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let response = send_and_confirm_transaction(&authority_state, tx).await?;
     let effects = response.1.into_data();
     assert_eq!(effects.status(), &ExecutionStatus::Success);
@@ -104,8 +99,8 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
     // This test tests the case where the last transaction in a batch transaction
     // would fail to execute. We make sure that the entire batch is rolled back,
     // and only gas is charged.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
-    let (recipient, _): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
+    let recipient = Address::random();
     const N: usize = 5;
     const TOTAL: usize = N + 1;
     let all_ids = (0..TOTAL).map(|_| ObjectId::random()).collect::<Vec<_>>();
@@ -119,11 +114,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
         builder
             .transfer_object(
                 recipient,
-                authority_state
-                    .get_object(obj_id)
-                    .await
-                    .unwrap()
-                    .object_ref(),
+                authority_state.get_object(obj_id).unwrap().object_ref(),
             )
             .unwrap()
     }
@@ -136,12 +127,11 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
             vec![],
         )
         .unwrap();
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![
             authority_state
                 .get_object(&all_ids[N])
-                .await
                 .unwrap()
                 .object_ref(),
         ],
@@ -150,7 +140,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
         rgp,
     );
 
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
 
     let response = send_and_confirm_transaction(&authority_state, tx).await?.1;
     let effects = response.into_data();
@@ -167,7 +157,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
 async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
     // This test creates 10 Move call transactions batch, each with a budget of
     // 5000. However we provide a gas coin with only 49999 balance.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let (authority_state, package) = init_state_with_ids_and_object_basics([]).await;
     let rgp = authority_state.reference_gas_price_for_testing()?;
     let gas_object_id = ObjectId::random();
@@ -176,9 +166,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
         sender,
         49999, // We need 50000
     );
-    authority_state
-        .insert_genesis_object(gas_object.clone())
-        .await;
+    authority_state.insert_genesis_object(gas_object.clone());
 
     const N: usize = 10;
     let mut builder = ProgrammableTransactionBuilder::new();
@@ -198,7 +186,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
             )
             .unwrap();
     }
-    let data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_object.object_ref()],
         builder.finish(),
@@ -206,7 +194,7 @@ async fn test_batch_insufficient_gas_balance() -> anyhow::Result<()> {
         rgp,
     );
 
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let response = send_and_confirm_transaction(&authority_state, tx).await;
 
     assert!(matches!(

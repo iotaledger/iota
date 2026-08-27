@@ -10,18 +10,17 @@ use futures::{
     TryStreamExt,
     stream::{self, StreamExt},
 };
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{
+    Address, CheckpointDigest, ObjectId, TransactionDigest, TransactionEffects, TransactionEvents,
+    Version, checkpoint::CheckpointContents,
+};
 use iota_storage::http_key_value_store::{ItemType, Key};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
-    digests::{CheckpointDigest, TransactionDigest},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
-    },
+    effects::TransactionEffectsAPI,
+    messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSequenceNumber},
     object::Object,
     storage::ObjectKey,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use moka::sync::{Cache as MokaCache, CacheBuilder as MokaCacheBuilder};
 use reqwest::{
@@ -94,7 +93,7 @@ pub(crate) trait KeyValueStoreClient {
     async fn multi_get_transactions(
         &self,
         transaction_digests: &[TransactionDigest],
-    ) -> IndexerResult<Vec<Option<Transaction>>>;
+    ) -> IndexerResult<Vec<Option<TransactionEnvelope>>>;
 
     async fn multi_get_effects(
         &self,
@@ -128,7 +127,7 @@ pub(crate) trait KeyValueStoreClient {
 
     async fn multi_get_objects(
         &self,
-        object_refs: &[(ObjectId, SequenceNumber)],
+        object_refs: &[(ObjectId, Version)],
         before_version: bool,
     ) -> IndexerResult<Vec<Option<Object>>>;
 }
@@ -161,7 +160,7 @@ pub(crate) trait PaginatedKeyValueStoreClient {
     /// The `cursor` semantics remain exclusive regardless of scan direction.
     async fn transaction_digests_by_address(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<TransactionSequenceNumber>,
         limit: usize,
         oldest_first: bool,
@@ -289,6 +288,20 @@ impl HttpRestKVClient {
     }
 
     async fn fetch_batch(&self, request: MultiGetRequest) -> IndexerResult<Vec<Option<Bytes>>> {
+        let item_type = request.item_type;
+        self.metrics.record_request(item_type);
+
+        let result = self.fetch_batch_inner(request).await;
+        if result.is_err() {
+            self.metrics.record_request_error(item_type);
+        }
+        result
+    }
+
+    async fn fetch_batch_inner(
+        &self,
+        request: MultiGetRequest,
+    ) -> IndexerResult<Vec<Option<Bytes>>> {
         let url = self.base_url.join(&request.item_type.to_string())?;
 
         trace!(
@@ -348,6 +361,27 @@ impl HttpRestKVClient {
             IndexerError::HistoricalFallbackInput("limit must be greater than 0".into())
         })?;
 
+        let item_type = key.item_type();
+        self.metrics.record_request(item_type);
+
+        let result = self.paginate_inner(key, cursor, limit, reversed).await;
+        if result.is_err() {
+            self.metrics.record_request_error(item_type);
+        }
+        result
+    }
+
+    async fn paginate_inner<C, T>(
+        &self,
+        key: Key,
+        cursor: Option<C>,
+        limit: NonZeroUsize,
+        reversed: bool,
+    ) -> IndexerResult<Vec<T>>
+    where
+        C: Display,
+        T: for<'de> Deserialize<'de>,
+    {
         let (item_type, encoded_key) = key.to_path_elements();
         let mut url = self.base_url.join(&format!("{item_type}/{encoded_key}"))?;
 
@@ -458,6 +492,20 @@ impl HttpRestKVClient {
         &self,
         request: MultiGetRequest,
     ) -> IndexerResult<Vec<Option<Bytes>>> {
+        let item_type = request.item_type;
+        self.metrics.record_request(item_type);
+
+        let result = self.fetch_objects_before_version_batch_inner(request).await;
+        if result.is_err() {
+            self.metrics.record_request_error(item_type);
+        }
+        result
+    }
+
+    async fn fetch_objects_before_version_batch_inner(
+        &self,
+        request: MultiGetRequest,
+    ) -> IndexerResult<Vec<Option<Bytes>>> {
         let mut url = self.base_url.join(&request.item_type.to_string())?;
         url.query_pairs_mut().append_pair("before_version", "true");
 
@@ -532,7 +580,7 @@ impl KeyValueStoreClient for HttpRestKVClient {
     async fn multi_get_transactions(
         &self,
         transaction_digests: &[TransactionDigest],
-    ) -> IndexerResult<Vec<Option<Transaction>>> {
+    ) -> IndexerResult<Vec<Option<TransactionEnvelope>>> {
         let keys = transaction_digests
             .iter()
             .map(|tx| Key::Transaction(*tx))
@@ -544,7 +592,7 @@ impl KeyValueStoreClient for HttpRestKVClient {
             .zip(transaction_digests.iter())
             .map(|(fetch, digest)| {
                 fetch.as_ref().and_then(|bytes| {
-                    deser_check_digest(digest, bytes, |tx: &Transaction| *tx.digest())
+                    deser_check_digest(digest, bytes, |tx: &TransactionEnvelope| *tx.digest())
                 })
             })
             .collect::<Vec<_>>();
@@ -702,7 +750,7 @@ impl KeyValueStoreClient for HttpRestKVClient {
     #[instrument(level = "trace", skip_all)]
     async fn multi_get_objects(
         &self,
-        object_refs: &[(ObjectId, SequenceNumber)],
+        object_refs: &[(ObjectId, Version)],
         before_version: bool,
     ) -> IndexerResult<Vec<Option<Object>>> {
         let keys = object_refs
@@ -731,7 +779,7 @@ impl PaginatedKeyValueStoreClient for HttpRestKVClient {
     #[instrument(level = "trace", skip_all)]
     async fn transaction_digests_by_address(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<TransactionSequenceNumber>,
         limit: usize,
         oldest_first: bool,

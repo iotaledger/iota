@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_core::test_utils::send_and_confirm_transaction;
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TransactionKind, TypeTag};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ProgrammableTransaction, StructTag, Transaction,
+    TransactionEffects, TransactionKind, TypeTag,
+};
 use iota_types::{
-    base_types::IotaAddress,
-    effects::{TransactionEffects, TransactionEffectsAPI},
-    error::IotaError,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{ProgrammableTransaction, TransactionData, TransactionDataAPI},
+    effects::TransactionEffectsAPI, error::IotaError,
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::TransactionAPI,
     utils::to_sender_signed_transaction,
 };
 use proptest::{arbitrary::*, prelude::*};
@@ -52,7 +52,7 @@ pub fn gen_nested_type_tag() -> impl Strategy<Value = TypeTag> {
 
 pub fn gen_struct_tag() -> impl Strategy<Value = StructTag> {
     (
-        any::<IotaAddress>(),
+        any::<Address>(),
         any::<Identifier>(),
         any::<Identifier>(),
         any::<Vec<TypeTag>>(),
@@ -159,14 +159,14 @@ pub fn run_pt_effects(
     let gas_object = account.new_gas_object(exec);
     let gas_object_ref = gas_object.object_ref();
     let kind = TransactionKind::Programmable(pt);
-    let tx_data = TransactionData::new(
+    let tx = Transaction::new(
         kind,
         account.initial_data.account.address,
         gas_object_ref,
         GAS,
         GAS_PRICE,
     );
-    let signed_txn = to_sender_signed_transaction(tx_data, &account.initial_data.account.key);
+    let signed_txn = to_sender_signed_transaction(tx, &account.initial_data.account.key);
     exec.rt
         .block_on(send_and_confirm_transaction(&exec.state, None, signed_txn))
         .map(|(_, effects)| effects.into_data())

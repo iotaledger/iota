@@ -7,7 +7,8 @@ use std::collections::BTreeMap;
 use fastcrypto::error::FastCryptoError;
 use hyper::header::InvalidHeaderValue;
 use iota_json_rpc_api::{
-    TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE, error_object_from_rpc,
+    TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSACTION_NOT_FOUND_ERROR_CODE,
+    TRANSIENT_ERROR_CODE, error_object_from_rpc,
 };
 use iota_json_rpc_types::IotaObjectResponseError;
 use iota_names::error::IotaNamesError;
@@ -126,8 +127,12 @@ impl From<Error> for RpcError {
                 None,
             )),
             Error::Iota(iota_error) => match iota_error {
-                IotaError::TransactionNotFound { .. }
-                | IotaError::TransactionsNotFound { .. }
+                IotaError::TransactionNotFound { .. } => RpcError::Call(ErrorObject::owned::<()>(
+                    TRANSACTION_NOT_FOUND_ERROR_CODE,
+                    iota_error.to_string(),
+                    None,
+                )),
+                IotaError::TransactionsNotFound { .. }
                 | IotaError::TransactionEventsNotFound { .. } => {
                     RpcError::Call(ErrorObject::owned::<()>(
                         ErrorCode::InvalidParams.code(),
@@ -279,22 +284,33 @@ impl From<IotaRpcInputError> for ErrorObjectOwned {
 #[cfg(test)]
 mod tests {
     use expect_test::expect;
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, TransactionDigest, Version};
     use iota_types::{
-        base_types::{AuthorityName, ObjectRef, SequenceNumber},
+        base_types::AuthorityName,
         committee::StakeUnit,
         crypto::{AuthorityPublicKey, AuthorityPublicKeyBytes},
-        digests::{ObjectDigest, TransactionDigest},
     };
 
     use super::*;
 
-    fn test_object_ref() -> ObjectRef {
-        ObjectRef::new(
+    fn test_object_ref() -> ObjectReference {
+        ObjectReference::new(
             ObjectId::ZERO,
-            SequenceNumber::from_u64(0),
+            Version::from_u64(0),
             ObjectDigest::new([0; 32]),
         )
+    }
+
+    #[test]
+    fn transaction_not_found_uses_dedicated_error_code() {
+        let error = Error::Iota(IotaError::TransactionNotFound {
+            digest: TransactionDigest::from([1; 32]),
+        });
+
+        let rpc_error: RpcError = error.into();
+        let error_object = error_object_from_rpc(rpc_error);
+
+        assert_eq!(error_object.code(), TRANSACTION_NOT_FOUND_ERROR_CODE);
     }
 
     mod match_quorum_driver_error_tests {
@@ -354,7 +370,7 @@ mod tests {
             use iota_types::crypto::VerifyingKey;
             let mut conflicting_txes: BTreeMap<
                 TransactionDigest,
-                (Vec<(AuthorityName, ObjectRef)>, StakeUnit),
+                (Vec<(AuthorityName, ObjectReference)>, StakeUnit),
             > = BTreeMap::new();
             let tx_digest = TransactionDigest::from([1; 32]);
             let object_ref = test_object_ref();
@@ -394,7 +410,7 @@ mod tests {
             use iota_types::crypto::VerifyingKey;
             let mut conflicting_txes: BTreeMap<
                 TransactionDigest,
-                (Vec<(AuthorityName, ObjectRef)>, StakeUnit),
+                (Vec<(AuthorityName, ObjectReference)>, StakeUnit),
             > = BTreeMap::new();
             let tx_digest = TransactionDigest::from([1; 32]);
             let object_ref = test_object_ref();

@@ -12,4 +12,9 @@ task 1, lines 40-63:
 //# publish
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 4894400, storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 4894400
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0

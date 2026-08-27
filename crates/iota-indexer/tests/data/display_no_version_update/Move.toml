@@ -1,0 +1,9 @@
+[package]
+name = "display_no_version_update"
+edition = "2024.beta"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+display_no_version_update = "0x0"

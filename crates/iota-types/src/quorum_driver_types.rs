@@ -5,29 +5,27 @@
 
 use std::collections::BTreeMap;
 
+use iota_sdk_types::{ObjectReference, TransactionDigest, TransactionEffects, TransactionEvents};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use strum::AsRefStr;
 use thiserror::Error;
 
 use crate::{
-    base_types::{AuthorityName, EpochId, ObjectRef, TransactionDigest},
+    base_types::{AuthorityName, EpochId},
     committee::{QUORUM_THRESHOLD, StakeUnit, TOTAL_VOTING_POWER},
     crypto::{AuthorityStrongQuorumSignInfo, ConciseAuthorityPublicKeyBytes},
-    effects::{
-        CertifiedTransactionEffects, TransactionEffects, TransactionEvents,
-        VerifiedCertifiedTransactionEffects,
-    },
+    effects::{CertifiedTransactionEffects, VerifiedCertifiedTransactionEffects},
     error::IotaError,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 
 pub type QuorumDriverResult = Result<QuorumDriverResponse, QuorumDriverError>;
 
 pub type QuorumDriverEffectsQueueResult =
-    Result<(Transaction, QuorumDriverResponse), (TransactionDigest, QuorumDriverError)>;
+    Result<(TransactionEnvelope, QuorumDriverResponse), (TransactionDigest, QuorumDriverError)>;
 
 pub const NON_RECOVERABLE_ERROR_MSG: &str =
     "Transaction has non recoverable errors from at least 1/3 of validators";
@@ -46,7 +44,8 @@ pub enum QuorumDriverError {
         "Failed to sign transaction by a quorum of validators because of locked objects: {conflicting_txes:?}"
     )]
     ObjectsDoubleUsed {
-        conflicting_txes: BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
+        conflicting_txes:
+            BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectReference)>, StakeUnit)>,
     },
     #[error("Transaction timed out before reaching finality")]
     TimeoutBeforeFinality,
@@ -186,6 +185,11 @@ pub enum EffectsFinalityInfo {
     /// A quorum of validators have acknowledged effects (used in
     /// TransactionDriver flow).
     QuorumExecuted(EpochId),
+
+    /// Effects from a single validator without quorum certification.
+    /// The caller MUST wait for local checkpoint execution before returning
+    /// these to the client, as they have not been certified by a quorum.
+    UncertifiedSingleValidator(EpochId),
 }
 
 /// When requested to execute a transaction with WaitForLocalExecution,
@@ -208,7 +212,7 @@ pub struct QuorumDriverResponse {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ExecuteTransactionRequestV1 {
-    pub transaction: Transaction,
+    pub transaction: TransactionEnvelope,
 
     pub include_events: bool,
     pub include_input_objects: bool,
@@ -217,7 +221,7 @@ pub struct ExecuteTransactionRequestV1 {
 }
 
 impl ExecuteTransactionRequestV1 {
-    pub fn new<T: Into<Transaction>>(transaction: T) -> Self {
+    pub fn new<T: Into<TransactionEnvelope>>(transaction: T) -> Self {
         Self {
             transaction: transaction.into(),
             include_events: true,
@@ -258,8 +262,9 @@ impl FinalizedEffects {
     pub fn epoch(&self) -> EpochId {
         match &self.finality_info {
             EffectsFinalityInfo::Certified(cert) => cert.epoch,
-            EffectsFinalityInfo::Checkpointed(epoch, _) => *epoch,
-            EffectsFinalityInfo::QuorumExecuted(epoch) => *epoch,
+            EffectsFinalityInfo::Checkpointed(epoch, _)
+            | EffectsFinalityInfo::QuorumExecuted(epoch)
+            | EffectsFinalityInfo::UncertifiedSingleValidator(epoch) => *epoch,
         }
     }
 }

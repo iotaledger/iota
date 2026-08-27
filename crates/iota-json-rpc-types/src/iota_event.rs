@@ -5,10 +5,8 @@
 use std::{fmt, fmt::Display, str::FromStr};
 
 use fastcrypto::encoding::{Base58, Base64};
-use iota_metrics::monitored_scope;
-use iota_sdk_types::{Event, Identifier, ObjectId, StructTag};
+use iota_sdk_types::{Address, Event, Identifier, ObjectId, StructTag, TransactionDigest};
 use iota_types::{
-    base_types::{IotaAddress, TransactionDigest},
     error::IotaResult,
     event::{EventEnvelope, EventID},
     object::bounded_visitor::BoundedVisitor,
@@ -24,8 +22,8 @@ use tabled::settings::Style as TableStyle;
 use crate::{
     Page,
     iota_primitives::{
-        Base58 as Base58Schema, Base64 as Base64Schema, Identifier as IdentifierSchema,
-        IotaAddress as IotaAddressSchema, ObjectId as ObjectIdSchema, StructTag as StructTagSchema,
+        Address as AddressSchema, Base58 as Base58Schema, Base64 as Base64Schema,
+        Identifier as IdentifierSchema, ObjectId as ObjectIdSchema, StructTag as StructTagSchema,
     },
     type_and_fields_from_move_event_data,
 };
@@ -85,13 +83,14 @@ pub struct IotaEvent {
     /// Move module where this event was emitted.
     pub transaction_module: Identifier,
     /// Sender's IOTA address.
-    #[serde_as(as = "IotaAddressSchema")]
-    #[schemars(with = "IotaAddressSchema")]
-    pub sender: IotaAddress,
+    #[serde_as(as = "AddressSchema")]
+    #[schemars(with = "AddressSchema")]
+    pub sender: Address,
     /// Move event type.
+    #[serde(rename = "type")]
     #[schemars(with = "StructTagSchema")]
     #[serde_as(as = "StructTagSchema")]
-    pub type_: StructTag,
+    pub struct_tag: StructTag,
     /// Parsed json value of the event
     pub parsed_json: Value,
     /// Base64 encoded bcs bytes of the move event
@@ -191,7 +190,7 @@ impl From<EventEnvelope> for IotaEvent {
             package_id: ev.event.package_id,
             transaction_module: ev.event.module,
             sender: ev.event.sender,
-            type_: ev.event.type_,
+            struct_tag: ev.event.struct_tag,
             parsed_json: ev.parsed_json,
             bcs: BcsEvent::Base64 {
                 bcs: ev.event.contents,
@@ -207,7 +206,7 @@ impl From<IotaEvent> for Event {
             package_id: val.package_id,
             module: val.transaction_module,
             sender: val.sender,
-            type_: val.type_,
+            struct_tag: val.struct_tag,
             contents: val.bcs.into_bytes(),
         }
     }
@@ -225,7 +224,7 @@ impl IotaEvent {
             package_id,
             module,
             sender,
-            type_: _,
+            struct_tag: _,
             contents,
         } = event;
 
@@ -237,7 +236,7 @@ impl IotaEvent {
             .map_err(|e| iota_types::error::IotaError::ObjectDeserialization {
                 error: e.to_string(),
             })?;
-        let (type_, fields) = type_and_fields_from_move_event_data(move_value)?;
+        let (tag, fields) = type_and_fields_from_move_event_data(move_value)?;
 
         Ok(IotaEvent {
             id: EventID {
@@ -247,7 +246,7 @@ impl IotaEvent {
             package_id,
             transaction_module: module,
             sender,
-            type_,
+            struct_tag: tag,
             parsed_json: fields,
             bcs,
             timestamp_ms,
@@ -270,7 +269,7 @@ impl Display for IotaEvent {
             self.package_id,
             self.transaction_module,
             self.sender,
-            self.type_
+            self.struct_tag
         )?;
         if let Some(ts) = self.timestamp_ms {
             writeln!(f, " │ Timestamp: {ts}\n └──")?;
@@ -295,8 +294,9 @@ impl IotaEvent {
             },
             package_id: ObjectId::random(),
             transaction_module: Identifier::from_str("random_for_testing").unwrap(),
-            sender: IotaAddress::random(),
-            type_: StructTag::from_str("0x6666::random_for_testing::RandomForTesting").unwrap(),
+            sender: Address::random(),
+            struct_tag: StructTag::from_str("0x6666::random_for_testing::RandomForTesting")
+                .unwrap(),
             parsed_json: json!({}),
             bcs: BcsEvent::new(vec![]),
             timestamp_ms: None,
@@ -336,9 +336,9 @@ fn try_into_byte(v: &Value) -> Option<u8> {
 pub enum EventFilter {
     /// Query by sender address.
     Sender(
-        #[serde_as(as = "IotaAddressSchema")]
-        #[schemars(with = "IotaAddressSchema")]
-        IotaAddress,
+        #[serde_as(as = "AddressSchema")]
+        #[schemars(with = "AddressSchema")]
+        Address,
     ),
     /// Return events emitted by the given transaction.
     Transaction(
@@ -415,7 +415,7 @@ pub enum EventFilter {
 impl EventFilter {
     fn try_matches(&self, item: &IotaEvent) -> IotaResult<bool> {
         Ok(match self {
-            EventFilter::MoveEventType(event_type) => &item.type_ == event_type,
+            EventFilter::MoveEventType(event_type) => &item.struct_tag == event_type,
             EventFilter::MoveEventField { path, value } => {
                 matches!(item.parsed_json.pointer(path), Some(v) if v == value)
             }
@@ -445,7 +445,8 @@ impl EventFilter {
                 }
             }
             EventFilter::MoveEventModule { package, module } => {
-                item.type_.module() == module && &item.type_.address() == package.as_address()
+                item.struct_tag.module() == module
+                    && &item.struct_tag.address() == package.as_address()
             }
         })
     }
@@ -460,7 +461,6 @@ impl EventFilter {
 
 impl Filter<IotaEvent> for EventFilter {
     fn matches(&self, item: &IotaEvent) -> bool {
-        let _scope = monitored_scope("EventFilter::matches");
         self.try_matches(item).unwrap_or_default()
     }
 }

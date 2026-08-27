@@ -4,25 +4,26 @@
 
 use std::{path::PathBuf, sync::Arc};
 
-use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use iota_config::{
     certificate_deny_config::CertificateDenyConfigBuilder,
     transaction_deny_config::{TransactionDenyConfig, TransactionDenyConfigBuilder},
 };
-use iota_sdk_types::{ExecutionError, ExecutionStatus, Identifier, ObjectId};
+use iota_sdk_types::{
+    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference, Transaction,
+};
 use iota_swarm_config::{
     genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT},
     network_config::NetworkConfig,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, address_from_iota_pub_key},
+    crypto::AccountPrivateKey,
     effects::TransactionEffectsAPI,
     error::{IotaError, IotaResult, UserInputError},
     messages_grpc::HandleTransactionResponse,
     transaction::{
-        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData,
-        TransactionDataAPI, VerifiedCertificate, VerifiedTransaction,
+        CallArg, CertifiedTransaction, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI,
+        VerifiedCertificate, VerifiedTransaction,
     },
     utils::{
         make_move_authenticator_tx, to_sender_signed_transaction,
@@ -76,7 +77,7 @@ async fn reload_state_with_new_deny_config(
         .await
 }
 
-type Account = (IotaAddress, Ed25519KeyPair, Vec<ObjectRef>);
+type Account = (Address, AccountPrivateKey, Vec<ObjectReference>);
 
 fn get_accounts_and_coins(
     network_config: &NetworkConfig,
@@ -86,7 +87,7 @@ fn get_accounts_and_coins(
         .account_keys
         .iter()
         .map(|account| {
-            let address: IotaAddress = address_from_iota_pub_key(account.public());
+            let address: Address = account.public_key().derive_address();
             let objects: Vec<_> = state
                 .get_owner_objects(address, None, GAS_OBJECT_COUNT, None)
                 .unwrap()
@@ -94,7 +95,7 @@ fn get_accounts_and_coins(
                 .map(|o| o.into())
                 .collect();
             assert_eq!(objects.len(), GAS_OBJECT_COUNT);
-            (address, account.copy(), objects)
+            (address, account.clone(), objects)
         })
         .collect();
     assert_eq!(accounts.len(), ACCOUNT_NUM);
@@ -107,7 +108,7 @@ async fn transfer_with_account(
     state: &Arc<AuthorityState>,
 ) -> IotaResult<HandleTransactionResponse> {
     let rgp = state.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_transfer_iota_allow_sponsor(
+    let tx = Transaction::new_transfer_iota_allow_sponsor(
         sender_account.0,
         sender_account.0,
         None,
@@ -117,10 +118,10 @@ async fn transfer_with_account(
         sponsor_account.0,
     );
     let tx = if sender_account.0 == sponsor_account.0 {
-        to_sender_signed_transaction(data, &sender_account.1)
+        to_sender_signed_transaction(tx, &sender_account.1)
     } else {
         to_sender_signed_transaction_with_multi_signers(
-            data,
+            tx,
             vec![&sender_account.1, &sponsor_account.1],
         )
     };
@@ -139,7 +140,7 @@ async fn handle_move_call_transaction(
     gas_payment_index: usize,
 ) -> IotaResult<HandleTransactionResponse> {
     let rgp = state.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         account.0,
         package,
         Identifier::from_static(module_name),
@@ -152,7 +153,7 @@ async fn handle_move_call_transaction(
     )
     .unwrap();
     let epoch_store = state.epoch_store_for_testing();
-    let tx = to_sender_signed_transaction(data, &account.1);
+    let tx = to_sender_signed_transaction(tx, &account.1);
     let tx = epoch_store.verify_transaction(tx).unwrap();
     state.handle_transaction(&epoch_store, tx).await
 }
@@ -233,7 +234,7 @@ async fn test_shared_object_transaction_disabled() {
     let gas_price = state.reference_gas_price_for_testing().unwrap();
     let account = &accounts[0];
     let tx = TestTransactionBuilder::new(account.0, account.2[0], gas_price)
-        .call_staking(account.2[1], IotaAddress::ZERO)
+        .call_staking(account.2[1], Address::ZERO)
         .build_and_sign(&account.1);
     let epoch_store = state.epoch_store_for_testing();
     let tx = epoch_store.verify_transaction(tx).unwrap();
@@ -253,10 +254,10 @@ async fn test_package_publish_disabled() {
     let rgp = state.reference_gas_price_for_testing().unwrap();
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("src/unit_tests/data/object_basics");
-    let (sender, keypair, gas_object) = (accounts[0].0, &accounts[0].1, accounts[0].2[0]);
+    let (sender, key, gas_object) = (accounts[0].0, &accounts[0].1, accounts[0].2[0]);
     let tx = TestTransactionBuilder::new(sender, gas_object, rgp)
         .publish(path)
-        .build_and_sign(keypair);
+        .build_and_sign(key);
     let epoch_store = state.epoch_store_for_testing();
     let tx = epoch_store.verify_transaction(tx).unwrap();
     let result = state.handle_transaction(&epoch_store, tx).await;
@@ -333,6 +334,7 @@ async fn test_package_denied() {
 
     let batch = state.get_cache_commit().build_db_batch(
         state.epoch_store_for_testing().epoch(),
+        0,
         &[tx_c, tx_b, tx_a, tx_c_prime, tx_b_prime],
     );
 

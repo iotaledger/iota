@@ -4,7 +4,7 @@
 
 use async_graphql::{connection::Connection, *};
 use iota_names::config::IotaNamesConfig;
-use iota_types::object::{Data, MoveObject as NativeMoveObject};
+use iota_sdk_types::{MoveStruct as NativeMoveStruct, ObjectData};
 
 use crate::{
     config::DEFAULT_PAGE_SIZE,
@@ -40,14 +40,13 @@ pub(crate) struct MoveObject {
 
     /// Move-object-specific data, extracted from the native representation at
     /// `graphql_object.native_object.data`.
-    pub native: NativeMoveObject,
+    pub native: NativeMoveStruct,
 }
 
 /// Type to implement GraphQL fields that are shared by all MoveObjects.
 pub(crate) struct MoveObjectImpl<'o>(pub &'o MoveObject);
 
 pub(crate) enum MoveObjectDowncastError {
-    WrappedOrDeleted,
     NotAMoveObject,
 }
 
@@ -230,8 +229,6 @@ impl MoveObject {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
@@ -267,10 +264,11 @@ impl MoveObject {
     /// The transaction blocks that sent objects to this object.
     ///
     /// `scanLimit` restricts the number of candidate transactions scanned when
-    /// gathering a page of results. It is required for queries that apply
-    /// more than two complex filters (on function, kind, sender, recipient,
-    /// input object, changed object, or ids), and can be at most
-    /// `serviceConfig.maxScanLimit`.
+    /// gathering a page of results. It is required for queries that apply two
+    /// or more complex filters (on function, affected address, recipient, input
+    /// object, changed object, or wrapped or deleted object), and can be at
+    /// most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+    /// combined with any of them.
     ///
     /// When the scan limit is reached the page will be returned even if it has
     /// fewer than `first` results when paginating forward (`last` when
@@ -289,6 +287,10 @@ impl MoveObject {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    ///
+    /// DEPRECATION NOTICE: Support for the combination of two or more complex
+    /// filters as discussed above will stop with the v1.38 release. `scanLimit`
+    /// will thus become obsolete and will be removed as well.
     #[graphql(
         complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
     )]
@@ -300,6 +302,9 @@ impl MoveObject {
         last: Option<u64>,
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
+        #[graphql(
+            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
+        )]
         scan_limit: Option<u64>,
     ) -> Result<ScanConnection<String, TransactionBlock>> {
         ObjectImpl(&self.super_)
@@ -419,7 +424,7 @@ impl MoveObject {
         ctx: &Context<'_>,
     ) -> Result<Option<NameRegistration>> {
         let cfg: &IotaNamesConfig = ctx.data_unchecked();
-        let tag = NameRegistration::type_(cfg.package_address.into());
+        let tag = NameRegistration::struct_tag(cfg.package_address.into());
 
         match NameRegistration::try_from(self, &tag) {
             Ok(registration) => Ok(Some(registration)),
@@ -441,7 +446,7 @@ impl MoveObjectImpl<'_> {
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
         let type_: MoveType = self.0.native.struct_tag().clone().into();
         let set = type_.abilities_impl(ctx.data_unchecked()).await.extend()?;
-        Ok(set.is_some_and(|s| s.has_key() && s.has_store()))
+        Ok(set.has_key() && set.has_store())
     }
 }
 
@@ -457,7 +462,6 @@ impl MoveObject {
 
         match MoveObject::try_from(&object) {
             Ok(object) => Ok(Some(object)),
-            Err(MoveObjectDowncastError::WrappedOrDeleted) => Ok(None),
             Err(MoveObjectDowncastError::NotAMoveObject) => {
                 Err(Error::Internal(format!("{address} is not a Move object")))?
             }
@@ -499,11 +503,9 @@ impl TryFrom<&Object> for MoveObject {
     type Error = MoveObjectDowncastError;
 
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
-        let Some(native) = object.native_impl() else {
-            return Err(MoveObjectDowncastError::WrappedOrDeleted);
-        };
+        let native = object.native_impl();
 
-        if let Data::Struct(move_object) = &native.data {
+        if let ObjectData::Struct(move_object) = &native.data {
             Ok(Self {
                 super_: object.clone(),
                 native: move_object.clone(),

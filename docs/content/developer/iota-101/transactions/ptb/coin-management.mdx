@@ -2,8 +2,6 @@
 description: Understand how to handle owned coins in IOTA transactions and programmable transaction block development.
 tags: [ transaction, sdk]
 ---
-import Quiz from '@site/src/components/Quiz';
-import questions from '/json/developer/iota-101/transactions/ptb/coin-management.json';
 
 # Managing Owned Coins in IOTA
 
@@ -29,7 +27,7 @@ making coin management a crucial step in transaction preparation.
 
 ## Using the IOTA SDKs
 
-The IOTA SDKs for [TypeScript](../../../../developer/ts-sdk/typescript/index.mdx) and [Rust](../../../../developer/references/rust-sdk.mdx) handle coin management automatically,
+The IOTA SDKs for [TypeScript](../../../../developer/ts-sdk/typescript/index.mdx) and [Rust](../../../../developer/iota-sdk/getting-started/rust.mdx) handle coin management automatically,
 merging coins as needed and assuming sequential transaction execution.
 This automation simplifies the process for most use cases where high concurrency isn't a concern.
 
@@ -66,5 +64,3 @@ or using different coins for each transaction without overlap.
 Concurrency introduces additional complexities,
 such as performance impacts from multiple network interactions with full nodes during transaction creation and submission.
 Careful planning is essential, and strategies should be tailored to your specific scenarios.
-
-<Quiz questions={questions} />

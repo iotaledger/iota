@@ -3,19 +3,16 @@
 
 use std::cell::Cell;
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Address, ObjectId};
 
-use crate::{
-    account_abstraction::authenticator_function::{
-        AuthenticatorFunctionRef, AuthenticatorFunctionRefV1, extract_auth_fun_refs,
-    },
-    base_types::IotaAddress,
+use crate::account_abstraction::authenticator_function::{
+    AuthenticatorFunctionRef, AuthenticatorFunctionRefV1, extract_auth_fun_refs,
 };
 
 #[test]
 fn both_auth_fun_refs_queried_when_sender_differs_from_gas_owner() {
-    let sender = IotaAddress::from([1; 32]);
-    let gas_owner = IotaAddress::from([2; 32]);
+    let sender = Address::from([1; 32]);
+    let gas_owner = Address::from([2; 32]);
     let sender_authenticator_function_ref = authenticator_function_ref_v1("sender_auth_fun");
     let sponsor_authenticator_function_ref = authenticator_function_ref_v1("sponsor_auth_fun");
     let call_count = Cell::new(0u32);
@@ -48,7 +45,7 @@ fn both_auth_fun_refs_queried_when_sender_differs_from_gas_owner() {
 
 #[test]
 fn sponsor_auth_fun_ref_not_queried_when_sender_is_gas_owner() {
-    let sender = IotaAddress::from([1; 32]);
+    let sender = Address::from([1; 32]);
     let sender_authenticator_function_ref = authenticator_function_ref_v1("sender_auth_fun");
     let call_count = Cell::new(0u32);
 

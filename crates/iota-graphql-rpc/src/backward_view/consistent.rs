@@ -6,9 +6,7 @@
 //! versions from `objects_backward_history`.
 
 use crate::{
-    backward_view::{
-        CHECKPOINTED_COLUMNS, HISTORY_COLUMNS, NOT_YET_CREATED, merge_and_deduplicate,
-    },
+    backward_view::{ACTIVE, OBJECT_COLUMNS, merge_and_deduplicate},
     filter, query,
     raw_query::RawQuery,
     types::{
@@ -32,56 +30,68 @@ pub(crate) fn query(
     ])
 }
 
-/// Returns objects from `checkpointed_objects` (including tombstones) that
-/// were consistent also at the given checkpoint.
+/// Returns active objects from `checkpointed_objects` that were consistent
+/// also at the given checkpoint.
 ///
-/// Uses a LEFT JOIN against `objects_backward_history` to exclude objects
-/// that have any entry with `superseded_at_checkpoint > checkpoint_viewed_at`.
+/// Uses a NOT EXISTS subquery against `objects_backward_history` to exclude
+/// objects that have any entry with
+/// `superseded_at_checkpoint > checkpoint_viewed_at`.
+///
+/// # Implementation notes
+///
+/// NOT EXISTS lets Postgres answer "did this object change?" row by row,
+/// with one index lookup each. A LEFT JOIN on a `SELECT DISTINCT` subquery
+/// takes that option away: the full list of changed objects must always be
+/// built first, and in the worst plans it is then also scanned for every
+/// row.
 fn consistent_checkpointed_objects(
     checkpoint_viewed_at: i64,
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
-    let checkpointed_filtered = filter_fn(query!(format!(
-        "SELECT {CHECKPOINTED_COLUMNS} FROM checkpointed_objects"
-    )));
-
-    let changed_subquery = query!(format!(
-        "SELECT DISTINCT object_id FROM objects_backward_history \
-         WHERE superseded_at_checkpoint > {checkpoint_viewed_at}"
-    ));
-    let mut source = query!(
-        r#"SELECT candidates.* FROM ({}) candidates
-           LEFT JOIN ({}) changed ON candidates.object_id = changed.object_id"#,
-        checkpointed_filtered,
-        changed_subquery
+    let checkpointed_filtered = filter!(
+        filter_fn(query!(format!(
+            "SELECT {OBJECT_COLUMNS} FROM checkpointed_objects"
+        ))),
+        format!("object_status = {ACTIVE}")
     );
-    source = filter!(source, "changed.object_id IS NULL");
+
+    let mut source = query!(
+        "SELECT candidates.* FROM ({}) candidates",
+        checkpointed_filtered
+    );
+    source = filter!(
+        source,
+        format!(
+            "NOT EXISTS (\
+                 SELECT 1 FROM objects_backward_history changed \
+                 WHERE changed.object_id = candidates.object_id \
+                   AND changed.superseded_at_checkpoint > {checkpoint_viewed_at})"
+        )
+    );
     page.apply::<StoredBackwardObject>(source)
 }
 
-/// Returns objects from `objects_backward_history` that were consistent at the
-/// given checkpoint.
+/// Returns active objects from `objects_backward_history` that were consistent
+/// at the given checkpoint.
 ///
 /// Picks the earliest superseded version (`MIN(object_version)`) per object,
 /// which represents the state just before the first change after the target
-/// checkpoint. Excludes `NOT_YET_CREATED` entries (objects that didn't exist
-/// at the target checkpoint).
+/// checkpoint. Keeps only `Active` entries: when that earliest version is a
+/// tombstone (or `NotYetCreated`), the object had no live state at the target
+/// checkpoint and drops out of the join.
 fn consistent_historical_objects(
     checkpoint_viewed_at: i64,
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     let history_filtered = filter_fn(query!(format!(
-        "SELECT {HISTORY_COLUMNS} FROM objects_backward_history"
+        "SELECT {OBJECT_COLUMNS} FROM objects_backward_history"
     )));
 
     let history_window = filter!(
         history_filtered,
-        format!(
-            "superseded_at_checkpoint > {} AND object_status != {NOT_YET_CREATED}",
-            checkpoint_viewed_at
-        )
+        format!("superseded_at_checkpoint > {checkpoint_viewed_at} AND object_status = {ACTIVE}")
     );
 
     let oldest_subquery = query!(format!(

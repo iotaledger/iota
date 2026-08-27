@@ -29,7 +29,6 @@ p256.workspace = true
 passkey-authenticator.workspace = true
 passkey-client.workspace = true
 passkey-types.workspace = true
-prometheus.workspace = true
 prost-types.workspace = true
 rand.workspace = true
 serde.workspace = true
@@ -43,9 +42,8 @@ url.workspace = true
 # internal dependencies
 iota-common.workspace = true
 iota-config.workspace = true
-iota-core.workspace = true
+iota-core = { workspace = true, features = ["test-utils"] }
 iota-framework.workspace = true
-iota-genesis-builder.workspace = true
 iota-grpc-client.workspace = true
 iota-grpc-types.workspace = true
 iota-json-rpc.workspace = true
@@ -62,15 +60,24 @@ iota-sdk.workspace = true
 iota-sdk-crypto = { workspace = true, features = ["secp256r1"] }
 iota-sdk-types.workspace = true
 iota-simulator.workspace = true
+iota-snapshot.workspace = true
 iota-storage.workspace = true
 iota-swarm.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
-iota-tool.workspace = true
+iota-traffic-controller.workspace = true
 iota-types.workspace = true
 move-binary-format.workspace = true
 move-command-line-common.workspace = true
 move-core-types.workspace = true
 move-package.workspace = true
+prometheus-filtered.workspace = true
 telemetry-subscribers.workspace = true
 test-cluster.workspace = true
+
+# The iota_vm_sdk_comparison_tests test drives iota-vm-sdk's gRPC store, which needs a real
+# multi-threaded runtime, so it does not run under the simulator. Confining the
+# dependency to non-msim keeps iota-vm-sdk's native-only gRPC stack out of the
+# simtest build.
+[target.'cfg(not(msim))'.dev-dependencies]
+iota-vm-sdk = { workspace = true, features = ["grpc"] }

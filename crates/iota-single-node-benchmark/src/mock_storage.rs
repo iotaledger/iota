@@ -8,10 +8,10 @@ use std::{
 };
 
 use iota_core::authority::authority_per_epoch_store::AuthorityPerEpochStore;
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{ObjectId, Owner, Version};
 use iota_storage::package_object_cache::PackageObjectCache;
 use iota_types::{
-    base_types::{EpochId, SequenceNumber, VersionNumber},
+    base_types::{EpochId, VersionNumber},
     error::{IotaError, IotaResult},
     inner_temporary_store::InnerTemporaryStore,
     object::Object,
@@ -24,7 +24,7 @@ use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::language_storage::ModuleId;
 use once_cell::unsync::OnceCell;
-use prometheus::core::{Atomic, AtomicU64};
+use prometheus_filtered::core::{Atomic, AtomicU64};
 
 // TODO: We won't need a special purpose InMemoryObjectStore once the
 // InMemoryCache is ready.
@@ -127,13 +127,10 @@ impl ObjectStore for InMemoryObjectStore {
         object_id: &ObjectId,
         version: VersionNumber,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
-        Ok(self.try_get_object(object_id).unwrap().and_then(|o| {
-            if o.version() == version {
-                Some(o)
-            } else {
-                None
-            }
-        }))
+        Ok(self
+            .try_get_object(object_id)
+            .unwrap()
+            .filter(|o| o.version() == version))
     }
 }
 
@@ -148,14 +145,10 @@ impl ChildObjectResolver for InMemoryObjectStore {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
-        Ok(self.try_get_object(child)?.and_then(|o| {
-            if o.version() <= child_version_upper_bound && o.owner == Owner::Object(*parent) {
-                Some(o)
-            } else {
-                None
-            }
+        Ok(self.try_get_object(child)?.filter(|o| {
+            o.version() <= child_version_upper_bound && o.owner == Owner::Object(*parent)
         }))
     }
 
@@ -163,7 +156,7 @@ impl ChildObjectResolver for InMemoryObjectStore {
         &self,
         _owner: &ObjectId,
         _receiving_object_id: &ObjectId,
-        _receive_object_at_version: SequenceNumber,
+        _receive_object_at_version: Version,
         _epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         unimplemented!()

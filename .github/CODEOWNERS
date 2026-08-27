@@ -9,7 +9,6 @@
 /crates/iota-adapter-transactional-tests/ @iotaledger/vm-language
 /crates/iota-analytics-indexer/ @iotaledger/infrastructure
 /crates/iota-analytics-indexer-derive/ @iotaledger/infrastructure
-/crates/iota-archival/ @iotaledger/node
 /crates/iota-authority-aggregation/ @iotaledger/node @iotaledger/consensus
 /crates/iota-cluster-test/ @iotaledger/infrastructure
 /crates/iota-common/ @iotaledger/core-protocol
@@ -24,6 +23,7 @@
 /crates/iota-faucet/ @iotaledger/infrastructure
 /crates/iota-framework/ @iotaledger/vm-language
 /crates/iota-framework-snapshot/ @iotaledger/vm-language
+/crates/iota-framework-snapshot-manifest/ @iotaledger/vm-language
 /crates/iota-framework-tests/ @iotaledger/vm-language
 /crates/iota-genesis-builder/ @iotaledger/vm-language
 /crates/iota-genesis-common/ @iotaledger/vm-language
@@ -47,6 +47,7 @@
 /crates/iota-move/ @iotaledger/vm-language
 /crates/iota-move-build/ @iotaledger/vm-language
 /crates/iota-move-lsp/ @iotaledger/vm-language
+/crates/iota-multiaddr/ @iotaledger/node
 /crates/iota-names/ @iotaledger/dev-tools
 /crates/iota-network/ @iotaledger/node
 /crates/iota-network-stack/ @iotaledger/node
@@ -65,6 +66,7 @@
 /crates/iota-replay/ @iotaledger/node
 /crates/iota-rest-kv/ @iotaledger/infrastructure
 /crates/iota-rpc-loadgen/ @iotaledger/infrastructure
+/crates/iota-rust-sdk/ @iotaledger/dev-tools
 /crates/iota-sdk/ @iotaledger/dev-tools
 /crates/iota-simulator/ @iotaledger/core-protocol
 /crates/iota-single-node-benchmark/ @iotaledger/node
@@ -79,13 +81,16 @@
 /crates/iota-test-transaction-builder/ @iotaledger/dev-tools
 /crates/iota-tls/ @iotaledger/core-protocol
 /crates/iota-tool/ @iotaledger/node
+/crates/iota-traffic-controller/ @iotaledger/node
 /crates/iota-transaction-builder/ @iotaledger/dev-tools
 /crates/iota-transaction-checks/ @iotaledger/core-protocol
 /crates/iota-transactional-test-runner/ @iotaledger/vm-language
 /crates/iota-types/ @iotaledger/core-protocol @iotaledger/sc-platform
 /crates/iota-upgrade-compatibility-transactional-tests/ @iotaledger/vm-language
 /crates/iota-verifier-transactional-tests/ @iotaledger/vm-language
+/crates/iota-vm-sdk/ @iotaledger/dev-tools
 /crates/prometheus-closure-metric/ @iotaledger/node
+/crates/prometheus-filtered/ @iotaledger/node
 /crates/simulacrum/ @iotaledger/node @iotaledger/vm-language
 /crates/simulacrum-server/ @iotaledger/node
 /crates/starfish/ @iotaledger/consensus

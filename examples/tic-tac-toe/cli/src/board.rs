@@ -4,8 +4,7 @@
 
 use std::fmt;
 
-use iota_sdk_types::ObjectId;
-use iota_types::base_types::IotaAddress;
+use iota_sdk_types::{Address, ObjectId};
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -13,8 +12,8 @@ pub(crate) struct Board {
     pub id: ObjectId,
     pub marks: Vec<u8>,
     pub turn: u8,
-    pub x: IotaAddress,
-    pub o: IotaAddress,
+    pub x: Address,
+    pub o: Address,
 }
 
 #[derive(Eq, PartialEq)]

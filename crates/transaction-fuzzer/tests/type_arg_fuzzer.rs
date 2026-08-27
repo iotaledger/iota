@@ -2,8 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::Owner;
-use iota_types::{base_types::ObjectRef, effects::TransactionEffectsAPI};
+use iota_sdk_types::{ObjectReference, Owner};
+use iota_types::effects::TransactionEffectsAPI;
 use proptest::{collection::vec, prelude::*, strategy::ValueTree};
 use transaction_fuzzer::{
     account_universe::{AccountCurrent, AccountData},
@@ -14,7 +14,7 @@ use transaction_fuzzer::{
     },
 };
 
-fn publish_type_factory(exec: &mut Executor, account: &mut AccountCurrent) -> ObjectRef {
+fn publish_type_factory(exec: &mut Executor, account: &mut AccountCurrent) -> ObjectReference {
     let effects = exec.publish("type_factory", vec![], account);
     let package = effects
         .created()

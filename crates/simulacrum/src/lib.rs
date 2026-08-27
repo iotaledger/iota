@@ -31,33 +31,34 @@ use iota_config::{
 };
 use iota_node_storage::{GrpcIndexes, GrpcStateReader};
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{EndOfEpochTransactionKind, ObjectId, StructTag, TransactionKind};
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, ConsensusCommitDigest,
+    EndOfEpochTransactionKind, GasPayment, ObjectId, StructTag, SystemPackage, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind,
+    checkpoint::{CheckpointContents, EndOfEpochData},
+};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_swarm_config::{
     genesis_config::AccountConfig, network_config::NetworkConfig,
     network_config_builder::ConfigBuilder,
 };
 use iota_types::{
-    base_types::{AuthorityName, IotaAddress, VersionNumber},
+    base_types::{AuthorityName, EpochId, VersionNumber},
     committee::Committee,
-    crypto::{AuthoritySignature, KeypairTraits},
-    digests::{ConsensusCommitDigest, TransactionDigest},
-    effects::TransactionEffects,
+    crypto::AuthoritySignature,
     error::ExecutionError,
     gas_coin::{GasCoin, NANOS_PER_IOTA},
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait, epoch_start_iota_system_state::EpochStartSystemState,
     },
-    messages_checkpoint::{
-        CheckpointContents, CheckpointSequenceNumber, EndOfEpochData, VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber, VerifiedCheckpoint},
     mock_checkpoint_builder::{MockCheckpointBuilder, ValidatorKeypairProvider},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::VerifyParams,
-    storage::{EpochInfo, ObjectStore, ReadStore, TransactionInfo},
-    transaction::{GasData, Transaction, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    storage::{EpochInfoV2, ObjectStore, ReadStore, TransactionInfo},
+    transaction::{TransactionAPI, TransactionEnvelope, VerifiedTransaction},
 };
 use rand::rngs::OsRng;
 
@@ -175,9 +176,9 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         }
     }
 
-    /// Attempts to execute the provided Transaction.
+    /// Attempts to execute the provided transaction.
     ///
-    /// The provided Transaction undergoes the same types of checks that a
+    /// The provided transaction undergoes the same types of checks that a
     /// Validator does prior to signing and executing in the production
     /// system. Some of these checks are as follows:
     /// - User signature is valid
@@ -190,7 +191,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// TransactionEffects are returned.
     pub fn execute_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
     ) -> anyhow::Result<(TransactionEffects, Option<ExecutionError>)> {
         let mut inner = self.inner.write().unwrap();
         let transaction = transaction.try_into_verified_for_testing(&VerifyParams::default())?;
@@ -225,7 +226,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// This is useful for testing transaction behavior without modifying state.
     pub fn simulate_transaction(
         &self,
-        transaction: TransactionData,
+        transaction: Transaction,
         checks: iota_types::transaction_executor::VmChecks,
     ) -> iota_types::error::IotaResult<iota_types::transaction_executor::SimulateTransactionResult>
     {
@@ -291,8 +292,18 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// created.
     ///
     /// NOTE: This function does not currently support updating the protocol
-    /// version or the system packages
-    pub fn advance_epoch(&self) {
+    /// version or the system packages.
+    ///
+    /// With `create_deny_rules_object`, the end-of-epoch transaction also
+    /// creates the `TransactionDenyRules` object (requires the
+    /// `deny_rule_governance_on_chain` feature flag).
+    ///
+    /// Returns the effects of the end-of-epoch transaction.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the end-of-epoch transaction cannot be executed or fails.
+    pub fn advance_epoch(&self, create_deny_rules_object: bool) -> TransactionEffects {
         let inner = self.inner.read().unwrap();
         let current_epoch = inner.epoch_state.epoch();
         let next_epoch = current_epoch + 1;
@@ -302,32 +313,85 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             .epoch_rolling_gas_cost_summary()
             .clone();
         let epoch_start_timestamp_ms = inner.store.get_clock().timestamp_ms();
+        let pass_validator_scores = inner
+            .epoch_state
+            .protocol_config()
+            .pass_validator_scores_to_advance_epoch();
+        let adjust_rewards_by_score = inner
+            .epoch_state
+            .protocol_config()
+            .adjust_rewards_by_score();
+        let committee_size = inner.epoch_state.committee().num_members();
         drop(inner);
 
-        let next_epoch_system_package_bytes: Vec<iota_types::transaction::SystemPackage> = vec![];
-        let kinds = vec![EndOfEpochTransactionKind::new_change_epoch_v3(
-            next_epoch,
-            next_epoch_protocol_version.as_u64(),
-            gas_cost_summary.storage_cost,
-            gas_cost_summary.computation_cost,
-            gas_cost_summary.computation_cost_burned,
-            gas_cost_summary.storage_rebate,
-            gas_cost_summary.non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            next_epoch_system_package_bytes,
-            vec![],
-        )];
+        // One full score per validator, so rewards stay unadjusted. This
+        // mirrors the node's default when locally calculated scores are not
+        // passed. Must match MAX_SCORE in validator_set.move.
+        const MAX_SCORE: u64 = u16::MAX as u64 + 1;
+        let scores = vec![MAX_SCORE; committee_size];
+
+        let next_epoch_system_package_bytes: Vec<SystemPackage> = vec![];
+        let mut kinds = Vec::new();
+        if create_deny_rules_object {
+            kinds.push(EndOfEpochTransactionKind::TransactionDenyRulesCreate);
+        }
+        // Mirror the node's kind selection: the framework's `advance_epoch`
+        // expects the V4 argument shape when the flag is enabled.
+        kinds.push(if pass_validator_scores {
+            EndOfEpochTransactionKind::new_change_epoch_v4(
+                next_epoch,
+                next_epoch_protocol_version.as_u64(),
+                gas_cost_summary.storage_cost,
+                gas_cost_summary.computation_cost,
+                gas_cost_summary.computation_cost_burned,
+                gas_cost_summary.storage_rebate,
+                gas_cost_summary.non_refundable_storage_fee,
+                epoch_start_timestamp_ms,
+                next_epoch_system_package_bytes,
+                vec![],
+                scores,
+                adjust_rewards_by_score,
+            )
+        } else {
+            EndOfEpochTransactionKind::new_change_epoch_v3(
+                next_epoch,
+                next_epoch_protocol_version.as_u64(),
+                gas_cost_summary.storage_cost,
+                gas_cost_summary.computation_cost,
+                gas_cost_summary.computation_cost_burned,
+                gas_cost_summary.storage_rebate,
+                gas_cost_summary.non_refundable_storage_fee,
+                epoch_start_timestamp_ms,
+                next_epoch_system_package_bytes,
+                vec![],
+            )
+        });
 
         let tx = VerifiedTransaction::new_end_of_epoch_transaction(kinds);
-        self.execute_transaction(tx.into())
+        let (effects, execution_error) = self
+            .execute_transaction(tx.into())
             .expect("advancing the epoch cannot fail");
+        assert!(
+            execution_error.is_none(),
+            "the end-of-epoch transaction failed: {execution_error:?}, {effects:?}"
+        );
 
         let (checkpoint, contents, new_epoch_state) = {
             let mut inner = self.inner.write().unwrap();
-            let new_epoch_state = EpochState::new(inner.store.get_system_state());
+            let system_state = inner.store.get_system_state();
+            // On same-version epoch changes, carry the current protocol config
+            // over instead of re-resolving it from the version, so feature
+            // flags customized for testing survive the epoch change.
+            let prev_protocol_config = inner.epoch_state.protocol_config();
+            let new_epoch_state =
+                if system_state.protocol_version() == prev_protocol_config.version.as_u64() {
+                    EpochState::new_with_config(prev_protocol_config.clone(), system_state)
+                } else {
+                    EpochState::new(system_state)
+                };
             let end_of_epoch_data = EndOfEpochData {
-                next_epoch_committee: new_epoch_state.committee().voting_rights.clone(),
-                next_epoch_protocol_version,
+                next_epoch_committee: new_epoch_state.committee().committee_members(),
+                next_epoch_protocol_version: next_epoch_protocol_version.as_u64(),
                 epoch_commitments: vec![],
                 // Do not simulate supply changes for now.
                 epoch_supply_change: 0,
@@ -348,7 +412,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             inner.store.insert_checkpoint_contents(contents.clone());
             inner
                 .store
-                .update_last_checkpoint_of_epoch(current_epoch, *checkpoint.sequence_number());
+                .update_last_checkpoint_of_epoch(current_epoch, checkpoint.sequence_number());
             (checkpoint, contents, new_epoch_state)
         };
 
@@ -358,6 +422,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         // Finally, update the epoch state
         let mut inner = self.inner.write().unwrap();
         inner.epoch_state = new_epoch_state;
+
+        effects
     }
 
     /// Execute a function with read access to the store.
@@ -411,28 +477,29 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
     /// Request that `amount` Nanos be sent to `address` from a faucet account.
     ///
     /// ```
-    /// use iota_types::{base_types::IotaAddress, gas_coin::NANOS_PER_IOTA};
+    /// use iota_sdk_types::Address;
+    /// use iota_types::gas_coin::NANOS_PER_IOTA;
     /// use simulacrum::Simulacrum;
     ///
     /// # fn main() {
     /// let mut simulacrum = Simulacrum::new();
-    /// let address = simulacrum.with_rng(|rng| IotaAddress::generate(rng));
+    /// let address = simulacrum.with_rng(|rng| Address::random_with(rng));
     /// simulacrum.request_gas(address, NANOS_PER_IOTA).unwrap();
     ///
     /// // `account` now has a Coin<IOTA> object with single IOTA in it.
     /// // ...
     /// # }
     /// ```
-    pub fn request_gas(&self, address: IotaAddress, amount: u64) -> Result<TransactionEffects> {
+    pub fn request_gas(&self, address: Address, amount: u64) -> Result<TransactionEffects> {
         // For right now we'll just use the first account as the `faucet` account. We
         // may want to explicitly cordon off the faucet account from the rest of
         // the accounts though.
-        let (sender, key) = self.with_keystore(|keystore| -> Result<(IotaAddress, _)> {
+        let (sender, key) = self.with_keystore(|keystore| -> Result<(Address, _)> {
             let (s, k) = keystore
                 .accounts()
                 .next()
                 .ok_or_else(|| anyhow!("no accounts available in keystore"))?;
-            Ok((*s, k.copy()))
+            Ok((*s, k.clone()))
         })?;
 
         let object = self
@@ -446,7 +513,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
                 anyhow!("unable to find a coin with enough to satisfy request for {amount} Nanos")
             })?;
 
-        let gas_data = iota_types::transaction::GasData {
+        let gas_data = GasPayment {
             objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),
@@ -461,9 +528,8 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
         };
 
         let kind = TransactionKind::Programmable(pt);
-        let tx_data =
-            iota_types::transaction::TransactionData::new_with_gas_data(kind, sender, gas_data);
-        let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
+        let tx = iota_sdk_types::Transaction::new_with_gas_data(kind, sender, gas_data);
+        let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
 
         self.execute_transaction(tx).map(|x| x.0)
     }
@@ -475,7 +541,7 @@ impl<R, S: store::SimulatorStore> Simulacrum<R, S> {
             let checkpoint = inner.store.get_checkpoint_by_sequence_number(0).unwrap();
             let contents = inner
                 .store
-                .get_checkpoint_contents_by_digest(&checkpoint.content_digest);
+                .get_checkpoint_contents_by_digest(&checkpoint.contents_digest);
             (checkpoint, contents)
         };
         // Release lock before expensive data ingestion operation
@@ -573,6 +639,10 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         Ok(self.with_store(|store| store.get_highest_checkpoint().unwrap()))
     }
 
+    fn try_get_latest_epoch_id(&self) -> iota_types::storage::error::Result<EpochId> {
+        Ok(self.inner.read().unwrap().epoch_state.epoch())
+    }
+
     fn try_get_highest_verified_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
@@ -596,7 +666,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_checkpoint_by_digest(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointDigest,
+        digest: &CheckpointDigest,
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         Ok(self.with_store(|store| store.get_checkpoint_by_digest(digest)))
     }
@@ -610,46 +680,42 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_checkpoint_contents_by_digest(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+        digest: &CheckpointContentsDigest,
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         Ok(self.with_store(|store| store.get_checkpoint_contents_by_digest(digest)))
     }
 
     fn try_get_checkpoint_contents_by_sequence_number(
         &self,
         sequence_number: iota_types::messages_checkpoint::CheckpointSequenceNumber,
-    ) -> iota_types::storage::error::Result<
-        Option<iota_types::messages_checkpoint::CheckpointContents>,
-    > {
+    ) -> iota_types::storage::error::Result<Option<CheckpointContents>> {
         Ok(self.with_store(|store| {
             store
                 .get_checkpoint_by_sequence_number(sequence_number)
                 .and_then(|checkpoint| {
-                    store.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                    store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
                 })
         }))
     }
 
     fn try_get_transaction(
         &self,
-        tx_digest: &iota_types::digests::TransactionDigest,
+        tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<Arc<VerifiedTransaction>>> {
         Ok(self.with_store(|store| store.get_transaction(tx_digest)))
     }
 
     fn try_get_transaction_effects(
         &self,
-        tx_digest: &iota_types::digests::TransactionDigest,
+        tx_digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionEffects>> {
         Ok(self.with_store(|store| store.get_transaction_effects(tx_digest)))
     }
 
     fn try_get_events(
         &self,
-        digest: &iota_types::digests::TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<iota_types::effects::TransactionEvents>> {
+        digest: &TransactionDigest,
+    ) -> iota_types::storage::error::Result<Option<TransactionEvents>> {
         Ok(self.with_store(|store| store.get_events(digest)))
     }
 
@@ -662,7 +728,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
         self.with_store(|store| {
             store
                 .try_get_checkpoint_by_sequence_number(sequence_number)?
-                .and_then(|chk| store.get_checkpoint_contents_by_digest(&chk.content_digest))
+                .and_then(|chk| store.get_checkpoint_contents_by_digest(&chk.contents_digest))
                 .map_or(Ok(None), |contents| {
                     iota_types::messages_checkpoint::FullCheckpointContents::try_from_checkpoint_contents(
                         store,
@@ -674,7 +740,7 @@ impl<T, V: store::SimulatorStore> ReadStore for Simulacrum<T, V> {
 
     fn try_get_full_checkpoint_contents(
         &self,
-        digest: &iota_types::messages_checkpoint::CheckpointContentsDigest,
+        digest: &CheckpointContentsDigest,
     ) -> iota_types::storage::error::Result<
         Option<iota_types::messages_checkpoint::FullCheckpointContents>,
     > {
@@ -719,6 +785,36 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcStateReader for
         }))
     }
 
+    fn get_epoch_info(
+        &self,
+        epoch: iota_types::committee::EpochId,
+    ) -> iota_types::storage::error::Result<Option<EpochInfoV2>> {
+        Ok(self.with_store(|store| {
+            let start_checkpoint_seq = if epoch != 0 {
+                store
+                    .get_last_checkpoint_of_epoch(epoch - 1)
+                    .map(|seq| Some(seq + 1))
+                    .unwrap_or(None)?
+            } else {
+                0
+            };
+
+            let start_checkpoint = store.get_checkpoint_by_sequence_number(start_checkpoint_seq)?;
+
+            let system_state = self.get_system_state_for_epoch(epoch)?;
+
+            Some(EpochInfoV2 {
+                epoch,
+                start_checkpoint: start_checkpoint_seq,
+                start_timestamp_ms: start_checkpoint.data().timestamp_ms,
+                system_state,
+                // Simulacrum doesn't build the close-of-epoch proof, so the
+                // derived `end_*` fields report `None`.
+                epoch_close_proof: None,
+            })
+        }))
+    }
+
     fn grpc_indexes(&self) -> Option<&dyn iota_node_storage::GrpcIndexes> {
         Some(self)
     }
@@ -748,51 +844,6 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> Simulacrum<T, V> {
 }
 
 impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Simulacrum<T, V> {
-    fn get_epoch_info(
-        &self,
-        epoch: iota_types::committee::EpochId,
-    ) -> iota_types::storage::error::Result<Option<EpochInfo>> {
-        Ok(self.with_store(|store| {
-            let start_checkpoint_seq = if epoch != 0 {
-                store
-                    .get_last_checkpoint_of_epoch(epoch - 1)
-                    .map(|seq| Some(seq + 1))
-                    .unwrap_or(None)?
-            } else {
-                0
-            };
-
-            let start_checkpoint = store.get_checkpoint_by_sequence_number(start_checkpoint_seq)?;
-
-            let system_state = self.get_system_state_for_epoch(epoch)?;
-
-            let (end_timestamp_ms, end_checkpoint) =
-                if let Some(next_epoch_state) = self.get_system_state_for_epoch(epoch + 1) {
-                    (
-                        Some(next_epoch_state.epoch_start_timestamp_ms()),
-                        Some(
-                            store
-                                .get_last_checkpoint_of_epoch(epoch)
-                                .expect("last checkpoint of completed epoch should exist"),
-                        ),
-                    )
-                } else {
-                    (None, None)
-                };
-
-            Some(EpochInfo {
-                epoch,
-                protocol_version: system_state.protocol_version(),
-                start_timestamp_ms: start_checkpoint.data().timestamp_ms,
-                end_timestamp_ms,
-                start_checkpoint: start_checkpoint_seq,
-                end_checkpoint,
-                reference_gas_price: system_state.reference_gas_price(),
-                system_state,
-            })
-        }))
-    }
-
     fn get_transaction_info(
         &self,
         digest: &TransactionDigest,
@@ -800,12 +851,12 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
         Ok(self.with_store(|store| {
             let highest_seq = store
                 .get_highest_checkpoint()
-                .map(|cp| *cp.sequence_number())?;
+                .map(|cp| cp.sequence_number())?;
 
             for seq in (0..=highest_seq).rev() {
                 if let Some(checkpoint) = store.get_checkpoint_by_sequence_number(seq) {
                     if let Some(contents) =
-                        store.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
+                        store.get_checkpoint_contents_by_digest(&checkpoint.contents_digest)
                     {
                         if contents
                             .iter()
@@ -815,7 +866,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
                             // populates this from input/output objects but that is
                             // not needed for the simulacrum test harness.
                             return Some(TransactionInfo {
-                                checkpoint: *checkpoint.sequence_number(),
+                                checkpoint: checkpoint.sequence_number(),
                                 object_types: HashMap::new(),
                             });
                         }
@@ -828,7 +879,7 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> GrpcIndexes for Sim
 
     fn account_owned_objects_info_iter(
         &self,
-        _owner: iota_types::base_types::IotaAddress,
+        _owner: Address,
         _cursor: Option<&iota_types::storage::OwnedObjectCursor>,
         _object_type: Option<StructTag>,
     ) -> iota_types::storage::error::Result<
@@ -879,10 +930,10 @@ impl Simulacrum {
     /// iota-test-transaction-builder by defining a trait
     /// that both WalletContext and Simulacrum implement. Then we can remove
     /// this function.
-    pub fn transfer_txn(&self, recipient: IotaAddress) -> (Transaction, u64) {
+    pub fn transfer_txn(&self, recipient: Address) -> (TransactionEnvelope, u64) {
         let (sender, key) = self.with_keystore(|keystore| {
             let (s, k) = keystore.accounts().next().unwrap();
-            (*s, k.copy())
+            (*s, k.clone())
         });
 
         let (object, gas_coin_value) = self.with_store(|store| {
@@ -902,14 +953,14 @@ impl Simulacrum {
         };
 
         let kind = TransactionKind::Programmable(pt);
-        let gas_data = GasData {
+        let gas_data = GasPayment {
             objects: vec![object.object_ref()],
             owner: sender,
             price: self.reference_gas_price(),
             budget: 1_000_000_000,
         };
-        let tx_data = TransactionData::new_with_gas_data(kind, sender, gas_data);
-        let tx = Transaction::from_data_and_signer(tx_data, vec![&key]);
+        let tx = Transaction::new_with_gas_data(kind, sender, gas_data);
+        let tx = TransactionEnvelope::from_data_and_signer(tx, vec![&key]);
         (tx, transfer_amount)
     }
 }
@@ -919,8 +970,7 @@ mod tests {
     use std::time::Duration;
 
     use iota_types::{
-        base_types::IotaAddress, effects::TransactionEffectsAPI, gas_coin::GasCoin,
-        transaction::TransactionDataAPI,
+        effects::TransactionEffectsAPI, gas_coin::GasCoin, transaction::TransactionAPI,
     };
     use rand::{SeedableRng, rngs::StdRng};
 
@@ -976,13 +1026,195 @@ mod tests {
     }
 
     #[test]
+    fn advance_epoch_creates_deny_rules_object() {
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_deny_rule_governance_for_testing(true);
+                config.set_deny_rule_governance_on_chain_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+                config
+            });
+        let sim = Simulacrum::new();
+
+        assert!(sim.with_store(|store| {
+            store
+                .get_object(&iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID)
+                .is_none()
+        }));
+
+        sim.advance_epoch(true);
+
+        let object = sim
+            .with_store(|store| {
+                store
+                    .get_object(&iota_types::IOTA_TRANSACTION_DENY_RULES_OBJECT_ID)
+                    .cloned()
+            })
+            .expect("the TransactionDenyRules object must exist after the create");
+        assert!(object.owner().is_shared());
+    }
+
+    /// The full deny rule state read back by walking the object's
+    /// `LinkedTable`s matches the deltas applied through real execution.
+    #[test]
+    fn walked_object_state_matches_applied_deltas() {
+        use std::collections::BTreeSet;
+
+        use iota_sdk_types::TransactionDenyRulesUpdate;
+        use iota_types::transaction_deny_rules::{
+            get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
+        };
+
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_deny_rule_governance_for_testing(true);
+                config.set_deny_rule_governance_on_chain_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+                config
+            });
+        let sim = Simulacrum::new();
+        sim.advance_epoch(true);
+
+        let initial_shared_version = sim
+            .with_store(|store| get_transaction_deny_rules_obj_initial_shared_version(store))
+            .unwrap()
+            .expect("object must exist after the create");
+
+        let denied_address = Address::new([0xAA; 32]);
+        let removed_address = Address::new([0xBB; 32]);
+        let denied_package = ObjectId::new([0x2B; 32]);
+        let update = |round, added_addresses: BTreeSet<Address>, removed_addresses| {
+            VerifiedTransaction::new_transaction_deny_rules_update(TransactionDenyRulesUpdate {
+                epoch: 1,
+                round,
+                added_addresses,
+                removed_addresses,
+                added_objects: BTreeSet::new(),
+                removed_objects: BTreeSet::new(),
+                added_packages: [denied_package].into(),
+                removed_packages: BTreeSet::new(),
+                package_publish_disabled: false,
+                package_upgrade_disabled: false,
+                shared_object_disabled: true,
+                user_transaction_disabled: false,
+                receiving_objects_disabled: false,
+                move_authenticator_disabled: false,
+                deny_rules_obj_initial_shared_version: initial_shared_version,
+            })
+        };
+
+        // Two entries in, then one removed again: the walk crosses re-linked
+        // nodes, not just appended ones.
+        let (_, error) = sim
+            .execute_transaction(
+                update(0, [denied_address, removed_address].into(), BTreeSet::new()).into(),
+            )
+            .unwrap();
+        assert!(error.is_none());
+        let (_, error) = sim
+            .execute_transaction(update(1, BTreeSet::new(), [removed_address].into()).into())
+            .unwrap();
+        assert!(error.is_none());
+
+        let walked = sim
+            .with_store(|store| get_transaction_deny_rules(store))
+            .unwrap()
+            .expect("object must exist");
+        assert_eq!(walked.denied_addresses, [denied_address].into());
+        assert!(walked.denied_objects.is_empty());
+        assert_eq!(walked.denied_packages, [denied_package].into());
+        assert!(walked.shared_object_disabled);
+        assert!(!walked.user_transaction_disabled);
+    }
+
+    /// A chunk at the `deny_rule_update_max_entries_per_tx` ceiling executes:
+    /// all additions and all removals, which stress different limits (new
+    /// object ids and event size vs the store entries touched by re-linking).
+    #[test]
+    fn deny_rule_update_executes_at_the_chunk_ceiling() {
+        use std::collections::BTreeSet;
+
+        use iota_sdk_types::TransactionDenyRulesUpdate;
+        use iota_types::transaction_deny_rules::{
+            get_transaction_deny_rules, get_transaction_deny_rules_obj_initial_shared_version,
+        };
+
+        const CEILING: u64 = 2048;
+
+        let _guard =
+            iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+                config.set_deny_rule_governance_for_testing(true);
+                config.set_deny_rule_governance_on_chain_for_testing(true);
+                config.set_deny_rule_update_max_entries_per_tx_for_testing(CEILING);
+                config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+                config
+            });
+        let sim = Simulacrum::new();
+        sim.advance_epoch(true);
+
+        let initial_shared_version = sim
+            .with_store(|store| get_transaction_deny_rules_obj_initial_shared_version(store))
+            .unwrap()
+            .expect("object must exist after the create");
+
+        let addresses: BTreeSet<Address> = (0..CEILING)
+            .map(|i| {
+                let mut bytes = [0u8; 32];
+                bytes[..8].copy_from_slice(&i.to_be_bytes());
+                Address::new(bytes)
+            })
+            .collect();
+        let update = |round, added_addresses, removed_addresses| {
+            VerifiedTransaction::new_transaction_deny_rules_update(TransactionDenyRulesUpdate {
+                epoch: 1,
+                round,
+                added_addresses,
+                removed_addresses,
+                added_objects: BTreeSet::new(),
+                removed_objects: BTreeSet::new(),
+                added_packages: BTreeSet::new(),
+                removed_packages: BTreeSet::new(),
+                package_publish_disabled: false,
+                package_upgrade_disabled: false,
+                shared_object_disabled: false,
+                user_transaction_disabled: false,
+                receiving_objects_disabled: false,
+                move_authenticator_disabled: false,
+                deny_rules_obj_initial_shared_version: initial_shared_version,
+            })
+        };
+
+        let (_, error) = sim
+            .execute_transaction(update(0, addresses.clone(), BTreeSet::new()).into())
+            .unwrap();
+        assert!(error.is_none());
+        let walked = sim
+            .with_store(|store| get_transaction_deny_rules(store))
+            .unwrap()
+            .expect("object must exist");
+        assert_eq!(walked.denied_addresses.len(), CEILING as usize);
+
+        let (_, error) = sim
+            .execute_transaction(update(1, BTreeSet::new(), addresses).into())
+            .unwrap();
+        assert!(error.is_none());
+        let walked = sim
+            .with_store(|store| get_transaction_deny_rules(store))
+            .unwrap()
+            .expect("object must exist");
+        assert!(walked.denied_addresses.is_empty());
+    }
+
+    #[test]
     fn simple_epoch() {
         let steps = 10;
         let sim = Simulacrum::new();
 
         let start_epoch = sim.with_store(|store| store.get_highest_checkpoint().unwrap().epoch);
         for i in 0..steps {
-            sim.advance_epoch();
+            sim.advance_epoch(false);
             sim.advance_clock(Duration::from_millis(1));
             sim.create_checkpoint();
             println!("{i}");
@@ -997,10 +1229,10 @@ mod tests {
     #[test]
     fn transfer() {
         let sim = Simulacrum::new();
-        let recipient = IotaAddress::random();
+        let recipient = Address::random();
         let (tx, transfer_amount) = sim.transfer_txn(recipient);
 
-        let gas_id = tx.data().transaction_data().gas_data().objects[0].object_id;
+        let gas_id = tx.data().transaction().gas_data().objects[0].object_id;
         let effects = sim.execute_transaction(tx).unwrap().0;
         let gas_summary = effects.gas_cost_summary();
         let gas_paid = gas_summary.net_gas_usage();

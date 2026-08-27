@@ -447,8 +447,10 @@ impl ServerBuilder {
             config.service.limits.request_timeout_ms.into(),
             indexer_metrics.clone(),
             cancellation_token,
+            &config.historic_fallback,
+            &registry,
         )
-        .map_err(|e| Error::ServerInit(format!("Failed to create pg connection pool: {e}")))?;
+        .map_err(|e| Error::ServerInit(format!("Failed to initialize indexer reader: {e}")))?;
 
         if !config.connection.skip_migration_consistency_check {
             // Compatibility check
@@ -788,13 +790,14 @@ pub mod tests {
         Request, Response, Variables,
         extensions::{Extension, ExtensionContext, NextExecute},
     };
-    use iota_types::transaction::{TransactionData, TransactionDataAPI};
+    use iota_sdk_types::Transaction;
+    use iota_types::transaction::TransactionAPI;
     use serde_json::json;
     use uuid::Uuid;
 
     use super::*;
     use crate::{
-        config::{ConnectionConfig, Limits, ServiceConfig, Version},
+        config::{ConnectionConfig, HistoricFallbackOptions, Limits, ServiceConfig, Version},
         context_data::db_data_provider::PgManager,
         extensions::{query_limits_checker::QueryLimitsChecker, timeout::Timeout},
         test_infra::cluster::Cluster,
@@ -810,12 +813,15 @@ pub mod tests {
         let connection_config = connection_config.unwrap_or_default();
         let service_config = service_config.unwrap_or_default();
 
+        let registry = prometheus_filtered::Registry::new();
         let reader = PgManager::reader_with_config(
             connection_config.db_url.clone(),
             connection_config.db_pool_size,
             service_config.limits.request_timeout_ms.into(),
-            IndexerMetrics::new(&prometheus::Registry::new()),
+            IndexerMetrics::new(&registry),
             CancellationToken::new(),
+            &HistoricFallbackOptions::default(),
+            &registry,
         )
         .expect("failed to create pg connection pool");
 
@@ -969,7 +975,7 @@ pub mod tests {
             .get_one_gas_object_owned_by_address(addresses[0])
             .await
             .unwrap();
-        let tx_data = TransactionData::new_transfer_iota(
+        let tx = Transaction::new_transfer_iota(
             addresses[1],
             addresses[0],
             Some(1000),
@@ -978,7 +984,7 @@ pub mod tests {
             wallet.get_reference_gas_price().await.unwrap(),
         );
 
-        let tx = wallet.sign_transaction(&tx_data);
+        let tx = wallet.sign_transaction(&tx);
         let (tx_bytes, signatures) = tx.to_tx_bytes_and_signatures();
 
         let signature_base64 = &signatures[0];

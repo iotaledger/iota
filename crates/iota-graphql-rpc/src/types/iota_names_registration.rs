@@ -10,8 +10,8 @@ use iota_names::{
     IotaNamesNft, config::IotaNamesConfig, error::IotaNamesError, name::Name as NativeName,
     registry::NameRecord,
 };
-use iota_sdk_types::StructTag;
-use iota_types::{base_types::IotaAddress as NativeIotaAddress, dynamic_field::Field, id::UID};
+use iota_sdk_types::{Address, StructTag};
+use iota_types::{dynamic_field::Field, id::UID};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -27,7 +27,7 @@ use super::{
     iota_address::IotaAddress,
     move_object::{MoveObject, MoveObjectImpl},
     move_value::MoveValue,
-    object::{self, Object, ObjectFilter, ObjectImpl, ObjectStatus},
+    object::{self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectStatus},
     owner::OwnerImpl,
     stake::StakedIota,
     string_input::impl_string_input,
@@ -213,8 +213,6 @@ impl NameRegistration {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_.super_).status().await
     }
@@ -250,10 +248,11 @@ impl NameRegistration {
     /// The transaction blocks that sent objects to this object.
     ///
     /// `scanLimit` restricts the number of candidate transactions scanned when
-    /// gathering a page of results. It is required for queries that apply
-    /// more than two complex filters (on function, kind, sender, recipient,
-    /// input object, changed object, or ids), and can be at most
-    /// `serviceConfig.maxScanLimit`.
+    /// gathering a page of results. It is required for queries that apply two
+    /// or more complex filters (on function, affected address, recipient, input
+    /// object, changed object, or wrapped or deleted object), and can be at
+    /// most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+    /// combined with any of them.
     ///
     /// When the scan limit is reached the page will be returned even if it has
     /// fewer than `first` results when paginating forward (`last` when
@@ -272,6 +271,10 @@ impl NameRegistration {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    ///
+    /// DEPRECATION NOTICE: Support for the combination of two or more complex
+    /// filters as discussed above will stop with the v1.38 release. `scanLimit`
+    /// will thus become obsolete and will be removed as well.
     #[graphql(
         complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
     )]
@@ -283,6 +286,9 @@ impl NameRegistration {
         last: Option<u64>,
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
+        #[graphql(
+            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
+        )]
         scan_limit: Option<u64>,
     ) -> Result<ScanConnection<String, TransactionBlock>> {
         ObjectImpl(&self.super_.super_)
@@ -450,7 +456,7 @@ impl IotaNames {
         checkpoint_viewed_at: u64,
     ) -> Result<Option<NativeName>, Error> {
         let config: &IotaNamesConfig = ctx.data_unchecked();
-        let native_address = NativeIotaAddress::from(address);
+        let native_address = Address::from(address);
         let reverse_record_id = config.reverse_record_field_id(&native_address);
 
         let Some(object) = MoveObject::query(
@@ -463,7 +469,7 @@ impl IotaNames {
             return Ok(None);
         };
 
-        let field: Field<NativeIotaAddress, NativeName> = object
+        let field: Field<Address, NativeName> = object
             .native
             .to_rust()
             .map_err(|e| Error::Internal(format!("Malformed IOTA-Names Name: {e}")))?;
@@ -562,8 +568,8 @@ impl IotaNames {
         // parse name_record. We then assign it to the correct field on
         // `name_expiration` based on the address.
         for result in results {
-            let object =
-                Object::try_from_stored_history_object(result, checkpoint_viewed_at, None)?;
+            let active_object = ActiveObject::try_from(result)?;
+            let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
             let move_object = MoveObject::try_from(&object).map_err(|_| {
                 Error::Internal(format!(
                     "Expected {0} to be a NameRecord, but it's not a Move Object.",
@@ -601,7 +607,7 @@ impl NameRegistration {
         owner: IotaAddress,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, NameRegistration>, Error> {
-        let type_ = NameRegistration::type_(config.package_address.into());
+        let type_ = NameRegistration::struct_tag(config.package_address.into());
 
         let filter = ObjectFilter {
             type_: Some(type_.clone().into()),
@@ -628,8 +634,8 @@ impl NameRegistration {
 
     /// Return the type representing a `NameRegistration` on chain. This
     /// can change from chain to chain (mainnet, testnet, devnet etc).
-    pub(crate) fn type_(package: IotaAddress) -> StructTag {
-        iota_names::NameRegistration::type_(package.into())
+    pub(crate) fn struct_tag(package: IotaAddress) -> StructTag {
+        iota_names::NameRegistration::struct_tag(package.into())
     }
 
     // Because the type of the NameRegistration object is not constant,

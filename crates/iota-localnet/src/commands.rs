@@ -22,15 +22,19 @@ use iota_config::{
     p2p::SeedPeer,
 };
 use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
-use iota_genesis_builder::{SnapshotSource, SnapshotUrl};
 #[cfg(feature = "indexer")]
 use iota_graphql_rpc::{
     config::ConnectionConfig, test_infra::cluster::start_graphql_server_with_fn_rpc,
 };
 #[cfg(feature = "indexer")]
-use iota_indexer::test_utils::{IndexerTypeConfig, start_test_indexer};
+use iota_indexer::{
+    config::PruningOptions,
+    test_utils::{IndexerTypeConfig, start_test_indexer},
+};
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, Keystore};
 use iota_sdk::iota_client_config::{IotaClientConfig, IotaEnv};
+use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_types::Address;
 use iota_swarm::memory::Swarm;
 use iota_swarm_config::{
     genesis_config::GenesisConfig,
@@ -38,10 +42,7 @@ use iota_swarm_config::{
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
 };
-use iota_types::{
-    base_types::{IotaAddress, address_from_iota_pub_key},
-    crypto::IotaKeyPair,
-};
+use iota_types::traffic_control::PolicyConfig;
 use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::{info, warn};
@@ -55,8 +56,19 @@ const DEFAULT_FAUCET_PORT: u16 = 9123;
 const DEFAULT_GRPC_PORT: u16 = 50051;
 #[cfg(feature = "indexer")]
 const DEFAULT_GRAPHQL_PORT: u16 = 9125;
+/// Metrics port a local network gives the GraphQL service, overriding the
+/// `9184` the service picks by default, which the fullnode metrics endpoint
+/// already holds. Metrics endpoints stay on `127.0.0.1`, as the node ones do.
+#[cfg(feature = "indexer")]
+const DEFAULT_GRAPHQL_METRICS_PORT: u16 = 9126;
 #[cfg(feature = "indexer")]
 const DEFAULT_INDEXER_PORT: u16 = 9124;
+/// Port base of the fullnode layout, see
+/// [`FullnodeConfigBuilder::with_deterministic_ports`].
+const FULLNODE_PORT_BASE: u16 = 9184;
+/// Port base of the validator layout, see
+/// [`ConfigBuilder::with_deterministic_ports`].
+const VALIDATOR_PORT_BASE: u16 = 9200;
 
 #[cfg(feature = "indexer")]
 #[derive(Args)]
@@ -89,6 +101,13 @@ pub struct IndexerFeatureArgs {
             value_name = "GRAPHQL_HOST_PORT"
         )]
     with_graphql: Option<String>,
+    /// Bind the GraphQL metrics endpoint to this host and port instead of
+    /// 127.0.0.1:9126. This flag accepts a port, a host, or both (e.g.,
+    /// `--graphql-metrics-address=9127`, `--graphql-metrics-address=0.0.0.0`,
+    /// or `--graphql-metrics-address=0.0.0.0:9127`). It has no effect without
+    /// `--with-graphql`.
+    #[arg(long, value_name = "GRAPHQL_METRICS_HOST_PORT")]
+    graphql_metrics_address: Option<String>,
     /// Port for the Indexer Postgres DB. Default port is 5432.
     #[arg(long, default_value = "5432")]
     pg_port: u16,
@@ -104,6 +123,12 @@ pub struct IndexerFeatureArgs {
     /// DB password for the Indexer Postgres DB. Default password is postgrespw.
     #[arg(long, default_value = "postgrespw")]
     pg_password: String,
+    /// Retention options for the indexer writer. By default the indexer keeps
+    /// all data, so its database grows without bound.
+    /// Pass `--pruning-config-path <PATH>` to point at a TOML retention config
+    /// (same format as the `iota-indexer indexer` command) to enable pruning.
+    #[command(flatten)]
+    pruning_options: PruningOptions,
 }
 
 #[cfg(feature = "indexer")]
@@ -113,11 +138,13 @@ impl IndexerFeatureArgs {
         Self {
             with_indexer: None,
             with_graphql: None,
+            graphql_metrics_address: None,
             pg_port: 5432,
             pg_host: "localhost".to_string(),
             pg_db_name: "iota_indexer".to_string(),
             pg_user: "postgres".to_string(),
             pg_password: "postgrespw".to_string(),
+            pruning_options: PruningOptions::default(),
         }
     }
 }
@@ -204,7 +231,7 @@ pub enum LocalnetCommand {
         with_grpc: Option<String>,
         #[cfg(feature = "indexer")]
         #[command(flatten)]
-        indexer_feature_args: IndexerFeatureArgs,
+        indexer_feature_args: Box<IndexerFeatureArgs>,
         /// Port to start the Fullnode RPC server on. Default port is 9000.
         #[arg(long, default_value = "9000")]
         fullnode_rpc_port: u16,
@@ -225,20 +252,16 @@ pub enum LocalnetCommand {
         /// Start the network without a fullnode
         #[arg(long)]
         no_full_node: bool,
+        /// Keep the fullnode's full history instead of pruning old object
+        /// versions and checkpoints.
+        #[arg(long, conflicts_with = "no_full_node")]
+        disable_fullnode_pruning: bool,
         /// Set the number of validators in the network.
         /// If a genesis was already generated with a specific number of
         /// validators, this will not override it; the user should recreate the
         /// genesis with the desired number of validators.
         #[arg(long, help = "The number of validators in the network.")]
         committee_size: Option<usize>,
-        /// The path to local migration snapshot files
-        #[arg(long, name = "path", num_args(0..))]
-        local_migration_snapshots: Vec<PathBuf>,
-        /// Remotely stored migration snapshots.
-        #[arg(long, name = "iota|<full-url>", num_args(0..))]
-        remote_migration_snapshots: Vec<SnapshotUrl>,
-        #[arg(long, help = "Specify the delegator address")]
-        delegator: Option<IotaAddress>,
     },
     /// Bootstrap and initialize a new IOTA network
     Genesis {
@@ -282,14 +305,6 @@ pub enum LocalnetCommand {
             help = "Number of additional gas accounts to create for benchmarks (use for dedicated clients)"
         )]
         num_additional_gas_accounts: Option<usize>,
-        /// The path to local migration snapshot files
-        #[arg(long, name = "path", num_args(0..))]
-        local_migration_snapshots: Vec<PathBuf>,
-        /// Remotely stored migration snapshots.
-        #[arg(long, name = "iota|<full-url>", num_args(0..))]
-        remote_migration_snapshots: Vec<SnapshotUrl>,
-        #[arg(long, help = "Specify the delegator address")]
-        delegator: Option<IotaAddress>,
         /// Set `admin-interface-address` config. This flag
         /// accepts also a port, a host, or both (e.g., 0.0.0.0:1337).
         /// When providing a specific value, please use the = sign between the
@@ -317,11 +332,9 @@ impl LocalnetCommand {
                 #[cfg(feature = "indexer")]
                 data_ingestion_dir,
                 no_full_node,
+                disable_fullnode_pruning,
                 committee_size,
                 epoch_duration_ms,
-                local_migration_snapshots,
-                remote_migration_snapshots,
-                delegator,
             } => {
                 start(
                     config_dir.clone(),
@@ -330,17 +343,15 @@ impl LocalnetCommand {
                     faucet_coin_count,
                     with_grpc,
                     #[cfg(feature = "indexer")]
-                    indexer_feature_args,
+                    *indexer_feature_args,
                     force_regenesis,
                     epoch_duration_ms,
                     fullnode_rpc_port,
                     #[cfg(feature = "indexer")]
                     data_ingestion_dir,
                     no_full_node,
+                    disable_fullnode_pruning,
                     committee_size,
-                    local_migration_snapshots,
-                    remote_migration_snapshots,
-                    delegator,
                 )
                 .await
             }
@@ -355,9 +366,6 @@ impl LocalnetCommand {
                 with_faucet,
                 committee_size,
                 num_additional_gas_accounts,
-                local_migration_snapshots,
-                remote_migration_snapshots,
-                delegator,
                 admin_interface_address,
             } => {
                 genesis(
@@ -371,9 +379,6 @@ impl LocalnetCommand {
                     with_faucet,
                     committee_size,
                     num_additional_gas_accounts,
-                    local_migration_snapshots,
-                    remote_migration_snapshots,
-                    delegator,
                     admin_interface_address,
                 )
                 .await
@@ -395,10 +400,8 @@ async fn start(
     fullnode_rpc_port: u16,
     #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
+    disable_fullnode_pruning: bool,
     committee_size: Option<usize>,
-    local_migration_snapshots: Vec<PathBuf>,
-    remote_migration_snapshots: Vec<SnapshotUrl>,
-    delegator: Option<IotaAddress>,
 ) -> Result<(), anyhow::Error> {
     if force_regenesis {
         ensure!(
@@ -415,11 +418,13 @@ async fn start(
     let IndexerFeatureArgs {
         mut with_indexer,
         with_graphql,
+        graphql_metrics_address,
         pg_port,
         pg_host,
         pg_db_name,
         pg_user,
         pg_password,
+        pruning_options,
     } = indexer_feature_args;
 
     #[cfg(feature = "indexer")]
@@ -448,32 +453,20 @@ async fn start(
 
     let mut swarm_builder = Swarm::builder();
 
+    if disable_fullnode_pruning {
+        swarm_builder = swarm_builder.with_disable_fullnode_pruning();
+    }
+
     // If this is set, then no data will be persisted between runs, and a new
     // genesis will be generated each run.
     if force_regenesis {
         let committee_size = NonZeroUsize::new(committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE))
             .ok_or_else(|| anyhow!("Committee size must be at least 1."))?;
 
-        swarm_builder = swarm_builder.committee_size(committee_size);
-        let mut genesis_config = GenesisConfig::custom_genesis(1, 100);
-        let local_snapshots = local_migration_snapshots
-            .into_iter()
-            .map(SnapshotSource::Local);
-        let remote_snapshots = remote_migration_snapshots
-            .into_iter()
-            .map(SnapshotSource::S3);
-        genesis_config.migration_sources = local_snapshots.chain(remote_snapshots).collect();
-
-        // A delegator must be supplied when migration snapshots are provided.
-        if !genesis_config.migration_sources.is_empty() {
-            if let Some(delegator) = delegator {
-                // Add a delegator account to the genesis.
-                genesis_config = genesis_config.add_delegator(delegator);
-            } else {
-                bail!("a delegator must be supplied when migration snapshots are provided.");
-            }
-        }
-
+        swarm_builder = swarm_builder
+            .committee_size(committee_size)
+            .with_deterministic_validator_ports(VALIDATOR_PORT_BASE);
+        let genesis_config = GenesisConfig::custom_genesis(1, 100);
         swarm_builder = swarm_builder.with_genesis_config(genesis_config);
         let epoch_duration_ms = epoch_duration_ms.unwrap_or(DEFAULT_EPOCH_DURATION_MS);
         swarm_builder = swarm_builder.with_epoch_duration_ms(epoch_duration_ms);
@@ -500,9 +493,6 @@ async fn start(
                 false,
                 committee_size.unwrap_or(DEFAULT_COMMITTEE_SIZE),
                 None,
-                local_migration_snapshots,
-                remote_migration_snapshots,
-                delegator,
                 None,
             )
             .await
@@ -648,7 +638,8 @@ async fn start(
     } else {
         swarm_builder = swarm_builder
             .with_fullnode_count(1)
-            .with_fullnode_rpc_addr(fullnode_url);
+            .with_fullnode_rpc_addr(fullnode_url)
+            .with_deterministic_fullnode_ports(FULLNODE_PORT_BASE);
     }
 
     let mut swarm = tokio::task::spawn_blocking(move || swarm_builder.build()).await?;
@@ -705,7 +696,7 @@ async fn start(
             true,
             None,
             fullnode_grpc_url.clone(),
-            IndexerTypeConfig::writer_mode(None),
+            IndexerTypeConfig::writer_mode(Some(pruning_options)),
             data_ingestion_dir.clone(),
         )
         .await;
@@ -741,10 +732,28 @@ async fn start(
         let graphql_address = parse_host_port(input, DEFAULT_GRAPHQL_PORT)
             .map_err(|_| anyhow!("Invalid graphql host and port"))?;
         tracing::info!("Starting the GraphQL service at {graphql_address}");
+        // The metrics address the service picks by default collides with the
+        // fullnode metrics endpoint, which binds `FULLNODE_PORT_BASE` before
+        // this runs.
+        let graphql_metrics_address = parse_host_port_with_default_host(
+            graphql_metrics_address.unwrap_or_default(),
+            &Ipv4Addr::LOCALHOST.to_string(),
+            DEFAULT_GRAPHQL_METRICS_PORT,
+        )
+        .map_err(|_| anyhow!("Invalid graphql metrics host and port"))?;
+        // The service rebuilds the address as `host:port`, which an IPv6 host
+        // needs brackets to survive.
+        ensure!(
+            graphql_metrics_address.is_ipv4(),
+            "graphql metrics configuration requires an IPv4 address"
+        );
+        tracing::info!("Serving the GraphQL metrics at {graphql_metrics_address}");
         let graphql_connection_config = ConnectionConfig {
             port: graphql_address.port(),
             host: graphql_address.ip().to_string(),
             db_url: pg_address,
+            prom_host: graphql_metrics_address.ip().to_string(),
+            prom_port: graphql_metrics_address.port(),
             ..Default::default()
         };
         start_graphql_server_with_fn_rpc(
@@ -781,13 +790,14 @@ async fn start(
             ..Default::default()
         };
 
-        let prometheus_registry = prometheus::Registry::new();
+        let prometheus_registry = prometheus_filtered::Registry::new();
         if force_regenesis {
             let kp = swarm.config_mut().account_keys.swap_remove(0);
             let keystore_path = faucet_config_dir.join(IOTA_KEYSTORE_FILENAME);
             let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-            let address: IotaAddress = address_from_iota_pub_key(kp.public());
-            keystore.add_key(None, IotaKeyPair::Ed25519(kp)).unwrap();
+            let kp = SimpleKeypair::from(kp);
+            let address: Address = kp.public_key().derive_address();
+            keystore.add_key(None, kp).unwrap();
             IotaClientConfig::new(keystore)
                 .with_envs([IotaEnv::new("localnet", fullnode_url)])
                 .with_active_address(address)
@@ -847,9 +857,6 @@ async fn genesis(
     with_faucet: bool,
     committee_size: usize,
     num_additional_gas_accounts: Option<usize>,
-    local_migration_snapshots: Vec<PathBuf>,
-    remote_migration_snapshots: Vec<SnapshotUrl>,
-    delegator: Option<IotaAddress>,
     admin_interface_address: Option<String>,
 ) -> Result<(), anyhow::Error> {
     let iota_config_dir = &match working_dir {
@@ -935,9 +942,12 @@ async fn genesis(
                 keystore.save()?;
 
                 // Calculate extra allocations (validator, faucet)
+                let validator_low_stake_threshold = GenesisConfig::default()
+                    .protocol_config()
+                    .validator_low_stake_threshold();
                 let validator_extra = num_validators as u64
                     * (iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
-                        + iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS);
+                        + validator_low_stake_threshold);
                 let mut faucet_extra = 0u64;
                 if with_faucet {
                     faucet_extra = iota_swarm_config::genesis_config::DEFAULT_GAS_AMOUNT
@@ -967,23 +977,6 @@ async fn genesis(
             }
         }
     };
-    let local_snapshots = local_migration_snapshots
-        .into_iter()
-        .map(SnapshotSource::Local);
-    let remote_snapshots = remote_migration_snapshots
-        .into_iter()
-        .map(SnapshotSource::S3);
-    genesis_conf.migration_sources = local_snapshots.chain(remote_snapshots).collect();
-
-    // A delegator must be supplied when migration snapshots are provided.
-    if !genesis_conf.migration_sources.is_empty() {
-        if let Some(delegator) = delegator {
-            // Add a delegator account to the genesis.
-            genesis_conf = genesis_conf.add_delegator(delegator);
-        } else {
-            bail!("a delegator must be supplied when migration snapshots are provided.");
-        }
-    }
 
     // Adds an extra faucet account to the genesis
     if with_faucet {
@@ -1018,7 +1011,9 @@ async fn genesis(
     builder = if let Some(validators) = validator_info {
         builder.with_validators(validators)
     } else {
-        builder.committee_size(NonZeroUsize::new(committee_size).unwrap())
+        builder
+            .committee_size(NonZeroUsize::new(committee_size).unwrap())
+            .with_deterministic_ports(VALIDATOR_PORT_BASE)
     };
 
     if let Some(address) = admin_interface_address_with_port {
@@ -1028,7 +1023,7 @@ async fn genesis(
     let network_config = tokio::task::spawn_blocking(move || builder.build()).await?;
     let mut keystore = FileBasedKeystore::new(&keystore_path)?;
     for key in &network_config.account_keys {
-        keystore.add_key(None, IotaKeyPair::Ed25519(key.copy()))?;
+        keystore.add_key(None, SimpleKeypair::from(key.clone()))?;
     }
     let active_address = keystore.addresses().pop();
 
@@ -1042,6 +1037,10 @@ async fn genesis(
     let genesis = iota_config::node::Genesis::new_from_file(&genesis_path);
     for validator in &mut network_config.validator_configs {
         validator.genesis = genesis.clone();
+        // A written config starts a real node, which should get the safe
+        // default; the builders leave `policy-config` unset because in-memory
+        // swarm nodes run without a traffic controller.
+        validator.policy_config = Some(PolicyConfig::default_dos_protection_policy());
     }
 
     info!("Network genesis completed.");
@@ -1055,7 +1054,9 @@ async fn genesis(
         .with_rpc_addr(iota_config::node::default_json_rpc_address())
         .with_genesis(genesis.clone())
         .with_admin_interface_address(admin_interface_address_with_port)
-        .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
+        .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
+        .with_deterministic_ports(FULLNODE_PORT_BASE)
+        .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
 
     fullnode_config.save(iota_config_dir.join(IOTA_FULLNODE_CONFIG))?;
     let mut ssfn_nodes = vec![];
@@ -1076,20 +1077,30 @@ async fn genesis(
                 .with_admin_interface_address(admin_interface_address_with_port)
                 .with_json_rpc_address(([0, 0, 0, 0], 9000))
                 .with_genesis(genesis.clone())
-                .build_from_parts(&mut OsRng, network_config.validator_configs(), genesis);
+                .with_policy_config(Some(PolicyConfig::default_dos_protection_policy()))
+                .try_build_from_parts(&mut OsRng, network_config.validator_configs(), genesis)?;
             ssfn_nodes.push(ssfn_config.clone());
             ssfn_config.save(path)?;
         }
 
-        let ssfn_seed_peers: Vec<SeedPeer> = ssfn_nodes
+        let ssfn_seed_peers = ssfn_nodes
             .iter()
-            .map(|config| SeedPeer {
-                peer_id: Some(anemo::PeerId(
-                    config.network_key_pair().public().0.to_bytes(),
-                )),
-                address: config.p2p_config.external_address.clone().unwrap(),
+            .enumerate()
+            .map(|(index, config)| {
+                let address = config.p2p_config.external_address.clone().ok_or_else(|| {
+                    anyhow!(
+                        "state sync fullnode {index} has no `p2p-config.external-address`, which \
+                         the validators need to derive their seed peers"
+                    )
+                })?;
+                Ok(SeedPeer {
+                    peer_id: Some(anemo::PeerId(
+                        config.network_key_pair().public().0.to_bytes(),
+                    )),
+                    address,
+                })
             })
-            .collect();
+            .collect::<Result<Vec<SeedPeer>, anyhow::Error>>()?;
 
         for (i, mut validator) in network_config
             .into_validator_configs()
@@ -1164,7 +1175,16 @@ pub fn parse_host_port(
     input: String,
     default_port_if_missing: u16,
 ) -> Result<SocketAddr, AddrParseError> {
-    let default_host = "0.0.0.0";
+    parse_host_port_with_default_host(input, "0.0.0.0", default_port_if_missing)
+}
+
+/// Same as [`parse_host_port`], for an endpoint whose host defaults to
+/// something other than `0.0.0.0`.
+pub fn parse_host_port_with_default_host(
+    input: String,
+    default_host: &str,
+    default_port_if_missing: u16,
+) -> Result<SocketAddr, AddrParseError> {
     let mut input = input;
     if input.contains("localhost") {
         input = input.replace("localhost", "127.0.0.1");
@@ -1177,5 +1197,56 @@ pub fn parse_host_port(
         format!("{default_host}:{input}").parse::<SocketAddr>()
     } else {
         format!("{default_host}:{default_port_if_missing}").parse::<SocketAddr>()
+    }
+}
+
+#[cfg(all(test, feature = "indexer"))]
+mod tests {
+    use super::*;
+
+    /// Every service port of a local network is fixed, so a collision is a
+    /// startup failure rather than a test flake. The fullnode metrics
+    /// endpoint and the GraphQL metrics endpoint shared `9184` once.
+    #[test]
+    fn service_ports_do_not_collide() {
+        let mut ports = vec![
+            DEFAULT_FAUCET_PORT,
+            DEFAULT_GRPC_PORT,
+            DEFAULT_GRAPHQL_PORT,
+            DEFAULT_INDEXER_PORT,
+            DEFAULT_GRAPHQL_METRICS_PORT,
+            9000, // fullnode JSON-RPC, see `fullnode_rpc_port`
+        ];
+        // The fullnode owns `FULLNODE_PORT_BASE` and the two ports above it,
+        // each validator the ten ports above its own base.
+        ports.extend((0..3).map(|offset| FULLNODE_PORT_BASE + offset));
+        ports.extend((0..10 * DEFAULT_COMMITTEE_SIZE as u16).map(|o| VALIDATOR_PORT_BASE + o));
+
+        let unique = ports.iter().collect::<std::collections::BTreeSet<_>>();
+        assert_eq!(unique.len(), ports.len(), "two services share a port");
+    }
+
+    /// An endpoint that keeps its host on localhost must stay there when only
+    /// a port is given, and when nothing is given at all.
+    #[test]
+    fn a_metrics_address_defaults_to_localhost() {
+        let localhost = Ipv4Addr::LOCALHOST.to_string();
+        let parse = |input: &str| {
+            parse_host_port_with_default_host(
+                input.to_string(),
+                &localhost,
+                DEFAULT_GRAPHQL_METRICS_PORT,
+            )
+            .unwrap()
+        };
+
+        assert_eq!(parse(""), SocketAddr::from(([127, 0, 0, 1], 9126)));
+        assert_eq!(parse("9127"), SocketAddr::from(([127, 0, 0, 1], 9127)));
+        assert_eq!(parse("localhost"), SocketAddr::from(([127, 0, 0, 1], 9126)));
+        assert_eq!(parse("0.0.0.0"), SocketAddr::from(([0, 0, 0, 0], 9126)));
+        assert_eq!(
+            parse("0.0.0.0:9127"),
+            SocketAddr::from(([0, 0, 0, 0], 9127))
+        );
     }
 }

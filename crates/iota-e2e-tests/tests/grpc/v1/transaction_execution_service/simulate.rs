@@ -17,10 +17,11 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
-use iota_sdk_types::Command;
+use iota_sdk_types::{Address, Command, Transaction};
 use iota_types::{
+    effects::TransactionEffectsAPI,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI},
 };
 use prost_types::FieldMask;
 
@@ -128,12 +129,74 @@ async fn assert_simulate_transaction_request(
 }
 
 #[sim_test]
-async fn simulate_transaction_zero_gas_budget_uses_max() {
+async fn simulate_transaction_derived_changes() {
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
+    gas.sort_by_key(|object_ref| object_ref.object_id);
+    let gas_object = gas.last().unwrap();
+    let coin_to_split = gas.first().unwrap();
+
+    let recipient = Address::random();
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder
+        .pay(vec![*coin_to_split], vec![recipient], vec![1000])
+        .unwrap();
+    let tx = Transaction::new_programmable(
+        sender,
+        vec![*gas_object],
+        builder.finish(),
+        10_000_000,
+        1000,
+    );
+    let proto_transaction = ProtoTransaction::default()
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx).unwrap()));
+
+    // Requesting only the derived fields (plus effects for the gas charge)
+    // must not leak the input/output objects they are computed from
+    let simulated = assert_simulate_transaction_request(
+        &mut exec_client,
+        proto_transaction,
+        Some(FieldMask::from_paths([
+            "executed_transaction.balance_changes",
+            "executed_transaction.object_changes",
+            "executed_transaction.effects",
+        ])),
+        &[
+            "executed_transaction.balance_changes",
+            "executed_transaction.object_changes",
+            "executed_transaction.effects",
+        ],
+        &[],
+        &[],
+        &[],
+        "derived changes only",
+    )
+    .await;
+
+    let executed_transaction = simulated
+        .executed_transaction
+        .as_ref()
+        .expect("executed_transaction should be present");
+
+    crate::utils::assert_transfer_derived_changes(
+        executed_transaction,
+        sender,
+        recipient,
+        1000,
+        "simulate_transactions derived changes",
+    );
+}
+
+#[sim_test]
+async fn simulate_transaction_zero_gas_budget_reports_the_gas_charged() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let recipient = Address::random();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
     gas.sort_by_key(|object_ref| object_ref.object_id);
@@ -141,17 +204,17 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
     let gas_obj = gas.last().unwrap();
 
     // Build a transfer transaction with gas budget = 0
-    let tx_data = TransactionData::new_transfer(
+    let tx = Transaction::new_transfer(
         recipient,
         *obj_to_send,
         sender,
         *gas_obj,
-        0,    // zero gas budget — server should replace with max_tx_gas
+        0,    // zero gas budget — the server estimates and reports the cost
         1000, // gas price
     );
 
     let transaction = ProtoTransaction::default()
-        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()));
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx).unwrap()));
 
     let item = SimulateTransactionItem::default()
         .with_transaction(transaction)
@@ -167,8 +230,8 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
 
     let simulated = first_simulated_transaction(&response);
 
-    // Verify that the returned transaction has a non-zero gas budget (replaced with
-    // max_tx_gas)
+    // Verify that the returned transaction reports the gas the simulation charged
+    // in place of the zero the caller sent.
     let bcs_data = simulated
         .executed_transaction
         .as_ref()
@@ -180,10 +243,134 @@ async fn simulate_transaction_zero_gas_budget_uses_max() {
         .as_ref()
         .unwrap();
 
-    let returned_tx: TransactionData = bcs::from_bytes(&bcs_data.data).unwrap();
+    let returned_tx: Transaction = bcs::from_bytes(&bcs_data.data).unwrap();
     assert!(
         returned_tx.gas_data().budget > 0,
-        "gas budget should have been replaced with max_tx_gas, but was 0"
+        "the budget should have been replaced with the gas the simulation charged, but was 0"
+    );
+    // Only the computation half of the cost scales with the price, so the budget
+    // above cannot be read without the price it was charged at.
+    assert_eq!(
+        returned_tx.gas_data().price,
+        1000,
+        "the price the caller sent should be reported back"
+    );
+
+    // The same with the price left at zero, which the simulation fills in from the
+    // epoch: the response has to report what it charged at, not the zero.
+    let tx_data = Transaction::new_transfer(
+        recipient,
+        *obj_to_send,
+        sender,
+        *gas_obj,
+        0, // zero gas budget
+        0, // zero gas price
+    );
+    let item = SimulateTransactionItem::default()
+        .with_transaction(
+            ProtoTransaction::default()
+                .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap())),
+        )
+        .with_tx_checks(vec![TransactionCheckModes::DisableVmChecks as i32]);
+    let response = exec_client
+        .simulate_transactions(SimulateTransactionsRequest::default().with_transactions(vec![item]))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let bcs_data = first_simulated_transaction(&response)
+        .executed_transaction
+        .as_ref()
+        .unwrap()
+        .transaction
+        .as_ref()
+        .unwrap()
+        .bcs
+        .as_ref()
+        .unwrap();
+    let returned_tx: Transaction = bcs::from_bytes(&bcs_data.data).unwrap();
+    assert_eq!(
+        returned_tx.gas_data().price,
+        test_cluster.get_reference_gas_price().await,
+        "the price the simulation filled in should be reported back"
+    );
+    assert!(returned_tx.gas_data().budget > 0);
+}
+
+/// A transaction with no gas payment is simulated against a mock gas coin, and
+/// the response reports the transaction that ran, mock coin included. The
+/// effects charge gas to that coin, so reporting the payment as sent — empty —
+/// leaves the caller no way to tell which object they refer to.
+///
+/// With a budget the caller declared, the reported transaction is exactly the
+/// one that ran and hashes to the digest the effects are keyed by. That does
+/// not hold for a zero budget, which comes back as the gas charged instead: see
+/// `simulate_transaction_zero_gas_budget_reports_the_gas_charged`.
+#[sim_test]
+async fn simulate_transaction_gasless_reports_the_transaction_that_ran() {
+    let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
+
+    let mut exec_client = client.execution_service_client();
+
+    let (sender, gas) = test_cluster.wallet.get_one_account().await.unwrap();
+    let obj_to_send = gas.first().unwrap();
+    let reference_gas_price = test_cluster.get_reference_gas_price().await;
+
+    // No gas payment, but a declared price and budget, so that the only thing the
+    // simulation fills in is the payment.
+    let mut tx_data = Transaction::new_transfer(
+        Address::random(),
+        *obj_to_send,
+        sender,
+        *gas.last().unwrap(),
+        reference_gas_price * 10_000_000,
+        reference_gas_price,
+    );
+    tx_data.gas_data_mut().objects = vec![];
+
+    let item = build_simulate_item(
+        ProtoTransaction::default()
+            .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap())),
+    );
+    let response = exec_client
+        .simulate_transactions(SimulateTransactionsRequest::default().with_transactions(vec![item]))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let executed = first_simulated_transaction(&response)
+        .executed_transaction
+        .as_ref()
+        .unwrap();
+    let returned_tx: Transaction = bcs::from_bytes(
+        &executed
+            .transaction
+            .as_ref()
+            .unwrap()
+            .bcs
+            .as_ref()
+            .unwrap()
+            .data,
+    )
+    .unwrap();
+
+    // The mock gas coin the run charged gas to is named in the reported payment.
+    assert_eq!(
+        returned_tx.gas_data().objects.len(),
+        1,
+        "the mock gas coin should be reported in the gas payment"
+    );
+    // Nothing else was filled in, so the reported transaction is the one that ran.
+    let effects = executed.effects.as_ref().unwrap().effects().unwrap();
+    assert_eq!(
+        returned_tx.digest(),
+        *effects.transaction_digest(),
+        "the reported transaction should hash to the digest the effects are keyed by"
+    );
+    assert_eq!(
+        returned_tx.gas_data().objects[0].object_id,
+        effects.gas_object().0.object_id,
+        "the reported gas payment should name the object the effects charged"
     );
 }
 
@@ -193,7 +380,7 @@ async fn simulate_transaction_below_min_gas_budget_returns_error() {
 
     let mut exec_client = client.execution_service_client();
 
-    let recipient = iota_types::base_types::IotaAddress::random();
+    let recipient = Address::random();
 
     let (sender, mut gas) = test_cluster.wallet.get_one_account().await.unwrap();
     gas.sort_by_key(|object_ref| object_ref.object_id);
@@ -202,7 +389,7 @@ async fn simulate_transaction_below_min_gas_budget_returns_error() {
 
     // Build a transfer transaction with a gas budget below the minimum
     // (min = base_tx_cost_fixed * gas_price = 1000 * 1000 = 1_000_000 NANOS)
-    let tx_data = TransactionData::new_transfer(
+    let tx = Transaction::new_transfer(
         recipient,
         *obj_to_send,
         sender,
@@ -212,7 +399,7 @@ async fn simulate_transaction_below_min_gas_budget_returns_error() {
     );
 
     let transaction = ProtoTransaction::default()
-        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap()));
+        .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx).unwrap()));
 
     let item = build_simulate_item(transaction);
     let request = SimulateTransactionsRequest::default().with_transactions(vec![item]);
@@ -260,7 +447,7 @@ async fn simulate_transaction_readmask_scenarios() {
     builder.transfer_arg(sender, split_result);
     let pt = builder.finish();
 
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![*gas_obj],
         pt,
@@ -271,7 +458,7 @@ async fn simulate_transaction_readmask_scenarios() {
     let create_transaction = || {
         Some(
             ProtoTransaction::default()
-                .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap())),
+                .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx).unwrap())),
         )
     };
 
@@ -289,7 +476,7 @@ async fn simulate_transaction_readmask_scenarios() {
         vec![huge_amount],
     ));
     let failing_pt = failing_builder.finish();
-    let failing_tx_data = TransactionData::new_programmable(
+    let failing_tx = Transaction::new_programmable(
         sender,
         vec![*gas_obj],
         failing_pt,
@@ -299,7 +486,7 @@ async fn simulate_transaction_readmask_scenarios() {
     let create_failing_transaction = || {
         Some(
             ProtoTransaction::default()
-                .with_bcs(BcsData::default().with_data(bcs::to_bytes(&failing_tx_data).unwrap())),
+                .with_bcs(BcsData::default().with_data(bcs::to_bytes(&failing_tx).unwrap())),
         )
     };
 
@@ -636,22 +823,10 @@ async fn simulate_transaction_batch() {
     let obj = gas.first().unwrap();
 
     // Build two distinct simulation transactions
-    let tx_data1 = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random(),
-        *obj,
-        sender,
-        *gas_obj,
-        10_000_000,
-        1000,
-    );
-    let tx_data2 = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random(),
-        *obj,
-        sender,
-        *gas_obj,
-        10_000_000,
-        1000,
-    );
+    let tx_data1 =
+        Transaction::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
+    let tx_data2 =
+        Transaction::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
 
     let items = vec![
         build_simulate_item(
@@ -698,14 +873,8 @@ async fn simulate_transaction_batch_partial_failure() {
     let obj = gas.first().unwrap();
 
     // First item: valid transaction
-    let tx_data = TransactionData::new_transfer(
-        iota_types::base_types::IotaAddress::random(),
-        *obj,
-        sender,
-        *gas_obj,
-        10_000_000,
-        1000,
-    );
+    let tx_data =
+        Transaction::new_transfer(Address::random(), *obj, sender, *gas_obj, 10_000_000, 1000);
     let valid_item = build_simulate_item(
         ProtoTransaction::default()
             .with_bcs(BcsData::default().with_data(bcs::to_bytes(&tx_data).unwrap())),

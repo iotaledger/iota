@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![warn(
@@ -9,14 +9,7 @@
     rust_2021_compatibility
 )]
 
-use base_types::{IotaAddress, SequenceNumber};
-#[cfg(not(target_arch = "wasm32"))]
-pub use iota_network_stack::multiaddr;
-#[cfg(target_arch = "wasm32")]
-#[path = "wasm_multiaddr.rs"]
-pub mod multiaddr;
-pub use iota_sdk_types as sdk_types;
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag, Version};
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken},
@@ -46,7 +39,7 @@ pub mod committee;
 pub mod config;
 pub mod crypto;
 pub mod deny_list_v1;
-pub mod derived_object;
+pub mod deny_rule_governance;
 pub mod digests;
 pub mod display;
 pub mod dynamic_field;
@@ -99,6 +92,7 @@ pub mod test_checkpoint_data_builder;
 pub mod timelock;
 pub mod traffic_control;
 pub mod transaction;
+pub mod transaction_deny_rules;
 pub mod transaction_driver_types;
 pub mod transaction_executor;
 pub mod transfer;
@@ -137,18 +131,19 @@ built_in_ids! {
     IOTA_RANDOMNESS_STATE_ADDRESS / IOTA_RANDOMNESS_STATE_OBJECT_ID = 0x8;
     GENESIS_IOTA_BRIDGE_ADDRESS / GENESIS_IOTA_BRIDGE_OBJECT_ID = 0x9;
     IOTA_DENY_LIST_ADDRESS / IOTA_DENY_LIST_OBJECT_ID = 0x403;
+    IOTA_TRANSACTION_DENY_RULES_ADDRESS / IOTA_TRANSACTION_DENY_RULES_OBJECT_ID = 0xde9;
 }
 
-pub const SYSTEM_PACKAGE_ADDRESSES: [IotaAddress; 5] = [
-    IotaAddress::STD,
-    IotaAddress::FRAMEWORK,
-    IotaAddress::SYSTEM,
-    IotaAddress::GENESIS_BRIDGE,
-    IotaAddress::STARDUST,
+pub const SYSTEM_PACKAGE_ADDRESSES: [Address; 5] = [
+    Address::STD,
+    Address::FRAMEWORK,
+    Address::SYSTEM,
+    Address::GENESIS_BRIDGE,
+    Address::STARDUST,
 ];
 
-pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
-pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: SequenceNumber = OBJECT_START_VERSION;
+pub const IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION: Version = OBJECT_START_VERSION;
+pub const IOTA_CLOCK_OBJECT_SHARED_VERSION: Version = OBJECT_START_VERSION;
 
 const fn builtin_address(suffix: u16) -> AccountAddress {
     let mut addr = [0u8; AccountAddress::LENGTH];
@@ -159,7 +154,7 @@ const fn builtin_address(suffix: u16) -> AccountAddress {
 }
 
 pub fn iota_framework_address_concat_string(suffix: &str) -> String {
-    format!("{}{suffix}", IotaAddress::FRAMEWORK.to_short_hex())
+    format!("{}{suffix}", Address::FRAMEWORK.to_short_hex())
 }
 
 /// Parses `s` as an address. Valid formats for addresses are:
@@ -172,9 +167,9 @@ pub fn iota_framework_address_concat_string(suffix: &str) -> String {
 /// Parsing succeeds if and only if `s` matches one of these formats exactly,
 /// with no remaining suffix. This function is intended for use within the
 /// authority codebases.
-pub fn parse_iota_address(s: &str) -> anyhow::Result<IotaAddress> {
+pub fn parse_iota_address(s: &str) -> anyhow::Result<Address> {
     use move_core_types::parsing::address::ParsedAddress;
-    Ok(IotaAddress::new(
+    Ok(Address::new(
         ParsedAddress::parse(s)?
             .into_account_address(&resolve_address)?
             .into_bytes(),
@@ -226,10 +221,10 @@ pub fn parse_iota_type_tag(s: &str) -> anyhow::Result<TypeTag> {
 /// Resolve well-known named addresses into numeric addresses.
 pub fn resolve_address(addr: &str) -> Option<AccountAddress> {
     match addr {
-        "std" => Some(IotaAddress::STD),
-        "iota" => Some(IotaAddress::FRAMEWORK),
-        "iota_system" => Some(IotaAddress::SYSTEM),
-        "stardust" => Some(IotaAddress::STARDUST),
+        "std" => Some(Address::STD),
+        "iota" => Some(Address::FRAMEWORK),
+        "iota_system" => Some(Address::SYSTEM),
+        "stardust" => Some(Address::STARDUST),
         _ => None,
     }
     .map(|addr| AccountAddress::new(addr.into_bytes()))
@@ -251,13 +246,19 @@ impl MoveTypeTagTrait for u64 {
     }
 }
 
+impl MoveTypeTagTrait for String {
+    fn get_type_tag() -> TypeTag {
+        TypeTag::Struct(Box::new(StructTag::new_string()))
+    }
+}
+
 impl MoveTypeTagTrait for ObjectId {
     fn get_type_tag() -> TypeTag {
         TypeTag::Address
     }
 }
 
-impl MoveTypeTagTrait for IotaAddress {
+impl MoveTypeTagTrait for Address {
     fn get_type_tag() -> TypeTag {
         TypeTag::Address
     }

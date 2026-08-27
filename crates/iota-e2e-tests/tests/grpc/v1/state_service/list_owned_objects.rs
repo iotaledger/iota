@@ -13,15 +13,15 @@ use iota_grpc_types::{
 };
 use iota_json_rpc_types::IotaObjectDataOptions;
 use iota_macros::sim_test;
-use iota_sdk_types::{Owner, StructTag, TypeTag};
+use iota_sdk_types::{Address, Owner, StructTag, TypeTag};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    base_types::IotaAddress,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
     parse_iota_struct_tag,
     transaction::CallArg,
 };
 use prost_types::FieldMask;
+use test_cluster::override_pcool_flow;
 
 use crate::utils::{
     NFT_PACKAGE, address_proto, assert_field_presence, assert_tonic_error,
@@ -149,7 +149,7 @@ async fn list_owned_objects_nonexistent_owner() {
     let mut state_client = client.state_service_client();
 
     // Random address that owns nothing
-    let random_addr = IotaAddress::random();
+    let random_addr = Address::random();
     let request = ListOwnedObjectsRequest::default().with_owner(address_proto(random_addr));
 
     let response = list_and_validate(
@@ -458,7 +458,7 @@ async fn list_owned_objects_cursor_pagination_e2e() {
 /// fullnode and owner-index updates that happen during checkpoint commit.
 async fn wait_for_owned_count(
     state_client: &mut StateServiceClient<iota_grpc_client::InterceptedChannel>,
-    owner: IotaAddress,
+    owner: Address,
     expected_count: usize,
     scenario: &str,
 ) -> ListOwnedObjectsResponse {
@@ -546,7 +546,7 @@ async fn list_owned_objects_tto_indexing() {
             _ => None,
         })
         .expect("start should create an `A` object owned by the sender");
-    let parent_addr = IotaAddress::from(parent_ref.object_id);
+    let parent_addr = Address::from(parent_ref.object_id);
 
     // The coin is now owned by `parent_addr` via TTO; grab its post-start ref.
     let coin_after_start = start_effects
@@ -559,13 +559,7 @@ async fn list_owned_objects_tto_indexing() {
     wait_for_owned_count(&mut state_client, parent_addr, 1, "parent after start").await;
 
     // 0x0 starts with 0 coins.
-    wait_for_owned_count(
-        &mut state_client,
-        IotaAddress::ZERO,
-        0,
-        "0x0 before receive",
-    )
-    .await;
+    wait_for_owned_count(&mut state_client, Address::ZERO, 0, "0x0 before receive").await;
 
     // Run `receive(parent, coin)` — receives the coin from `A` and transfers
     // it to `0x0`.
@@ -596,7 +590,7 @@ async fn list_owned_objects_tto_indexing() {
     wait_for_owned_count(&mut state_client, parent_addr, 0, "parent after receive").await;
 
     // 0x0 ends with 1 coin.
-    wait_for_owned_count(&mut state_client, IotaAddress::ZERO, 1, "0x0 after receive").await;
+    wait_for_owned_count(&mut state_client, Address::ZERO, 1, "0x0 after receive").await;
 }
 
 /// Collect the set of object IDs from a `ListOwnedObjectsResponse`.
@@ -618,7 +612,17 @@ fn object_id_set(response: &ListOwnedObjectsResponse) -> std::collections::HashS
 }
 
 #[sim_test]
-async fn list_owned_objects_filter_by_type() {
+async fn list_owned_objects_filter_by_type_pre_consensus_flow() {
+    list_owned_objects_filter_by_type(false).await;
+}
+
+#[sim_test]
+async fn list_owned_objects_filter_by_type_pcool_flow() {
+    list_owned_objects_filter_by_type(true).await;
+}
+
+async fn list_owned_objects_filter_by_type(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let (test_cluster, client) = setup_grpc_test(Some(1), None).await;
     let mut state_client = client.state_service_client();
 
@@ -710,7 +714,7 @@ async fn list_owned_objects_filter_by_type() {
         .into_inner();
     assert_eq!(treasury_cap_filtered.objects.len(), 1);
 
-    // Look up the TreasuryCap's ObjectRef so we can pass it to `mint`.
+    // Look up the TreasuryCap's ObjectReference so we can pass it to `mint`.
     let owned = test_cluster
         .get_owned_objects(sender, Some(IotaObjectDataOptions::full_content()))
         .await
@@ -719,7 +723,7 @@ async fn list_owned_objects_filter_by_type() {
         .iter()
         .find_map(|resp| {
             let data = resp.data.as_ref()?;
-            let struct_tag: StructTag = data.type_.clone()?.try_into().ok()?;
+            let struct_tag: StructTag = data.object_type.clone()?.try_into().ok()?;
             (struct_tag.to_canonical_string(true) == treasury_cap_type).then(|| data.object_ref())
         })
         .expect("sender should own a TreasuryCap after publish");

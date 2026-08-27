@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
+import datetime
 from collections import defaultdict
 import json
 import os
@@ -11,9 +12,30 @@ import re
 import subprocess
 import sys
 from typing import NamedTuple
+import urllib.error
+import urllib.parse
 import urllib.request
 
 GH_TOKEN = os.environ.get("GH_TOKEN")
+
+GH_REPO = "iotaledger/iota"
+GH_API = f"https://api.github.com/repos/{GH_REPO}"
+
+# Pull request payloads, keyed by PR number as a string. The same PR is looked
+# up from several commits, and expanding a feature branch needs its payload a
+# second time to find the branch the intermediate PRs were merged into.
+PR_CACHE = {}
+
+# Upper bound on pages of intermediate PRs read for one feature branch, so a
+# mistaken branch name can't turn into an unbounded walk of the repository's
+# pull requests.
+SUB_PR_PAGE_LIMIT = 10
+
+# The default branch, network branches, and release branches. A merged PR whose
+# head is one of these is a sync or back-merge (e.g. "merge develop into the
+# feature branch"), not a feature branch: expanding it would claim every PR
+# merged into that branch as part of the feature.
+RE_LONG_LIVED_BRANCH = re.compile(r"^(develop|devnet|testnet|mainnet)$|^releases?[-/]")
 
 RE_NUM = re.compile("[0-9_]+")
 
@@ -27,15 +49,75 @@ RE_HEADING = re.compile(
     re.DOTALL | re.IGNORECASE,
 )
 
-RE_CHECK = re.compile(
-    r"^\s*-\s*\[.\]",
-    re.MULTILINE,
-)
-
 RE_NOTE = re.compile(
     r"^\s*-\s*\[( |x)?\]\s*([^:]+):",
     re.MULTILINE | re.IGNORECASE,
 )
+
+# A note's value ends at the next checkbox, a heading, or a blank line. The
+# blank-line boundary keeps content appended after the release notes block
+# (e.g. tooling attribution footers) from being absorbed into the last note.
+RE_NOTE_END = re.compile(
+    r"^[ \t]*$|^\s*#|^\s*-\s*\[.\]",
+    re.MULTILINE,
+)
+
+RE_BREAKING = re.compile(
+    r"#+\s*Breaking Changes Rollout(.*)",
+    re.DOTALL | re.IGNORECASE,
+)
+
+# Explicit terminator that marks the end of the release notes block in the PR
+# template. Anything after it (e.g. a tooling attribution footer appended to the
+# description) is ignored, regardless of surrounding whitespace.
+RE_NOTES_END = re.compile(
+    r"^\s*---\s*$",
+    re.MULTILINE,
+)
+
+RE_BREAKING_CRATE = re.compile(
+    r"^\s*#####\s+([^\n#]+)$",
+    re.MULTILINE,
+)
+
+RE_BREAKING_NOTE = re.compile(
+    r"^\s*-\s*\[( |x)?\]\s*(devnet|testnet|mainnet):\s*(.*)$",
+    re.MULTILINE | re.IGNORECASE,
+) 
+
+RE_HTML_COMMENT = re.compile(
+    r"<!--.*?-->",
+    re.DOTALL,
+)
+
+RE_ROLLOUT_AFFECTED = re.compile(
+    r"^\s*Affected Crates\s*:?\s*$",
+    re.IGNORECASE,
+)
+
+RE_ROLLOUT_ACTIONS = re.compile(
+    r"^\s*Required User Actions\s*:?\s*$",
+    re.IGNORECASE,
+)
+
+RE_ROLLOUT_CRATE_LINE = re.compile(
+    r"^\s*[-*]\s*(.+)$",
+)
+
+RE_ROLLOUT_ACTION_LINE = re.compile(
+    r"^\s*(?:[-*]\s*)?(devnet|testnet|mainnet)\s*:\s*(.*)$",
+    re.IGNORECASE,
+)
+
+ROLLOUT_NETWORKS = ("devnet", "testnet", "mainnet")
+
+# Networks a release can target, keyed off the release tag suffix in
+# release.yml (alpha/beta/rc/none). Used to look up the network's current epoch.
+UPGRADE_NETWORKS = ("alphanet", "devnet", "testnet", "mainnet")
+
+# Public JSON-RPC endpoint of a network's fullnode, used to look up the current
+# epoch when reporting the earliest time a new protocol version can be enabled.
+IOTA_RPC_URL_TEMPLATE = "https://api.{network}.iota.cafe"
 
 # Only commits that affect changes in these directories will be
 # considered when generating release notes.
@@ -73,6 +155,47 @@ class Note(NamedTuple):
     note: str
 
 
+def strip_html_comments(text):
+    """Remove HTML comments to avoid parsing template hints as content."""
+    if not text:
+        return ""
+    return RE_HTML_COMMENT.sub("", text)
+
+
+def collect_crate_names(root):
+    """Collect local crate names by scanning Cargo.toml files."""
+
+    crate_names = set()
+    skip_dirs = {".git", "target", "node_modules"}
+
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in skip_dirs]
+
+        if "Cargo.toml" not in filenames:
+            continue
+
+        cargo_path = os.path.join(dirpath, "Cargo.toml")
+
+        try:
+            with open(cargo_path, "r", encoding="utf-8") as f:
+                in_package = False
+                for line in f:
+                    stripped = line.strip()
+                    if stripped.startswith("[") and stripped.endswith("]"):
+                        in_package = stripped == "[package]"
+                        continue
+                    if in_package and stripped.startswith("name"):
+                        _, _, value = stripped.partition("=")
+                        name = value.strip().strip('"')
+                        if name:
+                            crate_names.add(name)
+                        break
+        except OSError:
+            continue
+
+    return crate_names
+
+
 def parse_args():
     """Parse command line arguments."""
 
@@ -100,6 +223,45 @@ def parse_args():
         nargs="?",
         default="HEAD",
         help="The commit to end at (inclusive), defaults to HEAD.",
+    )
+
+    generate_p.add_argument(
+        "--network",
+        choices=UPGRADE_NETWORKS,
+        default=None,
+        help=(
+            "Target network of this release. When a new protocol version is "
+            "introduced, the network's fullnode is queried to report the "
+            "earliest epoch at which the version can be enabled."
+        ),
+    )
+
+    test_p = sub_parser.add_parser(
+        "dry-run",
+        description="Generate release notes from local git commits without PR lookup.",
+    )
+
+    test_p.add_argument(
+        "from",
+        help="The commit to start from (exclusive)",
+    )
+
+    test_p.add_argument(
+        "to",
+        nargs="?",
+        default="HEAD",
+        help="The commit to end at (inclusive), defaults to HEAD.",
+    )
+
+    test_p.add_argument(
+        "--network",
+        choices=UPGRADE_NETWORKS,
+        default=None,
+        help=(
+            "Target network of this release. When a new protocol version is "
+            "introduced, the network's fullnode is queried to report the "
+            "earliest epoch at which the version can be enabled."
+        ),
     )
 
     check_p = sub_parser.add_parser(
@@ -137,54 +299,276 @@ def git(*args):
     """Run a git command and return the output as a string."""
     return subprocess.check_output(["git"] + list(args)).decode().strip()
 
+def github_api(path, params=None):
+    """GET `path` under this repository on the GitHub API, as parsed JSON."""
+    url = f"{GH_API}{path}"
+    if params:
+        url = f"{url}?{urllib.parse.urlencode(params)}"
+    headers = {
+        "Accept": "application/vnd.github.v3+json",
+    }
+    if GH_TOKEN is not None:
+        headers["Authorization"] = f"token {GH_TOKEN}"
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req) as response:
+        return json.load(response)
+
+
+def fetch_pr(pr_number):
+    """Fetch a PR payload, reusing an earlier fetch of the same PR."""
+    key = str(pr_number)
+    if key not in PR_CACHE:
+        PR_CACHE[key] = github_api(f"/pulls/{key}")
+    return PR_CACHE[key]
+
 
 def extract_notes_from_commit(commit):
     # we'll need to go one level deeper to find the PR number
-    url = f"https://api.github.com/repos/iotaledger/iota/commits/{commit}/pulls"
-    headers = {
-        "Accept": "application/vnd.github.v3+json",
-    }
-    if GH_TOKEN is not None:
-        headers["Authorization"] = f"token {GH_TOKEN}"
-    req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req) as response:
-        data = json.load(response)
-        if len(data) == 0:
-            return None, ""
-        pr_number = data[0]["number"]
-        pr_notes = data[0]["body"] if data[0]["body"] else ""
-        return pr_number, pr_notes
-
+    data = github_api(f"/commits/{commit}/pulls")
+    if len(data) == 0:
+        return None, ""
+    pr = data[0]
+    number = str(pr["number"])
+    PR_CACHE.setdefault(number, pr)
+    pr_notes = pr["body"] if pr["body"] else ""
+    # A string, like the number parsed out of a commit message, so that a PR
+    # reached either way counts as the same PR.
+    return number, pr_notes
 
 def extract_notes_from_pr(pr_number):
-    url = f"https://api.github.com/repos/iotaledger/iota/pulls/{pr_number}"
-    headers = {
-        "Accept": "application/vnd.github.v3+json",
-    }
-    if GH_TOKEN is not None:
-        headers["Authorization"] = f"token {GH_TOKEN}"
-    req = urllib.request.Request(url, headers=headers)
-    with urllib.request.urlopen(req) as response:
-        data = json.load(response)
-        pr_notes = data["body"] if data["body"] else ""
-        return pr_notes
+    pr = fetch_pr(pr_number)
+    pr_notes = pr["body"] if pr["body"] else ""
+    return pr_notes
+
+def extract_notes_from_local_commit(commit):
+    message = git("show", "-s", "--format=%B", commit)
+    return message
 
 
-def extract_notes(commit_or_pr, seen, is_pr):
+def merged_prs_into(branch):
+    """Every merged PR that targeted `branch`."""
+    prs = []
+    for page in range(1, SUB_PR_PAGE_LIMIT + 1):
+        batch = github_api(
+            "/pulls",
+            {"state": "closed", "base": branch, "per_page": 100, "page": page},
+        )
+        prs.extend(pr for pr in batch if pr["merged_at"])
+        if len(batch) < 100:
+            break
+    return prs
+
+
+def branch_start(pr_number):
+    """Earliest time work landed on a PR's branch, as an ISO 8601 string.
+
+    Both the author and the committer date of the branch's first commit are
+    considered: a rebase rewrites committer dates to the time of the rebase but
+    leaves author dates alone, so the earlier of the two is the safer bound.
+
+    Returns `None` if the PR has no commits to read.
+
+    """
+    commits = github_api(f"/pulls/{pr_number}/commits", {"per_page": 100})
+    if not commits:
+        return None
+
+    # The first page starts at the base of the branch, so its first entry is the
+    # earliest commit even when the PR has more commits than the API will list.
+    first = commits[0]["commit"]
+    return min(first["author"]["date"], first["committer"]["date"])
+
+
+def find_sub_prs(pr_number, visited=None):
+    """PR numbers merged into `pr_number`'s own branch, and so on recursively.
+
+    A feature branch collects its work through PRs that target the branch itself
+    rather than `develop`. The merge queue squashes the whole branch into one
+    commit, so those PRs leave no trace in `develop`'s history and their release
+    notes have to be looked up here instead.
+
+    Only branches of this repository are followed: PRs are matched by base
+    branch name, and a fork's branch name says nothing about a branch of the
+    same name here. Long-lived branches are never followed: a PR merging one
+    into another branch is a sync or back-merge, and the PRs merged into it
+    are not part of the feature being expanded.
+
+    """
+    if visited is None:
+        visited = set()
+
+    pr = fetch_pr(pr_number)
+    head = pr.get("head") or {}
+    branch = head.get("ref")
+    if not branch or (head.get("repo") or {}).get("full_name") != GH_REPO:
+        return []
+    if RE_LONG_LIVED_BRANCH.match(branch):
+        return []
+    if not pr.get("merged_at"):
+        return []
+
+    visited.add(str(pr_number))
+
+    # Branch names are reused over time, so only count PRs merged during this
+    # branch's life: at or after the first commit landed on it, and no later
+    # than the branch itself was merged. GitHub reports all timestamps as UTC
+    # in the same format, so they can be compared as strings.
+    candidates = [
+        sub
+        for sub in merged_prs_into(branch)
+        if str(sub["number"]) not in visited and sub["merged_at"] <= pr["merged_at"]
+    ]
+
+    if not candidates:
+        return []
+
+    start = branch_start(pr_number)
+    if start:
+        candidates = [sub for sub in candidates if sub["merged_at"] >= start]
+
+    sub_prs = []
+    for sub in candidates:
+        number = str(sub["number"])
+        if number in visited:
+            continue
+        visited.add(number)
+        PR_CACHE.setdefault(number, sub)
+        sub_prs.append(number)
+        sub_prs.extend(find_sub_prs(number, visited))
+
+    return sub_prs
+
+def extract_rollout(notes, crate_names):
+    """Extract rollout entries under the Breaking Changes Rollout section."""
+    if not notes:
+        return {}
+
+    notes = strip_html_comments(notes)
+
+    match = RE_BREAKING.search(notes)
+    if not match:
+        return {}
+
+    section = match.group(1)
+    next_heading = re.search(r"^\s*####\s", section, re.MULTILINE)
+    if next_heading:
+        section = section[: next_heading.start()]
+
+    rollout = parse_rollout(section, crate_names)
+    if rollout is not None:
+        return rollout
+
+    if RE_BREAKING_CRATE.search(section) or RE_BREAKING_NOTE.search(section):
+        raise ValueError(
+            "Breaking Changes Rollout must use the Affected Crates / Required User Actions format."
+        )
+
+    return {}
+
+
+def parse_rollout(section, crate_names):
+    """Parse rollout information using the Affected Crates / Required User Actions format."""
+    crates = []
+    actions = {}
+    in_crates = False
+    in_actions = False
+    saw_crates_header = False
+
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        if RE_ROLLOUT_AFFECTED.match(stripped):
+            in_crates = True
+            in_actions = False
+            saw_crates_header = True
+            continue
+
+        if RE_ROLLOUT_ACTIONS.match(stripped):
+            in_actions = True
+            in_crates = False
+            continue
+
+        if in_crates:
+            match = RE_ROLLOUT_CRATE_LINE.match(stripped)
+            if match:
+                crate = match.group(1).strip()
+                if crate:
+                    crates.append(crate)
+            continue
+
+        if in_actions:
+            match = RE_ROLLOUT_ACTION_LINE.match(stripped)
+            if match:
+                network = match.group(1).lower()
+                actions[network] = match.group(2).strip()
+            continue
+
+    if not saw_crates_header and not actions:
+        return None
+
+    if actions and not crates:
+        raise ValueError(
+            "Breaking Changes Rollout must list affected crates before user actions."
+        )
+
+    if not actions:
+        return {}
+
+    rollout = {}
+    has_any_content = False
+    seen_crates = set()
+
+    for crate in crates:
+        crate = crate.strip()
+        if not crate:
+            continue
+
+        if crate in seen_crates:
+            raise ValueError(
+                f"Crate '{crate}' appears multiple times in Breaking Changes Rollout."
+            )
+        seen_crates.add(crate)
+
+        if crate not in crate_names:
+            raise ValueError(
+                f"Crate '{crate}' referenced in Breaking Changes Rollout does not exist in this repository."
+            )
+
+        rollout[crate] = {}
+        for network, note_text in actions.items():
+            has_any_content = True
+            rollout[crate][network] = Note(
+                checked=True,
+                note=note_text,
+            )
+
+    if not has_any_content:
+        return {}
+
+    return rollout
+
+
+def extract_notes(commit_or_pr, seen, is_pr, crate_names, is_dry_run):
     """Get release notes from a commit message or a PR description.
 
     Finds the 'Release notes' section in the message, and
     extracts the notes for each impacted area (area that has been
-    ticked).
+    ticked). Also gathers breaking rollout entries.
 
     Returns a tuple of the PR number and a dictionary of impacted
-    areas mapped to their release note. Each release note indicates
-    whether it has a note and whether it was checked (ticked).
+    areas mapped to their release note plus rollout entries keyed by
+    crate and network. Each release note indicates whether it has a
+    note and whether it was checked (ticked).
 
     """
     if is_pr:
         pr = commit_or_pr
         notes = extract_notes_from_pr(pr)
+    elif is_dry_run:
+        pr = None
+        notes = extract_notes_from_local_commit(commit_or_pr)
     else:
         # Try to get the PR number from the commit message or fallback to the
         # one returned from the Github API
@@ -195,18 +579,37 @@ def extract_notes(commit_or_pr, seen, is_pr):
         else:
             pr, notes = extract_notes_from_commit(commit_or_pr)
 
+    notes = strip_html_comments(notes)
+
+    # Truncate at the `---` terminator following the Release Notes heading so
+    # trailing content (e.g. an appended tooling footer) can't be read as
+    # release note or rollout content.
+    heading = RE_HEADING.search(notes)
+    if heading:
+        terminator = RE_NOTES_END.search(notes, heading.start())
+        if terminator:
+            notes = notes[: terminator.start()]
+
     result = {}
+    rollout = extract_rollout(notes, crate_names)
 
     # Otherwise, find the release notes section from the squashed commit message
     match = RE_HEADING.search(notes)
     if not match:
-        return pr, []
+        return pr, [], rollout
     notes = match.group(1)
 
-    if pr in seen:
+    # Stop release-notes parsing before the Breaking Changes Rollout section.
+    breaking_heading = re.search(
+        r"^\s*####\s+Breaking Changes Rollout\b", notes, re.MULTILINE | re.IGNORECASE
+    )
+    if breaking_heading:
+        notes = notes[: breaking_heading.start()]
+
+    if pr and pr in seen:
         # a PR can be in multiple commits if it's from a rebase,
         # so we only want to process it once
-        return pr, []
+        return pr, [], {}
 
     start = 0
     while True:
@@ -219,8 +622,9 @@ def extract_notes(commit_or_pr, seen, is_pr):
         impacted = match.group(2)
         begin = match.end()
 
-        # Find the end of the note, or the end of the commit
-        match = RE_CHECK.search(notes, begin)
+        # Find the end of the note: the next checkbox, heading, or blank line,
+        # whichever comes first, or the end of the commit.
+        match = RE_NOTE_END.search(notes, begin)
         end = match.start() if match else len(notes)
 
         result[impacted] = Note(
@@ -229,7 +633,7 @@ def extract_notes(commit_or_pr, seen, is_pr):
         )
         start = end
 
-    return pr, result.items()
+    return pr, result.items(), rollout
 
 
 def extract_protocol_version(commit):
@@ -253,9 +657,64 @@ def extract_protocol_version(commit):
         return match[0]
 
 
-def print_changelog(pr, log):
+def earliest_protocol_upgrade(network):
+    """Earliest epoch and time at which `network` can enable a new protocol version.
+
+    A protocol version can be enabled no earlier than the next epoch boundary,
+    i.e. the end of the current epoch (`epoch_start_timestamp_ms +
+    epoch_duration_ms`). The current epoch is read from the network's public
+    fullnode.
+
+    Returns a `(next_epoch, "YYYY-MM-DD HH:MM UTC")` tuple, or `None` if the
+    network could not be reached or returned unexpected data, in which case the
+    caller omits the date rather than failing the whole run.
+    """
+    url = IOTA_RPC_URL_TEMPLATE.format(network=network)
+    payload = json.dumps(
+        {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "iotax_getLatestIotaSystemStateV2",
+            "params": [],
+        }
+    ).encode()
+    req = urllib.request.Request(
+        url, data=payload, headers={"Content-Type": "application/json"}
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.load(response)["result"]
+
+        # `getLatestIotaSystemStateV2` returns an externally-tagged enum, e.g.
+        # `{"V2": {...}}`; unwrap the single variant to reach the summary fields.
+        summary = (
+            next(iter(result.values())) if set(result) <= {"V1", "V2"} else result
+        )
+
+        next_epoch = int(summary["epoch"]) + 1
+        boundary_ms = int(summary["epochStartTimestampMs"]) + int(
+            summary["epochDurationMs"]
+        )
+    except (urllib.error.URLError, TimeoutError, ValueError, KeyError, TypeError) as exc:
+        print(
+            f"Warning: could not determine the earliest protocol upgrade time "
+            f"for '{network}': {exc}",
+            file=sys.stderr,
+        )
+        return None
+
+    when = datetime.datetime.fromtimestamp(
+        boundary_ms / 1000, tz=datetime.timezone.utc
+    ).strftime("%Y-%m-%d %H:%M UTC")
+    return next_epoch, when
+
+
+def print_changelog(pr, log, commit=None, is_dry_run=False):
     if pr:
-        print(f"https://github.com/iotaledger/iota/pull/{pr}: ", end="")
+        print(f"[#{pr}](https://github.com/iotaledger/iota/pull/{pr}): ", end="")
+    elif commit and is_dry_run:
+        print(f"https://github.com/iotaledger/iota/commit/{commit}: ", end="")
     print(log)
 
 
@@ -264,11 +723,18 @@ def do_check(commit_or_pr, is_pr):
 
     This means that every impacted component has a non-empty note,
     every note is attached to a checked checkbox, and every impact
-    area is known.
+    area is known. Also validates Breaking Changes Rollout entries.
 
     """
+    root = git("rev-parse", "--show-toplevel")
+    crate_names = collect_crate_names(root)
 
-    _, notes = extract_notes(commit_or_pr, set(), is_pr)
+    try:
+        _, notes, rollout = extract_notes(commit_or_pr, set(), is_pr, crate_names, False)
+    except ValueError as exc:
+        print(f"Found issues with release notes in {commit_or_pr}:")
+        print(f" - {exc}")
+        sys.exit(1)
 
     issues = []
     any_checked = False
@@ -289,6 +755,28 @@ def do_check(commit_or_pr, is_pr):
     if not any_checked and len(notes) > 0:
         issues.append(f" - No checked items in release notes")
 
+    rollout_checked = False
+    for crate, networks in rollout.items():
+        for network in ROLLOUT_NETWORKS:
+            entry = networks.get(network)
+            if not entry:
+                continue
+
+            rollout_checked |= entry.checked
+
+            if entry.checked and not entry.note:
+                issues.append(
+                    f" - Breaking rollout for crate '{crate}' on {network} is checked but missing details."
+                )
+
+            if not entry.checked and entry.note:
+                issues.append(
+                    f" - Breaking rollout for crate '{crate}' on {network} has text but is not checked: {entry.note}"
+                )
+
+    if rollout and not rollout_checked:
+        issues.append(" - No checked items in Breaking Changes Rollout")
+
     if not issues:
         return
 
@@ -298,7 +786,7 @@ def do_check(commit_or_pr, is_pr):
     sys.exit(1)
 
 
-def do_generate(from_, to):
+def do_generate(from_, to, is_dry_run, network=None):
     """Generate release notes from git commits.
 
     This will extract the release notes from all commits between
@@ -309,13 +797,17 @@ def do_generate(from_, to):
     Only looks for commits affecting INTERESTING_DIRECTORIES.
 
     Additionally injects the current protocol version into the
-    "Protocol" changelog.
+    "Protocol" changelog. When `network` is given and the release
+    introduces a new protocol version, also reports the earliest epoch
+    at which that network can enable it, read from its fullnode.
 
     """
     results = defaultdict(list)
+    rollout_entries = defaultdict(lambda: defaultdict(list))
 
     root = git("rev-parse", "--show-toplevel")
     os.chdir(root)
+    crate_names = collect_crate_names(root)
 
     protocol_version_from = extract_protocol_version(from_) or "XX"
     protocol_version_to = extract_protocol_version(to) or "XX"
@@ -331,13 +823,45 @@ def do_generate(from_, to):
     if not commits:
         return
 
-    seen_prs = set()
-    for commit in commits.split("\n"):
-        pr, notes = extract_notes(commit, seen_prs, False)
-        seen_prs.add(pr)
+    def collect(pr, commit, notes, rollout):
         for impacted, note in notes:
             if note.checked:
                 results[impacted].append((pr, note.note))
+        for crate, networks in rollout.items():
+            for network, entry in networks.items():
+                if entry.checked:
+                    rollout_entries[crate][network].append((pr, commit, entry.note))
+
+    seen_prs = set()
+    for commit in commits.split("\n"):
+        try:
+            pr, notes, rollout = extract_notes(commit, seen_prs, False, crate_names, is_dry_run)
+        except ValueError as exc:
+            print(f"Error while processing release notes in commit {commit}: {exc}")
+            sys.exit(1)
+        # Several commits can belong to one PR, which only needs expanding once.
+        expand = bool(pr) and pr not in seen_prs
+        if pr:
+            seen_prs.add(pr)
+        collect(pr, commit, notes, rollout)
+
+        if is_dry_run or not expand:
+            continue
+
+        # A commit can be a squashed feature branch, whose own PR carries no
+        # notes: they belong to the PRs that were merged into the branch.
+        for sub_pr in find_sub_prs(pr):
+            if sub_pr in seen_prs:
+                continue
+            try:
+                _, sub_notes, sub_rollout = extract_notes(
+                    sub_pr, seen_prs, True, crate_names, False
+                )
+            except ValueError as exc:
+                print(f"Error while processing release notes in PR #{sub_pr}: {exc}")
+                sys.exit(1)
+            seen_prs.add(sub_pr)
+            collect(sub_pr, commit, sub_notes, sub_rollout)
 
     # Print the impact areas we know about first
     for impacted in NOTE_ORDER:
@@ -352,11 +876,20 @@ def do_generate(from_, to):
                 print(f"\n#### This release does not introduce a new protocol version (current version: `{protocol_version_to}`)")
             else:
                 print(f"\n#### This release introduces protocol version `{protocol_version_to}`")
+                upgrade = earliest_protocol_upgrade(network) if network else None
+                if upgrade:
+                    next_epoch, when = upgrade
+                    print(
+                        f"\nOn `{network}`, this protocol version can be enabled no "
+                        f"earlier than `{when}` (start of epoch {next_epoch}). "
+                        f"Please ensure that you update your validators before this epoch change. "
+                        f"Otherwise, if the upgrade threshold is reached, the protocol will remove you from the committee, and both you and your delegators will lose rewards."
+                    )
         print()
 
         if notes:
             for pr, note in reversed(notes):
-                print_changelog(pr, note)
+                print_changelog(pr, note, is_dry_run=is_dry_run)
                 print()
 
     # Print any remaining impact areas
@@ -366,11 +899,33 @@ def do_generate(from_, to):
             print_changelog(pr, note)
             print()
 
+    if rollout_entries:
+        print(f"## 🚨 Breaking Changes Rollout")
+        for network in ROLLOUT_NETWORKS:
+            has_entries = False
+            for crate, networks in rollout_entries.items():
+                entries = networks.get(network, [])
+                if not entries:
+                    continue
+                if not has_entries:
+                    print(f"\n### {network}\n")
+                    has_entries = True
+                for pr, commit, note in reversed(entries):
+                    print(f"- {crate}: ", end="")
+                    print_changelog(pr, note, commit, is_dry_run=is_dry_run)
 
-args = parse_args()
-if args["command"] == "generate":
-    do_generate(args["from"], args["to"])
-elif args["command"] == "check":
-    do_check(args["commit"], False)
-elif args["command"] == "check-pr":
-    do_check(args["pr-number"], True)
+
+def main():
+    args = parse_args()
+    if args["command"] == "generate":
+        do_generate(args["from"], args["to"], False, args["network"])
+    if args["command"] == "dry-run":
+        do_generate(args["from"], args["to"], True, args["network"])
+    elif args["command"] == "check":
+        do_check(args["commit"], False)
+    elif args["command"] == "check-pr":
+        do_check(args["pr-number"], True)
+
+
+if __name__ == "__main__":
+    main()

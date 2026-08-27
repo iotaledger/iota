@@ -3,21 +3,30 @@ name: Hierarchy
 on:
   push:
     branches:
-      - "develop"
       - "devnet"
       - "testnet"
       - "mainnet"
       - "releases/iota-*-release"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  # Fired by the merge queue: GitHub merges the queued PR(s) onto the target
+  # branch in a temporary `gh-readonly-queue/*` branch and requests checks on
+  # that result. Light jobs run here again, and the heavy jobs (rust-tests,
+  # split-cluster, split-cluster-sync-check) run ONLY here and on pushes to
+  # long-lived branches — not on pull_request events.
+  merge_group:
 
 jobs:
+  # Central CI gate: skipped for draft PRs unless the PR body contains
+  # '[run-ci]'; push and merge_group events always run. Except for
+  # release-notes-check, every job below is conditioned on this job's success
+  # or outputs, so skipping it skips the rest of CI.
   diff:
     runs-on: [ubuntu-latest]
     concurrency:
       group: diff-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+    if: (github.event_name != 'pull_request' || github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
     outputs:
       isRust: ${{ steps.diff.outputs.isRust }}
       isRustWorkspaceConfig: ${{ steps.diff.outputs.isRustWorkspaceConfig }}
@@ -46,20 +55,24 @@ jobs:
       - run: |
           cd scripts/release_notes
           ./run.sh check-pr ${{ github.event.pull_request.number }}
+        env:
+          GH_TOKEN: ${{ github.token }}
 
   dprint-format:
     runs-on: [self-hosted-x64]
     concurrency:
       group: dprint-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
-    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+    needs: diff
+    if: (!cancelled() && !failure() && needs.diff.result == 'success')
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Check dprint formatting
         run: dprint check
 
   typos:
-    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+    needs: diff
+    if: (!cancelled() && !failure() && needs.diff.result == 'success')
     uses: ./.github/workflows/_typos.yml
 
   license-check:
@@ -68,7 +81,7 @@ jobs:
       group: license-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
       cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
     needs: diff
-    if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true')
     runs-on: [self-hosted-x64]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -78,12 +91,12 @@ jobs:
 
   docusaurus:
     needs: diff
-    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true')
     uses: ./.github/workflows/_docusaurus.yml
 
   docs-lint:
     needs: diff
-    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.outputs.isDoc == 'true')
     uses: ./.github/workflows/_docs_lint.yml
 
   rust:
@@ -92,7 +105,7 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: (!cancelled() && !failure() && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.result == 'success')
     uses: ./.github/workflows/_rust.yml
     secrets: inherit
     with:
@@ -108,22 +121,51 @@ jobs:
       - dprint-format
       - license-check
       - typos
-    if: (!cancelled() && !failure() && needs.diff.outputs.isExternalCrates == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && needs.diff.outputs.isExternalCrates == 'true')
     uses: ./.github/workflows/_move_ide.yml
 
+  # Heavy job: runs in the merge queue (merge_group) and on pushes to
+  # long-lived branches, not on pull_request events.
   split-cluster:
     needs:
       - diff
       - dprint-format
       - license-check
       - typos
-      - rust
-    if: (!cancelled() && !failure() && needs.diff.outputs.isRust == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && github.event_name != 'pull_request' && needs.diff.outputs.isRust == 'true')
     uses: ./.github/workflows/_split_cluster.yml
 
+  # Heavy job: runs in the merge queue (merge_group) and on pushes to
+  # long-lived branches, not on pull_request events.
   split-cluster-sync-check:
     needs:
       - diff
-      - rust
-    if: (!cancelled() && !failure() && needs.diff.outputs.isStarfishSynchronization == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))
+    if: (!cancelled() && !failure() && github.event_name != 'pull_request' && needs.diff.outputs.isStarfishSynchronization == 'true')
     uses: ./.github/workflows/_split_cluster_sync_check.yml
+
+  # Single status check covering the heavy jobs (the rust-tests chain inside
+  # `rust`, split-cluster, and split-cluster-sync-check), so the merge queue
+  # can gate on one required check: `heavy-tests-status`.
+  #
+  # It must report on pull_request events too — a required check that never
+  # reports would keep PRs from entering the merge queue — which is why this
+  # is a plain job with `always()` rather than a required check on the heavy
+  # jobs themselves: those are skipped reusable-workflow calls on PRs, and a
+  # skipped `uses:` job never expands its nested check runs.
+  heavy-tests-status:
+    needs:
+      - diff
+      - rust
+      - split-cluster
+      - split-cluster-sync-check
+    if: always()
+    runs-on: [ubuntu-latest]
+    steps:
+      - name: Fail if a needed job failed or was cancelled
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "results: $RESULTS"
+          case "$RESULTS" in
+            *failure* | *cancelled*) exit 1 ;;
+          esac

@@ -5,17 +5,18 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use insta::assert_json_snapshot;
-use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
-use iota_sdk_types::{Identifier, ObjectId, gas::GasCostSummary};
+use iota_sdk_types::{
+    Address, Identifier, ObjectId, ObjectReference, SharedObjectReference, StructTag, Transaction,
+    TypeTag, gas::GasCostSummary,
+};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package_and_make_counter,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
     coin::{COIN_JOIN_FUNC_NAME, PAY_SPLIT_VEC_FUNC_NAME},
-    gas_coin::GAS,
-    transaction::{CallArg, SharedObjectRef, TransactionData},
+    effects::TransactionEffectsAPI,
+    transaction::CallArg,
 };
 use serde::{Deserialize, Serialize};
 use strum::{Display, EnumString};
@@ -68,13 +69,13 @@ async fn test_good_snapshot() -> Result<(), anyhow::Error> {
 
 async fn split_n_tx(
     n: u64,
-    coin: ObjectRef,
-    gas: ObjectRef,
+    coin: ObjectReference,
+    gas: ObjectReference,
     gas_price: u64,
-    sender: IotaAddress,
-) -> TransactionData {
+    sender: Address,
+) -> Transaction {
     let split_amounts = vec![10u64; n as usize];
-    let type_args = vec![GAS::type_tag()];
+    let type_args = vec![TypeTag::from(StructTag::new_gas())];
 
     TestTransactionBuilder::new(sender, gas, gas_price)
         .move_call(
@@ -90,9 +91,7 @@ async fn split_n_tx(
         .build()
 }
 
-async fn create_txes(
-    test_cluster: &TestCluster,
-) -> BTreeMap<CommonTransactionCosts, TransactionData> {
+async fn create_txes(test_cluster: &TestCluster) -> BTreeMap<CommonTransactionCosts, Transaction> {
     // Initial preparations to create a shared counter. This needs to be done first
     // to not interfere with the use of gas objects in the rest of this
     // function.
@@ -118,11 +117,11 @@ async fn create_txes(
     //
     let whole_iota_coin_tx =
         TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-            .transfer_iota(None, IotaAddress::ZERO)
+            .transfer_iota(None, Address::ZERO)
             .build();
     let partial_iota_coin_tx =
         TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-            .transfer_iota(Some(10), IotaAddress::ZERO)
+            .transfer_iota(Some(10), Address::ZERO)
             .build();
     ret.insert(
         CommonTransactionCosts::TransferWholeIotaCoin,
@@ -136,7 +135,7 @@ async fn create_txes(
     // Transfer Whole Coin Object
     //
     let whole_coin_tx = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
-        .transfer(gas_objects.pop().unwrap(), IotaAddress::ZERO)
+        .transfer(gas_objects.pop().unwrap(), Address::ZERO)
         .build();
 
     ret.insert(CommonTransactionCosts::TransferWholeCoin, whole_coin_tx);
@@ -144,7 +143,7 @@ async fn create_txes(
     // Merge Two Coins
     //
     let c1 = gas_objects.pop().unwrap();
-    let type_args = vec![GAS::type_tag()];
+    let type_args = vec![TypeTag::from(StructTag::new_gas())];
 
     let merge_tx = TestTransactionBuilder::new(sender, gas_objects.pop().unwrap(), gas_price)
         .move_call(
@@ -187,7 +186,7 @@ async fn create_txes(
             "counter",
             "assert_value",
             vec![
-                CallArg::Shared(SharedObjectRef::new(
+                CallArg::Shared(SharedObjectReference::new(
                     counter_id,
                     counter_initial_shared_version,
                     true,
@@ -232,8 +231,6 @@ async fn run_actual_costs()
         let gas_used = test_cluster
             .sign_and_execute_transaction(&tx)
             .await
-            .effects
-            .unwrap()
             .gas_cost_summary()
             .clone();
 

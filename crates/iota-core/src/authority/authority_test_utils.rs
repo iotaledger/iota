@@ -4,20 +4,38 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use core::default::Default;
+use std::sync::Arc;
 
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
+use iota_config::{genesis::Genesis, node::ExpensiveSafetyCheckConfig};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, Owner, Transaction, TransactionEffects, Version,
+};
 use iota_types::{
-    crypto::{AccountKeyPair, AuthorityKeyPair},
+    crypto::{AccountPrivateKey, AuthorityKeyPair},
+    effects::SignedTransactionEffects,
+    error::{ExecutionError, IotaError},
+    executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::ConsensusTransaction,
+    object::Object,
+    transaction::{
+        CertifiedTransaction, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
+        TransactionAPI, TransactionEnvelope, VerifiedCertificate, VerifiedSignedTransaction,
+        VerifiedTransaction,
+    },
     utils::to_sender_signed_transaction,
 };
 
-use super::{test_authority_builder::TestAuthorityBuilder, *};
-use crate::{checkpoints::CheckpointServiceNoop, consensus_handler::SequencedConsensusTransaction};
+use super::test_authority_builder::TestAuthorityBuilder;
+use crate::{
+    authority::AuthorityState, checkpoints::CheckpointServiceNoop,
+    consensus_handler::SequencedConsensusTransaction, execution_scheduler::ExecutionSchedulerAPI,
+    global_state_hasher::GlobalStateHasher,
+};
 
 pub async fn send_and_confirm_transaction(
     authority: &AuthorityState,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     send_and_confirm_transaction_(
         authority,
@@ -30,7 +48,7 @@ pub async fn send_and_confirm_transaction(
 pub async fn send_and_confirm_transaction_(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
     with_shared: bool, // transaction includes shared objects
 ) -> Result<(CertifiedTransaction, SignedTransactionEffects), IotaError> {
     let (txn, effects, _execution_error_opt) = send_and_confirm_transaction_with_execution_error(
@@ -46,12 +64,12 @@ pub async fn send_and_confirm_transaction_(
 
 pub async fn certify_transaction(
     authority: &AuthorityState,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
 ) -> Result<VerifiedCertificate, IotaError> {
     // Make the initial request
     let epoch_store = authority.load_epoch_store_one_call_per_task();
     // TODO: Move this check to a more appropriate place.
-    transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())?;
+    transaction.validity_check(&epoch_store.tx_validity_check_context())?;
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
 
     let response = authority
@@ -140,7 +158,7 @@ pub async fn execute_certificate_with_execution_error(
 pub async fn send_and_confirm_transaction_with_execution_error(
     authority: &AuthorityState,
     fullnode: Option<&AuthorityState>,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
     with_shared: bool,    // transaction includes shared objects
     fake_consensus: bool, // runs consensus handler if true
 ) -> Result<
@@ -184,20 +202,20 @@ pub async fn init_state_with_committee(
         .await
 }
 
-pub async fn init_state_with_ids<I: IntoIterator<Item = (IotaAddress, ObjectId)>>(
+pub async fn init_state_with_ids<I: IntoIterator<Item = (Address, ObjectId)>>(
     objects: I,
 ) -> Arc<AuthorityState> {
     let state = TestAuthorityBuilder::new().build().await;
     for (address, object_id) in objects {
         let obj = Object::with_id_owner_for_testing(object_id, address);
         // TODO: Make this part of genesis initialization instead of explicit insert.
-        state.insert_genesis_object(obj).await;
+        state.insert_genesis_object(obj);
     }
     state
 }
 
 pub async fn init_state_with_ids_and_versions<
-    I: IntoIterator<Item = (IotaAddress, ObjectId, SequenceNumber)>,
+    I: IntoIterator<Item = (Address, ObjectId, Version)>,
 >(
     objects: I,
 ) -> Arc<AuthorityState> {
@@ -205,7 +223,7 @@ pub async fn init_state_with_ids_and_versions<
     for (address, object_id, version) in objects {
         let obj =
             Object::with_id_owner_version_for_testing(object_id, version, Owner::Address(address));
-        state.insert_genesis_object(obj).await;
+        state.insert_genesis_object(obj);
     }
     state
 }
@@ -230,20 +248,17 @@ pub async fn init_state_with_objects_and_committee<I: IntoIterator<Item = Object
 ) -> Arc<AuthorityState> {
     let state = init_state_with_committee(genesis, authority_key).await;
     for o in objects {
-        state.insert_genesis_object(o).await;
+        state.insert_genesis_object(o);
     }
     state
 }
 
-pub async fn init_state_with_object_id(
-    address: IotaAddress,
-    object: ObjectId,
-) -> Arc<AuthorityState> {
+pub async fn init_state_with_object_id(address: Address, object: ObjectId) -> Arc<AuthorityState> {
     init_state_with_ids(std::iter::once((address, object))).await
 }
 
 pub async fn init_state_with_ids_and_expensive_checks<
-    I: IntoIterator<Item = (IotaAddress, ObjectId)>,
+    I: IntoIterator<Item = (Address, ObjectId)>,
 >(
     objects: I,
     config: ExpensiveSafetyCheckConfig,
@@ -255,22 +270,22 @@ pub async fn init_state_with_ids_and_expensive_checks<
     for (address, object_id) in objects {
         let obj = Object::with_id_owner_for_testing(object_id, address);
         // TODO: Make this part of genesis initialization instead of explicit insert.
-        state.insert_genesis_object(obj).await;
+        state.insert_genesis_object(obj);
     }
     state
 }
 
 pub fn init_transfer_transaction(
     authority_state: &AuthorityState,
-    sender: IotaAddress,
-    secret: &AccountKeyPair,
-    recipient: IotaAddress,
-    object_ref: ObjectRef,
-    gas_object_ref: ObjectRef,
+    sender: Address,
+    secret: &AccountPrivateKey,
+    recipient: Address,
+    object_ref: ObjectReference,
+    gas_object_ref: ObjectReference,
     gas_budget: u64,
     gas_price: u64,
 ) -> VerifiedTransaction {
-    let data = TransactionData::new_transfer(
+    let tx = Transaction::new_transfer(
         recipient,
         object_ref,
         sender,
@@ -278,7 +293,7 @@ pub fn init_transfer_transaction(
         gas_budget,
         gas_price,
     );
-    let tx = to_sender_signed_transaction(data, secret);
+    let tx = to_sender_signed_transaction(tx, secret);
     authority_state
         .epoch_store_for_testing()
         .verify_transaction(tx)
@@ -286,11 +301,11 @@ pub fn init_transfer_transaction(
 }
 
 pub fn init_certified_transfer_transaction(
-    sender: IotaAddress,
-    secret: &AccountKeyPair,
-    recipient: IotaAddress,
-    object_ref: ObjectRef,
-    gas_object_ref: ObjectRef,
+    sender: Address,
+    secret: &AccountPrivateKey,
+    recipient: Address,
+    object_ref: ObjectReference,
+    gas_object_ref: ObjectReference,
     authority_state: &AuthorityState,
 ) -> VerifiedCertificate {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -308,7 +323,7 @@ pub fn init_certified_transfer_transaction(
 }
 
 pub fn init_certified_transaction(
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
     authority_state: &AuthorityState,
 ) -> VerifiedCertificate {
     let epoch_store = authority_state.epoch_store_for_testing();
@@ -332,7 +347,7 @@ pub fn init_certified_transaction(
 
 pub async fn certify_shared_obj_transaction_no_execution(
     authority: &AuthorityState,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
 ) -> Result<VerifiedCertificate, IotaError> {
     let epoch_store = authority.load_epoch_store_one_call_per_task();
     let transaction = epoch_store.verify_transaction(transaction).unwrap();
@@ -364,7 +379,7 @@ pub async fn enqueue_all_and_execute_all(
     );
     let mut output = Vec::new();
     for cert in certificates {
-        let effects = authority.notify_read_effects(&cert).await?;
+        let effects = authority.notify_read_effects("", &cert).await?;
         output.push(effects);
     }
     Ok(output)
@@ -404,7 +419,7 @@ pub async fn send_consensus(authority: &AuthorityState, cert: &VerifiedCertifica
         .unwrap();
 
     authority
-        .transaction_manager()
+        .execution_scheduler()
         .enqueue(certs, &authority.epoch_store_for_testing());
 }
 

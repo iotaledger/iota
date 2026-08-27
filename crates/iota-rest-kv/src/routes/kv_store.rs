@@ -11,8 +11,8 @@ use axum::{
     response::IntoResponse,
 };
 use iota_kvstore::client::TransactionSequenceNumber;
+use iota_sdk_types::Address;
 use iota_storage::http_key_value_store::{ItemType, Key};
-use iota_types::base_types::IotaAddress;
 use serde::Deserialize;
 
 use crate::{
@@ -62,6 +62,8 @@ pub async fn data_as_bytes(
     ExtractPath(key): ExtractPath,
     Query(BeforeVersion { before_version }): Query<BeforeVersion>,
 ) -> Result<impl IntoResponse, ApiError> {
+    tracing::debug!(?key, before_version, "get item");
+
     if before_version {
         let range = ObjectRangeKeyBound::try_from(key)
             .map_err(|_| ApiError::BadRequest(BEFORE_VERSION_REQUIRES_OB_ERROR_MSG.into()))?;
@@ -144,6 +146,13 @@ pub async fn multi_get_data(
         )));
     }
 
+    tracing::debug!(
+        %item_type,
+        num_keys = payload.keys.len(),
+        before_version,
+        "multi-get items"
+    );
+
     let item_type_str = item_type.to_string();
     let keys = payload
         .keys
@@ -165,7 +174,9 @@ pub async fn multi_get_data(
         app_state.kv_store_client.get_items(keys).await?
     };
 
-    let bcs_data = bcs::to_bytes(&results).map_err(|_| ApiError::InternalServerError)?;
+    let bcs_data = bcs::to_bytes(&results)
+        .map_err(Into::into)
+        .map_err(ApiError::InternalServerError)?;
     Ok(bcs_data.into_response())
 }
 
@@ -184,7 +195,7 @@ pub(crate) struct TransactionDigestsByAddressQuery {
 ///
 /// # Path Parameters
 ///
-/// * `address`: Base64-url-encoded [`IotaAddress`].
+/// * `address`: Base64-url-encoded [`Address`].
 ///
 /// # Query Parameters
 ///
@@ -213,7 +224,7 @@ pub async fn transaction_digests_by_address(
     let address = base64_url::decode(&address)
         .map_err(|_| ApiError::BadRequest("address is not valid base64-url".into()))?;
 
-    let address = IotaAddress::from_bytes(&address)
+    let address = Address::from_bytes(&address)
         .map_err(|_| ApiError::BadRequest("invalid address".into()))?;
 
     let TransactionDigestsByAddressQuery {
@@ -221,6 +232,14 @@ pub async fn transaction_digests_by_address(
         limit,
         oldest_first,
     } = query;
+
+    tracing::debug!(
+        %address,
+        ?cursor,
+        ?limit,
+        oldest_first,
+        "get transaction digests by address"
+    );
 
     let max_limit = app_state.multiget_max_items.get();
     let limit = limit.map_or(max_limit, |l| l.get());
@@ -236,6 +255,8 @@ pub async fn transaction_digests_by_address(
         .transactions_by_address(address, cursor, limit, oldest_first)
         .await?;
 
-    let bcs_data = bcs::to_bytes(&transactions).map_err(|_| ApiError::InternalServerError)?;
+    let bcs_data = bcs::to_bytes(&transactions)
+        .map_err(Into::into)
+        .map_err(ApiError::InternalServerError)?;
     Ok(bcs_data.into_response())
 }

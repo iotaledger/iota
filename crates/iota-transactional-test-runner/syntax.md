@@ -213,7 +213,12 @@ A: object(0,0)
 task 1 'programmable'. lines 3-5:
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 1976000
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 2 'view-object'. lines 7-7:
 Owner: Account Address ( A )
@@ -226,7 +231,12 @@ Checkpoint created: 1
 task 4 'programmable'. lines 11-12:
 mutated: object(0,0)
 deleted: object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000, storage_rebate: 1976000, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 988000
+├── Storage Rebate: 1976000
+└── Non-Refundable Storage Fee: 0
 ```
 
 Explanation:
@@ -300,7 +310,6 @@ acc1: object(0,0), acc2: object(0,1)
 --custom-validator-account: creates a custom validator account. This is only allowed in simulator mode.
 --reference-gas-price <REFERENCE_GAS_PRICE>: Defines a reference gas price for transactions. Only valid in simulator mode.
 --default-gas-price <DEFAULT_GAS_PRICE>: sSets the default gas price for transactions. If not specified, the default is `1_000`.
---objects-snapshot-min-checkpoint-lag <OBJECT_SNAPSHOT_MIN_CHECKPOINT_LAG>: defines the minimum checkpoint lag for object snapshots. This affects when state snapshots are taken during execution
 --flavor <FLAVOR>: Specifies the Move compiler flavor (e.g., Iota).
 The --flavor option in the init command specifies the Move language flavor that will be used in the environment. This option determines the syntax and semantics applied to Move programs and packages in the test adapter(Core or Iota).
 --addresses <NAMED_ADDRESSES>: Maps custom named addresses to specific numerical addresses for the Move environment.
@@ -451,7 +460,12 @@ module test::transfer {
 +task 1 'publish'. lines 3-17:
 +created: object(1,0), object(1,1)
 +mutated: object(0,0)
-+gas summary: computation_cost: 1000000, storage_cost: 7083200, storage_rebate: 0, non_refundable_storage_fee: 0
++gas summary:
++├── Computation Cost: 1000000
++├── Computation Cost Burned: 1000000
++├── Storage Cost: 7083200
++├── Storage Rebate: 0
++└── Non-Refundable Storage Fee: 0
 ```
 
 #### Options
@@ -536,12 +550,22 @@ acc1: object(0,0), acc2: object(0,1)
 task 1 'publish'. lines 3-18:
 created: object(1,0)
 mutated: object(0,2)
-gas summary: computation_cost: 1000000, storage_cost: 5449200, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 5449200
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 2 'run'. lines 20-20:
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 500000, storage_cost: 2363600, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 500000
+├── Computation Cost Burned: 500000
+├── Storage Cost: 2363600
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 3 'view-object'. lines 22-22:
 Owner: Account Address ( acc2 )
@@ -618,7 +642,12 @@ The `transfer-object` subcommand (`TransferObject` in Rust) is used to transfer 
 ```
 task 3 'transfer-object'. lines 20-20:
 mutated: object(0,0), object(2,0)
-gas summary: computation_cost: 1000000, storage_cost: 2371200, storage_rebate: 2371200, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2371200
+├── Storage Rebate: 2371200
+└── Non-Refundable Storage Fee: 0
 ```
 
 ### `consensus-commit-prologue`
@@ -657,7 +686,12 @@ acc1: object(0,0), acc2: object(0,1)
 
 task 1 'consensus-commit-prologue'. lines 3-3:
 mutated: 0x0000000000000000000000000000000000000000000000000000000000000006
-gas summary: computation_cost: 0, storage_cost: 0, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 0
+├── Computation Cost Burned: 0
+├── Storage Cost: 0
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 ```
 
 ### `programmable`
@@ -716,12 +750,22 @@ acc1: object(0,0), acc2: object(0,1)
 task 1 'publish'. lines 3-14:
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5069200, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 5069200
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 2 'programmable'. lines 16-18:
 created: object(2,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 2371200, storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 2371200
+├── Storage Rebate: 988000
+└── Non-Refundable Storage Fee: 0
 ```
 
 The `programmable` subcommand is constructed using the same input, result and command components of a Programmable Transaction Block (PTB).
@@ -812,12 +856,22 @@ acc1: object(0,0)
 task 1 'publish'. lines 3-9:
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 5958400, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 5958400
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 2 'upgrade'. lines 11-19:
 created: object(2,0)
 mutated: object(0,0), object(1,0)
-gas summary: computation_cost: 1000000, storage_cost: 6171200, storage_rebate: 2622000, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 6171200
+├── Storage Rebate: 2622000
+└── Non-Refundable Storage Fee: 0
 ```
 
 ### `stage-package`
@@ -944,7 +998,12 @@ A: object(0,0)
 task 3 'programmable'. lines 23-28:
 created: object(3,0), object(3,1), object(3,2), object(3,3), object(3,4)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 8876800, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 8876800
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 4 'view-object'. lines 30-30:
 3,3::m
@@ -954,16 +1013,31 @@ task 5 'view-object'. lines 32-32:
 
 task 8 'programmable'. lines 38-40:
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 988000, storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 988000
+├── Storage Rebate: 988000
+└── Non-Refundable Storage Fee: 0
 
 task 9 'publish'. lines 42-47:
 created: object(9,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 5221200, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 5221200
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 10 'run'. lines 49-49:
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, storage_cost: 988000, storage_rebate: 988000, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 988000
+├── Storage Rebate: 988000
+└── Non-Refundable Storage Fee: 0
 ```
 
 ### `create-checkpoint`
@@ -1416,7 +1490,12 @@ acc1: object(0,0)
 task 1 'publish'. lines 3-15:
 created: object(1,0), object(1,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 7220000, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 7220000
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 ```
 
 ### `abstract`
@@ -1512,20 +1591,35 @@ task 1, line 8:
 Output for 'crates/iota-adapter-transactional-tests/data/account_abstraction/simple_abstract_account.move':
 created: object(2,0)
 mutated: object(0,1)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9971200, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 9971200
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 2, lines 10-24:
 //# publish --sender A --dependencies simple_abstract_account
 created: object(3,0), object(3,1)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9918000, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 9918000
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 3, line 26:
 //# init-abstract-account --sender A --package-metadata object(3,1) --inputs "authenticate" "authenticate_hello_world" --create-function simple_abstract_account::abstract_account::create --account-type simple_abstract_account::abstract_account::AbstractAccount
 events: Event { package_id: simple_abstract_account, transaction_module: Identifier("abstract_account"), sender: A, type_: StructTag { address: iota, module: Identifier("account"), name: Identifier("MutableAccountCreated"), type_params: [Struct(StructTag { address: simple_abstract_account, module: Identifier("abstract_account"), name: Identifier("AbstractAccount"), type_params: [] })] }, contents: [118, 148, 168, 179, 49, 8, 198, 92, 21, 125, 6, 180, 227, 97, 246, 20, 241, 88, 51, 186, 200, 202, 42, 84, 230, 84, 167, 107, 231, 146, 174, 230, 57, 11, 82, 234, 228, 162, 3, 155, 237, 197, 142, 43, 85, 213, 106, 74, 73, 1, 24, 171, 0, 12, 137, 124, 25, 149, 48, 40, 186, 221, 194, 209, 12, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 24, 97, 117, 116, 104, 101, 110, 116, 105, 99, 97, 116, 101, 95, 104, 101, 108, 108, 111, 95, 119, 111, 114, 108, 100] }
 created: object(4,0), object(4,1), object(4,2)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 6938800, storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 6938800
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 4, line 28:
 //# view-object 4,2
@@ -1544,7 +1638,12 @@ task 5, lines 30-32:
 created: object(6,0)
 mutated: object(4,0)
 unchanged_shared: object(4,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 1960800
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 6, line 34:
 //# view-object 6,0
@@ -1832,7 +1931,12 @@ A: object(0,0)
 task 1 'programmable'. lines 8-10:
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, storage_cost: 1976000, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 1976000
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 2 'create-checkpoint'. lines 12-12:
 Checkpoint created: 1

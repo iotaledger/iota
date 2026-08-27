@@ -3,8 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::traits::KeyPair;
+use iota_sdk_crypto::IotaSigner as _;
 use iota_sdk_types::{
-    ObjectId,
+    ObjectId, Transaction,
     crypto::{Intent, IntentAppId, IntentMessage, IntentScope, IntentVersion, PersonalMessage},
 };
 
@@ -12,18 +13,17 @@ use crate::{
     base_types::dbg_addr,
     committee::EpochId,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature, Signature, SignatureScheme, get_key_pair,
+        AccountPrivateKey, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
+        get_key_pair,
     },
     object::Object,
-    transaction::{
-        TEST_ONLY_GAS_UNIT_FOR_TRANSFER, Transaction, TransactionData, TransactionDataAPI,
-    },
+    signature::{AuthenticatorTrait, VerifyParams},
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope},
 };
 
 #[test]
 fn test_personal_message_intent() {
-    let (addr1, sec1): (_, AccountKeyPair) = get_key_pair();
+    let (addr1, sec1): (_, AccountPrivateKey) = get_key_pair();
     let message = "Hello".as_bytes().to_vec();
     let p_message = PersonalMessage(message.into());
     let p_message_2 = p_message.clone();
@@ -47,11 +47,11 @@ fn test_personal_message_intent() {
     assert_eq!(&intent_bcs[3..], &p_message_bcs);
 
     // Let's ensure we can sign and verify intents.
-    let s = Signature::new_secure(&IntentMessage::new(intent, p_message), &sec1);
-    let verification = s.verify_secure(
+    let s = sec1.sign_personal_message(&p_message).unwrap();
+    let verification = s.verify_claims(
         &IntentMessage::new(intent, p_message_2),
         addr1,
-        SignatureScheme::ED25519,
+        &VerifyParams::default(),
     );
     assert!(verification.is_ok())
 }
@@ -62,12 +62,12 @@ fn test_authority_signature_intent() {
     let kp: AuthorityKeyPair = get_key_pair().1;
 
     // Create a signed user transaction.
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let object_id = ObjectId::random();
     let object = Object::immutable_with_id_for_testing(object_id);
     let gas_price = 1000;
-    let data = TransactionData::new_transfer_iota(
+    let tx = Transaction::new_transfer_iota(
         recipient,
         sender,
         None,
@@ -75,11 +75,8 @@ fn test_authority_signature_intent() {
         gas_price * TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
         gas_price,
     );
-    let signature = Signature::new_secure(
-        &IntentMessage::new(Intent::iota_transaction(), data.clone()),
-        &sender_key,
-    );
-    let tx = Transaction::from_data(data, vec![signature]);
+    let signature = sender_key.sign_transaction(&tx).unwrap();
+    let tx = TransactionEnvelope::from_user_sig_data(tx, vec![signature]);
     let tx1 = tx.clone();
     assert!(
         tx.try_into_verified_for_testing(&Default::default())
@@ -87,7 +84,8 @@ fn test_authority_signature_intent() {
     );
 
     // Create an intent with signed data.
-    let intent_bcs = bcs::to_bytes(tx1.intent_message()).unwrap();
+    let intent_message = tx1.intent_message();
+    let intent_bcs = bcs::to_bytes(&intent_message).unwrap();
 
     // Check that the first 3 bytes are the domain separation information.
     assert_eq!(
@@ -100,11 +98,11 @@ fn test_authority_signature_intent() {
     );
 
     // Check that intent's last bytes match the signed_data's bsc bytes.
-    let signed_data_bcs = bcs::to_bytes(&tx1.data().intent_message().value).unwrap();
+    let signed_data_bcs = bcs::to_bytes(&tx1.data().transaction()).unwrap();
     assert_eq!(&intent_bcs[3..], signed_data_bcs);
 
     // Let's ensure we can sign and verify intents.
-    let s = AuthoritySignature::new_secure(tx1.data().intent_message(), &epoch, &kp);
-    let verification = s.verify_secure(tx1.data().intent_message(), 0, kp.public().into());
+    let s = AuthoritySignature::new_secure(&intent_message, &epoch, &kp);
+    let verification = s.verify_secure(&intent_message, 0, kp.public().into());
     assert!(verification.is_ok())
 }

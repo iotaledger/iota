@@ -18,7 +18,31 @@ expression: "results.join(\"\\n\")"
 ╰───────────────┴────────────────────────────────╯
  === BUILT PTB === 
 Input 0: Pure([0])
-Command 0: MakeMoveVector(Some(0x1::option::Option<u64>),[Input(0)])
-Command 1: MoveCall(0x0000000000000000000000000000000000000000000000000000000000000001::option::is_none<u64>(Input(0)))
-Command 2: MoveCall(0x0000000000000000000000000000000000000000000000000000000000000001::option::is_none<u64>(Input(0)))
-Command 3: MoveCall(0x0000000000000000000000000000000000000000000000000000000000000001::option::is_none<u64>(Input(0)))
+Command 0: Command: Make Move Vector
+├── Type Tag: 0x1::option::Option<u64>
+└── Elements
+    └── 0: Input(0)
+Command 1: Command: Move Call
+├── Package: 0x0000000000000000000000000000000000000000000000000000000000000001
+├── Module: option
+├── Function: is_none
+├── Type Arguments
+│   └── 0: u64
+└── Arguments
+    └── 0: Input(0)
+Command 2: Command: Move Call
+├── Package: 0x0000000000000000000000000000000000000000000000000000000000000001
+├── Module: option
+├── Function: is_none
+├── Type Arguments
+│   └── 0: u64
+└── Arguments
+    └── 0: Input(0)
+Command 3: Command: Move Call
+├── Package: 0x0000000000000000000000000000000000000000000000000000000000000001
+├── Module: option
+├── Function: is_none
+├── Type Arguments
+│   └── 0: u64
+└── Arguments
+    └── 0: Input(0)

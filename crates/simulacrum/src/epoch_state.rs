@@ -10,22 +10,20 @@ use iota_config::{
 };
 use iota_execution::Executor;
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{Transaction, TransactionEffects};
 use iota_types::{
     committee::{Committee, EpochId},
-    digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     error::IotaResult,
     gas::IotaGasStatus,
-    gas_coin::NANOS_PER_IOTA,
+    gas_coin::mock_simulation_gas_coin,
     inner_temporary_store::InnerTemporaryStore,
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
     },
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
-    object::{MoveObject, MoveObjectExt, Object},
-    transaction::{ObjectReadResult, TransactionData, TransactionDataAPI, VerifiedTransaction},
+    transaction::{ObjectReadResult, TransactionAPI, VerifiedTransaction},
     transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 
@@ -47,10 +45,31 @@ pub struct EpochState {
 impl EpochState {
     pub fn new(system_state: IotaSystemState) -> Self {
         let epoch_start_state = system_state.into_epoch_start_state();
-        let committee = epoch_start_state.get_iota_committee();
         let protocol_config =
             ProtocolConfig::get_for_version(epoch_start_state.protocol_version(), Chain::Unknown);
-        let registry = prometheus::Registry::new();
+        Self::new_impl(protocol_config, epoch_start_state)
+    }
+
+    /// Like [`Self::new`], but reuses the given `protocol_config` instead of
+    /// resolving it from the protocol version, keeping any feature flags
+    /// customized for testing.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the config's version does not match the system state's
+    /// protocol version.
+    pub fn new_with_config(protocol_config: ProtocolConfig, system_state: IotaSystemState) -> Self {
+        let epoch_start_state = system_state.into_epoch_start_state();
+        assert_eq!(
+            protocol_config.version,
+            epoch_start_state.protocol_version()
+        );
+        Self::new_impl(protocol_config, epoch_start_state)
+    }
+
+    fn new_impl(protocol_config: ProtocolConfig, epoch_start_state: EpochStartSystemState) -> Self {
+        let committee = epoch_start_state.get_iota_committee();
+        let registry = prometheus_filtered::Registry::new();
         let limits_metrics = Arc::new(LimitsMetrics::new(&registry));
         let bytecode_verifier_metrics = Arc::new(BytecodeVerifierMetrics::new(&registry));
         let executor = iota_execution::executor(&protocol_config, true, None).unwrap();
@@ -109,13 +128,13 @@ impl EpochState {
         Result<(), iota_types::error::ExecutionError>,
     )> {
         let tx_digest = *transaction.digest();
-        let tx_data = &transaction.data().intent_message().value;
-        let input_object_kinds = tx_data.input_objects()?;
-        let receiving_object_refs = tx_data.receiving_objects();
+        let tx = transaction.data().transaction();
+        let input_object_kinds = tx.input_objects()?;
+        let receiving_object_refs = tx.receiving_objects();
 
         iota_transaction_checks::deny::check_transaction_for_validation(
-            tx_data,
-            transaction.tx_signatures(),
+            tx,
+            transaction.signatures(),
             &input_object_kinds,
             &receiving_object_refs,
             deny_config,
@@ -137,7 +156,7 @@ impl EpochState {
         let (gas_status, checked_input_objects) = iota_transaction_checks::check_transaction_input(
             &self.protocol_config,
             self.epoch_start_state.reference_gas_price(),
-            transaction.data().transaction_data(),
+            transaction.data().transaction(),
             input_objects,
             &receiving_objects,
             &self.bytecode_verifier_metrics,
@@ -145,8 +164,8 @@ impl EpochState {
             authenticator_gas_budget,
         )?;
 
-        let transaction_data = transaction.data().transaction_data();
-        let (kind, signer, gas_data) = transaction_data.execution_parts();
+        let transaction = transaction.data().transaction();
+        let (kind, signer, gas_data) = transaction.execution_parts();
         Ok(self.executor.execute_transaction_to_effects(
             store.backing_store(),
             &self.protocol_config,
@@ -167,7 +186,7 @@ impl EpochState {
 
     /// Simulate a transaction without committing changes.
     /// This is similar to execute_transaction but:
-    /// - Takes TransactionData instead of VerifiedTransaction (no signature
+    /// - Takes Transaction instead of VerifiedTransaction (no signature
     ///   required)
     /// - Takes VmChecks parameter to control validation strictness
     /// - Returns SimulateTransactionResult with input/output objects
@@ -177,11 +196,16 @@ impl EpochState {
         store: &dyn SimulatorStore,
         deny_config: &TransactionDenyConfig,
         verifier_signing_config: &VerifierSigningConfig,
-        mut transaction: TransactionData,
+        mut transaction: Transaction,
         checks: VmChecks,
     ) -> IotaResult<SimulateTransactionResult> {
         // Cheap validity checks for a transaction, including input size limits.
         transaction.validity_check_no_gas_check(&self.protocol_config)?;
+
+        // The full validity check caps the gas payment size alongside requiring a
+        // gas payment at all, which a simulation relaxes so it can mock one. The cap
+        // still applies, and is cheapest before any object is loaded.
+        transaction.check_gas_payment_size(&self.protocol_config)?;
 
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
@@ -204,13 +228,8 @@ impl EpochState {
         )?;
 
         // Create a mock gas object if one was not provided
-        const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
         let mock_gas_id = if transaction.gas().is_empty() {
-            let mock_gas_object = Object::new_move(
-                MoveObject::new_gas_coin(1.into(), ObjectId::MAX, SIMULATION_GAS_COIN_VALUE),
-                Owner::Address(transaction.gas_data().owner),
-                TransactionDigest::GENESIS_MARKER,
-            );
+            let mock_gas_object = mock_simulation_gas_coin(transaction.gas_data().owner);
             let mock_gas_object_ref = mock_gas_object.object_ref();
             transaction.gas_data_mut().objects = vec![mock_gas_object_ref];
             input_objects.push(ObjectReadResult::new_from_gas_object(&mock_gas_object));
@@ -218,6 +237,13 @@ impl EpochState {
         } else {
             None
         };
+
+        iota_types::gas::fill_in_unset_simulation_gas(
+            &mut transaction,
+            &input_objects,
+            self.epoch_start_state.reference_gas_price(),
+            &self.protocol_config,
+        );
 
         // `MoveAuthenticator`s are not supported in Simulacrum, so we set the
         // `authenticator_gas_budget` to 0.
@@ -237,7 +263,18 @@ impl EpochState {
                 authenticator_gas_budget,
             )?
         } else {
-            let checked_input_objects = iota_transaction_checks::check_dev_inspect_input(
+            // Execution smashes the gas coins and reserves the whole budget from them
+            // before running any command, treating the input checks as having verified
+            // that they are gas coins at all — so with those checks skipped here, this
+            // has to stand in for them. With the checks enabled,
+            // `check_transaction_input` covers it.
+            iota_types::gas::check_gas_coins_cover_budget_in_simulation(
+                &input_objects,
+                transaction.gas(),
+                transaction.gas_budget(),
+            )?;
+
+            let checked_input_objects = iota_transaction_checks::check_simulation_input(
                 &self.protocol_config,
                 transaction.kind(),
                 input_objects,
@@ -273,14 +310,23 @@ impl EpochState {
                 checks.disabled(),
             );
 
+        let mut input_objects = inner_temp_store.input_objects;
+        iota_types::storage::extend_input_objects_with_loaded_runtime_objects(
+            &mut input_objects,
+            &effects,
+            &inner_temp_store.loaded_runtime_objects,
+            store.backing_store().as_object_store(),
+        );
+
         Ok(SimulateTransactionResult {
-            input_objects: inner_temp_store.input_objects,
+            input_objects,
             output_objects: inner_temp_store.written,
             events: effects.events_digest().map(|_| inner_temp_store.events),
             effects,
             execution_result,
             mock_gas_id,
             suggested_gas_price: None,
+            gas_data: transaction.gas_data().clone(),
         })
     }
 }

@@ -81,6 +81,8 @@ diesel::table! {
         min_tx_sequence_number -> Nullable<Int8>,
         max_tx_sequence_number -> Nullable<Int8>,
         computation_cost_burned -> Nullable<Int8>,
+        content_digest -> Nullable<Bytea>,
+        version_specific_data -> Nullable<Bytea>,
     }
 }
 
@@ -90,6 +92,7 @@ diesel::table! {
         id -> Bytea,
         version -> Int2,
         bcs -> Bytea,
+        bcs_kind -> Int2,
     }
 }
 
@@ -306,7 +309,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    optimistic_transactions (global_sequence_number, optimistic_sequence_number) {
+    optimistic_transactions (optimistic_sequence_number) {
         global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
         transaction_digest -> Bytea,
@@ -409,18 +412,10 @@ diesel::table! {
 }
 
 diesel::table! {
-    tx_digests (tx_digest) {
-        tx_digest -> Bytea,
-        tx_sequence_number -> Int8,
-    }
-}
-
-diesel::table! {
     tx_global_order (tx_digest) {
         tx_digest -> Bytea,
-        global_sequence_number -> Int8,
         optimistic_sequence_number -> Int8,
-        chk_tx_sequence_number -> Nullable<Int8>,
+        tx_sequence_number -> Nullable<Int8>,
     }
 }
 
@@ -514,7 +509,6 @@ macro_rules! for_all_tables {
             tx_calls_pkg,
             tx_changed_objects,
             tx_count_metrics,
-            tx_digests,
             tx_global_order,
             tx_input_objects,
             tx_kinds,

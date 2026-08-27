@@ -8,9 +8,9 @@ use std::{io, sync::Arc};
 use anyhow::Result;
 use fastcrypto::traits::KeyPair;
 use iota_config::local_ip_utils::new_local_tcp_address_for_testing;
+use iota_multiaddr::Multiaddr;
 use iota_network::api::{ValidatorPeerServer, ValidatorServer, ValidatorV2Server};
 use iota_network_stack::server::IOTA_TLS_SERVER_NAME;
-use iota_types::multiaddr::Multiaddr;
 use tracing::info;
 
 use crate::{
@@ -84,6 +84,7 @@ impl AuthorityServer {
             None,
             None,
             ConsensusAdapterMetrics::new_test(),
+            50,
         ));
         Self::new_for_test_with_consensus_adapter(state, consensus_adapter)
     }

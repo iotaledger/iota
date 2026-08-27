@@ -7,7 +7,7 @@ mod tests {
     use std::{sync::Arc, time::Duration};
 
     use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
-    use fastcrypto::encoding::{Base58, Base64, Encoding};
+    use fastcrypto::encoding::{Base58, Encoding};
     use iota_graphql_rpc::{
         client::{ClientError, simple_client::GraphqlQueryVariable},
         config::{ConnectionConfig, Limits, ServiceConfig},
@@ -18,12 +18,10 @@ mod tests {
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{Address, ObjectId, StructTag, TransactionDigest, TypeTag};
     use iota_types::{
-        base_types::IotaAddress,
-        digests::{ChainIdentifier, TransactionDigest},
-        gas_coin::GAS,
-        transaction::{CallArg, Transaction, TransactionDataAPI},
+        digests::ChainIdentifier,
+        transaction::{CallArg, TransactionAPI, TransactionEnvelope},
     };
     use rand::{SeedableRng, rngs::StdRng};
     use serde_json::json;
@@ -33,7 +31,7 @@ mod tests {
 
     async fn mutation_execute_transaction(
         client: &SimpleClient,
-        signed_tx: &Transaction,
+        signed_tx: &TransactionEnvelope,
         response_fields: &str,
     ) -> GraphqlResponse {
         let (tx_bytes, sigs) = signed_tx.to_tx_bytes_and_signatures();
@@ -255,7 +253,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            IotaAddress::FRAMEWORK.to_canonical_string(true)
+            Address::FRAMEWORK.to_canonical_string(true)
         );
         assert_eq!(
             data.get("obj2")
@@ -264,7 +262,7 @@ mod tests {
                 .unwrap()
                 .as_str()
                 .unwrap(),
-            IotaAddress::STARDUST.to_canonical_string(true)
+            Address::STARDUST.to_canonical_string(true)
         );
 
         let bad_variables = vec![
@@ -406,7 +404,7 @@ mod tests {
             ServiceConfig::test_defaults(),
         )
         .await;
-        let digest = TransactionDigest::generate(StdRng::from_seed([12; 32])).to_string();
+        let digest = TransactionDigest::random_with(StdRng::from_seed([12; 32])).to_string();
 
         assert!(
             !query_is_transaction_indexed_on_node(&cluster.graphql_client, digest.as_str()).await
@@ -643,6 +641,89 @@ mod tests {
         );
     }
 
+    #[tokio::test]
+    #[serial]
+    async fn test_transactions_by_digests() {
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
+        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
+        let sender1 = addresses[0];
+        let sender2 = addresses[1];
+        let recipient = addresses[2];
+
+        let tx1 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender1)
+            .await
+            .transfer_iota(Some(1_000), recipient)
+            .build();
+        let signed_tx1 = cluster.sign_transaction(&tx1);
+        let digest1 = signed_tx1.digest();
+
+        let tx2 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender2)
+            .await
+            .transfer_iota(Some(2_000), recipient)
+            .build();
+        let signed_tx2 = cluster.sign_transaction(&tx2);
+        let digest2 = signed_tx2.digest();
+
+        let response_fields = "effects { transactionBlock { digest } } errors";
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx1, response_fields).await;
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx2, response_fields).await;
+
+        let fake_digest = TransactionDigest::random().to_string();
+        let query = format!(
+            r#"
+                {{
+                    transactionsByDigests(digests: ["{digest1}", "{digest2}", "{fake_digest}"]){{
+                        nodes {{
+                            digest
+                            sender {{
+                                address
+                            }}
+                        }}
+                    }}
+                }}
+            "#,
+        );
+
+        let response_body = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, vec![], vec![])
+            .await
+            .unwrap()
+            .response_body_json();
+        let transactions = response_body["data"]["transactionsByDigests"]["nodes"]
+            .as_array()
+            .unwrap();
+
+        assert_eq!(
+            transactions.len(),
+            3,
+            "3 nodes should be present in the response (2 real transactions and 1 null for the fake digest)"
+        );
+        assert_eq!(
+            transactions[0]["digest"].as_str().unwrap(),
+            digest1.to_string(),
+            "first node should match digest1 (preserve input order)"
+        );
+        assert_eq!(
+            transactions[1]["digest"].as_str().unwrap(),
+            digest2.to_string(),
+            "second node should match digest2 (preserve input order)"
+        );
+        assert!(
+            transactions[2].is_null(),
+            "third node should be null for the fake digest"
+        );
+    }
+
     // TODO: add more test cases for transaction execution/dry run in transactional
     // test runner.
     #[tokio::test]
@@ -660,7 +741,7 @@ mod tests {
         .await;
 
         let tx = cluster.build_transfer_iota_for_test().await;
-        let tx_bytes = Base64::encode(bcs::to_bytes(&tx).unwrap());
+        let tx_bytes = tx.to_base64();
         let sender = tx.sender();
 
         let query = r#"{ dryRunTransactionBlock(txBytes: $tx) {
@@ -759,7 +840,7 @@ mod tests {
             .await
             .transfer_iota(Some(1_000), recipient)
             .build();
-        let tx_kind_bytes = Base64::encode(bcs::to_bytes(&tx.into_kind()).unwrap());
+        let tx_kind_bytes = tx.into_kind().to_base64();
 
         let query = r#"{ dryRunTransactionBlock(txBytes: $tx, txMeta: {}) {
                 results {
@@ -845,9 +926,9 @@ mod tests {
                 "split",
                 vec![CallArg::ImmutableOrOwned(coin), CallArg::pure(&1000u64)],
             )
-            .with_type_args(vec![GAS::type_tag()])
+            .with_type_args(vec![TypeTag::from(StructTag::new_gas())])
             .build();
-        let tx_bytes = Base64::encode(bcs::to_bytes(&tx).unwrap());
+        let tx_bytes = tx.to_base64();
 
         let query = r#"{ dryRunTransactionBlock(txBytes: $tx) {
                 results {

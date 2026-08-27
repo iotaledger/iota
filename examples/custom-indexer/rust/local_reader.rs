@@ -11,7 +11,7 @@ use iota_data_ingestion_core::{
     reader::v2::CheckpointReaderConfig,
 };
 use iota_types::full_checkpoint_content::CheckpointData;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 
 struct CustomWorker;
 
@@ -22,7 +22,10 @@ impl Worker for CustomWorker {
 
     async fn process_checkpoint(&self, checkpoint: Arc<CheckpointData>) -> Result<Self::Message> {
         // custom processing logic
-        println!("Processing checkpoint: {}", *checkpoint.checkpoint_summary);
+        println!(
+            "Processing checkpoint: {:?}",
+            *checkpoint.checkpoint_summary
+        );
         Ok(())
     }
 }

@@ -42,14 +42,14 @@ pub(crate) struct UniversalCommitter {
 impl UniversalCommitter {
     /// Try to decide part of the dag. This function is idempotent and returns
     /// an ordered list of decided leaders.
-    #[tracing::instrument(skip_all, fields(last_decided = %last_decided))]
-    pub(crate) fn try_decide(&self, last_decided: Slot) -> Vec<DecidedLeader> {
+    #[tracing::instrument(skip_all, fields(last_finalized = %last_finalized))]
+    pub(crate) fn try_decide(&self, last_finalized: Slot) -> Vec<DecidedLeader> {
         let highest_accepted_round = self.dag_state.read().highest_accepted_round();
 
         // Try to decide as many leaders as possible, starting with the highest round.
         let mut leaders: VecDeque<(LeaderStatus, Decision)> = VecDeque::new();
 
-        let last_round = last_decided.round + 1;
+        let last_round = last_finalized.round + 1;
 
         // try to commit a leader up to the highest_accepted_round - 2. There is no
         // reason to try and iterate on higher rounds as in order to make a direct
@@ -63,27 +63,27 @@ impl UniversalCommitter {
                     continue;
                 };
 
-                // now that we reached the last committed leader we can stop the commit rule
-                if slot == last_decided {
-                    tracing::debug!("Reached last committed {slot}, now exit");
+                // now that we reached the last finalized leader we can stop the commit rule
+                if slot == last_finalized {
+                    tracing::debug!("Reached last finalized {slot}, now exit");
                     break 'outer;
                 }
 
-                tracing::debug!("Trying to decide {slot} with {committer}",);
+                tracing::trace!("Trying to decide {slot} with {committer}",);
 
                 let mut status = committer.try_direct_decide(slot);
                 let mut decision = Decision::Direct;
-                tracing::debug!("Outcome of direct rule: {status}");
+                tracing::debug!("Outcome of direct rule: {status} with {committer}");
 
-                // If the direct result is not final (Commit(Pending) or
+                // If the direct result is not resolved (Commit(Pending) or
                 // Undecided), run the indirect rule. For Pending, a
                 // committed anchor's path can upgrade the metastate; for
                 // Undecided, indirect may resolve the slot entirely.
-                if !status.is_final() {
+                if !status.is_resolved() {
                     let indirect = committer
                         .try_indirect_decide(status.clone(), leaders.iter().map(|(x, _)| x));
                     if indirect != status {
-                        tracing::debug!("Outcome of indirect rule: {indirect}");
+                        tracing::debug!("Outcome of indirect rule: {indirect} with {committer}");
                         decision = match (&status, &indirect) {
                             (
                                 LeaderStatus::Commit(_, Some(CommitMetastate::Pending), _),
@@ -98,24 +98,27 @@ impl UniversalCommitter {
             }
         }
 
-        // The decided sequence is the longest prefix of final decisions.
-        // Commit(Pending) is decided but non-final — sequencing stops until
-        // the metastate is upgraded on a subsequent commit pass.
+        // The decided sequence is the longest prefix where every leader is
+        // resolved. Commit(Pending) is decided but not resolved — its metastate
+        // is still pending — so sequencing stops there until a later commit pass
+        // upgrades it.
         let mut decided_leaders = Vec::new();
         for (leader, decision) in leaders {
             if leader.round() == GENESIS_ROUND {
                 continue;
             }
-            if !leader.is_final() {
+            if !leader.is_resolved() {
                 break;
             }
             let decided_leader = leader
                 .into_decided_leader()
-                .expect("is_final implies decided");
+                .expect("is_resolved implies a DecidedLeader");
             Self::update_metrics(&self.context, &decided_leader, decision);
             decided_leaders.push(decided_leader);
         }
-        tracing::debug!("Decided {decided_leaders:?}");
+        if !decided_leaders.is_empty() {
+            tracing::debug!("Decided {decided_leaders:?}");
+        }
         decided_leaders
     }
 

@@ -8,7 +8,8 @@
 use std::collections::{HashMap, VecDeque};
 
 use iota_common::sync::notify_read::NotifyRead;
-use iota_types::{base_types::TransactionDigest, error::IotaError};
+use iota_sdk_types::TransactionDigest;
+use iota_types::error::IotaError;
 use parking_lot::RwLock;
 
 /// Maximum number of dropped transaction entries to retain.
@@ -84,6 +85,11 @@ impl DroppedTxStatusCache {
             return error.clone();
         }
         registration.await
+    }
+
+    #[cfg(test)]
+    pub(crate) fn num_pending_for_testing(&self) -> usize {
+        self.notify_read.num_pending()
     }
 }
 

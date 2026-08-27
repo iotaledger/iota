@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_storage::http_key_value_store::ItemType;
-use prometheus::{
+use prometheus_filtered::{
     IntCounter, IntCounterVec, Registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry,
 };
@@ -13,6 +13,8 @@ pub struct HistoricalFallbackClientMetrics {
     pub(crate) cache_misses: IntCounterVec,
     pub(crate) cache_object_before_version_hits: IntCounter,
     pub(crate) cache_object_before_version_misses: IntCounter,
+    pub(crate) requests: IntCounterVec,
+    pub(crate) request_errors: IntCounterVec,
 }
 
 impl HistoricalFallbackClientMetrics {
@@ -44,18 +46,32 @@ impl HistoricalFallbackClientMetrics {
                 registry,
             )
             .unwrap(),
+            requests: register_int_counter_vec_with_registry!(
+                "historical_fallback_requests",
+                "Historical fallback requests to the KV store",
+                &["resource"],
+                registry,
+            )
+            .unwrap(),
+            request_errors: register_int_counter_vec_with_registry!(
+                "historical_fallback_request_errors",
+                "Historical fallback requests to the KV store that failed",
+                &["resource"],
+                registry,
+            )
+            .unwrap(),
         }
     }
 
     pub(crate) fn record_cache_hit(&self, item_type: ItemType) {
         self.cache_hits
-            .with_label_values(&[item_type.to_string()])
+            .with_label_values(&[&item_type.to_string()])
             .inc();
     }
 
     pub(crate) fn record_cache_miss(&self, item_type: ItemType) {
         self.cache_misses
-            .with_label_values(&[item_type.to_string()])
+            .with_label_values(&[&item_type.to_string()])
             .inc();
     }
 
@@ -65,5 +81,17 @@ impl HistoricalFallbackClientMetrics {
 
     pub(crate) fn record_cache_object_before_version_miss(&self) {
         self.cache_object_before_version_misses.inc();
+    }
+
+    pub(crate) fn record_request(&self, item_type: ItemType) {
+        self.requests
+            .with_label_values(&[&item_type.to_string()])
+            .inc();
+    }
+
+    pub(crate) fn record_request_error(&self, item_type: ItemType) {
+        self.request_errors
+            .with_label_values(&[&item_type.to_string()])
+            .inc();
     }
 }

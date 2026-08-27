@@ -2,16 +2,23 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Command, ExecutionError, ExecutionStatus, Identifier, TransactionKind};
+use iota_sdk_types::{
+    Address, Command, ExecutionError, ExecutionStatus, GasCostSummary, Identifier, ObjectId,
+    ObjectReference, Owner, Transaction, TransactionEffects, TransactionEvents, TransactionKind,
+};
 use iota_types::{
     base_types::dbg_addr,
-    crypto::{AccountKeyPair, get_key_pair},
-    effects::TransactionEvents,
+    crypto::{AccountPrivateKey, get_key_pair},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    error::{IotaResult, UserInputError},
     gas_coin::GasCoin,
-    object::GAS_VALUE_FOR_TESTING,
+    messages_grpc::TransactionStatus,
+    object::{GAS_VALUE_FOR_TESTING, OBJECT_START_VERSION, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionDataAPI,
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;
@@ -20,10 +27,9 @@ use once_cell::sync::Lazy;
 use super::{
     authority_tests::{init_state_with_ids, send_and_confirm_transaction},
     move_integration_tests::build_and_try_publish_test_package,
-    *,
 };
 use crate::authority::{
-    authority_tests::init_state_with_ids_and_object_basics,
+    AuthorityState, authority_tests::init_state_with_ids_and_object_basics,
     test_authority_builder::TestAuthorityBuilder,
 };
 
@@ -102,8 +108,8 @@ async fn test_tx_more_than_maximum_gas_budget() {
 
 async fn publish_move_random_package(
     authority_state: &Arc<AuthorityState>,
-    sender: &IotaAddress,
-    sender_key: &AccountKeyPair,
+    sender: &Address,
+    sender_key: &AccountPrivateKey,
     gas_object_id: &ObjectId,
 ) -> ObjectId {
     const PUBLISH_BUDGET: u64 = 10_000_000;
@@ -133,8 +139,8 @@ async fn publish_move_random_package(
 }
 
 async fn check_oog_transaction<F>(
-    sender: IotaAddress,
-    sender_key: AccountKeyPair,
+    sender: Address,
+    sender_key: AccountPrivateKey,
     function: &'static str,
     args: Vec<CallArg>,
     budget: u64,
@@ -155,12 +161,12 @@ where
     let gas_coin_ids: Vec<_> = gas_coins.iter().map(|obj| obj.id()).collect();
     let authority_state = TestAuthorityBuilder::new().build().await;
     for obj in gas_coins {
-        authority_state.insert_genesis_object(obj).await;
+        authority_state.insert_genesis_object(obj);
     }
 
     let gas_object_id = ObjectId::random();
     let gas_coin = Object::with_id_owner_gas_for_testing(gas_object_id, sender, gas_amount);
-    authority_state.insert_genesis_object(gas_coin).await;
+    authority_state.insert_genesis_object(gas_coin);
     // touch gas coins so that `storage_rebate` is set (not 0 as in genesis)
     touch_gas_coins(
         &authority_state,
@@ -178,16 +184,12 @@ where
     // call move entry function
     let mut gas_coin_refs = vec![];
     for coin_id in &gas_coin_ids {
-        let coin_ref = authority_state
-            .get_object(coin_id)
-            .await
-            .unwrap()
-            .object_ref();
+        let coin_ref = authority_state.get_object(coin_id).unwrap().object_ref();
         gas_coin_refs.push(coin_ref);
     }
     let module = Identifier::from_static("move_random");
     let function = Identifier::from_static(function);
-    let data = TransactionData::new_move_call_with_gas_coins(
+    let tx = Transaction::new_move_call_with_gas_coins(
         sender,
         package,
         module,
@@ -201,7 +203,7 @@ where
     .unwrap();
 
     // sign and execute transaction
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let effects = send_and_confirm_transaction(&authority_state, tx)
         .await
         .unwrap()
@@ -228,10 +230,7 @@ where
         );
     }
     let gas_ref = effects.gas_object().0;
-    let gas_object = authority_state
-        .get_object(&gas_ref.object_id)
-        .await
-        .unwrap();
+    let gas_object = authority_state.get_object(&gas_ref.object_id).unwrap();
     let final_value = GasCoin::try_from(&gas_object)?.value();
     let summary = effects.gas_cost_summary();
 
@@ -240,7 +239,7 @@ where
 }
 
 // make a `coin_num` coins distributing `gas_amount` across them
-fn make_gas_coins(owner: IotaAddress, gas_amount: u64, coin_num: u64) -> Vec<Object> {
+fn make_gas_coins(owner: Address, gas_amount: u64, coin_num: u64) -> Vec<Object> {
     let mut objects = vec![];
     let coin_balance = gas_amount / coin_num;
     for _ in 1..coin_num {
@@ -265,31 +264,26 @@ fn make_gas_coins(owner: IotaAddress, gas_amount: u64, coin_num: u64) -> Vec<Obj
 // Touch gas coins so that `storage_rebate` is set
 async fn touch_gas_coins(
     authority_state: &AuthorityState,
-    sender: IotaAddress,
-    sender_key: &AccountKeyPair,
-    recipient: IotaAddress,
+    sender: Address,
+    sender_key: &AccountPrivateKey,
+    recipient: Address,
     coin_ids: &[ObjectId],
     gas_object_id: ObjectId,
 ) {
     let mut builder = ProgrammableTransactionBuilder::new();
     for coin_id in coin_ids {
-        let coin_ref = authority_state
-            .get_object(coin_id)
-            .await
-            .unwrap()
-            .object_ref();
+        let coin_ref = authority_state.get_object(coin_id).unwrap().object_ref();
         builder.transfer_object(recipient, coin_ref).unwrap();
     }
     let pt = builder.finish();
     let kind = TransactionKind::Programmable(pt);
     let gas_object_ref = authority_state
         .get_object(&gas_object_id)
-        .await
         .unwrap()
         .object_ref();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let data = TransactionData::new(kind, sender, gas_object_ref, 100_000_000, rgp);
-    let tx = to_sender_signed_transaction(data, sender_key);
+    let tx = Transaction::new(kind, sender, gas_object_ref, 100_000_000, rgp);
+    let tx = to_sender_signed_transaction(tx, sender_key);
 
     send_and_confirm_transaction(authority_state, tx)
         .await
@@ -506,7 +500,6 @@ async fn test_native_transfer_sufficient_gas() -> IotaResult {
     let gas_object = result
         .authority_state
         .get_object(&result.gas_object_id)
-        .await
         .unwrap();
     assert_eq!(
         GasCoin::try_from(&gas_object)?.value(),
@@ -552,13 +545,13 @@ async fn test_native_transfer_gas_price_is_used() {
 
 #[tokio::test]
 async fn test_transfer_iota_insufficient_gas() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let recipient = dbg_addr(2);
     let authority_state = TestAuthorityBuilder::new().build().await;
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_gas_for_testing(gas_object_id, sender, *MAX_GAS_BUDGET);
     let gas_object_ref = gas_object.object_ref();
-    authority_state.insert_genesis_object(gas_object).await;
+    authority_state.insert_genesis_object(gas_object);
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let pt = {
@@ -567,14 +560,14 @@ async fn test_transfer_iota_insufficient_gas() {
         builder.finish()
     };
     let kind = TransactionKind::Programmable(pt);
-    let data = TransactionData::new(
+    let tx = Transaction::new(
         kind,
         sender,
         gas_object_ref,
         *MIN_GAS_BUDGET_PRE_RGP * rgp,
         rgp,
     );
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
 
     let effects = send_and_confirm_transaction(&authority_state, tx)
         .await
@@ -594,12 +587,12 @@ async fn test_transfer_iota_insufficient_gas() {
 /// - All gas coins should be owned by the sender, or the sponsor
 #[tokio::test]
 async fn test_invalid_gas_owners() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let authority_state = TestAuthorityBuilder::new().build().await;
 
     let init_object = |o: Object| async {
         let obj_ref = o.object_ref();
-        authority_state.insert_genesis_object(o).await;
+        authority_state.insert_genesis_object(o);
         obj_ref
     };
 
@@ -615,14 +608,13 @@ async fn test_invalid_gas_owners() {
         gas_object3.object_id,
     ))
     .await;
-    let non_sender_owned_object =
-        init_object(Object::with_owner_for_testing(IotaAddress::ZERO)).await;
+    let non_sender_owned_object = init_object(Object::with_owner_for_testing(Address::ZERO)).await;
 
     async fn test(
-        good_gas_object: ObjectRef,
-        bad_gas_object: ObjectRef,
-        sender: IotaAddress,
-        sender_key: &AccountKeyPair,
+        good_gas_object: ObjectReference,
+        bad_gas_object: ObjectReference,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
         authority_state: &AuthorityState,
     ) -> UserInputError {
         let pt = {
@@ -632,14 +624,14 @@ async fn test_invalid_gas_owners() {
             builder.finish()
         };
         let kind = TransactionKind::Programmable(pt);
-        let data = TransactionData::new_with_gas_coins(
+        let tx = Transaction::new_with_gas_coins(
             kind,
             sender,
             vec![good_gas_object, bad_gas_object],
             *MAX_GAS_BUDGET,
             1111,
         );
-        let tx = to_sender_signed_transaction(data, sender_key);
+        let tx = to_sender_signed_transaction(tx, sender_key);
 
         let result = send_and_confirm_transaction(authority_state, tx).await;
         UserInputError::try_from(result.unwrap_err()).unwrap()
@@ -744,7 +736,6 @@ async fn test_native_transfer_insufficient_gas_execution() {
     let gas_object = result
         .authority_state
         .get_object(&result.gas_object_id)
-        .await
         .unwrap();
     let gas_coin = GasCoin::try_from(&gas_object).unwrap();
     assert_eq!(gas_coin.value(), 0);
@@ -762,7 +753,7 @@ async fn test_native_transfer_insufficient_gas_execution() {
 
 #[tokio::test]
 async fn test_publish_gas() -> anyhow::Result<()> {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let authority_state = init_state_with_ids(vec![(sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
@@ -784,7 +775,7 @@ async fn test_publish_gas() -> anyhow::Result<()> {
     let gas_cost = effects.gas_cost_summary();
     assert!(gas_cost.storage_cost > 0);
 
-    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
     let gas_size = gas_object.object_size_for_gas_metering();
     let expected_gas_balance = GAS_VALUE_FOR_TESTING - gas_cost.net_gas_usage() as u64;
     assert_eq!(
@@ -823,7 +814,7 @@ async fn test_publish_gas() -> anyhow::Result<()> {
 
     assert!(gas_cost.gas_used() > 0);
 
-    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
     let expected_gas_balance = expected_gas_balance - gas_cost.net_gas_usage() as u64;
     assert_eq!(
         GasCoin::try_from(&gas_object)?.value(),
@@ -835,12 +826,12 @@ async fn test_publish_gas() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_move_call_gas() -> IotaResult {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let (authority_state, package_object_ref) =
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
 
     let module = Identifier::from_static("object_basics");
     let function = Identifier::from_static("create");
@@ -848,7 +839,7 @@ async fn test_move_call_gas() -> IotaResult {
         CallArg::Pure(16u64.to_le_bytes().to_vec()),
         CallArg::pure(&AccountAddress::new(sender.into_bytes())),
     ];
-    let data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         module.clone(),
@@ -861,7 +852,7 @@ async fn test_move_call_gas() -> IotaResult {
     )
     .unwrap();
 
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let response = send_and_confirm_transaction(&authority_state, tx).await?;
     let effects = response.1.into_data();
     let created_object_ref = effects.created()[0].0;
@@ -869,7 +860,7 @@ async fn test_move_call_gas() -> IotaResult {
     let gas_cost = effects.gas_cost_summary();
     assert!(gas_cost.storage_cost > 0);
     assert_eq!(gas_cost.storage_rebate, 0);
-    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).unwrap();
     let expected_gas_balance = GAS_VALUE_FOR_TESTING - gas_cost.net_gas_usage() as u64;
     assert_eq!(
         GasCoin::try_from(&gas_object)?.value(),
@@ -881,7 +872,7 @@ async fn test_move_call_gas() -> IotaResult {
     let prev_storage_cost = gas_cost.storage_cost;
 
     // Execute object deletion, and make sure we have storage rebate.
-    let data = TransactionData::new_move_call(
+    let tx = Transaction::new_move_call(
         sender,
         package_object_ref.object_id,
         module.clone(),
@@ -894,7 +885,7 @@ async fn test_move_call_gas() -> IotaResult {
     )
     .unwrap();
 
-    let transaction = to_sender_signed_transaction(data, &sender_key);
+    let transaction = to_sender_signed_transaction(tx, &sender_key);
     let response = send_and_confirm_transaction(&authority_state, transaction).await?;
     let effects = response.1.into_data();
     assert!(effects.status().is_success());
@@ -924,7 +915,7 @@ async fn test_tx_gas_price_less_than_reference_gas_price() {
 
 #[tokio::test]
 async fn test_tx_gas_coins_input_coins() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let authority_state = TestAuthorityBuilder::new().build().await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
@@ -936,23 +927,23 @@ async fn test_tx_gas_coins_input_coins() {
         .iter()
         .map(|obj| obj.object_ref())
         .collect::<Vec<_>>();
-    authority_state.insert_genesis_objects(&gas_coins).await;
+    authority_state.insert_genesis_objects(&gas_coins);
     let coins = (0..260)
         .map(|_| Object::with_owner_for_testing(sender))
         .collect::<Vec<_>>();
     let coin_refs = coins.iter().map(|obj| obj.object_ref()).collect::<Vec<_>>();
-    authority_state.insert_genesis_objects(&coins).await;
+    authority_state.insert_genesis_objects(&coins);
     let coin = Object::with_owner_for_testing(sender);
     let coin_ref = coin.object_ref();
-    authority_state.insert_genesis_object(coin).await;
+    authority_state.insert_genesis_object(coin);
 
     async fn run_merge(
         authority_state: &AuthorityState,
-        sender: IotaAddress,
-        sender_key: &AccountKeyPair,
-        gas_coin_refs: Vec<ObjectRef>,
-        coin_ref: ObjectRef,
-        coin_refs: Vec<ObjectRef>,
+        sender: Address,
+        sender_key: &AccountPrivateKey,
+        gas_coin_refs: Vec<ObjectReference>,
+        coin_ref: ObjectReference,
+        coin_refs: Vec<ObjectReference>,
         rgp: u64,
     ) -> TransactionEffects {
         // build the programmale transaction
@@ -967,7 +958,7 @@ async fn test_tx_gas_coins_input_coins() {
             builder.finish()
         };
         let kind = TransactionKind::Programmable(pt);
-        let data = TransactionData::new_with_gas_coins(
+        let tx = Transaction::new_with_gas_coins(
             kind,
             sender,
             gas_coin_refs.clone(),
@@ -975,7 +966,7 @@ async fn test_tx_gas_coins_input_coins() {
             *MIN_GAS_BUDGET_PRE_RGP * 100 * rgp,
             rgp,
         );
-        let tx = to_sender_signed_transaction(data, sender_key);
+        let tx = to_sender_signed_transaction(tx, sender_key);
         send_and_confirm_transaction(authority_state, tx)
             .await
             .unwrap()
@@ -1019,7 +1010,7 @@ async fn execute_transfer_with_price(
     run_confirm: bool,
     min_budget_pre_rgp: bool,
 ) -> TransferResult {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id: ObjectId = ObjectId::random();
     let recipient = dbg_addr(2);
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
@@ -1033,8 +1024,8 @@ async fn execute_transfer_with_price(
     let gas_object_id = ObjectId::random();
     let gas_object = Object::with_id_owner_gas_for_testing(gas_object_id, sender, gas_balance);
     let gas_object_ref = gas_object.object_ref();
-    authority_state.insert_genesis_object(gas_object).await;
-    let object = authority_state.get_object(&object_id).await.unwrap();
+    authority_state.insert_genesis_object(gas_object);
+    let object = authority_state.get_object(&object_id).unwrap();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -1044,8 +1035,8 @@ async fn execute_transfer_with_price(
         builder.finish()
     };
     let kind = TransactionKind::Programmable(pt);
-    let data = TransactionData::new(kind, sender, gas_object_ref, gas_budget, rgp);
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = Transaction::new(kind, sender, gas_object_ref, gas_budget, rgp);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
 
     let response = if run_confirm {
         send_and_confirm_transaction(&authority_state, tx)

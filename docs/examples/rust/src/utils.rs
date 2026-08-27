@@ -20,18 +20,15 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions, ObjectChange,
     },
     types::{
-        base_types::{IotaAddress, ObjectRef},
-        crypto::SignatureScheme::ED25519,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
-        quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Transaction, TransactionData},
+        quorum_driver_types::ExecuteTransactionRequestType, transaction::TransactionEnvelope,
     },
 };
-use iota_sdk_types::{ObjectId, crypto::Intent};
-use iota_types::{
-    move_package,
-    transaction::{ProgrammableTransaction, TransactionDataAPI},
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, ProgrammableTransaction, SignatureScheme, Transaction,
+    crypto::Intent,
 };
+use iota_types::{move_package, transaction::TransactionAPI};
 use reqwest::Client;
 use serde::Deserialize;
 use serde_json::json;
@@ -65,10 +62,15 @@ pub fn clean_keystore() -> Result<(), anyhow::Error> {
 pub async fn fund_address(
     iota_client: &IotaClient,
     keystore: &mut FileBasedKeystore,
-    recipient: IotaAddress,
+    recipient: Address,
 ) -> Result<(), anyhow::Error> {
     // Derive the address of the sponsor.
-    let sponsor = keystore.import_from_mnemonic(SPONSOR_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let sponsor = keystore.import_from_mnemonic(
+        SPONSOR_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     println!("Sponsor address: {sponsor:?}");
 
@@ -88,7 +90,7 @@ pub async fn fund_address(
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create a transaction data that will be sent to the network.
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sponsor,
         vec![gas_coin.object_ref()],
         pt,
@@ -97,13 +99,13 @@ pub async fn fund_address(
     );
 
     // Sign the transaction.
-    let signature = keystore.sign_secure(&sponsor, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&sponsor, &tx, Intent::iota_transaction())?;
 
     // Execute the transaction.
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
@@ -122,7 +124,7 @@ pub async fn fund_address(
 pub async fn publish_custom_nft_package(
     iota_client: &IotaClient,
     keystore: &mut FileBasedKeystore,
-    publisher: IotaAddress,
+    publisher: Address,
 ) -> Result<ObjectId> {
     let transaction_response =
         publish_package(iota_client, keystore, publisher, CUSTOM_NFT_PACKAGE_PATH).await?;
@@ -144,9 +146,9 @@ pub async fn publish_custom_nft_package(
 pub async fn publish_aa_package<Keystore: AccountKeystore>(
     iota_client: &IotaClient,
     keystore: &mut Keystore,
-    publisher: IotaAddress,
+    publisher: Address,
     package: &str,
-) -> Result<(ObjectId, ObjectRef)> {
+) -> Result<(ObjectId, ObjectReference)> {
     let transaction_response = publish_package(iota_client, keystore, publisher, package).await?;
 
     let package_ref = transaction_response
@@ -181,7 +183,7 @@ pub async fn publish_aa_package<Keystore: AccountKeystore>(
 pub async fn publish_package<Keystore: AccountKeystore>(
     iota_client: &IotaClient,
     keystore: &mut Keystore,
-    publisher: IotaAddress,
+    publisher: Address,
     package: &str,
 ) -> Result<IotaTransactionBlockResponse> {
     // Get a gas coin
@@ -212,7 +214,7 @@ pub async fn publish_package<Keystore: AccountKeystore>(
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create the transaction data that will be sent to the network
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         publisher,
         vec![gas_coin.object_ref()],
         pt,
@@ -221,13 +223,13 @@ pub async fn publish_package<Keystore: AccountKeystore>(
     );
 
     // Sign the transaction
-    let signature = keystore.sign_secure(&publisher, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&publisher, &tx, Intent::iota_transaction())?;
 
     // Execute transaction
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
@@ -248,7 +250,7 @@ struct FaucetResponse {
 }
 
 /// Utility function to request tokens from the local faucet.
-pub async fn request_tokens_from_faucet(client: &IotaClient, address: IotaAddress) -> Result<()> {
+pub async fn request_tokens_from_faucet(client: &IotaClient, address: Address) -> Result<()> {
     let address_str = address.to_string();
     let reqwest_client = Client::new();
     let body = json!({ "FixedAmountRequest": { "recipient": &address_str } });
@@ -277,7 +279,7 @@ async fn wait_for_faucet_completion(
     client: &IotaClient,
     reqwest_client: &Client,
     task_id: &str,
-    expected_owner: &IotaAddress,
+    expected_owner: &Address,
 ) -> Result<()> {
     let coin_id = loop {
         let response = reqwest_client
@@ -319,7 +321,7 @@ async fn wait_for_faucet_completion(
 }
 
 /// Utility function to get a coin for an address.
-pub async fn get_coin(iota_client: &IotaClient, addr: IotaAddress) -> Result<Coin> {
+pub async fn get_coin(iota_client: &IotaClient, addr: Address) -> Result<Coin> {
     let coin_page = iota_client
         .coin_read_api()
         .get_coins(addr, None, None, None)
@@ -335,15 +337,15 @@ pub async fn get_coin(iota_client: &IotaClient, addr: IotaAddress) -> Result<Coi
 /// Utility function to create a transaction data.
 pub async fn create_transaction_data(
     iota_client: &IotaClient,
-    sender: IotaAddress,
+    sender: Address,
     pt: ProgrammableTransaction,
-) -> Result<TransactionData> {
+) -> Result<Transaction> {
     let gas_coin = get_coin(iota_client, sender).await?;
 
     let gas_budget = 50_000_000;
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
-    Ok(TransactionData::new_programmable(
+    Ok(Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -356,20 +358,20 @@ pub async fn create_transaction_data(
 pub async fn create_and_sign_transaction<Keystore: AccountKeystore>(
     iota_client: &IotaClient,
     keystore: &mut Keystore,
-    sender: IotaAddress,
+    sender: Address,
     pt: ProgrammableTransaction,
-) -> Result<Transaction> {
+) -> Result<TransactionEnvelope> {
     let tx_data = create_transaction_data(iota_client, sender, pt).await?;
 
     let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
 
-    Ok(Transaction::from_data(tx_data, vec![signature]))
+    Ok(TransactionEnvelope::from_data(tx_data, vec![signature]))
 }
 
 /// Utility function to execute a transaction.
 pub async fn execute_transaction(
     iota_client: &IotaClient,
-    transaction: Transaction,
+    transaction: TransactionEnvelope,
 ) -> Result<IotaTransactionBlockResponse> {
     Ok(iota_client
         .quorum_driver_api()
@@ -385,7 +387,7 @@ pub async fn execute_transaction(
 pub async fn execute_ptb<Keystore: AccountKeystore>(
     iota_client: &IotaClient,
     keystore: &mut Keystore,
-    sender: IotaAddress,
+    sender: Address,
     pt: ProgrammableTransaction,
 ) -> Result<IotaTransactionBlockResponse> {
     let transaction = create_and_sign_transaction(iota_client, keystore, sender, pt).await?;

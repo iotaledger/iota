@@ -9,16 +9,17 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::collections::BTreeMap;
 
 use bytes::Bytes;
 use starfish_config::AuthorityIndex;
 
 use crate::{
     CommitIndex,
-    block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions},
-    commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
-    context::Context,
+    block_header::{
+        BlockRef, CommitmentVerifiedTransactions, Round, VerifiedBlock, VerifiedBlockHeader,
+    },
+    commit::{CommitDigest, CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
     misbehavior_store::MisbehaviorCounts,
     transaction_ref::{GenericTransactionRef, TransactionRef},
@@ -27,15 +28,11 @@ use crate::{
 /// A common interface for consensus storage.
 pub(crate) trait Store: Send + Sync {
     /// Writes blocks, consensus commits and other data to store atomically.
-    fn write(&self, write_batch: WriteBatch, context: Arc<Context>) -> ConsensusResult<()>;
+    fn write(&self, write_batch: WriteBatch) -> ConsensusResult<()>;
 
     /// Reads complete blocks by combining transactions and headers for the
     /// given refs.
-    fn read_blocks(
-        &self,
-        refs: &[BlockRef],
-        context: Arc<Context>,
-    ) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
+    fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
 
     /// Read and get verified block headers for the given refs.
     fn read_verified_block_headers(
@@ -53,7 +50,7 @@ pub(crate) trait Store: Send + Sync {
     fn read_verified_transactions(
         &self,
         refs: &[GenericTransactionRef],
-    ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>>;
+    ) -> ConsensusResult<Vec<Option<CommitmentVerifiedTransactions>>>;
 
     /// Read and get serialized transactions for the given refs.
     fn read_serialized_transactions(
@@ -77,7 +74,6 @@ pub(crate) trait Store: Send + Sync {
         &self,
         authority: AuthorityIndex,
         start_round: Round,
-        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
     // The method returns the last `num_of_rounds` rounds blocks by author in round
@@ -90,7 +86,6 @@ pub(crate) trait Store: Send + Sync {
         author: AuthorityIndex,
         num_of_rounds: u64,
         before_round: Option<Round>,
-        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedBlock>>;
 
     fn scan_block_references_by_author(
@@ -109,19 +104,12 @@ pub(crate) trait Store: Send + Sync {
         &self,
         author: AuthorityIndex,
         start_round: Round,
-        context: Arc<Context>,
-    ) -> ConsensusResult<Vec<VerifiedTransactions>> {
-        let refs = if context.protocol_config.consensus_fast_commit_sync() {
-            self.scan_transaction_references_by_author(author, start_round)?
-                .into_iter()
-                .map(GenericTransactionRef::from)
-                .collect::<Vec<_>>()
-        } else {
-            self.scan_block_references_by_author(author, start_round)?
-                .into_iter()
-                .map(GenericTransactionRef::from)
-                .collect::<Vec<_>>()
-        };
+    ) -> ConsensusResult<Vec<CommitmentVerifiedTransactions>> {
+        let refs = self
+            .scan_transaction_references_by_author(author, start_round)?
+            .into_iter()
+            .map(GenericTransactionRef::from)
+            .collect::<Vec<_>>();
         Ok(self
             .read_verified_transactions(&refs)?
             .into_iter()
@@ -156,8 +144,15 @@ pub(crate) trait Store: Send + Sync {
     /// Reads all commits from start (inclusive) until end (inclusive).
     fn scan_commits(&self, range: CommitRange) -> ConsensusResult<Vec<TrustedCommit>>;
 
-    /// Reads all blocks voting on a particular commit.
-    fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>>;
+    /// Reads all blocks voting on a particular commit, identified by both
+    /// index and digest. Votes for other digests at the same index (possible
+    /// with Byzantine voters, since vote digests are not validated against
+    /// stored commits) are excluded.
+    fn read_commit_votes(
+        &self,
+        commit_index: CommitIndex,
+        commit_digest: CommitDigest,
+    ) -> ConsensusResult<Vec<BlockRef>>;
 
     /// Finds the highest commit index that has at least one vote, up to (and
     /// including) the given index. Returns None if no votes exist for any
@@ -186,14 +181,14 @@ pub(crate) trait Store: Send + Sync {
     ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>>;
 
     /// Returns true if fast commit sync was ongoing when the node last shut
-    /// down.
-    fn read_fast_sync_ongoing(&self) -> bool;
+    /// down. Errors if the flag cannot be read from storage.
+    fn read_fast_sync_ongoing(&self) -> ConsensusResult<bool>;
 }
 
 /// Represents data to be written to the store together atomically.
 #[derive(Debug, Default)]
 pub(crate) struct WriteBatch {
-    pub(crate) transactions: Vec<VerifiedTransactions>,
+    pub(crate) transactions: Vec<CommitmentVerifiedTransactions>,
     pub(crate) block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
@@ -206,7 +201,10 @@ impl WriteBatch {
     // Test setters.
 
     #[cfg(test)]
-    pub(crate) fn transactions(mut self, transactions: Vec<VerifiedTransactions>) -> Self {
+    pub(crate) fn transactions(
+        mut self,
+        transactions: Vec<CommitmentVerifiedTransactions>,
+    ) -> Self {
         self.transactions = transactions;
         self
     }

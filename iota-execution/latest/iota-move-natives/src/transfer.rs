@@ -4,12 +4,10 @@
 
 use std::collections::VecDeque;
 
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{Address, ObjectId, Owner, StructTag, Version};
 use iota_types::{
     account_abstraction::account::AuthenticatorFunctionRefV1Key,
-    base_types::{IotaAddress, SequenceNumber},
-    dynamic_field::derive_dynamic_field_id,
-    iota_sdk_types_conversions::struct_tag_core_to_sdk,
+    dynamic_field::derive_dynamic_field_id, iota_sdk_types_conversions::struct_tag_core_to_sdk,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
 use move_core_types::{
@@ -67,7 +65,7 @@ pub fn receive_object_internal(
         transfer_receive_object_internal_cost_params.transfer_receive_object_internal_cost_base
     );
     let child_ty = ty_args.pop().unwrap();
-    let child_receiver_sequence_number: SequenceNumber = pop_arg!(args, u64).into();
+    let child_receiver_version: Version = pop_arg!(args, u64).into();
     let child_receiver_object_id = args.pop_back().unwrap();
     let parent = ObjectId::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
@@ -95,7 +93,7 @@ pub fn receive_object_internal(
         // have an authenticator function ref as a child-object/dynamic-field.
         let authenticator_fun_ref_id = derive_dynamic_field_id(
             parent,
-            &AuthenticatorFunctionRefV1Key::tag().into(),
+            &StructTag::new_authenticator_function_ref_v1_key().into(),
             &AuthenticatorFunctionRefV1Key::default().to_bcs_bytes(),
         )
         .expect("should not fail this serialization");
@@ -114,7 +112,7 @@ pub fn receive_object_internal(
     let child = match object_runtime.receive_object(
         parent,
         child_id,
-        child_receiver_sequence_number,
+        child_receiver_version,
         &child_ty,
         &layout,
         &annotated_layout,
@@ -173,7 +171,7 @@ pub fn transfer_internal(
     let recipient = pop_arg!(args, AccountAddress);
     let obj = args.pop_back().unwrap();
 
-    let owner = Owner::Address(IotaAddress::new(recipient.into_bytes()));
+    let owner = Owner::Address(Address::new(recipient.into_bytes()));
     object_runtime_transfer(context, owner, ty, obj)?;
     let cost = context.gas_used();
     Ok(NativeResult::ok(cost, smallvec![]))

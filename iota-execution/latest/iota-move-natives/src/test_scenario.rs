@@ -11,16 +11,17 @@ use std::{
 
 use better_any::{Tid, TidAble};
 use indexmap::{IndexMap, IndexSet};
-use iota_sdk_types::{ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, MoveStruct, ObjectDigest, ObjectId, Owner, StructTag, TransactionDigest, TypeTag,
+    Version,
+};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
-    digests::{ObjectDigest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     execution::DynamicallyLoadedObjectMetadata,
     id::UID,
     in_memory_storage::InMemoryStorage,
     iota_sdk_types_conversions::struct_tag_core_to_sdk,
-    object::{MoveObject, MoveObjectExt, Object},
+    object::{MoveStructExt, Object},
     storage::{BackingPackageStore, ChildObjectResolver},
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -65,7 +66,7 @@ impl ChildObjectResolver for InMemoryTestStore {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         let l: &'static LocalKey<RefCell<InMemoryStorage>> = self.0;
         l.with_borrow(|store| store.read_child_object(parent, child, child_version_upper_bound))
@@ -75,7 +76,7 @@ impl ChildObjectResolver for InMemoryTestStore {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: iota_types::committee::EpochId,
     ) -> iota_types::error::IotaResult<Option<Object>> {
         self.0.with_borrow(|store| {
@@ -391,7 +392,7 @@ pub fn take_from_address_by_id(
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
     let id = pop_id(&mut args)?;
-    let account = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
+    let account = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     pop_arg!(args, StructRef);
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
@@ -424,7 +425,7 @@ pub fn ids_for_address(
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
-    let account: IotaAddress = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
+    let account: Address = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;
@@ -449,7 +450,7 @@ pub fn most_recent_id_for_address(
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
     let specified_ty = get_specified_ty(ty_args);
-    let account: IotaAddress = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
+    let account: Address = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;
@@ -471,7 +472,7 @@ pub fn was_taken_from_address(
 ) -> PartialVMResult<NativeResult> {
     assert!(ty_args.is_empty());
     let id = pop_id(&mut args)?;
-    let account: IotaAddress = IotaAddress::new(pop_arg!(args, AccountAddress).into_bytes());
+    let account: Address = Address::new(pop_arg!(args, AccountAddress).into_bytes());
     assert!(args.is_empty());
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
     let inventories = &mut object_runtime.test_inventories;
@@ -659,7 +660,7 @@ pub fn allocate_receiving_ticket_for_object(
     };
     let tag = struct_tag_core_to_sdk(&tag);
     let object_runtime: &mut ObjectRuntime = context.extensions_mut().get_mut()?;
-    let object_version = SequenceNumber::default();
+    let object_version = Version::default();
     let inventories = &mut object_runtime.test_inventories;
     if inventories.allocated_tickets.contains_key(&id) {
         return Ok(NativeResult::err(
@@ -675,8 +676,8 @@ pub fn allocate_receiving_ticket_for_object(
             E_UNABLE_TO_ALLOCATE_RECEIVING_TICKET,
         ));
     };
-    let move_object =
-        MoveObject::new_from_execution_with_limit(tag, object_version, bytes, 250 * 1024).unwrap();
+    let move_struct =
+        MoveStruct::new_from_execution_with_limit(tag, object_version, bytes, 250 * 1024).unwrap();
 
     let Some((owner, _)) = inventories
         .address_inventories
@@ -693,7 +694,7 @@ pub fn allocate_receiving_ticket_for_object(
         id,
         (
             DynamicallyLoadedObjectMetadata {
-                version: SequenceNumber::default(),
+                version: Version::default(),
                 digest: ObjectDigest::MIN,
                 owner: Owner::Address(*owner),
                 storage_rebate: 0,
@@ -704,7 +705,7 @@ pub fn allocate_receiving_ticket_for_object(
     );
 
     let object = Object::new_move(
-        move_object,
+        move_struct,
         Owner::Address(*owner),
         TransactionDigest::default(),
     );

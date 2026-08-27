@@ -25,7 +25,6 @@ async-trait.workspace = true
 bcs.workspace = true
 clap.workspace = true
 object_store.workspace = true
-prometheus.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -36,7 +35,6 @@ url.workspace = true
 
 # internal dependencies
 bin-version.workspace = true
-iota-archival.workspace = true
 iota-config.workspace = true
 iota-data-ingestion-core.workspace = true
 iota-graphql-rpc-client.workspace = true

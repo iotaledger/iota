@@ -20,16 +20,16 @@ use iota_sdk::{
         IotaTransactionBlockResponseOptions,
     },
     types::{
-        base_types::IotaAddress,
-        crypto::SignatureScheme::ED25519,
-        digests::TransactionDigest,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{Transaction, TransactionData, TransactionDataAPI},
+        transaction::{TransactionAPI, TransactionEnvelope},
     },
     wallet_context::WalletContext,
 };
-use iota_sdk_types::{Argument, Command, ObjectId, crypto::Intent};
+use iota_sdk_types::{
+    Address, Argument, Command, ObjectId, SignatureScheme, Transaction, TransactionDigest,
+    crypto::Intent,
+};
 use reqwest::Client;
 use serde_json::json;
 use tracing::info;
@@ -40,12 +40,31 @@ struct FaucetResponse {
     error: Option<String>,
 }
 
-// const IOTA_FAUCET_BASE_URL: &str = "https://faucet.devnet.iota.cafe"; // devnet faucet
+#[derive(Clone, Copy)]
+pub enum Network {
+    Devnet,
+    Testnet,
+    Localnet,
+}
 
-pub const IOTA_FAUCET_BASE_URL: &str = "https://faucet.testnet.iota.cafe"; // testnet faucet
+impl Network {
+    /// The base URL of this network's faucet.
+    pub fn faucet_url(self) -> &'static str {
+        match self {
+            Network::Devnet => DEVNET_IOTA_FAUCET_BASE_URL,
+            Network::Testnet => TESTNET_IOTA_FAUCET_BASE_URL,
+            Network::Localnet => LOCALNET_IOTA_FAUCET_BASE_URL,
+        }
+    }
+}
+
+pub const DEVNET_IOTA_FAUCET_BASE_URL: &str = "https://faucet.devnet.iota.cafe"; // devnet faucet
+
+pub const TESTNET_IOTA_FAUCET_BASE_URL: &str = "https://faucet.testnet.iota.cafe"; // testnet faucet
 
 // if you use the `iota-localnet start` subcommand and use the local network; if
-// it does not work, try with port 5003. const IOTA_FAUCET_BASE_URL: &str = "http://127.0.0.1:9123";
+// it does not work, try with port 5003.
+pub const LOCALNET_IOTA_FAUCET_BASE_URL: &str = "http://127.0.0.1:9123";
 
 /// Return an iota client to interact with the APIs,
 /// the active address of the local wallet, and another address that can be used
@@ -55,12 +74,29 @@ pub const IOTA_FAUCET_BASE_URL: &str = "https://faucet.testnet.iota.cafe"; // te
 /// or reuse the existing one and its active address. This function should be
 /// used when two addresses are needed, e.g., transferring objects from one
 /// address to another.
-pub async fn setup_for_write() -> Result<(IotaClient, IotaAddress, IotaAddress), anyhow::Error> {
-    let (client, active_address) = setup_for_read().await?;
-    // make sure we have some IOTA (5_000_000 NANOS) on this address
-    let coin = fetch_coin(&client, &active_address).await?;
-    if coin.is_none() {
-        request_tokens_from_faucet(active_address, &client).await?;
+pub async fn setup_for_write() -> Result<(IotaClient, Address, Address), anyhow::Error> {
+    setup_for_write_with_network(Network::Testnet).await
+}
+
+pub async fn setup_for_write_with_network(
+    network: Network,
+) -> Result<(IotaClient, Address, Address), anyhow::Error> {
+    let (client, active_address) = setup_for_read_with_network(network).await?;
+    // Ensure the address has some IOTA. Only the local network exposes an HTTP
+    // faucet; on devnet/testnet the wallet must already be funded (fund it at the
+    // faucet website).
+    if fetch_coin(&client, &active_address).await?.is_none() {
+        match network {
+            Network::Localnet => {
+                request_tokens_from_faucet_with_url(active_address, &client, network.faucet_url())
+                    .await?;
+            }
+            Network::Devnet | Network::Testnet => bail!(
+                "address {active_address} has no coins on the selected network. \
+                 Public faucets have no HTTP API, so fund the address at the faucet \
+                 website and re-run, or use --localnet."
+            ),
+        }
     }
     let wallet = retrieve_wallet()?;
     let addresses = wallet.get_addresses();
@@ -82,8 +118,18 @@ pub async fn setup_for_write() -> Result<(IotaClient, IotaAddress, IotaAddress),
 /// and ensures that the active address of the wallet has IOTA on it.
 /// If there is no IOTA owned by the active address, then it will request
 /// IOTA from the faucet.
-pub async fn setup_for_read() -> Result<(IotaClient, IotaAddress), anyhow::Error> {
-    let client = IotaClientBuilder::default().build_testnet().await?;
+pub async fn setup_for_read() -> Result<(IotaClient, Address), anyhow::Error> {
+    setup_for_read_with_network(Network::Testnet).await
+}
+
+pub async fn setup_for_read_with_network(
+    network: Network,
+) -> Result<(IotaClient, Address), anyhow::Error> {
+    let client = match network {
+        Network::Localnet => IotaClientBuilder::default().build_localnet().await?,
+        Network::Devnet => IotaClientBuilder::default().build_devnet().await?,
+        Network::Testnet => IotaClientBuilder::default().build_testnet().await?,
+    };
     println!("IOTA testnet version is: {}", client.api_version());
     let wallet = retrieve_wallet()?;
     assert!(wallet.get_addresses().len() >= 2);
@@ -95,8 +141,16 @@ pub async fn setup_for_read() -> Result<(IotaClient, IotaAddress), anyhow::Error
 
 /// Request tokens from the Faucet for the given address
 pub async fn request_tokens_from_faucet(
-    address: IotaAddress,
+    address: Address,
     client: &IotaClient,
+) -> Result<(), anyhow::Error> {
+    request_tokens_from_faucet_with_url(address, client, Network::Testnet.faucet_url()).await
+}
+
+pub async fn request_tokens_from_faucet_with_url(
+    address: Address,
+    client: &IotaClient,
+    faucet_url: &str,
 ) -> Result<(), anyhow::Error> {
     let address_str = address.to_string();
     let json_body = json![{
@@ -108,7 +162,7 @@ pub async fn request_tokens_from_faucet(
     // make the request to the faucet JSON RPC API for coin
     let reqwest_client = Client::new();
     let resp = reqwest_client
-        .post(format!("{IOTA_FAUCET_BASE_URL}/v1/gas"))
+        .post(format!("{faucet_url}/v1/gas"))
         .header("Content-Type", "application/json")
         .json(&json_body)
         .send()
@@ -131,7 +185,7 @@ pub async fn request_tokens_from_faucet(
     // wait for the faucet to finish the batch of token requests
     let coin_id = loop {
         let resp = reqwest_client
-            .get(format!("{IOTA_FAUCET_BASE_URL}/v1/status/{task_id}"))
+            .get(format!("{faucet_url}/v1/status/{task_id}"))
             .send()
             .await?;
         let text = resp.text().await?;
@@ -182,7 +236,7 @@ pub async fn request_tokens_from_faucet(
 /// otherwise returns None
 pub async fn fetch_coin(
     client: &IotaClient,
-    sender: &IotaAddress,
+    sender: &Address,
 ) -> Result<Option<Coin>, anyhow::Error> {
     let coin_type = "0x2::iota::IOTA".to_string();
     let coins_stream = client.coin_read_api().get_coins_stream(*sender, coin_type);
@@ -197,11 +251,19 @@ pub async fn fetch_coin(
 /// Return a transaction digest from a split coin + merge coins transaction
 pub async fn split_coin_digest(
     client: &IotaClient,
-    sender: &IotaAddress,
+    sender: &Address,
+) -> Result<TransactionDigest, anyhow::Error> {
+    split_coin_digest_with_network(client, sender, Network::Testnet).await
+}
+
+pub async fn split_coin_digest_with_network(
+    client: &IotaClient,
+    sender: &Address,
+    network: Network,
 ) -> Result<TransactionDigest, anyhow::Error> {
     let coin = match fetch_coin(client, sender).await? {
         None => {
-            request_tokens_from_faucet(*sender, client).await?;
+            request_tokens_from_faucet_with_url(*sender, client, network.faucet_url()).await?;
             fetch_coin(client, sender)
                 .await?
                 .expect("Supposed to get a coin with IOTA, but didn't. Aborting")
@@ -242,7 +304,7 @@ pub async fn split_coin_digest(
 
     // using the PTB that we just constructed, create the transaction data
     // that we will submit to the network
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         *sender,
         vec![coin.object_ref()],
         builder,
@@ -250,7 +312,7 @@ pub async fn split_coin_digest(
         gas_price,
     );
 
-    let transaction_response = sign_and_execute_transaction(client, sender, tx_data).await?;
+    let transaction_response = sign_and_execute_transaction(client, sender, tx).await?;
 
     Ok(transaction_response.digest)
 }
@@ -281,12 +343,12 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
         *address
     } else {
         keystore
-            .generate_and_add_new_key(ED25519, None, None, None)?
+            .generate_and_add_new_key(SignatureScheme::Ed25519, None, None, None)?
             .0
     };
 
     if keystore.addresses().len() < 2 {
-        keystore.generate_and_add_new_key(ED25519, None, None, None)?;
+        keystore.generate_and_add_new_key(SignatureScheme::Ed25519, None, None, None)?;
     }
 
     client_config.set_active_address(default_active_address);
@@ -300,16 +362,16 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
 
 pub async fn sign_and_execute_transaction(
     client: &IotaClient,
-    sender: &IotaAddress,
-    tx_data: TransactionData,
+    sender: &Address,
+    tx: Transaction,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
     let keystore = FileBasedKeystore::new(&iota_config_dir()?.join(IOTA_KEYSTORE_FILENAME))?;
-    let signature = keystore.sign_secure(sender, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(sender, &tx, Intent::iota_transaction())?;
 
     let transaction_block_response = client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             ExecuteTransactionRequestType::WaitForLocalExecution,
         )
@@ -323,6 +385,12 @@ pub async fn sign_and_execute_transaction(
 #[expect(dead_code)]
 async fn just_for_clippy() -> Result<(), anyhow::Error> {
     let (client, sender, _recipient) = setup_for_write().await?;
-    let _digest = split_coin_digest(&client, &sender).await?;
+    let _ = setup_for_read().await?;
+    let _ = split_coin_digest(&client, &sender).await?;
+    request_tokens_from_faucet(sender, &client).await?;
+    for network in [Network::Devnet, Network::Testnet, Network::Localnet] {
+        let (client, sender, _recipient) = setup_for_write_with_network(network).await?;
+        let _ = split_coin_digest_with_network(&client, &sender, network).await?;
+    }
     Ok(())
 }

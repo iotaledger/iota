@@ -11,12 +11,12 @@
 
 use std::path::PathBuf;
 
+use iota_sdk_types::{SenderSignedTransaction, TransactionDigest};
 use iota_types::{
-    base_types::TransactionDigest,
     crypto::EmptySignInfo,
     error::{IotaError, IotaResult},
     message_envelope::TrustedEnvelope,
-    transaction::{SenderSignedData, VerifiedTransaction},
+    transaction::VerifiedTransaction,
 };
 use tracing::instrument;
 use typed_store::{
@@ -32,7 +32,7 @@ const NUM_SHARDS: usize = 4096;
 
 #[derive(DBMapUtils)]
 struct WritePathPendingTransactionTable {
-    logs: DBMap<TransactionDigest, TrustedEnvelope<SenderSignedData, EmptySignInfo>>,
+    logs: DBMap<TransactionDigest, TrustedEnvelope<SenderSignedTransaction, EmptySignInfo>>,
 }
 
 pub struct WritePathPendingTransactionLog {

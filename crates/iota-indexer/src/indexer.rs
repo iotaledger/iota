@@ -7,7 +7,7 @@ use std::{env, time::Duration};
 use anyhow::{Context, Result};
 use iota_data_ingestion_core::ReaderOptions;
 use iota_metrics::spawn_monitored_task;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -79,6 +79,10 @@ impl Indexer {
         if let Some(chain_id) = IndexerStore::get_chain_identifier(&store).await? {
             store.persist_protocol_configs_and_feature_flags(chain_id)?;
         }
+
+        // Restore metric from the DB so it doesn't stay as 0 until next epoch change.
+        let (_, latest_epoch) = IndexerStore::get_available_epoch_range(&store).await?;
+        metrics.last_committed_epoch.set(latest_epoch as i64);
 
         let primary_pipeline = PrimaryPipeline::setup(
             store.clone(),

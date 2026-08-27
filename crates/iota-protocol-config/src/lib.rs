@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 29;
+pub const MAX_PROTOCOL_VERSION: u64 = 34;
 
 /// Protocol version that IIP8 took effect.
 pub const PROTOCOL_VERSION_IIP8: u64 = 20;
@@ -162,6 +162,56 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             block epoch close.
 //             Enable median-based commit timestamp calculation in consensus,
 //             and enforce checkpoint timestamp monotonicity for mainnet.
+//             Enable fast commit syncer for faster recovery on all networks.
+//             Enable consensus block restrictions on all networks:
+//             bound block-header size to O(committee_size) and enable
+//             garbage collection in the block manager.
+// Version 30: Extend the protocol_config framework module with a generic
+//             `get_attr<T>` native that lets Move code read any numeric or
+//             boolean protocol parameter by name, returning T directly and
+//             aborting on error.
+//             Expose `is_feature_enabled` and `get_attr<T>` natives to the
+//             iota_system package via a new iota_system::protocol_config
+//             module.
+// Version 31: Rebuild the framework binaries for the latest iota_system
+//             validator set changes.
+//             Enable validator metadata verification v2.
+//             Amortize the minimum checkpoint interval over a sliding window
+//             on non-Mainnet/Testnet chains.
+//             Start publishing package metadata using module metadata as a
+//             dynamic field.
+//             Report a failure of the Move authentication with a distinct
+//             `MoveAuthentication` execution error.
+//             Enable the optimistic commit rule (StarfishSpeed) in Starfish
+//             consensus on devnet.
+// Version 32: Move validator count limits (min/max validator count) and
+//             stake thresholds (joining stake, low/very low stake
+//             thresholds, grace period) into the protocol config.
+//             Enable the optimistic commit rule (StarfishSpeed) in Starfish
+//             consensus on testnet.
+//             Amortize the minimum checkpoint interval over a sliding window
+//             on testnet.
+//             Start publishing package metadata using module metadata as a
+//             dynamic field on testnet.
+//             Enable the redesigned leader schedule (sliding-window reputation
+//             scoring and absolute-score bad-node selection) in Starfish
+//             consensus on devnet.
+//             Enable Move-based sponsor account authentication on mainnet.
+//             Only sponsor Move authentication is performed pre-consensus on
+//             mainnet.
+//             Enable the P-COOL flow on devnet.
+// Version 33: Amortize the minimum checkpoint interval over a sliding window
+//             on mainnet.
+//             Enable the sliding-window reputation scoring and absolute-score
+//             bad-node selection on testnet
+// Version 34: Bump the scorer version to 2 on devnet: misbehavior reports
+//             carry a dedicated counter for invalid bundle parts, previously
+//             folded into the unprovable block-fault counter.
+//             Add the `iota::transaction_deny_rules` framework module and its
+//             reserved object ID 0xDE9 (dormant until deny-rule governance
+//             activates).
+//             Stop locking immutable objects in post-consensus conflict
+//             resolution.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -523,11 +573,60 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     always_advance_dkg_to_resolution: bool,
 
-    // If true, enables white flag flow for post-consensus owned object conflict resolution.
-    // Transactions bypass pre-consensus certification and owned object locking.
-    // Conflicts are resolved deterministically post-consensus using persistent locks.
+    // If true, enables the P-COOL (post-consensus owned-object locking) flow:
+    // transactions bypass pre-consensus certification and owned-object locking,
+    // and conflicts are resolved deterministically post-consensus (white-flag
+    // conflict resolution) using persistent locks.
     #[serde(skip_serializing_if = "is_false")]
-    enable_white_flag_flow: bool,
+    enable_pcool_flow: bool,
+
+    // If true, immutable transaction inputs do not acquire owned-object locks
+    // in post-consensus conflict resolution — such a lock is never released
+    // and blocks every later reader until the epoch ends. Has no effect
+    // unless `enable_pcool_flow` is set.
+    #[serde(skip_serializing_if = "is_false")]
+    pcool_skip_immutable_object_locks: bool,
+
+    // If true perform consistent verification of metadata
+    #[serde(skip_serializing_if = "is_false")]
+    validator_metadata_verify_v2: bool,
+
+    // If true, post-consensus deny checks use a consensus-governed deny rule set
+    // (validators announce proposed rules; the active set is their stake-weighted
+    // aggregate) instead of each validator's local `TransactionDenyConfig`.
+    #[serde(skip_serializing_if = "is_false")]
+    deny_rule_governance: bool,
+
+    // If true, the consensus-governed deny rule set is mirrored into the on-chain
+    // `TransactionDenyRules` object: the object is created at the end of the first
+    // enabled epoch and updated by system transactions when the active set changes.
+    // Requires `deny_rule_governance`.
+    #[serde(skip_serializing_if = "is_false")]
+    deny_rule_governance_on_chain: bool,
+
+    // If true, package metadata can be published with ModuleMetadata as a dynamic
+    // field.
+    #[serde(skip_serializing_if = "is_false")]
+    package_metadata_with_dynamic_module_metadata: bool,
+
+    // If true, a failure of the Move authentication is reported with a distinct
+    // `MoveAuthentication` execution error.
+    #[serde(skip_serializing_if = "is_false")]
+    report_move_authentication_error: bool,
+
+    // If true, the Starfish leader schedule scores reputation over a sliding
+    // window and rebuilds the swap table every `consensus_commits_per_schedule`
+    // commits with a uniform base election; when false, V2 snapshot scoring +
+    // stake-weighted base election is used.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_enable_sliding_window_leader_schedule: bool,
+
+    // If true, Starfish selects "bad" leader-schedule nodes by absolute
+    // normalized reputation score: exclude validators below a low threshold,
+    // capped at a maximum number of validators, and keep a minimum-size good
+    // (swap-in) pool; when false, the fixed stake cut by rank is used.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_enable_absolute_score_leader_schedule: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1323,6 +1422,17 @@ pub struct ProtocolConfig {
     /// Minimum interval of commit timestamps between consecutive checkpoints.
     min_checkpoint_interval_ms: Option<u64>,
 
+    /// Number of recent checkpoints over which `min_checkpoint_interval_ms`
+    /// may be amortized. When set, a checkpoint is built once the full
+    /// interval elapsed since the previous checkpoint, or once the checkpoint
+    /// this many back in the current epoch is at least that many intervals
+    /// older. The windowed arm recycles the slack that discrete commit
+    /// timestamps add to the strict arm, holding the sustained rate at the
+    /// ceiling, while the strict arm keeps quiet gaps within one interval.
+    /// The window does not cross epoch boundaries; before it fills — and
+    /// always when unset — only the strict adjacent check applies.
+    checkpoint_rate_window_size: Option<u64>,
+
     /// Version number to use for version_specific_data in `CheckpointSummary`.
     checkpoint_summary_version_specific_data: Option<u64>,
 
@@ -1348,6 +1458,18 @@ pub struct ProtocolConfig {
     /// validators in any epoch to go above this.
     max_committee_members_count: Option<u64>,
 
+    /// Maximum number of added plus removed entries one injected
+    /// `TransactionDenyRulesUpdate` transaction may carry; a larger diff is
+    /// split into multiple transactions in the same commit. Set together with
+    /// the `deny_rule_governance` feature flags.
+    deny_rule_update_max_entries_per_tx: Option<u64>,
+
+    /// Consensus round before which removals are never injected into the
+    /// `TransactionDenyRules` object, so validators can re-announce their
+    /// rules after an epoch change before unsupported entries are dropped.
+    /// Set together with the `deny_rule_governance` feature flags.
+    deny_rule_removal_grace_round_floor: Option<u64>,
+
     /// Configures the garbage collection depth for consensus. When is unset or
     /// `0` then the garbage collection is disabled.
     consensus_gc_depth: Option<u32>,
@@ -1364,6 +1486,14 @@ pub struct ProtocolConfig {
     /// for any single commit. Any overshoot is tracked as a debt that must
     /// be accounted for in subsequent commits.
     max_congestion_limit_overshoot_per_commit: Option<u64>,
+
+    /// Maximum number of transactions from a single consensus commit that may
+    /// be scheduled to execute concurrently (the execution-worker pool size).
+    /// `Some` activates execution-worker congestion control, under which
+    /// owned-object-only transactions are also scheduled, deferred and shed
+    /// by the congestion tracker; `None` disables it. Must be positive when
+    /// set. Requires `enable_pcool_flow`.
+    max_concurrent_execution_workers: Option<u16>,
 
     /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
     /// considered valid. When set to `Some(version)`, scores are included in
@@ -1395,6 +1525,45 @@ pub struct ProtocolConfig {
     // `fun native_sender_authenticator_function_info_v1<F>(): &Option<F>`
     // `fun native_sponsor_authenticator_function_info_v1<F>(): &Option<F>`
     auth_context_authenticator_function_info_v1_cost_base: Option<u64>,
+
+    /// Number of committed subdags between leader-schedule recomputations.
+    /// When unset, defaults to 300.
+    consensus_commits_per_schedule: Option<u32>,
+
+    /// Minimum number of active validators at any moment.
+    /// Supersedes `SystemParametersV1::min_validator_count`.
+    min_validator_count: Option<u64>,
+
+    /// Maximum number of active validators at any moment. The number of
+    /// validators in any epoch is not allowed to go above this.
+    /// Supersedes `SystemParametersV1::max_validator_count`.
+    max_validator_count: Option<u64>,
+
+    /// Minimum stake, in nanos, a validator candidate needs to join the
+    /// active set. Supersedes
+    /// `SystemParametersV1::min_validator_joining_stake`.
+    min_validator_joining_stake: Option<u64>,
+
+    /// Active validators with stake, in nanos, below this threshold are
+    /// considered at risk and are removed after
+    /// `validator_low_stake_grace_period` consecutive epochs below it.
+    /// Supersedes `SystemParametersV1::validator_low_stake_threshold`.
+    validator_low_stake_threshold: Option<u64>,
+
+    /// Active validators with stake, in nanos, below this threshold are
+    /// removed at the next epoch boundary without a grace period.
+    /// Supersedes `SystemParametersV1::validator_very_low_stake_threshold`.
+    validator_very_low_stake_threshold: Option<u64>,
+
+    /// Number of consecutive epochs a validator may stay below
+    /// `validator_low_stake_threshold` before being removed.
+    /// Supersedes `SystemParametersV1::validator_low_stake_grace_period`.
+    validator_low_stake_grace_period: Option<u64>,
+
+    /// Number of committed subdags the sliding-window leader scorer aggregates
+    /// over (the scoring depth). When unset, defaults to 600. Consulted only
+    /// when `consensus_enable_sliding_window_leader_schedule` is set.
+    consensus_leader_schedule_window_size: Option<u32>,
 }
 
 // feature flags
@@ -1541,19 +1710,11 @@ impl ProtocolConfig {
     }
 
     pub fn max_acknowledgments_per_block(&self, committee_size: usize) -> usize {
-        if self.consensus_block_restrictions() {
-            2 * committee_size
-        } else {
-            self.consensus_max_acknowledgments_per_block_or_default() as usize
-        }
+        2 * committee_size
     }
 
     pub fn max_commit_votes_per_block(&self, committee_size: usize) -> usize {
-        if self.consensus_block_restrictions() {
-            committee_size
-        } else {
-            100
-        }
+        committee_size
     }
 
     pub fn variant_nodes(&self) -> bool {
@@ -1782,8 +1943,123 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution
     }
 
-    pub fn enable_white_flag_flow(&self) -> bool {
-        self.feature_flags.enable_white_flag_flow
+    pub fn enable_pcool_flow(&self) -> bool {
+        self.feature_flags.enable_pcool_flow
+    }
+
+    pub fn pcool_skip_immutable_object_locks(&self) -> bool {
+        self.feature_flags.pcool_skip_immutable_object_locks
+    }
+
+    pub fn validator_metadata_verify_v2(&self) -> bool {
+        self.feature_flags.validator_metadata_verify_v2
+    }
+
+    pub fn commits_per_schedule(&self) -> u32 {
+        let commits_per_schedule = if cfg!(msim) {
+            // Exercise faster leader-schedule rotation in simtests.
+            min(10, self.consensus_commits_per_schedule.unwrap_or(300))
+        } else {
+            self.consensus_commits_per_schedule.unwrap_or(300)
+        };
+        assert!(
+            commits_per_schedule > 0,
+            "consensus_commits_per_schedule must be greater than 0"
+        );
+        commits_per_schedule
+    }
+
+    pub fn leader_schedule_window_size(&self) -> u32 {
+        if cfg!(msim) {
+            // Keep the scoring window commensurate with the msim-scaled
+            // commit sync parameters.
+            min(
+                20,
+                self.consensus_leader_schedule_window_size.unwrap_or(600),
+            )
+        } else {
+            self.consensus_leader_schedule_window_size.unwrap_or(600)
+        }
+    }
+
+    pub fn consensus_enable_sliding_window_leader_schedule(&self) -> bool {
+        let res = self
+            .feature_flags
+            .consensus_enable_sliding_window_leader_schedule;
+        assert!(
+            !res || self.leader_schedule_window_size() >= self.commits_per_schedule(),
+            "consensus_enable_sliding_window_leader_schedule requires window_size >= commits_per_schedule"
+        );
+        res
+    }
+
+    pub fn consensus_enable_absolute_score_leader_schedule(&self) -> bool {
+        self.feature_flags
+            .consensus_enable_absolute_score_leader_schedule
+    }
+
+    pub fn deny_rule_governance(&self) -> bool {
+        self.feature_flags.deny_rule_governance
+    }
+
+    pub fn deny_rule_governance_on_chain(&self) -> bool {
+        self.feature_flags.deny_rule_governance_on_chain
+    }
+
+    pub fn package_metadata_with_dynamic_module_metadata(&self) -> bool {
+        let res = self
+            .feature_flags
+            .package_metadata_with_dynamic_module_metadata;
+        assert!(
+            !res || self.publish_package_metadata(),
+            "package_metadata_with_dynamic_module_metadata requires publish_package_metadata to be enabled"
+        );
+        res
+    }
+
+    pub fn report_move_authentication_error(&self) -> bool {
+        let report_move_authentication_error = self.feature_flags.report_move_authentication_error;
+        assert!(
+            !report_move_authentication_error || self.enable_move_authentication(),
+            "report_move_authentication_error requires enable_move_authentication to be set"
+        );
+        report_move_authentication_error
+    }
+
+    /// Named to avoid colliding with the derive-generated
+    /// `max_concurrent_execution_workers[_as_option]()`, which bypass the
+    /// checks below — always read the parameter through this getter.
+    pub fn concurrent_execution_workers(&self) -> Option<u16> {
+        let res = self.max_concurrent_execution_workers;
+        assert!(
+            res.is_none() || self.enable_pcool_flow(),
+            "max_concurrent_execution_workers requires enable_pcool_flow to be enabled"
+        );
+        assert!(
+            res.is_none()
+                || self
+                    .max_accumulated_txn_cost_per_object_in_mysticeti_commit
+                    .is_some(),
+            "max_concurrent_execution_workers requires per-object congestion control \
+                (max_accumulated_txn_cost_per_object_in_mysticeti_commit) to be enabled"
+        );
+        assert!(
+            res.is_none() || self.congestion_control_gas_price_feedback_mechanism(),
+            "max_concurrent_execution_workers requires the gas price feedback mechanism \
+                (congestion_control_gas_price_feedback_mechanism), which carries the suggested \
+                gas price of an execution-worker congestion cancellation"
+        );
+        assert!(
+            res.is_none() || !self.separate_gas_price_feedback_mechanism_for_randomness(),
+            "max_concurrent_execution_workers implies a single congestion tracker and suggested \
+                gas price calculator for all transactions, which is incompatible with \
+                separate_gas_price_feedback_mechanism_for_randomness"
+        );
+        assert!(
+            res != Some(0),
+            "max_concurrent_execution_workers must be positive when set"
+        );
+        res
     }
 }
 
@@ -1847,6 +2123,45 @@ impl ProtocolConfig {
 
             feature_flag_overrides.apply_to(&mut ret.feature_flags);
         }
+
+        // The on-chain mirror has no state to mirror without governance itself.
+        assert!(
+            !ret.feature_flags.deny_rule_governance_on_chain
+                || ret.feature_flags.deny_rule_governance,
+            "deny_rule_governance_on_chain requires deny_rule_governance"
+        );
+        // The injection cannot chunk updates or gate removals without its
+        // knobs.
+        assert!(
+            !ret.feature_flags.deny_rule_governance_on_chain
+                || (ret.deny_rule_update_max_entries_per_tx.is_some()
+                    && ret.deny_rule_removal_grace_round_floor.is_some()),
+            "deny_rule_governance_on_chain requires deny_rule_update_max_entries_per_tx and deny_rule_removal_grace_round_floor"
+        );
+        // A deny-rule update chunk must always execute, or the object falls
+        // permanently behind the mirrored state on every validator at once.
+        // The binding limits are `max_event_emit_size` (the update event
+        // carries every entry, ~32 bytes each) and the object-runtime store
+        // entries touched when removals re-link `LinkedTable` nodes — neither
+        // expressible as an entry count here, so the constant keeps a wide
+        // margin below them (tightest is roughly 5000 entries).
+        const DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING: u64 = 2048;
+        assert!(
+            ret.deny_rule_update_max_entries_per_tx
+                .is_none_or(|max_entries| {
+                    max_entries > 0
+                        && max_entries <= DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING
+                        && [
+                            ret.max_num_new_move_object_ids_system_tx,
+                            ret.max_num_deleted_move_object_ids_system_tx,
+                            ret.object_runtime_max_num_cached_objects_system_tx,
+                            ret.object_runtime_max_num_store_entries_system_tx,
+                        ]
+                        .iter()
+                        .all(|limit| limit.is_none_or(|limit| max_entries <= limit))
+                }),
+            "deny_rule_update_max_entries_per_tx must be positive, at most {DENY_RULE_UPDATE_MAX_ENTRIES_PER_TX_CEILING}, and within the system transaction object limits"
+        );
 
         ret
     }
@@ -2356,6 +2671,8 @@ impl ProtocolConfig {
 
             min_checkpoint_interval_ms: Some(200),
 
+            checkpoint_rate_window_size: None,
+
             checkpoint_summary_version_specific_data: Some(1),
 
             max_soft_bundle_size: Some(5),
@@ -2365,12 +2682,16 @@ impl ProtocolConfig {
             max_accumulated_txn_cost_per_object_in_mysticeti_commit: Some(10),
 
             max_committee_members_count: None,
+            deny_rule_update_max_entries_per_tx: None,
+            deny_rule_removal_grace_round_floor: None,
 
             consensus_gc_depth: None,
 
             consensus_max_acknowledgments_per_block: None,
 
             max_congestion_limit_overshoot_per_commit: None,
+
+            max_concurrent_execution_workers: None,
 
             scorer_version: None,
 
@@ -2385,6 +2706,14 @@ impl ProtocolConfig {
             auth_context_replace_cost_base: None,
             auth_context_replace_cost_per_byte: None,
             auth_context_authenticator_function_info_v1_cost_base: None,
+            consensus_commits_per_schedule: None,
+            min_validator_count: None,
+            max_validator_count: None,
+            min_validator_joining_stake: None,
+            validator_low_stake_threshold: None,
+            validator_very_low_stake_threshold: None,
+            validator_low_stake_grace_period: None,
+            consensus_leader_schedule_window_size: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2929,6 +3258,110 @@ impl ProtocolConfig {
                     // enforce checkpoint timestamp monotonicity for mainnet.
                     cfg.feature_flags
                         .consensus_median_timestamp_with_checkpoint_enforcement = true;
+
+                    // Enable fast commit syncer for faster recovery on all networks.
+                    cfg.feature_flags.consensus_fast_commit_sync = true;
+                    // Enable consensus block restrictions on all networks to bound
+                    // header size by committee size and garbage-collect the block
+                    // manager.
+                    cfg.feature_flags.consensus_block_restrictions = true;
+                }
+                30 => {
+                    // Extend the protocol_config framework module with
+                    // `get_attr<T>`, a generic native that lets Move code
+                    // read any numeric or boolean protocol parameter by name,
+                    // returning T directly and aborting on error.
+                    // Also expose `is_feature_enabled` and `get_attr<T>` to
+                    // iota_system via a new iota_system::protocol_config
+                    // module.
+                }
+                31 => {
+                    cfg.feature_flags.validator_metadata_verify_v2 = true;
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Amortize the minimum checkpoint interval over a sliding
+                        // window so the checkpoint rate holds at the ceiling.
+                        cfg.checkpoint_rate_window_size = Some(20);
+                        // Publish package metadata with the module metadata stored as a
+                        // dynamic field.
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
+                        // Enable the optimistic commit rule (StarfishSpeed) in
+                        // Starfish consensus.
+                        cfg.feature_flags.consensus_starfish_speed = true;
+                    }
+
+                    cfg.feature_flags.report_move_authentication_error = true;
+                }
+                32 => {
+                    // Identical to the genesis SystemParametersV1 values on
+                    // all existing networks; enforcement moves from on-chain
+                    // state to the protocol config.
+                    cfg.min_validator_count = Some(4);
+                    cfg.max_validator_count = Some(150);
+                    cfg.min_validator_joining_stake = Some(2_000_000_000_000_000);
+                    cfg.validator_low_stake_threshold = Some(1_500_000_000_000_000);
+                    cfg.validator_very_low_stake_threshold = Some(1_000_000_000_000_000);
+                    cfg.validator_low_stake_grace_period = Some(7);
+
+                    // Enable Move-based sponsor account authentication in mainnet.
+                    cfg.feature_flags.enable_move_authentication_for_sponsor = true;
+                    // Only sponsor Move authentication is performed pre-consensus in mainnet.
+                    cfg.feature_flags
+                        .pre_consensus_sponsor_only_move_authentication = true;
+
+                    if chain != Chain::Mainnet {
+                        // Enable the optimistic commit rule (StarfishSpeed) in
+                        // Starfish consensus.
+                        cfg.feature_flags.consensus_starfish_speed = true;
+                        // Amortize the minimum checkpoint interval over a sliding
+                        // window so the checkpoint rate holds at the ceiling.
+                        cfg.checkpoint_rate_window_size = Some(20);
+                        // Publish package metadata with the module metadata stored as a
+                        // dynamic field.
+                        cfg.feature_flags
+                            .package_metadata_with_dynamic_module_metadata = true;
+                    }
+
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Enable the redesigned leader schedule: sliding-window
+                        // reputation scoring and absolute-score bad-node
+                        // selection.
+                        cfg.feature_flags
+                            .consensus_enable_sliding_window_leader_schedule = true;
+                        cfg.feature_flags
+                            .consensus_enable_absolute_score_leader_schedule = true;
+                        // Enable the P-COOL flow: transactions skip
+                        // pre-consensus certification and owned-object locking,
+                        // and conflicts are resolved after consensus.
+                        cfg.feature_flags.enable_pcool_flow = true;
+                    }
+                }
+                33 => {
+                    // Amortize the minimum checkpoint interval over a sliding
+                    // window so the checkpoint rate holds at the ceiling.
+                    cfg.checkpoint_rate_window_size = Some(20);
+                    // Enable the redesigned leader schedule: sliding-window
+                    // reputation scoring and absolute-score bad-node
+                    // selection.
+                    if chain != Chain::Mainnet {
+                        cfg.feature_flags
+                            .consensus_enable_sliding_window_leader_schedule = true;
+                        cfg.feature_flags
+                            .consensus_enable_absolute_score_leader_schedule = true;
+                    }
+                }
+                34 => {
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Misbehavior reports carry a dedicated counter for
+                        // invalid bundle parts, previously folded into the
+                        // unprovable block-fault counter.
+                        cfg.scorer_version = Some(2);
+                    }
+                    // Stop locking immutable objects in post-consensus conflict
+                    // resolution. Set on all chains; inert where the P-COOL flow
+                    // is off.
+                    cfg.feature_flags.pcool_skip_immutable_object_locks = true;
                 }
                 // Use this template when making changes:
                 //
@@ -3177,8 +3610,47 @@ impl ProtocolConfig {
         self.feature_flags.always_advance_dkg_to_resolution = val;
     }
 
-    pub fn set_enable_white_flag_flow_for_testing(&mut self, val: bool) {
-        self.feature_flags.enable_white_flag_flow = val;
+    pub fn set_enable_pcool_flow_for_testing(&mut self, val: bool) {
+        self.feature_flags.enable_pcool_flow = val;
+    }
+
+    pub fn set_pcool_skip_immutable_object_locks_for_testing(&mut self, val: bool) {
+        self.feature_flags.pcool_skip_immutable_object_locks = val;
+    }
+
+    pub fn set_commits_per_schedule_for_testing(&mut self, val: u32) {
+        self.consensus_commits_per_schedule = Some(val);
+    }
+
+    pub fn set_deny_rule_governance_for_testing(&mut self, val: bool) {
+        self.feature_flags.deny_rule_governance = val;
+    }
+
+    pub fn set_deny_rule_governance_on_chain_for_testing(&mut self, val: bool) {
+        self.feature_flags.deny_rule_governance_on_chain = val;
+    }
+
+    pub fn set_package_metadata_with_dynamic_module_metadata_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .package_metadata_with_dynamic_module_metadata = val;
+    }
+
+    pub fn set_report_move_authentication_error_for_testing(&mut self, val: bool) {
+        self.feature_flags.report_move_authentication_error = val;
+    }
+
+    pub fn set_leader_schedule_window_size_for_testing(&mut self, val: u32) {
+        self.consensus_leader_schedule_window_size = Some(val);
+    }
+
+    pub fn set_consensus_enable_sliding_window_leader_schedule_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_enable_sliding_window_leader_schedule = val;
+    }
+
+    pub fn set_consensus_enable_absolute_score_leader_schedule_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_enable_absolute_score_leader_schedule = val;
     }
 }
 
@@ -3414,6 +3886,51 @@ mod test {
                 .unwrap()
                 == &true
         );
+    }
+
+    /// A chunk limit above the executability ceiling would fail execution on
+    /// every validator at once, so the configuration is rejected at startup
+    /// rather than at the flip.
+    #[test]
+    #[should_panic(expected = "deny_rule_update_max_entries_per_tx must be positive")]
+    fn deny_rule_chunk_limit_above_the_ceiling_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_deny_rule_governance_for_testing(true);
+            config.set_deny_rule_governance_on_chain_for_testing(true);
+            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_deny_rule_update_max_entries_per_tx_for_testing(2048 + 1);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// A zero chunk limit would make every delta unsplittable; the pure
+    /// chunking function clamps it, but the configuration is still invalid.
+    #[test]
+    #[should_panic(expected = "deny_rule_update_max_entries_per_tx must be positive")]
+    fn deny_rule_chunk_limit_of_zero_is_rejected() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_deny_rule_governance_for_testing(true);
+            config.set_deny_rule_governance_on_chain_for_testing(true);
+            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_deny_rule_update_max_entries_per_tx_for_testing(0);
+            config
+        });
+        let _ = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+    }
+
+    /// The value the flip is expected to ship stays inside the limits.
+    #[test]
+    fn deny_rule_chunk_limit_within_system_tx_object_id_limit_is_accepted() {
+        let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_deny_rule_governance_for_testing(true);
+            config.set_deny_rule_governance_on_chain_for_testing(true);
+            config.set_deny_rule_removal_grace_round_floor_for_testing(0);
+            config.set_deny_rule_update_max_entries_per_tx_for_testing(1000);
+            config
+        });
+        let config = ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
+        assert_eq!(config.deny_rule_update_max_entries_per_tx(), 1000);
     }
 
     #[test]

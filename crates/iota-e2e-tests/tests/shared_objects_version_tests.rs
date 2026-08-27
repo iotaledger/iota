@@ -5,25 +5,45 @@
 use std::path::PathBuf;
 
 use iota_macros::*;
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Owner};
+use iota_sdk_types::{
+    ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, SharedObjectReference,
+    TransactionEffects, TransactionEvents, Version,
+};
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
-    object::OBJECT_START_VERSION,
-    transaction::{CallArg, SharedObjectRef},
+    effects::TransactionEffectsAPI, object::OBJECT_START_VERSION, transaction::CallArg,
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 
 #[sim_test]
-async fn fresh_shared_object_initial_version_matches_current() {
+async fn fresh_shared_object_initial_version_matches_current_pre_consensus_flow() {
+    fresh_shared_object_initial_version_matches_current(false).await;
+}
+
+#[sim_test]
+async fn fresh_shared_object_initial_version_matches_current_pcool_flow() {
+    fresh_shared_object_initial_version_matches_current(true).await;
+}
+
+async fn fresh_shared_object_initial_version_matches_current(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let env = TestEnvironment::new().await;
     let (object_ref, owner) = env.create_shared_counter().await;
     assert!(is_shared_at(&owner, object_ref.version));
 }
 
 #[sim_test]
-async fn objects_transitioning_to_shared_remember_their_previous_version() {
+async fn objects_transitioning_to_shared_remember_their_previous_version_pre_consensus_flow() {
+    objects_transitioning_to_shared_remember_their_previous_version(false).await;
+}
+
+#[sim_test]
+async fn objects_transitioning_to_shared_remember_their_previous_version_pcool_flow() {
+    objects_transitioning_to_shared_remember_their_previous_version(true).await;
+}
+
+async fn objects_transitioning_to_shared_remember_their_previous_version(pcool: bool) {
+    let _pcool_guard = override_pcool_flow(pcool);
     let env = TestEnvironment::new().await;
     let (counter, _) = env.create_counter().await;
 
@@ -91,7 +111,7 @@ async fn initial_shared_version_mismatch_current_version() {
 async fn shared_object_not_found() {
     let env = TestEnvironment::new().await;
     let nonexistent_id = ObjectId::random();
-    let initial_shared_seq = SequenceNumber::from_u64(42);
+    let initial_shared_seq = Version::from_u64(42);
     assert!(
         env.increment_shared_counter(nonexistent_id, initial_shared_seq)
             .await
@@ -99,7 +119,7 @@ async fn shared_object_not_found() {
     );
 }
 
-fn is_shared_at(owner: &Owner, version: SequenceNumber) -> bool {
+fn is_shared_at(owner: &Owner, version: Version) -> bool {
     matches!(owner, Owner::Shared(initial_shared_version) if *initial_shared_version == version)
 }
 
@@ -142,7 +162,7 @@ impl TestEnvironment {
             .await
     }
 
-    async fn create_counter(&self) -> (ObjectRef, Owner) {
+    async fn create_counter(&self) -> (ObjectReference, Owner) {
         let (fx, _) = self.move_call("create_counter", vec![]).await.unwrap();
         assert!(fx.status().is_success());
 
@@ -152,7 +172,7 @@ impl TestEnvironment {
             .expect("Owned object created")
     }
 
-    async fn create_shared_counter(&self) -> (ObjectRef, Owner) {
+    async fn create_shared_counter(&self) -> (ObjectReference, Owner) {
         let (fx, _) = self
             .move_call("create_shared_counter", vec![])
             .await
@@ -167,8 +187,8 @@ impl TestEnvironment {
 
     async fn share_counter(
         &self,
-        counter: ObjectRef,
-    ) -> Result<(ObjectRef, Owner), ExecutionError> {
+        counter: ObjectReference,
+    ) -> Result<(ObjectReference, Owner), ExecutionError> {
         let (fx, _) = self
             .move_call("share_counter", vec![CallArg::ImmutableOrOwned(counter)])
             .await
@@ -185,7 +205,7 @@ impl TestEnvironment {
             .expect("Counter mutated"))
     }
 
-    async fn increment_owned_counter(&self, counter: ObjectRef) -> (ObjectRef, Owner) {
+    async fn increment_owned_counter(&self, counter: ObjectReference) -> (ObjectReference, Owner) {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
@@ -203,12 +223,12 @@ impl TestEnvironment {
     async fn increment_shared_counter(
         &self,
         counter: ObjectId,
-        initial_shared_version: SequenceNumber,
-    ) -> anyhow::Result<(ObjectRef, Owner)> {
+        initial_shared_version: Version,
+    ) -> anyhow::Result<(ObjectReference, Owner)> {
         let (fx, _) = self
             .move_call(
                 "increment_counter",
-                vec![CallArg::Shared(SharedObjectRef::new(
+                vec![CallArg::Shared(SharedObjectReference::new(
                     counter,
                     initial_shared_version,
                     true,
@@ -224,7 +244,7 @@ impl TestEnvironment {
     }
 }
 
-async fn publish_move_package(test_cluster: &TestCluster) -> ObjectRef {
+async fn publish_move_package(test_cluster: &TestCluster) -> ObjectReference {
     let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     path.push("tests/move_test_code");
     publish_package(&test_cluster.wallet, path).await

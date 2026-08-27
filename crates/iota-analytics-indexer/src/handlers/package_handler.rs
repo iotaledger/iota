@@ -96,7 +96,7 @@ impl PackageHandler {
         object: &Object,
         state: &mut State,
     ) -> Result<()> {
-        if let iota_types::object::Data::Package(p) = &object.data {
+        if let iota_sdk_types::ObjectData::Package(p) = &object.data {
             let package_id = p.id();
             let package_version = p.version().as_u64();
             let original_package_id = p.original_package_id();

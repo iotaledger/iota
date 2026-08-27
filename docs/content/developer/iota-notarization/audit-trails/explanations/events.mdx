@@ -29,7 +29,7 @@ Every operation that changes a trail's persistent state emits an event — inclu
 | `AuditTrailMigrated` | A trail is migrated to the current package version | Package migration |
 | `MetadataUpdated` | The trail's mutable metadata is updated | [Update metadata](../how-tos/update-metadata.mdx) |
 | `LockingConfigUpdated` | The trail's locking configuration is updated | [Configure locking](../how-tos/configure-locking.mdx) |
-| `RecordAdded` | A record is appended to the trail | [Add a record](../how-tos/add-and-read-records.mdx) |
+| `RecordAdded` | A record is appended to the trail, including a correction record | [Add a record](../how-tos/add-and-read-records.mdx), [Correct records](../how-tos/correct-records.mdx) |
 | `RecordDeleted` | A record is removed from the trail | [Delete records](../how-tos/delete-records.mdx) |
 | `RecordTagAdded` | A record tag is added to the trail's registry | [Manage record tags](../how-tos/manage-record-tags.mdx) |
 | `RecordTagRemoved` | A record tag is removed from the trail's registry | [Manage record tags](../how-tos/manage-record-tags.mdx) |
@@ -106,7 +106,7 @@ Emitted when any part of the trail's [locking configuration](./locking-configura
 
 ### `RecordAdded`
 
-Emitted each time a record is appended to the trail.
+Emitted each time a record is appended to the trail. Correcting a record also emits `RecordAdded`, because the correction is stored as a newly appended record with correction metadata.
 
 | Field | Description |
 |:------|:------------|

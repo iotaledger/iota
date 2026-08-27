@@ -9,10 +9,11 @@ use tracing::instrument;
 use crate::{
     Transaction,
     block_header::{
-        BlockHeader, BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader,
-        genesis_block_headers,
+        BlockHeader, BlockHeaderAPI, BlockRef, CommitmentVerifiedTransactions, GENESIS_ROUND,
+        SignedBlockHeader, genesis_block_headers,
     },
     context::Context,
+    encoder::shard_bytes,
     error::{ConsensusError, ConsensusResult},
     transaction::TransactionVerifier,
 };
@@ -22,7 +23,21 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
     /// This is called before examining a block's causal history.
     fn verify(&self, block: &SignedBlockHeader) -> ConsensusResult<()>;
 
-    fn check_and_verify_transactions(&self, transactions: &[Transaction]) -> ConsensusResult<()>;
+    /// Bounds and parses a serialized transaction payload. Call this before
+    /// any expensive processing of the payload; failures cannot be attributed
+    /// to the block author until the payload is bound to the header's
+    /// transactions commitment, so they are sender faults.
+    fn check_and_parse_transactions(
+        &self,
+        serialized_transactions: &[u8],
+    ) -> ConsensusResult<Vec<Transaction>>;
+
+    /// Checks protocol limits on the transactions and runs the application's
+    /// transaction verifier.
+    fn verify_transactions_validity(
+        &self,
+        transactions: &CommitmentVerifiedTransactions,
+    ) -> ConsensusResult<()>;
 }
 
 /// `SignedBlockVerifier` checks the validity of a block.
@@ -160,28 +175,25 @@ impl BlockVerifier for SignedBlockVerifier {
                 quorum: committee.quorum_threshold(),
             });
         }
-        let block_restrictions = self.context.protocol_config.consensus_block_restrictions();
-        if block_restrictions {
-            let max_acknowledgments = self
-                .context
-                .protocol_config
-                .max_acknowledgments_per_block(committee.size());
-            if block.acknowledgments().len() > max_acknowledgments {
-                return Err(ConsensusError::TooManyAcknowledgments {
-                    count: block.acknowledgments().len(),
-                    max: max_acknowledgments,
-                });
-            }
-            let max_commit_votes = self
-                .context
-                .protocol_config
-                .max_commit_votes_per_block(committee.size());
-            if block.commit_votes().len() > max_commit_votes {
-                return Err(ConsensusError::TooManyCommitVotes {
-                    count: block.commit_votes().len(),
-                    max: max_commit_votes,
-                });
-            }
+        let max_acknowledgments = self
+            .context
+            .protocol_config
+            .max_acknowledgments_per_block(committee.size());
+        if block.acknowledgments().len() > max_acknowledgments {
+            return Err(ConsensusError::TooManyAcknowledgments {
+                count: block.acknowledgments().len(),
+                max: max_acknowledgments,
+            });
+        }
+        let max_commit_votes = self
+            .context
+            .protocol_config
+            .max_commit_votes_per_block(committee.size());
+        if block.commit_votes().len() > max_commit_votes {
+            return Err(ConsensusError::TooManyCommitVotes {
+                count: block.commit_votes().len(),
+                max: max_commit_votes,
+            });
         }
         let gc_depth = self.context.protocol_config.gc_depth();
         let min_ref_round = self.context.min_ref_round(block.round());
@@ -190,25 +202,21 @@ impl BlockVerifier for SignedBlockVerifier {
                 &[acknowledgment.author],
                 committee,
             )?;
-            if block_restrictions {
-                if acknowledgment.round >= block.round() {
-                    return Err(ConsensusError::InvalidAcknowledgmentRound {
-                        acknowledgment: acknowledgment.round,
-                        block: block.round(),
-                    });
-                }
-                if acknowledgment.round < min_ref_round {
-                    return Err(ConsensusError::AcknowledgmentRoundTooOld {
-                        acknowledgment: acknowledgment.round,
-                        block: block.round(),
-                        gc_depth,
-                    });
-                }
+            if acknowledgment.round >= block.round() {
+                return Err(ConsensusError::InvalidAcknowledgmentRound {
+                    acknowledgment: acknowledgment.round,
+                    block: block.round(),
+                });
+            }
+            if acknowledgment.round < min_ref_round {
+                return Err(ConsensusError::AcknowledgmentRoundTooOld {
+                    acknowledgment: acknowledgment.round,
+                    block: block.round(),
+                    gc_depth,
+                });
             }
         }
 
-        let check_ancestor_lower_bound =
-            block_restrictions && self.context.protocol_config.consensus_fast_commit_sync();
         let mut seen_ancestors = vec![false; committee.size()];
         let mut parent_stakes = 0;
         for (i, ancestor) in block.ancestors().iter().enumerate() {
@@ -231,7 +239,7 @@ impl BlockVerifier for SignedBlockVerifier {
             // Skip the gc_depth lower bound for the author's own ancestor
             // (i == 0): the proposer always includes its last proposed block
             // regardless of gap so a recovered node can catch up.
-            if check_ancestor_lower_bound && i > 0 && ancestor.round < min_ref_round {
+            if i > 0 && ancestor.round < min_ref_round {
                 return Err(ConsensusError::AncestorRoundTooOld {
                     ancestor: ancestor.round,
                     block: block.round(),
@@ -296,13 +304,66 @@ impl BlockVerifier for SignedBlockVerifier {
         Ok(())
     }
 
-    fn check_and_verify_transactions(&self, transactions: &[Transaction]) -> ConsensusResult<()> {
-        let batch: Vec<_> = transactions.iter().map(|t| t.data()).collect();
+    fn check_and_parse_transactions(
+        &self,
+        serialized_transactions: &[u8],
+    ) -> ConsensusResult<Vec<Transaction>> {
+        let limit = serialized_transactions_size_limit(&self.context);
+        if serialized_transactions.len() > limit {
+            return Err(ConsensusError::SerializedTransactionsTooLarge {
+                size: serialized_transactions.len(),
+                limit,
+            });
+        }
+        bcs::from_bytes(serialized_transactions).map_err(ConsensusError::MalformedTransactions)
+    }
+
+    fn verify_transactions_validity(
+        &self,
+        transactions: &CommitmentVerifiedTransactions,
+    ) -> ConsensusResult<()> {
+        let batch: Vec<_> = transactions
+            .transactions()
+            .iter()
+            .map(|t| t.data())
+            .collect();
         self.check_transactions(&batch)?;
         self.transaction_verifier
             .verify_batch(&batch)
             .map_err(|e| ConsensusError::InvalidTransaction(format!("{e:?}")))
     }
+}
+
+// BCS encodes sequence lengths as ULEB128 values. Ten bytes covers any usize
+// length on supported 64-bit targets.
+const MAX_BCS_LENGTH_PREFIX_BYTES: usize = 10;
+
+/// Upper bound on the BCS-serialized size of any transaction batch that
+/// passes `check_transactions`: the maximum payload bytes plus a length
+/// prefix per transaction and one for the enclosing sequence.
+pub(crate) fn serialized_transactions_size_limit(context: &Context) -> usize {
+    let max_bytes = context.protocol_config.max_transactions_in_block_bytes() as usize;
+    let max_count = context.protocol_config.max_num_transactions_in_block() as usize;
+    // A zero protocol limit disables the corresponding check in
+    // `check_transactions`; without both bounds no finite serialized size is
+    // implied.
+    if max_bytes == 0 || max_count == 0 {
+        return usize::MAX;
+    }
+    max_bytes
+        .saturating_add(max_count.saturating_mul(MAX_BCS_LENGTH_PREFIX_BYTES))
+        .saturating_add(MAX_BCS_LENGTH_PREFIX_BYTES)
+}
+
+/// Upper bound on the length of a shard encoding a transaction payload that
+/// passes `check_transactions`. `usize::MAX` when the protocol payload limits
+/// are disabled, as no finite shard length is implied then.
+pub(crate) fn max_shard_bytes(context: &Context) -> usize {
+    let payload_limit = serialized_transactions_size_limit(context);
+    if payload_limit == usize::MAX {
+        return usize::MAX;
+    }
+    shard_bytes(payload_limit, context.committee.info_length())
 }
 
 #[cfg(test)]
@@ -314,22 +375,109 @@ impl BlockVerifier for NoopBlockVerifier {
         Ok(())
     }
 
-    fn check_and_verify_transactions(&self, _transactions: &[Transaction]) -> ConsensusResult<()> {
+    fn check_and_parse_transactions(
+        &self,
+        serialized_transactions: &[u8],
+    ) -> ConsensusResult<Vec<Transaction>> {
+        bcs::from_bytes(serialized_transactions).map_err(ConsensusError::MalformedTransactions)
+    }
+
+    fn verify_transactions_validity(
+        &self,
+        _transactions: &CommitmentVerifiedTransactions,
+    ) -> ConsensusResult<()> {
         Ok(())
     }
 }
 
 #[cfg(test)]
 pub(crate) mod test {
+    use rstest::rstest;
     use starfish_config::AuthorityIndex;
 
     use super::*;
     use crate::{
         authority_set::AuthoritySet,
-        block_header::{BlockHeaderDigest, BlockRef, StrongVote, TestBlockHeader},
+        block_header::{
+            BlockHeaderDigest, BlockRef, StrongVote, TestBlockHeader, TestBlockHeaderVersion,
+        },
         context::Context,
         transaction::{TransactionVerifier, ValidationError},
     };
+
+    /// Pins the wire layout `serialized_transactions_size_limit` is derived
+    /// from: a maximal batch accepted by `check_transactions` must serialize
+    /// to exactly one ULEB128 length prefix per sequence plus the raw bytes,
+    /// and fit within the limit. Fails if the BCS framing or the
+    /// `Transaction` layout changes.
+    #[tokio::test]
+    async fn serialized_transactions_size_limit_bounds_maximal_valid_batch() {
+        fn uleb128_len(mut value: usize) -> usize {
+            let mut len = 1;
+            while value >= 0x80 {
+                value >>= 7;
+                len += 1;
+            }
+            len
+        }
+
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let max_bytes = context.protocol_config.max_transactions_in_block_bytes() as usize;
+        let max_count = context.protocol_config.max_num_transactions_in_block() as usize;
+        let tx_size = max_bytes / max_count;
+        let transactions: Vec<Transaction> = (0..max_count)
+            .map(|_| Transaction::new(vec![0; tx_size]))
+            .collect();
+
+        let verifier = SignedBlockVerifier::new(context.clone(), Arc::new(TxnSizeVerifier {}));
+        let batch: Vec<_> = transactions.iter().map(|t| t.data()).collect();
+        verifier.check_transactions(&batch).unwrap();
+
+        let serialized = bcs::to_bytes(&transactions).unwrap();
+        let expected = uleb128_len(max_count) + max_count * (uleb128_len(tx_size) + tx_size);
+        assert_eq!(serialized.len(), expected);
+        assert!(serialized.len() <= serialized_transactions_size_limit(&context));
+    }
+
+    /// Pins `max_shard_bytes` to what the encoder actually produces for a
+    /// maximal payload, so a change to the encoder's chunking is caught here
+    /// rather than by shards being refused at ingress.
+    #[tokio::test]
+    async fn max_shard_bytes_bounds_maximal_shard() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let payload_limit = serialized_transactions_size_limit(&context);
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.parity_length();
+
+        let mut encoder = crate::encoder::create_encoder(&context);
+        let shards = encoder
+            .encode_serialized_data(
+                &bytes::Bytes::from(vec![0u8; payload_limit]),
+                info_length,
+                parity_length,
+            )
+            .unwrap();
+
+        let longest = shards.iter().map(|shard| shard.len()).max().unwrap();
+        assert_eq!(longest, max_shard_bytes(&context));
+    }
+
+    #[tokio::test]
+    async fn check_and_parse_transactions_rejects_oversized_payload() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let size_limit = serialized_transactions_size_limit(&context);
+        let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
+
+        let result = verifier.check_and_parse_transactions(&vec![0u8; size_limit + 1]);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
+                if size == size_limit + 1 && limit == size_limit
+        ));
+    }
 
     pub(crate) struct TxnSizeVerifier {}
 
@@ -348,22 +496,26 @@ pub(crate) mod test {
         }
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_verify_block() {
+    async fn test_verify_block(#[values(false, true)] starfish_speed: bool) {
         let (mut context, keypairs) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
+        let version = TestBlockHeaderVersion::from_context(&context);
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
-        let test_block = TestBlockHeader::new(10, 2).set_ancestors(vec![
-            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
-            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-        ]);
+        let test_block = TestBlockHeader::new(10, 2)
+            .set_version(version)
+            .set_ancestors(vec![
+                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            ]);
 
         // Valid SignedBlock.
         {
@@ -604,31 +756,31 @@ pub(crate) mod test {
         }
     }
 
+    #[rstest]
     #[tokio::test]
-    async fn test_verify_block_round_gap() {
+    async fn test_verify_block_round_gap(#[values(false, true)] starfish_speed: bool) {
         let (mut context, keypairs) = Context::new_for_test(4);
         // Small gc_depth so we can construct violations without huge round
-        // numbers. consensus_fast_commit_sync must be on for the ancestor
-        // lower-bound check to fire.
+        // numbers.
         context
             .protocol_config
             .set_consensus_gc_depth_for_testing(5);
         context
             .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(true);
-        context
-            .protocol_config
-            .set_consensus_block_restrictions_for_testing(true);
+            .set_consensus_starfish_speed_for_testing(starfish_speed);
         let context = Arc::new(context);
+        let version = TestBlockHeaderVersion::from_context(&context);
         let authority_2_protocol_keypair = &keypairs[2].1;
         let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
-        let test_block = TestBlockHeader::new(10, 2).set_ancestors(vec![
-            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
-            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-        ]);
+        let test_block = TestBlockHeader::new(10, 2)
+            .set_version(version)
+            .set_ancestors(vec![
+                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            ]);
 
         // Acknowledgment at the block's round.
         {
@@ -713,9 +865,6 @@ pub(crate) mod test {
             let (mut context, keypairs) = Context::new_for_test(4);
             context
                 .protocol_config
-                .set_consensus_fast_commit_sync_for_testing(true);
-            context
-                .protocol_config
                 .set_consensus_starfish_speed_for_testing(true);
             let context = Arc::new(context);
             let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
@@ -735,7 +884,10 @@ pub(crate) mod test {
 
         // V2 block reaching a flag-off receiver -> WrongBlockHeaderVersionForFlag.
         {
-            let (context, keypairs) = Context::new_for_test(4);
+            let (mut context, keypairs) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_starfish_speed_for_testing(false);
             let context = Arc::new(context);
             let verifier = SignedBlockVerifier::new(context, Arc::new(TxnSizeVerifier {}));
 
@@ -773,12 +925,14 @@ pub(crate) mod test {
         let leader_authority = AuthorityIndex::new_for_test(0);
         let verifier_on = SignedBlockVerifier::new(context_on, Arc::new(TxnSizeVerifier {}));
 
-        let base = TestBlockHeader::new(10, 2).set_ancestors(vec![
-            BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
-            BlockRef::new(9, leader_authority, BlockHeaderDigest::MIN),
-            BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
-            BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
-        ]);
+        let base = TestBlockHeader::new(10, 2)
+            .set_version(TestBlockHeaderVersion::V2)
+            .set_ancestors(vec![
+                BlockRef::new(9, AuthorityIndex::new_for_test(2), BlockHeaderDigest::MIN),
+                BlockRef::new(9, leader_authority, BlockHeaderDigest::MIN),
+                BlockRef::new(9, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN),
+                BlockRef::new(7, AuthorityIndex::new_for_test(3), BlockHeaderDigest::MIN),
+            ]);
         let well_formed = StrongVote {
             leader_authority,
             missing: AuthoritySet::new(),

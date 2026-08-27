@@ -5,15 +5,15 @@ use std::net::SocketAddr;
 
 use async_trait::async_trait;
 use futures::StreamExt;
+use iota_sdk_types::TransactionDigest;
 use iota_types::{
-    digests::TransactionDigest,
     error::IotaError,
     messages_grpc::{
         GetTxStatusRequest, HandleCapabilityNotificationRequestV1,
         HandleCapabilityNotificationResponseV1, TxStatusUpdate, ValidatorHealthRequest,
         ValidatorHealthResponse,
     },
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use tonic::IntoRequest;
 
@@ -24,7 +24,7 @@ pub trait ValidatorV2API {
     /// Submit transactions and collect all streamed status updates.
     async fn submit_tx(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
         client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError>;
 
@@ -52,7 +52,7 @@ pub trait ValidatorV2API {
 impl ValidatorV2API for NetworkAuthorityClient {
     async fn submit_tx(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
         client_addr: Option<SocketAddr>,
     ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
         let proto: iota_network::api::SubmitTxRequest = transactions.try_into()?;

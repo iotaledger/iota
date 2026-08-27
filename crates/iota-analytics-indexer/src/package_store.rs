@@ -5,12 +5,12 @@
 use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
-use iota_grpc_client::{Client, ReadMask, read_mask_fields::ObjectField};
+use iota_grpc_client::{Client, read_mask_fields::ObjectField};
 use iota_package_resolver::{
     Package, PackageStore, PackageStoreWithLruCache, error::Error as PackageResolverError,
 };
-use iota_sdk_types::ObjectId;
-use iota_types::{base_types::IotaAddress, object::Object};
+use iota_sdk_types::{Address, ObjectId};
+use iota_types::object::Object;
 use thiserror::Error;
 use typed_store::{
     DBMapUtils, Map, TypedStoreError,
@@ -79,14 +79,14 @@ impl LocalDBPackageStore {
     }
 
     pub fn update(&self, object: &Object) -> iota_package_resolver::Result<()> {
-        let Some(_package) = object.data.as_package_opt() else {
+        let Some(_package) = object.data.as_opt_package() else {
             return Ok(());
         };
         self.package_store_tables.update(object)?;
         Ok(())
     }
 
-    pub async fn get(&self, id: IotaAddress) -> iota_package_resolver::Result<Object> {
+    pub async fn get(&self, id: Address) -> iota_package_resolver::Result<Object> {
         let object = if let Some(object) = self
             .package_store_tables
             .packages
@@ -103,17 +103,20 @@ impl LocalDBPackageStore {
             }
             let objects = self
                 .fallback_client
-                .get_objects(
-                    &[(ObjectId::new(id.into_bytes()), None)],
-                    Some(ReadMask::from(ObjectField::BCS)),
-                )
+                .get_objects([ObjectId::new(id.into_bytes())], ObjectField::BCS)
                 .await
                 .map_err(grpc_err)?
                 .into_inner();
-            let proto_obj = objects
-                .into_iter()
-                .next()
-                .ok_or(PackageResolverError::PackageNotFound(id))?;
+            let proto_obj = match objects.into_iter().next() {
+                Some(Ok(proto_obj)) => proto_obj,
+                // The node reports a package it cannot serve against the ref
+                // that asked for it.
+                Some(Err(e)) if e.is_not_found() => {
+                    return Err(PackageResolverError::PackageNotFound(id));
+                }
+                Some(Err(e)) => return Err(grpc_err(e)),
+                None => return Err(PackageResolverError::PackageNotFound(id)),
+            };
             let object = proto_obj.object().map_err(grpc_err)?.into();
             self.update(&object)?;
             object
@@ -124,7 +127,7 @@ impl LocalDBPackageStore {
 
 #[async_trait]
 impl PackageStore for LocalDBPackageStore {
-    async fn fetch(&self, id: IotaAddress) -> iota_package_resolver::Result<Arc<Package>> {
+    async fn fetch(&self, id: Address) -> iota_package_resolver::Result<Arc<Package>> {
         let object = self.get(id).await?;
         Ok(Arc::new(Package::read_from_object(&object)?))
     }

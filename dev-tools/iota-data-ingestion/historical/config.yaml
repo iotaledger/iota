@@ -5,22 +5,34 @@
 # Using the same path as the Node allows direct file access instead of HTTP requests,
 # significantly improving sync speed.
 path: "./test-checkpoints"
-# IOTA Node gRPC URL
+# Remote checkpoint store
 #
-# The IOTA Node's gRPC URL acts as a fallback mechanism for fetching checkpoints
-# when they are not available in the local ingestion path. This provides redundancy
-# and ensures data availability even when local files are not accessible.
+# Acts as a fallback mechanism for fetching checkpoints that are not available in the local
+# ingestion path. Provides redundancy and keeps ingestion running even when local
+# files are not accessible.
 #
-# Note: This URL is optional when:
-# 1. The ingestion path matches the IOTA Node's path on same host machine)
-# 2. You don't need a fallback mechanism for data retrieval
-# 3. Local filesystem access is sufficient for your use case
+# Two source types are supported (pick one):
+#
+#   fullnode-url: the gRPC URL of an IOTA Node that streams checkpoint data.
+#
+#   hybrid:
+#     - historical-url (required): exposes historical checkpoint data from genesis up to the tip of the network.
+#     - live-url (optional): real-time streaming of current epoch checkpoints only.
+#
+# Optional when:
+#   1. The ingestion `path` matches the IOTA Node's path on the same host.
+#   2. You don't need a fallback for data retrieval.
+#   3. Local filesystem access is sufficient for your use case.
 #
 # Required when:
-# 1. Running on a different host than the IOTA Node
-# 2. Using a different path than the Node
-# 3. HTTP access is preferred over local filesystem
-remote-store-url: "http://localhost:50051"
+#   1. Running on a different host than the IOTA Node.
+#   2. Using a different path than the Node.
+#   3. Remote access is preferred over local filesystem.
+remote-store:
+  fullnode-url: "http://localhost:50051"
+  # hybrid:
+  #   historical-url: "https://checkpoints.<NETWORK>.iota.cafe/ingestion/historical"
+  #   live-url: "https://checkpoints.<NETWORK>.iota.cafe/ingestion/live"
 
 # Path to the progress store JSON file.
 #

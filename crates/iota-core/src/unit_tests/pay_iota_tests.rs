@@ -4,17 +4,18 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use futures::future::join_all;
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId};
+use iota_sdk_types::{
+    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Transaction,
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, dbg_addr},
-    crypto::{AccountKeyPair, get_key_pair},
+    base_types::dbg_addr,
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::{SignedTransactionEffects, TransactionEffectsAPI},
     error::{IotaError, UserInputError},
     gas_coin::GasCoin,
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::TransactionAPI,
     utils::to_sender_signed_transaction,
 };
 
@@ -26,7 +27,7 @@ use crate::authority::{
 
 #[tokio::test]
 async fn test_pay_iota_failure_empty_recipients() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let coin_id = ObjectId::random();
     let coin1 = Object::with_id_owner_gas_for_testing(coin_id, sender, 2000000);
 
@@ -43,7 +44,7 @@ async fn test_pay_iota_failure_empty_recipients() {
 
 #[tokio::test]
 async fn test_pay_iota_failure_insufficient_gas_balance_one_input_coin() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 2000);
     let recipient1 = dbg_addr(1);
     let recipient2 = dbg_addr(2);
@@ -69,7 +70,7 @@ async fn test_pay_iota_failure_insufficient_gas_balance_one_input_coin() {
 
 #[tokio::test]
 async fn test_pay_iota_failure_insufficient_total_balance_one_input_coin() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 1000100);
     let recipient1 = dbg_addr(1);
     let recipient2 = dbg_addr(2);
@@ -95,7 +96,7 @@ async fn test_pay_iota_failure_insufficient_total_balance_one_input_coin() {
 
 #[tokio::test]
 async fn test_pay_iota_failure_insufficient_gas_balance_multiple_input_coins() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 800);
     let coin2 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 700);
     let recipient1 = dbg_addr(1);
@@ -122,7 +123,7 @@ async fn test_pay_iota_failure_insufficient_gas_balance_multiple_input_coins() {
 
 #[tokio::test]
 async fn test_pay_iota_failure_insufficient_total_balance_multiple_input_coins() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 404000);
     let coin2 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 603000);
     let recipient1 = dbg_addr(1);
@@ -148,7 +149,7 @@ async fn test_pay_iota_failure_insufficient_total_balance_multiple_input_coins()
 
 #[tokio::test]
 async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let coin_amount = 50000000;
     let coin_obj = Object::with_id_owner_gas_for_testing(object_id, sender, 50000000);
@@ -174,21 +175,9 @@ async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
     let created_obj_id1 = effects.created()[0].0.object_id;
     let created_obj_id2 = effects.created()[1].0.object_id;
     let created_obj_id3 = effects.created()[2].0.object_id;
-    let created_obj1 = res
-        .authority_state
-        .get_object(&created_obj_id1)
-        .await
-        .unwrap();
-    let created_obj2 = res
-        .authority_state
-        .get_object(&created_obj_id2)
-        .await
-        .unwrap();
-    let created_obj3 = res
-        .authority_state
-        .get_object(&created_obj_id3)
-        .await
-        .unwrap();
+    let created_obj1 = res.authority_state.get_object(&created_obj_id1).unwrap();
+    let created_obj2 = res.authority_state.get_object(&created_obj_id2).unwrap();
+    let created_obj3 = res.authority_state.get_object(&created_obj_id3).unwrap();
 
     let addr1 = *effects.created()[0]
         .1
@@ -221,7 +210,7 @@ async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
     assert_eq!(effects.mutated()[0].0.object_id, object_id);
     assert_eq!(effects.mutated()[0].1, sender);
     let gas_used = effects.gas_cost_summary().net_gas_usage() as u64;
-    let gas_object = res.authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = res.authority_state.get_object(&object_id).unwrap();
     assert_eq!(
         GasCoin::try_from(&gas_object)?.value(),
         coin_amount - 100 - 200 - 300 - gas_used,
@@ -232,7 +221,7 @@ async fn test_pay_iota_success_one_input_coin() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id1 = ObjectId::random();
     let object_id2 = ObjectId::random();
     let object_id3 = ObjectId::random();
@@ -260,16 +249,8 @@ async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
     assert_eq!(effects.created().len(), 2);
     let created_obj_id1 = effects.created()[0].0.object_id;
     let created_obj_id2 = effects.created()[1].0.object_id;
-    let created_obj1 = res
-        .authority_state
-        .get_object(&created_obj_id1)
-        .await
-        .unwrap();
-    let created_obj2 = res
-        .authority_state
-        .get_object(&created_obj_id2)
-        .await
-        .unwrap();
+    let created_obj1 = res.authority_state.get_object(&created_obj_id1).unwrap();
+    let created_obj2 = res.authority_state.get_object(&created_obj_id2).unwrap();
     let addr1 = *effects.created()[0]
         .1
         .address_or_object()
@@ -292,7 +273,7 @@ async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
     assert_eq!(effects.mutated()[0].0.object_id, object_id1);
     assert_eq!(effects.mutated()[0].1, sender);
     let gas_used = effects.gas_cost_summary().net_gas_usage() as u64;
-    let gas_object = res.authority_state.get_object(&object_id1).await.unwrap();
+    let gas_object = res.authority_state.get_object(&object_id1).unwrap();
     assert_eq!(
         GasCoin::try_from(&gas_object)?.value(),
         5002000 - 500 - 1500 - gas_used,
@@ -307,7 +288,7 @@ async fn test_pay_iota_success_multiple_input_coins() -> anyhow::Result<()> {
 
 #[tokio::test]
 async fn test_pay_all_iota_failure_insufficient_gas_one_input_coin() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 1800);
     let recipient = dbg_addr(2);
 
@@ -324,7 +305,7 @@ async fn test_pay_all_iota_failure_insufficient_gas_one_input_coin() {
 
 #[tokio::test]
 async fn test_pay_all_iota_failure_insufficient_gas_budget_multiple_input_coins() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let coin1 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 1000);
     let coin2 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 1000);
     let recipient = dbg_addr(2);
@@ -342,7 +323,7 @@ async fn test_pay_all_iota_failure_insufficient_gas_budget_multiple_input_coins(
 
 #[tokio::test]
 async fn test_pay_all_iota_success_one_input_coin() -> anyhow::Result<()> {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
     let coin_obj = Object::with_id_owner_gas_for_testing(object_id, sender, 3000000);
     let recipient = dbg_addr(2);
@@ -358,14 +339,14 @@ async fn test_pay_all_iota_success_one_input_coin() -> anyhow::Result<()> {
     assert_eq!(effects.mutated()[0].1, recipient);
 
     let gas_used = effects.gas_cost_summary().gas_used();
-    let gas_object = res.authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = res.authority_state.get_object(&object_id).unwrap();
     assert_eq!(GasCoin::try_from(&gas_object)?.value(), 3000000 - gas_used,);
     Ok(())
 }
 
 #[tokio::test]
 async fn test_pay_all_iota_success_multiple_input_coins() -> anyhow::Result<()> {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let object_id1 = ObjectId::random();
     let coin_obj1 = Object::with_id_owner_gas_for_testing(object_id1, sender, 3000000);
     let coin_obj2 = Object::with_id_owner_gas_for_testing(ObjectId::random(), sender, 1000);
@@ -390,7 +371,7 @@ async fn test_pay_all_iota_success_multiple_input_coins() -> anyhow::Result<()> 
     assert_eq!(effects.mutated()[0].1, recipient);
 
     let gas_used = effects.gas_cost_summary().gas_used();
-    let gas_object = res.authority_state.get_object(&object_id1).await.unwrap();
+    let gas_object = res.authority_state.get_object(&object_id1).unwrap();
     assert_eq!(GasCoin::try_from(&gas_object)?.value(), 3002000 - gas_used,);
     Ok(())
 }
@@ -402,30 +383,28 @@ struct PayIotaTransactionBlockExecutionResult {
 
 async fn execute_pay_iota(
     input_coin_objects: Vec<Object>,
-    recipients: Vec<IotaAddress>,
+    recipients: Vec<Address>,
     amounts: Vec<u64>,
-    sender: IotaAddress,
-    sender_key: AccountKeyPair,
+    sender: Address,
+    sender_key: AccountPrivateKey,
     gas_budget: u64,
 ) -> PayIotaTransactionBlockExecutionResult {
     let authority_state = TestAuthorityBuilder::new().build().await;
 
-    let input_coin_refs: Vec<ObjectRef> = input_coin_objects
+    let input_coin_refs: Vec<ObjectReference> = input_coin_objects
         .iter()
         .map(|coin_obj| coin_obj.object_ref())
         .collect();
-    let handles: Vec<_> = input_coin_objects
-        .into_iter()
-        .map(|obj| authority_state.insert_genesis_object(obj))
-        .collect();
-    join_all(handles).await;
+    for obj in input_coin_objects {
+        authority_state.insert_genesis_object(obj);
+    }
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.pay_iota(recipients, amounts).unwrap();
     let pt = builder.finish();
-    let data = TransactionData::new_programmable(sender, input_coin_refs, pt, gas_budget, rgp);
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = Transaction::new_programmable(sender, input_coin_refs, pt, gas_budget, rgp);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let txn_result = send_and_confirm_transaction(&authority_state, tx)
         .await
         .map(|(_, effects)| effects);
@@ -438,9 +417,9 @@ async fn execute_pay_iota(
 
 async fn execute_pay_all_iota(
     input_coin_objects: Vec<&Object>,
-    recipient: IotaAddress,
-    sender: IotaAddress,
-    sender_key: AccountKeyPair,
+    recipient: Address,
+    sender: Address,
+    sender_key: AccountPrivateKey,
     gas_budget: u64,
 ) -> PayIotaTransactionBlockExecutionResult {
     let dir = tempfile::TempDir::new().unwrap();
@@ -474,8 +453,8 @@ async fn execute_pay_all_iota(
     let mut builder = ProgrammableTransactionBuilder::new();
     builder.pay_all_iota(recipient);
     let pt = builder.finish();
-    let data = TransactionData::new_programmable(sender, input_coins, pt, gas_budget, rgp);
-    let tx = to_sender_signed_transaction(data, &sender_key);
+    let tx = Transaction::new_programmable(sender, input_coins, pt, gas_budget, rgp);
+    let tx = to_sender_signed_transaction(tx, &sender_key);
     let txn_result = send_and_confirm_transaction(&authority_state, tx)
         .await
         .map(|(_, effects)| effects);

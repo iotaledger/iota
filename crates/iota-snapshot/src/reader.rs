@@ -5,17 +5,17 @@
 use std::{
     collections::BTreeMap,
     fs::{self, File},
-    io::{BufReader, Read, Seek, SeekFrom},
+    io::Read,
     num::NonZeroUsize,
     path::PathBuf,
     sync::{
         Arc,
-        atomic::{AtomicU64, AtomicUsize, Ordering},
+        atomic::{AtomicU64, Ordering},
     },
 };
 
 use anyhow::{Context, Result, bail};
-use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use bytes::{Buf, Bytes};
 use fastcrypto::hash::{HashFunction, MultisetHash, Sha3_256};
 use futures::{
@@ -26,51 +26,64 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use integer_encoding::VarIntReader;
 use iota_common::stream_ext::TrySpawnStreamExt;
 use iota_config::object_storage_config::ObjectStoreConfig;
-use iota_core::authority::authority_store_tables::{AuthorityPerpetualTables, LiveObject};
-use iota_sdk_types::ObjectId;
+use iota_core::authority::authority_store_tables::{
+    AuthorityPerpetualTables, LiveObject, SnapshotLiveObject,
+};
+use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, Version};
 use iota_storage::{
     blob::{Blob, BlobEncoding},
     object_store::{
         ObjectStoreGetExt, ObjectStoreListExt, ObjectStorePutExt,
         http::HttpDownloaderBuilder,
-        util::{copy_file, copy_files, path_to_filesystem},
+        util::{MANIFEST_FILENAME, RootManifest, copy_file, get_path, path_to_filesystem},
     },
 };
-use iota_types::{
-    base_types::{ObjectDigest, ObjectRef, SequenceNumber},
-    global_state_hash::GlobalStateHash,
-};
+use iota_types::{digests::ChainIdentifier, global_state_hash::GlobalStateHash};
 use object_store::path::Path;
-use tokio::{
-    sync::Mutex,
-    task::JoinHandle,
-    time::{Duration, Instant},
-};
-use tracing::{error, info};
+use tokio::{sync::Mutex, task::JoinHandle};
+use tracing::info;
 
 use crate::{
-    FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC, Manifest, OBJECT_FILE_MAGIC,
-    OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC, SEQUENCE_NUM_BYTES, SHA3_BYTES,
+    EPOCH_INFO_FILE_MAGIC, EpochInfo, FileMetadata, FileType, MAGIC_BYTES, MANIFEST_FILE_MAGIC,
+    Manifest, OBJECT_FILE_MAGIC, OBJECT_ID_BYTES, OBJECT_REF_BYTES, REFERENCE_FILE_MAGIC,
+    SEQUENCE_NUM_BYTES, SHA3_BYTES,
+    progress::{
+        DownloadProgressBar, ProgressTicker, ProgressUnit, copy_files_with_progress,
+        fetch_total_bytes, get_single_file_with_progress, get_with_progress, println_or_log,
+    },
     restore::Restore,
 };
 
 pub type SnapshotChecksums = (DigestByBucketAndPartition, GlobalStateHash);
 pub type DigestByBucketAndPartition = BTreeMap<u32, BTreeMap<u32, [u8; 32]>>;
+
 #[derive(Clone)]
 pub struct StateSnapshotReaderV1 {
     epoch: u64,
     local_staging_dir_root: PathBuf,
     remote_object_store: Arc<dyn ObjectStoreGetExt>,
     local_object_store: Arc<dyn ObjectStorePutExt>,
+    local_object_store_list: Arc<dyn ObjectStoreListExt>,
     ref_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
     object_files: BTreeMap<u32, BTreeMap<u32, FileMetadata>>,
+    epoch_info_metadata: FileMetadata,
+    /// Chain identifier recorded in the snapshot's `ManifestV2`.
+    chain_id: ChainIdentifier,
     multi_progress_bar: MultiProgress,
-    concurrency: usize,
+    concurrency: NonZeroUsize,
+    /// When set, the staging directory is left as it is and any reference
+    /// files already in it are not downloaded again.
+    skip_reset_local_store: bool,
 }
 
 impl StateSnapshotReaderV1 {
-    /// Downloads the MANIFEST, FileMetadata of objects and references from the
-    /// remote store, then creates a StateSnapshotReaderV1 instance.
+    /// Reads the snapshot's MANIFEST — the metadata of its reference, object
+    /// and `EPOCH_INFO` files — and prepares the local staging directory.
+    ///
+    /// Only the MANIFEST is downloaded here. The reference and object files
+    /// both come down in [`Self::read`], so a caller can read and check
+    /// [`Self::read_epoch_info`] first and reject the snapshot before any of
+    /// it is transferred.
     pub async fn new(
         epoch: u64,
         remote_store_config: &ObjectStoreConfig,
@@ -80,11 +93,7 @@ impl StateSnapshotReaderV1 {
         skip_reset_local_store: bool,
     ) -> Result<Self> {
         let epoch_dir = format!("epoch_{epoch}");
-        let remote_object_store = if remote_store_config.no_sign_request {
-            remote_store_config.make_http()?
-        } else {
-            remote_store_config.make().map(Arc::new)?
-        };
+        let remote_object_store = make_remote_store(remote_store_config)?;
         let local_object_store: Arc<dyn ObjectStorePutExt> =
             local_store_config.make().map(Arc::new)?;
         let local_object_store_list: Arc<dyn ObjectStoreListExt> =
@@ -97,12 +106,23 @@ impl StateSnapshotReaderV1 {
         if !skip_reset_local_store {
             let local_epoch_dir_path = local_staging_dir_root.join(&epoch_dir);
             if local_epoch_dir_path.exists() {
+                // A previous run's staging files can be a whole snapshot's
+                // worth, so removing them is not always quick.
+                println_or_log(
+                    &multi_progress_bar,
+                    format!(
+                        "Removing the files a previous run staged in {}",
+                        local_epoch_dir_path.display()
+                    ),
+                )?;
                 fs::remove_dir_all(&local_epoch_dir_path)?;
             }
             fs::create_dir_all(&local_epoch_dir_path)?;
         }
+        let epoch_dir_path = Path::from(epoch_dir);
         // Downloads MANIFEST from remote store
-        let manifest_file_path = Path::from(epoch_dir.clone()).child("MANIFEST");
+        println_or_log(&multi_progress_bar, "Reading the snapshot MANIFEST")?;
+        let manifest_file_path = epoch_dir_path.child("MANIFEST");
         copy_file(
             &manifest_file_path,
             &manifest_file_path,
@@ -114,21 +134,15 @@ impl StateSnapshotReaderV1 {
             local_staging_dir_root.clone(),
             &manifest_file_path,
         )?)?;
-        // Verifies MANIFEST
-        let snapshot_version = manifest.snapshot_version();
-        if snapshot_version != 1u8 {
-            bail!("Unexpected snapshot version: {}", snapshot_version);
-        }
+        let chain_id = Self::validate_v2_manifest(&manifest, epoch)?;
         if manifest.address_length() as usize > ObjectId::LENGTH {
             bail!("Max possible address length is: {}", ObjectId::LENGTH);
         }
-        if manifest.epoch() != epoch {
-            bail!("Download manifest is not for epoch: {}", epoch,);
-        }
         // Stores the objects and references FileMetadata in MANIFEST to the local
-        // directory
+        // directory, collecting the EPOCH_INFO entry in the same pass.
         let mut object_files = BTreeMap::new();
         let mut ref_files = BTreeMap::new();
+        let mut epoch_info_files = Vec::new();
         for file_metadata in manifest.file_metadata() {
             match file_metadata.file_type {
                 FileType::Object => {
@@ -149,23 +163,45 @@ impl StateSnapshotReaderV1 {
                     // Inserts the reference FileMetadata with the partition number to the bucket.
                     entry.insert(file_metadata.part_num, file_metadata.clone());
                 }
+                FileType::EpochInfo => epoch_info_files.push(file_metadata.clone()),
             }
         }
-        let epoch_dir_path = Path::from(epoch_dir);
-        // Collects the path of all reference files
-        let files: Vec<Path> = ref_files
+        let epoch_info_metadata = Self::single_epoch_info_metadata(epoch_info_files)?;
+        Ok(StateSnapshotReaderV1 {
+            epoch,
+            local_staging_dir_root,
+            remote_object_store,
+            local_object_store,
+            local_object_store_list,
+            ref_files,
+            object_files,
+            epoch_info_metadata,
+            chain_id,
+            multi_progress_bar,
+            concurrency: download_concurrency,
+            skip_reset_local_store,
+        })
+    }
+
+    /// Downloads every reference file into the local staging directory, where
+    /// [`Self::ref_iter`] reads them from, and returns the bar it advanced —
+    /// whose totals also cover the object files that
+    /// [`Self::sync_live_objects`] downloads onto the same bar.
+    async fn download_reference_files(&self) -> Result<Arc<DownloadProgressBar>> {
+        let epoch_dir_path = self.epoch_dir();
+        let ref_file_paths: Vec<Path> = self
+            .ref_files
             .values()
             .flat_map(|entry| {
-                let files: Vec<_> = entry
+                entry
                     .values()
                     .map(|file_metadata| file_metadata.file_path(&epoch_dir_path))
-                    .collect();
-                files
             })
             .collect();
 
-        let files_to_download = if skip_reset_local_store {
-            let mut list_stream = local_object_store_list
+        let files_to_download = if self.skip_reset_local_store {
+            let mut list_stream = self
+                .local_object_store_list
                 .list_objects(Some(&epoch_dir_path))
                 .await;
             let mut existing_files = std::collections::HashSet::new();
@@ -173,45 +209,56 @@ impl StateSnapshotReaderV1 {
                 existing_files.insert(meta.location);
             }
             let mut missing_files = Vec::new();
-            for file in &files {
+            for file in &ref_file_paths {
                 if !existing_files.contains(file) {
                     missing_files.push(file.clone());
                 }
             }
             missing_files
         } else {
-            files
+            ref_file_paths
         };
-        let progress_bar = multi_progress_bar.add(
-            ProgressBar::new(files_to_download.len() as u64).with_style(
-                ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} missing .ref files done ({msg})",
-                )
-                .unwrap(),
-            ),
-        );
+
+        let object_file_paths: Vec<Path> = self
+            .object_files
+            .values()
+            .flat_map(|entry| {
+                entry
+                    .values()
+                    .map(|file_metadata| file_metadata.file_path(&epoch_dir_path))
+            })
+            .collect();
+        let num_files = (files_to_download.len() + object_file_paths.len()) as u64;
+        let total_bytes = fetch_total_bytes(
+            &self.remote_object_store,
+            files_to_download
+                .iter()
+                .cloned()
+                .chain(object_file_paths)
+                .collect(),
+            self.concurrency.get(),
+            &self.multi_progress_bar,
+        )
+        .await;
+
+        let download_progress = Arc::new(DownloadProgressBar::new(
+            &self.multi_progress_bar,
+            "Downloading files",
+            num_files,
+            total_bytes,
+        ));
+
         // Downloads all reference files from remote store to local store in parallel
         // and updates the progress bar accordingly
-        copy_files(
+        copy_files_with_progress(
             &files_to_download,
-            &files_to_download,
-            &remote_object_store,
-            &local_object_store,
-            download_concurrency,
-            Some(progress_bar.clone()),
+            &self.remote_object_store,
+            &self.local_object_store,
+            self.concurrency.get(),
+            &download_progress,
         )
         .await?;
-        progress_bar.finish_with_message("Missing ref files download complete");
-        Ok(StateSnapshotReaderV1 {
-            epoch,
-            local_staging_dir_root,
-            remote_object_store,
-            local_object_store,
-            ref_files,
-            object_files,
-            multi_progress_bar,
-            concurrency: download_concurrency.get(),
-        })
+        Ok(download_progress)
     }
 
     pub async fn read(
@@ -224,16 +271,91 @@ impl StateSnapshotReaderV1 {
             .await
     }
 
+    /// Chain identifier recorded in this snapshot's manifest.
+    pub fn chain_id(&self) -> ChainIdentifier {
+        self.chain_id
+    }
+
+    /// Checks the manifest is a V2 snapshot for `epoch` and returns its chain
+    /// id.
+    fn validate_v2_manifest(manifest: &Manifest, epoch: u64) -> anyhow::Result<ChainIdentifier> {
+        let snapshot_version = manifest.snapshot_version();
+        if snapshot_version != 2u8 {
+            bail!(
+                "Unsupported snapshot version: {snapshot_version}. Only snapshot V2 is supported."
+            );
+        }
+        if manifest.epoch() != epoch {
+            bail!("Snapshot MANIFEST is not for epoch {epoch}");
+        }
+        manifest.chain_id().context("V2 manifest missing chain_id")
+    }
+
+    /// Validates that a V2 manifest carried exactly one `EPOCH_INFO` entry and
+    /// returns it; errors if it was absent or duplicated. Callers collect the
+    /// entries in their own single pass over the manifest.
+    fn single_epoch_info_metadata(mut found: Vec<FileMetadata>) -> anyhow::Result<FileMetadata> {
+        match found.len() {
+            0 => bail!("V2 manifest missing required EPOCH_INFO entry"),
+            1 => Ok(found.pop().expect("length checked to be 1")),
+            _ => bail!("Manifest contains more than one EPOCH_INFO entry"),
+        }
+    }
+
+    /// Reads, verifies and decodes the snapshot's `EPOCH_INFO` file from the
+    /// remote store — one file, independent of the live-object restore in
+    /// [`Self::read`] and cheap enough to check before starting it.
+    pub async fn read_epoch_info(&self) -> anyhow::Result<EpochInfo> {
+        let epoch_info_path = self.epoch_info_metadata.file_path(&self.epoch_dir());
+        let bytes = get_single_file_with_progress(
+            &self.remote_object_store,
+            &epoch_info_path,
+            "Downloading EPOCH_INFO",
+            &self.multi_progress_bar,
+        )
+        .await?;
+        println_or_log(&self.multi_progress_bar, "Checking and decoding EPOCH_INFO")?;
+        Self::decode_epoch_info(bytes, &self.epoch_info_metadata)
+    }
+
+    /// Verifies the sha3 digest against the manifest, strips the 4-byte magic
+    /// header, and BCS-decodes the `EPOCH_INFO` body.
+    fn decode_epoch_info(bytes: Bytes, metadata: &FileMetadata) -> anyhow::Result<EpochInfo> {
+        let mut hasher = Sha3_256::default();
+        hasher.update(&bytes);
+        let computed = hasher.finalize().digest;
+        if computed != metadata.sha3_digest {
+            bail!(
+                "EPOCH_INFO checksum mismatch: computed {computed:?}, expected {:?}",
+                metadata.sha3_digest
+            );
+        }
+        let mut decompressed = metadata.file_compression.bytes_decompress(bytes)?;
+        let mut buf = Vec::new();
+        decompressed.read_to_end(&mut buf)?;
+        if buf.len() < MAGIC_BYTES {
+            bail!("EPOCH_INFO file is shorter than the magic header");
+        }
+        let magic = BigEndian::read_u32(&buf[..MAGIC_BYTES]);
+        if magic != EPOCH_INFO_FILE_MAGIC {
+            bail!("EPOCH_INFO magic mismatch: got {magic:#x}, expected {EPOCH_INFO_FILE_MAGIC:#x}");
+        }
+        let epoch_info: EpochInfo = bcs::from_bytes(&buf[MAGIC_BYTES..])?;
+        Ok(epoch_info)
+    }
+
     /// The main entrypoint of the [StateSnapshotReaderV1].
     ///
     /// This method encapsulates the logic for several operations:
     ///
-    /// 1. Computing the partition checksums of the respective `*.ref` files.
-    /// 2. Computing the partition elliptic-curve multiset hash (ECMH) in the
+    /// 1. Downloading the snapshot's `*.ref` files into the local staging
+    ///    directory.
+    /// 2. Computing the partition checksums of the respective `*.ref` files.
+    /// 3. Computing the partition elliptic-curve multiset hash (ECMH) in the
     ///    background, and sending the result through the given `sender` to the
     ///    caller. This allows to compute and verify the root hash of the live
     ///    objects encoded in the snapshot. See [`GlobalStateHash`].
-    /// 3. Reading, inserting, and verifying all encoded live objects to the
+    /// 4. Reading, inserting, and verifying all encoded live objects to the
     ///    given `database`.
     pub async fn read_to_db(
         &mut self,
@@ -241,6 +363,11 @@ impl StateSnapshotReaderV1 {
         abort_registration: AbortRegistration,
         sender: Option<tokio::sync::mpsc::Sender<(GlobalStateHash, u64)>>,
     ) -> Result<()> {
+        // The reference files have to be local before their checksums can be
+        // computed. Their download shares a bar with the object files, which
+        // `sync_live_objects` downloads onto it below.
+        let download_progress = self.download_reference_files().await?;
+
         // This computes and stores the sha3 digest of object references in REFERENCE
         // file for each bucket partition. When downloading objects, we will
         // compare sha3 digest of object references per *.obj file against this.
@@ -260,14 +387,21 @@ impl StateSnapshotReaderV1 {
 
         info!("Computing checksums");
         // Creates a progress bar for checksumming
-        let checksum_progress_bar = self.multi_progress_bar.add(
-            ProgressBar::new(num_part_files as u64).with_style(
-                ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files checksummed ({msg})",
-                )
-                .unwrap(),
+        let checksum_ticker = ProgressTicker::spawn(
+            self.multi_progress_bar.add(
+                ProgressBar::new(num_part_files as u64).with_style(
+                    ProgressStyle::with_template(
+                        "[{elapsed_precise}] {wide_bar} Checksumming ref files: {pos}/{len} \
+                         ({per_sec}, ETA {eta}) — {msg}",
+                    )
+                    .unwrap(),
+                ),
             ),
+            "Checksumming ref files",
+            ProgressUnit::Count("ref files"),
+            None,
         );
+        let checksum_progress_bar = checksum_ticker.bar().clone();
 
         // Iterates over all FileMetadata in the ref files by partition and build up the
         // sha3 digests mapping: (bucket, (partition, sha3_digest))
@@ -280,7 +414,7 @@ impl StateSnapshotReaderV1 {
                         .map(move |(part, part_file)| (bucket, part, part_file)),
                 )
             })
-            .try_for_each_spawned(self.concurrency, |(bucket, part, _part_file)| {
+            .try_for_each_spawned(self.concurrency.get(), |(bucket, part, _part_file)| {
                 let sha3_digests = sha3_digests.clone();
                 let object_files = self.object_files.clone();
                 let bar = checksum_progress_bar.clone();
@@ -318,15 +452,20 @@ impl StateSnapshotReaderV1 {
             })
             .await?;
 
-        checksum_progress_bar.finish_with_message("Checksumming complete");
+        checksum_ticker.finish_with_message("Checksumming complete");
 
         let accum_handle =
             sender.map(|sender| self.spawn_accumulation_tasks(sender, num_part_files));
 
         // Downloads all object files from remote in parallel and inserts the objects
         // into the database of choice
-        self.sync_live_objects(database, abort_registration, sha3_digests)
-            .await?;
+        self.sync_live_objects(
+            database,
+            abort_registration,
+            sha3_digests,
+            download_progress,
+        )
+        .await?;
 
         if let Some(handle) = accum_handle {
             handle.await?;
@@ -341,36 +480,24 @@ impl StateSnapshotReaderV1 {
         sender: tokio::sync::mpsc::Sender<(GlobalStateHash, u64)>,
         num_part_files: usize,
     ) -> JoinHandle<()> {
-        // Spawns accumulation progress bar
+        // Spawns accumulation progress bar, whose position the ticker takes
+        // from the counter the accumulation task below advances
         let concurrency = self.concurrency;
         let accum_counter = Arc::new(AtomicU64::new(0));
-        let cloned_accum_counter = accum_counter.clone();
-        let accum_progress_bar = self.multi_progress_bar.add(
-             ProgressBar::new(num_part_files as u64).with_style(
-                 ProgressStyle::with_template(
-                     "[{elapsed_precise}] {wide_bar} {pos} out of {len} ref files accumulated from snapshot ({msg})",
-                 )
-                 .unwrap(),
-             ),
-         );
-        let cloned_accum_progress_bar = accum_progress_bar.clone();
-        // Spawns accumulation progress bar update task
-        tokio::spawn(async move {
-            let a_instant = Instant::now();
-            loop {
-                if cloned_accum_progress_bar.is_finished() {
-                    break;
-                }
-                let num_partitions = cloned_accum_counter.load(Ordering::Relaxed);
-                let total_partitions_per_sec =
-                    num_partitions as f64 / a_instant.elapsed().as_secs_f64();
-                cloned_accum_progress_bar.set_position(num_partitions);
-                cloned_accum_progress_bar.set_message(format!(
-                    "file partitions per sec: {total_partitions_per_sec}"
-                ));
-                tokio::time::sleep(Duration::from_secs(1)).await;
-            }
-        });
+        let accum_ticker = ProgressTicker::spawn(
+            self.multi_progress_bar.add(
+                ProgressBar::new(num_part_files as u64).with_style(
+                    ProgressStyle::with_template(
+                        "[{elapsed_precise}] {wide_bar} Accumulating ref files: {pos}/{len} \
+                         ({per_sec}, ETA {eta})",
+                    )
+                    .unwrap(),
+                ),
+            ),
+            "Accumulating ref files",
+            ProgressUnit::Count("ref files"),
+            Some(accum_counter.clone()),
+        );
 
         // spawns accumualation task
         let ref_files = self.ref_files.clone();
@@ -421,7 +548,7 @@ impl StateSnapshotReaderV1 {
                         })
                     })
                     .boxed()
-                    .buffer_unordered(concurrency)
+                    .buffer_unordered(concurrency.into())
                     .for_each(|result| {
                         // Update the progress bar
                         result.expect("Failed to generate partial accumulator");
@@ -430,7 +557,7 @@ impl StateSnapshotReaderV1 {
                     })
                     .await;
             }
-            accum_progress_bar.finish_with_message("Accumulation complete");
+            accum_ticker.finish_with_message("Accumulation complete");
         })
     }
 
@@ -441,6 +568,7 @@ impl StateSnapshotReaderV1 {
         database: &impl Restore,
         abort_registration: AbortRegistration,
         sha3_digests: Arc<Mutex<DigestByBucketAndPartition>>,
+        download_progress: Arc<DownloadProgressBar>,
     ) -> Result<(), anyhow::Error> {
         let epoch_dir = self.epoch_dir();
         let concurrency = self.concurrency;
@@ -458,18 +586,11 @@ impl StateSnapshotReaderV1 {
                     .collect::<Vec<_>>()
             })
             .collect();
-        // Creates a progress bar for object files
-        let obj_progress_bar = self.multi_progress_bar.add(
-            ProgressBar::new(input_files.len() as u64).with_style(
-                ProgressStyle::with_template(
-                    "[{elapsed_precise}] {wide_bar} {pos} out of {len} .obj files done ({msg})",
-                )
-                .unwrap(),
-            ),
-        );
-        let obj_progress_bar_clone = obj_progress_bar.clone();
-        let instant = Instant::now();
-        let downloaded_bytes = AtomicUsize::new(0);
+        // Continues the bar the reference files were downloaded on, whose
+        // totals already include these object files.
+        let obj_progress = download_progress;
+        let obj_progress_clone = obj_progress.clone();
+        let obj_progress_download = obj_progress.clone();
 
         let ret = Abortable::new(
             async move {
@@ -481,40 +602,15 @@ impl StateSnapshotReaderV1 {
                         let file_path = file_metadata.file_path(&epoch_dir);
                         let remote_object_store = remote_object_store.clone();
                         let sha3_digests_cloned = sha3_digests.clone();
+                        let obj_progress = obj_progress_download.clone();
                         async move {
                             // Downloads object file with retries
-                            let max_timeout = Duration::from_secs(60);
-                            let mut timeout = Duration::from_secs(2);
-                            timeout += timeout / 2;
-                            timeout = std::cmp::min(max_timeout, timeout);
-                            let mut attempts = 0usize;
-                            let bytes = loop {
-                                match remote_object_store.get_bytes(&file_path).await {
-                                    Ok(bytes) => {
-                                        break bytes;
-                                    }
-                                    Err(err) => {
-                                        error!(
-                                            "Obj {} .get failed (attempt {}): {}",
-                                            file_metadata.file_path(&epoch_dir),
-                                            attempts,
-                                            err,
-                                        );
-                                        if timeout > max_timeout {
-                                            panic!(
-                                                "Failed to get obj file {} after {} attempts",
-                                                file_metadata.file_path(&epoch_dir),
-                                                attempts,
-                                            );
-                                        } else {
-                                            attempts += 1;
-                                            tokio::time::sleep(timeout).await;
-                                            timeout += timeout / 2;
-                                            continue;
-                                        }
-                                    }
-                                }
-                            };
+                            let bytes =
+                                get_with_progress(&remote_object_store, &file_path, &obj_progress)
+                                    .await
+                                    .with_context(|| {
+                                        format!("Failed to download object file {file_path}")
+                                    })?;
 
                             // Gets the sha3 digest of the partition
                             let sha3_digest = sha3_digests_cloned.lock().await;
@@ -533,24 +629,14 @@ impl StateSnapshotReaderV1 {
                         }
                     })
                     .boxed()
-                    .buffer_unordered(concurrency)
+                    .buffer_unordered(concurrency.into())
                     .try_for_each(|(bytes, file_metadata, sha3_digest)| {
-                        let downloaded_bytes = &downloaded_bytes;
-                        let obj_progress_bar = &obj_progress_bar_clone;
-                        let instant = &instant;
+                        let obj_progress = &obj_progress_clone;
                         async move {
-                            let bytes_len = bytes.len();
                             database
                                 .insert_partition(file_metadata, bytes, &sha3_digest)
                                 .await?;
-                            downloaded_bytes.fetch_add(bytes_len, Ordering::Relaxed);
-                            obj_progress_bar.inc(1);
-                            obj_progress_bar.set_message(format!(
-                                "Download speed: {} MiB/s",
-                                downloaded_bytes.load(Ordering::Relaxed) as f64
-                                    / (1024 * 1024) as f64
-                                    / instant.elapsed().as_secs_f64(),
-                            ));
+                            obj_progress.file_done();
                             Ok(())
                         }
                     })
@@ -559,7 +645,7 @@ impl StateSnapshotReaderV1 {
             abort_registration,
         )
         .await?;
-        obj_progress_bar.finish_with_message("Objects download complete");
+        obj_progress.finish_with_message("Download complete");
         ret
     }
 
@@ -593,40 +679,61 @@ impl StateSnapshotReaderV1 {
     /// Reads the MANIFEST file, verifies it with the checksum, and returns the
     /// Manifest.
     fn read_manifest(path: PathBuf) -> anyhow::Result<Manifest> {
-        let manifest_file = File::open(path)?;
-        let manifest_file_size = manifest_file.metadata()?.len() as usize;
-        let mut manifest_reader = BufReader::new(manifest_file);
-        // Make sure the file is MANIFEST with correct magic bytes
-        manifest_reader.rewind()?;
-        let magic = manifest_reader.read_u32::<BigEndian>()?;
-        if magic != MANIFEST_FILE_MAGIC {
-            bail!("Unexpected magic byte: {}", magic);
+        let mut buf = Vec::new();
+        File::open(path)?.read_to_end(&mut buf)?;
+        Self::read_manifest_from_bytes(&buf)
+    }
+
+    /// Parses a snapshot MANIFEST from its raw on-disk bytes: validates the
+    /// magic header, verifies the trailing sha3 digest, and BCS-decodes it.
+    fn read_manifest_from_bytes(buf: &[u8]) -> anyhow::Result<Manifest> {
+        if buf.len() < MAGIC_BYTES + SHA3_BYTES {
+            bail!("MANIFEST is shorter than the magic header plus checksum");
         }
-        // Gets the sha3 digest from the end of the file
-        manifest_reader.seek(SeekFrom::End(-(SHA3_BYTES as i64)))?;
-        let mut sha3_digest = [0u8; SHA3_BYTES];
-        manifest_reader.read_exact(&mut sha3_digest)?;
-        // Rewinds to the beginning of the file and read the contents
-        manifest_reader.rewind()?;
-        let mut content_buf = vec![0u8; manifest_file_size - SHA3_BYTES];
-        manifest_reader.read_exact(&mut content_buf)?;
-        // Computes the sha3 digest of the content and check if it matches the one at
-        // the end
+        let magic = BigEndian::read_u32(&buf[..MAGIC_BYTES]);
+        if magic != MANIFEST_FILE_MAGIC {
+            bail!("Unexpected magic byte: {magic}");
+        }
+        // The sha3 digest of the body is the trailing `SHA3_BYTES`.
+        let (content, sha3_digest) = buf.split_at(buf.len() - SHA3_BYTES);
         let mut hasher = Sha3_256::default();
-        hasher.update(&content_buf);
+        hasher.update(content);
         let computed_digest = hasher.finalize().digest;
         if computed_digest != sha3_digest {
-            bail!(
-                "Checksum: {:?} don't match: {:?}",
-                computed_digest,
-                sha3_digest
-            );
+            bail!("Checksum: {computed_digest:?} don't match: {sha3_digest:?}");
         }
-        manifest_reader.rewind()?;
-        manifest_reader.seek(SeekFrom::Start(MAGIC_BYTES as u64))?;
-        let manifest = bcs::from_bytes(&content_buf[MAGIC_BYTES..])?;
+        let manifest = bcs::from_bytes(&content[MAGIC_BYTES..])?;
         Ok(manifest)
     }
+}
+
+/// Builds the remote object store handle, using the unsigned HTTP path when
+/// `no_sign_request` is set.
+fn make_remote_store(config: &ObjectStoreConfig) -> anyhow::Result<Arc<dyn ObjectStoreGetExt>> {
+    if config.no_sign_request {
+        config.make_http()
+    } else {
+        Ok(Arc::new(config.make()?))
+    }
+}
+
+/// The latest formal-snapshot epoch published to `remote_store_config`, read
+/// from the bucket's root MANIFEST. The MANIFEST lists only completed
+/// snapshots, so the returned epoch is always safe to read.
+pub async fn latest_available_epoch(
+    remote_store_config: &ObjectStoreConfig,
+) -> anyhow::Result<u64> {
+    let remote_object_store = make_remote_store(remote_store_config)?;
+    let bytes = remote_object_store
+        .get_bytes(&get_path(MANIFEST_FILENAME))
+        .await?;
+    let manifest = RootManifest::from_bytes(&bytes)?;
+    manifest
+        .available_epochs
+        .iter()
+        .map(|(epoch, _)| *epoch)
+        .max()
+        .ok_or_else(|| anyhow::anyhow!("no snapshot found in root MANIFEST"))
 }
 
 /// An iterator over all object refs in a .ref file.
@@ -640,23 +747,23 @@ impl ObjectRefIter {
         let mut reader = file_metadata.file_compression.decompress(&file_path)?;
         let magic = reader.read_u32::<BigEndian>()?;
         if magic != REFERENCE_FILE_MAGIC {
-            bail!("Unexpected magic string in REFERENCE file: {:?}", magic)
+            bail!("Unexpected magic string in REFERENCE file: {magic:?}")
         } else {
             Ok(ObjectRefIter { reader })
         }
     }
 
-    fn next_ref(&mut self) -> Result<ObjectRef> {
+    fn next_ref(&mut self) -> Result<ObjectReference> {
         let mut buf = [0u8; OBJECT_REF_BYTES];
         self.reader.read_exact(&mut buf)?;
         let object_id = &buf[0..OBJECT_ID_BYTES];
-        let sequence_number = &buf[OBJECT_ID_BYTES..OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES]
+        let version = &buf[OBJECT_ID_BYTES..OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES]
             .reader()
             .read_u64::<BigEndian>()?;
         let sha3_digest = &buf[OBJECT_ID_BYTES + SEQUENCE_NUM_BYTES..OBJECT_REF_BYTES];
-        let object_ref = ObjectRef::new(
+        let object_ref = ObjectReference::new(
             ObjectId::from_bytes(object_id)?,
-            SequenceNumber::from_u64(*sequence_number),
+            Version::from_u64(*version),
             ObjectDigest::from_bytes(sha3_digest)?,
         );
         Ok(object_ref)
@@ -664,7 +771,7 @@ impl ObjectRefIter {
 }
 
 impl Iterator for ObjectRefIter {
-    type Item = ObjectRef;
+    type Item = ObjectReference;
     fn next(&mut self) -> Option<Self::Item> {
         self.next_ref().ok()
     }
@@ -680,7 +787,7 @@ impl LiveObjectIter {
         let mut reader = file_metadata.file_compression.bytes_decompress(bytes)?;
         let magic = reader.read_u32::<BigEndian>()?;
         if magic != OBJECT_FILE_MAGIC {
-            bail!("Unexpected magic string in object file: {:?}", magic)
+            bail!("Unexpected magic string in object file: {magic:?}")
         } else {
             Ok(LiveObjectIter { reader })
         }
@@ -698,7 +805,8 @@ impl LiveObjectIter {
             data,
             encoding: BlobEncoding::try_from(encoding)?,
         };
-        blob.decode()
+        let snap: SnapshotLiveObject = blob.decode()?;
+        Ok(snap.into())
     }
 }
 

@@ -7,11 +7,8 @@ use std::{str::FromStr, sync::Arc};
 use diesel::prelude::*;
 use iota_json_rpc_types::{BcsEvent, IotaEvent, type_and_fields_from_move_event_data};
 use iota_package_resolver::{PackageStore, Resolver};
-use iota_sdk_types::{Identifier, ObjectId};
-use iota_types::{
-    base_types::IotaAddress, digests::TransactionDigest, event::EventID,
-    object::bounded_visitor::BoundedVisitor, parse_iota_struct_tag,
-};
+use iota_sdk_types::{Address, Identifier, ObjectId, TransactionDigest};
+use iota_types::{event::EventID, object::bounded_visitor::BoundedVisitor, parse_iota_struct_tag};
 
 use crate::{errors::IndexerError, schema::events, types::IndexedEvent};
 
@@ -90,7 +87,7 @@ impl StoredEvent {
             }
         };
         let sender = match sender {
-            Some(ref s) => IotaAddress::from_bytes(s).map_err(|_e| {
+            Some(ref s) => Address::from_bytes(s).map_err(|_e| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "Failed to parse event sender address: {sender:?}"
                 ))
@@ -102,9 +99,9 @@ impl StoredEvent {
             }
         };
 
-        let type_ = parse_iota_struct_tag(&self.event_type)?;
+        let tag = parse_iota_struct_tag(&self.event_type)?;
         let move_type_layout = package_resolver
-            .type_layout(type_.clone().into())
+            .type_layout(tag.clone().into())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(
@@ -129,7 +126,7 @@ impl StoredEvent {
             package_id,
             transaction_module: Identifier::from_str(&self.module)?,
             sender,
-            type_,
+            struct_tag: tag,
             bcs: BcsEvent::new(self.bcs),
             parsed_json,
             timestamp_ms: Some(self.timestamp_ms as u64),
@@ -149,9 +146,9 @@ mod tests {
         let event = Event {
             package_id: ObjectId::random(),
             module: Identifier::from_static("test"),
-            sender: IotaAddress::random(),
-            type_: StructTag::new(
-                IotaAddress::FRAMEWORK,
+            sender: Address::random(),
+            struct_tag: StructTag::new(
+                Address::FRAMEWORK,
                 Identifier::from_static("test"),
                 Identifier::from_static("test"),
                 vec![],

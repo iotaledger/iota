@@ -7,9 +7,9 @@ use std::sync::{Arc, Weak};
 use iota_types::{
     error::{IotaError, IotaResult},
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
-    transaction::VerifiedCertificate,
+    transaction::{SenderSignedTransactionAPI, VerifiedCertificate},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use starfish_core::BlockRef;
 use tokio::{
     sync::{mpsc, oneshot},

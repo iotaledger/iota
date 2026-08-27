@@ -91,21 +91,21 @@ public fun tx_commands(_ctx: &AuthContext): &vector<Command> {
     native_tx_commands()
 }
 
-/// Returns `bcs::to_bytes(TransactionData)`.
+/// Returns `bcs::to_bytes(Transaction)`.
 public fun tx_data_bytes(_ctx: &AuthContext): &vector<u8> {
     native_tx_data_bytes()
 }
 
-/// Returns `bcs::to_bytes(IntentMessage<TransactionData>)`, i.e., the IOTA
-/// transaction intent bytes prepended to the BCS-serialized TransactionData.
+/// Returns `bcs::to_bytes(IntentMessage<Transaction>)`, i.e., the IOTA
+/// transaction intent bytes prepended to the BCS-serialized Transaction.
 public fun intent_tx_data_bytes(ctx: &AuthContext): vector<u8> {
     let mut result = intent::iota_transaction().to_bytes();
     result.append(*ctx.tx_data_bytes());
     result
 }
 
-/// Returns `Blake2b256(bcs::to_bytes(IntentMessage<TransactionData>))`.
-/// This is the message that protocol generic signatures sign over.
+/// Returns `Blake2b256(bcs::to_bytes(IntentMessage<Transaction>))`.
+/// This is the message that protocol user signatures sign over.
 public fun signing_digest(ctx: &AuthContext): vector<u8> {
     let intent_msg = ctx.intent_tx_data_bytes();
     hash::blake2b256(&intent_msg)

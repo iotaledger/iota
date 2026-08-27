@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_api::error_object_from_rpc;
-pub use iota_json_rpc_api::{TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSIENT_ERROR_CODE};
+pub use iota_json_rpc_api::{
+    TRANSACTION_EXECUTION_CLIENT_ERROR_CODE, TRANSACTION_NOT_FOUND_ERROR_CODE, TRANSIENT_ERROR_CODE,
+};
 use jsonrpsee::types::error::UNKNOWN_ERROR_CODE;
 use thiserror::Error;
 
@@ -51,6 +53,10 @@ impl Error {
     pub fn is_transient_error(&self) -> bool {
         self.code == TRANSIENT_ERROR_CODE
     }
+
+    pub fn is_transaction_not_found(&self) -> bool {
+        self.code == TRANSACTION_NOT_FOUND_ERROR_CODE
+    }
 }
 
 impl From<jsonrpsee::core::ClientError> for Error {
@@ -65,5 +71,25 @@ impl From<jsonrpsee::core::ClientError> for Error {
                 .data()
                 .map(|v| serde_json::from_str(v.get()).expect("raw json is always valid")),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Error, TRANSACTION_NOT_FOUND_ERROR_CODE};
+
+    #[test]
+    fn transaction_not_found_has_dedicated_classification() {
+        let error = Error {
+            code: TRANSACTION_NOT_FOUND_ERROR_CODE,
+            message: "Transaction not found".to_string(),
+            data: None,
+        };
+
+        assert!(error.is_call_error());
+        assert!(!error.is_client_error());
+        assert!(error.is_transaction_not_found());
+        assert!(!error.is_execution_error());
+        assert!(!error.is_transient_error());
     }
 }

@@ -9,26 +9,24 @@ use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{ObjectId, Owner, TypeTag, crypto::Intent};
-use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
-    crypto::Signature,
-    move_authenticator::MoveAuthenticator,
-    signature::GenericSignature,
-    transaction::{CallArg, SharedObjectRef, TransactionData},
+use iota_sdk_types::{
+    Address, MoveAuthenticatorV1, ObjectId, Owner, SharedObjectReference, Transaction, TypeTag,
+    UserSignature, Version,
+    crypto::{Intent, SimpleSignature},
 };
+use iota_types::transaction::CallArg;
 use serde::Serialize;
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SignData {
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     // Base64 encoded string of serialized transaction data.
     pub raw_tx_data: String,
     // Intent struct used, see [struct Intent] for field definitions.
     pub intent: Intent,
     // Base64 encoded [struct IntentMessage] consisting of (intent || message)
-    // where message can be `TransactionData` etc.
+    // where message can be `Transaction` etc.
     pub raw_intent_msg: String,
     // Base64 encoded blake2b hash of the intent message, this is what the signature commits to.
     pub digest: String,
@@ -69,10 +67,10 @@ impl fmt::Display for ExternalKeySource {
 
 pub(crate) async fn sign_transaction(
     context: &mut WalletContext,
-    tx_data: &TransactionData,
-    signer_address: &IotaAddress,
+    tx: &Transaction,
+    signer_address: &Address,
     auth_args: Option<(Vec<CallArg>, Vec<TypeTag>)>,
-) -> Result<GenericSignature> {
+) -> Result<UserSignature> {
     let iota_client = context.get_client().await?;
     let key = context.config().keystore().get_key(signer_address)?;
 
@@ -88,16 +86,17 @@ pub(crate) async fn sign_transaction(
             let initial_shared_version =
                 get_shared_object_version(&iota_client, signer_address).await?;
 
-            Ok(GenericSignature::MoveAuthenticator(
-                MoveAuthenticator::new_v1(
+            Ok(UserSignature::MoveAuthenticator(
+                MoveAuthenticatorV1::new_with_shared_account_object(
                     auth_call_args,
                     auth_type_args,
-                    CallArg::Shared(SharedObjectRef::new(
-                        ObjectId::from(*signer_address),
+                    SharedObjectReference::new(
+                        (*signer_address).into(),
                         initial_shared_version,
                         false,
-                    )),
-                ),
+                    ),
+                )
+                .into(),
             ))
         }
         StoredKey::KeyPair(_) => {
@@ -109,7 +108,7 @@ pub(crate) async fn sign_transaction(
             Ok(context
                 .config()
                 .keystore()
-                .sign_secure(signer_address, tx_data, Intent::iota_transaction())?
+                .sign_secure(signer_address, tx, Intent::iota_transaction())?
                 .into())
         }
         StoredKey::External {
@@ -135,7 +134,7 @@ pub(crate) async fn sign_transaction(
                     // pass the transaction sender to the signer to ensure the correct
                     // key is used
                     Ok(signer
-                        .sign_transaction(tx_data, signer_address)
+                        .sign_transaction(tx, signer_address)
                         .await
                         .map(|s| s.signature)?
                         .into())
@@ -150,10 +149,10 @@ pub(crate) async fn sign_transaction(
 
 pub(crate) fn sign_secure<T>(
     keystore: &impl AccountKeystore,
-    address: &IotaAddress,
+    address: &Address,
     msg: &T,
     intent: Intent,
-) -> Result<Signature>
+) -> Result<SimpleSignature>
 where
     T: Serialize,
 {
@@ -195,8 +194,8 @@ where
 
 pub(crate) async fn get_shared_object_version(
     iota_client: &iota_sdk::IotaClient,
-    signer_address: &IotaAddress,
-) -> Result<SequenceNumber> {
+    signer_address: &Address,
+) -> Result<Version> {
     let object_response = iota_client
         .read_api()
         .get_object_with_options(

@@ -42,30 +42,46 @@ use bytes::Bytes;
 use itertools::Itertools;
 use parking_lot::RwLock;
 #[cfg(not(test))]
-use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
+use rand::prelude::SliceRandom as _;
+use rand::{SeedableRng as _, rngs::StdRng, thread_rng};
 use starfish_config::AuthorityIndex;
-use tokio::{sync::oneshot, task::JoinHandle, time::sleep};
+use tokio::{
+    sync::oneshot,
+    task::JoinHandle,
+    time::{Instant, sleep},
+};
 use tracing::{info, warn};
 
 use crate::{
     BlockRef, CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, SignedBlockHeader, TransactionsCommitment, VerifiedTransactions,
+        BlockHeaderAPI, CommitmentVerifiedTransactions, GENESIS_ROUND, SignedBlockHeader,
+        TransactionsCommitment,
     },
-    block_verifier::BlockVerifier,
-    commit::{Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef, TrustedCommit},
+    block_verifier::{BlockVerifier, serialized_transactions_size_limit},
+    commit::{
+        CertifiedCommits, Commit, CommitAPI as _, CommitDigest, CommitRange, CommitRef,
+        TrustedCommit,
+    },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::NetworkClient,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    transaction_ref::{GenericTransactionRefAPI, TransactionRef},
 };
+
+/// Allowed multiplicity of commit vote headers per authority in a
+/// fetch-commits response.
+// TODO: Reduce to 1 once all networks serve certifier votes deduplicated by
+// author, so a response never needs more than one header per authority.
+pub(crate) const MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY: usize = 2;
+
 pub(crate) enum CommitSyncType {
     Fast,
     Regular,
@@ -79,6 +95,19 @@ impl CommitSyncType {
         }
     }
 
+    /// Maximum number of commits a peer may return in a single fetch response.
+    /// This is the bound `verify_commits` enforces and the same bound the
+    /// streaming fetch loop applies before buffering. Fast sync extends past
+    /// the requested range end to reach a  certifiable commit, so it accepts up
+    /// to twice the batch size; regular sync stays within one batch.
+    pub(crate) fn max_commits_per_response(&self, context: &Context) -> usize {
+        let batch_size = self.commit_sync_batch_size(context) as usize;
+        match self {
+            CommitSyncType::Fast => 2 * batch_size,
+            CommitSyncType::Regular => batch_size,
+        }
+    }
+
     pub(crate) fn as_str(&self) -> &'static str {
         match self {
             CommitSyncType::Fast => "fast_commit_sync",
@@ -86,50 +115,66 @@ impl CommitSyncType {
         }
     }
 
+    /// Fetch source under which peer responsiveness is tracked. The two sync
+    /// types are tracked separately because they call different endpoints: fast
+    /// sync asks one request for the commits and their transactions and keeps
+    /// only the prefix the peer covered, while regular sync fetches headers and
+    /// transactions in requests of their own and tolerates a peer that returns
+    /// no transactions. A peer that consistently fails one may serve the other
+    /// well.
+    pub(crate) fn data_source(&self) -> DataSource {
+        match self {
+            CommitSyncType::Fast => DataSource::FastCommitSyncer,
+            CommitSyncType::Regular => DataSource::CommitSyncer,
+        }
+    }
+
     pub(crate) fn should_schedule(
         &self,
         gap: u32,
         commit_sync_gap_threshold: u32,
-        consensus_fast_commit_sync: bool,
+        fast_commit_sync_enabled: bool,
     ) -> bool {
         match self {
-            // Fast syncer requires consensus_fast_commit_sync to be enabled
-            CommitSyncType::Fast => consensus_fast_commit_sync && gap > commit_sync_gap_threshold,
-            // Regular syncer handles all gaps when consensus_fast_commit_sync is disabled,
-            // otherwise only handles small gaps
+            CommitSyncType::Fast => fast_commit_sync_enabled && gap > commit_sync_gap_threshold,
             CommitSyncType::Regular => {
-                !consensus_fast_commit_sync || gap <= commit_sync_gap_threshold
+                !fast_commit_sync_enabled || gap <= commit_sync_gap_threshold
             }
         }
     }
 }
 
-/// Verifies that fetched block headers match the requested block refs.
-/// Returns verified headers or an error if count/reference mismatch.
+/// Verifies that the fetched headers are exactly the requested ones, in any
+/// order. Requested refs must be distinct.
 pub(crate) fn verify_fetched_headers(
     peer: AuthorityIndex,
     request_block_refs: &[BlockRef],
     serialized_block_headers: Vec<Bytes>,
 ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
-    // 1. Verify count matches
-    if request_block_refs.len() != serialized_block_headers.len() {
-        return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-            authority: peer,
+    if serialized_block_headers.len() > request_block_refs.len() {
+        return Err(ConsensusError::TooManyFetchedHeadersReturned {
+            peer,
             requested: request_block_refs.len(),
-            received_headers: serialized_block_headers.len(),
+            received: serialized_block_headers.len(),
         });
     }
-
-    // 2. Verify each header's reference matches requested
+    if serialized_block_headers.len() < request_block_refs.len() {
+        return Err(ConsensusError::NotEnoughHeadersFetched {
+            peer,
+            requested: request_block_refs.len(),
+            received: serialized_block_headers.len(),
+        });
+    }
+    // Counts match, so consuming a distinct requested ref per header drains
+    // the set exactly when no header errors below.
+    let mut pending_refs: BTreeSet<BlockRef> = request_block_refs.iter().cloned().collect();
     serialized_block_headers
         .into_iter()
-        .zip(request_block_refs)
-        .map(|(serialized, requested_ref)| {
+        .map(|serialized| {
             let header = VerifiedBlockHeader::new_from_bytes(serialized)?;
-            if *requested_ref != header.reference() {
+            if !pending_refs.remove(&header.reference()) {
                 return Err(ConsensusError::UnexpectedBlockHeaderForCommit {
                     peer,
-                    requested: *requested_ref,
                     received: header.reference(),
                 });
             }
@@ -167,9 +212,7 @@ pub(crate) struct Inner<C: NetworkClient> {
     pub(crate) header_synchronizer: Arc<HeaderSynchronizerHandle>,
     pub(crate) misbehavior_store: Arc<MisbehaviorStore>,
     pub(crate) sync_type: CommitSyncType,
-    /// Present only when `FastCommitSyncer` is constructed (both the
-    /// protocol flag `consensus_fast_commit_sync` and the local flag
-    /// `enable_fast_commit_syncer` are on). The atomic is seeded at
+    /// Present only when `FastCommitSyncer` is enabled. The atomic is seeded at
     /// startup from the durable `DagState::fast_sync_ongoing()` flag so
     /// that a restart during fast sync correctly pauses regular syncing
     /// before fast sync's own loop has had a chance to run. After
@@ -180,15 +223,6 @@ pub(crate) struct Inner<C: NetworkClient> {
 }
 
 impl<C: NetworkClient> Inner<C> {
-    /// Calculates the threshold for unhandled commits to apply backpressure.
-    /// When the gap between synced and scheduled commits exceeds this
-    /// threshold, scheduling new fetches should pause to let the handler
-    /// catch up.
-    pub(crate) fn unhandled_commits_threshold(&self) -> CommitIndex {
-        self.context.parameters.commit_sync_batch_size
-            * (self.context.parameters.commit_sync_batches_ahead as u32)
-    }
-
     /// Verifies the commits and also certifies them using the provided vote
     /// blocks for the last commit. The method returns the trusted commits
     /// and the verified voting block headers.
@@ -222,11 +256,10 @@ pub(crate) fn check_commit_version_matches_flags(
     commit: &Commit,
     protocol_config: &iota_protocol_config::ProtocolConfig,
 ) -> ConsensusResult<()> {
-    let fast_commit_sync = protocol_config.consensus_fast_commit_sync();
     let starfish_speed = protocol_config.consensus_starfish_speed();
     let variant_matches_flags = matches!(
-        (commit, fast_commit_sync, starfish_speed),
-        (Commit::V1(_), false, false) | (Commit::V2(_), true, false) | (Commit::V3(_), true, true)
+        (commit, starfish_speed),
+        (Commit::V2(_), false) | (Commit::V3(_), true)
     );
     if !variant_matches_flags {
         let actual = match commit {
@@ -236,9 +269,41 @@ pub(crate) fn check_commit_version_matches_flags(
         };
         return Err(ConsensusError::WrongCommitVersionForFlags {
             actual,
-            fast_commit_sync,
             starfish_speed,
         });
+    }
+    Ok(())
+}
+
+/// Validates every `AuthorityIndex` carried by a fetched commit against the
+/// committee, so malformed indices are rejected at ingress with peer
+/// attribution instead of panicking later when commit content is indexed
+/// into per-authority state.
+fn verify_commit_authority_indices(
+    context: &Context,
+    peer: AuthorityIndex,
+    commit: &Commit,
+) -> ConsensusResult<()> {
+    let committee = &context.committee;
+    let check = |index: AuthorityIndex| -> ConsensusResult<()> {
+        if !committee.is_valid_index(index) {
+            return Err(ConsensusError::InvalidAuthorityIndexRequested {
+                index,
+                max: committee.size(),
+                peer,
+            });
+        }
+        Ok(())
+    };
+    check(commit.leader().author)?;
+    for block_ref in commit.block_headers() {
+        check(block_ref.author)?;
+    }
+    for transaction_ref in commit.committed_transactions() {
+        check(transaction_ref.author())?;
+    }
+    for (index, _) in commit.reputation_scores() {
+        check(*index)?;
     }
     Ok(())
 }
@@ -266,12 +331,29 @@ pub(crate) fn verify_commits(
         });
     }
 
+    // One vote header per authority certifies a commit, but servers that do
+    // not dedup votes by author may legitimately serve a few more (e.g. an
+    // author re-including its vote in a block after crash recovery), so allow
+    // some multiplicity while still bounding signature verification work.
+    let max_vote_headers = context
+        .committee
+        .size()
+        .saturating_mul(MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY);
+    if serialized_vote_blocks_headers.len() > max_vote_headers {
+        return Err(ConsensusError::TooManyCommitVoteHeaders {
+            peer,
+            count: serialized_vote_blocks_headers.len(),
+            limit: max_vote_headers,
+        });
+    }
+
     // Parse and verify commits.
     let mut commits = Vec::new();
     for serialized in &serialized_commits {
         let commit: Commit =
             bcs::from_bytes(serialized).map_err(ConsensusError::MalformedCommit)?;
         check_commit_version_matches_flags(&commit, &context.protocol_config)?;
+        verify_commit_authority_indices(context, peer, &commit)?;
         let digest = TrustedCommit::compute_digest(serialized);
         if commits.is_empty() {
             // start is inclusive, so first commit must be at the start index.
@@ -311,11 +393,11 @@ pub(crate) fn verify_commits(
             .map_err(ConsensusError::MalformedHeader)
             .inspect_err(|e| {
                 // Author is unknown when deserialization fails — blame the peer.
-                misbehavior_store.record_faulty_block_header(peer, peer, e);
+                misbehavior_store.record_faulty_block(peer, peer, e);
             })?;
         // The block signature needs to be verified.
         if let Err(e) = block_verifier.verify(&signed_block_header) {
-            misbehavior_store.record_faulty_block_header(peer, signed_block_header.author(), &e);
+            misbehavior_store.record_faulty_block(peer, signed_block_header.author(), &e);
             return Err(e);
         }
         for vote in signed_block_header.commit_votes() {
@@ -347,89 +429,36 @@ pub(crate) fn verify_commits(
     Ok((trusted_commits, verified_voting_headers))
 }
 
-/// Verifies transactions against their block headers and returns a map of
-/// BlockRef to VerifiedTransactions.
-pub(crate) fn verify_transactions_with_headers(
-    context: Arc<Context>,
+/// Verifies each payload against the transactions commitment in its ref and
+/// returns the payloads keyed by transaction reference.
+pub(crate) fn verify_transactions_commitments(
+    context: &Arc<Context>,
     peer: AuthorityIndex,
-    serialized_transactions: BTreeMap<GenericTransactionRef, Bytes>,
-    block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
-) -> ConsensusResult<BTreeMap<GenericTransactionRef, VerifiedTransactions>> {
+    serialized_transactions: BTreeMap<TransactionRef, Bytes>,
+) -> ConsensusResult<BTreeMap<TransactionRef, CommitmentVerifiedTransactions>> {
     let mut verified_transactions_map = BTreeMap::new();
-    let mut encoder = create_encoder(&context);
-    for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
-        let block_ref = match committed_transactions_ref {
-            GenericTransactionRef::BlockRef(br) => br,
-            _ => {
-                return Err(ConsensusError::TransactionRefVariantMismatch {
-                    protocol_flag_enabled: false,
-                    expected_variant: "BlockRef",
-                    received_variant: "TransactionRef",
-                });
-            }
-        };
-        // Step 1: Get the block header and verify that the transactions commitment
-        // matches. This ensures the transactions we received are exactly
-        // the ones that were included in the block when it was created.
-        let block_header = block_headers
-            .get(&block_ref)
-            .ok_or(ConsensusError::MissingBlockHeader { block_ref })?;
-
-        if block_header.transactions_commitment()
-            != TransactionsCommitment::compute_transactions_commitment(
-                &inner_serialized_transactions,
-                &context,
-                &mut encoder,
-            )?
-        {
-            return Err(ConsensusError::TransactionCommitmentFailure {
-                round: block_ref.round,
-                author: block_ref.author,
+    let mut encoder = create_encoder(context);
+    let size_limit = serialized_transactions_size_limit(context);
+    for (transaction_ref, inner_serialized_transactions) in serialized_transactions {
+        // Range-check the peer-supplied author and round before any consumer
+        // indexes the committee by author.
+        if !context.committee.is_valid_index(transaction_ref.author) {
+            return Err(ConsensusError::InvalidAuthorityIndexRequested {
+                index: transaction_ref.author,
+                max: context.committee.size(),
                 peer,
             });
         }
-
-        // Step 2: Deserialize the actual transactions vector.
-        let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
-            .map_err(ConsensusError::MalformedTransactions)?;
-
-        // Step 3: Create a VerifiedTransactions instance and insert into map
-        let verified_transactions = VerifiedTransactions::new(
-            transactions,
-            TransactionRef::new(block_ref, block_header.transactions_commitment()),
-            Some(block_ref.digest),
-            inner_serialized_transactions,
-        );
-
-        verified_transactions_map.insert(
-            GenericTransactionRef::BlockRef(block_ref),
-            verified_transactions,
-        );
-    }
-
-    Ok(verified_transactions_map)
-}
-
-/// Verifies transactions against their transaction refs and returns a map of
-/// BlockRef to VerifiedTransactions.
-pub(crate) fn verify_transactions_with_transactions_refs(
-    context: &Arc<Context>,
-    peer: AuthorityIndex,
-    serialized_transactions: BTreeMap<GenericTransactionRef, Bytes>,
-) -> ConsensusResult<BTreeMap<GenericTransactionRef, VerifiedTransactions>> {
-    let mut verified_transactions_map = BTreeMap::new();
-    let mut encoder = create_encoder(context);
-    for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
-        let transaction_ref = match committed_transactions_ref {
-            GenericTransactionRef::TransactionRef(tx_ref) => tx_ref,
-            _ => {
-                return Err(ConsensusError::TransactionRefVariantMismatch {
-                    protocol_flag_enabled: true,
-                    expected_variant: "TransactionRef",
-                    received_variant: "BlockRef",
-                });
-            }
-        };
+        if transaction_ref.round == GENESIS_ROUND {
+            return Err(ConsensusError::UnexpectedGenesisRequested { peer });
+        }
+        // Bound the peer-supplied payload before erasure-encoding it.
+        if inner_serialized_transactions.len() > size_limit {
+            return Err(ConsensusError::SerializedTransactionsTooLarge {
+                size: inner_serialized_transactions.len(),
+                limit: size_limit,
+            });
+        }
         // Step 1: Verify that the transaction commitment matches.
         if transaction_ref.transactions_commitment
             != TransactionsCommitment::compute_transactions_commitment(
@@ -449,21 +478,40 @@ pub(crate) fn verify_transactions_with_transactions_refs(
         let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
             .map_err(ConsensusError::MalformedTransactions)?;
 
-        // Step 3: Create a VerifiedTransactions instance and insert into map
-        let verified_transactions = VerifiedTransactions::new(
+        // Step 3: Create a CommitmentVerifiedTransactions instance and insert into map
+        let verified_transactions = CommitmentVerifiedTransactions::new(
             transactions,
             transaction_ref,
             None,
             inner_serialized_transactions,
         );
 
-        verified_transactions_map.insert(
-            GenericTransactionRef::TransactionRef(transaction_ref),
-            verified_transactions,
-        );
+        verified_transactions_map.insert(transaction_ref, verified_transactions);
     }
 
     Ok(verified_transactions_map)
+}
+
+/// How much of a requested commit range a fetch response actually delivered.
+/// Implemented by both syncers' payload types so [`fetch_loop`] can scale the
+/// latency it feeds to [`crate::peer_responsiveness::PeerResponsiveness`].
+pub(crate) trait FetchedCommits {
+    fn delivered_commits(&self) -> usize;
+}
+
+impl FetchedCommits for CertifiedCommits {
+    fn delivered_commits(&self) -> usize {
+        self.commits().len()
+    }
+}
+
+/// Factor by which a peer's measured latency is inflated when it delivered less
+/// than the full requested range. A peer that answers a large request with a
+/// short prefix is as costly as a slow one, because the remainder has to be
+/// fetched again, so it must not rank as fast. Never below 1.0: fast sync may
+/// legitimately return more commits than requested.
+pub(crate) fn shortfall_factor(requested: usize, delivered: usize) -> f64 {
+    (requested as f64 / delivered.max(1) as f64).max(1.0)
 }
 
 /// Generic fetch loop that retries fetching data from available authorities
@@ -495,7 +543,7 @@ pub(crate) async fn fetch_loop<C, T, F, Fut>(
 ) -> (CommitIndex, T)
 where
     C: NetworkClient,
-    T: Send,
+    T: Send + FetchedCommits,
     F: Fn(Arc<Inner<C>>, AuthorityIndex, CommitRange, Duration) -> Fut,
     Fut: std::future::Future<Output = ConsensusResult<T>> + Send,
 {
@@ -506,12 +554,21 @@ where
     const TIMEOUT: Duration = Duration::from_millis(500);
     // Max per-request timeout will be base timeout times a multiplier.
     // At the extreme, this means there will be 120s timeout to fetch
-    // max_blocks_per_fetch blocks.
+    // max_headers_per_commit_sync_fetch headers.
     const MAX_TIMEOUT_MULTIPLIER: u32 = 12;
     // timeout * max number of targets should be reasonably small, so the
     // system can adjust to slow network or large data sizes quickly.
     const MAX_NUM_TARGETS: usize = 24;
     let mut timeout_multiplier = 0;
+
+    // A failed attempt is reported at this fixed scale rather than at the
+    // escalating `fetch_timeout` below. The tracker keeps the worst latency it
+    // has seen for a peer and only decays it on success, so feeding the
+    // escalated value would leave a peer looking slow for many rounds after it
+    // recovered.
+    let failure_penalty = TIMEOUT * fetch_timeout_multiplier;
+    let data_source = inner.sync_type.data_source();
+    let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
 
     let _timer = inner
         .context
@@ -538,8 +595,49 @@ where
                 }
             })
             .collect_vec();
-        #[cfg(not(test))]
-        target_authorities.shuffle(&mut ThreadRng::default());
+        // Ranking runs before the truncation, so the peers actually tried are
+        // the best-ranked ones rather than a random subset of a committee
+        // larger than MAX_NUM_TARGETS. This changes which peers are reached in
+        // a round: a peer whose last attempt failed is ordered last and can
+        // fall outside the cut. That is safe here because a single peer serving
+        // the range is enough, one success clears the failed state, and the
+        // exploration fraction keeps drawing every peer - though on a committee
+        // much larger than MAX_NUM_TARGETS a given peer comes back slowly.
+        if inner.context.parameters.enable_peer_responsiveness_ranking {
+            inner.context.peer_responsiveness.prioritize(
+                data_source,
+                &mut target_authorities,
+                &mut rng,
+            );
+        } else {
+            #[cfg(not(test))]
+            target_authorities.shuffle(&mut rng);
+        }
+        // A peer that has voted for the end of the range has solidified every
+        // commit in it, so it is the one worth asking. A peer that has not may
+        // still serve the range: votes are only seen from blocks we received,
+        // and serving additionally needs the certifying headers in the peer's
+        // storage. So it is ordered behind, keeping the order chosen above
+        // within each group. Since the truncation below runs after this, a
+        // committee with more voters than MAX_NUM_TARGETS fills every round
+        // with voters, and a peer whose headers do not reach us is not asked
+        // until they do. Accepted: rounds retry forever over the up-to-24 peers
+        // that provably solidified the range, and any header from a
+        // behind-listed peer carrying a recent commit vote promotes it
+        // immediately.
+        if inner
+            .context
+            .parameters
+            .enable_commit_sync_peer_selection_by_commit_votes
+        {
+            let (caught_up, behind): (Vec<_>, Vec<_>) =
+                target_authorities.into_iter().partition(|authority| {
+                    inner
+                        .commit_vote_monitor
+                        .has_voted_for_commit(*authority, commit_range.end())
+                });
+            target_authorities = caught_up.into_iter().chain(behind).collect();
+        }
         target_authorities.truncate(MAX_NUM_TARGETS);
         // Increase timeout multiplier for each loop until MAX_TIMEOUT_MULTIPLIER.
         timeout_multiplier = (timeout_multiplier + 1).min(MAX_TIMEOUT_MULTIPLIER);
@@ -548,6 +646,9 @@ where
         let fetch_timeout = request_timeout * fetch_timeout_multiplier;
         // Try fetching from the selected target authority.
         for authority in target_authorities {
+            // Spans fetch and verification, so the cost of checking what a peer
+            // sent counts against it rather than only its time on the wire.
+            let started = Instant::now();
             match tokio::time::timeout(
                 fetch_timeout,
                 fetch_once_fn(
@@ -560,6 +661,20 @@ where
             .await
             {
                 Ok(Ok(data)) => {
+                    // A failure is the ceiling of the scale: however short the
+                    // delivery, a peer that returned something never records
+                    // worse than one that failed.
+                    inner.context.peer_responsiveness.record_success(
+                        data_source,
+                        authority,
+                        started
+                            .elapsed()
+                            .mul_f64(shortfall_factor(
+                                commit_range.size(),
+                                data.delivered_commits(),
+                            ))
+                            .min(failure_penalty),
+                    );
                     info!(
                         "[{}] Finished fetching commits in {commit_range:?}",
                         inner.sync_type.as_str()
@@ -567,6 +682,10 @@ where
                     return (commit_range.end(), data);
                 }
                 Ok(Err(e)) => {
+                    inner
+                        .context
+                        .peer_responsiveness
+                        .record_failure_with_timeout(data_source, authority, failure_penalty);
                     let hostname = inner
                         .context
                         .committee
@@ -588,6 +707,10 @@ where
                         .inc();
                 }
                 Err(_) => {
+                    inner
+                        .context
+                        .peer_responsiveness
+                        .record_failure_with_timeout(data_source, authority, failure_penalty);
                     let hostname = inner
                         .context
                         .committee
@@ -808,26 +931,125 @@ pub(crate) fn requeue_partial_range(
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::{
+        Round,
+        block_header::{BlockHeaderDigest, TestBlockHeader},
         block_verifier::NoopBlockVerifier,
         commit::{CommitV1, CommitV2, CommitV3},
+        network::BlockBundleStream,
+        transaction_ref::TransactionRef,
     };
+
+    /// Fake `NetworkClient` for commit syncer tests, serving preset responses.
+    /// With no preset response, `fetch_commits_and_transactions` fails the
+    /// fetch, while the other fetch endpoints panic as unimplemented.
+    #[derive(Default)]
+    pub(crate) struct FakeNetworkClient {
+        pub(crate) commits_and_transactions: Option<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>,
+        /// When set, the canned response is served as a stream cut by this
+        /// error, the way the tonic client reports a mid-stream failure.
+        pub(crate) stream_error_message: Option<String>,
+        /// Waited out before answering, so a test can pin the latency the fetch
+        /// loop records.
+        pub(crate) response_delay: Duration,
+        /// Every peer asked for commits, in the order it was asked.
+        pub(crate) requested_peers: parking_lot::Mutex<Vec<AuthorityIndex>>,
+        /// Preset `fetch_commits` response: commits and certifier headers.
+        pub(crate) commits: Option<(Vec<Bytes>, Vec<Bytes>)>,
+        /// Preset `fetch_block_headers` response.
+        pub(crate) block_headers: Option<Vec<Bytes>>,
+        /// Preset `fetch_transactions` response.
+        pub(crate) transactions: Option<Vec<Bytes>>,
+    }
+
+    #[async_trait::async_trait]
+    impl NetworkClient for FakeNetworkClient {
+        async fn subscribe_block_bundles(
+            &self,
+            _peer: AuthorityIndex,
+            _last_received: Round,
+            _timeout: Duration,
+        ) -> ConsensusResult<BlockBundleStream> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn fetch_transactions(
+            &self,
+            _peer: AuthorityIndex,
+            _transaction_refs: Vec<TransactionRef>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            match &self.transactions {
+                Some(response) => Ok(response.clone()),
+                None => unimplemented!("Unimplemented"),
+            }
+        }
+
+        async fn fetch_block_headers(
+            &self,
+            _peer: AuthorityIndex,
+            _block_refs: Vec<BlockRef>,
+            _highest_accepted_rounds: Vec<Round>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            match &self.block_headers {
+                Some(response) => Ok(response.clone()),
+                None => unimplemented!("Unimplemented"),
+            }
+        }
+
+        async fn fetch_commits(
+            &self,
+            peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+            self.requested_peers.lock().push(peer);
+            match &self.commits {
+                Some(response) => Ok(response.clone()),
+                None => unimplemented!("Unimplemented"),
+            }
+        }
+
+        async fn fetch_commits_and_transactions(
+            &self,
+            peer: AuthorityIndex,
+            _commit_range: CommitRange,
+            _timeout: Duration,
+        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)> {
+            self.requested_peers.lock().push(peer);
+            sleep(self.response_delay).await;
+            match &self.commits_and_transactions {
+                Some((commits, headers, transactions)) => Ok((
+                    commits.clone(),
+                    headers.clone(),
+                    transactions.clone(),
+                    self.stream_error_message
+                        .clone()
+                        .map(ConsensusError::NetworkRequest),
+                )),
+                None => Err(ConsensusError::NoCommitReceived { peer }),
+            }
+        }
+
+        async fn fetch_latest_block_headers(
+            &self,
+            _peer: AuthorityIndex,
+            _authorities: Vec<AuthorityIndex>,
+            _timeout: Duration,
+        ) -> ConsensusResult<Vec<Bytes>> {
+            unimplemented!("Unimplemented")
+        }
+    }
 
     /// Builds a single-commit byte stream from `commit` and runs it through
     /// `verify_commits` with the two protocol flags set as specified. The
     /// version check fires before the index check, so the default commit
     /// index of 0 is fine here.
-    fn run_verify(
-        commit: Commit,
-        fast_commit_sync_on: bool,
-        starfish_speed_on: bool,
-    ) -> ConsensusResult<()> {
+    fn run_verify(commit: Commit, starfish_speed_on: bool) -> ConsensusResult<()> {
         let (mut context, _) = Context::new_for_test(4);
-        context
-            .protocol_config
-            .set_consensus_fast_commit_sync_for_testing(fast_commit_sync_on);
         context
             .protocol_config
             .set_consensus_starfish_speed_for_testing(starfish_speed_on);
@@ -848,30 +1070,275 @@ mod tests {
     }
 
     #[rstest::rstest]
-    #[case::v1_with_fast_on(Commit::V1(CommitV1::default()), true, false, "V1")]
-    #[case::v1_with_starfish_on(Commit::V1(CommitV1::default()), true, true, "V1")]
-    #[case::v2_with_fast_off(Commit::V2(CommitV2::default()), false, false, "V2")]
-    #[case::v2_with_starfish_on(Commit::V2(CommitV2::default()), true, true, "V2")]
-    #[case::v3_with_fast_off(Commit::V3(CommitV3::default()), false, false, "V3")]
-    #[case::v3_with_starfish_off(Commit::V3(CommitV3::default()), true, false, "V3")]
+    #[case::v1_with_starfish_off(Commit::V1(CommitV1::default()), false, "V1")]
+    #[case::v1_with_starfish_on(Commit::V1(CommitV1::default()), true, "V1")]
+    #[case::v2_with_starfish_on(Commit::V2(CommitV2::default()), true, "V2")]
+    #[case::v3_with_starfish_off(Commit::V3(CommitV3::default()), false, "V3")]
     #[tokio::test]
     async fn verify_commits_rejects_wrong_version(
         #[case] commit: Commit,
-        #[case] fast_commit_sync_on: bool,
         #[case] starfish_speed_on: bool,
         #[case] expected_variant: &'static str,
     ) {
-        let result = run_verify(commit, fast_commit_sync_on, starfish_speed_on);
+        let result = run_verify(commit, starfish_speed_on);
         let Err(ConsensusError::WrongCommitVersionForFlags {
             actual,
-            fast_commit_sync,
             starfish_speed,
         }) = result
         else {
             panic!("expected WrongCommitVersionForFlags, got {result:?}");
         };
         assert_eq!(actual, expected_variant);
-        assert_eq!(fast_commit_sync, fast_commit_sync_on);
         assert_eq!(starfish_speed, starfish_speed_on);
+    }
+
+    #[tokio::test]
+    async fn verify_commits_rejects_out_of_range_authority_index() {
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_starfish_speed_for_testing(false);
+        let context = Arc::new(context);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let invalid_author = AuthorityIndex::new_for_test(4);
+        let leader = BlockRef::new(1, invalid_author, BlockHeaderDigest::MIN);
+        let commit = Commit::new(
+            &context,
+            1,
+            CommitDigest::MIN,
+            0,
+            leader,
+            vec![leader],
+            vec![],
+            vec![],
+            false,
+        );
+        let serialized = commit.serialize().unwrap();
+
+        let result = verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            &misbehavior_store,
+            peer,
+            CommitRange::new(1..=1),
+            vec![serialized],
+            vec![],
+            10,
+        );
+        assert!(matches!(
+            result,
+            Err(ConsensusError::InvalidAuthorityIndexRequested {
+                index,
+                max,
+                peer: error_peer,
+            }) if index == invalid_author && max == 4 && error_peer == peer
+        ));
+    }
+
+    #[tokio::test]
+    async fn verify_transactions_commitments_rejects_oversized_payload_before_encoding() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let size_limit = serialized_transactions_size_limit(&context);
+        let transaction_ref = TransactionRef {
+            round: 1,
+            author: AuthorityIndex::new_for_test(0),
+            transactions_commitment: TransactionsCommitment::MIN,
+        };
+        let serialized_transactions =
+            BTreeMap::from([(transaction_ref, Bytes::from(vec![0u8; size_limit + 1]))]);
+
+        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::SerializedTransactionsTooLarge { size, limit })
+                if size == size_limit + 1 && limit == size_limit
+        ));
+    }
+
+    #[tokio::test]
+    async fn verify_transactions_commitments_rejects_out_of_range_author() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let out_of_range_author = AuthorityIndex::new_for_test(context.committee.size() as u8);
+
+        let inner_serialized_transactions =
+            Bytes::from(bcs::to_bytes(&Vec::<Transaction>::new()).unwrap());
+        let mut encoder = create_encoder(&context);
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &inner_serialized_transactions,
+            &context,
+            &mut encoder,
+        )
+        .unwrap();
+        let transaction_ref = TransactionRef {
+            round: 1,
+            author: out_of_range_author,
+            transactions_commitment,
+        };
+        let serialized_transactions =
+            BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
+
+        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::InvalidAuthorityIndexRequested {
+                index,
+                max,
+                peer: error_peer,
+            }) if index == out_of_range_author && max == context.committee.size() && error_peer == peer
+        ));
+    }
+
+    #[tokio::test]
+    async fn verify_transactions_commitments_rejects_genesis_round() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+
+        let inner_serialized_transactions =
+            Bytes::from(bcs::to_bytes(&Vec::<Transaction>::new()).unwrap());
+        let mut encoder = create_encoder(&context);
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &inner_serialized_transactions,
+            &context,
+            &mut encoder,
+        )
+        .unwrap();
+        let transaction_ref = TransactionRef {
+            round: GENESIS_ROUND,
+            author: AuthorityIndex::new_for_test(0),
+            transactions_commitment,
+        };
+        let serialized_transactions =
+            BTreeMap::from([(transaction_ref, inner_serialized_transactions)]);
+
+        let result = verify_transactions_commitments(&context, peer, serialized_transactions);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::UnexpectedGenesisRequested { peer: error_peer })
+                if error_peer == peer
+        ));
+    }
+
+    #[tokio::test]
+    async fn verify_commits_rejects_excessive_vote_headers_before_parsing() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let peer = AuthorityIndex::new_for_test(1);
+        let misbehavior_store = MisbehaviorStore::new(&context);
+        let limit = context.committee.size() * MAX_COMMIT_VOTE_HEADERS_PER_AUTHORITY;
+        let result = verify_commits(
+            &context,
+            &NoopBlockVerifier,
+            &misbehavior_store,
+            peer,
+            CommitRange::new(1..=1),
+            vec![],
+            vec![Bytes::new(); limit + 1],
+            10,
+        );
+
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyCommitVoteHeaders {
+                peer: error_peer,
+                count,
+                limit: error_limit,
+            }) if error_peer == peer && count == limit + 1 && error_limit == limit
+        ));
+    }
+
+    #[test]
+    fn shortfall_factor_penalizes_short_responses() {
+        assert_eq!(shortfall_factor(10, 10), 1.0);
+        assert_eq!(shortfall_factor(10, 2), 5.0);
+        // Fast sync may return more commits than requested.
+        assert_eq!(shortfall_factor(10, 20), 1.0);
+        // Never divides by zero, even though the fetch paths reject empty
+        // responses before reaching this point.
+        assert_eq!(shortfall_factor(10, 0), 10.0);
+    }
+
+    /// `n` distinct serialized test headers and their refs.
+    fn test_headers(n: u8) -> (Vec<BlockRef>, Vec<Bytes>) {
+        (0..n)
+            .map(|i| {
+                let header = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(1, i).build());
+                (header.reference(), header.serialized().clone())
+            })
+            .unzip()
+    }
+
+    #[test]
+    fn verify_fetched_headers_accepts_exact_set_in_any_order() {
+        let (refs, mut headers) = test_headers(3);
+        headers.swap(0, 2);
+        let verified =
+            verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, headers).unwrap();
+        assert_eq!(verified.len(), 3);
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_unrequested_header() {
+        let (refs, headers) = test_headers(3);
+        let response = vec![headers[0].clone(), headers[2].clone()];
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs[..2], response);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::UnexpectedBlockHeaderForCommit { .. })
+        ));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_duplicate_header() {
+        let (refs, headers) = test_headers(2);
+        let response = vec![headers[0].clone(), headers[0].clone()];
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, response);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::UnexpectedBlockHeaderForCommit { .. })
+        ));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_malformed_header() {
+        let (refs, headers) = test_headers(2);
+        let response = vec![headers[0].clone(), Bytes::from_static(b"garbage")];
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, response);
+        assert!(matches!(result, Err(ConsensusError::MalformedHeader(_))));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_extra_headers_before_parsing() {
+        let (refs, mut headers) = test_headers(2);
+        headers.push(Bytes::from_static(b"garbage"));
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, headers);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::TooManyFetchedHeadersReturned {
+                requested: 2,
+                received: 3,
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn verify_fetched_headers_rejects_missing_headers() {
+        let (refs, mut headers) = test_headers(2);
+        headers.truncate(1);
+        let result = verify_fetched_headers(AuthorityIndex::new_for_test(1), &refs, headers);
+        assert!(matches!(
+            result,
+            Err(ConsensusError::NotEnoughHeadersFetched {
+                requested: 2,
+                received: 1,
+                ..
+            })
+        ));
     }
 }

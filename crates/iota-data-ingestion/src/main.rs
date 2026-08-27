@@ -4,10 +4,10 @@
 
 use std::{collections::BTreeSet, env, path::PathBuf, time::Duration};
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use iota_data_ingestion::{
-    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, HistoricalReducer,
-    HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker, common,
+    BlobTaskConfig, BlobWorker, HistoricalReducer, HistoricalWriterConfig, KVStoreTaskConfig,
+    KVStoreWorker, RelayWorker, common,
 };
 use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionLimit, ReaderOptions,
@@ -17,14 +17,13 @@ use iota_data_ingestion_core::{
 use iota_grpc_client::Client;
 use iota_kvstore::{BigTableClient, KvWorker, Table};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 #[serde(rename_all = "kebab-case")]
 enum Task {
-    Archival(ArchivalConfig),
     Blob(BlobTaskConfig),
     BigTableKv(BigTableTaskConfig),
     Kv(KVStoreTaskConfig),
@@ -64,10 +63,12 @@ struct IndexerConfig {
     /// The inclusive sequence number of the checkpoint to end ingestion at.
     #[serde(skip_serializing_if = "Option::is_none")]
     end_checkpoint: Option<CheckpointSequenceNumber>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    remote_store_url: Option<String>,
+    #[serde(rename = "remote-store", skip_serializing_if = "Option::is_none")]
+    remote_store_url: Option<RemoteStoreUrl>,
     #[serde(default = "default_remote_read_batch_size")]
     remote_read_batch_size: usize,
+    #[serde(default = "default_remote_read_timeout_secs")]
+    remote_read_timeout_secs: u64,
     #[serde(default = "default_metrics_host")]
     metrics_host: String,
     #[serde(default = "default_metrics_port")]
@@ -84,6 +85,42 @@ fn default_metrics_port() -> u16 {
 
 fn default_remote_read_batch_size() -> usize {
     100
+}
+
+/// Returns the default remote read timeout in seconds.
+///
+/// This targets primarily the hybrid historical store.
+///
+/// The default value is 120 seconds.
+fn default_remote_read_timeout_secs() -> u64 {
+    120
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all_fields = "kebab-case")]
+enum RemoteStoreUrl {
+    #[serde(rename = "fullnode-url")]
+    Fullnode(String),
+    #[serde(rename = "hybrid")]
+    HybridHistoricalStore {
+        historical_url: String,
+        live_url: Option<String>,
+    },
+}
+
+impl From<RemoteStoreUrl> for RemoteUrl {
+    fn from(value: RemoteStoreUrl) -> Self {
+        match value {
+            RemoteStoreUrl::Fullnode(url) => RemoteUrl::Fullnode(url),
+            RemoteStoreUrl::HybridHistoricalStore {
+                historical_url,
+                live_url,
+            } => RemoteUrl::HybridHistoricalStore {
+                historical_url,
+                live_url,
+            },
+        }
+    }
 }
 
 fn setup_env(token: CancellationToken) {
@@ -145,25 +182,10 @@ async fn main() -> Result<()> {
         IndexerExecutor::new(progress_store, config.tasks.len(), metrics, child_token);
     for task_config in config.tasks {
         match task_config.task {
-            Task::Archival(archival_config) => {
-                let reducer = ArchivalReducer::new(archival_config).await?;
-                executor
-                    .update_watermark(task_config.name.clone(), reducer.get_watermark().await?)
-                    .await?;
-                let worker_pool = WorkerPool::new_with_reducer(
-                    RelayWorker,
-                    task_config.name,
-                    task_config.concurrency,
-                    Default::default(),
-                    reducer,
-                );
-                executor.register(worker_pool).await?;
-            }
             Task::Blob(blob_config) => {
-                let url = config
-                    .remote_store_url
-                    .as_ref()
-                    .ok_or(anyhow!("Blob worker type requires remote store URL"))?;
+                let Some(RemoteStoreUrl::Fullnode(url)) = config.remote_store_url.as_ref() else {
+                    anyhow::bail!("Blob worker type requires a fullnode remote store URL");
+                };
 
                 let grpc_client = Client::new(url)?;
                 let watermark = executor.read_watermark(task_config.name.clone()).await?;
@@ -210,12 +232,12 @@ async fn main() -> Result<()> {
                 }
 
                 let client = if let Some(emulator_host) = kv_config.emulator_host {
-                    std::env::set_var("BIGTABLE_EMULATOR_HOST", &emulator_host);
                     BigTableClient::new_local(
+                        &emulator_host,
+                        "iota-data-ingestion",
                         kv_config.instance_id,
                         kv_config.column_family.clone(),
-                    )
-                    .await?
+                    )?
                 } else {
                     BigTableClient::new_remote(
                         kv_config.instance_id,
@@ -226,6 +248,7 @@ async fn main() -> Result<()> {
                         None,
                     )
                     .await?
+                    .with_backoff(BigTableClient::default_backoff())
                 };
 
                 let kv_worker = match kv_config.tables.filter(|s| !s.is_empty()) {
@@ -273,11 +296,12 @@ async fn main() -> Result<()> {
 
     let reader_options = ReaderOptions {
         batch_size: config.remote_read_batch_size,
+        timeout_secs: config.remote_read_timeout_secs,
         ..Default::default()
     };
 
     let config = CheckpointReaderConfig {
-        remote_store_url: config.remote_store_url.map(RemoteUrl::Fullnode),
+        remote_store_url: config.remote_store_url.map(Into::into),
         ingestion_path: Some(config.path),
         reader_options,
     };

@@ -11,17 +11,20 @@ use std::{
 };
 
 use anyhow::Result;
+use fastcrypto::ed25519::Ed25519KeyPair;
 use iota_keys::keypair_file::{read_authority_keypair_from_file, read_keypair_from_file};
+use iota_metrics::MetricGroups;
+use iota_multiaddr::Multiaddr;
 use iota_names::config::IotaNamesConfig;
+use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::IotaAddress,
     committee::EpochId,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, KeypairTraits,
-        NetworkKeyPair, get_key_pair_from_rng,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, KeypairTraits,
+        NetworkKeyPair, get_key_pair_from_rng, simple_to_network_keypair,
     },
     messages_checkpoint::CheckpointSequenceNumber,
-    multiaddr::Multiaddr,
     supported_protocol_versions::{Chain, SupportedProtocolVersions},
     traffic_control::{PolicyConfig, RemoteFirewallConfig},
 };
@@ -37,14 +40,14 @@ use crate::{
     transaction_deny_config::TransactionDenyConfig, verifier_signing_config::VerifierSigningConfig,
 };
 
-// Default max number of concurrent requests served
-pub const DEFAULT_GRPC_CONCURRENCY_LIMIT: usize = 20000000000;
-
 /// Default gas price of 1000 Nanos
 pub const DEFAULT_VALIDATOR_GAS_PRICE: u64 = iota_types::transaction::DEFAULT_VALIDATOR_GAS_PRICE;
 
 /// Default commission rate of 2%
 pub const DEFAULT_COMMISSION_RATE: u64 = 200;
+
+/// Default budget in MiB for the in-memory full-checkpoint-contents cache.
+pub const DEFAULT_FULL_CHECKPOINT_CONTENTS_CACHE_SIZE_MB: usize = 1024;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
@@ -102,14 +105,30 @@ pub struct NodeConfig {
     /// - 'both' for both a websocket and http based service (deprecated)
     pub jsonrpc_server_type: Option<ServerType>,
 
-    /// Flag to enable gRPC load shedding to manage and
-    /// mitigate overload conditions by shedding excess
-    /// load with `LoadShedLayer` middleware.
+    /// Flag to enable gRPC load shedding: requests over a service's
+    /// concurrency limit are rejected immediately with `RESOURCE_EXHAUSTED`
+    /// instead of waiting for a slot.
     #[serde(default)]
     pub grpc_load_shed: Option<bool>,
 
-    #[serde(default = "default_concurrency_limit")]
-    pub grpc_concurrency_limit: Option<usize>,
+    /// Maximum number of concurrent in-flight requests per CPU core, applied
+    /// to each service of the validator gRPC server separately (`Validator`,
+    /// `ValidatorV2`, `ValidatorPeer`), so a flood of client transaction
+    /// submissions cannot crowd validator-peer RPCs out of admission slots.
+    /// The effective per-service limit is this value multiplied by the CPU
+    /// cores of the machine at server startup, so the same config file scales
+    /// with the hardware.
+    ///
+    /// Most request time is spent awaiting locks, I/O or consensus rather
+    /// than on-CPU, so the default ceiling is generous: it bounds total
+    /// in-flight work so a request flood cannot grow queues and memory
+    /// without limit, it does not throttle normal load. Operators wanting
+    /// hard load-shedding can lower it and set `grpc_load_shed`.
+    ///
+    /// A value of zero is rejected at config load: it would not disable the
+    /// limit, it would block every request.
+    #[serde(default = "default_grpc_concurrency_limit_per_core")]
+    pub grpc_concurrency_limit_per_core: NonZeroUsize,
 
     /// Configuration struct for P2P.
     #[serde(default)]
@@ -151,12 +170,6 @@ pub struct NodeConfig {
     #[serde(skip)]
     pub supported_protocol_versions: Option<SupportedProtocolVersions>,
 
-    /// Configuration to manage database checkpoints,
-    /// including whether to perform checkpoints at the end of an epoch,
-    /// the path for storing checkpoints, and other related settings.
-    #[serde(default)]
-    pub db_checkpoint_config: DBCheckpointConfig,
-
     /// Configuration for enabling/disabling expensive safety checks.
     #[serde(default)]
     pub expensive_safety_check_config: ExpensiveSafetyCheckConfig,
@@ -180,14 +193,8 @@ pub struct NodeConfig {
     #[serde(default)]
     pub state_debug_dump_config: StateDebugDumpConfig,
 
-    /// Configuration for writing state archive. If `ObjectStorage`
-    /// config is provided, `ArchiveWriter` will be created
-    /// for checkpoints archival.
     #[serde(default)]
-    pub state_archive_write_config: StateArchiveConfig,
-
-    #[serde(default)]
-    pub state_archive_read_config: Vec<StateArchiveConfig>,
+    pub checkpoint_archive_config: Option<CheckpointArchiveConfig>,
 
     /// Determines if snapshot should be uploaded to the remote storage.
     #[serde(default)]
@@ -214,9 +221,13 @@ pub struct NodeConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub run_with_range: Option<RunWithRange>,
 
-    // For killswitch use None
+    /// Traffic control policy. For killswitch use None.
+    ///
+    /// With the key absent the default denial-of-service protection policy
+    /// applies, an explicit `null` turns traffic control off, and a value
+    /// configures it.
     #[serde(
-        skip_serializing_if = "Option::is_none",
+        skip_serializing_if = "is_default_traffic_controller_policy_config",
         default = "default_traffic_controller_policy_config"
     )]
     pub policy_config: Option<PolicyConfig>,
@@ -227,8 +238,29 @@ pub struct NodeConfig {
     #[serde(default)]
     pub execution_cache_config: ExecutionCacheConfig,
 
+    /// Memory budget in MiB for the in-memory cache of full checkpoint
+    /// contents, which serves the checkpoint executor's bulk transaction
+    /// loads and checkpoint-contents requests from state-sync peers. When
+    /// the budget is exceeded, the oldest checkpoints are evicted first.
+    /// Set to 0 to disable the cache; consumers then fall back to
+    /// reconstructing contents from the transaction and effects stores.
+    ///
+    /// The budget is accounted in serialized (BCS) bytes; the resident
+    /// memory of a full cache is somewhat higher than the configured value
+    /// due to in-memory representation overhead.
+    #[serde(default = "default_full_checkpoint_contents_cache_size_mb")]
+    pub full_checkpoint_contents_cache_size_mb: usize,
+
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
+
+    /// Enables the pre-consensus soft-locking mechanism used by the
+    /// certificate-less (pcool) transaction flow (default: enabled).
+    ///
+    /// When disabled, post-consensus validation alone resolves owned-object
+    /// conflicts. Has no effect unless the pcool flow is enabled.
+    #[serde(default = "bool_true")]
+    pub enable_soft_locking: bool,
 
     #[serde(default)]
     pub verifier_signing_config: VerifierSigningConfig,
@@ -245,9 +277,14 @@ pub struct NodeConfig {
     /// Flag to enable the gRPC API.
     #[serde(default)]
     pub enable_grpc_api: bool,
+    /// Configuration of the gRPC API, read when `enable_grpc_api` is set.
+    ///
+    /// With the key absent the default configuration applies, an explicit
+    /// `null` leaves the API unconfigured — a node with `enable-grpc-api` set
+    /// then fails to start — and a value configures it.
     #[serde(
         default = "default_grpc_api_config",
-        skip_serializing_if = "Option::is_none"
+        skip_serializing_if = "is_default_grpc_api_config"
     )]
     pub grpc_api_config: Option<GrpcApiConfig>,
 
@@ -329,6 +366,15 @@ pub struct GrpcApiConfig {
     #[serde(default = "default_grpc_api_max_simulate_transaction_batch_size")]
     pub max_simulate_transaction_batch_size: u32,
 
+    /// Maximum number of objects allowed in a single GetObjects batch request.
+    #[serde(default = "default_grpc_api_max_get_objects_batch_size")]
+    pub max_get_objects_batch_size: u32,
+
+    /// Maximum number of transactions allowed in a single GetTransactions batch
+    /// request.
+    #[serde(default = "default_grpc_api_max_get_transactions_batch_size")]
+    pub max_get_transactions_batch_size: u32,
+
     /// Maximum allowed timeout in milliseconds for waiting for checkpoint
     /// inclusion in ExecuteTransactions requests. Client-specified timeouts
     /// are clamped to this value.
@@ -364,6 +410,14 @@ fn default_grpc_api_max_simulate_transaction_batch_size() -> u32 {
     20
 }
 
+fn default_grpc_api_max_get_objects_batch_size() -> u32 {
+    1000
+}
+
+fn default_grpc_api_max_get_transactions_batch_size() -> u32 {
+    1000
+}
+
 fn default_grpc_api_max_checkpoint_inclusion_timeout_ms() -> u64 {
     60_000 // 60 seconds
 }
@@ -381,6 +435,8 @@ impl Default for GrpcApiConfig {
             ),
             max_simulate_transaction_batch_size:
                 default_grpc_api_max_simulate_transaction_batch_size(),
+            max_get_objects_batch_size: default_grpc_api_max_get_objects_batch_size(),
+            max_get_transactions_batch_size: default_grpc_api_max_get_transactions_batch_size(),
             max_checkpoint_inclusion_timeout_ms:
                 default_grpc_api_max_checkpoint_inclusion_timeout_ms(),
         }
@@ -468,6 +524,16 @@ pub struct WritebackCacheConfig {
     /// if unset.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub backpressure_threshold_for_rpc: Option<u64>, // defaults to backpressure_threshold
+
+    /// Percentage of `backpressure_threshold` at which graduated load shedding
+    /// based on writeback-cache pending transaction count begins. The
+    /// locally-calculated shedding percentage increases linearly from 0% at
+    /// `backpressure_threshold * backpressure_soft_limit_pct / 100` up to
+    /// 100% at the `backpressure_threshold` if the cache size continues to
+    /// increase. The calculated shedding percentage is broadcast to other
+    /// validators for a coordinated response. Defaults to 50.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backpressure_soft_limit_pct: Option<u32>,
 }
 
 impl WritebackCacheConfig {
@@ -566,6 +632,15 @@ impl WritebackCacheConfig {
             .or(self.backpressure_threshold_for_rpc)
             .unwrap_or(self.backpressure_threshold())
     }
+
+    pub fn backpressure_soft_limit_pct(&self) -> u32 {
+        std::env::var("IOTA_CACHE_WRITEBACK_BACKPRESSURE_SOFT_LIMIT_PCT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.backpressure_soft_limit_pct)
+            .unwrap_or(50)
+            .min(100)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize)]
@@ -623,11 +698,7 @@ fn default_authority_key_pair() -> AuthorityKeyPairWithPath {
 }
 
 fn default_key_pair() -> KeyPairWithPath {
-    KeyPairWithPath::new(
-        get_key_pair_from_rng::<AccountKeyPair, _>(&mut OsRng)
-            .1
-            .into(),
-    )
+    KeyPairWithPath::new(AccountPrivateKey::random().into())
 }
 
 fn default_metrics_address() -> SocketAddr {
@@ -646,20 +717,36 @@ pub fn default_grpc_api_config() -> Option<GrpcApiConfig> {
     Some(GrpcApiConfig::default())
 }
 
-pub fn default_concurrency_limit() -> Option<usize> {
-    Some(DEFAULT_GRPC_CONCURRENCY_LIMIT)
+fn is_default_grpc_api_config(grpc_api_config: &Option<GrpcApiConfig>) -> bool {
+    serializes_like(grpc_api_config, &default_grpc_api_config())
+}
+
+/// Returns whether `value` and `default` serialize to the same YAML.
+///
+/// Meant for `skip_serializing_if` predicates, which cannot report an error: a
+/// value that fails to serialize is reported as unlike the default, so the
+/// field is kept and the failure surfaces when serializing the field itself.
+fn serializes_like<T: Serialize>(value: &T, default: &T) -> bool {
+    match (serde_yaml::to_string(value), serde_yaml::to_string(default)) {
+        (Ok(value), Ok(default)) => value == default,
+        _ => false,
+    }
+}
+
+pub fn default_grpc_concurrency_limit_per_core() -> NonZeroUsize {
+    NonZeroUsize::new(1000).unwrap()
 }
 
 pub fn default_end_of_epoch_broadcast_channel_capacity() -> usize {
     128
 }
 
-pub fn bool_true() -> bool {
-    true
+pub fn default_full_checkpoint_contents_cache_size_mb() -> usize {
+    DEFAULT_FULL_CHECKPOINT_CONTENTS_CACHE_SIZE_MB
 }
 
-fn is_true(value: &bool) -> bool {
-    *value
+pub fn bool_true() -> bool {
+    true
 }
 
 impl Config for NodeConfig {}
@@ -670,21 +757,11 @@ impl NodeConfig {
     }
 
     pub fn protocol_key_pair(&self) -> &NetworkKeyPair {
-        match self.protocol_key_pair.keypair() {
-            IotaKeyPair::Ed25519(kp) => kp,
-            other => {
-                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for protocol key")
-            }
-        }
+        self.protocol_key_pair.ed25519_keypair()
     }
 
     pub fn network_key_pair(&self) -> &NetworkKeyPair {
-        match self.network_key_pair.keypair() {
-            IotaKeyPair::Ed25519(kp) => kp,
-            other => {
-                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for network key")
-            }
-        }
+        self.network_key_pair.ed25519_keypair()
     }
 
     pub fn authority_public_key(&self) -> AuthorityPublicKeyBytes {
@@ -697,10 +774,6 @@ impl NodeConfig {
 
     pub fn db_checkpoint_path(&self) -> PathBuf {
         self.db_path.join("db_checkpoints")
-    }
-
-    pub fn archive_path(&self) -> PathBuf {
-        self.db_path.join("archive")
     }
 
     pub fn snapshot_path(&self) -> PathBuf {
@@ -732,25 +805,15 @@ impl NodeConfig {
         Ok(migration_tx_data)
     }
 
-    pub fn iota_address(&self) -> IotaAddress {
-        (&self.account_key_pair.keypair().public()).into()
+    pub fn iota_address(&self) -> Address {
+        self.account_key_pair
+            .keypair()
+            .public_key()
+            .derive_address()
     }
 
-    pub fn archive_reader_config(&self) -> Vec<ArchiveReaderConfig> {
-        self.state_archive_read_config
-            .iter()
-            .flat_map(|config| {
-                config
-                    .object_store_config
-                    .as_ref()
-                    .map(|remote_store_config| ArchiveReaderConfig {
-                        remote_store_config: remote_store_config.clone(),
-                        download_concurrency: NonZeroUsize::new(config.concurrency)
-                            .unwrap_or(NonZeroUsize::new(5).unwrap()),
-                        use_for_pruning_watermark: config.use_for_pruning_watermark,
-                    })
-            })
-            .collect()
+    pub fn checkpoint_archive_config(&self) -> Option<&CheckpointArchiveConfig> {
+        self.checkpoint_archive_config.as_ref()
     }
 
     pub fn jsonrpc_server_type(&self) -> ServerType {
@@ -761,19 +824,26 @@ impl NodeConfig {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ConsensusConfig {
-    // Base consensus DB path for all epochs.
+    /// Base consensus DB path for all epochs.
     pub db_path: PathBuf,
 
-    // The number of epochs for which to retain the consensus DBs. Setting it to 0 will make a
-    // consensus DB getting dropped as soon as system is switched to a new epoch.
+    /// The number of epochs for which to retain the consensus DBs.
+    /// Setting it to 0 will make a consensus DB getting dropped
+    /// as soon as system is switched to a new epoch.
     pub db_retention_epochs: Option<u64>,
 
-    // Pruner will run on every epoch change but it will also check periodically on every
-    // `db_pruner_period_secs` seconds to see if there are any epoch DBs to remove.
+    /// Pruner will run on every epoch change but it will also check
+    /// periodically on every `db_pruner_period_secs` seconds to see
+    /// if there are any epoch DBs to remove.
     pub db_pruner_period_secs: Option<u64>,
 
-    /// Maximum number of pending transactions to submit to consensus, including
-    /// those in submission wait.
+    /// Hard limit on the number of pending transactions to submit to
+    /// consensus, including those in submission wait. Used as the upper
+    /// bound for graduated pre-consensus load shedding
+    /// (`graduated_load_shedding_soft_limit_pct`) in the certificate-less
+    /// (P-COOL) mode, and as the threshold for the binary
+    /// cutoff in `ConsensusAdapter::check_consensus_overload()` in both
+    /// certificate-less and certificate-based flows.
     ///
     /// Default to 20_000 inflight limit, assuming 20_000 txn tps * 1 sec
     /// consensus latency.
@@ -796,6 +866,14 @@ pub struct ConsensusConfig {
     /// Parameters for Starfish consensus
     #[serde(skip_serializing_if = "Option::is_none", alias = "starfish_parameters")]
     pub parameters: Option<StarfishParameters>,
+
+    /// Percentage of `max_pending_transactions` (hard limit) defining the soft
+    /// limit at which graduated pre-consensus load shedding begins. When
+    /// in-flight transactions are at or below the soft limit, no shedding
+    /// occurs; above it, the shedding rate scales linearly from 0% to 100% at
+    /// `max_pending_transactions`. Used in the certificate-less (P-COOL) mode.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub graduated_load_shedding_soft_limit_pct: Option<u32>,
 }
 
 impl ConsensusConfig {
@@ -803,8 +881,21 @@ impl ConsensusConfig {
         &self.db_path
     }
 
+    /// Returns the hard limit on the number of pending transactions to submit
+    /// to consensus, including those in submission wait. Defaults to 20_000
+    /// inflight limit, assuming 20_000 txn tps * 1 sec consensus latency.
     pub fn max_pending_transactions(&self) -> usize {
         self.max_pending_transactions.unwrap_or(20_000)
+    }
+
+    /// Returns the percentage of `max_pending_transactions` (hard limit)
+    /// defining the soft limit at which graduated pre-consensus load
+    /// shedding begins. Defaults to 50%. Used in the certificate-less
+    /// (P-COOL) mode.
+    pub fn graduated_load_shedding_soft_limit_pct(&self) -> u32 {
+        self.graduated_load_shedding_soft_limit_pct
+            .unwrap_or(50)
+            .min(100)
     }
 
     pub fn submit_delay_step_override(&self) -> Option<Duration> {
@@ -965,31 +1056,23 @@ pub struct AuthorityStorePruningConfig {
     /// Use `u64::MAX` to disable the pruner for the objects.
     #[serde(default)]
     pub num_epochs_to_retain: u64,
-    /// pruner's runtime interval used for aggressive mode
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub pruning_run_delay_seconds: Option<u64>,
-    /// maximum number of checkpoints in the pruning batch. Can be adjusted to
-    /// increase performance
-    #[serde(default = "default_max_checkpoints_in_batch")]
-    pub max_checkpoints_in_batch: usize,
-    /// maximum number of transaction in the pruning batch
-    #[serde(default = "default_max_transactions_in_batch")]
-    pub max_transactions_in_batch: usize,
     /// enables periodic background compaction for old SST files whose last
     /// modified time is older than `periodic_compaction_threshold_days`
     /// days. That ensures that all sst files eventually go through the
     /// compaction process
+    ///
+    /// With the key absent files older than a day are compacted, an explicit
+    /// `null` turns periodic compaction off, and a value sets the threshold in
+    /// days.
     #[serde(
         default = "default_periodic_compaction_threshold_days",
-        skip_serializing_if = "Option::is_none"
+        skip_serializing_if = "is_default_periodic_compaction_threshold_days"
     )]
     pub periodic_compaction_threshold_days: Option<usize>,
     /// number of epochs to keep the latest version of transactions and effects
     /// for
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
-    #[serde(default = "default_smoothing", skip_serializing_if = "is_true")]
-    pub smooth: bool,
     /// Enables the compaction filter for pruning the objects table.
     /// If disabled, a range deletion approach is used instead.
     /// While it is generally safe to switch between the two modes,
@@ -1005,20 +1088,12 @@ fn default_num_latest_epoch_dbs_to_retain() -> usize {
     3
 }
 
-fn default_max_transactions_in_batch() -> usize {
-    1000
-}
-
-fn default_max_checkpoints_in_batch() -> usize {
-    10
-}
-
-fn default_smoothing() -> bool {
-    cfg!(not(test))
-}
-
 fn default_periodic_compaction_threshold_days() -> Option<usize> {
     Some(1)
+}
+
+fn is_default_periodic_compaction_threshold_days(days: &Option<usize>) -> bool {
+    *days == default_periodic_compaction_threshold_days()
 }
 
 impl Default for AuthorityStorePruningConfig {
@@ -1026,12 +1101,8 @@ impl Default for AuthorityStorePruningConfig {
         Self {
             num_latest_epoch_dbs_to_retain: default_num_latest_epoch_dbs_to_retain(),
             num_epochs_to_retain: 0,
-            pruning_run_delay_seconds: if cfg!(msim) { Some(2) } else { None },
-            max_checkpoints_in_batch: default_max_checkpoints_in_batch(),
-            max_transactions_in_batch: default_max_transactions_in_batch(),
-            periodic_compaction_threshold_days: None,
+            periodic_compaction_threshold_days: default_periodic_compaction_threshold_days(),
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
-            smooth: true,
             enable_compaction_filter: cfg!(test) || cfg!(msim),
             num_epochs_to_retain_for_indexes: None,
         }
@@ -1068,39 +1139,52 @@ pub struct MetricsConfig {
     pub push_interval_seconds: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub push_url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub groups: Option<MetricGroups>,
 }
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize)]
+fn default_checkpoint_archive_download_concurrency() -> NonZeroUsize {
+    NonZeroUsize::new(10).unwrap()
+}
+
+fn default_checkpoint_archive_verify_concurrency() -> NonZeroUsize {
+    std::thread::available_parallelism().unwrap_or(NonZeroUsize::new(4).unwrap())
+}
+
+fn default_checkpoint_archive_max_checkpoints_ahead_of_execution() -> NonZeroUsize {
+    NonZeroUsize::new(100_000).unwrap()
+}
+
+/// Configuration for backfilling checkpoint contents from the
+/// checkpoint archive when peers no longer serve the required range.
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct DBCheckpointConfig {
-    #[serde(default)]
-    pub perform_db_checkpoints_at_epoch_end: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub checkpoint_path: Option<PathBuf>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub object_store_config: Option<ObjectStoreConfig>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub perform_index_db_checkpoints_at_epoch_end: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prune_and_compact_before_upload: Option<bool>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ArchiveReaderConfig {
-    pub remote_store_config: ObjectStoreConfig,
+pub struct CheckpointArchiveConfig {
+    /// URL of the checkpoint archive to backfill from.
+    pub url: String,
+    /// Non-zero number of checkpoints to download in parallel.
+    #[serde(default = "default_checkpoint_archive_download_concurrency")]
     pub download_concurrency: NonZeroUsize,
-    pub use_for_pruning_watermark: bool,
+    /// Non-zero number of downloaded checkpoints to verify in parallel.
+    /// Defaults to the number of CPU cores.
+    #[serde(default = "default_checkpoint_archive_verify_concurrency")]
+    pub verify_concurrency: NonZeroUsize,
+    /// Pause downloading from the archive while the synced watermark is this
+    /// many checkpoints ahead of the executed watermark, and resume once
+    /// execution catches up. Bounds the disk space held by checkpoints that
+    /// are synced but not yet executed, since only executed checkpoints can
+    /// be pruned.
+    #[serde(default = "default_checkpoint_archive_max_checkpoints_ahead_of_execution")]
+    pub max_checkpoints_ahead_of_execution: NonZeroUsize,
 }
 
-#[derive(Default, Debug, Clone, Deserialize, Serialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct StateArchiveConfig {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub object_store_config: Option<ObjectStoreConfig>,
-    pub concurrency: usize,
-    pub use_for_pruning_watermark: bool,
-}
-
+/// Configuration for the per-epoch state-snapshot publisher.
+///
+/// **Operator note (V2 snapshot publishing).** A node configured to publish
+/// V2 snapshots must have a perpetual store containing no pre-V2
+/// (`StoreObjectV1`) rows. This means a snapshot-publishing node must have
+/// either synced from genesis under V2 or been restored from a V2 snapshot.
+/// There is no on-disk backfill: a fresh sync is the only supported path.
 #[derive(Default, Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct StateSnapshotConfig {
@@ -1127,54 +1211,74 @@ pub struct TransactionKeyValueStoreWriteConfig {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct AuthorityOverloadConfig {
+    /// Maximum time a transaction can wait in the transaction manager execution
+    /// queue before it triggers an overload detection on the object it depends
+    /// on.
     #[serde(default = "default_max_txn_age_in_queue")]
     pub max_txn_age_in_queue: Duration,
 
-    // The interval of checking overload signal.
+    /// The interval of checking overload signal.
     #[serde(default = "default_overload_monitor_interval")]
     pub overload_monitor_interval: Duration,
 
-    // The execution queueing latency when entering load shedding mode.
+    /// The execution queueing latency when entering load shedding mode.
     #[serde(default = "default_execution_queue_latency_soft_limit")]
     pub execution_queue_latency_soft_limit: Duration,
 
-    // The execution queueing latency when entering aggressive load shedding mode.
+    /// The execution queueing latency when entering aggressive load shedding
+    /// mode.
     #[serde(default = "default_execution_queue_latency_hard_limit")]
     pub execution_queue_latency_hard_limit: Duration,
 
-    // The maximum percentage of transactions to shed in load shedding mode.
+    /// The maximum percentage of transactions to shed in load shedding mode.
     #[serde(default = "default_max_load_shedding_percentage")]
     pub max_load_shedding_percentage: u32,
 
-    // When in aggressive load shedding mode, the minimum percentage of
-    // transactions to shed.
+    /// When in aggressive load shedding mode, the minimum percentage of
+    /// transactions to shed.
     #[serde(default = "default_min_load_shedding_percentage_above_hard_limit")]
     pub min_load_shedding_percentage_above_hard_limit: u32,
 
-    // If transaction ready rate is below this rate, we consider the validator
-    // is well under used, and will not enter load shedding mode.
+    /// If transaction ready rate is below this rate, we consider the validator
+    /// is well under used, and will not enter load shedding mode.
     #[serde(default = "default_safe_transaction_ready_rate")]
     pub safe_transaction_ready_rate: u32,
 
-    // When set to true, transaction signing may be rejected when the validator
-    // is overloaded.
+    /// When set to true, transaction signing may be rejected when the validator
+    /// is overloaded.
     #[serde(default = "default_check_system_overload_at_signing")]
     pub check_system_overload_at_signing: bool,
 
-    // When set to true, transaction execution may be rejected when the validator
-    // is overloaded.
+    /// When set to true, transaction execution may be rejected when the
+    /// validator is overloaded.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub check_system_overload_at_execution: bool,
 
-    // Reject a transaction if transaction manager queue length is above this threshold.
-    // 100_000 = 10k TPS * 5s resident time in transaction manager (pending + executing) * 2.
+    /// Reject a transaction if transaction manager queue length is above this
+    /// threshold. 100_000 = 10k TPS * 5s resident time in transaction
+    /// manager (pending + executing) * 2.
     #[serde(default = "default_max_transaction_manager_queue_length")]
     pub max_transaction_manager_queue_length: usize,
 
-    // Reject a transaction if the number of pending transactions depending on the object
-    // is above the threshold.
+    /// Reject a transaction if the number of pending transactions depending on
+    /// the object is above the threshold.
     #[serde(default = "default_max_transaction_manager_per_object_queue_length")]
     pub max_transaction_manager_per_object_queue_length: usize,
+
+    /// Percentage of `max_transaction_manager_queue_length` at which graduated
+    /// load shedding begins in the certificate-less (P-COOL) mode. Read
+    /// via the same-named accessor, which clamps the value to <=100.
+    #[serde(default = "default_max_transaction_manager_queue_length_soft_limit_pct")]
+    pub max_transaction_manager_queue_length_soft_limit_pct: u32,
+}
+
+impl AuthorityOverloadConfig {
+    /// Returns the soft-limit percentage, clamped to <=100 to guard against
+    /// out-of-range operator-supplied values.
+    pub fn max_transaction_manager_queue_length_soft_limit_pct(&self) -> u32 {
+        self.max_transaction_manager_queue_length_soft_limit_pct
+            .min(100)
+    }
 }
 
 fn default_max_txn_age_in_queue() -> Duration {
@@ -1213,6 +1317,10 @@ fn default_max_transaction_manager_queue_length() -> usize {
     100_000
 }
 
+fn default_max_transaction_manager_queue_length_soft_limit_pct() -> u32 {
+    50
+}
+
 fn default_max_transaction_manager_per_object_queue_length() -> usize {
     20
 }
@@ -1231,6 +1339,8 @@ impl Default for AuthorityOverloadConfig {
             check_system_overload_at_signing: true,
             check_system_overload_at_execution: false,
             max_transaction_manager_queue_length: default_max_transaction_manager_queue_length(),
+            max_transaction_manager_queue_length_soft_limit_pct:
+                default_max_transaction_manager_queue_length_soft_limit_pct(),
             max_transaction_manager_per_object_queue_length:
                 default_max_transaction_manager_per_object_queue_length(),
         }
@@ -1243,6 +1353,10 @@ fn default_authority_overload_config() -> AuthorityOverloadConfig {
 
 fn default_traffic_controller_policy_config() -> Option<PolicyConfig> {
     Some(PolicyConfig::default_dos_protection_policy())
+}
+
+fn is_default_traffic_controller_policy_config(policy_config: &Option<PolicyConfig>) -> bool {
+    serializes_like(policy_config, &default_traffic_controller_policy_config())
 }
 
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
@@ -1305,32 +1419,62 @@ enum GenesisLocation {
     },
 }
 
-/// Wrapper struct for IotaKeyPair that can be deserialized from a file path.
+/// Wrapper struct for SimpleKeypair that can be deserialized from a file path.
 /// Used by network, worker, and account keypair.
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct KeyPairWithPath {
     #[serde(flatten)]
     location: KeyPairLocation,
 
     #[serde(skip)]
-    keypair: OnceCell<Arc<IotaKeyPair>>,
+    keypair: OnceCell<Arc<SimpleKeypair>>,
+
+    // The consensus/network stacks borrow their key as `&Ed25519KeyPair`
+    // (fastcrypto), while the key itself is stored as an SDK `SimpleKeypair`
+    // above. Converting on each access would return an owned value, which
+    // can't back the `&`-returning accessors, so the converted key is cached
+    // here. Never populated for account keys.
+    #[serde(skip)]
+    ed25519_keypair: OnceCell<Arc<Ed25519KeyPair>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, Eq)]
+impl PartialEq for KeyPairWithPath {
+    fn eq(&self, other: &Self) -> bool {
+        self.location == other.location
+    }
+}
+
+impl Eq for KeyPairWithPath {}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(untagged)]
 enum KeyPairLocation {
     InPlace {
         #[serde(with = "bech32_formatted_keypair")]
-        value: Arc<IotaKeyPair>,
+        value: Arc<SimpleKeypair>,
     },
     File {
         path: PathBuf,
     },
 }
 
+impl PartialEq for KeyPairLocation {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::InPlace { value: a }, Self::InPlace { value: b }) => {
+                a.to_bytes() == b.to_bytes()
+            }
+            (Self::File { path: a }, Self::File { path: b }) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for KeyPairLocation {}
+
 impl KeyPairWithPath {
-    pub fn new(kp: IotaKeyPair) -> Self {
-        let cell: OnceCell<Arc<IotaKeyPair>> = OnceCell::new();
+    pub fn new(kp: SimpleKeypair) -> Self {
+        let cell: OnceCell<Arc<SimpleKeypair>> = OnceCell::new();
         let arc_kp = Arc::new(kp);
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
@@ -1338,24 +1482,26 @@ impl KeyPairWithPath {
         Self {
             location: KeyPairLocation::InPlace { value: arc_kp },
             keypair: cell,
+            ed25519_keypair: OnceCell::new(),
         }
     }
 
     pub fn new_from_path(path: PathBuf) -> Self {
-        let cell: OnceCell<Arc<IotaKeyPair>> = OnceCell::new();
+        let cell: OnceCell<Arc<SimpleKeypair>> = OnceCell::new();
         // OK to unwrap panic because authority should not start without all keypairs
         // loaded.
         cell.set(Arc::new(read_keypair_from_file(&path).unwrap_or_else(
-            |e| panic!("invalid keypair file at path {:?}: {e}", &path),
+            |e| panic!("invalid keypair file at path {path:?}: {e}"),
         )))
         .expect("failed to set keypair");
         Self {
             location: KeyPairLocation::File { path },
             keypair: cell,
+            ed25519_keypair: OnceCell::new(),
         }
     }
 
-    pub fn keypair(&self) -> &IotaKeyPair {
+    pub fn keypair(&self) -> &SimpleKeypair {
         self.keypair
             .get_or_init(|| match &self.location {
                 KeyPairLocation::InPlace { value } => value.clone(),
@@ -1368,6 +1514,20 @@ impl KeyPairWithPath {
                         }),
                     )
                 }
+            })
+            .as_ref()
+    }
+
+    /// The keypair as a fastcrypto ed25519 keypair, for the network stacks
+    /// that consume that type directly. Panics if the stored keypair is not
+    /// ed25519.
+    pub fn ed25519_keypair(&self) -> &Ed25519KeyPair {
+        self.ed25519_keypair
+            .get_or_init(|| {
+                Arc::new(
+                    simple_to_network_keypair(self.keypair())
+                        .expect("only Ed25519 network keys are allowed"),
+                )
             })
             .as_ref()
     }
@@ -1411,7 +1571,7 @@ impl AuthorityKeyPairWithPath {
         // loaded.
         cell.set(Arc::new(
             read_authority_keypair_from_file(&path)
-                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {:?}", &path)),
+                .unwrap_or_else(|_| panic!("invalid authority keypair file at path {path:?}")),
         ))
         .expect("failed to set authority keypair");
         Self {
@@ -1428,9 +1588,8 @@ impl AuthorityKeyPairWithPath {
                     // OK to unwrap panic because authority should not start without all keypairs
                     // loaded.
                     Arc::new(
-                        read_authority_keypair_from_file(path).unwrap_or_else(|_| {
-                            panic!("invalid authority keypair file {:?}", &path)
-                        }),
+                        read_authority_keypair_from_file(path)
+                            .unwrap_or_else(|_| panic!("invalid authority keypair file {path:?}")),
                     )
                 }
             })
@@ -1453,13 +1612,61 @@ mod tests {
 
     use fastcrypto::traits::KeyPair;
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
-    use iota_types::crypto::{
-        AuthorityKeyPair, IotaKeyPair, NetworkKeyPair, get_key_pair_from_rng,
+    use iota_types::{
+        crypto::{
+            AuthorityKeyPair, NetworkKeyPair, get_key_pair_from_rng, network_to_simple_keypair,
+        },
+        traffic_control::PolicyConfig,
     };
     use rand::{SeedableRng, rngs::StdRng};
+    use serde::Serialize;
+    use serde_yaml::Value;
 
-    use super::Genesis;
+    use super::{
+        Genesis, GrpcApiConfig, default_grpc_api_config,
+        default_periodic_compaction_threshold_days, default_traffic_controller_policy_config,
+    };
     use crate::NodeConfig;
+
+    const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+    const POLICY_CONFIG: &[&str] = &["policy-config"];
+    const GRPC_API_CONFIG: &[&str] = &["grpc-api-config"];
+    const COMPACTION_THRESHOLD: &[&str] = &[
+        "authority-store-pruning-config",
+        "periodic-compaction-threshold-days",
+    ];
+
+    fn template_config() -> NodeConfig {
+        serde_yaml::from_str(TEMPLATE).unwrap()
+    }
+
+    fn round_trip(config: &NodeConfig) -> NodeConfig {
+        serde_yaml::from_str(&serde_yaml::to_string(config).unwrap()).unwrap()
+    }
+
+    fn as_yaml<T: Serialize>(value: &T) -> String {
+        serde_yaml::to_string(value).unwrap()
+    }
+
+    /// Reads `path` out of a serialized value, returning `None` when the last
+    /// key is absent.
+    fn written_at(value: &Value, path: &[&str]) -> Option<Value> {
+        let (last, parents) = path.split_last().unwrap();
+        let mut current = value;
+        for name in parents {
+            current = current
+                .as_mapping()
+                .unwrap()
+                .get(&Value::String((*name).to_owned()))
+                .unwrap();
+        }
+        current
+            .as_mapping()
+            .unwrap()
+            .get(&Value::String((*last).to_owned()))
+            .cloned()
+    }
 
     #[test]
     fn serialize_genesis_from_file() {
@@ -1479,6 +1686,16 @@ mod tests {
     }
 
     #[test]
+    fn enable_soft_locking_defaults_to_enabled() {
+        // The template omits `enable-soft-locking`, so this exercises the serde
+        // default and pins the documented "default: enabled" contract.
+        const TEMPLATE: &str = include_str!("../data/fullnode-template.yaml");
+
+        let config: NodeConfig = serde_yaml::from_str(TEMPLATE).unwrap();
+        assert!(config.enable_soft_locking);
+    }
+
+    #[test]
     fn load_key_pairs_to_node_config() {
         let authority_key_pair: AuthorityKeyPair =
             get_key_pair_from_rng(&mut StdRng::from_seed([0; 32])).1;
@@ -1490,12 +1707,12 @@ mod tests {
         write_authority_keypair_to_file(&authority_key_pair, PathBuf::from("authority.key"))
             .unwrap();
         write_keypair_to_file(
-            &IotaKeyPair::Ed25519(protocol_key_pair.copy()),
+            &network_to_simple_keypair(&protocol_key_pair),
             PathBuf::from("protocol.key"),
         )
         .unwrap();
         write_keypair_to_file(
-            &IotaKeyPair::Ed25519(network_key_pair.copy()),
+            &network_to_simple_keypair(&network_key_pair),
             PathBuf::from("network.key"),
         )
         .unwrap();
@@ -1513,6 +1730,108 @@ mod tests {
         assert_eq!(
             template.protocol_key_pair().public(),
             protocol_key_pair.public()
+        );
+    }
+
+    #[test]
+    fn a_policy_config_survives_a_round_trip_in_all_three_states() {
+        let mut config = template_config();
+
+        config.policy_config = None;
+        assert!(round_trip(&config).policy_config.is_none());
+
+        config.policy_config = default_traffic_controller_policy_config();
+        assert_eq!(
+            as_yaml(&round_trip(&config).policy_config),
+            as_yaml(&default_traffic_controller_policy_config())
+        );
+
+        let configured = PolicyConfig {
+            dry_run: !PolicyConfig::default_dos_protection_policy().dry_run,
+            ..PolicyConfig::default_dos_protection_policy()
+        };
+        config.policy_config = Some(configured.clone());
+        assert_eq!(
+            as_yaml(&round_trip(&config).policy_config),
+            as_yaml(&Some(configured))
+        );
+    }
+
+    #[test]
+    fn a_grpc_api_config_survives_a_round_trip_in_all_three_states() {
+        let mut config = template_config();
+
+        config.grpc_api_config = None;
+        assert!(round_trip(&config).grpc_api_config.is_none());
+
+        config.grpc_api_config = default_grpc_api_config();
+        assert_eq!(
+            as_yaml(&round_trip(&config).grpc_api_config),
+            as_yaml(&default_grpc_api_config())
+        );
+
+        let configured = GrpcApiConfig {
+            max_message_size_bytes: 1234,
+            ..GrpcApiConfig::default()
+        };
+        config.grpc_api_config = Some(configured.clone());
+        assert_eq!(
+            as_yaml(&round_trip(&config).grpc_api_config),
+            as_yaml(&Some(configured))
+        );
+    }
+
+    #[test]
+    fn the_default_pruning_config_agrees_with_the_serde_default() {
+        assert_eq!(
+            super::AuthorityStorePruningConfig::default().periodic_compaction_threshold_days,
+            default_periodic_compaction_threshold_days()
+        );
+    }
+
+    #[test]
+    fn a_compaction_threshold_survives_a_round_trip_in_all_three_states() {
+        let mut config = template_config();
+
+        for state in [None, default_periodic_compaction_threshold_days(), Some(7)] {
+            config
+                .authority_store_pruning_config
+                .periodic_compaction_threshold_days = state;
+            assert_eq!(
+                round_trip(&config)
+                    .authority_store_pruning_config
+                    .periodic_compaction_threshold_days,
+                state
+            );
+        }
+    }
+
+    #[test]
+    fn a_default_value_is_omitted_and_a_disabled_one_is_written_as_null() {
+        let mut config = template_config();
+        config.policy_config = default_traffic_controller_policy_config();
+        config.grpc_api_config = default_grpc_api_config();
+        config
+            .authority_store_pruning_config
+            .periodic_compaction_threshold_days = default_periodic_compaction_threshold_days();
+
+        let written = serde_yaml::to_value(&config).unwrap();
+        assert_eq!(written_at(&written, POLICY_CONFIG), None);
+        assert_eq!(written_at(&written, GRPC_API_CONFIG), None);
+        assert_eq!(written_at(&written, COMPACTION_THRESHOLD), None);
+
+        config.policy_config = None;
+        config.grpc_api_config = None;
+        config
+            .authority_store_pruning_config
+            .periodic_compaction_threshold_days = None;
+
+        let written = serde_yaml::to_value(&config).unwrap();
+        assert_eq!(written_at(&written, POLICY_CONFIG), Some(Value::Null));
+        assert_eq!(written_at(&written, GRPC_API_CONFIG), Some(Value::Null));
+        assert_eq!(
+            written_at(&written, COMPACTION_THRESHOLD),
+            Some(Value::Null)
         );
     }
 }
@@ -1545,23 +1864,24 @@ impl RunWithRange {
 }
 
 /// A serde helper module used with #[serde(with = "...")] to change the
-/// de/serialization format of an `IotaKeyPair` to Bech32 when written to or
+/// de/serialization format of an `SimpleKeypair` to Bech32 when written to or
 /// read from a node config.
 mod bech32_formatted_keypair {
     use std::ops::Deref;
 
-    use iota_types::crypto::{EncodeDecodeBase64, IotaKeyPair};
+    use fastcrypto::encoding::{Base64, Encoding};
+    use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
     use serde::{Deserialize, Deserializer, Serializer};
 
     pub fn serialize<S, T>(kp: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
-        T: Deref<Target = IotaKeyPair>,
+        T: Deref<Target = SimpleKeypair>,
     {
         use serde::ser::Error;
 
         // Serialize the keypair to a Bech32 string
-        let s = kp.encode().map_err(Error::custom)?;
+        let s = kp.to_bech32().map_err(Error::custom)?;
 
         serializer.serialize_str(&s)
     }
@@ -1569,19 +1889,20 @@ mod bech32_formatted_keypair {
     pub fn deserialize<'de, D, T>(deserializer: D) -> Result<T, D::Error>
     where
         D: Deserializer<'de>,
-        T: From<IotaKeyPair>,
+        T: From<SimpleKeypair>,
     {
         use serde::de::Error;
 
         let s = String::deserialize(deserializer)?;
 
         // Try to deserialize the keypair from a Bech32 formatted string
-        IotaKeyPair::decode(&s)
-            .or_else(|_| {
+        SimpleKeypair::from_bech32(&s)
+            .map_err(Error::custom)
+            .or_else(|_: D::Error| {
                 // For backwards compatibility try Base64 if Bech32 failed
-                IotaKeyPair::decode_base64(&s)
+                let bytes = Base64::decode(&s).map_err(Error::custom)?;
+                SimpleKeypair::from_bytes(&bytes).map_err(Error::custom)
             })
             .map(Into::into)
-            .map_err(Error::custom)
     }
 }

@@ -5,10 +5,9 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Address, ObjectId};
 use iota_types::{
-    base_types::IotaAddress,
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     object::Object,
 };
 use proptest::prelude::*;
@@ -21,8 +20,8 @@ pub const NUM_GAS_OBJECTS: usize = 1;
 
 #[derive(Debug)]
 pub struct Account {
-    pub address: IotaAddress,
-    pub key: AccountKeyPair,
+    pub address: Address,
+    pub key: AccountPrivateKey,
 }
 
 // `Arc` account since the key pair is non-copyable

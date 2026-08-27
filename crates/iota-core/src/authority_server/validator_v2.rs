@@ -8,9 +8,10 @@ use iota_network::api::{
     GetTxStatusRequest, HealthCheckRequest, HealthCheckResponse, NotifyCapabilitiesRequest,
     NotifyCapabilitiesResponse, SubmitTxRequest, TxStatus, ValidatorV2,
 };
+use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEffects};
 use iota_types::{
-    digests::TransactionDigest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    deny_rule_governance::DenyRuleConfig,
+    effects::TransactionEffectsAPI,
     error::IotaError,
     fp_ensure,
     messages_consensus::ConsensusTransaction,
@@ -20,7 +21,7 @@ use iota_types::{
         TxStatusUpdate, ValidatorHealthRequest, ValidatorHealthResponse,
     },
     traffic_control::Weight,
-    transaction::Transaction,
+    transaction::{SenderSignedTransactionAPI, TransactionEnvelope},
 };
 use tokio_stream::wrappers::ReceiverStream;
 
@@ -38,6 +39,62 @@ const MAX_QUERIES_PER_GET_TX_STATUS: usize = 32;
 /// Timeout for waiting on transaction execution in `get_tx_status`.
 const GET_TX_STATUS_TIMEOUT_SECS: u64 = 30;
 
+/// The union of two deny rule sources: denies whatever either source denies.
+struct DenyRuleUnion<'a> {
+    first: &'a dyn DenyRuleConfig,
+    second: &'a dyn DenyRuleConfig,
+}
+
+impl DenyRuleConfig for DenyRuleUnion<'_> {
+    fn is_address_denied(&self, address: &Address) -> bool {
+        self.first.is_address_denied(address) || self.second.is_address_denied(address)
+    }
+
+    fn is_object_denied(&self, id: &ObjectId) -> bool {
+        self.first.is_object_denied(id) || self.second.is_object_denied(id)
+    }
+
+    fn is_package_denied(&self, id: &ObjectId) -> bool {
+        self.first.is_package_denied(id) || self.second.is_package_denied(id)
+    }
+
+    fn has_denied_addresses(&self) -> bool {
+        self.first.has_denied_addresses() || self.second.has_denied_addresses()
+    }
+
+    fn has_denied_objects(&self) -> bool {
+        self.first.has_denied_objects() || self.second.has_denied_objects()
+    }
+
+    fn has_denied_packages(&self) -> bool {
+        self.first.has_denied_packages() || self.second.has_denied_packages()
+    }
+
+    fn package_publish_disabled(&self) -> bool {
+        self.first.package_publish_disabled() || self.second.package_publish_disabled()
+    }
+
+    fn package_upgrade_disabled(&self) -> bool {
+        self.first.package_upgrade_disabled() || self.second.package_upgrade_disabled()
+    }
+
+    fn shared_object_disabled(&self) -> bool {
+        self.first.shared_object_disabled() || self.second.shared_object_disabled()
+    }
+
+    fn user_transaction_disabled(&self) -> bool {
+        self.first.user_transaction_disabled() || self.second.user_transaction_disabled()
+    }
+
+    fn receiving_objects_disabled(&self) -> bool {
+        self.first.receiving_objects_disabled() || self.second.receiving_objects_disabled()
+    }
+
+    fn move_authenticator_disabled(&self) -> bool {
+        self.first.move_authenticator_disabled() || self.second.move_authenticator_disabled()
+    }
+}
+
 /// Maximum number of `submit_single_tx` futures allowed to run concurrently
 /// per `submit_tx` request. Caps pre-consensus work (signature verification,
 /// validation, DB reads) and contention on `consensus_adapter`'s submit
@@ -52,14 +109,18 @@ use iota_metrics::spawn_monitored_task;
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
-    authority_server::{StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize},
+    authority_server::{
+        StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize,
+        soft_lock::PreConsensusSoftLocks,
+    },
     consensus_adapter::ConsensusAdapter,
+    execution_scheduler::ExecutionSchedulerAPI,
 };
 
 impl ValidatorService {
     async fn submit_tx_impl(
         &self,
-        transactions: Vec<Transaction>,
+        transactions: Vec<TransactionEnvelope>,
     ) -> Result<ReceiverStream<TxUpdateItem>, tonic::Status> {
         let state = self.state.clone();
         let epoch_store = state.load_epoch_store_one_call_per_task();
@@ -70,9 +131,9 @@ impl ValidatorService {
         );
 
         fp_ensure!(
-            epoch_store.protocol_config().enable_white_flag_flow(),
+            epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "White flag flow is not enabled in this protocol version".to_string()
+                error: "P-COOL flow is not enabled in this protocol version".to_string()
             }
             .into()
         );
@@ -88,6 +149,7 @@ impl ValidatorService {
         let (tx_sender, rx) = tokio::sync::mpsc::channel(transactions.len().max(1));
         let consensus_adapter = self.consensus_adapter.clone();
         let metrics = self.metrics.clone();
+        let soft_locks = self.soft_locks.clone();
 
         // Run per-tx tasks concurrently, capped by `MAX_CONCURRENT_SUBMIT_TASKS`.
         // Spawning lets CPU-heavy work run across worker threads; `buffer_unordered`
@@ -99,6 +161,7 @@ impl ValidatorService {
                     let epoch_store = epoch_store.clone();
                     let consensus_adapter = consensus_adapter.clone();
                     let metrics = metrics.clone();
+                    let soft_locks = soft_locks.clone();
                     spawn_monitored_task!(async move {
                         let tx_digest = *transaction.digest();
                         let (update, weight) = Self::submit_single_tx(
@@ -106,6 +169,7 @@ impl ValidatorService {
                             &consensus_adapter,
                             &metrics,
                             &epoch_store,
+                            &soft_locks,
                             transaction,
                         )
                         .await;
@@ -143,12 +207,21 @@ impl ValidatorService {
         consensus_adapter: &Arc<ConsensusAdapter>,
         metrics: &Arc<ValidatorServiceMetrics>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-        transaction: Transaction,
+        soft_locks: &Arc<PreConsensusSoftLocks>,
+        transaction: TransactionEnvelope,
     ) -> (TxStatusUpdate, Weight) {
         let tx_digest = *transaction.digest();
 
         let build_executed = |effects: TransactionEffects| -> TxStatusUpdate {
             let effects_digest = effects.digest();
+            if let Err(error) = state.check_effects_against_previously_signed(
+                epoch_store,
+                &tx_digest,
+                &effects_digest,
+                "submit_tx",
+            ) {
+                return TxStatusUpdate::Rejected { error };
+            }
             TxStatusUpdate::Executed {
                 effects_digest,
                 details: Some(Self::build_executed_data(state, &effects)),
@@ -160,6 +233,8 @@ impl ValidatorService {
             consensus_adapter,
             transaction.data(),
             state.check_system_overload_at_signing(),
+            // `true` means P-COOL flow is enabled - ensured by `fp_ensure!` in the caller
+            true,
         ) {
             metrics
                 .num_rejected_tx_during_overload
@@ -170,9 +245,7 @@ impl ValidatorService {
         }
 
         // Validate transaction.
-        if let Err(e) =
-            transaction.validity_check(epoch_store.protocol_config(), epoch_store.epoch())
-        {
+        if let Err(e) = transaction.validity_check(&epoch_store.tx_validity_check_context()) {
             let weight = normalize(&e);
             return (TxStatusUpdate::Rejected { error: e }, weight);
         }
@@ -187,6 +260,18 @@ impl ValidatorService {
             .flatten()
         {
             return (build_executed(effects), Weight::one());
+        }
+
+        // Suppress duplicate resubmissions of a transaction that is still in
+        // flight on this validator (its soft locks are held). Checked before
+        // signature verification so resubmission storms are short-circuited
+        // cheaply; the soft-lock acquisition below remains the authoritative,
+        // atomic gate for duplicates racing past this probe.
+        if soft_locks.check_in_flight(&tx_digest) {
+            metrics.num_rejected_tx_recently_resubmitted.inc();
+            let error = IotaError::RecentlyResubmitted { digest: tx_digest };
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
         }
 
         // Verify user signature.
@@ -213,8 +298,35 @@ impl ValidatorService {
         }
 
         // Content validation: deny checks + owned object version validation.
+        // With governance enabled, admission checks the active governance
+        // rules on top of the local config, so transactions the network will
+        // deterministically drop post-consensus don't occupy consensus slots.
+        // The local config always applies.
+        let local_deny_config = &state.config.transaction_deny_config;
+        let governance_rules;
+        let combined_deny_config;
+        let deny_config: &dyn DenyRuleConfig =
+            if epoch_store.protocol_config().deny_rule_governance() {
+                governance_rules = epoch_store.get_active_transaction_deny_rules();
+                combined_deny_config = DenyRuleUnion {
+                    first: local_deny_config,
+                    second: governance_rules.as_ref(),
+                };
+                &combined_deny_config
+            } else {
+                local_deny_config
+            };
         let owned_objects = match state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
+            .handle_transaction_validation_checks(
+                &verified_tx,
+                epoch_store,
+                deny_config,
+                // Latest-value coin deny-list read: admission is validator-local,
+                // and denials should take effect immediately. This deliberately
+                // differs from the epoch-gated post-consensus read; see the
+                // read-mode notes on `handle_transaction_validation_checks`.
+                false,
+            )
             .await
         {
             Ok(objs) => objs,
@@ -240,7 +352,7 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error: e }, weight);
         }
 
-        // Reconfig check.
+        // Reconfig check. The guard is held through consensus submission below.
         let reconfiguration_lock = epoch_store.get_reconfig_state_read_lock_guard();
         if !reconfiguration_lock.should_accept_user_certs() {
             metrics.num_rejected_tx_in_epoch_boundary.inc();
@@ -249,6 +361,24 @@ impl ValidatorService {
             return (TxStatusUpdate::Rejected { error }, weight);
         }
 
+        // Soft-lock owned objects to prevent conflicting transactions.
+        // Same-digest resubmission while in flight → rejected (duplicate).
+        // Different-digest conflict on same objects → rejected.
+        // Placed after the reconfig check so we never acquire locks that would
+        // need releasing on the epoch-halt path.
+        if let Err(error) = soft_locks.try_acquire(tx_digest, &owned_objects) {
+            if matches!(error, IotaError::RecentlyResubmitted { .. }) {
+                metrics.num_rejected_tx_recently_resubmitted.inc();
+            } else {
+                metrics.num_rejected_tx_soft_lock_conflict.inc();
+            }
+            let weight = normalize(&error);
+            return (TxStatusUpdate::Rejected { error }, weight);
+        }
+        metrics
+            .soft_lock_table_size
+            .set(soft_locks.lock_count() as i64);
+
         // Submit to consensus.
         if let Err(e) = consensus_adapter.submit(
             ConsensusTransaction::new_user_transaction(verified_tx.into_inner()),
@@ -256,6 +386,16 @@ impl ValidatorService {
             epoch_store,
         ) {
             let weight = normalize(&e);
+            // Release soft locks so the transaction can be retried.
+            tracing::debug!(
+                ?tx_digest,
+                error = ?e,
+                "releasing soft lock after consensus submit failure",
+            );
+            soft_locks.release(&tx_digest);
+            metrics
+                .soft_lock_table_size
+                .set(soft_locks.lock_count() as i64);
             return (TxStatusUpdate::Rejected { error: e }, weight);
         }
 
@@ -278,9 +418,9 @@ impl ValidatorService {
         );
 
         fp_ensure!(
-            epoch_store.protocol_config().enable_white_flag_flow(),
+            epoch_store.protocol_config().enable_pcool_flow(),
             IotaError::UnsupportedFeature {
-                error: "White flag flow is not enabled in this protocol version".to_string()
+                error: "P-COOL flow is not enabled in this protocol version".to_string()
             }
             .into()
         );
@@ -301,16 +441,20 @@ impl ValidatorService {
             let epoch_store = epoch_store.clone();
             let tx_sender = tx_sender.clone();
             spawn_monitored_task!(async move {
-                let (update, weight) = Self::wait_for_tx_finality(
-                    &state,
-                    &epoch_store,
-                    query.transaction_digest,
-                    query.include_details,
-                )
-                .await;
-                let _ = tx_sender
-                    .send(Ok(((query.transaction_digest, update), weight)))
-                    .await;
+                tokio::select! {
+                    biased;
+                    _ = tx_sender.closed() => {}
+                    (update, weight) = Self::wait_for_tx_finality(
+                        &state,
+                        &epoch_store,
+                        query.transaction_digest,
+                        query.include_details,
+                    ) => {
+                        let _ = tx_sender
+                            .send(Ok(((query.transaction_digest, update), weight)))
+                            .await;
+                    }
+                }
             });
         }
 
@@ -335,7 +479,7 @@ impl ValidatorService {
         match cache.try_get_executed_effects(&tx_digest) {
             Ok(Some(effects)) => {
                 return (
-                    Self::build_executed_update(state, effects, include_details),
+                    Self::build_executed_update(state, epoch_store, effects, include_details),
                     Weight::one(),
                 );
             }
@@ -354,7 +498,7 @@ impl ValidatorService {
                 let digests_to_watch = [tx_digest];
                 tokio::select! {
                     biased;
-                    effects_digests = cache.notify_read_executed_effects_digests(&digests_to_watch) => {
+                    effects_digests = cache.notify_read_executed_effects_digests("ValidatorService::notify_read_executed_effects_digests", &digests_to_watch) => {
                         Either::Left(effects_digests)
                     }
                     dropped_error = epoch_store.notify_read_dropped_digests(tx_digest) => {
@@ -363,7 +507,7 @@ impl ValidatorService {
                 }
             }),
         )
-        .await;
+            .await;
 
         let update = match result {
             // Epoch ended before execution or rejection.
@@ -383,6 +527,14 @@ impl ValidatorService {
                         Weight::zero(),
                     );
                 };
+                if let Err(error) = state.check_effects_against_previously_signed(
+                    epoch_store,
+                    &tx_digest,
+                    &effects_digest,
+                    "get_tx_status",
+                ) {
+                    return (TxStatusUpdate::Rejected { error }, Weight::zero());
+                }
                 let details = if include_details {
                     match cache.try_get_executed_effects(&tx_digest) {
                         Ok(Some(effects)) => Some(Self::build_executed_data(state, &effects)),
@@ -424,10 +576,19 @@ impl ValidatorService {
     /// including full details.
     fn build_executed_update(
         state: &Arc<AuthorityState>,
+        epoch_store: &AuthorityPerEpochStore,
         effects: TransactionEffects,
         include_details: bool,
     ) -> TxStatusUpdate {
         let effects_digest = effects.digest();
+        if let Err(error) = state.check_effects_against_previously_signed(
+            epoch_store,
+            effects.transaction_digest(),
+            &effects_digest,
+            "get_tx_status",
+        ) {
+            return TxStatusUpdate::Rejected { error };
+        }
         let details = if include_details {
             Some(Self::build_executed_data(state, &effects))
         } else {
@@ -571,8 +732,8 @@ impl ValidatorService {
             ValidatorHealthResponse {
                 num_inflight_execution_transactions: self
                     .state
-                    .transaction_manager()
-                    .inflight_queue_len()
+                    .execution_scheduler()
+                    .num_pending_transactions()
                     as u64,
                 num_inflight_consensus_transactions: self
                     .consensus_adapter
@@ -620,5 +781,41 @@ impl ValidatorV2 for ValidatorService {
     ) -> Result<tonic::Response<HealthCheckResponse>, tonic::Status> {
         let (req, ip) = self.pre_handle(request).await?;
         self.post_handle_unary(ip, self.health_check_impl(req))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use iota_sdk_types::{Address, DenyRuleSet, ObjectId};
+    use iota_types::deny_rule_governance::DenyRuleConfig;
+
+    use super::DenyRuleUnion;
+
+    /// The union denies whatever either source denies.
+    #[test]
+    fn deny_rule_union_denies_from_either_source() {
+        let first = DenyRuleSet {
+            denied_addresses: [Address::new([1u8; 32])].into(),
+            user_transaction_disabled: true,
+            ..Default::default()
+        };
+        let second = DenyRuleSet {
+            denied_objects: [ObjectId::new([2u8; 32])].into(),
+            shared_object_disabled: true,
+            ..Default::default()
+        };
+        let union = DenyRuleUnion {
+            first: &first,
+            second: &second,
+        };
+        assert!(union.is_address_denied(&Address::new([1u8; 32])));
+        assert!(union.is_object_denied(&ObjectId::new([2u8; 32])));
+        assert!(!union.is_package_denied(&ObjectId::new([3u8; 32])));
+        assert!(union.has_denied_addresses());
+        assert!(union.has_denied_objects());
+        assert!(!union.has_denied_packages());
+        assert!(union.user_transaction_disabled());
+        assert!(union.shared_object_disabled());
+        assert!(!union.package_publish_disabled());
     }
 }

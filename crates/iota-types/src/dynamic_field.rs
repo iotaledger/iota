@@ -8,15 +8,14 @@ use std::{
 };
 
 use fastcrypto::{encoding::Base64, hash::HashFunction};
-use iota_sdk_types::{StructTag, TypeTag, crypto::HashingIntentScope};
+use iota_sdk_types::{Address, ObjectDigest, StructTag, TypeTag, crypto::HashingIntentScope};
 use move_core_types::annotated_value::{MoveStruct, MoveValue};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Value;
 use serde_with::{DisplayFromStr, serde_as};
 
 use crate::{
-    MoveTypeTagTrait, ObjectId, SequenceNumber,
-    base_types::{IotaAddress, ObjectDigest},
+    MoveTypeTagTrait, ObjectId, Version,
     crypto::DefaultHash,
     error::{IotaError, IotaResult},
     id::UID,
@@ -63,7 +62,7 @@ pub struct DynamicFieldInfo {
     pub type_: DynamicFieldType,
     pub object_type: String,
     pub object_id: ObjectId,
-    pub version: SequenceNumber,
+    pub version: Version,
     pub digest: ObjectDigest,
 }
 
@@ -71,8 +70,9 @@ pub struct DynamicFieldInfo {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct DynamicFieldName {
+    #[serde(rename = "type")]
     #[serde_as(as = "Readable<IotaTypeTag, _>")]
-    pub type_: TypeTag,
+    pub type_tag: TypeTag,
     // Bincode does not like serde_json::Value, rocksdb will not insert the value without
     // serializing value as string. TODO: investigate if this can be removed after switch to
     // BCS.
@@ -82,7 +82,7 @@ pub struct DynamicFieldName {
 
 impl Display for DynamicFieldName {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}: {}", self.type_, self.value)
+        write!(f, "{}: {}", self.type_tag, self.value)
     }
 }
 
@@ -247,9 +247,9 @@ pub fn derive_dynamic_field_id<T>(
     key_bytes: &[u8],
 ) -> Result<ObjectId, bcs::Error>
 where
-    T: Into<IotaAddress>,
+    T: Into<Address>,
 {
-    let parent: IotaAddress = parent.into();
+    let parent: Address = parent.into();
     let k_tag_bytes = bcs::to_bytes(key_type_tag)?;
     tracing::trace!(
         "Deriving dynamic field ID for parent={:?}, key={:?}, key_type_tag={:?}",
@@ -313,7 +313,7 @@ where
     V: Serialize + DeserializeOwned,
 {
     let object = get_dynamic_field_object_from_store(object_store, parent_id, key)?;
-    let move_object = object.data.as_struct_opt().ok_or_else(|| {
+    let move_object = object.data.as_opt_struct().ok_or_else(|| {
         IotaError::DynamicFieldRead(format!(
             "Dynamic field {:?} is not a Move object",
             object.id()

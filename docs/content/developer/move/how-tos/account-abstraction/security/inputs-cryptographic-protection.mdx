@@ -17,7 +17,7 @@ This how-to explains the importance of cryptographically protecting all authenti
 
 ## The Vulnerability
 
-The content of a transaction can be cryptographically verified using the transaction digest (see [Function digest](../../../../references/framework/iota/tx_context.mdx#function-digest)). However, when this digest is created, the authenticator inputs are not included. 
+The content of a transaction can be cryptographically verified using the transaction digest (see [Function digest](../../../../references/framework/iota/tx_context.mdx#iota_tx_context_digest)). However, when this digest is created, the authenticator inputs are not included. 
 When implementing custom authenticator functions that accept additional input parameters (beyond just verifying the transaction), it's critical to include **all inputs** in the cryptographic verification. If an authenticator only verifies the transaction digest but doesn't cryptographically bind other input parameters (such as shared objects or raw values) to the signature, an attacker can swap those inputs after the signature was created.
 
 ## Attack Scenario
@@ -53,12 +53,12 @@ The helper that combines these inputs into the message hash used for signature v
 
 Without proper input protection, an attacker could swap the blacklist:
 
-```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L410-L444
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L408-L453
 ```
 
 Or swap the raw value parameter:
 
-```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L446-L476
+```rust file=<rootDir>/docs/examples/rust/abstract_account/authenticator-inputs-cryptographic-protection.rs#L456-L497
 ```
 
 However, because the secure implementation cryptographically binds all inputs, these attacks will fail during signature verification.

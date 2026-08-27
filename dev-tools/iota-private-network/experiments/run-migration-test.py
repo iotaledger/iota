@@ -559,8 +559,8 @@ class CheckpointMonitor:
             ("Tx commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
             ("Tx commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
             ("Tx commit p99", "histogram_quantile(0.99, sum by (le) (rate(consensus_transaction_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
-            ("Block commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_block_commit_latency_bucket[{w}s] @ {t})) or sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
-            ("Block commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_block_commit_latency_bucket[{w}s] @ {t})) or sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Block commit p50", "histogram_quantile(0.5, sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
+            ("Block commit p95", "histogram_quantile(0.95, sum by (le) (rate(consensus_block_header_commit_latency_bucket[{w}s] @ {t})))", "ms", 1000.0),
             ("Proposed blocks/s", "sum(rate(consensus_proposed_blocks[{w}s] @ {t}))", "blk/s", 1.0),
             ("Commits/s", "sum(rate(consensus_transaction_commit_latency_count[{w}s] @ {t}))", "/s", 1.0),
         ]
@@ -1003,6 +1003,12 @@ def phase2_generate_compose(cfg: Config) -> None:
         lines.append("      - RPC_WORKER_THREAD=12")
         lines.append("      - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000")
         lines.append("      - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000")
+        # Expose all metric levels: the default /metrics exposure hides
+        # debug-tier metrics (e.g. the consensus commit-latency histograms
+        # the stable-window comparison queries). Images predating the
+        # metric-groups change ignore the unknown level token and stay
+        # permissive.
+        lines.append("      - METRICS_FILTER=trace")
         lines.append(
             f"      - IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE={cfg.chain_override}"
         )
@@ -1043,6 +1049,7 @@ def phase2_generate_compose(cfg: Config) -> None:
             "      - RUST_LOG=info,iota_core=debug,iota_network=debug,"
             "iota_node=debug,jsonrpsee=error"
         )
+        lines.append("      - METRICS_FILTER=trace")
         lines.append(
             f"      - IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE={cfg.chain_override}"
         )

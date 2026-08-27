@@ -3,6 +3,10 @@ name: Split Cluster Synchronization Check
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      isNightly:
+        type: boolean
+        default: false
 
 concurrency:
   group: split-cluster-sync-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -45,6 +49,17 @@ jobs:
           path: /tmp/mainnet-split-cluster-sync-${{ github.run_id }}/metrics/
           retention-days: 5
           if-no-files-found: warn
+
+  validate-mainnet-cancel:
+    needs: [validate-mainnet]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   validate-testnet:
     runs-on: self-hosted-x64
     if: (!cancelled() && !failure())
@@ -75,3 +90,13 @@ jobs:
           path: /tmp/testnet-split-cluster-sync-${{ github.run_id }}/metrics/
           retention-days: 5
           if-no-files-found: warn
+
+  validate-testnet-cancel:
+    needs: [validate-testnet]
+    if: failure() && !inputs.isNightly
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel workflow run
+        run: gh run cancel ${{ github.run_id }} --repo ${{ github.repository }}
+        env:
+          GH_TOKEN: ${{ github.token }}

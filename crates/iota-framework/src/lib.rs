@@ -4,10 +4,8 @@
 
 use std::{fmt::Formatter, sync::LazyLock};
 
-use iota_sdk_types::{ObjectId, move_package::MovePackage};
+use iota_sdk_types::{ObjectId, ObjectReference, TransactionDigest, move_package::MovePackage};
 use iota_types::{
-    base_types::ObjectRef,
-    digests::TransactionDigest,
     move_package::MovePackageExt,
     object::{OBJECT_START_VERSION, Object},
     storage::ObjectStore,
@@ -192,7 +190,7 @@ pub async fn compare_system_package<S: ObjectStore>(
     modules: &[CompiledModule],
     dependencies: Vec<ObjectId>,
     binary_config: &BinaryConfig,
-) -> Option<ObjectRef> {
+) -> Option<ObjectReference> {
     let cur_object = match object_store.try_get_object(id) {
         Ok(Some(cur_object)) => cur_object,
 
@@ -224,7 +222,7 @@ pub async fn compare_system_package<S: ObjectStore>(
     let cur_ref = cur_object.object_ref();
     let cur_pkg = cur_object
         .data
-        .as_package_opt()
+        .as_opt_package()
         .expect("Framework not package");
 
     let mut new_object = Object::new_system_package(
@@ -244,7 +242,7 @@ pub async fn compare_system_package<S: ObjectStore>(
 
     let new_pkg = new_object
         .data
-        .as_package_mut_opt()
+        .as_opt_mut_package()
         .expect("Created as package");
 
     let pool = &mut normalized::RcPool::new();

@@ -19,11 +19,11 @@ pub use iota_object::*;
 pub use iota_object_response_error::*;
 pub use iota_owner::*;
 use iota_primitives::{
-    Base58 as Base58Schema, Base64 as Base64Schema, ObjectId as ObjectIdSchema,
-    SequenceNumberU64 as SequenceNumberU64Schema, TypeTag as TypeTagSchema,
+    Base58 as Base58Schema, Base64 as Base64Schema, ObjectId as ObjectIdSchema, SequenceNumberU64,
+    TypeTag as TypeTagSchema,
 };
 pub use iota_protocol::*;
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_types::{ObjectDigest, ObjectId, TypeTag};
 pub use iota_system_state_summary::*;
 pub use iota_transaction::*;
 use iota_types::{
@@ -85,9 +85,10 @@ impl<T, C> Page<T, C> {
 #[derive(Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase", rename = "DynamicFieldName")]
 pub struct DynamicFieldNameSchema {
+    #[serde(rename = "type")]
     #[schemars(with = "TypeTagSchema")]
     #[serde_as(as = "TypeTagSchema")]
-    pub type_: TypeTag,
+    pub type_tag: TypeTag,
     // Bincode does not like serde_json::Value, rocksdb will not insert the value without
     // serializing value as string. TODO: investigate if this can be removed after switch to
     // BCS.
@@ -117,7 +118,7 @@ impl<'de> DeserializeAs<'de, DynamicFieldName> for DynamicFieldNameSchema {
 impl From<DynamicFieldName> for DynamicFieldNameSchema {
     fn from(name: DynamicFieldName) -> Self {
         Self {
-            type_: name.type_,
+            type_tag: name.type_tag,
             value: name.value,
         }
     }
@@ -126,7 +127,7 @@ impl From<DynamicFieldName> for DynamicFieldNameSchema {
 impl From<DynamicFieldNameSchema> for DynamicFieldName {
     fn from(name: DynamicFieldNameSchema) -> Self {
         Self {
-            type_: name.type_,
+            type_tag: name.type_tag,
             value: name.value,
         }
     }
@@ -194,12 +195,10 @@ pub struct IotaDynamicFieldInfo {
     #[serde_as(as = "ObjectIdSchema")]
     #[schemars(with = "ObjectIdSchema")]
     pub object_id: ObjectId,
-    #[serde_as(as = "SequenceNumberU64Schema")]
-    #[schemars(with = "SequenceNumberU64Schema")]
-    pub version: iota_types::base_types::SequenceNumber,
+    pub version: SequenceNumberU64,
     #[serde_as(as = "Base58Schema")]
     #[schemars(with = "Base58Schema")]
-    pub digest: iota_types::digests::ObjectDigest,
+    pub digest: ObjectDigest,
 }
 
 impl From<DynamicFieldInfo> for IotaDynamicFieldInfo {
@@ -220,7 +219,7 @@ impl From<DynamicFieldInfo> for IotaDynamicFieldInfo {
             type_,
             object_type,
             object_id,
-            version,
+            version: version.into(),
             digest,
         }
     }
@@ -244,7 +243,7 @@ impl From<IotaDynamicFieldInfo> for DynamicFieldInfo {
             type_,
             object_type,
             object_id,
-            version,
+            version: version.into(),
             digest,
         }
     }

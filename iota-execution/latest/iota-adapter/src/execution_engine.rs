@@ -17,9 +17,12 @@ mod checked {
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
     use iota_sdk_types::{
-        Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
-        EndOfEpochTransactionKind, ExecutionStatus, GenesisTransaction, Identifier, ObjectId,
-        RandomnessStateUpdate, TransactionKind, gas::GasCostSummary,
+        Address, Argument, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, ChangeEpochV4, Command,
+        EndOfEpochTransactionKind, ExecutionStatus, GasPayment, GenesisTransaction, Identifier,
+        MoveAuthenticator, ObjectId, ProgrammableTransaction, RandomnessStateUpdate,
+        SharedObjectReference, StructTag, SystemPackage, TransactionDenyRulesUpdate,
+        TransactionDigest, TransactionEffects, TransactionKind, TypeTag, Version,
+        gas::GasCostSummary,
     };
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
@@ -30,27 +33,28 @@ mod checked {
         },
         auth_context::{AuthContext, AuthContextData},
         balance::{BALANCE_CREATE_REWARDS_FUNCTION_NAME, BALANCE_DESTROY_REBATES_FUNCTION_NAME},
-        base_types::{IotaAddress, SequenceNumber, TransactionDigest, TxContext},
+        base_types::TxContext,
         clock::CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME,
         committee::EpochId,
-        effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
         gas::{IotaGasStatus, IotaGasStatusAPI},
-        gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams},
         messages_checkpoint::CheckpointTimestamp,
         metrics::LimitsMetrics,
-        move_authenticator::MoveAuthenticator,
+        move_authenticator::MoveAuthenticatorExt,
         object::{OBJECT_START_VERSION, Object, ObjectInner},
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         randomness_state::RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
         storage::{BackingStore, Storage},
         transaction::{
-            CallArg, CheckedInputObjects, GasData, InputObjects, ProgrammableTransaction,
-            SharedObjectRef, SystemPackage, TransactionKindExt,
+            CallArg, CancelledObjects, CheckedInputObjects, InputObjects, TransactionKindExt,
+        },
+        transaction_deny_rules::{
+            TRANSACTION_DENY_RULES_CREATE_FUNCTION_NAME, TRANSACTION_DENY_RULES_MODULE,
+            TRANSACTION_DENY_RULES_UPDATE_FUNCTION_NAME,
         },
     };
     use move_binary_format::CompiledModule;
@@ -82,10 +86,10 @@ mod checked {
     pub fn execute_transaction_to_effects<Mode: ExecutionMode>(
         store: &dyn BackingStore,
         input_objects: CheckedInputObjects,
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
         epoch_id: &EpochId,
@@ -179,9 +183,9 @@ mod checked {
         shared_object_refs: Vec<SharedInput>,
         mut transaction_dependencies: BTreeSet<TransactionDigest>,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(CancelledObjects, Version)>,
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         move_vm: &Arc<MoveVM>,
         epoch_id: &EpochId,
@@ -301,7 +305,7 @@ mod checked {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(
@@ -312,7 +316,7 @@ mod checked {
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
         // Tracing
@@ -447,6 +451,9 @@ mod checked {
             },
         );
 
+        let authentication_execution_result =
+            report_authentication_error(authentication_execution_result, protocol_config);
+
         // Transaction execution.
         // At this stage we arrive with gas charged for the execution of the
         // authenticate function and a result which is either empty or an error.
@@ -491,7 +498,7 @@ mod checked {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        gas_data: GasData,
+        gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
         authenticators: Vec<(
@@ -502,7 +509,7 @@ mod checked {
         aggregated_authenticator_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
+        transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
         // Tracing
@@ -543,7 +550,7 @@ mod checked {
         );
 
         // Run each authenticator in sequence; return on first failure.
-        authenticators.into_iter().try_for_each(
+        let authentication_execution_result = authenticators.into_iter().try_for_each(
             |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
                 match authenticator_function_ref {
                     AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
@@ -565,7 +572,9 @@ mod checked {
                     }
                 }
             },
-        )
+        );
+
+        report_authentication_error(authentication_execution_result, protocol_config)
     }
 
     // This function implements the authentication execution. It checks that the
@@ -628,7 +637,7 @@ mod checked {
                 unreachable!("Only programmable transactions are allowed");
             };
             AuthContext::new_from_components(
-                authenticator.digest(),
+                authenticator.digest().into(),
                 auth_context_data.sender_auth_digest,
                 auth_context_data.sponsor_auth_digest,
                 auth_context_data
@@ -704,7 +713,7 @@ mod checked {
         metrics: Arc<LimitsMetrics>,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(CancelledObjects, Version)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
@@ -792,7 +801,7 @@ mod checked {
         enable_expensive_checks: bool,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(CancelledObjects, Version)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
             Result<
@@ -898,6 +907,22 @@ mod checked {
         }
 
         (cost_summary, result)
+    }
+
+    /// When enabled by the protocol config, report a failure of the Move
+    /// authentication as a distinct
+    /// [`ExecutionErrorKind::MoveAuthentication`], dropping the
+    /// authenticator's internal command index so it is not attributed to a
+    /// command of the programmable transaction.
+    fn report_authentication_error<T>(
+        authentication_execution_result: Result<T, ExecutionError>,
+        protocol_config: &ProtocolConfig,
+    ) -> Result<T, ExecutionError> {
+        if protocol_config.report_move_authentication_error() {
+            authentication_execution_result.map_err(ExecutionError::into_move_authentication_error)
+        } else {
+            authentication_execution_result
+        }
     }
 
     /// Elaborate errors in logs if they are unexpected or their status is
@@ -1046,7 +1071,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         deny_cert: bool,
         contains_deleted_input: bool,
-        cancelled_objects: Option<(Vec<ObjectId>, SequenceNumber)>,
+        cancelled_objects: Option<(CancelledObjects, Version)>,
     ) -> Result<(), ExecutionError> {
         if deny_cert {
             Err(ExecutionError::new(
@@ -1061,29 +1086,46 @@ mod checked {
         } else if let Some((cancelled_objects, reason)) = cancelled_objects {
             match reason {
                 version if version.is_congested() => Err(ExecutionError::new(
-                    if protocol_config.congestion_control_gas_price_feedback_mechanism() {
-                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                            congested_objects: cancelled_objects,
-                            suggested_gas_price: version
-                                .get_congested_version_suggested_gas_price()
-                                .unwrap(),
+                    match cancelled_objects {
+                        // A transaction cancelled through its gas object has no shared
+                        // inputs, so the execution workers are the congested resource
+                        // and no individual object is responsible.
+                        CancelledObjects::GasObject => {
+                            ExecutionErrorKind::ExecutionCanceledDueToExecutionWorkerCongestion {
+                                suggested_gas_price: version
+                                    .get_congested_version_suggested_gas_price()
+                                    .expect(
+                                        "execution-worker congestion control requires the gas \
+                                        price feedback mechanism",
+                                    ),
+                            }
                         }
-                    } else {
-                        // WARN: do not remove this `else` branch even after
-                        // `congestion_control_gas_price_feedback_mechanism` is enabled
-                        // on the mainnet. It must be kept to be able to replay old
-                        // transaction data.
-                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
-                            congested_objects: cancelled_objects,
+                        CancelledObjects::SharedObjects(congested_objects) => {
+                            if protocol_config.congestion_control_gas_price_feedback_mechanism() {
+                                ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestionV2 {
+                                    congested_objects,
+                                    suggested_gas_price: version
+                                        .get_congested_version_suggested_gas_price()
+                                        .unwrap(),
+                                }
+                            } else {
+                                // WARN: do not remove this `else` branch even after
+                                // `congestion_control_gas_price_feedback_mechanism` is enabled
+                                // on the mainnet. It must be kept to be able to replay old
+                                // transaction data.
+                                ExecutionErrorKind::ExecutionCanceledDueToSharedObjectCongestion {
+                                    congested_objects,
+                                }
+                            }
                         }
                     },
                     None,
                 )),
-                SequenceNumber::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
-                    ExecutionErrorKind::ExecutionCancelledDueToRandomnessUnavailable,
+                Version::RANDOMNESS_UNAVAILABLE => Err(ExecutionError::new(
+                    ExecutionErrorKind::ExecutionCanceledDueToRandomnessUnavailable,
                     None,
                 )),
-                _ => panic!("invalid cancellation reason SequenceNumber: {reason}"),
+                _ => panic!("invalid cancellation reason Version: {reason}"),
             }
         } else {
             Ok(())
@@ -1249,10 +1291,13 @@ mod checked {
                 )
             }
             TransactionKind::EndOfEpoch(txns) => {
-                let builder = ProgrammableTransactionBuilder::new();
+                // Non-change-epoch kinds accumulate commands into the builder;
+                // the change-epoch kind is always last and executes the built
+                // transaction as part of advancing the epoch.
+                let mut builder = ProgrammableTransactionBuilder::new();
                 let len = txns.len();
 
-                if let Some((i, tx)) = txns.into_iter().enumerate().next() {
+                for (i, tx) in txns.into_iter().enumerate() {
                     match tx {
                         EndOfEpochTransactionKind::ChangeEpoch(change_epoch) => {
                             assert_eq!(i, len - 1);
@@ -1314,6 +1359,13 @@ mod checked {
                             )?;
                             return Ok(Mode::empty_results());
                         }
+                        EndOfEpochTransactionKind::TransactionDenyRulesCreate => {
+                            assert!(
+                                protocol_config.deny_rule_governance_on_chain(),
+                                "unexpected TransactionDenyRulesCreate: on-chain deny rule governance is not enabled"
+                            );
+                            builder = setup_transaction_deny_rules_create(builder)?;
+                        }
                         _ => unimplemented!(
                             "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
                         ),
@@ -1336,6 +1388,23 @@ mod checked {
             TransactionKind::RandomnessStateUpdate(randomness_state_update) => {
                 setup_randomness_state_update(
                     randomness_state_update,
+                    temporary_store,
+                    tx_ctx,
+                    move_vm,
+                    gas_charger,
+                    protocol_config,
+                    metrics,
+                    trace_builder_opt,
+                )?;
+                Ok(Mode::empty_results())
+            }
+            TransactionKind::TransactionDenyRulesUpdate(update) => {
+                assert!(
+                    protocol_config.deny_rule_governance_on_chain(),
+                    "unexpected TransactionDenyRulesUpdate: on-chain deny rule governance is not enabled"
+                );
+                setup_transaction_deny_rules_update(
+                    update,
                     temporary_store,
                     tx_ctx,
                     move_vm,
@@ -1374,7 +1443,7 @@ mod checked {
             ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_CREATE_REWARDS_FUNCTION_NAME,
-            vec![GAS::type_tag()],
+            vec![TypeTag::from(StructTag::new_gas())],
             vec![storage_charge_arg],
         );
 
@@ -1386,7 +1455,7 @@ mod checked {
             ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_CREATE_REWARDS_FUNCTION_NAME,
-            vec![GAS::type_tag()],
+            vec![TypeTag::from(StructTag::new_gas())],
             vec![computation_charge_arg],
         );
         (storage_charges, computation_charges)
@@ -1441,7 +1510,7 @@ mod checked {
             ObjectId::FRAMEWORK,
             Identifier::BALANCE_MODULE,
             BALANCE_DESTROY_REBATES_FUNCTION_NAME,
-            vec![GAS::type_tag()],
+            vec![TypeTag::from(StructTag::new_gas())],
             vec![storage_rebates],
         );
         Ok(builder.finish())
@@ -1852,7 +1921,7 @@ mod checked {
                 // the version growing by one in the effects.
                 new_package
                     .data
-                    .as_package_mut_opt()
+                    .as_opt_mut_package()
                     .unwrap()
                     .decrement_version()
                     .expect("package version should never underflow");
@@ -1931,7 +2000,7 @@ mod checked {
                 RANDOMNESS_STATE_UPDATE_FUNCTION_NAME,
                 vec![],
                 vec![
-                    CallArg::Shared(SharedObjectRef::new(
+                    CallArg::Shared(SharedObjectReference::new(
                         ObjectId::RANDOMNESS_STATE,
                         update.randomness_obj_initial_shared_version,
                         true,
@@ -1943,6 +2012,89 @@ mod checked {
             assert_invariant!(
                 res.is_ok(),
                 "Unable to generate randomness_state_update transaction!"
+            );
+            builder.finish()
+        };
+        programmable_transactions::execution::execute::<execution_mode::System>(
+            protocol_config,
+            metrics,
+            move_vm,
+            temporary_store,
+            tx_ctx,
+            gas_charger,
+            pt,
+            trace_builder_opt,
+        )
+    }
+
+    /// Appends the `transaction_deny_rules::create` call to the end-of-epoch
+    /// transaction being built. If the built transaction later fails and epoch
+    /// advancement falls back to safe mode, the creation is dropped with it
+    /// and must be re-injected at a later epoch end while the object is
+    /// absent.
+    fn setup_transaction_deny_rules_create(
+        mut builder: ProgrammableTransactionBuilder,
+    ) -> Result<ProgrammableTransactionBuilder, ExecutionError> {
+        let res = builder.move_call(
+            ObjectId::FRAMEWORK,
+            TRANSACTION_DENY_RULES_MODULE,
+            TRANSACTION_DENY_RULES_CREATE_FUNCTION_NAME,
+            vec![],
+            vec![],
+        );
+        assert_invariant!(
+            res.is_ok(),
+            "Unable to generate transaction_deny_rules create transaction!"
+        );
+        Ok(builder)
+    }
+
+    /// Executes a `TransactionDenyRulesUpdate` system transaction: a single
+    /// call to `transaction_deny_rules::update` applying the payload's
+    /// add/remove delta and switch states.
+    fn setup_transaction_deny_rules_update(
+        update: TransactionDenyRulesUpdate,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: Rc<RefCell<TxContext>>,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            // Argument order must match `transaction_deny_rules::update`. The
+            // set-typed delta lists BCS-encode identically to the `vector`
+            // parameters the Move function takes.
+            let res = builder.move_call(
+                ObjectId::FRAMEWORK,
+                TRANSACTION_DENY_RULES_MODULE,
+                TRANSACTION_DENY_RULES_UPDATE_FUNCTION_NAME,
+                vec![],
+                vec![
+                    CallArg::Shared(SharedObjectReference::new(
+                        ObjectId::TRANSACTION_DENY_RULES,
+                        update.deny_rules_obj_initial_shared_version,
+                        true,
+                    )),
+                    CallArg::pure(&update.added_addresses),
+                    CallArg::pure(&update.removed_addresses),
+                    CallArg::pure(&update.added_objects),
+                    CallArg::pure(&update.removed_objects),
+                    CallArg::pure(&update.added_packages),
+                    CallArg::pure(&update.removed_packages),
+                    CallArg::pure(&update.package_publish_disabled),
+                    CallArg::pure(&update.package_upgrade_disabled),
+                    CallArg::pure(&update.shared_object_disabled),
+                    CallArg::pure(&update.user_transaction_disabled),
+                    CallArg::pure(&update.receiving_objects_disabled),
+                    CallArg::pure(&update.move_authenticator_disabled),
+                ],
+            );
+            assert_invariant!(
+                res.is_ok(),
+                "Unable to generate transaction_deny_rules update transaction!"
             );
             builder.finish()
         };
@@ -1981,7 +2133,7 @@ mod checked {
             Identifier::new(authenticator_function_ref.function).expect(
                 "`AuthenticatorFunctionRefV1::function` is expected to be a valid `Identifier`",
             ),
-            authenticator.type_arguments().clone(),
+            authenticator.type_args().to_vec(),
             args,
         );
 
@@ -1993,10 +2145,7 @@ mod checked {
         Ok(builder.finish())
     }
 
-    fn resolve_sponsor(
-        gas_data: &GasData,
-        transaction_signer: &IotaAddress,
-    ) -> Option<IotaAddress> {
+    fn resolve_sponsor(gas_data: &GasPayment, transaction_signer: &Address) -> Option<Address> {
         let gas_owner = gas_data.owner;
         if &gas_owner == transaction_signer {
             None

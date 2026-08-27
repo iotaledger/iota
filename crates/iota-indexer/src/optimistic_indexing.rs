@@ -2,18 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::{collections::BTreeMap, time::Duration};
 
-use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
+use diesel::{
+    PgConnection, QueryableByName, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types,
+};
 use downcast::Any;
-use fastcrypto::{encoding::Base64, error::FastCryptoError, traits::ToFromBytes};
-use iota_grpc_client::{Client as GrpcClient, ReadMask, read_mask_fields::TransactionField};
+use fastcrypto::encoding::Base64;
+use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
 use iota_grpc_types::v1::transaction::ExecutedTransaction;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, Transaction, TransactionDigest, UserSignature, Version};
 use iota_types::{
-    base_types::{SequenceNumber, TransactionDigest},
-    effects::TransactionEffectsAPI,
-    full_checkpoint_content::CheckpointTransaction,
-    signature::GenericSignature,
-    transaction::{Transaction, TransactionData},
+    effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
+    transaction::TransactionEnvelope,
 };
 
 use crate::{
@@ -31,7 +30,7 @@ use crate::{
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
-        transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
+        transactions::{OptimisticTransaction, StoredTransaction},
     },
     read::{IndexerReader, InputObjectsStatus},
     store::{IndexerStore, PgIndexerStore},
@@ -42,7 +41,7 @@ use crate::{
 const WAIT_FOR_DEPS_MAX_ELAPSED_TIME: Duration = Duration::from_secs(3);
 
 // As an optimization, we're trying to request only the fields we actually need.
-const EXECUTE_TRANSACTION_READ_MASK: &[&str] = &[
+const EXECUTE_TRANSACTION_READ_MASK: &[TransactionField] = &[
     TransactionField::EFFECTS_BCS,
     TransactionField::EVENTS_EVENTS_BCS,
     TransactionField::INPUT_OBJECTS_BCS,
@@ -54,6 +53,19 @@ type TransactionDataToCommit = (
     BTreeMap<String, StoredDisplay>,
     TransactionObjectChangesToCommit,
 );
+
+/// Sequence numbers assigned to an optimistic transaction when its
+/// `tx_global_order` row is created.
+#[derive(QueryableByName)]
+struct AssignedGlobalOrder {
+    /// Auto-generated sequence number by the insert.
+    #[diesel(sql_type = sql_types::BigInt)]
+    optimistic_sequence_number: i64,
+    /// The latest checkpointed `tx_sequence_number` at insertion time.
+    /// It is `None` when no checkpointed transaction has been indexed yet.
+    #[diesel(sql_type = sql_types::Nullable<sql_types::BigInt>)]
+    global_sequence_number: Option<i64>,
+}
 
 /// Represents the ingestion path taken after execution.
 ///
@@ -104,7 +116,7 @@ impl OptimisticTransactionExecutor {
 
     pub(crate) async fn wait_for_dependencies(
         &self,
-        input_obj_keys: Vec<(ObjectId, SequenceNumber)>,
+        input_obj_keys: Vec<(ObjectId, Version)>,
     ) -> Result<(), IndexerError> {
         let backoff = backoff::ExponentialBackoff {
             initial_interval: Duration::from_millis(100),
@@ -162,7 +174,7 @@ impl OptimisticTransactionExecutor {
     /// should be relied upon in that case.
     async fn maybe_index_executed_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         executed_transaction: ExecutedTransaction,
     ) -> Result<Option<OptimisticTransaction>, IndexerError> {
         // The methods check for fields being Some. Based on the provided read mask,
@@ -223,7 +235,7 @@ impl OptimisticTransactionExecutor {
     /// Execute the signed transaction on the fullnode through gRPC.
     pub async fn execute_transaction(
         &self,
-        signed_transaction: Transaction,
+        signed_transaction: TransactionEnvelope,
     ) -> Result<ExecutedTransaction, IndexerError> {
         let node_timer = self
             .metrics
@@ -233,9 +245,9 @@ impl OptimisticTransactionExecutor {
         let response = self
             .rpc_client
             .execute_transaction(
-                signed_transaction.try_into()?,
-                Some(ReadMask::from(EXECUTE_TRANSACTION_READ_MASK)),
+                signed_transaction.into(),
                 None,
+                EXECUTE_TRANSACTION_READ_MASK,
             )
             .await;
 
@@ -262,13 +274,16 @@ impl OptimisticTransactionExecutor {
             .optimistic_tx_total_execution_and_indexing_time
             .start_timer();
         self.metrics.optimistic_tx_count.inc();
-        let tx_data: TransactionData = bcs::from_bytes(&tx_bytes.to_vec()?)?;
+        let tx = Transaction::from_base64(&tx_bytes.encoded())?;
         let sigs = signatures
             .into_iter()
-            .map(|sig| GenericSignature::from_bytes(&sig.to_vec()?))
-            .collect::<Result<Vec<_>, FastCryptoError>>()?;
+            .map(|sig| {
+                UserSignature::from_bytes(sig.to_vec()?)
+                    .map_err(|e| IndexerError::InvalidArgument(e.to_string()))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let transaction = Transaction::from_generic_sig_data(tx_data, sigs);
+        let transaction = TransactionEnvelope::from_user_sig_data(tx, sigs);
         let tx_digest = *transaction.digest();
 
         let executed_transaction = self.execute_transaction(transaction.clone()).await?;
@@ -302,6 +317,7 @@ impl OptimisticTransactionExecutor {
             .multi_get_transactions(&[tx_digest])
             .await?
             .pop()
+            .map(StoredTransaction::from)
             .ok_or_else(|| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "transaction {tx_digest} not found in the DB after being marked as indexed."
@@ -405,7 +421,6 @@ impl OptimisticTransactionExecutor {
                     full_tx_data,
                     assigned_global_order
                         .optimistic_sequence_number
-                        .expect("optimistic sequence number is always set for data read from DB")
                         .try_into()
                         .map_err(|e| {
                             IndexerError::PersistentStorageDataCorruption(format!(
@@ -415,8 +430,16 @@ impl OptimisticTransactionExecutor {
                     &self.metrics,
                 );
 
-                let tx_data_to_commit = extractor
-                    .to_transaction_data_to_commit(assigned_global_order.global_sequence_number)?;
+                let global_sequence_number =
+                    assigned_global_order.global_sequence_number.ok_or_else(|| {
+                        IndexerError::PostgresRead(
+                            "cannot assign global order, no checkpointed transactions in tx_global_order"
+                                .into(),
+                        )
+                    })?;
+
+                let tx_data_to_commit =
+                    extractor.to_transaction_data_to_commit(global_sequence_number)?;
 
                 let optimistic_tx = self.persist_optimistic_tx(conn, tx_data_to_commit)?;
                 Ok(Some(optimistic_tx))
@@ -429,18 +452,19 @@ impl OptimisticTransactionExecutor {
     fn assign_optimistic_tx_global_order(
         conn: &mut PgConnection,
         tx_digest: &TransactionDigest,
-    ) -> Result<TxGlobalOrder, IndexerError> {
+    ) -> Result<AssignedGlobalOrder, IndexerError> {
         let tx_digest_bytes = tx_digest.inner().to_vec();
 
         sql_query(
             r#"
-                INSERT INTO tx_global_order (tx_digest, global_sequence_number, chk_tx_sequence_number)
-                SELECT $1, MAX(tx_sequence_number), NULL FROM tx_digests
-                RETURNING *;
+                INSERT INTO tx_global_order (tx_digest, tx_sequence_number)
+                VALUES ($1, NULL)
+                RETURNING optimistic_sequence_number,
+                    (SELECT MAX(tx_sequence_number) FROM tx_global_order) AS global_sequence_number;
             "#,
         )
         .bind::<sql_types::Bytea, _>(&tx_digest_bytes)
-        .get_result::<TxGlobalOrder>(conn)
+        .get_result::<AssignedGlobalOrder>(conn)
         .map_err(|e| match e {
             diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
                 IndexerError::PostgresUniqueTxGlobalOrderViolation(e.to_string())
@@ -458,9 +482,9 @@ impl OptimisticTransactionExecutor {
 
         self.store
             .persist_objects_in_existing_transaction(conn, vec![object_changes])?;
-        self.store.persist_displays_in_existing_transaction(
+        self.store.persist_displays_chunk_in_existing_transaction(
             conn,
-            indexed_displays.values().collect::<Vec<_>>(),
+            &indexed_displays.into_values().collect::<Vec<_>>(),
         )?;
 
         self.store

@@ -9,17 +9,17 @@ use anemo::{
     types::{PeerAffinity, PeerInfo},
 };
 use enum_dispatch::enum_dispatch;
+use iota_multiaddr::Multiaddr;
 use iota_protocol_config::ProtocolVersion;
+use iota_sdk_types::Address;
 use serde::{Deserialize, Serialize};
-use starfish_config::{Authority, Committee as ConsensusCommittee};
-use tracing::{error, warn};
+use tracing::warn;
 
 use crate::{
-    base_types::{AuthorityName, EpochId, IotaAddress},
+    base_types::{AuthorityName, EpochId},
     committee::{Committee, CommitteeWithNetworkMetadata, NetworkMetadata, StakeUnit},
     crypto::{AuthorityPublicKey, NetworkPublicKey},
     iota_system_state::iota_system_state_inner_v1::ValidatorV1,
-    multiaddr::Multiaddr,
 };
 
 #[enum_dispatch]
@@ -30,10 +30,13 @@ pub trait EpochStartSystemStateTrait {
     fn safe_mode(&self) -> bool;
     fn epoch_start_timestamp_ms(&self) -> u64;
     fn epoch_duration_ms(&self) -> u64;
-    fn get_validator_addresses(&self) -> Vec<IotaAddress>;
+    fn get_validator_addresses(&self) -> Vec<Address>;
     fn get_iota_committee(&self) -> Committee;
     fn get_iota_committee_with_network_metadata(&self) -> CommitteeWithNetworkMetadata;
-    fn get_consensus_committee(&self) -> ConsensusCommittee;
+    /// The validators forming the committee for this epoch, in the order they
+    /// are stored. Callers that need them ordered by authority key, such as
+    /// when building a consensus committee, must sort them.
+    fn committee_validators(&self) -> &[EpochStartValidatorInfoV1];
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo>;
     fn get_authority_names_to_peer_ids(&self) -> HashMap<AuthorityName, PeerId>;
     fn get_authority_names_to_hostnames(&self) -> HashMap<AuthorityName, String>;
@@ -186,7 +189,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         self.epoch_duration_ms
     }
 
-    fn get_validator_addresses(&self) -> Vec<IotaAddress> {
+    fn get_validator_addresses(&self) -> Vec<Address> {
         self.committee_validators
             .iter()
             .map(|validator| validator.iota_address)
@@ -224,44 +227,8 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
         Committee::new(self.epoch, voting_rights)
     }
 
-    fn get_consensus_committee(&self) -> ConsensusCommittee {
-        let mut authorities: Vec<Authority> = Vec::with_capacity(self.committee_validators.len());
-
-        for validator in self.committee_validators.iter() {
-            authorities.push(Authority {
-                stake: validator.voting_power as starfish_config::Stake,
-                address: validator.primary_address.clone(),
-                hostname: validator.hostname.clone(),
-                authority_key: <starfish_config::AuthorityPublicKey>::new(
-                    validator.authority_pubkey.clone(),
-                ),
-                protocol_key: <starfish_config::ProtocolPublicKey>::new(
-                    validator.protocol_pubkey.clone(),
-                ),
-                network_key: <starfish_config::NetworkPublicKey>::new(
-                    validator.network_pubkey.clone(),
-                ),
-            });
-        }
-
-        // Sort the authorities by their authority (public) key in ascending order, same
-        // as the order in the IOTA committee returned from get_iota_committee().
-        authorities.sort_by(|a1, a2| a1.authority_key.cmp(&a2.authority_key));
-
-        for ((i, authority), iota_authority_name) in authorities
-            .iter()
-            .enumerate()
-            .zip(self.get_iota_committee().names())
-        {
-            if iota_authority_name.0 != authority.authority_key.to_bytes() {
-                error!(
-                    "Mismatched authority order between IOTA and Starfish! \
-                    Index {i}, Starfish authority {authority:?}\nIota authority name {iota_authority_name}"
-                );
-            }
-        }
-
-        ConsensusCommittee::new(self.epoch as starfish_config::Epoch, authorities)
+    fn committee_validators(&self) -> &[EpochStartValidatorInfoV1] {
+        &self.committee_validators
     }
 
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
@@ -368,7 +335,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
         self.v1.epoch_duration_ms()
     }
 
-    fn get_validator_addresses(&self) -> Vec<IotaAddress> {
+    fn get_validator_addresses(&self) -> Vec<Address> {
         self.v1.get_validator_addresses()
     }
 
@@ -380,8 +347,8 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
         self.v1.get_iota_committee()
     }
 
-    fn get_consensus_committee(&self) -> ConsensusCommittee {
-        self.v1.get_consensus_committee()
+    fn committee_validators(&self) -> &[EpochStartValidatorInfoV1] {
+        self.v1.committee_validators()
     }
 
     fn get_validator_as_p2p_peers(&self, excluding_self: AuthorityName) -> Vec<PeerInfo> {
@@ -406,7 +373,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV2 {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Eq, PartialEq)]
 pub struct EpochStartValidatorInfoV1 {
-    pub iota_address: IotaAddress,
+    pub iota_address: Address,
     pub authority_pubkey: AuthorityPublicKey,
     pub network_pubkey: NetworkPublicKey,
     pub protocol_pubkey: NetworkPublicKey,
@@ -443,220 +410,22 @@ pub fn convert_validator_to_epoch_start_info(validator: &ValidatorV1) -> EpochSt
 mod test {
     use bcs;
     use fastcrypto::traits::{KeyPair, ToFromBytes};
-    use iota_network_stack::Multiaddr;
+    use iota_multiaddr::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
+    use iota_sdk_types::Address;
     use rand::thread_rng;
 
     use crate::{
-        base_types::IotaAddress,
-        committee::CommitteeTrait,
         crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},
         iota_system_state::epoch_start_iota_system_state::{
-            EpochStartSystemState, EpochStartSystemStateTrait, EpochStartSystemStateV1,
-            EpochStartValidatorInfoV1,
+            EpochStartSystemState, EpochStartSystemStateTrait, EpochStartValidatorInfoV1,
         },
     };
 
     #[test]
-    fn test_iota_and_consensus_committee_are_same() {
-        // GIVEN
-        let mut committee_validators = vec![];
-
-        for i in 0..10 {
-            let (iota_address, authority_key): (IotaAddress, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
-
-            committee_validators.push(EpochStartValidatorInfoV1 {
-                iota_address,
-                authority_pubkey: authority_key.public().clone(),
-                network_pubkey: protocol_network_key.public().clone(),
-                protocol_pubkey: protocol_network_key.public().clone(),
-                iota_net_address: Multiaddr::empty(),
-                p2p_address: Multiaddr::empty(),
-                primary_address: Multiaddr::empty(),
-                voting_power: 1_000,
-                hostname: format!("host-{i}").to_string(),
-            })
-        }
-
-        let state = EpochStartSystemStateV1 {
-            epoch: 10,
-            protocol_version: ProtocolVersion::MAX.as_u64(),
-            reference_gas_price: 0,
-            safe_mode: false,
-            epoch_start_timestamp_ms: 0,
-            epoch_duration_ms: 0,
-            committee_validators,
-        };
-
-        // WHEN
-        let iota_committee = state.get_iota_committee();
-        let consensus_committee = state.get_consensus_committee();
-
-        // THEN
-        // assert the validators details
-        assert_eq!(iota_committee.num_members(), 10);
-        assert_eq!(iota_committee.num_members(), consensus_committee.size());
-        assert_eq!(
-            iota_committee.validity_threshold(),
-            consensus_committee.validity_threshold()
-        );
-        assert_eq!(
-            iota_committee.quorum_threshold(),
-            consensus_committee.quorum_threshold()
-        );
-        assert_eq!(state.epoch, consensus_committee.epoch());
-
-        for (authority_index, consensus_authority) in consensus_committee.authorities() {
-            let iota_authority_name = iota_committee
-                .authority_by_index(authority_index.value() as u32)
-                .unwrap();
-
-            assert_eq!(
-                consensus_authority.authority_key.to_bytes(),
-                iota_authority_name.0,
-                "IOTA Foundation & IOTA committee member of same index correspond to different public key"
-            );
-            assert_eq!(
-                consensus_authority.stake,
-                iota_committee.weight(iota_authority_name),
-                "IOTA Foundation & IOTA committee member stake differs"
-            );
-        }
-    }
-
-    #[test]
-    fn test_v2_iota_and_consensus_committee_are_same() {
-        // GIVEN
-        let mut committee_validators = vec![];
-        let mut non_committee_validators = vec![];
-
-        for i in 0..10 {
-            let (iota_address, authority_key): (IotaAddress, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
-
-            committee_validators.push(EpochStartValidatorInfoV1 {
-                iota_address,
-                authority_pubkey: authority_key.public().clone(),
-                network_pubkey: protocol_network_key.public().clone(),
-                protocol_pubkey: protocol_network_key.public().clone(),
-                iota_net_address: Multiaddr::empty(),
-                p2p_address: Multiaddr::empty(),
-                primary_address: Multiaddr::empty(),
-                voting_power: 1_000,
-                hostname: format!("committee-{i}").to_string(),
-            });
-
-            let (iota_address, authority_key): (IotaAddress, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
-
-            non_committee_validators.push(EpochStartValidatorInfoV1 {
-                iota_address,
-                authority_pubkey: authority_key.public().clone(),
-                network_pubkey: protocol_network_key.public().clone(),
-                protocol_pubkey: protocol_network_key.public().clone(),
-                iota_net_address: Multiaddr::empty(),
-                p2p_address: Multiaddr::empty(),
-                primary_address: Multiaddr::empty(),
-                voting_power: 500,
-                hostname: format!("non-committee-{i}").to_string(),
-            });
-        }
-
-        // Create active_validators list containing all validators in the desired order
-        let mut active_validators = committee_validators.clone();
-        active_validators.extend(non_committee_validators.clone());
-
-        let state = EpochStartSystemState::new_v2(
-            10,
-            ProtocolVersion::MAX.as_u64(),
-            0,
-            false,
-            0,
-            0,
-            committee_validators.clone(),
-            active_validators,
-        );
-
-        // WHEN
-        let iota_committee = state.get_iota_committee();
-        let consensus_committee = state.get_consensus_committee();
-        let active_validators = state.get_active_validators();
-
-        // THEN
-        // Assert committee validators details
-        assert_eq!(iota_committee.num_members(), 10);
-        assert_eq!(iota_committee.num_members(), consensus_committee.size());
-        assert_eq!(
-            iota_committee.validity_threshold(),
-            consensus_committee.validity_threshold()
-        );
-        assert_eq!(
-            iota_committee.quorum_threshold(),
-            consensus_committee.quorum_threshold()
-        );
-
-        // Verify committee validators are correctly mapped
-        for (authority_index, consensus_authority) in consensus_committee.authorities() {
-            let iota_authority_name = iota_committee
-                .authority_by_index(authority_index.value() as u32)
-                .unwrap();
-
-            assert_eq!(
-                consensus_authority.authority_key.to_bytes(),
-                iota_authority_name.0,
-                "IOTA Foundation & IOTA committee member of same index correspond to different public key"
-            );
-            assert_eq!(
-                consensus_authority.stake,
-                iota_committee.weight(iota_authority_name),
-                "IOTA Foundation & IOTA committee member stake differs"
-            );
-        }
-
-        // Verify active validators (should include all: committee + non-committee)
-        assert_eq!(active_validators.len(), 20); // 10 committee + 10 non-committee
-
-        // Verify order is preserved - active_validators should contain all validators
-        // in the expected order First committee validators, then non-committee
-        // validators
-        let expected_order: Vec<_> = committee_validators
-            .iter()
-            .chain(non_committee_validators.iter())
-            .collect();
-
-        for (i, expected_validator) in expected_order.iter().enumerate() {
-            let found_pubkey = &active_validators[i];
-            assert_eq!(
-                found_pubkey.as_bytes(),
-                expected_validator.authority_pubkey.as_bytes(),
-                "Order not preserved: expected validator at index {i}",
-            );
-        }
-
-        // Verify committee validators are in active_validators
-        for validator in committee_validators.iter() {
-            let found = active_validators
-                .iter()
-                .find(|pubkey| pubkey.as_bytes() == validator.authority_pubkey.as_bytes())
-                .unwrap();
-            assert_eq!(found.as_bytes(), validator.authority_pubkey.as_bytes());
-        }
-
-        // Verify non-committee validators are in active_validators
-        for validator in non_committee_validators.iter() {
-            let found = active_validators
-                .iter()
-                .find(|pubkey| pubkey.as_bytes() == validator.authority_pubkey.as_bytes())
-                .unwrap();
-            assert_eq!(found.as_bytes(), validator.authority_pubkey.as_bytes());
-        }
-    }
-
-    #[test]
     fn test_epoch_start_system_state_versioning() {
         // Create test validators
-        let (iota_address1, authority_key1): (IotaAddress, AuthorityKeyPair) = get_key_pair();
+        let (iota_address1, authority_key1): (Address, AuthorityKeyPair) = get_key_pair();
         let protocol_network_key1 = NetworkKeyPair::generate(&mut thread_rng());
         let net_address1 = "/ip4/127.0.0.1/tcp/1337".parse().unwrap();
         let p2p_address1 = "/ip4/127.0.0.1/tcp/1338".parse().unwrap();
@@ -674,7 +443,7 @@ mod test {
             hostname: "committee-1.example.com".to_string(),
         };
 
-        let (iota_address2, authority_key2): (IotaAddress, AuthorityKeyPair) = get_key_pair();
+        let (iota_address2, authority_key2): (Address, AuthorityKeyPair) = get_key_pair();
         let protocol_network_key2 = NetworkKeyPair::generate(&mut thread_rng());
         let net_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2337".parse().unwrap();
         let p2p_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2338".parse().unwrap();

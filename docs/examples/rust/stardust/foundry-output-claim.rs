@@ -15,16 +15,17 @@ use iota_sdk::{
     },
     types::{
         coin_manager::CoinManagerTreasuryCap,
-        crypto::SignatureScheme::ED25519,
         dynamic_field::DynamicFieldName,
-        gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
-        transaction::{CallArg, Transaction, TransactionData},
+        transaction::{CallArg, TransactionEnvelope},
     },
 };
-use iota_sdk_types::{Argument, Identifier, ObjectId, StructTag, TypeTag, crypto::Intent};
-use iota_types::transaction::TransactionDataAPI;
+use iota_sdk_types::{
+    Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
+    crypto::Intent,
+};
+use iota_types::transaction::TransactionAPI;
 
 /// Got from iota-genesis-builder/src/stardust/test_outputs/alias_ownership.rs
 const MAIN_ADDRESS_MNEMONIC: &str = "few hood high omit camp keep burger give happy iron evolve draft few dawn pulp jazz box dash load snake gown bag draft car";
@@ -38,7 +39,12 @@ async fn main() -> Result<(), anyhow::Error> {
     let mut keystore = setup_keystore()?;
 
     // Derive the address of the first account and set it as default.
-    let sender = keystore.import_from_mnemonic(MAIN_ADDRESS_MNEMONIC, ED25519, None, None)?;
+    let sender = keystore.import_from_mnemonic(
+        MAIN_ADDRESS_MNEMONIC,
+        SignatureScheme::Ed25519,
+        None,
+        None,
+    )?;
 
     println!("Sender address: {sender}");
 
@@ -74,7 +80,7 @@ async fn main() -> Result<(), anyhow::Error> {
     // object.
     // The dynamic field name for the Alias object is "alias", of type vector<u8>
     let df_name = DynamicFieldName {
-        type_: TypeTag::Vector(Box::new(TypeTag::U8)),
+        type_tag: TypeTag::Vector(Box::new(TypeTag::U8)),
         value: serde_json::Value::String("alias".to_string()),
     };
     let alias_object = iota_client
@@ -146,7 +152,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
         // Type argument for an AliasOutput coming from the IOTA network, i.e., the
         // IOTA token or the Gas type tag.
-        let type_arguments = vec![GAS::type_tag()];
+        let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
         // Then pass the AliasOutput object as an input.
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(alias_output_object_ref))?];
         // Finally call the alias_output::extract_assets function.
@@ -165,7 +171,7 @@ async fn main() -> Result<(), anyhow::Error> {
             let extracted_alias = Argument::NestedResult(extracted_assets, 2);
 
             // Extract the IOTA balance.
-            let type_arguments = vec![GAS::type_tag()];
+            let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
             let arguments = vec![extracted_base_token];
             let iota_coin = builder.programmable_move_call(
                 ObjectId::FRAMEWORK,
@@ -216,7 +222,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let gas_price = iota_client.read_api().get_reference_gas_price().await?;
 
     // Create a transaction data that will be sent to the network.
-    let tx_data = TransactionData::new_programmable(
+    let tx = Transaction::new_programmable(
         sender,
         vec![gas_coin.object_ref()],
         pt,
@@ -225,13 +231,13 @@ async fn main() -> Result<(), anyhow::Error> {
     );
 
     // Sign the transaction.
-    let signature = keystore.sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
+    let signature = keystore.sign_secure(&sender, &tx, Intent::iota_transaction())?;
 
     // Execute the transaction.
     let transaction_response = iota_client
         .quorum_driver_api()
         .execute_transaction_block(
-            Transaction::from_data(tx_data, vec![signature]),
+            TransactionEnvelope::from_data(tx, vec![signature]),
             IotaTransactionBlockResponseOptions::full_content(),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )

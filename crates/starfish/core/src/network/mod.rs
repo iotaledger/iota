@@ -43,6 +43,7 @@ mod tonic_gen {
     include!(concat!(env!("OUT_DIR"), "/consensus.ConsensusService.rs"));
 }
 
+mod admission;
 pub(crate) mod metrics;
 mod metrics_layer;
 #[cfg(all(test, not(msim)))]
@@ -56,9 +57,7 @@ pub mod tonic_network;
 mod tonic_tls;
 
 use crate::{
-    commit_syncer::CommitSyncType,
-    encoder::ShardEncoder,
-    transaction_ref::{GenericTransactionRef, TransactionRef},
+    commit_syncer::CommitSyncType, encoder::ShardEncoder, transaction_ref::TransactionRef,
 };
 
 /// Controls transaction fetching truncation behavior for different sync modes
@@ -68,7 +67,7 @@ pub(crate) enum TransactionFetchMode {
     /// referenced by commits in a batch
     FastCommitSync,
     /// Truncate to the maximum of max_transactions_per_commit_sync_fetch and
-    /// max_transactions_per_regular_sync_fetch- used by regular commit sync
+    /// max_transactions_per_transaction_sync_fetch- used by regular commit sync
     /// and transactions synchronizer
     TransactionSync,
 }
@@ -94,11 +93,11 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
         timeout: Duration,
     ) -> ConsensusResult<BlockBundleStream>;
 
-    /// Fetches transactions for the given block references from a peer.
+    /// Fetches transactions for the given transaction references from a peer.
     async fn fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        transactions_refs: Vec<GenericTransactionRef>,
+        transactions_refs: Vec<TransactionRef>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>>;
 
@@ -132,12 +131,17 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     /// Returns serialized commits, serialized headers voting for the last
     /// commit, and serialized transactions (as SerializedTransactionsV2 which
     /// includes TransactionRef). Used in the fast commit syncer.
+    ///
+    /// When the response stream is cut by an error after commits were
+    /// received, the buffers hold what arrived and the error is returned
+    /// alongside them, so the caller can attribute missing transactions to
+    /// the connection rather than to the peer's data.
     async fn fetch_commits_and_transactions(
         &self,
         peer: AuthorityIndex,
         commit_range: CommitRange,
         timeout: Duration,
-    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>)>;
+    ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>, Vec<Bytes>, Option<ConsensusError>)>;
 
     /// Fetches the latest block from `peer` for the requested `authorities`.
     /// The latest blocks are returned in the serialised format of
@@ -216,7 +220,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<GenericTransactionRef>,
+        transactions_refs: Vec<TransactionRef>,
         fetch_mode: TransactionFetchMode,
     ) -> ConsensusResult<Vec<Bytes>>;
 }
@@ -408,12 +412,6 @@ impl TryFrom<BlockBundle> for SerializedBlockBundle {
     fn try_from(block_bundle: BlockBundle) -> ConsensusResult<Self> {
         SerializedBlockBundle::try_from(SerializedBlockBundleParts::try_from(block_bundle)?)
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SerializedTransactionsV1 {
-    pub(crate) block_ref: BlockRef,
-    pub(crate) serialized_transactions: Bytes,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

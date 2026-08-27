@@ -9,16 +9,12 @@ use async_trait::async_trait;
 use fastcrypto::ed25519;
 use iota_config::NodeConfig;
 use iota_metrics::{RegistryID, RegistryService, monitored_mpsc::unbounded_channel};
-use iota_types::{
-    committee::EpochId,
-    iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-};
-use prometheus::Registry;
+use iota_types::committee::EpochId;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
     Clock, CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority,
 };
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, broadcast};
 use tracing::info;
 
 use crate::{
@@ -28,6 +24,7 @@ use crate::{
         ConsensusManagerMetrics, ConsensusManagerTrait, ReplayWaiter, Running, RunningLockGuard,
     },
     consensus_validator::IotaTxValidator,
+    epoch_start_consensus_committee::get_consensus_committee,
     starfish_adapter::LazyStarfishClient,
 };
 
@@ -49,6 +46,7 @@ pub struct StarfishManager {
     client: Arc<LazyStarfishClient>,
     consensus_handler: Mutex<Option<StarfishConsensusHandler>>,
     consumer_monitor: ArcSwapOption<CommitConsumerMonitor>,
+    consumer_monitor_sender: broadcast::Sender<Arc<CommitConsumerMonitor>>,
 }
 
 impl StarfishManager {
@@ -63,6 +61,7 @@ impl StarfishManager {
         metrics: Arc<ConsensusManagerMetrics>,
         client: Arc<LazyStarfishClient>,
     ) -> Self {
+        let (consumer_monitor_sender, _) = broadcast::channel(1);
         Self {
             protocol_keypair: ProtocolKeyPair::new(protocol_keypair),
             network_keypair: NetworkKeyPair::new(network_keypair),
@@ -75,6 +74,7 @@ impl StarfishManager {
             consensus_handler: Mutex::new(None),
             boot_counter: Mutex::new(0),
             consumer_monitor: ArcSwapOption::empty(),
+            consumer_monitor_sender,
         }
     }
 
@@ -97,7 +97,7 @@ impl ConsensusManagerTrait for StarfishManager {
         tx_validator: IotaTxValidator,
     ) {
         let system_state = epoch_store.epoch_start_state();
-        let committee: Committee = system_state.get_consensus_committee();
+        let committee: Committee = get_consensus_committee(system_state);
         let epoch = epoch_store.epoch();
         let protocol_config = epoch_store.protocol_config();
 
@@ -127,7 +127,29 @@ impl ConsensusManagerTrait for StarfishManager {
             .find(|(_, a)| a.protocol_key == own_protocol_key)
             .expect("Own authority should be among the consensus authorities!");
 
-        let registry = Registry::new_custom(Some("consensus".to_string()), None).unwrap();
+        // Allow DAG visualizer port to be set via environment variable.
+        // The port is used as-is (no offset) — in Docker each validator has its
+        // own container so port collisions aren't a concern.
+        // Note: the bind address (host part) is separately controlled by the
+        // `DAG_VISUALIZER_GRPC_ADDRESS` env var in `grpc_streamer.rs`.
+        #[cfg(feature = "dag-visualizer")]
+        let parameters = {
+            let mut p = parameters;
+            if let Ok(port_str) = std::env::var("DAG_VISUALIZER_PORT") {
+                if let Ok(port) = port_str.parse::<u16>() {
+                    info!(
+                        "DAG visualizer enabled on port {port} for validator {own_index} (from DAG_VISUALIZER_PORT env var)"
+                    );
+                    p.dag_visualizer_port = Some(port);
+                }
+            }
+            p
+        };
+
+        let registry = self
+            .registry_service
+            .new_registry_custom(Some("consensus".to_string()), None)
+            .unwrap();
 
         let (commit_sender, commit_receiver) = unbounded_channel("consensus_output");
 
@@ -169,6 +191,22 @@ impl ConsensusManagerTrait for StarfishManager {
             );
         }
 
+        // Spin up the starfish consensus handler to listen for committed sub dags
+        // before starting the consensus authority: commit observer recovery paces
+        // itself on consumer progress, so the consumer must already be draining
+        // the channel while the authority starts.
+        let handler = StarfishConsensusHandler::new(
+            last_processed_commit,
+            consensus_handler,
+            commit_receiver,
+            monitor.clone(),
+        );
+
+        {
+            let mut consensus_handler = self.consensus_handler.lock().await;
+            *consensus_handler = Some(handler);
+        }
+
         let authority = ConsensusAuthority::start(
             epoch_store.epoch_start_config().epoch_start_timestamp_ms(),
             own_index,
@@ -189,21 +227,13 @@ impl ConsensusManagerTrait for StarfishManager {
         let registry_id = self.registry_service.add(registry.clone());
 
         let registered_authority = Arc::new((authority, registry_id));
-        self.authority.swap(Some(registered_authority.clone()));
+        self.authority.swap(Some(registered_authority));
 
         // Initialize the client to send transactions to this Starfish instance.
         self.client.set(client);
 
-        // spin up the new starfish consensus handler to listen for committed sub dags
-        let handler = StarfishConsensusHandler::new(
-            last_processed_commit,
-            consensus_handler,
-            commit_receiver,
-            monitor,
-        );
-
-        let mut consensus_handler = self.consensus_handler.lock().await;
-        *consensus_handler = Some(handler);
+        // Send the consumer monitor to the replay waiter.
+        let _ = self.consumer_monitor_sender.send(monitor);
     }
 
     async fn shutdown(&self) {
@@ -239,8 +269,8 @@ impl ConsensusManagerTrait for StarfishManager {
         Running::False != *self.running.lock().await
     }
 
-    fn replay_waiter(&self) -> Option<ReplayWaiter> {
-        let authority = self.authority.load_full()?;
-        Some(ReplayWaiter::new(authority))
+    fn replay_waiter(&self) -> ReplayWaiter {
+        let consumer_monitor_receiver = self.consumer_monitor_sender.subscribe();
+        ReplayWaiter::new(consumer_monitor_receiver)
     }
 }

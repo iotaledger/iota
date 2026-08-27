@@ -15,11 +15,10 @@ use iota_mainnet_unlocks::MainnetUnlocksStore;
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_protocol_config::Chain;
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, ObjectId, StructTag, TypeTag};
 use iota_storage::key_value_store::TransactionKeyValueStore;
 use iota_types::{
     balance::Supply,
-    base_types::IotaAddress,
     coin::TreasuryCap,
     coin_manager::CoinManager,
     effects::TransactionEffectsAPI,
@@ -92,7 +91,7 @@ impl CoinReadApiServer for CoinReadApi {
     #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: Option<String>,
         // exclusive cursor if `Some`, otherwise start from the beginning
         cursor: Option<ObjectId>,
@@ -121,7 +120,7 @@ impl CoinReadApiServer for CoinReadApi {
     #[instrument(skip(self, owner), fields(owner = %owner))]
     async fn get_all_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         // exclusive cursor if `Some`, otherwise start from the beginning
         cursor: Option<ObjectId>,
         limit: Option<usize>,
@@ -165,11 +164,7 @@ impl CoinReadApiServer for CoinReadApi {
     }
 
     #[instrument(skip(self, owner), fields(owner = %owner))]
-    async fn get_balance(
-        &self,
-        owner: IotaAddress,
-        coin_type: Option<String>,
-    ) -> RpcResult<Balance> {
+    async fn get_balance(&self, owner: Address, coin_type: Option<String>) -> RpcResult<Balance> {
         async move {
             let coin_type_tag = parse_to_type_tag(coin_type)?;
             let balance = self
@@ -190,7 +185,7 @@ impl CoinReadApiServer for CoinReadApi {
     }
 
     #[instrument(skip(self, owner), fields(owner = %owner))]
-    async fn get_all_balances(&self, owner: IotaAddress) -> RpcResult<Vec<Balance>> {
+    async fn get_all_balances(&self, owner: Address) -> RpcResult<Vec<Balance>> {
         async move {
             let all_balance = self.internal.get_all_balance(owner).await.tap_err(|e| {
                 debug!(%owner, "Failed to get all balance with error: {e}");
@@ -332,7 +327,7 @@ impl CoinReadApiServer for CoinReadApi {
         Ok(IotaCirculatingSupply {
             value: circulating_supply,
             circulating_supply_percentage,
-            at_checkpoint: *latest_cp.sequence_number(),
+            at_checkpoint: latest_cp.sequence_number(),
         })
     }
 }
@@ -359,7 +354,7 @@ async fn find_package_object_id(
         for (created, _) in effect.created() {
             if let Ok(object_read) = state.get_object_read(&created.object_id) {
                 if let Ok(object) = object_read.into_object() {
-                    if matches!(object.type_(), Some(struct_tag) if struct_tag == &object_struct_tag) {
+                    if matches!(object.data.opt_object_type(), Some(object_type) if object_type == &object_struct_tag) {
                         return Ok(created.object_id);
                     }
                 }
@@ -413,7 +408,7 @@ where
     {
         let data = obj
             .data
-            .as_struct_opt()
+            .as_opt_struct()
             .ok_or_else(|| Error::Unexpected("Cannot get move contents".into()))?
             .contents();
         let tc = TreasuryCap::from_bcs_bytes(data).map_err(Error::from)?;
@@ -452,12 +447,12 @@ pub trait CoinReadInternal {
     async fn get_object(&self, object_id: &ObjectId) -> RpcInterimResult<Option<Object>>;
     async fn get_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: TypeTag,
     ) -> RpcInterimResult<TotalBalance>;
     async fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> RpcInterimResult<Arc<HashMap<TypeTag, TotalBalance>>>;
     async fn find_package_object(
         &self,
@@ -466,7 +461,7 @@ pub trait CoinReadInternal {
     ) -> RpcInterimResult<Object>;
     async fn get_coins_iterator(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: (String, ObjectId),
         limit: Option<usize>,
         one_coin_type_only: bool,
@@ -506,7 +501,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
     async fn get_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: TypeTag,
     ) -> RpcInterimResult<TotalBalance> {
         Ok(self.state.get_balance(owner, coin_type).await?)
@@ -514,7 +509,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
     async fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> RpcInterimResult<Arc<HashMap<TypeTag, TotalBalance>>> {
         Ok(self.state.get_all_balance(owner).await?)
     }
@@ -533,7 +528,7 @@ impl CoinReadInternal for CoinReadInternalImpl {
 
     async fn get_coins_iterator(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: (String, ObjectId),
         limit: Option<usize>,
         one_coin_type_only: bool,
@@ -568,7 +563,10 @@ impl CoinReadInternal for CoinReadInternalImpl {
 mod tests {
     use expect_test::expect;
     use iota_json_rpc_types::Coin;
-    use iota_sdk_types::{StructTag, TypeTag};
+    use iota_sdk_types::{
+        CheckpointDigest, ObjectDigest, StructTag, TransactionDigest, TransactionEffects,
+        TransactionEvents, TypeTag, Version,
+    };
     use iota_storage::{
         key_value_store::{
             KVStoreCheckpointData, KVStoreTransactionData, TransactionKeyValueStoreTrait,
@@ -577,14 +575,12 @@ mod tests {
     };
     use iota_types::{
         balance::Supply,
-        base_types::{IotaAddress, SequenceNumber},
         coin::TreasuryCap,
-        digests::{ObjectDigest, TransactionDigest},
-        effects::{TransactionEffects, TransactionEffectsExtForTesting, TransactionEvents},
+        effects::TransactionEffectsExtForTesting,
         error::{IotaError, IotaResult},
         id::UID,
-        messages_checkpoint::{CheckpointDigest, CheckpointSequenceNumber},
-        object::{MoveObjectExt, Object},
+        messages_checkpoint::CheckpointSequenceNumber,
+        object::{MoveStructExt, Object},
         parse_iota_struct_tag,
         utils::create_fake_transaction,
     };
@@ -615,7 +611,7 @@ mod tests {
                 digest: TransactionDigest,
             ) -> IotaResult<Option<CheckpointSequenceNumber>>;
 
-            async fn get_object(&self, object_id: ObjectId, version: SequenceNumber) -> IotaResult<Option<Object>>;
+            async fn get_object(&self, object_id: ObjectId, version: Version) -> IotaResult<Option<Object>>;
             async fn multi_get_objects(&self, object_keys: &[iota_types::storage::ObjectKey]) -> IotaResult<Vec<Option<Object>>>;
 
             async fn multi_get_transactions_perpetual_checkpoints(
@@ -660,8 +656,8 @@ mod tests {
         }
     }
 
-    fn get_test_owner() -> IotaAddress {
-        IotaAddress::STD
+    fn get_test_owner() -> Address {
+        Address::STD
     }
 
     fn get_test_package_id() -> ObjectId {
@@ -701,7 +697,7 @@ mod tests {
         Coin {
             coin_type: coin_type_string,
             coin_object_id: object_id,
-            version: SequenceNumber::from_u64(1),
+            version: Version::from_u64(1),
             digest: ObjectDigest::from(arr),
             balance,
             previous_transaction: TransactionDigest::from(arr),
@@ -978,8 +974,7 @@ mod tests {
     }
 
     mod get_all_coins_tests {
-        use iota_sdk_types::Owner;
-        use iota_types::object::MoveObject;
+        use iota_sdk_types::{MoveStruct, Owner};
 
         use super::{super::*, *};
 
@@ -1018,13 +1013,13 @@ mod tests {
                 get_test_coin(Some("0xAAA"), CoinType::Gas),
             ];
             let coins_clone = coins.clone();
-            let coin_move_object = MoveObject::new_gas_coin(
+            let coin_move_struct = MoveStruct::new_gas_coin(
                 coins[0].version,
                 coins[0].coin_object_id,
                 coins[0].balance,
             );
             let coin_object = Object::new_move(
-                coin_move_object,
+                coin_move_struct,
                 Owner::Immutable,
                 coins[0].previous_transaction,
             );
@@ -1101,7 +1096,7 @@ mod tests {
 
     mod get_balance_tests {
 
-        use super::{super::*, *};
+        use super::*;
         // Success scenarios
         #[tokio::test]
         async fn test_gas_coin() {
@@ -1246,7 +1241,7 @@ mod tests {
     }
 
     mod get_all_balances_tests {
-        use super::{super::*, *};
+        use super::*;
 
         // Success scenarios
         #[tokio::test]

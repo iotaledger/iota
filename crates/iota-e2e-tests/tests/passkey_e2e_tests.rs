@@ -4,18 +4,17 @@
 
 use std::net::SocketAddr;
 
-use fastcrypto::traits::ToFromBytes;
 use iota_core::authority_client::validator::ValidatorAPI;
 use iota_macros::sim_test;
-use iota_sdk_types::crypto::{Intent, IntentMessage};
+use iota_sdk_types::{
+    Address, SignatureScheme, Transaction, UserSignature,
+    crypto::{Intent, IntentMessage, PasskeyAuthenticator, SimpleSignature},
+};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
-    crypto::{PublicKey, Signature, SignatureScheme},
+    crypto::PublicKey,
     error::{IotaError, IotaResult, UserInputError},
-    passkey_authenticator::{PasskeyAuthenticator, to_signing_message},
-    signature::GenericSignature,
-    transaction::{Transaction, TransactionData},
+    transaction::TransactionEnvelope,
 };
 use p256::pkcs8::DecodePublicKey;
 use passkey_authenticator::{Authenticator, UserCheck, UserValidationMethod};
@@ -31,7 +30,7 @@ use passkey_types::{
         PublicKeyCredentialUserEntity, UserVerificationRequirement,
     },
 };
-use test_cluster::{TestCluster, TestClusterBuilder};
+use test_cluster::{TestCluster, TestClusterBuilder, override_pcool_flow};
 use url::Url;
 
 struct MyUserValidationMethod {}
@@ -70,7 +69,7 @@ pub struct PasskeyResponse<T> {
 }
 
 /// Submits a transaction to the test cluster and returns the result.
-async fn execute_tx(tx: Transaction, test_cluster: &TestCluster) -> IotaResult {
+async fn execute_tx(tx: TransactionEnvelope, test_cluster: &TestCluster) -> IotaResult {
     test_cluster
         .authority_aggregator()
         .authority_clients
@@ -87,10 +86,10 @@ async fn execute_tx(tx: Transaction, test_cluster: &TestCluster) -> IotaResult {
 /// test transaction, then get a response from the passkey from signing.
 async fn create_credential_and_sign_test_tx(
     test_cluster: &TestCluster,
-    sender: Option<IotaAddress>,
+    sender: Option<Address>,
     change_intent: bool,
     change_tx: bool,
-) -> PasskeyResponse<TransactionData> {
+) -> PasskeyResponse<Transaction> {
     // set up authenticator and client
     let my_aaguid = Aaguid::new_empty();
     let user_validation_method = MyUserValidationMethod {};
@@ -149,14 +148,14 @@ async fn create_credential_and_sign_test_tx(
     // Compute iota address as sender, fund gas and make a test transaction.
     let sender = match sender {
         Some(s) => s,
-        None => IotaAddress::from(&pk),
+        None => Address::from(&pk),
     };
     let rgp = test_cluster.get_reference_gas_price().await;
     let gas = test_cluster
         .fund_address_and_return_gas(rgp, Some(20000000000), sender)
         .await;
     let tx_data = TestTransactionBuilder::new(sender, gas, rgp)
-        .transfer_iota(None, IotaAddress::ZERO)
+        .transfer_iota(None, Address::ZERO)
         .build();
     let intent_msg = IntentMessage::new(Intent::iota_transaction(), tx_data);
 
@@ -164,15 +163,13 @@ async fn create_credential_and_sign_test_tx(
     // request. If change_intent, mangle the intent bytes. If change_tx, mangle
     // the hashed tx bytes.
     let passkey_challenge = if change_intent {
-        to_signing_message(&IntentMessage::new(
-            Intent::personal_message(),
-            intent_msg.value.clone(),
-        ))
-        .to_vec()
+        IntentMessage::new(Intent::personal_message(), intent_msg.value.clone())
+            .signing_digest()
+            .to_vec()
     } else if change_tx {
         random_vec(32)
     } else {
-        to_signing_message(&intent_msg).to_vec()
+        intent_msg.signing_digest().to_vec()
     };
 
     // Request a signature from passkey with challenge set to passkey_digest.
@@ -200,7 +197,7 @@ async fn create_credential_and_sign_test_tx(
     let sig = p256::ecdsa::Signature::from_der(sig_bytes_der).unwrap();
     let sig_bytes = sig.normalize_s().unwrap_or(sig).to_bytes();
 
-    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.flag()];
+    let mut user_sig_bytes = vec![SignatureScheme::Secp256r1.to_u8()];
     user_sig_bytes.extend_from_slice(&sig_bytes);
     user_sig_bytes.extend_from_slice(&pk_bytes);
 
@@ -216,20 +213,21 @@ async fn create_credential_and_sign_test_tx(
     }
 }
 
-fn make_good_passkey_tx(response: PasskeyResponse<TransactionData>) -> Transaction {
-    let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+fn make_good_passkey_tx(response: PasskeyResponse<Transaction>) -> TransactionEnvelope {
+    let sig = UserSignature::PasskeyAuthenticator(
+        PasskeyAuthenticator::new(
             response.authenticator_data,
             response.client_data_json,
-            Signature::from_bytes(&response.user_sig_bytes).unwrap(),
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
         )
         .unwrap(),
     );
-    Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig])
+    TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig])
 }
 
 #[sim_test]
 async fn test_passkey_feature_deny() {
+    let _pcool_guard = override_pcool_flow(false);
     use iota_protocol_config::ProtocolConfig;
     let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
         config.set_passkey_auth_for_testing(false);
@@ -249,6 +247,7 @@ async fn test_passkey_feature_deny() {
 
 #[sim_test]
 async fn test_passkey_authenticator_verifies() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new().build().await;
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, false).await;
     let tx = make_good_passkey_tx(response);
@@ -258,19 +257,20 @@ async fn test_passkey_authenticator_verifies() {
 
 #[sim_test]
 async fn test_passkey_fails_mismatched_challenge() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new().build().await;
 
     // Tweak intent in challenge that is sent to passkey.
     let response = create_credential_and_sign_test_tx(&test_cluster, None, true, false).await;
-    let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+    let sig = UserSignature::PasskeyAuthenticator(
+        PasskeyAuthenticator::new(
             response.authenticator_data,
             response.client_data_json,
-            Signature::from_bytes(&response.user_sig_bytes).unwrap(),
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
         )
         .unwrap(),
     );
-    let tx = Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
     assert_eq!(
@@ -282,15 +282,15 @@ async fn test_passkey_fails_mismatched_challenge() {
 
     // Tweak tx_digest bytes in challenge that is sent to passkey.
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, true).await;
-    let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+    let sig = UserSignature::PasskeyAuthenticator(
+        PasskeyAuthenticator::new(
             response.authenticator_data,
             response.client_data_json,
-            Signature::from_bytes(&response.user_sig_bytes).unwrap(),
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
         )
         .unwrap(),
     );
-    let tx = Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
     assert_eq!(
@@ -303,6 +303,7 @@ async fn test_passkey_fails_mismatched_challenge() {
 
 #[sim_test]
 async fn test_passkey_fails_to_verify_sig() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new().build().await;
     let response = create_credential_and_sign_test_tx(&test_cluster, None, false, false).await;
     let mut modified_sig = response.user_sig_bytes.clone();
@@ -311,21 +312,21 @@ async fn test_passkey_fails_to_verify_sig() {
     } else {
         modified_sig[1] = 0x00;
     }
-    let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+    let sig = UserSignature::PasskeyAuthenticator(
+        PasskeyAuthenticator::new(
             response.authenticator_data.clone(),
             response.client_data_json.clone(),
-            Signature::from_bytes(&modified_sig).unwrap(),
+            SimpleSignature::from_bytes(&modified_sig).unwrap(),
         )
         .unwrap(),
     );
-    let tx = Transaction::from_generic_sig_data(response.intent_msg.value.clone(), vec![sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value.clone(), vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
     assert_eq!(
         err,
         IotaError::InvalidSignature {
-            error: "Invalid passkey authentication: signature error".to_string()
+            error: "Invalid passkey authentication: signature error: Invalid signature was given to the function".to_string()
         }
     );
 
@@ -336,41 +337,41 @@ async fn test_passkey_fails_to_verify_sig() {
     } else {
         mangled_authenticator_data[1] = 0x00;
     }
-    let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+    let sig = UserSignature::PasskeyAuthenticator(
+        PasskeyAuthenticator::new(
             mangled_authenticator_data,
             response.client_data_json,
-            Signature::from_bytes(&modified_sig).unwrap(),
+            SimpleSignature::from_bytes(&modified_sig).unwrap(),
         )
         .unwrap(),
     );
-    let tx = Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
     assert_eq!(
         err,
         IotaError::InvalidSignature {
-            error: "Invalid passkey authentication: signature error".to_string()
+            error: "Invalid passkey authentication: signature error: Invalid signature was given to the function".to_string()
         }
     );
 }
 
 #[sim_test]
 async fn test_passkey_fails_wrong_author() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new().build().await;
     // Modify sender that receives gas and construct test txn.
     let response =
-        create_credential_and_sign_test_tx(&test_cluster, Some(IotaAddress::ZERO), false, false)
-            .await;
-    let sig = GenericSignature::PasskeyAuthenticator(
-        PasskeyAuthenticator::new_for_testing(
+        create_credential_and_sign_test_tx(&test_cluster, Some(Address::ZERO), false, false).await;
+    let sig = UserSignature::PasskeyAuthenticator(
+        PasskeyAuthenticator::new(
             response.authenticator_data,
             response.client_data_json,
-            Signature::from_bytes(&response.user_sig_bytes).unwrap(),
+            SimpleSignature::from_bytes(&response.user_sig_bytes).unwrap(),
         )
         .unwrap(),
     );
-    let tx = Transaction::from_generic_sig_data(response.intent_msg.value, vec![sig]);
+    let tx = TransactionEnvelope::from_user_sig_data(response.intent_msg.value, vec![sig]);
     let res = execute_tx(tx, &test_cluster).await;
     let err = res.unwrap_err();
     assert!(matches!(err, IotaError::SignerSignatureAbsent { .. }));

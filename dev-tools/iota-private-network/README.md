@@ -60,7 +60,7 @@ Generate the genesis files and validators’ configuration:
 The script supports different modes, which can be used individually or in combination. Regardless of the mode chosen, the validators will always be active.
 
 - faucet: Brings up one fullnode, and faucet.
-- backup: Brings up one fullnode with backup features enabled. This includes generating database snapshots, formal snapshots, and enabling archive mode. If you do not want to enable archive mode, comment out the configuration in `configs/fullnode/backup.yaml`.
+- backup: Brings up one fullnode with backup features enabled. This includes generating formal snapshots. If you do not want to generate formal snapshots, comment out the `state-snapshot-write-config` configuration in `configs/fullnodes/backup.yaml`.
 - indexer: Brings up one fullnode, one indexer, and a PostgreSQL database.
 - indexer-cluster: Brings up two fullnodes, two indexers, and a PostgreSQL cluster with a primary and replica database. indexer-1 uses the primary PostgreSQL, while indexer-2 uses the replica.
 - all: Brings up all services.
@@ -100,7 +100,7 @@ To run stress benchmarks against the private network, bootstrap with the `-b` fl
 ./run.sh faucet
 ```
 
-Then run the stress tool from the **repo root**:
+The `stress` tool lives in the [`iotaledger/network-benchmark`](https://github.com/iotaledger/network-benchmark) repo. Run it from a checkout of that repo, passing the absolute paths to the genesis blob and keystore generated above (replace `<iota-repo>` with the absolute path to this repository — `bootstrap.sh` prints these paths when it finishes):
 
 ```bash
 RUST_LOG=info cargo run --release -p iota-benchmark --bin stress -- \
@@ -108,8 +108,8 @@ RUST_LOG=info cargo run --release -p iota-benchmark --bin stress -- \
   --fullnode-rpc-addresses http://127.0.0.1:9000 \
   --use-fullnode-for-execution true \
   --use-fullnode-for-reconfig true \
-  --genesis-blob-path dev-tools/iota-private-network/configs/genesis/genesis.blob \
-  --keystore-path dev-tools/iota-private-network/configs/genesis/benchmark.keystore \
+  --genesis-blob-path <iota-repo>/dev-tools/iota-private-network/configs/genesis/genesis.blob \
+  --keystore-path <iota-repo>/dev-tools/iota-private-network/configs/genesis/benchmark.keystore \
   --primary-gas-owner-id 0xf479d29837d22943aba6afc401f518a36521b990874eca784886185bd26bf681 \
   --num-client-threads 4 --num-transfer-accounts 10 --run-duration 120s \
   bench --target-qps 500 --in-flight-ratio 5 --num-workers 12 \
@@ -185,5 +185,5 @@ Here are some examples of how to set the `TRACE_FILTER` variable based on your t
 - Trace the **checkpoint lifecycle** only, set `TRACE_FILTER=[checkpoint_received_from_state_sync]=trace,[checkpoint_received_from_consensus]=trace`
 - Trace the **transaction lifecycle** only, set `TRACE_FILTER=[handle_consensus_output]=trace,[tx_orchestrator_execute_transaction_block]=trace,[json_rpc_api_execute_transaction_block]=trace`.
   - Trace the transaction sequencing only, set `TRACE_FILTER=[transactions_sequencing]=trace`.
-  - Trace the transaction execution only, set `TRACE_FILTER=[transaction_manager_enqueue_transactions]=trace,[start_execute_pending_certs]=trace, [dev_inspect_tx]=trace,[tx_execute_to_effects]=trace,[dry_exec_tx]=trace`.
+  - Trace the transaction execution only, set `TRACE_FILTER=[transaction_manager_enqueue_transactions]=trace,[start_execute_pending_certs]=trace,[tx_execute_to_effects]=trace,[simulate_tx]=trace`.
 - Trace the consensus, set `TRACE_FILTER=[consensus_add_blocks]=trace,[new_consensus_round_received]=trace`.

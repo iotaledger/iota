@@ -16,15 +16,18 @@ use std::{
     sync::Arc,
 };
 
-use iota_sdk_types::{Identifier, ObjectId, move_package::MovePackage};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest, TransactionEffects,
+    Version, move_package::MovePackage,
+};
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::ObjectStore;
 pub use read_store::{
     AccountOwnedObjectInfo, CoinInfo, DynamicFieldIteratorItem, DynamicFieldKey, EpochInfo,
-    OwnedObjectCursor, OwnedObjectIteratorItem, PackageVersionInfo, PackageVersionIteratorItem,
-    PackageVersionKey, ReadStore, TransactionInfo,
+    EpochInfoV1Entry, EpochInfoV2, OwnedObjectCursor, OwnedObjectIteratorItem, PackageVersionInfo,
+    PackageVersionIteratorItem, PackageVersionKey, ReadStore, TransactionInfo,
 };
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -33,26 +36,22 @@ pub use write_store::WriteStore;
 
 use crate::{
     auth_context::AuthContext,
-    base_types::{ObjectRef, SequenceNumber, TransactionDigest, VersionNumber},
+    base_types::VersionNumber,
     committee::EpochId,
-    effects::{TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt},
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     error::{ExecutionError, IotaError, IotaResult},
     execution::{DynamicallyLoadedObjectMetadata, ExecutionResults},
+    iota_sdk_types_conversions::identifier_core_to_sdk,
     object::Object,
     storage::error::Error as StorageError,
-    transaction::{SenderSignedData, TransactionDataAPI},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI},
 };
 
 /// A potential input to a transaction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum InputKey {
-    VersionedObject {
-        id: ObjectId,
-        version: SequenceNumber,
-    },
-    Package {
-        id: ObjectId,
-    },
+    VersionedObject { id: ObjectId, version: Version },
+    Package { id: ObjectId },
 }
 
 impl InputKey {
@@ -63,7 +62,7 @@ impl InputKey {
         }
     }
 
-    pub fn version(&self) -> Option<SequenceNumber> {
+    pub fn version(&self) -> Option<Version> {
         match self {
             InputKey::VersionedObject { version, .. } => Some(*version),
             InputKey::Package { .. } => None,
@@ -72,7 +71,7 @@ impl InputKey {
 
     pub fn is_cancelled(&self) -> bool {
         match self {
-            InputKey::VersionedObject { version, .. } => version.is_cancelled(),
+            InputKey::VersionedObject { version, .. } => version.is_canceled(),
             InputKey::Package { .. } => false,
         }
     }
@@ -135,13 +134,13 @@ pub enum MarkerValue {
 /// and hence won't have the old sequence number.
 #[derive(Debug)]
 pub enum DeleteKindWithOldVersion {
-    Normal(SequenceNumber),
+    Normal(Version),
     UnwrapThenDelete,
-    Wrap(SequenceNumber),
+    Wrap(Version),
 }
 
 impl DeleteKindWithOldVersion {
-    pub fn old_version(&self) -> Option<SequenceNumber> {
+    pub fn old_version(&self) -> Option<Version> {
         match self {
             DeleteKindWithOldVersion::Normal(version) | DeleteKindWithOldVersion::Wrap(version) => {
                 Some(*version)
@@ -177,7 +176,7 @@ pub trait ChildObjectResolver {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>>;
 
     /// `receiving_object_id` must have an `Address` ownership equal to
@@ -190,7 +189,7 @@ pub trait ChildObjectResolver {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>>;
 }
@@ -248,7 +247,7 @@ impl PackageObject {
     }
 
     pub fn move_package(&self) -> &MovePackage {
-        self.package_object.data.as_package_opt().unwrap()
+        self.package_object.data.as_opt_package().unwrap()
     }
 }
 
@@ -337,7 +336,7 @@ pub fn get_module(
             package
                 .move_package()
                 .serialized_module_map()
-                .get(&Identifier::new_unchecked(module_id.name().as_str()))
+                .get(&identifier_core_to_sdk(module_id.name()))
                 .cloned()
         }))
 }
@@ -398,7 +397,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for std::sync::Arc<S> {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::read_child_object(
             self.as_ref(),
@@ -411,7 +410,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for std::sync::Arc<S> {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::get_object_received_at_version(
@@ -429,7 +428,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &S {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::read_child_object(*self, parent, child, child_version_upper_bound)
     }
@@ -437,7 +436,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &S {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::get_object_received_at_version(
@@ -455,7 +454,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &mut S {
         &self,
         parent: &ObjectId,
         child: &ObjectId,
-        child_version_upper_bound: SequenceNumber,
+        child_version_upper_bound: Version,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::read_child_object(*self, parent, child, child_version_upper_bound)
     }
@@ -463,7 +462,7 @@ impl<S: ChildObjectResolver> ChildObjectResolver for &mut S {
         &self,
         owner: &ObjectId,
         receiving_object_id: &ObjectId,
-        receive_object_at_version: SequenceNumber,
+        receive_object_at_version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<Object>> {
         ChildObjectResolver::get_object_received_at_version(
@@ -493,14 +492,14 @@ impl ObjectKey {
     }
 }
 
-impl From<ObjectRef> for ObjectKey {
-    fn from(object_ref: ObjectRef) -> Self {
+impl From<ObjectReference> for ObjectKey {
+    fn from(object_ref: ObjectReference) -> Self {
         ObjectKey::from(&object_ref)
     }
 }
 
-impl From<&ObjectRef> for ObjectKey {
-    fn from(object_ref: &ObjectRef) -> Self {
+impl From<&ObjectReference> for ObjectKey {
+    fn from(object_ref: &ObjectReference) -> Self {
         Self(object_ref.object_id, object_ref.version)
     }
 }
@@ -508,11 +507,11 @@ impl From<&ObjectRef> for ObjectKey {
 #[derive(Clone)]
 pub enum ObjectOrTombstone {
     Object(Object),
-    Tombstone(ObjectRef),
+    Tombstone(ObjectReference),
 }
 
 impl ObjectOrTombstone {
-    pub fn as_objref(&self) -> ObjectRef {
+    pub fn as_objref(&self) -> ObjectReference {
         match self {
             ObjectOrTombstone::Object(obj) => obj.object_ref(),
             ObjectOrTombstone::Tombstone(obref) => *obref,
@@ -530,7 +529,7 @@ impl From<Object> for ObjectOrTombstone {
 /// Includes owned, and immutable objects as well as the gas objects, but not
 /// move packages or shared objects.
 pub fn transaction_non_shared_input_object_keys(
-    tx: &SenderSignedData,
+    tx: &SenderSignedTransaction,
 ) -> IotaResult<Vec<ObjectKey>> {
     use crate::transaction::InputObjectKind as I;
     Ok(tx
@@ -543,9 +542,8 @@ pub fn transaction_non_shared_input_object_keys(
         .collect())
 }
 
-pub fn transaction_receiving_object_keys(tx: &SenderSignedData) -> Vec<ObjectKey> {
-    tx.intent_message()
-        .value
+pub fn transaction_receiving_object_keys(tx: &SenderSignedTransaction) -> Vec<ObjectKey> {
+    tx.transaction()
         .receiving_objects()
         .into_iter()
         .map(|oref| oref.into())
@@ -593,7 +591,7 @@ pub fn get_transaction_input_objects(
         .enumerate()
         .map(|(idx, maybe_object)| {
             maybe_object.ok_or_else(|| {
-                StorageError::custom(format!(
+                StorageError::missing(format!(
                     "missing input object key {:?} from tx {}",
                     input_object_keys[idx],
                     effects.transaction_digest()
@@ -620,7 +618,7 @@ pub fn get_transaction_output_objects(
         .enumerate()
         .map(|(idx, maybe_object)| {
             maybe_object.ok_or_else(|| {
-                StorageError::custom(format!(
+                StorageError::missing(format!(
                     "missing output object key {:?} from tx {}",
                     output_object_keys[idx],
                     effects.transaction_digest()
@@ -629,4 +627,24 @@ pub fn get_transaction_output_objects(
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(output_objects)
+}
+
+/// Extend a simulation's input objects with the runtime-loaded objects the
+/// effects record as modified, read from `object_store` at their pre-state
+/// versions.
+pub fn extend_input_objects_with_loaded_runtime_objects(
+    input_objects: &mut BTreeMap<ObjectId, Object>,
+    effects: &TransactionEffects,
+    loaded_runtime_objects: &BTreeMap<ObjectId, DynamicallyLoadedObjectMetadata>,
+    object_store: &dyn ObjectStore,
+) {
+    let modified_at: BTreeMap<_, _> = effects.modified_at_versions().into_iter().collect();
+    for (id, metadata) in loaded_runtime_objects {
+        if input_objects.contains_key(id) || modified_at.get(id) != Some(&metadata.version) {
+            continue;
+        }
+        if let Some(object) = object_store.get_object_by_key(id, metadata.version) {
+            input_objects.insert(*id, object);
+        }
+    }
 }

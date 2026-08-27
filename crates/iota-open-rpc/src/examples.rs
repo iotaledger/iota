@@ -4,7 +4,6 @@
 
 use std::{collections::BTreeMap, ops::Range, str::FromStr};
 
-use fastcrypto::traits::EncodeDecodeBase64;
 use iota_json::IotaJsonValue;
 use iota_json_rpc::error::Error;
 use iota_json_rpc_types::{
@@ -25,29 +24,27 @@ use iota_json_rpc_types::{
     TransferObjectParams, ValidatorApy, ValidatorApys,
 };
 use iota_open_rpc::ExamplePairing;
-use iota_protocol_config::{Chain, ProtocolConfig};
-use iota_sdk_types::{Identifier, ObjectId, Owner, StructTag, TypeTag, gas::GasCostSummary};
+use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
+use iota_sdk_types::{
+    Address, CheckpointDigest, Identifier, MoveStruct, ObjectDigest, ObjectId, ObjectReference,
+    Owner, StructTag, Transaction, TransactionDigest, TransactionEventsDigest, TypeTag,
+    UserSignature, Version, gas::GasCostSummary,
+};
 use iota_types::{
     balance::Supply,
-    base_types::{
-        IotaAddress, ObjectDigest, ObjectRef, ObjectType, SequenceNumber, TransactionDigest,
-        random_object_ref,
-    },
+    base_types::{ObjectType, random_object_ref},
     committee::Committee,
-    crypto::{AccountKeyPair, AggregateAuthoritySignature, get_key_pair_from_rng},
-    digests::TransactionEventsDigest,
+    crypto::{AccountPrivateKey, AggregateAuthoritySignature, get_key_pair_from_rng},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, DynamicFieldType},
     event::EventID,
     gas_coin::GasCoin,
     id::UID,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
-    messages_checkpoint::CheckpointDigest,
-    object::{MoveObject, MoveObjectExt},
+    object::MoveStructExt,
     parse_iota_struct_tag,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
-    signature::GenericSignature,
-    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI},
     utils::to_sender_signed_transaction,
 };
 use move_core_types::{
@@ -137,8 +134,8 @@ impl RpcExampleProvider {
     }
 
     fn batch_transaction_examples(&mut self) -> Examples {
-        let signer = IotaAddress::from(ObjectId::new(self.rng.gen()));
-        let recipient = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let signer = Address::from(ObjectId::new(self.rng.gen()));
+        let recipient = Address::from(ObjectId::new(self.rng.gen()));
         let gas_id = ObjectId::new(self.rng.gen());
         let object_id = ObjectId::new(self.rng.gen());
         let coin_ref = random_object_ref();
@@ -181,9 +178,9 @@ impl RpcExampleProvider {
             builder
                 .transfer_object(
                     recipient,
-                    ObjectRef::new(
+                    ObjectReference::new(
                         object_id,
-                        SequenceNumber::from_u64(1),
+                        Version::from_u64(1),
                         ObjectDigest::new(self.rng.gen()),
                     ),
                 )
@@ -191,11 +188,11 @@ impl RpcExampleProvider {
             builder.finish()
         };
         let gas_price = 10;
-        let data = TransactionData::new_programmable(
+        let tx = Transaction::new_programmable(
             signer,
-            vec![ObjectRef::new(
+            vec![ObjectReference::new(
                 gas_id,
-                SequenceNumber::from_u64(1),
+                Version::from_u64(1),
                 ObjectDigest::new(self.rng.gen()),
             )],
             pt,
@@ -203,7 +200,7 @@ impl RpcExampleProvider {
             gas_price,
         );
 
-        let result = TransactionBlockBytes::from_data(data).unwrap();
+        let result = TransactionBlockBytes::from_data(tx).unwrap();
 
         Examples::new(
             "iota_batchTransaction",
@@ -236,7 +233,7 @@ impl RpcExampleProvider {
                         json!(
                             signatures
                                 .into_iter()
-                                .map(|sig| sig.encode_base64())
+                                .map(|sig| sig.to_base64())
                                 .collect::<Vec<_>>()
                         ),
                     ),
@@ -288,7 +285,7 @@ impl RpcExampleProvider {
                 vec![
                     (
                         "sender_address",
-                        json!(IotaAddress::from(ObjectId::new(self.rng.gen()))),
+                        json!(Address::from(ObjectId::new(self.rng.gen()))),
                     ),
                     ("tx_bytes", json!(tx_bytes.tx_bytes)),
                     ("gas_price", json!(1000)),
@@ -328,20 +325,18 @@ impl RpcExampleProvider {
                 IotaObjectResponse::new_with_data(IotaObjectData {
                     content: Some(
                         IotaParsedData::try_from_object(
-                            coin.to_object(SequenceNumber::from_u64(1)),
+                            coin.to_move_struct(Version::from_u64(1)),
                             GasCoin::layout(),
                         )
                         .unwrap(),
                     ),
-                    owner: Some(Owner::Address(IotaAddress::from(ObjectId::new(
-                        self.rng.gen(),
-                    )))),
+                    owner: Some(Owner::Address(Address::from(ObjectId::new(self.rng.gen())))),
                     previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                     storage_rebate: Some(100),
                     object_id,
-                    version: SequenceNumber::from_u64(1),
+                    version: Version::from_u64(1),
                     digest: ObjectDigest::new(self.rng.gen()),
-                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+                    object_type: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
                     display: None,
                 })
@@ -372,20 +367,18 @@ impl RpcExampleProvider {
         let result = IotaPastObjectResponse::VersionFound(IotaObjectData {
             content: Some(
                 IotaParsedData::try_from_object(
-                    coin.to_object(SequenceNumber::from_u64(1)),
+                    coin.to_move_struct(Version::from_u64(1)),
                     GasCoin::layout(),
                 )
                 .unwrap(),
             ),
-            owner: Some(Owner::Address(IotaAddress::from(ObjectId::new(
-                self.rng.gen(),
-            )))),
+            owner: Some(Owner::Address(Address::from(ObjectId::new(self.rng.gen())))),
             previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
             storage_rebate: Some(100),
             object_id,
-            version: SequenceNumber::from_u64(4),
+            version: Version::from_u64(4),
             digest: ObjectDigest::new(self.rng.gen()),
-            type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+            object_type: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
             bcs: None,
             display: None,
         });
@@ -470,13 +463,13 @@ impl RpcExampleProvider {
     }
 
     fn get_owned_objects(&mut self) -> Examples {
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let result = (0..4)
             .map(|_| IotaObjectData {
                 object_id: ObjectId::new(self.rng.gen()),
                 version: Default::default(),
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+                object_type: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 owner: Some(Owner::Address(owner)),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: None,
@@ -527,7 +520,7 @@ impl RpcExampleProvider {
     }
 
     fn iota_is_transaction_indexed_on_node(&mut self) -> Examples {
-        let digest = TransactionDigest::generate(self.rng.clone());
+        let digest = TransactionDigest::random_with(self.rng.clone());
         Examples::new(
             "iota_isTransactionIndexedOnNode",
             vec![ExamplePairing::new(
@@ -643,7 +636,7 @@ impl RpcExampleProvider {
     }
 
     fn get_protocol_config(&mut self) -> Examples {
-        let version = Some(6);
+        let version = Some(ProtocolVersion::MAX.as_u64());
         Examples::new(
             "iota_getProtocolConfig",
             vec![ExamplePairing::new(
@@ -668,27 +661,27 @@ impl RpcExampleProvider {
     fn get_transfer_data_response(
         &mut self,
     ) -> (
-        TransactionData,
-        Vec<GenericSignature>,
-        IotaAddress,
+        Transaction,
+        Vec<UserSignature>,
+        Address,
         ObjectId,
         IotaTransactionBlockResponse,
     ) {
-        let (signer, kp): (_, AccountKeyPair) = get_key_pair_from_rng(&mut self.rng);
-        let recipient = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let (signer, key): (_, AccountPrivateKey) = get_key_pair_from_rng(&mut self.rng);
+        let recipient = Address::from(ObjectId::new(self.rng.gen()));
         let obj_id = ObjectId::new(self.rng.gen());
-        let gas_ref = ObjectRef::new(
+        let gas_ref = ObjectReference::new(
             ObjectId::new(self.rng.gen()),
-            SequenceNumber::from_u64(2),
+            Version::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
         );
-        let object_ref = ObjectRef::new(
+        let object_ref = ObjectReference::new(
             obj_id,
-            SequenceNumber::from_u64(2),
+            Version::from_u64(2),
             ObjectDigest::new(self.rng.gen()),
         );
 
-        let data = TransactionData::new_transfer(
+        let tx = Transaction::new_transfer(
             recipient,
             object_ref,
             signer,
@@ -696,11 +689,11 @@ impl RpcExampleProvider {
             TEST_ONLY_GAS_UNIT_FOR_TRANSFER * 10,
             10,
         );
-        let data1 = data.clone();
-        let data2 = data.clone();
+        let data1 = tx.clone();
+        let data2 = tx.clone();
 
-        let tx = to_sender_signed_transaction(data, &kp);
-        let signatures = tx.data().tx_signatures().to_vec();
+        let tx = to_sender_signed_transaction(tx, &key);
+        let signatures = tx.data().signatures().to_vec();
         let raw_transaction = bcs::to_bytes(tx.data()).unwrap();
 
         let tx_digest = tx.digest();
@@ -791,8 +784,8 @@ impl RpcExampleProvider {
             },
             package_id: ObjectId::new(self.rng.gen()),
             transaction_module: Identifier::from_static("test_module"),
-            sender: IotaAddress::from(ObjectId::new(self.rng.gen())),
-            type_: parse_iota_struct_tag("0x9::test::TestEvent").unwrap(),
+            sender: Address::from(ObjectId::new(self.rng.gen())),
+            struct_tag: parse_iota_struct_tag("0x9::test::TestEvent").unwrap(),
             parsed_json: json!({"test": "example value"}),
             bcs: BcsEvent::new(vec![]),
             timestamp_ms: None,
@@ -840,7 +833,7 @@ impl RpcExampleProvider {
     }
 
     fn iotax_get_all_balances(&mut self) -> Examples {
-        let address = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let address = Address::from(ObjectId::new(self.rng.gen()));
 
         let result = Balance {
             coin_type: "0x2::iota::IOTA".to_string(),
@@ -859,14 +852,14 @@ impl RpcExampleProvider {
 
     fn iotax_get_all_coins(&mut self) -> Examples {
         let limit = 3;
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let cursor = ObjectId::new(self.rng.gen());
         let next = ObjectId::new(self.rng.gen());
         let coins = (0..3)
             .map(|_| Coin {
                 coin_type: "0x2::iota::IOTA".to_string(),
                 coin_object_id: ObjectId::new(self.rng.gen()),
-                version: SequenceNumber::from_u64(103626),
+                version: Version::from_u64(103626),
                 digest: ObjectDigest::new(self.rng.gen()),
                 balance: 200000000,
                 // locked_until_epoch: None,
@@ -894,7 +887,7 @@ impl RpcExampleProvider {
     }
 
     fn iotax_get_balance(&mut self) -> Examples {
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let coin_type = "0x168da5bf1f48dafc111b0a488fa454aca95e0b5e::usdc::USDC".to_string();
         let result = Balance {
             coin_type: coin_type.clone(),
@@ -949,12 +942,12 @@ impl RpcExampleProvider {
 
     fn iotax_get_coins(&mut self) -> Examples {
         let coin_type = "0x2::iota::IOTA".to_string();
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let coins = (0..3)
             .map(|_| Coin {
                 coin_type: coin_type.clone(),
                 coin_object_id: ObjectId::new(self.rng.gen()),
-                version: SequenceNumber::from_u64(103626),
+                version: Version::from_u64(103626),
                 digest: ObjectDigest::new(self.rng.gen()),
                 balance: 200000000,
                 // locked_until_epoch: None,
@@ -1127,15 +1120,15 @@ impl RpcExampleProvider {
     fn iotax_get_validators_apy(&mut self) -> Examples {
         let result = vec![
             ValidatorApy {
-                address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+                address: Address::from(ObjectId::new(self.rng.gen())),
                 apy: 0.06,
             },
             ValidatorApy {
-                address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+                address: Address::from(ObjectId::new(self.rng.gen())),
                 apy: 0.02,
             },
             ValidatorApy {
-                address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+                address: Address::from(ObjectId::new(self.rng.gen())),
                 apy: 0.05,
             },
         ];
@@ -1158,14 +1151,14 @@ impl RpcExampleProvider {
         let dynamic_fields = (0..3)
             .map(|_| DynamicFieldInfo {
                 name: DynamicFieldName {
-                    type_: TypeTag::from_str("0x9::test::TestField").unwrap(),
+                    type_tag: TypeTag::from_str("0x9::test::TestField").unwrap(),
                     value: serde_json::Value::String("some_value".to_string()),
                 },
                 bcs_name: bcs::to_bytes("0x9::test::TestField").unwrap(),
                 type_: DynamicFieldType::DynamicField,
                 object_type: "test".to_string(),
                 object_id: ObjectId::new(self.rng.gen()),
-                version: SequenceNumber::from_u64(1),
+                version: Version::from_u64(1),
                 digest: ObjectDigest::new(self.rng.gen()),
             })
             .map(Into::into)
@@ -1197,7 +1190,7 @@ impl RpcExampleProvider {
     fn iotax_get_dynamic_field_object(&mut self) -> Examples {
         let parent_object_id = ObjectId::new(self.rng.gen());
         let field_name = DynamicFieldName {
-            type_: TypeTag::from_str("0x9::test::TestField").unwrap(),
+            type_tag: TypeTag::from_str("0x9::test::TestField").unwrap(),
             value: serde_json::Value::String("some_value".to_string()),
         };
 
@@ -1207,9 +1200,9 @@ impl RpcExampleProvider {
             content: Some(
                 IotaParsedData::try_from_object(
                     {
-                        MoveObject::new_from_execution_with_limit(
+                        MoveStruct::new_from_execution_with_limit(
                             struct_tag.clone(),
-                            SequenceNumber::from_u64(1),
+                            Version::from_u64(1),
                             contents,
                             100,
                         )
@@ -1225,15 +1218,13 @@ impl RpcExampleProvider {
                 )
                 .unwrap(),
             ),
-            owner: Some(Owner::Address(IotaAddress::from(ObjectId::new(
-                self.rng.gen(),
-            )))),
+            owner: Some(Owner::Address(Address::from(ObjectId::new(self.rng.gen())))),
             previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
             storage_rebate: Some(100),
             object_id: parent_object_id,
-            version: SequenceNumber::from_u64(1),
+            version: Version::from_u64(1),
             digest: ObjectDigest::new(self.rng.gen()),
-            type_: Some(ObjectType::Struct(
+            object_type: Some(ObjectType::Struct(
                 parse_iota_struct_tag("0x9::test::TestField")
                     .unwrap()
                     .into(),
@@ -1255,7 +1246,7 @@ impl RpcExampleProvider {
     }
 
     fn iotax_get_owned_objects(&mut self) -> Examples {
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let version: u64 = 13488;
         let options = Some(
             IotaObjectDataOptions::new()
@@ -1281,9 +1272,9 @@ impl RpcExampleProvider {
                     previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                     storage_rebate: Some(100),
                     object_id: ObjectId::new(self.rng.gen()),
-                    version: SequenceNumber::from_u64(version),
+                    version: Version::from_u64(version),
                     digest: ObjectDigest::new(self.rng.gen()),
-                    type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+                    object_type: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                     bcs: None,
                     display: None,
                 })
@@ -1330,8 +1321,8 @@ impl RpcExampleProvider {
                 id: event_id,
                 package_id,
                 transaction_module: identifier.clone(),
-                sender: IotaAddress::from(ObjectId::new(self.rng.gen())),
-                type_: StructTag::from_str("0x3::test::Test<0x3::test::Test>").unwrap(),
+                sender: Address::from(ObjectId::new(self.rng.gen())),
+                struct_tag: StructTag::from_str("0x3::test::Test<0x3::test::Test>").unwrap(),
                 parsed_json: serde_json::Value::String("some_value".to_string()),
                 bcs: BcsEvent::new(vec![]),
                 timestamp_ms: None,
@@ -1390,10 +1381,10 @@ impl RpcExampleProvider {
 
     fn iotax_get_stakes(&mut self) -> Examples {
         let principal = 200000000000;
-        let owner = IotaAddress::from(ObjectId::new(self.rng.gen()));
+        let owner = Address::from(ObjectId::new(self.rng.gen()));
         let result = vec![
             DelegatedStake {
-                validator_address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+                validator_address: Address::from(ObjectId::new(self.rng.gen())),
                 staking_pool: ObjectId::new(self.rng.gen()),
                 stakes: vec![
                     Stake {
@@ -1415,7 +1406,7 @@ impl RpcExampleProvider {
                 ],
             },
             DelegatedStake {
-                validator_address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+                validator_address: Address::from(ObjectId::new(self.rng.gen())),
                 staking_pool: ObjectId::new(self.rng.gen()),
                 stakes: vec![Stake {
                     staked_iota_id: ObjectId::new(self.rng.gen()),
@@ -1442,7 +1433,7 @@ impl RpcExampleProvider {
         let stake1 = ObjectId::new(self.rng.gen());
         let stake2 = ObjectId::new(self.rng.gen());
         let result = DelegatedStake {
-            validator_address: IotaAddress::from(ObjectId::new(self.rng.gen())),
+            validator_address: Address::from(ObjectId::new(self.rng.gen())),
             staking_pool: ObjectId::new(self.rng.gen()),
             stakes: vec![
                 Stake {
@@ -1476,8 +1467,8 @@ impl RpcExampleProvider {
     fn iota_try_multi_get_past_objects(&mut self) -> Examples {
         let object_id = ObjectId::new(self.rng.gen());
         let object_id2 = ObjectId::new(self.rng.gen());
-        let version = SequenceNumber::from_u64(4);
-        let version2 = SequenceNumber::from_u64(12);
+        let version = Version::from_u64(4);
+        let version2 = Version::from_u64(12);
         let objects = vec![
             IotaGetPastObjectRequest { object_id, version },
             IotaGetPastObjectRequest {
@@ -1491,40 +1482,36 @@ impl RpcExampleProvider {
             IotaPastObjectResponse::VersionFound(IotaObjectData {
                 content: Some(
                     IotaParsedData::try_from_object(
-                        coin.to_object(SequenceNumber::from_u64(1)),
+                        coin.to_move_struct(Version::from_u64(1)),
                         GasCoin::layout(),
                     )
                     .unwrap(),
                 ),
-                owner: Some(Owner::Address(IotaAddress::from(ObjectId::new(
-                    self.rng.gen(),
-                )))),
+                owner: Some(Owner::Address(Address::from(ObjectId::new(self.rng.gen())))),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: Some(100),
                 object_id,
-                version: SequenceNumber::from_u64(4),
+                version: Version::from_u64(4),
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+                object_type: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 bcs: None,
                 display: None,
             }),
             IotaPastObjectResponse::VersionFound(IotaObjectData {
                 content: Some(
                     IotaParsedData::try_from_object(
-                        coin2.to_object(SequenceNumber::from_u64(4)),
+                        coin2.to_move_struct(Version::from_u64(4)),
                         GasCoin::layout(),
                     )
                     .unwrap(),
                 ),
-                owner: Some(Owner::Address(IotaAddress::from(ObjectId::new(
-                    self.rng.gen(),
-                )))),
+                owner: Some(Owner::Address(Address::from(ObjectId::new(self.rng.gen())))),
                 previous_transaction: Some(TransactionDigest::new(self.rng.gen())),
                 storage_rebate: Some(100),
                 object_id: object_id2,
                 version: version2,
                 digest: ObjectDigest::new(self.rng.gen()),
-                type_: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
+                object_type: Some(ObjectType::Struct(StructTag::new_gas_coin().into())),
                 bcs: None,
                 display: None,
             }),

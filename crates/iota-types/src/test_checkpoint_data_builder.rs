@@ -6,33 +6,25 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    EndOfEpochTransactionKind, Event, Identifier, ObjectId, Owner, StructTag, TransactionKind,
-    TypeTag,
+    Address, EndOfEpochTransactionKind, Event, Identifier, MoveStruct, ObjectId, ObjectReference,
+    Owner, SenderSignedTransaction, SharedObjectReference, StructTag, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEvents, TransactionKind, TypeTag, Version,
+    checkpoint::{CheckpointContents, CheckpointSummary, EndOfEpochData},
 };
 use tap::Pipe;
 
 use crate::{
-    base_types::{
-        ExecutionDigests, IotaAddress, ObjectRef, SequenceNumber, dbg_addr, random_object_ref,
-    },
+    base_types::{ExecutionDigests, dbg_addr, random_object_ref},
     committee::Committee,
-    digests::TransactionDigest,
-    effects::{
-        TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI,
-        TransactionEffectsExtForTesting, TransactionEvents,
-    },
+    effects::{TestEffectsBuilder, TransactionEffectsAPI, TransactionEffectsExtForTesting},
     event::SystemEpochInfoEventV2,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    gas_coin::GAS,
     messages_checkpoint::{
-        CertifiedCheckpointSummary, CheckpointContents, CheckpointSummary, EndOfEpochData,
+        CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSummaryExt,
     },
-    object::{GAS_VALUE_FOR_TESTING, MoveObject, MoveObjectExt, Object},
+    object::{GAS_VALUE_FOR_TESTING, MoveStructExt, Object},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{
-        CallArg, SenderSignedData, SharedObjectRef, Transaction, TransactionData,
-        TransactionDataAPI,
-    },
+    transaction::{CallArg, TransactionAPI, TransactionEnvelope},
 };
 
 /// A builder for creating test checkpoint data.
@@ -56,7 +48,7 @@ pub struct TestCheckpointDataBuilder {
     /// A map from sender addresses to gas objects they own.
     /// These are created automatically when a transaction is started.
     /// Users of this builder should not need to worry about them.
-    gas_map: HashMap<IotaAddress, ObjectId>,
+    gas_map: HashMap<Address, ObjectId>,
 
     /// The current checkpoint builder.
     /// It is initialized when the builder is created, and is reset when
@@ -79,14 +71,14 @@ struct CheckpointBuilder {
 
 struct TransactionBuilder {
     sender_idx: u8,
-    gas: ObjectRef,
+    gas: ObjectReference,
     move_calls: Vec<(ObjectId, &'static str, &'static str)>,
     created_objects: BTreeMap<ObjectId, Object>,
     mutated_objects: BTreeMap<ObjectId, Object>,
     unwrapped_objects: BTreeSet<ObjectId>,
     wrapped_objects: BTreeSet<ObjectId>,
     deleted_objects: BTreeSet<ObjectId>,
-    frozen_objects: BTreeSet<ObjectRef>,
+    frozen_objects: BTreeSet<ObjectReference>,
     shared_inputs: BTreeMap<ObjectId, Shared>,
     events: Option<Vec<Event>>,
 }
@@ -97,7 +89,7 @@ struct Shared {
 }
 
 impl TransactionBuilder {
-    pub fn new(sender_idx: u8, gas: ObjectRef) -> Self {
+    pub fn new(sender_idx: u8, gas: ObjectReference) -> Self {
         Self {
             sender_idx,
             gas,
@@ -138,7 +130,7 @@ impl TestCheckpointDataBuilder {
 
     /// Start creating a new transaction.
     /// `sender_idx` is a convenient representation of the sender's address.
-    /// A proper IotaAddress will be derived from it.
+    /// A proper Address will be derived from it.
     /// It will also create a gas object for the sender if it doesn't already
     /// exist in the live object map. You do not need to create the gas
     /// object yourself.
@@ -172,9 +164,9 @@ impl TestCheckpointDataBuilder {
     pub fn create_shared_object(self, object_idx: u64) -> Self {
         self.create_coin_object_with_owner(
             object_idx,
-            Owner::Shared(SequenceNumber::MIN_VALID_INCL),
+            Owner::Shared(Version::MIN_VALID_INCL),
             GAS_VALUE_FOR_TESTING,
-            GAS::type_tag(),
+            TypeTag::from(StructTag::new_gas()),
         )
     }
 
@@ -188,7 +180,12 @@ impl TestCheckpointDataBuilder {
             .as_ref()
             .unwrap()
             .sender_idx;
-        self.create_coin_object(object_idx, sender_idx, balance, GAS::type_tag())
+        self.create_coin_object(
+            object_idx,
+            sender_idx,
+            balance,
+            TypeTag::from(StructTag::new_gas()),
+        )
     }
 
     /// Create a new coin object in the transaction.
@@ -224,15 +221,15 @@ impl TestCheckpointDataBuilder {
             !self.live_objects.contains_key(&object_id),
             "Object already exists: {object_id}. Please use a different object index.",
         );
-        let move_object = MoveObject::new_coin(
+        let move_struct = MoveStruct::new_coin(
             coin_type,
             // version doesn't matter since we will set it to the lamport version when we finalize
             // the transaction
-            SequenceNumber::MIN_VALID_INCL,
+            Version::MIN_VALID_INCL,
             object_id,
             balance,
         );
-        let object = Object::new_move(move_object, owner, TransactionDigest::ZERO);
+        let object = Object::new_move(move_struct, owner, TransactionDigest::ZERO);
         tx_builder.created_objects.insert(object_id, object);
         self
     }
@@ -300,7 +297,7 @@ impl TestCheckpointDataBuilder {
             .expect("Mutating an object that does not exist");
         let coin_type = object.coin_type_opt().cloned().unwrap();
         // Withdraw balance from coin object.
-        let move_object = object.data.as_struct_mut_opt().unwrap();
+        let move_object = object.data.as_opt_mut_struct().unwrap();
         let old_balance = move_object.get_coin_value_unchecked();
         let new_balance = old_balance - amount;
         move_object.set_coin_value_unchecked(new_balance);
@@ -436,7 +433,7 @@ impl TestCheckpointDataBuilder {
             };
 
             pt_builder
-                .obj(CallArg::Shared(SharedObjectRef::new(
+                .obj(CallArg::Shared(SharedObjectReference::new(
                     *id,
                     initial_shared_version,
                     input.mutable,
@@ -445,8 +442,8 @@ impl TestCheckpointDataBuilder {
         }
 
         let pt = pt_builder.finish();
-        let tx_data = TransactionData::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
-        let tx = Transaction::new(SenderSignedData::new(tx_data, vec![]));
+        let tx = Transaction::new(TransactionKind::Programmable(pt), sender, gas, 1, 1);
+        let tx = TransactionEnvelope::new(SenderSignedTransaction::new(tx, vec![]));
 
         let wrapped_objects: Vec<_> = wrapped_objects
             .into_iter()
@@ -520,7 +517,7 @@ impl TestCheckpointDataBuilder {
             ))
             .map(|mut o| {
                 o.data
-                    .as_struct_mut_opt()
+                    .as_opt_mut_struct()
                     .unwrap()
                     .increment_version_to(lamport_version);
                 o
@@ -564,15 +561,15 @@ impl TestCheckpointDataBuilder {
         // TODO: need the system state object wrapper and dynamic field object to
         // "correctly" mock advancing epoch, at least to satisfy kv_epoch_starts
         // pipeline.
-        let end_of_epoch_tx = TransactionData::new(
+        let end_of_epoch_tx = Transaction::new(
             TransactionKind::EndOfEpoch(vec![tx_kind]),
-            IotaAddress::ZERO,
+            Address::ZERO,
             random_object_ref(),
             1,
             1,
         )
-        .pipe(|data| SenderSignedData::new(data, vec![]))
-        .pipe(Transaction::new);
+        .pipe(|tx| SenderSignedTransaction::new(tx, vec![]))
+        .pipe(TransactionEnvelope::new);
 
         let events = if !safe_mode {
             let system_epoch_info_event = SystemEpochInfoEventV2 {
@@ -584,7 +581,7 @@ impl TestCheckpointDataBuilder {
                 package_id: ObjectId::SYSTEM,
                 module: Identifier::from_static("iota_system_state_inner"),
                 sender: TestCheckpointDataBuilder::derive_address(0),
-                type_: StructTag::new_system_epoch_info_event(),
+                struct_tag: StructTag::new_system_epoch_info_event(),
                 contents: bcs::to_bytes(&system_epoch_info_event).unwrap(),
             }])
         } else {
@@ -610,8 +607,8 @@ impl TestCheckpointDataBuilder {
         // checkpoint with additional end of epoch data.
         let mut checkpoint = self.build_checkpoint();
         let end_of_epoch_data = EndOfEpochData {
-            next_epoch_committee: committee.voting_rights,
-            next_epoch_protocol_version: protocol_config.version,
+            next_epoch_committee: committee.committee_members(),
+            next_epoch_protocol_version: protocol_config.version.as_u64(),
             epoch_commitments: vec![],
             // Do not simulate supply changes in tests.
             epoch_supply_change: 0,
@@ -635,7 +632,7 @@ impl TestCheckpointDataBuilder {
 
         self.checkpoint_builder.network_total_transactions += transactions.len() as u64;
 
-        let checkpoint_summary = CheckpointSummary::new(
+        let checkpoint_summary = CheckpointSummary::new_with_protocol_config(
             &ProtocolConfig::get_for_max_version_UNSAFE(),
             self.checkpoint_builder.epoch,
             self.checkpoint_builder.checkpoint,
@@ -676,7 +673,7 @@ impl TestCheckpointDataBuilder {
     }
 
     /// Derive an address from an index.
-    pub fn derive_address(address_idx: u8) -> IotaAddress {
+    pub fn derive_address(address_idx: u8) -> Address {
         dbg_addr(address_idx)
     }
 
@@ -706,7 +703,7 @@ mod tests {
     use super::*;
     use crate::{
         ObjectId,
-        transaction::{TransactionDataAPI, TransactionKindExt},
+        transaction::{TransactionAPI, TransactionKindExt},
     };
     #[test]
     fn test_basic_checkpoint_builder() {
@@ -717,7 +714,7 @@ mod tests {
             .finish_transaction()
             .build_checkpoint();
 
-        assert_eq!(*checkpoint.checkpoint_summary.sequence_number(), 1);
+        assert_eq!(checkpoint.checkpoint_summary.sequence_number(), 1);
         assert_eq!(checkpoint.checkpoint_summary.epoch, 5);
         assert_eq!(checkpoint.transactions.len(), 1);
         let tx = &checkpoint.transactions[0];
@@ -750,7 +747,7 @@ mod tests {
         let senders: Vec<_> = checkpoint
             .transactions
             .iter()
-            .map(|tx| tx.transaction.transaction_data().sender())
+            .map(|tx| tx.transaction.transaction().sender())
             .collect();
         assert_eq!(
             senders,
@@ -977,7 +974,7 @@ mod tests {
         // with 100 NANOS.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
             && obj.is_gas_coin()
-            && obj.data.as_struct_opt().unwrap().get_coin_value_unchecked() == 100));
+            && obj.data.as_opt_struct().unwrap().get_coin_value_unchecked() == 100));
 
         let tx = &checkpoint.transactions[1];
         let obj_id1 = TestCheckpointDataBuilder::derive_object_id(1);
@@ -985,12 +982,12 @@ mod tests {
         // Verify the original IOTA coin now has 90 NANOS after the transfer.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
             && obj.is_gas_coin()
-            && obj.data.as_struct_opt().unwrap().get_coin_value_unchecked() == 90));
+            && obj.data.as_opt_struct().unwrap().get_coin_value_unchecked() == 90));
 
         // Verify the split out IOTA coin has 10 NANOS.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id1
             && obj.is_gas_coin()
-            && obj.data.as_struct_opt().unwrap().get_coin_value_unchecked() == 10));
+            && obj.data.as_opt_struct().unwrap().get_coin_value_unchecked() == 10));
     }
 
     #[test]
@@ -1012,12 +1009,12 @@ mod tests {
         // Verify the original coin now has 90 balance after the transfer.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
             && obj.coin_type_opt() == Some(&type_tag)
-            && obj.data.as_struct_opt().unwrap().get_coin_value_unchecked() == 90));
+            && obj.data.as_opt_struct().unwrap().get_coin_value_unchecked() == 90));
 
         // Verify the split out coin has 10 balance, with the same type tag.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id1
             && obj.coin_type_opt() == Some(&type_tag)
-            && obj.data.as_struct_opt().unwrap().get_coin_value_unchecked() == 10));
+            && obj.data.as_opt_struct().unwrap().get_coin_value_unchecked() == 10));
     }
 
     #[test]
@@ -1028,7 +1025,7 @@ mod tests {
                 package_id: ObjectId::ZERO,
                 module: Identifier::from_static("test"),
                 sender: TestCheckpointDataBuilder::derive_address(0),
-                type_: StructTag::new_gas(),
+                struct_tag: StructTag::new_gas(),
                 contents: vec![],
             }])
             .finish_transaction()
@@ -1054,7 +1051,7 @@ mod tests {
         // Verify the transaction has a move call matching the arguments provided.
         assert!(
             tx.transaction
-                .transaction_data()
+                .transaction()
                 .kind()
                 .iter_commands()
                 .any(|cmd| {

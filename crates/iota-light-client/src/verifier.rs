@@ -8,15 +8,12 @@ use anyhow::{Context, Result, anyhow, bail};
 use iota_config::genesis::Genesis;
 use iota_json_rpc_types::{IotaObjectDataOptions, IotaTransactionBlockResponseOptions};
 use iota_sdk::IotaClientBuilder;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{ObjectId, TransactionDigest, TransactionEffects, TransactionEvents};
 use iota_types::{
-    base_types::TransactionDigest,
     committee::Committee,
-    effects::{
-        TransactionEffects, TransactionEffectsAPI, TransactionEffectsExt, TransactionEvents,
-    },
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     full_checkpoint_content::CheckpointData,
-    messages_checkpoint::CheckpointSequenceNumber,
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber},
     object::Object,
 };
 use tracing::info;
@@ -46,7 +43,7 @@ pub fn extract_verified_effects_and_events(
         // Note that we get the digest of the effects to ensure this is
         // indeed the correct effects that are authenticated in the contents.
         .find(|(tx, digest)| {
-            tx.effects.execution_digests() == **digest && digest.transaction == transaction_digest
+            tx.effects.execution_digests() == *digest && digest.transaction == transaction_digest
         })
         .ok_or_else(|| anyhow!("Transaction not found in checkpoint contents"))?;
 
@@ -148,17 +145,17 @@ pub async fn get_verified_effects_and_events(
         );
 
         // Get the committee from the previous checkpoint
-        let current_committee = prev_ckp
+        let next_epoch_committee = &prev_ckp
             .end_of_epoch_data
             .as_ref()
             .ok_or_else(|| anyhow!("Expected all checkpoints to be end-of-epoch checkpoints"))?
-            .next_epoch_committee
-            .iter()
-            .cloned()
-            .collect();
+            .next_epoch_committee;
 
         // Make a committee object using this
-        Committee::new(prev_ckp.epoch().checked_add(1).unwrap(), current_committee)
+        Committee::from_committee_members(
+            prev_ckp.epoch().checked_add(1).unwrap(),
+            next_epoch_committee,
+        )
     } else {
         // Since we did not find a small committee checkpoint we use the genesis
         Genesis::load(config.genesis_blob_file_path())?
@@ -246,17 +243,17 @@ pub async fn get_verified_checkpoint(
         );
 
         // Get the committee from the previous checkpoint
-        let current_committee = prev_ckp
+        let next_epoch_committee = &prev_ckp
             .end_of_epoch_data
             .as_ref()
             .ok_or_else(|| anyhow!("Expected all checkpoints to be end-of-epoch checkpoints"))?
-            .next_epoch_committee
-            .iter()
-            .cloned()
-            .collect();
+            .next_epoch_committee;
 
         // Make a committee object using this
-        Committee::new(prev_ckp.epoch().checked_add(1).unwrap(), current_committee)
+        Committee::from_committee_members(
+            prev_ckp.epoch().checked_add(1).unwrap(),
+            next_epoch_committee,
+        )
     } else {
         // Since we did not find a small committee checkpoint we use the genesis
         Genesis::load(config.genesis_blob_file_path())?
@@ -284,11 +281,8 @@ pub async fn get_verified_checkpoint(
 mod tests {
     use std::{fs, io::Read, path::PathBuf, str::FromStr};
 
-    use iota_sdk_types::{Event, Identifier, StructTag};
-    use iota_types::{
-        base_types::IotaAddress,
-        messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents},
-    };
+    use iota_sdk_types::{Address, Event, Identifier, StructTag};
+    use iota_types::messages_checkpoint::{CertifiedCheckpointSummary, FullCheckpointContents};
 
     use super::*;
 
@@ -296,9 +290,9 @@ mod tests {
         Event {
             package_id: ObjectId::random(),
             module: Identifier::from_static("test"),
-            sender: IotaAddress::random(),
-            type_: StructTag::new(
-                IotaAddress::random(),
+            sender: Address::random(),
+            struct_tag: StructTag::new(
+                Address::random(),
                 Identifier::from_static("test"),
                 Identifier::from_static("test"),
                 vec![],
@@ -335,16 +329,16 @@ mod tests {
         let summary = read_checkpoint_summary(&checkpoint_summary_path)
             .await
             .unwrap();
-        let prev_committee = summary
+        let prev_committee = &summary
             .end_of_epoch_data
             .as_ref()
             .expect("Expected all checkpoints to be end-of-epoch checkpoints")
-            .next_epoch_committee
-            .iter()
-            .cloned()
-            .collect();
+            .next_epoch_committee;
 
-        let committee = Committee::new(summary.epoch().checked_add(1).unwrap(), prev_committee);
+        let committee = Committee::from_committee_members(
+            summary.epoch().checked_add(1).unwrap(),
+            prev_committee,
+        );
 
         let full_checkpoint_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join(FIXTURES_DIR)

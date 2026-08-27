@@ -11,7 +11,7 @@
 // 4  | 6
 // 5  | 7
 // The object should still be accessible through point lookups at all versions
-// inside the available consistent range.
+// it was not wrapped or deleted inside the available consistent range.
 
 //# init --protocol-version 4 --addresses Test=0x0 --accounts A --simulator
 
@@ -110,7 +110,7 @@ module Test::M1 {
 //# create-checkpoint
 
 //# run-graphql
-# Wrapped object should still be available.
+# Wrapped object should not be available.
 {
   latest_wrapped: object(
     address: "@{obj_2_0}"
@@ -186,22 +186,10 @@ module Test::M1 {
 //# create-checkpoint
 
 //# run-graphql
-# Object is now deleted.
+# Object is now deleted. It is excluded from consistent views.
 {
   latest_deleted: object(
     address: "@{obj_2_0}"
-  ) {
-    status
-    version
-    asMoveObject {
-      contents {
-        json
-      }
-    }
-  }
-  version_specified: object(
-    address: "@{obj_2_0}"
-    version: 7
   ) {
     status
     version
@@ -242,7 +230,6 @@ module Test::M1 {
 //# create-checkpoint
 
 //# run-graphql
-# Querying objects by version doesn't require it to be in the snapshot table.
 {
   availableRange {
     first {
@@ -276,7 +263,7 @@ module Test::M1 {
       }
     }
   }
-  object_not_in_snapshot: object(
+  earlier_object: object(
     address: "@{obj_2_0}"
     version: 3
   ) {
@@ -291,7 +278,6 @@ module Test::M1 {
 }
 
 //# run-graphql --cursors bcs(@{obj_1_0},6)
-# But it would no longer be possible to try to paginate using a cursor that falls outside the available range
 {
   availableRange {
     first {

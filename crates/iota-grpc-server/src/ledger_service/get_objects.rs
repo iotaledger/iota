@@ -75,7 +75,10 @@ pub(crate) fn validate_get_object_requests(
 ///
 /// ## Data Fields
 /// - `bcs` - the full BCS-encoded object
-#[tracing::instrument(skip(reader))]
+#[tracing::instrument(
+    skip(reader, requests),
+    fields(batch_size = requests.as_ref().map_or(0, |r| r.requests.len()))
+)]
 pub(crate) fn get_objects(
     reader: Arc<GrpcReader>,
     GetObjectsRequest {

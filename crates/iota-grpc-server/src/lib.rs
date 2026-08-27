@@ -5,6 +5,7 @@
 mod macros;
 
 // Modules
+pub(crate) mod changes;
 pub mod constants;
 mod error;
 pub mod event_filter;
@@ -21,6 +22,7 @@ pub mod transaction_filter;
 pub mod types;
 pub mod utils;
 // Internal helpers — not part of the public API.
+pub(crate) mod server_timing;
 pub(crate) mod validation;
 
 // Re-export commonly used types and traits

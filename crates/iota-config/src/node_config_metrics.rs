@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus_filtered::{IntGauge, MetricLevel, Registry, register_int_gauge_with_registry};
 
 use crate::NodeConfig;
 
@@ -16,6 +16,8 @@ pub struct NodeConfigMetrics {
     tx_deny_config_num_denied_objects: IntGauge,
     tx_deny_config_num_denied_packages: IntGauge,
     tx_deny_config_num_denied_addresses: IntGauge,
+    tx_deny_config_receiving_objects_disabled: IntGauge,
+    tx_deny_config_move_authenticator_disabled: IntGauge,
 }
 
 impl NodeConfigMetrics {
@@ -24,43 +26,64 @@ impl NodeConfigMetrics {
             tx_deny_config_user_transaction_disabled: register_int_gauge_with_registry!(
                 "tx_deny_config_user_transaction_disabled",
                 "Whether all user transactions are disabled",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_shared_object_disabled: register_int_gauge_with_registry!(
                 "tx_deny_config_shared_object_disabled",
                 "Whether all shared object transactions are disabled",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_package_publish_disabled: register_int_gauge_with_registry!(
                 "tx_deny_config_package_publish_disabled",
                 "Whether all package publish transactions are disabled",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_package_upgrade_disabled: register_int_gauge_with_registry!(
                 "tx_deny_config_package_upgrade_disabled",
                 "Whether all package upgrade transactions are disabled",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_num_denied_objects: register_int_gauge_with_registry!(
                 "tx_deny_config_num_denied_objects",
                 "Number of denied objects",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_num_denied_packages: register_int_gauge_with_registry!(
                 "tx_deny_config_num_denied_packages",
                 "Number of denied packages",
-                registry
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
             tx_deny_config_num_denied_addresses: register_int_gauge_with_registry!(
                 "tx_deny_config_num_denied_addresses",
                 "Number of denied addresses",
-                registry
+                registry;
+                MetricLevel::Warn
+            )
+            .unwrap(),
+            tx_deny_config_receiving_objects_disabled: register_int_gauge_with_registry!(
+                "tx_deny_config_receiving_objects_disabled",
+                "Whether all receiving objects transactions are disabled",
+                registry;
+                MetricLevel::Warn
+            )
+            .unwrap(),
+            tx_deny_config_move_authenticator_disabled: register_int_gauge_with_registry!(
+                "tx_deny_config_move_authenticator_disabled",
+                "Whether all move authenticator transactions are disabled",
+                registry;
+                MetricLevel::Warn
             )
             .unwrap(),
         };
@@ -82,5 +105,9 @@ impl NodeConfigMetrics {
             .set(config.transaction_deny_config.get_package_deny_set().len() as i64);
         self.tx_deny_config_num_denied_addresses
             .set(config.transaction_deny_config.get_address_deny_set().len() as i64);
+        self.tx_deny_config_receiving_objects_disabled
+            .set(config.transaction_deny_config.receiving_objects_disabled() as i64);
+        self.tx_deny_config_move_authenticator_disabled
+            .set(config.transaction_deny_config.move_authenticator_disabled() as i64);
     }
 }

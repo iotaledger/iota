@@ -12,21 +12,20 @@ use std::{
 use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Argument, CommandArgumentError, ExecutionError, ExecutionStatus, Identifier, ObjectId, Owner,
-    PackageUpgradeError, StructTag,
+    Address, Argument, CommandArgumentError, Digest, ExecutionError, ExecutionStatus, Identifier,
+    ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
+    TransactionEffects,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
-    crypto::{AccountKeyPair, get_key_pair},
-    digests::Digest,
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    crypto::{AccountPrivateKey, get_key_pair},
+    effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     execution_config_utils::to_binary_config,
     move_package::{MovePackageExt, UpgradePolicy},
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{CallArg, ProgrammableTransaction, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
+    transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH},
 };
 use move_core_types::ident_str;
 
@@ -36,7 +35,8 @@ use crate::authority::{
     authority_tests::{execute_programmable_transaction, init_state_with_ids},
     move_integration_tests::{
         UpgradeData, build_and_publish_test_package_with_upgrade_cap, build_multi_publish_txns,
-        build_multi_upgrade_txns, build_package, collect_packages_and_upgrade_caps, run_multi_txns,
+        build_multi_upgrade_txns, build_package, collect_packages_and_upgrade_caps,
+        created_package_ref, run_multi_txns,
     },
     test_authority_builder::TestAuthorityBuilder,
 };
@@ -111,7 +111,10 @@ fn pkg_path_of(pkg_name: &str) -> PathBuf {
 
 fn build_pkg_at_path(path: &Path) -> (Vec<u8>, Vec<Vec<u8>>, Vec<ObjectId>) {
     let with_unpublished_deps = false;
-    let package = BuildConfig::new_for_testing().build(path).unwrap();
+    let package = BuildConfig::new_for_testing()
+        .with_allow_view_function()
+        .build(path)
+        .unwrap();
     (
         package.get_package_digest(with_unpublished_deps).to_vec(),
         package.get_package_bytes(with_unpublished_deps),
@@ -138,7 +141,7 @@ pub fn build_upgrade_test_modules_with_dep_addr(
 pub fn build_upgrade_txn(
     current_pkg_id: ObjectId,
     upgraded_pkg_name: &str,
-    upgrade_cap: ObjectRef,
+    upgrade_cap: ObjectReference,
 ) -> ProgrammableTransaction {
     let mut builder = ProgrammableTransactionBuilder::new();
     let (digest, modules) = build_upgrade_test_modules(upgraded_pkg_name);
@@ -163,23 +166,23 @@ pub fn build_upgrade_txn(
 }
 
 struct UpgradeStateRunner {
-    pub sender: IotaAddress,
-    pub sender_key: AccountKeyPair,
+    pub sender: Address,
+    pub sender_key: AccountPrivateKey,
     pub gas_object_id: ObjectId,
     pub authority_state: Arc<AuthorityState>,
-    pub package: ObjectRef,
-    pub upgrade_cap: ObjectRef,
+    pub package: ObjectReference,
+    pub upgrade_cap: ObjectReference,
     pub rgp: u64,
 }
 
 impl UpgradeStateRunner {
     pub async fn new(base_package_name: &str) -> Self {
         telemetry_subscribers::init_for_testing();
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_object_id = ObjectId::random();
         let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
         let authority_state = TestAuthorityBuilder::new().build().await;
-        authority_state.insert_genesis_object(gas_object).await;
+        authority_state.insert_genesis_object(gas_object);
         let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
         let (package, upgrade_cap) = build_and_publish_test_package_with_upgrade_cap(
@@ -208,7 +211,7 @@ impl UpgradeStateRunner {
         &mut self,
         modules: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectId>,
-    ) -> (ObjectRef, ObjectRef) {
+    ) -> (ObjectReference, ObjectReference) {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
             let cap = builder.publish_upgradeable(modules, dep_ids);
@@ -218,11 +221,7 @@ impl UpgradeStateRunner {
         let effects = self.run(pt).await;
         assert!(effects.status().is_success(), "{:#?}", effects.status());
 
-        let package = effects
-            .created()
-            .into_iter()
-            .find(|(_, owner)| matches!(owner, Owner::Immutable))
-            .unwrap();
+        let package = created_package_ref(&effects);
 
         let cap = effects
             .created()
@@ -230,7 +229,7 @@ impl UpgradeStateRunner {
             .find(|(_, owner)| matches!(owner, Owner::Address(_)))
             .unwrap();
 
-        (package.0, cap.0)
+        (package, cap.0)
     }
 
     pub async fn upgrade(
@@ -262,11 +261,7 @@ impl UpgradeStateRunner {
 
         let effects = self.run(pt).await;
         if effects.status().is_success() {
-            self.package = effects
-                .created()
-                .into_iter()
-                .find_map(|(pkg, owner)| matches!(owner, Owner::Immutable).then_some(pkg))
-                .unwrap();
+            self.package = created_package_ref(&effects);
         }
 
         effects
@@ -427,7 +422,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
         .unwrap();
 
     assert_eq!(
-        b.data.struct_tag().unwrap(),
+        b.data.opt_struct_tag().unwrap(),
         StructTag::new(
             package_v2,
             Identifier::from_static("base"),
@@ -454,6 +449,23 @@ async fn test_upgrade_incompatible() {
     let mut runner = UpgradeStateRunner::new("move_upgrade/base").await;
 
     let (digest, modules) = build_upgrade_test_modules("compatibility_invalid");
+    let effects = runner
+        .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![])
+        .await;
+
+    assert_eq!(
+        effects.into_status().unwrap_err().0,
+        ExecutionError::PackageUpgradeError {
+            kind: PackageUpgradeError::IncompatibleUpgrade,
+        },
+    )
+}
+
+#[tokio::test]
+async fn test_upgrade_cannot_remove_view_attribute() {
+    let mut runner = UpgradeStateRunner::new("move_upgrade/view_base").await;
+
+    let (digest, modules) = build_upgrade_test_modules("view_removed");
     let effects = runner
         .upgrade(UpgradePolicy::COMPATIBLE, digest, modules, vec![])
         .await;
@@ -1271,10 +1283,15 @@ async fn test_upgraded_types_in_one_txn() {
         .authority_state
         .get_transaction_events(effects.transaction_digest())
         .unwrap();
-    events.sort_by(|a, b| a.type_.name().as_str().cmp(b.type_.name().as_str()));
+    events.sort_by(|a, b| {
+        a.struct_tag
+            .name()
+            .as_str()
+            .cmp(b.struct_tag.name().as_str())
+    });
     assert!(events.len() == 2);
-    assert_eq!(events[0].type_, e1_type);
-    assert_eq!(events[1].type_, e2_type);
+    assert_eq!(events[0].struct_tag, e1_type);
+    assert_eq!(events[1].struct_tag, e2_type);
 }
 
 #[tokio::test]
@@ -1490,7 +1507,7 @@ async fn test_upgrade_cross_module_refs() {
 
 #[tokio::test]
 async fn test_upgrade_max_packages() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 
@@ -1544,7 +1561,7 @@ async fn test_upgrade_max_packages() {
 
 #[tokio::test]
 async fn test_upgrade_more_than_max_packages_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 

@@ -2,14 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_config::transaction_deny_config::TransactionDenyConfig;
-use iota_sdk_types::Command;
+use iota_sdk_types::{Command, ObjectReference, Transaction, UserSignature};
 use iota_types::{
-    base_types::ObjectRef,
+    deny_rule_governance::DenyRuleConfig,
     error::{IotaError, IotaResult, UserInputError},
-    signature::GenericSignature,
     storage::BackingPackageStore,
-    transaction::{InputObjectKind, TransactionData, TransactionDataAPI, TransactionKindExt},
+    transaction::{InputObjectKind, TransactionAPI, TransactionKindExt},
 };
 use tracing::instrument;
 macro_rules! deny_if_true {
@@ -26,22 +24,22 @@ macro_rules! deny_if_true {
 
 /// Check that the provided transaction is allowed to be signed according to the
 /// deny config.
-#[instrument(level = "trace", skip_all, fields(tx_digest = ?tx_data.digest()))]
+#[instrument(level = "trace", skip_all, fields(tx_digest = ?tx.digest()))]
 pub fn check_transaction_for_validation(
-    tx_data: &TransactionData,
-    tx_signatures: &[GenericSignature],
+    tx: &Transaction,
+    tx_signatures: &[UserSignature],
     input_object_kinds: &[InputObjectKind],
-    receiving_objects: &[ObjectRef],
-    filter_config: &TransactionDenyConfig,
+    receiving_objects: &[ObjectReference],
+    filter_config: &dyn DenyRuleConfig,
     package_store: &dyn BackingPackageStore,
 ) -> IotaResult {
-    check_disabled_features(filter_config, tx_data, tx_signatures)?;
+    check_disabled_features(filter_config, tx, tx_signatures)?;
 
-    check_signers(filter_config, tx_data)?;
+    check_signers(filter_config, tx)?;
 
     check_input_objects(filter_config, input_object_kinds)?;
 
-    check_package_dependencies(filter_config, tx_data, package_store)?;
+    check_package_dependencies(filter_config, tx, package_store)?;
 
     check_receiving_objects(filter_config, receiving_objects)?;
 
@@ -50,18 +48,19 @@ pub fn check_transaction_for_validation(
 
 #[instrument(level = "trace", skip_all)]
 fn check_receiving_objects(
-    filter_config: &TransactionDenyConfig,
-    receiving_objects: &[ObjectRef],
+    filter_config: &dyn DenyRuleConfig,
+    receiving_objects: &[ObjectReference],
 ) -> IotaResult {
     deny_if_true!(
         filter_config.receiving_objects_disabled() && !receiving_objects.is_empty(),
         "Receiving objects is temporarily disabled".to_string()
     );
+    if !filter_config.has_denied_objects() {
+        return Ok(());
+    }
     for receiving_object in receiving_objects {
         deny_if_true!(
-            filter_config
-                .get_object_deny_set()
-                .contains(&receiving_object.object_id),
+            filter_config.is_object_denied(&receiving_object.object_id),
             format!(
                 "Access to object {:?} is temporarily disabled",
                 receiving_object.object_id
@@ -73,9 +72,9 @@ fn check_receiving_objects(
 
 #[instrument(level = "trace", skip_all)]
 fn check_disabled_features(
-    filter_config: &TransactionDenyConfig,
-    tx_data: &TransactionData,
-    tx_signatures: &[GenericSignature],
+    filter_config: &dyn DenyRuleConfig,
+    tx: &Transaction,
+    tx_signatures: &[UserSignature],
 ) -> IotaResult {
     deny_if_true!(
         filter_config.user_transaction_disabled(),
@@ -83,10 +82,7 @@ fn check_disabled_features(
     );
 
     tx_signatures.iter().try_for_each(|s| {
-        #[allow(deprecated)]
-        if let GenericSignature::ZkLoginAuthenticatorDeprecated(_) = s {
-            deny_if_true!(true, "zkLogin is not supported");
-        } else if let GenericSignature::MoveAuthenticator(_) = s {
+        if let UserSignature::MoveAuthenticator(_) = s {
             deny_if_true!(
                 filter_config.move_authenticator_disabled(),
                 "MoveAuthenticator is temporarily disabled"
@@ -99,7 +95,7 @@ fn check_disabled_features(
         return Ok(());
     }
 
-    for command in tx_data.kind().iter_commands() {
+    for command in tx.kind().iter_commands() {
         deny_if_true!(
             filter_config.package_publish_disabled() && matches!(command, Command::Publish(..)),
             "Package publish is temporarily disabled"
@@ -113,14 +109,13 @@ fn check_disabled_features(
 }
 
 #[instrument(level = "trace", skip_all)]
-fn check_signers(filter_config: &TransactionDenyConfig, tx_data: &TransactionData) -> IotaResult {
-    let deny_map = filter_config.get_address_deny_set();
-    if deny_map.is_empty() {
+fn check_signers(filter_config: &dyn DenyRuleConfig, tx: &Transaction) -> IotaResult {
+    if !filter_config.has_denied_addresses() {
         return Ok(());
     }
-    for signer in tx_data.signers() {
+    for signer in tx.signers() {
         deny_if_true!(
-            deny_map.contains(&signer),
+            filter_config.is_address_denied(&signer),
             format!(
                 "Access to account address {:?} is temporarily disabled",
                 signer
@@ -132,19 +127,18 @@ fn check_signers(filter_config: &TransactionDenyConfig, tx_data: &TransactionDat
 
 #[instrument(level = "trace", skip_all)]
 fn check_input_objects(
-    filter_config: &TransactionDenyConfig,
+    filter_config: &dyn DenyRuleConfig,
     input_object_kinds: &[InputObjectKind],
 ) -> IotaResult {
-    let deny_map = filter_config.get_object_deny_set();
     let shared_object_disabled = filter_config.shared_object_disabled();
-    if deny_map.is_empty() && !shared_object_disabled {
+    if !filter_config.has_denied_objects() && !shared_object_disabled {
         // No need to iterate through the input objects if no relevant policy is set.
         return Ok(());
     }
     for input_object_kind in input_object_kinds {
         let id = input_object_kind.object_id();
         deny_if_true!(
-            deny_map.contains(&id),
+            filter_config.is_object_denied(&id),
             format!("Access to input object {id} is temporarily disabled")
         );
         deny_if_true!(
@@ -157,16 +151,15 @@ fn check_input_objects(
 
 #[instrument(level = "trace", skip_all)]
 fn check_package_dependencies(
-    filter_config: &TransactionDenyConfig,
-    tx_data: &TransactionData,
+    filter_config: &dyn DenyRuleConfig,
+    tx: &Transaction,
     package_store: &dyn BackingPackageStore,
 ) -> IotaResult {
-    let deny_map = filter_config.get_package_deny_set();
-    if deny_map.is_empty() {
+    if !filter_config.has_denied_packages() {
         return Ok(());
     }
     let mut dependencies = vec![];
-    for command in tx_data.kind().iter_commands() {
+    for command in tx.kind().iter_commands() {
         match command {
             Command::Publish(cmd) => {
                 // It is possible that the deps list is inaccurate since it's provided
@@ -212,7 +205,7 @@ fn check_package_dependencies(
     }
     for dep in dependencies {
         deny_if_true!(
-            deny_map.contains(&dep),
+            filter_config.is_package_denied(&dep),
             format!("Access to package {dep} is temporarily disabled")
         );
     }

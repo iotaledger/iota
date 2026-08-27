@@ -8,12 +8,11 @@ use iota_json_rpc_types::{
     DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
     ExecuteTransactionRequestType, IotaMoveViewCallResults, IotaTransactionBlockResponse,
     IotaTransactionBlockResponseOptions, IotaTypeTag,
-    iota_primitives::{
-        Base64 as Base64Schema, IotaAddress as IotaAddressSchema, TypeTag as TypeTagSchema,
-    },
+    iota_primitives::{Address as AddressSchema, Base64 as Base64Schema, TypeTag as TypeTagSchema},
 };
 use iota_open_rpc_macros::open_rpc;
-use iota_types::{base_types::IotaAddress, iota_serde::BigInt};
+use iota_sdk_types::Address;
+use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
 /// Provides methods for executing and testing transactions.
@@ -48,12 +47,13 @@ pub trait WriteApi {
         request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse>;
 
-    /// Calls a move view function.
+    /// Calls a Move view function. The function must be declared with the `#[view]`
+    /// attribute.
     #[rustfmt::skip]
     #[method(name = "view")]
     async fn view_function_call(
         &self,
-        /// The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.
+        /// The fully qualified function name `<package_id>::<module_name>::<function_name>`, where the function is declared with the `#[view]` attribute. E.g. `0x1234::counter::value`.
         function_name: String,
         #[schemars(with = "Option<Vec<TypeTagSchema>>")]
         type_args: Option<Vec<IotaTypeTag>>,
@@ -67,9 +67,9 @@ pub trait WriteApi {
     #[method(name = "devInspectTransactionBlock")]
     async fn dev_inspect_transaction_block(
         &self,
-        #[schemars(with = "IotaAddressSchema")]
-        sender_address: IotaAddress,
-        /// BCS encoded TransactionKind(as opposed to TransactionData, which include gasBudget and gasPrice)
+        #[schemars(with = "AddressSchema")]
+        sender_address: Address,
+        /// BCS encoded TransactionKind(as opposed to Transaction, which include gasBudget and gasPrice)
         #[schemars(with = "Base64Schema")]
         tx_bytes: Base64,
         /// Gas is not charged, but gas usage is still calculated. Default to use reference gas price

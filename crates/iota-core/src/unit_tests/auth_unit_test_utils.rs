@@ -2,16 +2,26 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{collections::BTreeMap, path::Path, sync::Arc};
+
 use iota_move_build::{BuildConfig, CompiledPackage};
+use iota_sdk_crypto::Signer;
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, Owner, Transaction, TransactionDigest,
+    crypto::SimpleSignature,
+};
 use iota_types::{
-    crypto::Signature, move_package::UpgradePolicy,
+    effects::TransactionEffectsAPI,
+    error::IotaResult,
+    move_package::UpgradePolicy,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::TransactionDataAPI, utils::to_sender_signed_transaction,
+    transaction::{TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionAPI},
+    utils::to_sender_signed_transaction,
 };
 use move_core_types::account_address::AccountAddress;
 use move_symbol_pool::Symbol;
 
-use super::{authority_test_utils::*, *};
+use crate::authority::{AuthorityState, authority_tests::send_and_confirm_transaction};
 
 pub fn build_test_modules_with_dep_addr(
     path: &Path,
@@ -60,13 +70,13 @@ pub fn build_test_modules_with_dep_addr(
 /// version (if there were upgrades).
 pub async fn publish_package_on_single_authority(
     path: &Path,
-    sender: IotaAddress,
-    sender_key: &dyn Signer<Signature>,
-    gas_payment: ObjectRef,
+    sender: Address,
+    sender_key: &impl Signer<SimpleSignature>,
+    gas_payment: ObjectReference,
     dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectId)>,
     dep_ids: Vec<ObjectId>,
     state: &Arc<AuthorityState>,
-) -> IotaResult<(TransactionDigest, (ObjectId, ObjectRef))> {
+) -> IotaResult<(TransactionDigest, (ObjectId, ObjectReference))> {
     let mut build_config = BuildConfig::new_for_testing();
     for (addr_name, obj_id) in dep_original_addresses {
         build_config.config.additional_named_addresses.insert(
@@ -82,7 +92,7 @@ pub async fn publish_package_on_single_authority(
     let pt = builder.finish();
 
     let rgp = state.epoch_store_for_testing().reference_gas_price();
-    let txn_data = TransactionData::new_programmable(
+    let txn = Transaction::new_programmable(
         sender,
         vec![gas_payment],
         pt,
@@ -90,7 +100,7 @@ pub async fn publish_package_on_single_authority(
         rgp,
     );
 
-    let signed = to_sender_signed_transaction(txn_data, sender_key);
+    let signed = to_sender_signed_transaction(txn, sender_key);
     let (_cert, effects) = send_and_confirm_transaction(state, signed).await?;
     assert!(effects.data().status().is_success());
     let package_id = effects
@@ -113,11 +123,11 @@ pub async fn publish_package_on_single_authority(
 
 pub async fn upgrade_package_on_single_authority(
     path: &Path,
-    sender: IotaAddress,
-    sender_key: &dyn Signer<Signature>,
-    gas_payment: ObjectRef,
+    sender: Address,
+    sender_key: &impl Signer<SimpleSignature>,
+    gas_payment: ObjectReference,
     package_id: ObjectId,
-    upgrade_cap: ObjectRef,
+    upgrade_cap: ObjectReference,
     dep_original_addresses: impl IntoIterator<Item = (&'static str, ObjectId)>,
     dep_id_mapping: impl IntoIterator<Item = (&'static str, ObjectId)>,
     state: &Arc<AuthorityState>,
@@ -129,7 +139,7 @@ pub async fn upgrade_package_on_single_authority(
     let digest = package.get_package_digest(with_unpublished_deps).to_vec();
 
     let rgp = state.epoch_store_for_testing().reference_gas_price();
-    let data = TransactionData::new_upgrade(
+    let tx = Transaction::new_upgrade(
         sender,
         gas_payment,
         package_id,
@@ -142,7 +152,7 @@ pub async fn upgrade_package_on_single_authority(
         rgp,
     )
     .unwrap();
-    let signed = to_sender_signed_transaction(data, sender_key);
+    let signed = to_sender_signed_transaction(tx, sender_key);
     let (_cert, effects) = send_and_confirm_transaction(state, signed).await?;
     assert!(effects.data().status().is_success());
     let package_id = effects

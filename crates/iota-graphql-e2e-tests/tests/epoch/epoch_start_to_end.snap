@@ -12,7 +12,7 @@ Checkpoint created: 1
 
 task 2, line 9:
 //# advance-epoch
-Epoch advanced: 0
+Epoch advanced: 1
 
 task 3, lines 11-13:
 //# programmable --sender C --inputs 10000000000 @C
@@ -20,7 +20,12 @@ task 3, lines 11-13:
 //> TransferObjects([Result(0)], Input(1));
 created: object(3,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 1960800
+├── Storage Rebate: 0
+└── Non-Refundable Storage Fee: 0
 
 task 4, lines 15-17:
 //# programmable --sender C --inputs 5000000000 @C
@@ -28,15 +33,25 @@ task 4, lines 15-17:
 //> TransferObjects([Result(0)], Input(1));
 created: object(4,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800, storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 1960800
+├── Storage Rebate: 980400
+└── Non-Refundable Storage Fee: 0
 
 task 5, line 19:
 //# run 0x3::iota_system::request_add_stake --args object(0x5) object(3,0) @validator_0 --sender C
-events: Event { package_id: ObjectId("iota_system"), module: Identifier("iota_system"), sender: Address("C"), type_: StructTag { address: Address("iota_system"), module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: [211, 136, 112, 176, 37, 247, 250, 29, 136, 187, 92, 19, 103, 21, 247, 183, 87, 215, 107, 75, 223, 129, 244, 50, 241, 236, 25, 104, 72, 200, 119, 4, 175, 163, 158, 79, 0, 218, 226, 120, 249, 119, 199, 198, 147, 10, 94, 44, 118, 232, 93, 23, 165, 38, 215, 36, 187, 206, 15, 184, 31, 176, 125, 76, 140, 202, 78, 28, 224, 186, 89, 4, 206, 166, 29, 249, 36, 45, 162, 247, 210, 158, 62, 243, 40, 251, 126, 192, 124, 8, 107, 59, 244, 124, 166, 26, 1, 0, 0, 0, 0, 0, 0, 0, 0, 228, 11, 84, 2, 0, 0, 0] }
+events: Event { package_id: ObjectId("iota_system"), module: Identifier("iota_system"), sender: Address("C"), struct_tag: StructTag { address: Address("iota_system"), module: Identifier("validator"), name: Identifier("StakingRequestEvent"), type_params: [] }, contents: "04hwsCX3+h2Iu1wTZxX3t1fXa0vfgfQy8ewZaEjIdwSvo55PANriePl3x8aTCl4sduhdF6Um1yS7zg+4H7B9TIzKThzgulkEzqYd+SQtovfSnj7zKPt+wHwIazv0fKYaAQAAAAAAAAAA5AtUAgAAAA==" }
 created: object(5,0)
 mutated: object(_), 0x0000000000000000000000000000000000000000000000000000000000000005, object(0,0)
 deleted: object(3,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 14630000, storage_rebate: 1960800, non_refundable_storage_fee: 0
+gas summary:
+├── Computation Cost: 1000000
+├── Computation Cost Burned: 1000000
+├── Storage Cost: 14630000
+├── Storage Rebate: 1960800
+└── Non-Refundable Storage Fee: 0
 
 task 6, line 21:
 //# create-checkpoint
@@ -101,7 +116,7 @@ Checkpoint created: 4
 
 task 9, line 69:
 //# advance-epoch
-Epoch advanced: 1
+Epoch advanced: 2
 
 task 10, line 71:
 //# create-checkpoint

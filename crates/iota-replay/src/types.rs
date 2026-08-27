@@ -7,13 +7,15 @@ use std::fmt::Debug;
 use iota_json_rpc_types::{IotaEvent, IotaObjectResponseError, IotaTransactionBlockEffects};
 use iota_protocol_config::{Chain, ProtocolVersion};
 use iota_sdk::error::Error as IotaRpcError;
-use iota_sdk_types::{ObjectId, TransactionKind};
+use iota_sdk_types::{
+    Address, ObjectDigest, ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest,
+    TransactionKind, Version,
+};
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef, SequenceNumber, VersionNumber},
-    digests::{ObjectDigest, TransactionDigest},
+    base_types::VersionNumber,
     error::{IotaError, IotaResult, UserInputError},
     object::Object,
-    transaction::{InputObjectKind, SenderSignedData},
+    transaction::InputObjectKind,
 };
 use jsonrpsee::core::ClientError as JsonRpseeError;
 use move_binary_format::CompiledModule;
@@ -40,27 +42,27 @@ pub(crate) const EPOCH_CHANGE_STRUCT_TAGS: [&str; 2] = [
 ];
 
 // TODO: A lot of the information in OnChainTransactionInfo is redundant from
-// what's already in SenderSignedData. We should consider removing them.
+// what's already in SenderSignedTransaction. We should consider removing them.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct OnChainTransactionInfo {
     pub tx_digest: TransactionDigest,
-    pub sender_signed_data: SenderSignedData,
-    pub sender: IotaAddress,
+    pub sender_signed_data: SenderSignedTransaction,
+    pub sender: Address,
     pub input_objects: Vec<InputObjectKind>,
     pub kind: TransactionKind,
-    pub modified_at_versions: Vec<(ObjectId, SequenceNumber)>,
-    pub shared_object_refs: Vec<ObjectRef>,
-    pub gas: Vec<ObjectRef>,
+    pub modified_at_versions: Vec<(ObjectId, Version)>,
+    pub shared_object_refs: Vec<ObjectReference>,
+    pub gas: Vec<ObjectReference>,
     #[serde(default)]
-    pub gas_owner: Option<IotaAddress>,
+    pub gas_owner: Option<Address>,
     pub gas_budget: u64,
     pub gas_price: u64,
     pub executed_epoch: u64,
     pub dependencies: Vec<TransactionDigest>,
     #[serde(skip)]
-    pub receiving_objs: Vec<(ObjectId, SequenceNumber)>,
+    pub receiving_objs: Vec<(ObjectId, Version)>,
     #[serde(skip)]
-    pub config_objects: Vec<(ObjectId, SequenceNumber)>,
+    pub config_objects: Vec<(ObjectId, Version)>,
     // TODO: There are two problems with this being a json-rpc type:
     // 1. The json-rpc type is not a perfect mirror with TransactionEffects since v2. We lost the
     // ability to replay effects v2 specific forks. We need to fix this asap. Unfortunately at the
@@ -104,10 +106,7 @@ pub enum ReplayEngineError {
     ObjectNotExist { id: ObjectId },
 
     #[error("ObjectVersionNotFound: {:#?} version {}", id, version)]
-    ObjectVersionNotFound {
-        id: ObjectId,
-        version: SequenceNumber,
-    },
+    ObjectVersionNotFound { id: ObjectId, version: Version },
 
     #[error(
         "ObjectVersionTooHigh: {:#?}, requested version {}, latest version found {}",
@@ -117,8 +116,8 @@ pub enum ReplayEngineError {
     )]
     ObjectVersionTooHigh {
         id: ObjectId,
-        asked_version: SequenceNumber,
-        latest_version: SequenceNumber,
+        asked_version: Version,
+        latest_version: Version,
     },
 
     #[error(
@@ -129,7 +128,7 @@ pub enum ReplayEngineError {
     )]
     ObjectDeleted {
         id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         digest: ObjectDigest,
     },
 
@@ -185,7 +184,7 @@ pub enum ReplayEngineError {
     )]
     InternalCacheInvariantViolation {
         id: ObjectId,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
     },
 
     #[error("Error getting dynamic fields loaded objects: {}", rpc_err)]
@@ -222,7 +221,7 @@ impl From<IotaObjectResponseError> for ReplayEngineError {
                 version,
             } => ReplayEngineError::ObjectDeleted {
                 id: object_id,
-                version,
+                version: version.into(),
                 digest,
             },
             _ => ReplayEngineError::IotaObjectResponseError { err },
@@ -306,7 +305,7 @@ pub enum ExecutionStoreEvent {
     ReceiveObject {
         owner: ObjectId,
         receive: ObjectId,
-        receive_at_version: SequenceNumber,
+        receive_at_version: Version,
         result: IotaResult<Option<Object>>,
     },
 }

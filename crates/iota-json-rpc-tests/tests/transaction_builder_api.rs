@@ -17,13 +17,8 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
-use iota_sdk_types::{ObjectId, Owner, StructTag};
-use iota_types::{
-    base_types::{ObjectRef, SequenceNumber},
-    digests::ObjectDigest,
-    gas_coin::GAS,
-    quorum_driver_types::ExecuteTransactionRequestType,
-};
+use iota_sdk_types::{ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, Version};
+use iota_types::quorum_driver_types::ExecuteTransactionRequestType;
 use jsonrpsee::http_client::HttpClient;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -39,7 +34,7 @@ fn assert_same_object_changes_ignoring_version_and_digest(
             .map(|mut change| {
                 let object_id = change.object_id();
                 // ignore the version and digest for comparison
-                change.mask_for_test(SequenceNumber::MAX_VALID_EXCL, ObjectDigest::MAX);
+                change.mask_for_test(Version::MAX_VALID_EXCL, ObjectDigest::MAX);
                 (object_id, change)
             })
             .collect()
@@ -107,7 +102,7 @@ async fn test_transfer_iota() -> Result<(), anyhow::Error> {
     let address = cluster.get_address_0();
     let other_address = cluster.get_address_1();
 
-    let ObjectRef { object_id: gas, .. } = cluster
+    let ObjectReference { object_id: gas, .. } = cluster
         .wallet
         .get_one_gas_object_owned_by_address(address)
         .await?
@@ -157,11 +152,11 @@ async fn test_pay() -> Result<(), anyhow::Error> {
         .wallet
         .get_gas_objects_owned_by_address(address, Some(2))
         .await?;
-    let ObjectRef {
+    let ObjectReference {
         object_id: gas_to_send,
         ..
     } = gas_objs[0];
-    let ObjectRef {
+    let ObjectReference {
         object_id: gas_to_pay_for_tx,
         ..
     } = gas_objs[1];
@@ -578,7 +573,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
                     package_object_id: ObjectId::FRAMEWORK,
                     module: "pay".to_string(),
                     function: "split".to_string(),
-                    type_arguments: type_args![GAS::type_tag()]?,
+                    type_arguments: type_args![TypeTag::from(StructTag::new_gas())]?,
                     arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?
                         .into_iter()
                         .map(PtbInput::CallArg)
@@ -771,7 +766,7 @@ async fn test_move_call() -> Result<(), anyhow::Error> {
             package_id,
             module,
             function,
-            type_args![GAS::type_tag()]?,
+            type_args![TypeTag::from(StructTag::new_gas())]?,
             call_args!(coin.object_id, 10)?,
             Some(gas.object_id),
             10_000_000.into(),

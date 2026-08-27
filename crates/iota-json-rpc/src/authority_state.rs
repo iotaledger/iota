@@ -2,10 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 
 use arc_swap::Guard;
 use async_trait::async_trait;
@@ -16,32 +13,31 @@ use iota_core::{
     subscription_handler::SubscriptionHandler,
 };
 use iota_json_rpc_types::{
-    Coin as IotaCoin, DevInspectResults, DryRunTransactionBlockResponse, EventFilter, IotaEvent,
-    IotaObjectDataFilter, TransactionFilter,
+    Coin as IotaCoin, EventFilter, IotaEvent, IotaObjectDataFilter, TransactionFilter,
 };
-use iota_sdk_types::{ObjectId, StructTag, TransactionKind, TypeTag};
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CheckpointDigest, ObjectId, StructTag, Transaction,
+    TransactionDigest, TransactionEffects, TypeTag, Version, checkpoint::CheckpointContents,
+};
 use iota_storage::key_value_store::{
     KVStoreTransactionData, TransactionKeyValueStore, TransactionKeyValueStoreTrait,
 };
 use iota_types::{
-    base_types::{IotaAddress, ObjectInfo, ObjectRef, SequenceNumber},
+    base_types::ObjectInfo,
     committee::{Committee, EpochId},
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     dynamic_field::DynamicFieldInfo,
-    effects::TransactionEffects,
     error::{IotaError, UserInputError},
     event::EventID,
     governance::StakedIota,
     iota_serde::BigInt,
     iota_system_state::IotaSystemState,
-    messages_checkpoint::{
-        CheckpointContents, CheckpointContentsDigest, CheckpointDigest, CheckpointSequenceNumber,
-        VerifiedCheckpoint,
-    },
+    messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
     object::{Object, ObjectRead, PastObjectRead},
-    storage::{BackingPackageStore, ObjectStore, WriteKind},
+    storage::{BackingPackageStore, ObjectStore},
     timelock::timelocked_staked_iota::TimelockedStakedIota,
-    transaction::{Transaction, TransactionData},
+    transaction::TransactionEnvelope,
+    transaction_executor::{SimulateTransactionResult, VmChecks},
 };
 #[cfg(test)]
 use mockall::automock;
@@ -68,7 +64,7 @@ pub trait StateRead: Send + Sync {
     fn get_past_object_read(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> StateReadResult<PastObjectRead>;
 
     async fn get_object(&self, object_id: &ObjectId) -> StateReadResult<Option<Object>>;
@@ -90,7 +86,7 @@ pub trait StateRead: Send + Sync {
 
     fn get_owner_objects(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>>;
@@ -106,36 +102,19 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<Vec<IotaEvent>>;
 
     // transaction_execution_api
-    #[allow(clippy::type_complexity)]
-    fn dry_exec_transaction(
+    fn simulate_transaction_in_epoch(
         &self,
-        transaction: TransactionData,
-        transaction_digest: TransactionDigest,
-    ) -> StateReadResult<(
-        DryRunTransactionBlockResponse,
-        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
-        TransactionEffects,
-        Option<ObjectId>,
-    )>;
-
-    async fn dev_inspect_transaction_block(
-        &self,
-        sender: IotaAddress,
-        transaction_kind: TransactionKind,
-        gas_price: Option<u64>,
-        gas_budget: Option<u64>,
-        gas_sponsor: Option<IotaAddress>,
-        gas_objects: Option<Vec<ObjectRef>>,
-        show_raw_txn_data_and_effects: Option<bool>,
-        skip_checks: Option<bool>,
-    ) -> StateReadResult<DevInspectResults>;
+        epoch_store: &AuthorityPerEpochStore,
+        transaction: Transaction,
+        checks: VmChecks,
+    ) -> StateReadResult<SimulateTransactionResult>;
 
     // indexer_api
     fn get_subscription_handler(&self) -> Arc<SubscriptionHandler>;
 
     fn get_owner_objects_with_limit(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
@@ -158,10 +137,10 @@ pub trait StateRead: Send + Sync {
     ) -> StateReadResult<Option<ObjectId>>;
 
     // governance_api
-    async fn get_staked_iota(&self, owner: IotaAddress) -> StateReadResult<Vec<StakedIota>>;
+    async fn get_staked_iota(&self, owner: Address) -> StateReadResult<Vec<StakedIota>>;
     async fn get_timelocked_staked_iota(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Vec<TimelockedStakedIota>>;
 
     fn get_system_state(&self) -> StateReadResult<IotaSystemState>;
@@ -171,7 +150,7 @@ pub trait StateRead: Send + Sync {
     fn find_publish_txn_digest(&self, package_id: ObjectId) -> StateReadResult<TransactionDigest>;
     fn get_owned_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: (String, ObjectId),
         limit: usize,
         one_coin_type_only: bool,
@@ -180,15 +159,15 @@ pub trait StateRead: Send + Sync {
         &self,
         digest: TransactionDigest,
         kv_store: Arc<TransactionKeyValueStore>,
-    ) -> StateReadResult<(Transaction, TransactionEffects)>;
+    ) -> StateReadResult<(TransactionEnvelope, TransactionEffects)>;
     async fn get_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance>;
     async fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>>;
 
     // read_api
@@ -256,13 +235,13 @@ impl StateRead for AuthorityState {
     }
 
     async fn get_object(&self, object_id: &ObjectId) -> StateReadResult<Option<Object>> {
-        Ok(self.try_get_object(object_id).await?)
+        Ok(self.try_get_object(object_id)?)
     }
 
     fn get_past_object_read(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> StateReadResult<PastObjectRead> {
         Ok(self.get_past_object_read(object_id, version)?)
     }
@@ -294,7 +273,7 @@ impl StateRead for AuthorityState {
 
     fn get_owner_objects(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<ObjectId>,
         filter: Option<IotaObjectDataFilter>,
     ) -> StateReadResult<Vec<ObjectInfo>> {
@@ -317,42 +296,13 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
-    fn dry_exec_transaction(
+    fn simulate_transaction_in_epoch(
         &self,
-        transaction: TransactionData,
-        transaction_digest: TransactionDigest,
-    ) -> StateReadResult<(
-        DryRunTransactionBlockResponse,
-        BTreeMap<ObjectId, (ObjectRef, Object, WriteKind)>,
-        TransactionEffects,
-        Option<ObjectId>,
-    )> {
-        Ok(self.dry_exec_transaction(transaction, transaction_digest)?)
-    }
-
-    async fn dev_inspect_transaction_block(
-        &self,
-        sender: IotaAddress,
-        transaction_kind: TransactionKind,
-        gas_price: Option<u64>,
-        gas_budget: Option<u64>,
-        gas_sponsor: Option<IotaAddress>,
-        gas_objects: Option<Vec<ObjectRef>>,
-        show_raw_txn_data_and_effects: Option<bool>,
-        skip_checks: Option<bool>,
-    ) -> StateReadResult<DevInspectResults> {
-        Ok(self
-            .dev_inspect_transaction_block(
-                sender,
-                transaction_kind,
-                gas_price,
-                gas_budget,
-                gas_sponsor,
-                gas_objects,
-                show_raw_txn_data_and_effects,
-                skip_checks,
-            )
-            .await?)
+        epoch_store: &AuthorityPerEpochStore,
+        transaction: Transaction,
+        checks: VmChecks,
+    ) -> StateReadResult<SimulateTransactionResult> {
+        Ok(self.simulate_transaction_in_epoch(epoch_store, transaction, checks)?)
     }
 
     fn get_subscription_handler(&self) -> Arc<SubscriptionHandler> {
@@ -361,7 +311,7 @@ impl StateRead for AuthorityState {
 
     fn get_owner_objects_with_limit(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: Option<ObjectId>,
         limit: usize,
         filter: Option<IotaObjectDataFilter>,
@@ -392,19 +342,15 @@ impl StateRead for AuthorityState {
         Ok(self.get_dynamic_field_object_id(owner, name_type, name_bcs_bytes)?)
     }
 
-    async fn get_staked_iota(&self, owner: IotaAddress) -> StateReadResult<Vec<StakedIota>> {
-        Ok(self
-            .get_move_objects(owner, StructTag::new_staked_iota())
-            .await?)
+    async fn get_staked_iota(&self, owner: Address) -> StateReadResult<Vec<StakedIota>> {
+        Ok(self.get_move_objects(owner, StructTag::new_staked_iota())?)
     }
 
     async fn get_timelocked_staked_iota(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Vec<TimelockedStakedIota>> {
-        Ok(self
-            .get_move_objects(owner, StructTag::new_timelocked_staked_iota())
-            .await?)
+        Ok(self.get_move_objects(owner, StructTag::new_timelocked_staked_iota())?)
     }
 
     fn get_system_state(&self) -> StateReadResult<IotaSystemState> {
@@ -424,7 +370,7 @@ impl StateRead for AuthorityState {
     }
     fn get_owned_coins(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         cursor: (String, ObjectId),
         limit: usize,
         one_coin_type_only: bool,
@@ -446,7 +392,7 @@ impl StateRead for AuthorityState {
         &self,
         digest: TransactionDigest,
         kv_store: Arc<TransactionKeyValueStore>,
-    ) -> StateReadResult<(Transaction, TransactionEffects)> {
+    ) -> StateReadResult<(TransactionEnvelope, TransactionEffects)> {
         Ok(self
             .get_executed_transaction_and_effects(digest, kv_store)
             .await?)
@@ -454,7 +400,7 @@ impl StateRead for AuthorityState {
 
     async fn get_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
         let indexes = self.indexes.clone();
@@ -470,7 +416,7 @@ impl StateRead for AuthorityState {
 
     async fn get_all_balance(
         &self,
-        owner: IotaAddress,
+        owner: Address,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
         let indexes = self.indexes.clone();
         Ok(tokio::task::spawn_blocking(move || {
@@ -556,18 +502,14 @@ impl StateRead for AuthorityState {
 impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
     type Error = StateReadError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectId,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         Ok(self.get_past_object_read(id, *version)?.into_object()?)
     }
 
     async fn find_object_lt_or_eq_version(
         &self,
         id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         Ok(self
             .get_cache_reader()
@@ -579,11 +521,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
 impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueStore>) {
     type Error = StateReadError;
 
-    async fn get_object(
-        &self,
-        id: &ObjectId,
-        version: &SequenceNumber,
-    ) -> Result<Object, Self::Error> {
+    async fn get_object(&self, id: &ObjectId, version: &Version) -> Result<Object, Self::Error> {
         let object_read = self.0.get_past_object_read(id, *version)?;
         match object_read {
             PastObjectRead::ObjectNotExists(_) | PastObjectRead::VersionNotFound(..) => {
@@ -599,7 +537,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueS
     async fn find_object_lt_or_eq_version(
         &self,
         id: &ObjectId,
-        version: &SequenceNumber,
+        version: &Version,
     ) -> Result<Option<Object>, Self::Error> {
         Ok(self
             .0

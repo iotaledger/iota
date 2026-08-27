@@ -8,21 +8,21 @@ use anyhow::Result;
 use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config,
-    genesis::{GenesisCeremonyParameters, TokenAllocation},
+    genesis::{GenesisCeremonyParameters, PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD, TokenAllocation},
     local_ip_utils,
     node::{DEFAULT_COMMISSION_RATE, DEFAULT_VALIDATOR_GAS_PRICE},
 };
-use iota_genesis_builder::{
-    SnapshotSource,
-    validator_info::{GenesisValidatorInfo, ValidatorInfo},
-};
+use iota_genesis_builder::validator_info::{GenesisValidatorInfo, ValidatorInfo};
+use iota_multiaddr::Multiaddr;
+use iota_protocol_config::{Chain, ProtocolConfig};
+use iota_sdk_crypto::simple::SimpleKeypair;
+use iota_sdk_types::Address;
 use iota_types::{
-    base_types::IotaAddress,
+    committee::ProtocolVersion,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair,
+        AccountPrivateKey, AuthorityKeyPair, AuthorityPublicKeyBytes, NetworkKeyPair,
         NetworkPublicKey, PublicKey, generate_proof_of_possession, get_key_pair_from_rng,
     },
-    multiaddr::Multiaddr,
 };
 use rand::{SeedableRng, rngs::StdRng};
 use serde::{Deserialize, Serialize};
@@ -42,8 +42,8 @@ pub struct ValidatorGenesisConfig {
     pub authority_key_pair: AuthorityKeyPair,
     #[serde(default = "default_ed25519_key_pair")]
     pub protocol_key_pair: NetworkKeyPair,
-    #[serde(default = "default_iota_key_pair")]
-    pub account_key_pair: IotaKeyPair,
+    #[serde(default = "default_iota_key_pair", with = "base64_formatted_keypair")]
+    pub account_key_pair: SimpleKeypair,
     #[serde(default = "default_ed25519_key_pair")]
     pub network_key_pair: NetworkKeyPair,
     pub network_address: Multiaddr,
@@ -64,7 +64,7 @@ pub struct ValidatorGenesisConfig {
 impl ValidatorGenesisConfig {
     pub fn to_validator_info(&self, name: String) -> GenesisValidatorInfo {
         let authority_key: AuthorityPublicKeyBytes = self.authority_key_pair.public().into();
-        let account_key: PublicKey = self.account_key_pair.public();
+        let account_key = PublicKey::from(&self.account_key_pair);
         let network_key: NetworkPublicKey = self.network_key_pair.public().clone();
         let protocol_key: NetworkPublicKey = self.protocol_key_pair.public().clone();
         let network_address = self.network_address.clone();
@@ -74,7 +74,7 @@ impl ValidatorGenesisConfig {
             authority_key,
             protocol_key,
             network_key,
-            account_address: IotaAddress::from(&account_key),
+            account_address: Address::from(&account_key),
             gas_price: self.gas_price,
             commission_rate: self.commission_rate,
             network_address,
@@ -86,7 +86,7 @@ impl ValidatorGenesisConfig {
         };
         let proof_of_possession = generate_proof_of_possession(
             &self.authority_key_pair,
-            (&self.account_key_pair.public()).into(),
+            (&PublicKey::from(&self.account_key_pair)).into(),
         );
         GenesisValidatorInfo {
             info,
@@ -103,7 +103,7 @@ impl ValidatorGenesisConfig {
 #[derive(Default)]
 pub struct ValidatorGenesisConfigBuilder {
     authority_key_pair: Option<AuthorityKeyPair>,
-    account_key_pair: Option<AccountKeyPair>,
+    account_private_key: Option<AccountPrivateKey>,
     ip: Option<String>,
     gas_price: Option<u64>,
     /// If set, the validator will use deterministic addresses based on the port
@@ -112,6 +112,7 @@ pub struct ValidatorGenesisConfigBuilder {
     /// Whether to use a specific p2p listen ip address. This is useful for
     /// testing on AWS.
     p2p_listen_ip_address: Option<IpAddr>,
+    metrics_ip_address: Option<IpAddr>,
 }
 
 impl ValidatorGenesisConfigBuilder {
@@ -124,8 +125,8 @@ impl ValidatorGenesisConfigBuilder {
         self
     }
 
-    pub fn with_account_key_pair(mut self, key_pair: AccountKeyPair) -> Self {
-        self.account_key_pair = Some(key_pair);
+    pub fn with_account_private_key(mut self, private_key: AccountPrivateKey) -> Self {
+        self.account_private_key = Some(private_key);
         self
     }
 
@@ -149,6 +150,14 @@ impl ValidatorGenesisConfigBuilder {
         self
     }
 
+    /// Bind the metrics endpoint to `metrics_ip_address`. Without this, it
+    /// binds all interfaces when the ports are deterministic, so that a
+    /// testbed can scrape it, and localhost otherwise.
+    pub fn with_metrics_ip_address(mut self, metrics_ip_address: IpAddr) -> Self {
+        self.metrics_ip_address = Some(metrics_ip_address);
+        self
+    }
+
     pub fn build<R: rand::RngCore + rand::CryptoRng>(self, rng: &mut R) -> ValidatorGenesisConfig {
         let ip = self.ip.unwrap_or_else(local_ip_utils::get_new_ip);
         let localhost = local_ip_utils::localhost_for_testing();
@@ -156,13 +165,15 @@ impl ValidatorGenesisConfigBuilder {
         let authority_key_pair = self
             .authority_key_pair
             .unwrap_or_else(|| get_key_pair_from_rng(rng).1);
-        let account_key_pair = self
-            .account_key_pair
+        let account_private_key = self
+            .account_private_key
             .unwrap_or_else(|| get_key_pair_from_rng(rng).1);
         let gas_price = self.gas_price.unwrap_or(DEFAULT_VALIDATOR_GAS_PRICE);
 
         let (protocol_key_pair, network_key_pair): (NetworkKeyPair, NetworkKeyPair) =
             (get_key_pair_from_rng(rng).1, get_key_pair_from_rng(rng).1);
+
+        let metrics_ip = self.metrics_ip_address.map(|ip| ip.to_string());
 
         let (
             network_address,
@@ -174,8 +185,16 @@ impl ValidatorGenesisConfigBuilder {
             (
                 local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset),
                 local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 1),
-                local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 2)
-                    .with_zero_ip(),
+                match &metrics_ip {
+                    Some(metrics_ip) => local_ip_utils::new_deterministic_tcp_address_for_testing(
+                        metrics_ip,
+                        offset + 2,
+                    ),
+                    None => {
+                        local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 2)
+                            .with_zero_ip()
+                    }
+                },
                 local_ip_utils::new_deterministic_udp_address_for_testing(&ip, offset + 3),
                 local_ip_utils::new_deterministic_tcp_address_for_testing(&ip, offset + 4),
             )
@@ -183,7 +202,9 @@ impl ValidatorGenesisConfigBuilder {
             (
                 local_ip_utils::new_tcp_address_for_testing(&ip),
                 local_ip_utils::new_udp_address_for_testing(&ip),
-                local_ip_utils::new_tcp_address_for_testing(&localhost),
+                local_ip_utils::new_tcp_address_for_testing(
+                    metrics_ip.as_deref().unwrap_or(&localhost),
+                ),
                 local_ip_utils::new_udp_address_for_testing(&ip),
                 local_ip_utils::new_tcp_address_for_testing(&localhost),
             )
@@ -196,7 +217,7 @@ impl ValidatorGenesisConfigBuilder {
         ValidatorGenesisConfig {
             authority_key_pair,
             protocol_key_pair,
-            account_key_pair: account_key_pair.into(),
+            account_key_pair: account_private_key.into(),
             network_key_pair,
             network_address,
             p2p_address,
@@ -206,7 +227,12 @@ impl ValidatorGenesisConfigBuilder {
             gas_price,
             commission_rate: DEFAULT_COMMISSION_RATE,
             primary_address,
-            stake: iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS,
+            // A test-wide protocol config override can replace even the MAX lookup
+            // with a pre-version-32 config where the threshold is absent, so fall
+            // back to the historical value.
+            stake: ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
+                .validator_low_stake_threshold_as_option()
+                .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD),
             name: None,
         }
     }
@@ -218,17 +244,20 @@ pub struct GenesisConfig {
     pub validator_config_info: Option<Vec<ValidatorGenesisConfig>>,
     pub parameters: GenesisCeremonyParameters,
     pub accounts: Vec<AccountConfig>,
-    pub migration_sources: Vec<SnapshotSource>,
-    pub delegator: Option<IotaAddress>,
 }
 
 impl Config for GenesisConfig {}
 
 impl GenesisConfig {
+    /// The protocol config for the version this genesis will be built at.
+    pub fn protocol_config(&self) -> ProtocolConfig {
+        ProtocolConfig::get_for_version(self.parameters.protocol_version, Chain::Unknown)
+    }
+
     pub fn generate_accounts<R: rand::RngCore + rand::CryptoRng>(
         &self,
         mut rng: R,
-    ) -> Result<(Vec<AccountKeyPair>, Vec<TokenAllocation>)> {
+    ) -> Result<(Vec<AccountPrivateKey>, Vec<TokenAllocation>)> {
         let mut addresses = Vec::new();
         let mut allocations = Vec::new();
 
@@ -239,8 +268,8 @@ impl GenesisConfig {
             let address = if let Some(address) = account.address {
                 address
             } else {
-                let (address, keypair) = get_key_pair_from_rng(&mut rng);
-                keys.push(keypair);
+                let (address, key) = get_key_pair_from_rng(&mut rng);
+                keys.push(key);
                 address
             };
 
@@ -266,7 +295,12 @@ fn default_socket_address() -> SocketAddr {
 }
 
 fn default_stake() -> u64 {
-    iota_types::governance::VALIDATOR_LOW_STAKE_THRESHOLD_NANOS
+    // A test-wide protocol config override can replace even the MAX lookup with a
+    // pre-version-32 config where the threshold is absent, so fall back to the
+    // historical value.
+    ProtocolConfig::get_for_version(ProtocolVersion::MAX, Chain::Unknown)
+        .validator_low_stake_threshold_as_option()
+        .unwrap_or(PRE_V32_VALIDATOR_LOW_STAKE_THRESHOLD)
 }
 
 fn default_bls12381_key_pair() -> AuthorityKeyPair {
@@ -277,14 +311,34 @@ fn default_ed25519_key_pair() -> NetworkKeyPair {
     get_key_pair_from_rng(&mut rand::rngs::OsRng).1
 }
 
-fn default_iota_key_pair() -> IotaKeyPair {
-    IotaKeyPair::Ed25519(get_key_pair_from_rng(&mut rand::rngs::OsRng).1)
+fn default_iota_key_pair() -> SimpleKeypair {
+    SimpleKeypair::from(AccountPrivateKey::random())
+}
+
+// Serde adapter storing the keypair as base64 `flag || privkey`, the on-disk
+// format of this config field.
+mod base64_formatted_keypair {
+    use fastcrypto::encoding::{Base64, Encoding};
+    use iota_sdk_crypto::simple::SimpleKeypair;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(kp: &SimpleKeypair, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&Base64::encode(kp.to_bytes()))
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<SimpleKeypair, D::Error> {
+        use serde::de::Error;
+
+        let s = String::deserialize(d)?;
+        let bytes = Base64::decode(&s).map_err(Error::custom)?;
+        SimpleKeypair::from_bytes(&bytes).map_err(Error::custom)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AccountConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub address: Option<IotaAddress>,
+    pub address: Option<Address>,
     pub gas_amounts: Vec<u64>,
 }
 
@@ -309,7 +363,7 @@ impl GenesisConfig {
         )
     }
 
-    pub fn for_local_testing_with_addresses(addresses: Vec<IotaAddress>) -> Self {
+    pub fn for_local_testing_with_addresses(addresses: Vec<Address>) -> Self {
         Self::custom_genesis_with_addresses(addresses, DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT)
     }
 
@@ -329,7 +383,7 @@ impl GenesisConfig {
     }
 
     pub fn custom_genesis_with_addresses(
-        addresses: Vec<IotaAddress>,
+        addresses: Vec<Address>,
         num_objects_per_account: usize,
     ) -> Self {
         let mut accounts = Vec::new();
@@ -401,7 +455,7 @@ impl GenesisConfig {
         let account_configs = Self::benchmark_gas_keys(num_accounts)
             .iter()
             .map(|gas_key| {
-                let gas_address = IotaAddress::from(&gas_key.public());
+                let gas_address = Address::from(&PublicKey::from(gas_key));
 
                 AccountConfig {
                     address: Some(gas_address),
@@ -428,8 +482,6 @@ impl GenesisConfig {
             validator_config_info: Some(validator_config_info),
             parameters,
             accounts: account_configs,
-            migration_sources: Default::default(),
-            delegator: Default::default(),
         }
     }
 
@@ -437,10 +489,10 @@ impl GenesisConfig {
     /// for benchmarks. This function may be called by other parts of the
     /// codebase (e.g. load generators) to get the same keypair used for
     /// genesis (hence the importance of the seedable rng).
-    pub fn benchmark_gas_keys(n: usize) -> Vec<IotaKeyPair> {
+    pub fn benchmark_gas_keys(n: usize) -> Vec<SimpleKeypair> {
         let mut rng = StdRng::seed_from_u64(Self::BENCHMARKS_RNG_SEED);
         (0..n)
-            .map(|_| IotaKeyPair::Ed25519(NetworkKeyPair::generate(&mut rng)))
+            .map(|_| SimpleKeypair::from(AccountPrivateKey::random_with(&mut rng)))
             .collect()
     }
 
@@ -451,9 +503,47 @@ impl GenesisConfig {
         });
         self
     }
+}
 
-    pub fn add_delegator(mut self, address: IotaAddress) -> Self {
-        self.delegator = Some(address);
-        self
+#[cfg(test)]
+mod tests {
+    use std::net::Ipv4Addr;
+
+    use rand::rngs::OsRng;
+
+    use super::ValidatorGenesisConfigBuilder;
+
+    #[test]
+    fn deterministic_ports_fill_the_five_slots_of_a_validator() {
+        let config = ValidatorGenesisConfigBuilder::new()
+            .with_ip("127.0.0.1".to_owned())
+            .with_deterministic_ports(9200)
+            .with_metrics_ip_address(Ipv4Addr::LOCALHOST.into())
+            .build(&mut OsRng);
+
+        assert_eq!(
+            config.network_address.to_string(),
+            "/ip4/127.0.0.1/tcp/9200/http"
+        );
+        assert_eq!(
+            config.p2p_address.to_string(),
+            "/ip4/127.0.0.1/udp/9201/http"
+        );
+        assert_eq!(config.metrics_address.to_string(), "127.0.0.1:9202");
+        assert_eq!(
+            config.primary_address.to_string(),
+            "/ip4/127.0.0.1/udp/9203/http"
+        );
+        assert_eq!(config.admin_interface_address.to_string(), "127.0.0.1:9204");
+    }
+
+    #[test]
+    fn the_metrics_endpoint_binds_all_interfaces_unless_an_ip_is_given() {
+        let config = ValidatorGenesisConfigBuilder::new()
+            .with_ip("127.0.0.1".to_owned())
+            .with_deterministic_ports(9200)
+            .build(&mut OsRng);
+
+        assert_eq!(config.metrics_address.to_string(), "0.0.0.0:9202");
     }
 }

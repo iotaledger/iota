@@ -8,11 +8,9 @@ use std::{cmp::min, ops::Add, sync::Arc, time::Duration};
 
 use arc_swap::ArcSwap;
 use iota_metrics::LATENCY_SEC_BUCKETS;
-use iota_types::{
-    base_types::{AuthorityName, TransactionDigest},
-    transaction::VerifiedSignedTransaction,
-};
-use prometheus::{
+use iota_sdk_types::TransactionDigest;
+use iota_types::{base_types::AuthorityName, transaction::VerifiedSignedTransaction};
+use prometheus_filtered::{
     Histogram, IntCounter, Registry, register_histogram_with_registry,
     register_int_counter_with_registry,
 };
@@ -195,7 +193,7 @@ where
                 }
             }
             Err(err) => {
-                error!(?tx_digest, ?err, "Failed to finalize transaction");
+                debug!(?tx_digest, "Failed to finalize transaction: {err}");
             }
         }
     }
@@ -215,7 +213,10 @@ where
             _ = tokio::time::sleep(tx_finalization_delay) => {
                 trace!(?tx_digest, "Waking up to finalize transaction");
             }
-            _ = cache_read.try_notify_read_executed_effects_digests(&digests) => {
+            _ = cache_read.try_notify_read_executed_effects_digests(
+                "ValidatorTxFinalizer::notify_read_executed_effects_digests",
+                &digests,
+            ) => {
                 trace!(?tx_digest, "Transaction already finalized");
                 return Ok(false);
             }
@@ -293,14 +294,14 @@ mod tests {
     use arc_swap::ArcSwap;
     use async_trait::async_trait;
     use iota_macros::sim_test;
-    use iota_sdk_types::ObjectId;
+    use iota_sdk_types::{Address, ObjectId, TransactionDigest, TransactionEvents};
     use iota_swarm_config::network_config_builder::ConfigBuilder;
     use iota_test_transaction_builder::TestTransactionBuilder;
     use iota_types::{
-        base_types::{AuthorityName, IotaAddress, TransactionDigest},
+        base_types::AuthorityName,
         committee::{CommitteeTrait, StakeUnit},
-        crypto::{AccountKeyPair, get_account_key_pair},
-        effects::{TransactionEffectsAPI, TransactionEvents},
+        crypto::{AccountPrivateKey, get_account_private_key},
+        effects::TransactionEffectsAPI,
         error::IotaError,
         executable_transaction::VerifiedExecutableTransaction,
         iota_system_state::IotaSystemState,
@@ -316,7 +317,7 @@ mod tests {
         },
         object::Object,
         transaction::{
-            SignedTransaction, Transaction, VerifiedCertificate, VerifiedSignedTransaction,
+            SignedTransaction, TransactionEnvelope, VerifiedCertificate, VerifiedSignedTransaction,
             VerifiedTransaction,
         },
         utils::to_sender_signed_transaction,
@@ -350,7 +351,7 @@ mod tests {
     impl ValidatorV2API for MockAuthorityClient {
         async fn submit_tx(
             &self,
-            _transactions: Vec<Transaction>,
+            _transactions: Vec<TransactionEnvelope>,
             _client_addr: Option<SocketAddr>,
         ) -> Result<Vec<(TransactionDigest, TxStatusUpdate)>, IotaError> {
             unimplemented!()
@@ -380,7 +381,7 @@ mod tests {
     impl ValidatorAPI for MockAuthorityClient {
         async fn handle_transaction(
             &self,
-            transaction: Transaction,
+            transaction: TransactionEnvelope,
             _client_addr: Option<SocketAddr>,
         ) -> Result<HandleTransactionResponse, IotaError> {
             if self.inject_fault.load(Relaxed) {
@@ -474,12 +475,12 @@ mod tests {
     #[sim_test]
     async fn test_validator_tx_finalizer_basic_flow() {
         telemetry_subscribers::init_for_testing();
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, sender_key) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
         let finalizer1 = ValidatorTxFinalizer::new_for_testing(auth_agg.clone(), states[0].name);
-        let signed_tx = create_tx(&clients, &states[0], sender, &keypair, gas_object_id).await;
+        let signed_tx = create_tx(&clients, &states[0], sender, &sender_key, gas_object_id).await;
         let tx_digest = *signed_tx.digest();
         let cache_read = states[0].get_transaction_cache_reader().clone();
         let epoch_store = states[0].epoch_store_for_testing();
@@ -505,12 +506,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_validator_tx_finalizer_new_epoch() {
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, sender_key) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
         let finalizer1 = ValidatorTxFinalizer::new_for_testing(auth_agg.clone(), states[0].name);
-        let signed_tx = create_tx(&clients, &states[0], sender, &keypair, gas_object_id).await;
+        let signed_tx = create_tx(&clients, &states[0], sender, &sender_key, gas_object_id).await;
         let tx_digest = *signed_tx.digest();
         let epoch_store = states[0].epoch_store_for_testing();
         let cache_read = states[0].get_transaction_cache_reader().clone();
@@ -538,7 +539,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_validator_tx_finalizer_auth_agg_reconfig() {
-        let (sender, _) = get_account_key_pair();
+        let (sender, _) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let (states, auth_agg, _clients) = create_validators(gas_object).await;
         let finalizer1 = ValidatorTxFinalizer::new_for_testing(auth_agg.clone(), states[0].name);
@@ -557,12 +558,12 @@ mod tests {
     #[tokio::test]
     async fn test_validator_tx_finalizer_already_executed() {
         telemetry_subscribers::init_for_testing();
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, sender_key) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
         let finalizer1 = ValidatorTxFinalizer::new_for_testing(auth_agg.clone(), states[0].name);
-        let signed_tx = create_tx(&clients, &states[0], sender, &keypair, gas_object_id).await;
+        let signed_tx = create_tx(&clients, &states[0], sender, &sender_key, gas_object_id).await;
         let tx_digest = *signed_tx.digest();
         let cache_read = states[0].get_transaction_cache_reader().clone();
         let epoch_store = states[0].epoch_store_for_testing();
@@ -596,12 +597,12 @@ mod tests {
     #[tokio::test]
     async fn test_validator_tx_finalizer_timeout() {
         telemetry_subscribers::init_for_testing();
-        let (sender, keypair) = get_account_key_pair();
+        let (sender, sender_key) = get_account_private_key();
         let gas_object = Object::with_owner_for_testing(sender);
         let gas_object_id = gas_object.id();
         let (states, auth_agg, clients) = create_validators(gas_object).await;
         let finalizer1 = ValidatorTxFinalizer::new_for_testing(auth_agg.clone(), states[0].name);
-        let signed_tx = create_tx(&clients, &states[0], sender, &keypair, gas_object_id).await;
+        let signed_tx = create_tx(&clients, &states[0], sender, &sender_key, gas_object_id).await;
         let tx_digest = *signed_tx.digest();
         let cache_read = states[0].get_transaction_cache_reader().clone();
         let epoch_store = states[0].epoch_store_for_testing();
@@ -636,7 +637,7 @@ mod tests {
         let network_config = ConfigBuilder::new_with_temp_dir()
             .committee_size(NonZeroUsize::new(COMMITTEE_SIZE).unwrap())
             .build();
-        let (auth_agg, _) = AuthorityAggregatorBuilder::from_network_config(&network_config)
+        let (auth_agg, _) = AuthorityAggregatorBuilder::from_genesis(&network_config.genesis)
             .build_network_clients();
         let auth_agg = Arc::new(auth_agg);
         let finalizers = (0..COMMITTEE_SIZE)
@@ -704,7 +705,7 @@ mod tests {
                 )
             })
             .collect();
-        let auth_agg = AuthorityAggregatorBuilder::from_network_config(&network_config)
+        let auth_agg = AuthorityAggregatorBuilder::from_genesis(&network_config.genesis)
             .build_custom_clients(clients.clone());
         (
             authority_states,
@@ -716,11 +717,11 @@ mod tests {
     async fn create_tx(
         clients: &BTreeMap<AuthorityName, MockAuthorityClient>,
         state: &Arc<AuthorityState>,
-        sender: IotaAddress,
-        keypair: &AccountKeyPair,
+        sender: Address,
+        private_key: &AccountPrivateKey,
         gas_object_id: ObjectId,
     ) -> VerifiedSignedTransaction {
-        let gas_object_ref = state.get_object(&gas_object_id).await.unwrap().object_ref();
+        let gas_object_ref = state.get_object(&gas_object_id).unwrap().object_ref();
         let tx_data = TestTransactionBuilder::new(
             sender,
             gas_object_ref,
@@ -728,7 +729,7 @@ mod tests {
         )
         .transfer_iota(None, sender)
         .build();
-        let tx = to_sender_signed_transaction(tx_data, keypair);
+        let tx = to_sender_signed_transaction(tx_data, private_key);
         let response = clients
             .get(&state.name)
             .unwrap()

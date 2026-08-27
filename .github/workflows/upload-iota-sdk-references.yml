@@ -1,0 +1,131 @@
+name: Upload IOTA SDK References to S3
+
+# Builds the per-language API reference markdown for the IOTA SDK bindings
+# from the iota-rust-sdk revision pinned in docs/site/iota-sdk-references.rev
+# and uploads the tarballs to the versioned S3 path the docs build downloads
+# from (docs/site/scripts/get-iota-sdk-references.sh). Bumping the pinned
+# revision regenerates and uploads automatically — already on the pull
+# request (same-repo only; forks have no S3 credentials), so the docs
+# build of the bump PR validates against the new tarballs.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [develop]
+    paths:
+      - ".github/workflows/upload-iota-sdk-references.yml"
+      - "docs/site/iota-sdk-references.rev"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - ".github/workflows/upload-iota-sdk-references.yml"
+      - "docs/site/iota-sdk-references.rev"
+
+concurrency:
+  group: upload-iota-sdk-references-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  S3_BUCKET: files.iota.org/iota-wiki/iota-sdk
+
+jobs:
+  generate-and-upload:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, go, kotlin, csharp, swift, wasm]
+    steps:
+      # Only the pin file is needed from this repository.
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          sparse-checkout: docs/site/iota-sdk-references.rev
+          sparse-checkout-cone-mode: false
+
+      - name: Read the pinned iota-rust-sdk revision
+        id: pin
+        run: echo "rev=$(cat docs/site/iota-sdk-references.rev)" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout iota-rust-sdk
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          repository: iotaledger/iota-rust-sdk
+          ref: ${{ steps.pin.outputs.rev }}
+          path: iota-rust-sdk
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: iota-sdk-references-${{ matrix.language }}
+          workspaces: iota-rust-sdk
+
+      # The toolchain steps below mirror the requirements of
+      # scripts/reference-docs/generate.sh in iota-rust-sdk (validated
+      # there by its Reference Docs workflow); keep them in sync when
+      # bumping the pinned revision.
+      - name: Install pydoc-markdown
+        if: matrix.language == 'python'
+        run: pip install pydoc-markdown
+
+      - name: Install gomarkdoc and uniffi-bindgen-go
+        if: matrix.language == 'go'
+        run: |
+          go install github.com/princjef/gomarkdoc/cmd/gomarkdoc@latest
+          echo "$HOME/go/bin" >> "$GITHUB_PATH"
+          make -C iota-rust-sdk install-uniffi-bindgen-go
+
+      - name: Setup Java
+        if: matrix.language == 'kotlin'
+        uses: actions/setup-java@dd06d9cba3e5552c54d9f8ea23572deb30010f7c # v6.0.0
+        with:
+          distribution: "oracle"
+          java-version: "21"
+          cache: "gradle"
+
+      - name: Install Swift
+        if: matrix.language == 'swift'
+        uses: swift-actions/setup-swift@7ca6abe6b3b0e8b5421b88be48feee39cbf52c6a # v2.4.0
+        with:
+          swift-version: "6.0"
+
+      - name: Setup .NET
+        if: matrix.language == 'csharp'
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install uniffi-bindgen-cs and xmldoc2md
+        if: matrix.language == 'csharp'
+        run: |
+          make -C iota-rust-sdk install-uniffi-bindgen-cs
+          dotnet tool install --global XMLDoc2Markdown
+
+      - uses: taiki-e/install-action@b6ff580856c41316412a0b9b60540fbc6f8c82cc # v2.86.7
+        if: matrix.language == 'wasm'
+        with:
+          tool: wasm-pack
+
+      - name: Install WASM bindings prerequisites
+        if: matrix.language == 'wasm'
+        run: |
+          sudo apt-get install -y clang
+          rustup target add wasm32-unknown-unknown
+          cargo install wasm-bindgen-cli --version 0.2.122
+          npm install -g pnpm@10 typedoc typedoc-plugin-markdown
+
+      - name: Generate the ${{ matrix.language }} reference
+        run: cd iota-rust-sdk && ./scripts/reference-docs/generate.sh ${{ matrix.language }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_IOTA_WIKI }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_IOTA_WIKI }}
+          aws-region: eu-central-1
+
+      - name: Upload to S3
+        run: |
+          aws s3 cp "iota-rust-sdk/dist/reference-docs/${{ matrix.language }}.tar.gz" \
+            "s3://$S3_BUCKET/${{ steps.pin.outputs.rev }}/${{ matrix.language }}.tar.gz" \
+            --acl public-read

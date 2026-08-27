@@ -13,12 +13,8 @@
 use fastcrypto::traits::ToFromBytes;
 use iota_sdk_types::{
     address::Address,
-    checkpoint::{
-        CheckpointCommitment, CheckpointContents, CheckpointData, CheckpointSummary,
-        CheckpointTransaction, CheckpointTransactionInfo, EndOfEpochData, SignedCheckpointSummary,
-    },
-    crypto::{Bls12381PublicKey, Bls12381Signature, UserSignature},
-    digest::Digest,
+    checkpoint::{CheckpointData, CheckpointTransaction, SignedCheckpointSummary},
+    crypto::{Bls12381PublicKey, Bls12381Signature},
     move_core::{Identifier, StructTag, TypeParseError, TypeTag},
     object::Object,
     transaction::SignedTransaction,
@@ -69,64 +65,6 @@ impl TryFrom<crate::object::Object> for Object {
     }
 }
 
-impl TryFrom<crate::messages_checkpoint::CheckpointContents> for CheckpointContents {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(
-        value: crate::messages_checkpoint::CheckpointContents,
-    ) -> Result<Self, Self::Error> {
-        Self(
-            value
-                .into_iter_with_signatures()
-                .map(|(digests, signatures)| {
-                    let signatures_result = signatures
-                        .into_iter()
-                        .map(TryInto::try_into)
-                        .collect::<Result<Vec<UserSignature>, _>>();
-
-                    match signatures_result {
-                        Ok(signatures) => Ok(CheckpointTransactionInfo {
-                            transaction: digests.transaction,
-                            effects: digests.effects,
-                            signatures,
-                        }),
-                        Err(e) => Err(SdkTypeConversionError::from(e)),
-                    }
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-        )
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<CheckpointContents> for crate::messages_checkpoint::CheckpointContents {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: CheckpointContents) -> Result<Self, Self::Error> {
-        let (transactions, user_signatures) = value.0.into_iter().fold(
-            (Vec::new(), Vec::new()),
-            |(mut transactions, mut user_signatures), info| {
-                transactions.push(crate::base_types::ExecutionDigests {
-                    transaction: info.transaction,
-                    effects: info.effects,
-                });
-                user_signatures.push(
-                    info.signatures
-                        .into_iter()
-                        .map(TryInto::try_into)
-                        .collect::<Result<_, _>>(),
-                );
-                (transactions, user_signatures)
-            },
-        );
-        crate::messages_checkpoint::CheckpointContents::new_with_digests_and_signatures(
-            transactions,
-            user_signatures.into_iter().collect::<Result<Vec<_>, _>>()?,
-        )
-        .pipe(Ok)
-    }
-}
-
 impl TryFrom<crate::full_checkpoint_content::CheckpointData> for CheckpointData {
     type Error = SdkTypeConversionError;
 
@@ -135,7 +73,7 @@ impl TryFrom<crate::full_checkpoint_content::CheckpointData> for CheckpointData 
     ) -> Result<Self, Self::Error> {
         Self {
             checkpoint_summary: value.checkpoint_summary.try_into()?,
-            checkpoint_contents: value.checkpoint_contents.try_into()?,
+            checkpoint_contents: value.checkpoint_contents,
             transactions: value
                 .transactions
                 .into_iter()
@@ -152,7 +90,7 @@ impl TryFrom<CheckpointData> for crate::full_checkpoint_content::CheckpointData 
     fn try_from(value: CheckpointData) -> Result<Self, Self::Error> {
         Self {
             checkpoint_summary: value.checkpoint_summary.try_into()?,
-            checkpoint_contents: value.checkpoint_contents.try_into()?,
+            checkpoint_contents: value.checkpoint_contents,
             transactions: value
                 .transactions
                 .into_iter()
@@ -181,7 +119,7 @@ impl TryFrom<crate::full_checkpoint_content::CheckpointTransaction> for Checkpoi
             .collect::<Result<_, _>>();
         match (input_objects, output_objects) {
             (Ok(input_objects), Ok(output_objects)) => Ok(Self {
-                transaction: value.transaction.try_into()?,
+                transaction: value.transaction.into(),
                 effects: value.effects,
                 events: value.events,
                 input_objects,
@@ -208,142 +146,12 @@ impl TryFrom<CheckpointTransaction> for crate::full_checkpoint_content::Checkpoi
             .collect();
 
         Ok(Self {
-            transaction: value.transaction.try_into()?,
+            transaction: value.transaction.into(),
             effects: value.effects,
             events: value.events,
             input_objects,
             output_objects,
         })
-    }
-}
-
-impl TryFrom<crate::signature::GenericSignature> for UserSignature {
-    type Error = bcs::Error;
-
-    fn try_from(value: crate::signature::GenericSignature) -> Result<Self, Self::Error> {
-        bcs::from_bytes(&bcs::to_bytes(&value)?)
-    }
-}
-
-impl TryFrom<UserSignature> for crate::signature::GenericSignature {
-    type Error = bcs::Error;
-
-    fn try_from(value: UserSignature) -> Result<Self, Self::Error> {
-        bcs::from_bytes(&bcs::to_bytes(&value)?)
-    }
-}
-
-impl From<crate::messages_checkpoint::EndOfEpochData> for EndOfEpochData {
-    fn from(value: crate::messages_checkpoint::EndOfEpochData) -> Self {
-        Self {
-            next_epoch_committee: value
-                .next_epoch_committee
-                .into_iter()
-                .map(|(public_key, stake)| ValidatorCommitteeMember {
-                    public_key: Bls12381PublicKey::new(public_key.0),
-                    stake,
-                })
-                .collect(),
-            next_epoch_protocol_version: value.next_epoch_protocol_version.as_u64(),
-            epoch_commitments: value
-                .epoch_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            epoch_supply_change: value.epoch_supply_change,
-        }
-    }
-}
-
-impl From<EndOfEpochData> for crate::messages_checkpoint::EndOfEpochData {
-    fn from(value: EndOfEpochData) -> Self {
-        Self {
-            next_epoch_committee: value
-                .next_epoch_committee
-                .into_iter()
-                .map(|v| (v.public_key.into(), v.stake))
-                .collect(),
-            next_epoch_protocol_version: value.next_epoch_protocol_version.into(),
-            epoch_commitments: value
-                .epoch_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            epoch_supply_change: value.epoch_supply_change,
-        }
-    }
-}
-
-impl From<crate::messages_checkpoint::CheckpointCommitment> for CheckpointCommitment {
-    fn from(value: crate::messages_checkpoint::CheckpointCommitment) -> Self {
-        let crate::messages_checkpoint::CheckpointCommitment::ECMHLiveObjectSetDigest(digest) =
-            value;
-        Self::EcmhLiveObjectSet {
-            digest: Digest::new(digest.digest.into_inner()),
-        }
-    }
-}
-
-impl From<CheckpointCommitment> for crate::messages_checkpoint::CheckpointCommitment {
-    fn from(value: CheckpointCommitment) -> Self {
-        match value {
-            CheckpointCommitment::EcmhLiveObjectSet { digest } => {
-                Self::ECMHLiveObjectSetDigest(crate::messages_checkpoint::ECMHLiveObjectSetDigest {
-                    digest: crate::digests::Digest::new(digest.into_inner()),
-                })
-            }
-            _ => unimplemented!(
-                "a new CheckpointCommitment enum variant was added and needs to be handled"
-            ),
-        }
-    }
-}
-
-impl TryFrom<crate::messages_checkpoint::CheckpointSummary> for CheckpointSummary {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::messages_checkpoint::CheckpointSummary) -> Result<Self, Self::Error> {
-        Self {
-            epoch: value.epoch,
-            sequence_number: value.sequence_number,
-            network_total_transactions: value.network_total_transactions,
-            content_digest: value.content_digest,
-            previous_digest: value.previous_digest,
-            epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
-            timestamp_ms: value.timestamp_ms,
-            checkpoint_commitments: value
-                .checkpoint_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            end_of_epoch_data: value.end_of_epoch_data.map(Into::into),
-            version_specific_data: value.version_specific_data,
-        }
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<CheckpointSummary> for crate::messages_checkpoint::CheckpointSummary {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: CheckpointSummary) -> Result<Self, Self::Error> {
-        Self {
-            epoch: value.epoch,
-            sequence_number: value.sequence_number,
-            network_total_transactions: value.network_total_transactions,
-            content_digest: value.content_digest,
-            previous_digest: value.previous_digest,
-            epoch_rolling_gas_cost_summary: value.epoch_rolling_gas_cost_summary,
-            timestamp_ms: value.timestamp_ms,
-            checkpoint_commitments: value
-                .checkpoint_commitments
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            end_of_epoch_data: value.end_of_epoch_data.map(Into::into),
-            version_specific_data: value.version_specific_data,
-        }
-        .pipe(Ok)
     }
 }
 
@@ -355,7 +163,7 @@ impl TryFrom<crate::messages_checkpoint::CertifiedCheckpointSummary> for SignedC
     ) -> Result<Self, Self::Error> {
         let (data, sig) = value.into_data_and_sig();
         Self {
-            checkpoint: data.try_into()?,
+            checkpoint: data,
             signature: sig.into(),
         }
         .pipe(Ok)
@@ -367,7 +175,7 @@ impl TryFrom<SignedCheckpointSummary> for crate::messages_checkpoint::CertifiedC
 
     fn try_from(value: SignedCheckpointSummary) -> Result<Self, Self::Error> {
         Self::new_from_data_and_sig(
-            crate::messages_checkpoint::CheckpointSummary::try_from(value.checkpoint)?,
+            value.checkpoint,
             crate::crypto::AuthorityQuorumSignInfo::<true>::from(value.signature),
         )
         .pipe(Ok)
@@ -411,59 +219,15 @@ impl<const T: bool> From<ValidatorAggregatedSignature>
     }
 }
 
-impl TryFrom<crate::transaction::SenderSignedData> for SignedTransaction {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::SenderSignedData) -> Result<Self, Self::Error> {
-        let crate::transaction::SenderSignedTransaction {
-            intent_message,
-            tx_signatures,
-        } = value.into_inner();
-
-        Self {
-            transaction: intent_message.value,
-            signatures: tx_signatures
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<_, _>>()?,
-        }
-        .pipe(Ok)
+impl From<crate::transaction::TransactionEnvelope> for SignedTransaction {
+    fn from(value: crate::transaction::TransactionEnvelope) -> Self {
+        value.into_data().into()
     }
 }
 
-impl TryFrom<SignedTransaction> for crate::transaction::SenderSignedData {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: SignedTransaction) -> Result<Self, Self::Error> {
-        let SignedTransaction {
-            transaction,
-            signatures,
-        } = value;
-
-        Self::new(
-            transaction,
-            signatures
-                .into_iter()
-                .map(TryInto::try_into)
-                .collect::<Result<_, _>>()?,
-        )
-        .pipe(Ok)
-    }
-}
-
-impl TryFrom<crate::transaction::Transaction> for SignedTransaction {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: crate::transaction::Transaction) -> Result<Self, Self::Error> {
-        value.into_data().try_into()
-    }
-}
-
-impl TryFrom<SignedTransaction> for crate::transaction::Transaction {
-    type Error = SdkTypeConversionError;
-
-    fn try_from(value: SignedTransaction) -> Result<Self, Self::Error> {
-        Ok(Self::new(value.try_into()?))
+impl From<SignedTransaction> for crate::transaction::TransactionEnvelope {
+    fn from(value: SignedTransaction) -> Self {
+        Self::new(value.into())
     }
 }
 
@@ -507,6 +271,16 @@ pub fn type_tag_sdk_to_core(value: &TypeTag) -> move_core_types::language_storag
     }
 }
 
+pub fn identifier_core_to_sdk(value: &move_core_types::identifier::IdentStr) -> Identifier {
+    Identifier::new_unchecked(value.as_str())
+}
+
+pub fn identifier_sdk_to_core(value: &Identifier) -> move_core_types::identifier::Identifier {
+    // SAFETY: an SDK `Identifier` is an already-validated Move identifier; preserve
+    // it verbatim without re-validation.
+    unsafe { move_core_types::identifier::Identifier::new_unchecked(value.as_str()) }
+}
+
 pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructTag) -> StructTag {
     let move_core_types::language_storage::StructTag {
         address,
@@ -516,8 +290,8 @@ pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructT
     } = value;
 
     let address = Address::new(address.into_bytes());
-    let module = Identifier::new_unchecked(module.as_str());
-    let name = Identifier::new_unchecked(name.as_str());
+    let module = identifier_core_to_sdk(module);
+    let name = identifier_core_to_sdk(name);
     let type_params = type_params.iter().map(type_tag_core_to_sdk).collect();
     StructTag::new(address, module, name, type_params)
 }
@@ -525,8 +299,8 @@ pub fn struct_tag_core_to_sdk(value: &move_core_types::language_storage::StructT
 pub fn struct_tag_sdk_to_core(value: &StructTag) -> move_core_types::language_storage::StructTag {
     let address =
         move_core_types::account_address::AccountAddress::new(value.address().into_bytes());
-    let module = move_core_types::identifier::Identifier::new(value.module().as_str()).unwrap();
-    let name = move_core_types::identifier::Identifier::new(value.name().as_str()).unwrap();
+    let module = identifier_sdk_to_core(value.module());
+    let name = identifier_sdk_to_core(value.name());
     let type_params = value
         .type_params()
         .iter()

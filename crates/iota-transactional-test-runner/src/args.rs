@@ -1,18 +1,15 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::PathBuf;
 
 use anyhow::{bail, ensure};
 use clap::{self, Args, Parser};
-use iota_sdk_types::{Argument, Owner};
+use iota_sdk_types::{Address, Argument, Owner, SharedObjectReference, Version};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber},
-    move_package::UpgradePolicy,
-    object::Object,
-    programmable_transaction_builder::ProgrammableTransactionBuilder,
-    transaction::{CallArg, SharedObjectRef},
+    move_package::UpgradePolicy, object::Object,
+    programmable_transaction_builder::ProgrammableTransactionBuilder, transaction::CallArg,
 };
 use move_compiler::editions::Flavor;
 use move_core_types::{
@@ -48,6 +45,8 @@ pub struct IotaPublishArgs {
     pub upgradeable: bool,
     #[arg(long, num_args(1..))]
     pub dependencies: Vec<String>,
+    #[arg(long = "view-functions", num_args(1..))]
+    pub view_functions: Vec<String>,
     #[arg(long)]
     pub gas_price: Option<u64>,
 }
@@ -72,6 +71,10 @@ pub struct IotaInitArgs {
     pub default_gas_price: Option<u64>,
     #[clap(long = "move-auth")]
     pub move_auth: Option<bool>,
+    /// Enable the deny-rule governance feature flags (`deny_rule_governance`
+    /// and `deny_rule_governance_on_chain`).
+    #[clap(long = "deny-rule-governance")]
+    pub deny_rule_governance: Option<bool>,
     #[arg(long)]
     pub flavor: Option<Flavor>,
     /// The number of epochs to keep in the database. Epochs outside of this
@@ -86,6 +89,8 @@ pub struct IotaInitArgs {
     /// reader.
     #[clap(long)]
     pub grpc_api_url: Option<String>,
+    #[clap(long = "module-metadata-dynamic")]
+    pub package_metadata_with_dynamic_module_metadata: Option<bool>,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -265,6 +270,44 @@ pub struct CreateCheckpointCommand {
 #[derive(Debug, clap::Parser)]
 pub struct AdvanceEpochCommand {
     pub count: Option<u64>,
+    /// Include a `TransactionDenyRulesCreate` kind in the end-of-epoch
+    /// transaction. Simulator mode only.
+    #[arg(long)]
+    pub create_deny_rules_object: bool,
+}
+
+/// Executes a `TransactionDenyRulesUpdate` system transaction applying the
+/// given add/remove delta and switch states. The deny-rules object must have
+/// been created first (`advance-epoch --create-deny-rules-object`).
+#[derive(Debug, clap::Parser)]
+pub struct UpdateDenyRulesCommand {
+    /// Consensus round recorded in the update payload.
+    #[arg(long)]
+    pub round: Option<u64>,
+    #[arg(long, value_delimiter = ',')]
+    pub added_addresses: Vec<String>,
+    #[arg(long, value_delimiter = ',')]
+    pub removed_addresses: Vec<String>,
+    #[arg(long, value_delimiter = ',')]
+    pub added_objects: Vec<String>,
+    #[arg(long, value_delimiter = ',')]
+    pub removed_objects: Vec<String>,
+    #[arg(long, value_delimiter = ',')]
+    pub added_packages: Vec<String>,
+    #[arg(long, value_delimiter = ',')]
+    pub removed_packages: Vec<String>,
+    #[arg(long)]
+    pub package_publish_disabled: bool,
+    #[arg(long)]
+    pub package_upgrade_disabled: bool,
+    #[arg(long)]
+    pub shared_object_disabled: bool,
+    #[arg(long)]
+    pub user_transaction_disabled: bool,
+    #[arg(long)]
+    pub receiving_objects_disabled: bool,
+    #[arg(long)]
+    pub move_authenticator_disabled: bool,
 }
 
 #[derive(Debug, clap::Parser)]
@@ -290,6 +333,7 @@ pub enum IotaSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
     AdvanceEpoch(AdvanceEpochCommand),
     AdvanceClock(AdvanceClockCommand),
     SetRandomState(SetRandomStateCommand),
+    UpdateDenyRules(UpdateDenyRulesCommand),
     ViewCheckpoint,
     RunGraphql(RunGraphqlCommand),
     Bench(RunCommand<ExtraValueArgs>, ExtraRunArgs),
@@ -341,6 +385,9 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             Some(("set-random-state", matches)) => {
                 IotaSubcommand::SetRandomState(SetRandomStateCommand::from_arg_matches(matches)?)
             }
+            Some(("update-deny-rules", matches)) => {
+                IotaSubcommand::UpdateDenyRules(UpdateDenyRulesCommand::from_arg_matches(matches)?)
+            }
             Some(("view-checkpoint", _)) => IotaSubcommand::ViewCheckpoint,
             Some(("run-graphql", matches)) => {
                 IotaSubcommand::RunGraphql(RunGraphqlCommand::from_arg_matches(matches)?)
@@ -387,6 +434,7 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
             .subcommand(AdvanceEpochCommand::command().name("advance-epoch"))
             .subcommand(AdvanceClockCommand::command().name("advance-clock"))
             .subcommand(SetRandomStateCommand::command().name("set-random-state"))
+            .subcommand(UpdateDenyRulesCommand::command().name("update-deny-rules"))
             .subcommand(clap::Command::new("view-checkpoint"))
             .subcommand(RunGraphqlCommand::command().name("run-graphql"))
             .subcommand(
@@ -408,20 +456,20 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::Parser
 
 #[derive(Clone, Debug)]
 pub enum IotaExtraValueArgs {
-    Object(FakeID, Option<SequenceNumber>),
+    Object(FakeID, Option<Version>),
     Digest(String),
-    Receiving(FakeID, Option<SequenceNumber>),
-    ImmShared(FakeID, Option<SequenceNumber>),
+    Receiving(FakeID, Option<Version>),
+    ImmShared(FakeID, Option<Version>),
 }
 
 #[derive(Clone)]
 pub enum IotaValue {
     MoveValue(MoveValue),
-    Object(FakeID, Option<SequenceNumber>),
-    ObjVec(Vec<(FakeID, Option<SequenceNumber>)>),
+    Object(FakeID, Option<Version>),
+    ObjVec(Vec<(FakeID, Option<Version>)>),
     Digest(String),
-    Receiving(FakeID, Option<SequenceNumber>),
-    ImmShared(FakeID, Option<SequenceNumber>),
+    Receiving(FakeID, Option<Version>),
+    ImmShared(FakeID, Option<Version>),
 }
 
 impl IotaExtraValueArgs {
@@ -460,7 +508,7 @@ impl IotaExtraValueArgs {
     fn parse_receiving_or_object_value<'a, I: Iterator<Item = (ValueToken, &'a str)>>(
         parser: &mut MoveCLParser<'a, ValueToken, I>,
         ident_name: &str,
-    ) -> anyhow::Result<(FakeID, Option<SequenceNumber>)> {
+    ) -> anyhow::Result<(FakeID, Option<Version>)> {
         let contents = parser.advance(ValueToken::Ident)?;
         ensure!(contents == ident_name);
         parser.advance(ValueToken::LParen)?;
@@ -477,7 +525,7 @@ impl IotaExtraValueArgs {
         } else {
             let mut u256_bytes = i.to_le_bytes().to_vec();
             u256_bytes.reverse();
-            let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
+            let address: Address = Address::from_bytes(&u256_bytes).unwrap();
             FakeID::Known(address.into())
         };
         parser.advance(ValueToken::RParen)?;
@@ -485,7 +533,7 @@ impl IotaExtraValueArgs {
             parser.advance(ValueToken::AtSign)?;
             let v_str = parser.advance(ValueToken::Number)?;
             let (v, _) = parse_u64(v_str)?;
-            Some(SequenceNumber::from_u64(v))
+            Some(Version::from_u64(v))
         } else {
             None
         };
@@ -505,7 +553,7 @@ impl IotaValue {
         }
     }
 
-    fn assert_object(self) -> (FakeID, Option<SequenceNumber>) {
+    fn assert_object(self) -> (FakeID, Option<Version>) {
         match self {
             IotaValue::MoveValue(_) => panic!("unexpected nested non-object value in args"),
             IotaValue::Object(id, version) => (id, version),
@@ -518,12 +566,12 @@ impl IotaValue {
 
     fn resolve_object(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<Object> {
         let id = match test_adapter.fake_to_real_object_id(fake_id) {
             Some(id) => id,
-            None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
+            None => bail!("INVALID TEST. Unknown object, object({fake_id})"),
         };
         let obj_res = if let Some(v) = version {
             iota_types::storage::ObjectStore::try_get_object_by_key(&*test_adapter.executor, &id, v)
@@ -532,14 +580,14 @@ impl IotaValue {
         };
         let obj = match obj_res {
             Ok(Some(obj)) => obj,
-            Err(_) | Ok(None) => bail!("INVALID TEST. Could not load object argument {}", id),
+            Err(_) | Ok(None) => bail!("INVALID TEST. Could not load object argument {id}"),
         };
         Ok(obj)
     }
 
     fn receiving_arg(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
@@ -548,13 +596,13 @@ impl IotaValue {
 
     fn read_shared_arg(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         if let Owner::Shared(initial_shared_version) = obj.owner {
-            Ok(CallArg::Shared(SharedObjectRef::new(
+            Ok(CallArg::Shared(SharedObjectReference::new(
                 id,
                 initial_shared_version,
                 false,
@@ -566,17 +614,15 @@ impl IotaValue {
 
     fn object_arg(
         fake_id: FakeID,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
         test_adapter: &IotaTestAdapter,
     ) -> anyhow::Result<CallArg> {
         let obj = Self::resolve_object(fake_id, version, test_adapter)?;
         let id = obj.id();
         match obj.owner {
-            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(SharedObjectRef::new(
-                id,
-                initial_shared_version,
-                true,
-            ))),
+            Owner::Shared(initial_shared_version) => Ok(CallArg::Shared(
+                SharedObjectReference::new(id, initial_shared_version, true),
+            )),
             Owner::Address(_) | Owner::Object(_) | Owner::Immutable => {
                 let obj_ref = obj.object_ref();
                 Ok(CallArg::ImmutableOrOwned(obj_ref))
@@ -689,7 +735,7 @@ fn parse_fake_id(s: &str) -> anyhow::Result<FakeID> {
         let (i, _) = parse_u256(s)?;
         let mut u256_bytes = i.to_le_bytes().to_vec();
         u256_bytes.reverse();
-        let address: IotaAddress = IotaAddress::from_bytes(&u256_bytes).unwrap();
+        let address: Address = Address::from_bytes(&u256_bytes).unwrap();
         FakeID::Known(address.into())
     })
 }

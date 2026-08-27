@@ -13,11 +13,12 @@ use bytes::Bytes;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::hash::{Digest, HashFunction};
 use iota_sdk_types::crypto::{Intent, IntentMessage, IntentScope};
+use itertools::Itertools as _;
 use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
 use starfish_config::{
-    AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper, Epoch,
-    ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
+    AuthorityIndex, Committee, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper,
+    Epoch, ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
 };
 use tracing::instrument;
 
@@ -25,7 +26,7 @@ use crate::{
     authority_set::AuthoritySet,
     commit::CommitVote,
     context::Context,
-    encoder::ShardEncoder,
+    encoder::{ShardEncoder, create_encoder_for_committee},
     error::{ConsensusError, ConsensusResult},
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
@@ -42,6 +43,58 @@ pub(crate) const GENESIS_ROUND: Round = 0;
 
 /// Block proposal as epoch UNIX timestamp in milliseconds.
 pub type BlockTimestampMs = u64;
+
+/// BCS-serialized size of a [`BlockRef`]: `round` (u32, 4) + `author`
+/// (`AuthorityIndex`, 1) + `digest` (32). Pinned by
+/// `max_signed_block_header_bytes_bounds_maximal_header`.
+pub(crate) const SERIALIZED_BLOCK_REF_BYTES: usize = 37;
+
+/// ULEB128 byte length of `value`, matching how BCS frames sequence and
+/// variant lengths.
+pub(crate) const fn uleb128_len(mut value: usize) -> usize {
+    let mut len = 1;
+    while value >= 0x80 {
+        value >>= 7;
+        len += 1;
+    }
+    len
+}
+
+/// Upper bound on the BCS-serialized size of a [`SignedBlockHeader`] for a
+/// committee of `committee_size` authorities.
+///
+/// `BlockHeaderV2` is the largest header variant; its size is dominated by two
+/// committee-sized vectors. Layout:
+/// - 55 fixed bytes: `epoch` (8) + `round` (4) + `author` (1) + `timestamp_ms`
+///   (8) + overlap indices (1 + 1) + `transactions_commitment` (32).
+/// - `references`: at most `3 * committee_size` [`BlockRef`]s (37 bytes each)
+///   plus the sequence-length prefix.
+/// - `commit_votes`: at most `committee_size` `CommitVote`s (36 bytes each:
+///   index (4) + digest (32)) plus the sequence-length prefix.
+/// - 34 bytes for `Option<StrongVote>`: `Some` tag (1) + `leader_authority` (1)
+///   + `AuthoritySet` bitmask (32).
+///
+/// The [`SignedBlockHeader`] wrapper adds the `BlockHeader` enum tag (1), the
+/// signature length prefix (1), and the 64-byte signature.
+pub(crate) fn max_signed_block_header_bytes(committee_size: usize) -> usize {
+    const FIXED_HEADER_BYTES: usize = 55;
+    const STRONG_VOTE_BYTES: usize = 34;
+    const COMMIT_VOTE_BYTES: usize = 36;
+    // BlockHeader enum tag (1) + signature length prefix (1) + signature (64).
+    const SIGNATURE_FRAME_BYTES: usize = 1 + 1 + 64;
+
+    let max_refs = committee_size.saturating_mul(3);
+    let references =
+        uleb128_len(max_refs).saturating_add(max_refs.saturating_mul(SERIALIZED_BLOCK_REF_BYTES));
+    let commit_votes = uleb128_len(committee_size)
+        .saturating_add(committee_size.saturating_mul(COMMIT_VOTE_BYTES));
+
+    FIXED_HEADER_BYTES
+        .saturating_add(references)
+        .saturating_add(commit_votes)
+        .saturating_add(STRONG_VOTE_BYTES)
+        .saturating_add(SIGNATURE_FRAME_BYTES)
+}
 
 /// IOTA transaction is considered as serialised bytes inside consensus
 #[derive(Clone, Eq, PartialEq, Serialize, Deserialize, Default, Debug)]
@@ -612,6 +665,12 @@ impl fmt::Debug for BlockRef {
     }
 }
 
+/// Formats a slice of block references as a comma-separated list of their
+/// short `Display` form, for debug/log output.
+pub(crate) fn format_block_digests(blocks: &[BlockRef]) -> String {
+    blocks.iter().map(|b| b.to_string()).join(", ")
+}
+
 impl Hash for BlockRef {
     fn hash<H: Hasher>(&self, state: &mut H) {
         state.write(&self.digest.0[..8]);
@@ -686,8 +745,7 @@ impl AsRef<[u8]> for BlockHeaderDigest {
 pub struct TransactionsCommitment(pub(crate) [u8; starfish_config::DIGEST_LENGTH]);
 pub type MerkleProofBytes = Vec<u8>;
 
-/// Used when the protocol flag `consensus_fast_commit_sync` is disabled.
-/// Contains block reference and separate transaction commitment field.
+/// Legacy shard format retained for deserialization and enum-tag stability.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct ShardWithProofV1 {
     pub(crate) shard: Shard,
@@ -696,8 +754,7 @@ pub(crate) struct ShardWithProofV1 {
     pub(crate) block_ref: BlockRef,
 }
 
-/// Used when the protocol flag `consensus_fast_commit_sync` is enabled.
-/// Contains transaction reference which includes the transaction commitment.
+/// Current shard format using a transaction reference.
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub(crate) struct ShardWithProofV2 {
     pub(crate) shard: Shard,
@@ -724,34 +781,22 @@ pub(crate) enum ShardWithProof {
 }
 
 impl ShardWithProof {
-    /// Creates a new ShardWithProof instance based on the protocol flag.
-    /// If `consensus_fast_commit_sync` is true, creates V2 variant, otherwise
-    /// V1.
+    /// Creates a new ShardWithProof.
     pub(crate) fn new(
         shard: Shard,
         proof: MerkleProofBytes,
         block_ref: BlockRef,
         transaction_commitment: TransactionsCommitment,
-        consensus_fast_commit_sync: bool,
     ) -> Self {
-        if consensus_fast_commit_sync {
-            ShardWithProof::V2(ShardWithProofV2 {
-                shard,
-                proof,
-                transaction_ref: TransactionRef {
-                    round: block_ref.round,
-                    author: block_ref.author,
-                    transactions_commitment: transaction_commitment,
-                },
-            })
-        } else {
-            ShardWithProof::V1(ShardWithProofV1 {
-                shard,
-                transaction_commitment,
-                proof,
-                block_ref,
-            })
-        }
+        ShardWithProof::V2(ShardWithProofV2 {
+            shard,
+            proof,
+            transaction_ref: TransactionRef {
+                round: block_ref.round,
+                author: block_ref.author,
+                transactions_commitment: transaction_commitment,
+            },
+        })
     }
 }
 
@@ -893,6 +938,29 @@ impl TransactionsCommitment {
             &[leaf],
             tree_size,
         )
+    }
+
+    /// Commitment over an empty transaction list. The value depends on the
+    /// committee size through the erasure-coding shard counts.
+    pub(crate) fn compute_empty_transactions_commitment(
+        committee: &Committee,
+    ) -> TransactionsCommitment {
+        let info_length = committee.info_length();
+        let parity_length = committee.size() - info_length;
+        let mut encoder = create_encoder_for_committee(committee);
+        let serialized = Transaction::serialize(&[])
+            .expect("Serializing an empty transaction list should not fail");
+        let encoded_shards = encoder
+            .encode_serialized_data(&serialized, info_length, parity_length)
+            .expect("Encoding empty transactions should not fail");
+        let authority = committee
+            .authorities()
+            .next()
+            .expect("Committee should not be empty")
+            .0;
+        Self::compute_merkle_root_and_proof(&encoded_shards, authority)
+            .expect("Computing the empty transactions commitment should not fail")
+            .0
     }
 }
 
@@ -1240,42 +1308,44 @@ impl fmt::Debug for VerifiedBlockHeader {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
-            "{:?}({}ms;{:?}r;{:?}a;{}c)",
+            "{:?}({}ms;[{}]r;[{}]a;{}c)",
             self.reference(),
             self.timestamp_ms(),
-            self.ancestors(),
-            self.acknowledgments(),
+            format_block_digests(self.ancestors()),
+            format_block_digests(self.acknowledgments()),
             self.commit_votes().len(),
         )
     }
 }
 
-/// VerifiedTransactions are transactions that correspond to an existing block
+/// Transactions whose serialized bytes match the transactions commitment in
+/// `transaction_ref`: they are the bytes the author committed to. Transaction
+/// validity is a separate check, run on the ingest routes.
 #[derive(Clone, Debug)]
-pub struct VerifiedTransactions {
+pub struct CommitmentVerifiedTransactions {
     transactions: Vec<Transaction>,
 
     /// Commitment of transactions in the block
     transaction_ref: TransactionRef,
 
     /// Digest of the block this transaction batch belongs to.
-    /// Present (`Some`) whenever the block header is available at
-    /// construction time, regardless of the `consensus_fast_commit_sync` flag.
-    /// `None` only when transactions were received without an accompanying
-    /// block header (e.g., fast sync or store loading via TransactionRef).
+    /// Present (`Some`) whenever the block header is available at construction
+    /// time. `None` only when transactions were received without an
+    /// accompanying block header (e.g., fast sync or store loading via
+    /// TransactionRef).
     block_digest: Option<BlockHeaderDigest>,
 
     /// The serialized bytes of the transactions.
     serialized: Bytes,
 }
 
-impl PartialEq for VerifiedTransactions {
+impl PartialEq for CommitmentVerifiedTransactions {
     fn eq(&self, other: &Self) -> bool {
         self.transactions_commitment() == other.transactions_commitment()
     }
 }
 
-impl VerifiedTransactions {
+impl CommitmentVerifiedTransactions {
     pub(crate) fn new(
         transactions: Vec<Transaction>,
         transaction_ref: TransactionRef,
@@ -1291,10 +1361,11 @@ impl VerifiedTransactions {
     }
 
     /// Test-only constructor. Wraps `transactions` against the slot of
-    /// `header` so the resulting `VerifiedTransactions` can be dropped into a
-    /// test-constructed `CommittedSubDag`. Used by downstream crates'
-    /// consensus-handler tests; production code must go through
-    /// `VerifiedTransactions::new` during block reception.
+    /// `header` so the resulting `CommitmentVerifiedTransactions` can be
+    /// dropped into a test-constructed `CommittedSubDag`. Used by
+    /// downstream crates' consensus-handler tests; production code must go
+    /// through `CommitmentVerifiedTransactions::new` during block
+    /// reception.
     pub fn new_for_test(header: &VerifiedBlockHeader, transactions: Vec<Transaction>) -> Self {
         let serialized: Bytes = bcs::to_bytes(&transactions)
             .expect("Serialization should not fail")
@@ -1339,9 +1410,8 @@ impl VerifiedTransactions {
         self.transaction_ref
     }
 
-    /// Returns the leader round of the sub-dag.
-    pub fn transactions(&self) -> Vec<Transaction> {
-        self.transactions.clone()
+    pub fn transactions(&self) -> &[Transaction] {
+        &self.transactions
     }
 
     pub fn serialized(&self) -> &Bytes {
@@ -1350,6 +1420,16 @@ impl VerifiedTransactions {
 
     pub fn has_transactions(&self) -> bool {
         !self.transactions.is_empty()
+    }
+
+    /// Transactions object holding the empty payload for `transaction_ref`.
+    pub(crate) fn new_empty_from_ref(
+        transaction_ref: TransactionRef,
+        block_digest: Option<BlockHeaderDigest>,
+    ) -> Self {
+        let serialized = Transaction::serialize(&[])
+            .expect("Serializing an empty transaction list should not fail");
+        Self::new(vec![], transaction_ref, block_digest, serialized)
     }
 }
 
@@ -1361,13 +1441,13 @@ pub struct VerifiedBlock {
     pub verified_block_header: VerifiedBlockHeader,
 
     /// The transactions in the block.
-    pub verified_transactions: VerifiedTransactions,
+    pub verified_transactions: CommitmentVerifiedTransactions,
 }
 
 impl VerifiedBlock {
     pub fn new(
         verified_block_header: VerifiedBlockHeader,
-        verified_transactions: VerifiedTransactions,
+        verified_transactions: CommitmentVerifiedTransactions,
     ) -> Self {
         Self {
             verified_block_header,
@@ -1378,7 +1458,7 @@ impl VerifiedBlock {
     #[cfg(test)]
     pub fn new_for_test(block_header: BlockHeader) -> Self {
         let verified_block_header = VerifiedBlockHeader::new_for_test(block_header);
-        let verified_transactions = VerifiedTransactions::new(
+        let verified_transactions = CommitmentVerifiedTransactions::new(
             vec![],
             verified_block_header.transaction_ref(),
             Some(verified_block_header.digest()),
@@ -1393,7 +1473,7 @@ impl VerifiedBlock {
     #[cfg(test)]
     pub fn new_with_transaction_for_test(block_header: BlockHeader, tx: u8) -> Self {
         let verified_block_header = VerifiedBlockHeader::new_for_test(block_header);
-        let verified_transactions = VerifiedTransactions::new(
+        let verified_transactions = CommitmentVerifiedTransactions::new(
             vec![],
             verified_block_header.transaction_ref(),
             Some(verified_block_header.digest()),
@@ -1450,11 +1530,9 @@ pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
             let verified_block_header = VerifiedBlockHeader::new_verified(signed_block, serialized);
             VerifiedBlock {
                 verified_block_header: verified_block_header.clone(),
-                verified_transactions: VerifiedTransactions::new(
-                    vec![],
+                verified_transactions: CommitmentVerifiedTransactions::new_empty_from_ref(
                     verified_block_header.transaction_ref(),
                     Some(verified_block_header.digest()),
-                    Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
                 ),
             }
         })
@@ -1478,13 +1556,39 @@ pub(crate) fn genesis_block_headers(context: &Context) -> Vec<VerifiedBlockHeade
         .collect::<Vec<VerifiedBlockHeader>>()
 }
 
+/// The `BlockHeader` variant that [`TestBlockHeader::build`] assembles.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TestBlockHeaderVersion {
+    V1,
+    V2,
+}
+
+impl TestBlockHeaderVersion {
+    /// The version `Core` proposes under this context's
+    /// `consensus_starfish_speed` setting.
+    #[cfg(test)]
+    pub(crate) fn from_context(context: &Context) -> Self {
+        if context.protocol_config.consensus_starfish_speed() {
+            Self::V2
+        } else {
+            Self::V1
+        }
+    }
+}
+
 /// This struct is public for testing in other crates.
 #[derive(Clone)]
 pub struct TestBlockHeader {
+    epoch: Epoch,
+    round: Round,
+    author: AuthorityIndex,
+    timestamp_ms: BlockTimestampMs,
     ancestors: Vec<BlockRef>,
     acknowledgments: Vec<BlockRef>,
-    block_header: BlockHeaderV1,
+    commit_votes: Vec<CommitVote>,
+    transactions_commitment: TransactionsCommitment,
     strong_vote: Option<StrongVote>,
+    version: TestBlockHeaderVersion,
 }
 
 impl TestBlockHeader {
@@ -1492,17 +1596,7 @@ impl TestBlockHeader {
     /// of transactions commitment. Use it when you don't need to check the
     /// commitment and don't want to create and pass the encoder.
     pub fn new(round: Round, author: u8) -> Self {
-        Self {
-            block_header: BlockHeaderV1 {
-                round,
-                author: author.into(),
-                transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
-                ..Default::default()
-            },
-            ancestors: vec![],
-            acknowledgments: vec![],
-            strong_vote: None,
-        }
+        Self::with_commitment(round, author, TransactionsCommitment::DEFAULT_FOR_TEST)
     }
 
     #[cfg(test)]
@@ -1512,25 +1606,7 @@ impl TestBlockHeader {
         context: &Arc<Context>,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> Self {
-        let txs = vec![];
-        let serialized_transactions = Transaction::serialize(&txs)
-            .expect("We should expect correct serialization of the transactions");
-        Self {
-            block_header: BlockHeaderV1 {
-                round,
-                author: author.into(),
-                transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
-                    &serialized_transactions,
-                    context,
-                    encoder,
-                )
-                .unwrap(),
-                ..Default::default()
-            },
-            ancestors: vec![],
-            acknowledgments: vec![],
-            strong_vote: None,
-        }
+        Self::with_transactions(round, author, vec![], context, encoder)
     }
 
     #[cfg(test)]
@@ -1541,47 +1617,75 @@ impl TestBlockHeader {
         context: &Arc<Context>,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> Self {
-        let txs = vec![vec![tx; 16]]
-            .into_iter()
-            .map(Transaction::new)
-            .collect::<Vec<Transaction>>();
+        Self::with_transactions(
+            round,
+            author,
+            vec![Transaction::new(vec![tx; 16])],
+            context,
+            encoder,
+        )
+    }
+
+    /// Commits to `txs` the way a proposer does, so the commitment can be
+    /// checked against the transactions.
+    #[cfg(test)]
+    fn with_transactions(
+        round: Round,
+        author: u8,
+        txs: Vec<Transaction>,
+        context: &Arc<Context>,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+    ) -> Self {
         let serialized_transactions = Transaction::serialize(&txs)
-            .expect("We should expect correct serialization of the transactions for sharding");
+            .expect("We should expect correct serialization of the transactions");
+        Self::with_commitment(
+            round,
+            author,
+            TransactionsCommitment::compute_transactions_commitment(
+                &serialized_transactions,
+                context,
+                encoder,
+            )
+            .unwrap(),
+        )
+    }
+
+    fn with_commitment(
+        round: Round,
+        author: u8,
+        transactions_commitment: TransactionsCommitment,
+    ) -> Self {
         Self {
-            block_header: BlockHeaderV1 {
-                round,
-                author: author.into(),
-                transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
-                    &serialized_transactions,
-                    context,
-                    encoder,
-                )
-                .unwrap(),
-                ..Default::default()
-            },
+            epoch: 0,
+            round,
+            author: author.into(),
+            timestamp_ms: 0,
             ancestors: vec![],
             acknowledgments: vec![],
+            commit_votes: vec![],
+            transactions_commitment,
             strong_vote: None,
+            version: TestBlockHeaderVersion::V1,
         }
     }
 
     pub fn set_epoch(mut self, epoch: Epoch) -> Self {
-        self.block_header.epoch = epoch;
+        self.epoch = epoch;
         self
     }
 
     pub fn set_round(mut self, round: Round) -> Self {
-        self.block_header.round = round;
+        self.round = round;
         self
     }
 
     pub fn set_author(mut self, author: AuthorityIndex) -> Self {
-        self.block_header.author = author;
+        self.author = author;
         self
     }
 
     pub fn set_timestamp_ms(mut self, timestamp_ms: BlockTimestampMs) -> Self {
-        self.block_header.timestamp_ms = timestamp_ms;
+        self.timestamp_ms = timestamp_ms;
         self
     }
 
@@ -1596,43 +1700,57 @@ impl TestBlockHeader {
     }
 
     pub fn set_commit_votes(mut self, commit_votes: Vec<CommitVote>) -> Self {
-        self.block_header.commit_votes = commit_votes;
+        self.commit_votes = commit_votes;
         self
     }
 
     pub fn set_commitment(mut self, commitment: TransactionsCommitment) -> Self {
-        self.block_header.transactions_commitment = commitment;
+        self.transactions_commitment = commitment;
         self
     }
 
-    /// Sets the V2-only `strong_vote` payload. When `Some`, `build()` emits a
-    /// `BlockHeader::V2`; otherwise a V1.
+    /// Sets the `strong_vote` payload, which only a V2 header carries. Set the
+    /// version to V2 as well, otherwise `build()` panics.
     pub fn set_strong_vote(mut self, strong_vote: Option<StrongVote>) -> Self {
         self.strong_vote = strong_vote;
         self
     }
 
-    pub fn build(mut self) -> BlockHeader {
-        if let Some(strong_vote) = self.strong_vote {
-            return BlockHeader::V2(BlockHeaderV2::new(
-                self.block_header.epoch,
-                self.block_header.round,
-                self.block_header.author,
-                self.block_header.timestamp_ms,
+    pub fn set_version(mut self, version: TestBlockHeaderVersion) -> Self {
+        self.version = version;
+        self
+    }
+
+    pub fn build(self) -> BlockHeader {
+        match self.version {
+            TestBlockHeaderVersion::V1 => {
+                assert!(
+                    self.strong_vote.is_none(),
+                    "a V1 header cannot carry a strong vote"
+                );
+                BlockHeader::V1(BlockHeaderV1::new(
+                    self.epoch,
+                    self.round,
+                    self.author,
+                    self.timestamp_ms,
+                    self.ancestors,
+                    self.acknowledgments,
+                    self.commit_votes,
+                    self.transactions_commitment,
+                ))
+            }
+            TestBlockHeaderVersion::V2 => BlockHeader::V2(BlockHeaderV2::new(
+                self.epoch,
+                self.round,
+                self.author,
+                self.timestamp_ms,
                 self.ancestors,
                 self.acknowledgments,
-                self.block_header.commit_votes,
-                self.block_header.transactions_commitment,
-                Some(strong_vote),
-            ));
+                self.commit_votes,
+                self.transactions_commitment,
+                self.strong_vote,
+            )),
         }
-        let (references, overlap_start_index, overlap_end_index) =
-            BlockHeader::compress_references(self.ancestors, self.acknowledgments);
-        self.block_header.references = references;
-        self.block_header.overlap_start_index = overlap_start_index;
-        self.block_header.overlap_end_index = overlap_end_index;
-
-        BlockHeader::V1(self.block_header)
     }
 }
 
@@ -1649,11 +1767,37 @@ mod tests {
     use crate::{
         BlockHeaderAPI,
         block_header::{
-            BlockHeaderDigest, SignedBlockHeader, TestBlockHeader, genesis_block_headers,
+            BlockHeader, BlockHeaderDigest, BlockHeaderV2, BlockRef, SignedBlockHeader, StrongVote,
+            TestBlockHeader, genesis_block_headers, max_signed_block_header_bytes,
         },
+        commit::{CommitDigest, CommitRef},
         context::Context,
         error::ConsensusError,
     };
+
+    /// Pins the `BlockHeaderV2` wire layout that
+    /// `max_signed_block_header_bytes` is derived from: a header carrying
+    /// the maximal `3 * committee_size` references, one commit vote per
+    /// authority, and a strong vote must serialize to exactly the computed
+    /// bound. Fails if the BCS framing or any of `BlockRef` / `CommitVote`
+    /// / `StrongVote` / `SignedBlockHeader` layout changes.
+    #[tokio::test]
+    async fn max_signed_block_header_bytes_bounds_maximal_header() {
+        let (context, key_pairs) = Context::new_for_test(4);
+        let n = context.committee.size();
+
+        let header = BlockHeader::V2(BlockHeaderV2 {
+            references: vec![BlockRef::MAX; 3 * n],
+            commit_votes: vec![CommitRef::new(u32::MAX, CommitDigest::MIN); n],
+            strong_vote: Some(StrongVote::default()),
+            ..Default::default()
+        });
+        let signed =
+            SignedBlockHeader::new(header, &key_pairs[0].1).expect("signing should succeed");
+        let serialized = bcs::to_bytes(&signed).expect("serialization should succeed");
+
+        assert_eq!(serialized.len(), max_signed_block_header_bytes(n));
+    }
 
     #[tokio::test]
     async fn test_sign_and_verify() {

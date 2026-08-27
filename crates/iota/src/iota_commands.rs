@@ -17,15 +17,16 @@ use iota_move::{
     self, Command as MoveCommand, execute_move_command, manage_package::resolve_lock_file_path,
 };
 use iota_move_build::{
-    BuildConfig as IotaBuildConfig, IotaPackageHooks, check_conflicting_addresses,
-    check_invalid_dependencies, check_unpublished_dependencies, implicit_deps,
+    BuildConfig as IotaBuildConfig, IotaPackageHooks, ProtocolBuildConfig,
+    check_conflicting_addresses, check_invalid_dependencies, check_unpublished_dependencies,
+    implicit_deps,
 };
 use iota_package_management::system_package_versions::latest_system_packages;
 use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_types::{base_types::IotaAddress, crypto::SignatureScheme};
+use iota_sdk_types::{Address, SignatureScheme};
 use move_analyzer::analyzer;
 use move_package::BuildConfig;
 use serde_json::json;
@@ -36,7 +37,7 @@ use crate::name_commands;
 use crate::{
     PrintableResult,
     client_commands::{IotaClientCommands, implicit_deps_for_protocol_version, pkg_tree_shake},
-    keytool::KeyToolCommand,
+    keytool::{KeyToolCommand, lowercase_key_scheme},
     validator_commands::IotaValidatorCommand,
 };
 
@@ -72,7 +73,7 @@ pub enum IotaCommand {
         #[clap(flatten)]
         config: IotaEnvConfig,
         #[command(subcommand)]
-        cmd: Option<IotaClientCommands>,
+        cmd: Option<Box<IotaClientCommands>>,
         /// Return command outputs in json format.
         #[arg(long, global = true)]
         json: bool,
@@ -155,15 +156,15 @@ impl IotaCommand {
                 prompt_if_no_config(
                     &config_path,
                     accept_defaults,
-                    !matches!(cmd, Some(IotaClientCommands::NewEnv { .. })),
-                    !matches!(cmd, Some(IotaClientCommands::NewAddress { .. })),
+                    !matches!(cmd.as_deref(), Some(IotaClientCommands::NewEnv { .. })),
+                    !matches!(cmd.as_deref(), Some(IotaClientCommands::NewAddress { .. })),
                 )?;
                 if let Some(cmd) = cmd {
                     let mut context = WalletContext::new(&config_path)?;
                     if let Some(env_override) = config.env {
                         context = context.with_env_override(env_override);
                     }
-                    cmd.execute(&mut context).await?.print(!json);
+                    (*cmd).execute(&mut context).await?.print(!json);
                 } else {
                     // Print help
                     let mut app: Command = IotaCommand::command();
@@ -244,7 +245,7 @@ impl IotaCommand {
                                 &rerooted_path,
                                 build_config.install_dir.clone(),
                                 chain_id,
-                                IotaAddress::ZERO,
+                                Address::ZERO,
                             )?
                         } else {
                             None
@@ -253,11 +254,16 @@ impl IotaCommand {
                         let protocol_config = read_api.get_protocol_config(None).await?;
                         build_config.implicit_dependencies =
                             implicit_deps_for_protocol_version(protocol_config.protocol_version)?;
+                        let mut protocol_build_config_args =
+                            build.protocol_build_config_args.clone();
+                        protocol_build_config_args
+                            .fill_unset_from(&ProtocolBuildConfig::from(&protocol_config));
                         let mut pkg = IotaBuildConfig {
                             config: build_config.clone(),
                             run_bytecode_verifier: true,
                             print_diags_to_stderr: true,
                             chain_id: chain_id.clone(),
+                            protocol_build_config: protocol_build_config_args.into(),
                         }
                         .build(&rerooted_path)?;
 
@@ -296,7 +302,8 @@ impl IotaCommand {
                 }
 
                 // If a specific environment is specified for the build command we set the chain
-                // ID to the one that is specified.
+                // ID to the one that is specified and the protocol config to the one that is
+                // returned by the node.
                 if client_config.env.is_some() && matches!(cmd, MoveCommand::Build(_)) {
                     // TODO replace with get_chain_id_and_client when https://github.com/iotaledger/iota/issues/10215 is done
                     let mut context = WalletContext::new(
@@ -314,12 +321,18 @@ impl IotaCommand {
                         );
                     };
                     let chain_id = client.read_api().get_chain_identifier().await.ok();
+                    let protocol_config = client.read_api().get_protocol_config(None).await?;
 
                     let MoveCommand::Build(build_config) = &mut cmd else {
                         unreachable!("We checked for Build above, so this should never happen");
                     };
 
                     build_config.chain_id = chain_id;
+                    // Populate the protocol build config from the node unless the user
+                    // already provided an override on the command line.
+                    build_config
+                        .protocol_build_config_args
+                        .fill_unset_from(&ProtocolBuildConfig::from(&protocol_config));
                 }
 
                 execute_move_command(package_path.as_deref(), build_config, cmd)
@@ -427,12 +440,16 @@ fn prompt_if_no_config(
             config = config.with_active_address(*existing_address);
         } else if generate_address {
             let key_scheme = if accept_defaults {
-                SignatureScheme::ED25519
+                SignatureScheme::Ed25519
             } else {
                 print!(
                     "Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1): "
                 );
-                match SignatureScheme::from_flag(read_line()?.trim()) {
+                let flag = match read_line()?.trim().parse::<u8>() {
+                    Ok(flag) => flag,
+                    Err(e) => bail!("Invalid key scheme: {e}"),
+                };
+                match SignatureScheme::from_byte(flag) {
                     Ok(s) => s,
                     Err(e) => bail!("{e}"),
                 }
@@ -443,7 +460,7 @@ fn prompt_if_no_config(
             let alias = config.keystore().get_alias_by_address(&new_address)?;
             println!(
                 "Generated new keypair and alias for address with scheme {:?}:\n[{alias}: {new_address}]",
-                scheme.to_string()
+                lowercase_key_scheme(scheme)
             );
             println!("Secret Recovery Phrase:\n[{phrase}]");
             config = config.with_active_address(new_address);

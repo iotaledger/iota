@@ -8,14 +8,10 @@ use std::{
 };
 
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
-use iota_sdk_types::{ObjectId, Owner, StructTag};
+use iota_sdk_types::{MoveStruct, ObjectData, ObjectId, Owner, StructTag, Version};
 use iota_types::{
-    base_types::SequenceNumber,
-    committee::EpochId,
-    error::VMMemoryLimitExceededSubStatusCode,
-    execution::DynamicallyLoadedObjectMetadata,
-    metrics::LimitsMetrics,
-    object::{Data, MoveObject, Object},
+    committee::EpochId, error::VMMemoryLimitExceededSubStatusCode,
+    execution::DynamicallyLoadedObjectMetadata, metrics::LimitsMetrics, object::Object,
     storage::ChildObjectResolver,
 };
 use move_binary_format::errors::{PartialVMError, PartialVMResult};
@@ -83,7 +79,7 @@ struct Inner<'a> {
     // The version of the root object in ownership at the beginning of the transaction.
     // If it was a child object, it resolves to the root parent's sequence number.
     // Otherwise, it is just the sequence number at the beginning of the transaction.
-    root_version: BTreeMap<ObjectId, SequenceNumber>,
+    root_version: BTreeMap<ObjectId, Version>,
     // A map from a wrapped object to the object it was contained in at the
     // beginning of the transaction.
     wrapped_object_containers: BTreeMap<ObjectId, ObjectId>,
@@ -168,7 +164,7 @@ macro_rules! fetch_child_object_unbounded {
                 _ => unimplemented!("a new Owner enum variant was added and needs to be handled"),
             };
             match &object.data {
-                Data::Package(_) => {
+                ObjectData::Package(_) => {
                     return Err(PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(
                         format!(
                             "Mismatched object type for {}. \
@@ -177,7 +173,7 @@ macro_rules! fetch_child_object_unbounded {
                         ),
                     ));
                 }
-                Data::Struct(_) => Some(object),
+                ObjectData::Struct(_) => Some(object),
             }
         } else {
             None
@@ -190,8 +186,8 @@ impl Inner<'_> {
         &self,
         owner: ObjectId,
         child: ObjectId,
-        version: SequenceNumber,
-    ) -> PartialVMResult<LoadedWithMetadataResult<MoveObject>> {
+        version: Version,
+    ) -> PartialVMResult<LoadedWithMetadataResult<MoveStruct>> {
         let child_opt = self
             .resolver
             .get_object_received_at_version(&owner, &child, version, self.current_epoch_id)
@@ -234,7 +230,7 @@ impl Inner<'_> {
                 );
             }
             match object.into_inner().data {
-                Data::Package(_) => {
+                ObjectData::Package(_) => {
                     return Err(PartialVMError::new(StatusCode::STORAGE_ERROR).with_message(
                         format!(
                             "Mismatched object type for {child}. \
@@ -242,7 +238,7 @@ impl Inner<'_> {
                         ),
                     ));
                 }
-                Data::Struct(mo @ MoveObject { .. }) => Some((mo, loaded_metadata)),
+                ObjectData::Struct(mo @ MoveStruct { .. }) => Some((mo, loaded_metadata)),
             }
         } else {
             None
@@ -254,13 +250,13 @@ impl Inner<'_> {
         &mut self,
         parent: ObjectId,
         child: ObjectId,
-    ) -> PartialVMResult<Option<&MoveObject>> {
+    ) -> PartialVMResult<Option<&MoveStruct>> {
         let cached_objects_count = self.cached_objects.len() as u64;
         let parents_root_version = self.root_version.get(&parent).copied();
         let had_parent_root_version = parents_root_version.is_some();
         // if not found, it must be new so it won't have any child objects, thus
-        // we can return SequenceNumber(0) as no child object will be found
-        let parents_root_version = parents_root_version.unwrap_or(SequenceNumber::default());
+        // we can return Version(0) as no child object will be found
+        let parents_root_version = parents_root_version.unwrap_or(Version::default());
         if let btree_map::Entry::Vacant(e) = self.cached_objects.entry(child) {
             let obj_opt = fetch_child_object_unbounded!(
                 self,
@@ -297,7 +293,7 @@ impl Inner<'_> {
             .as_ref()
             .map(|obj| {
                 obj.data
-                    .as_struct_opt()
+                    .as_opt_struct()
                     // unwrap safe because we only insert Move objects
                     .unwrap()
             }))
@@ -387,8 +383,8 @@ impl Inner<'_> {
     }
 }
 
-fn deserialize_move_object(
-    obj: &MoveObject,
+fn deserialize_move_struct(
+    obj: &MoveStruct,
     child_ty: &Type,
     child_ty_layout: &R::MoveTypeLayout,
     child_struct_tag: StructTag,
@@ -418,7 +414,7 @@ fn deserialize_move_object(
 impl<'a> ChildObjectStore<'a> {
     pub(super) fn new(
         resolver: &'a dyn ChildObjectResolver,
-        root_version: BTreeMap<ObjectId, SequenceNumber>,
+        root_version: BTreeMap<ObjectId, Version>,
         wrapped_object_containers: BTreeMap<ObjectId, ObjectId>,
         is_metered: bool,
         protocol_config: &'a ProtocolConfig,
@@ -446,7 +442,7 @@ impl<'a> ChildObjectStore<'a> {
         &mut self,
         parent: ObjectId,
         child: ObjectId,
-        child_version: SequenceNumber,
+        child_version: Version,
         child_ty: &Type,
         child_layout: &R::MoveTypeLayout,
         child_fully_annotated_layout: &A::MoveTypeLayout,
@@ -460,7 +456,7 @@ impl<'a> ChildObjectStore<'a> {
         };
 
         Ok(Some(
-            match deserialize_move_object(&obj, child_ty, child_layout, child_struct_tag)? {
+            match deserialize_move_struct(&obj, child_ty, child_layout, child_struct_tag)? {
                 ObjectResult::MismatchedType => (ObjectResult::MismatchedType, obj_meta),
                 ObjectResult::Loaded((_, _, v)) => {
                     // Find all UIDs inside of the value and update the object parent maps with the
@@ -668,12 +664,12 @@ impl<'a> ChildObjectStore<'a> {
                     inner,
                     parent,
                     child,
-                    SequenceNumber::MAX_VALID_EXCL,
+                    Version::MAX_VALID_EXCL,
                     true
                 );
                 let Some(move_obj) = obj_opt
                     .as_ref()
-                    .map(|obj| obj.data.as_struct_opt().unwrap())
+                    .map(|obj| obj.data.as_opt_struct().unwrap())
                 else {
                     return Ok(ObjectResult::Loaded(None));
                 };

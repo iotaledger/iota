@@ -5,7 +5,10 @@
 
 use std::{collections::BTreeMap, convert::AsRef, fmt::Debug};
 
-use iota_sdk_types::{CommandArgumentError, ObjectId, Owner};
+use iota_sdk_types::{
+    Address, CheckpointContentsDigest, CommandArgumentError, ObjectDigest, ObjectId,
+    ObjectReference, Owner, TransactionDigest, TransactionEffectsDigest, Version,
+};
 use serde::{Deserialize, Serialize};
 use strum::{AsRefStr, IntoStaticStr};
 use thiserror::Error;
@@ -16,7 +19,6 @@ use typed_store_error::TypedStoreError;
 use crate::{
     base_types::*,
     committee::{Committee, EpochId, StakeUnit},
-    digests::CheckpointContentsDigest,
     messages_checkpoint::CheckpointSequenceNumber,
 };
 
@@ -92,15 +94,15 @@ pub enum UserInputError {
     #[error("Could not find the referenced object {object_id} at version {version:?}")]
     ObjectNotFound {
         object_id: ObjectId,
-        version: Option<SequenceNumber>,
+        version: Option<Version>,
     },
     #[error(
         "Object ID {} Version {} Digest {} is not available for consumption, current version: {current_version}",
         .provided_obj_ref.object_id, .provided_obj_ref.version, .provided_obj_ref.digest
     )]
     ObjectVersionUnavailableForConsumption {
-        provided_obj_ref: ObjectRef,
-        current_version: SequenceNumber,
+        provided_obj_ref: ObjectReference,
+        current_version: Version,
     },
     #[error("Package verification failed: {err}")]
     PackageVerificationTimedout { err: String },
@@ -134,7 +136,7 @@ pub enum UserInputError {
 
     #[error("Object used as shared is not shared")]
     NotSharedObject,
-    #[error("The transaction inputs contain duplicated ObjectRef's")]
+    #[error("The transaction inputs contain duplicated ObjectReference's")]
     DuplicateObjectRefInput,
     #[error("A transaction input {object_id} is inconsistent")]
     InconsistentInput { object_id: ObjectId },
@@ -183,11 +185,11 @@ pub enum UserInputError {
     )]
     ObjectSequenceNumberTooHigh {
         object_id: ObjectId,
-        asked_version: SequenceNumber,
-        latest_version: SequenceNumber,
+        asked_version: Version,
+        latest_version: Version,
     },
     #[error("Object deleted at reference {:?}", object_ref)]
-    ObjectDeleted { object_ref: ObjectRef },
+    ObjectDeleted { object_ref: ObjectReference },
     #[error("Invalid Batch Transaction: {}", error)]
     InvalidBatchTransaction { error: String },
     #[error("This Move function is currently disabled and not available for call")]
@@ -260,10 +262,7 @@ pub enum UserInputError {
     MutableParameterExpected { object_id: ObjectId },
 
     #[error("Address {address} is denied for coin {coin_type}")]
-    AddressDeniedForCoin {
-        address: IotaAddress,
-        coin_type: String,
-    },
+    AddressDeniedForCoin { address: Address, coin_type: String },
 
     #[error("Commands following a command with Random can only be TransferObjects or MergeCoins")]
     PostRandomCommandRestrictions,
@@ -302,7 +301,7 @@ pub enum UserInputError {
     )]
     AccountObjectDeleted {
         account_id: ObjectId,
-        account_version: SequenceNumber,
+        account_version: Version,
         transaction_digest: TransactionDigest,
     },
     #[error(
@@ -310,7 +309,7 @@ pub enum UserInputError {
     )]
     AccountObjectInCanceledTransaction {
         account_id: ObjectId,
-        account_version: SequenceNumber,
+        account_version: Version,
     },
     #[error("Account object {object_id} is not a shared or immutable object that is unsupported")]
     AccountObjectNotSupported { object_id: ObjectId },
@@ -319,8 +318,8 @@ pub enum UserInputError {
     )]
     AccountObjectVersionMismatch {
         object_id: ObjectId,
-        expected_version: SequenceNumber,
-        actual_version: SequenceNumber,
+        expected_version: Version,
+        actual_version: Version,
     },
     #[error(
         "The fetched account object digest {actual_digest} does not match the expected digest {expected_digest}, object id: {object_id}"
@@ -337,7 +336,7 @@ pub enum UserInputError {
     MoveAuthenticatorNotFound {
         authenticator_function_ref_id: ObjectId,
         account_object_id: ObjectId,
-        account_object_version: SequenceNumber,
+        account_object_version: Version,
     },
     #[error("Unable to get a `MoveAuthenticator` object ID for account {account_object_id}")]
     UnableToGetMoveAuthenticatorId { account_object_id: ObjectId },
@@ -503,21 +502,23 @@ pub enum IotaError {
 
     // Internal state errors
     #[error("Attempt to re-initialize a transaction lock for objects {refs:?}")]
-    ObjectLockAlreadyInitialized { refs: Vec<ObjectRef> },
+    ObjectLockAlreadyInitialized { refs: Vec<ObjectReference> },
     #[error("Object {obj_ref:?} already locked by a different transaction: {pending_transaction}")]
     ObjectLockConflict {
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         pending_transaction: TransactionDigest,
     },
     #[error(
         "Objects {obj_refs:?} are already locked by a transaction from a future epoch {locked_epoch:?}), attempt to override with a transaction from epoch {new_epoch:?}"
     )]
     ObjectLockedAtFutureEpoch {
-        obj_refs: Vec<ObjectRef>,
+        obj_refs: Vec<ObjectReference>,
         locked_epoch: EpochId,
         new_epoch: EpochId,
         locked_by_tx: TransactionDigest,
     },
+    #[error("Transaction {digest:?} was recently submitted; duplicate resubmission suppressed")]
+    RecentlyResubmitted { digest: TransactionDigest },
     #[error("{TRANSACTION_NOT_FOUND_MSG_PREFIX} [{digest}]")]
     TransactionNotFound { digest: TransactionDigest },
     #[error("{TRANSACTIONS_NOT_FOUND_MSG_PREFIX} [{digests:?}]")]
@@ -688,6 +689,9 @@ pub enum IotaError {
 
     #[error("Invalid admin request: {0}")]
     InvalidAdminRequest(String),
+
+    #[error("Could not find the referenced transaction effects [{digest}]")]
+    TransactionEffectsNotFound { digest: TransactionDigest },
 }
 
 #[repr(u64)]
@@ -729,6 +733,14 @@ impl From<iota_protocol_config::Error> for IotaError {
 impl From<ExecutionError> for IotaError {
     fn from(error: ExecutionError) -> Self {
         IotaError::Execution(error.to_string())
+    }
+}
+
+impl From<iota_sdk_types::hash::MissingSignatureError> for IotaError {
+    fn from(error: iota_sdk_types::hash::MissingSignatureError) -> Self {
+        IotaError::InvalidSignature {
+            error: error.to_string(),
+        }
     }
 }
 
@@ -850,6 +862,10 @@ impl IotaError {
 
             // Transient consensus failure — other validators likely unaffected
             IotaError::FailedToSubmitToConsensus(..) => true,
+
+            // Same digest already in flight — client should wait for the
+            // original to land or retry once the soft locks are released.
+            IotaError::RecentlyResubmitted { .. } => true,
 
             // Non retryable error
             IotaError::Execution(..) => false,
@@ -1049,6 +1065,22 @@ impl ExecutionError {
     pub fn with_command_index(mut self, command: u64) -> Self {
         self.inner.command = Some(command);
         self
+    }
+
+    /// Rewrap this error, produced while executing a Move authenticator, as a
+    /// [`ExecutionFailureStatus::MoveAuthentication`]. The command index
+    /// is dropped: it referred to a command of the authenticator's own
+    /// programmable transaction and is meaningless in the transaction's
+    /// effects, where it would otherwise collide with the first command of the
+    /// programmable transaction.
+    pub fn into_move_authentication_error(self) -> Self {
+        let ExecutionErrorInner { kind, source, .. } = *self.inner;
+        Self::new(
+            ExecutionFailureStatus::MoveAuthentication {
+                error: Box::new(kind),
+            },
+            source,
+        )
     }
 
     pub fn from_kind(kind: ExecutionErrorKind) -> Self {

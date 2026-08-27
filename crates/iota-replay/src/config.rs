@@ -169,8 +169,7 @@ pub fn get_rpc_url(
     let url = ReplayableNetworkConfigSet::load_config(config_path)?
         .get_base_config(&chain)
         .ok_or(anyhow::anyhow!(format!(
-            "Unable to find network config for {:?}",
-            chain
+            "Unable to find network config for {chain:?}"
         )))?
         .public_full_node
         .clone();

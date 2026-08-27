@@ -50,11 +50,6 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch-or-commit || github.ref }}
 
-      - name: Set Swap Space
-        uses: actionhippie/swap-space@0cffa893f224708cfb6b011690d8ba819d69c10f # v1.1.0
-        with:
-          size: 256G
-
       - name: Install llvm-tools
         run: |
           TOOLCHAIN=$(rustup show active-toolchain | grep -Eo '\S+' | head -n 1)

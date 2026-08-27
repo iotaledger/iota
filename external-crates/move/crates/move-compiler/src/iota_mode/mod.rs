@@ -58,6 +58,8 @@ pub const RANDOMNESS_STATE_TYPE_NAME: Symbol = symbol!("Random");
 pub const RANDOMNESS_STATE_CREATE: Symbol = symbol!("create");
 pub const DENY_LIST_MODULE_NAME: Symbol = symbol!("deny_list");
 pub const DENY_LIST_CREATE: Symbol = symbol!("create");
+pub const TRANSACTION_DENY_RULES_MODULE_NAME: Symbol = symbol!("transaction_deny_rules");
+pub const TRANSACTION_DENY_RULES_CREATE: Symbol = symbol!("create");
 pub const BRIDGE_ADDR_NAME: Symbol = symbol!("bridge");
 pub const BRIDGE_MODULE_NAME: Symbol = symbol!("bridge");
 pub const BRIDGE_TYPE_NAME: Symbol = symbol!("Bridge");
@@ -193,6 +195,15 @@ pub const PRIVATE_ACCOUNT_CALL_DIAG: DiagnosticInfo = custom(
     // code
     10,
     "invalid private account call",
+);
+pub const VIEW_FUN_SIGNATURE_DIAG: DiagnosticInfo = custom(
+    IOTA_DIAG_PREFIX,
+    Severity::NonblockingError,
+    // category
+    TYPING,
+    // code
+    11,
+    "invalid 'view' function signature",
 );
 
 // Bridge supported asset

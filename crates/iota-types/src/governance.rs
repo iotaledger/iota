@@ -2,44 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{Identifier, ObjectId};
+use iota_sdk_types::{Identifier, ObjectData, ObjectId};
 use serde::{Deserialize, Serialize};
 
 use crate::{
     balance::Balance,
     committee::EpochId,
     error::IotaError,
-    gas_coin::NANOS_PER_IOTA,
     id::{ID, UID},
-    object::{Data, Object},
+    object::Object,
 };
-
-/// Maximum number of active validators at any moment.
-/// We do not allow the number of validators in any epoch to go above this.
-pub const MAX_VALIDATOR_COUNT: u64 = 150;
-
-/// Lower-bound on the amount of stake required to become a validator.
-///
-/// 2 million IOTA
-pub const MIN_VALIDATOR_JOINING_STAKE_NANOS: u64 = 2_000_000 * NANOS_PER_IOTA;
-
-/// Validators with stake amount below `validator_low_stake_threshold` are
-/// considered to have low stake and will be escorted out of the validator set
-/// after being below this threshold for more than
-/// `validator_low_stake_grace_period` number of epochs.
-///
-/// 1.5 million IOTA
-pub const VALIDATOR_LOW_STAKE_THRESHOLD_NANOS: u64 = 1_500_000 * NANOS_PER_IOTA;
-
-/// Validators with stake below `validator_very_low_stake_threshold` will be
-/// removed immediately at epoch change, no grace period.
-///
-/// 1 million IOTA
-pub const VALIDATOR_VERY_LOW_STAKE_THRESHOLD_NANOS: u64 = 1_000_000 * NANOS_PER_IOTA;
-
-/// A validator can have stake below `validator_low_stake_threshold`
-/// for this many epochs before being kicked out.
-pub const VALIDATOR_LOW_STAKE_GRACE_PERIOD: u64 = 7;
 
 pub const ADD_STAKE_MUL_COIN_FUN_NAME: Identifier =
     Identifier::from_static("request_add_stake_mul_coin");
@@ -81,14 +53,14 @@ impl TryFrom<&Object> for StakedIota {
     type Error = IotaError;
     fn try_from(object: &Object) -> Result<Self, Self::Error> {
         match &object.data {
-            Data::Struct(o) => {
+            ObjectData::Struct(o) => {
                 if o.struct_tag().is_staked_iota() {
                     return bcs::from_bytes(o.contents()).map_err(|err| IotaError::Type {
                         error: format!("Unable to deserialize StakedIota object: {err:?}"),
                     });
                 }
             }
-            Data::Package(_) => {}
+            ObjectData::Package(_) => {}
         }
 
         Err(IotaError::Type {

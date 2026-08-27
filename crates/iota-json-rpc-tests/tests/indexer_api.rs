@@ -13,22 +13,22 @@ use iota_json_rpc_types::{
 };
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{Command, Identifier, ObjectId, Owner, StructTag, TypeTag};
+use iota_sdk_types::{
+    Address, Command, Identifier, MoveStruct, ObjectData, ObjectId, Owner, StructTag, Transaction,
+    TransactionDigest, TypeTag,
+};
 use iota_swarm_config::genesis_config::AccountConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::IotaAddress,
     collection_types::VecMap,
-    crypto::deterministic_random_account_key,
-    digests::TransactionDigest,
+    crypto::deterministic_random_account_private_key,
     dynamic_field::DynamicFieldName,
-    gas_coin::GAS,
     id::UID,
-    object::{Data, MoveObject, MoveObjectExt, OBJECT_START_VERSION, ObjectInner},
+    object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     quorum_driver_types::ExecuteTransactionRequestType,
     stardust::output::{Irc27Metadata, Nft},
-    transaction::{CallArg, TransactionData, TransactionDataAPI},
+    transaction::{CallArg, TransactionAPI},
 };
 use move_core_types::annotated_value::MoveValue;
 use test_cluster::TestClusterBuilder;
@@ -36,18 +36,16 @@ use test_cluster::TestClusterBuilder;
 #[sim_test]
 async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     // Create a cluster
-    let (address, _) = deterministic_random_account_key();
+    let (address, _) = deterministic_random_account_private_key();
 
     let nft = Nft {
         id: UID::new(ObjectId::random()),
-        legacy_sender: Some(IotaAddress::ZERO),
+        legacy_sender: Some(Address::ZERO),
         metadata: Some(String::from("metadata value").into_bytes()),
         tag: Some(String::from("tag value").into_bytes()),
         immutable_issuer: Some(
-            IotaAddress::from_str(
-                "0x1000000000000000002000000000000003000000000000040000000000000005",
-            )
-            .unwrap(),
+            Address::from_str("0x1000000000000000002000000000000003000000000000040000000000000005")
+                .unwrap(),
         ),
         immutable_metadata: Irc27Metadata {
             version: String::from("version value"),
@@ -64,8 +62,8 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     };
 
     let nft_move_object = {
-        MoveObject::new_from_execution(
-            Nft::tag(),
+        MoveStruct::new_from_execution(
+            StructTag::new_nft(),
             OBJECT_START_VERSION,
             bcs::to_bytes(&nft).unwrap(),
             &ProtocolConfig::get_for_min_version(),
@@ -74,7 +72,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
     };
     let nft_object = ObjectInner {
         owner: Owner::Address(address),
-        data: Data::Struct(nft_move_object),
+        data: ObjectData::Struct(nft_move_object),
         previous_transaction: TransactionDigest::GENESIS_MARKER,
         storage_rebate: 0,
     };
@@ -98,7 +96,7 @@ async fn test_nft_display_object() -> Result<(), anyhow::Error> {
         .get_owned_objects(
             address,
             Some(IotaObjectResponseQuery::new(
-                Some(IotaObjectDataFilter::StructType(Nft::tag())),
+                Some(IotaObjectDataFilter::StructType(StructTag::new_nft())),
                 Some(
                     IotaObjectDataOptions::new()
                         .with_type()
@@ -150,7 +148,7 @@ async fn query_events_no_events_descending() {
 
     let indexer_events = client
         .query_events(
-            EventFilter::Sender(IotaAddress::random()),
+            EventFilter::Sender(Address::random()),
             None,
             None,
             Some(true),
@@ -168,7 +166,7 @@ async fn query_events_no_events_ascending() {
     let client = cluster.rpc_client();
 
     let indexer_events = client
-        .query_events(EventFilter::Sender(IotaAddress::random()), None, None, None)
+        .query_events(EventFilter::Sender(Address::random()), None, None, None)
         .await
         .unwrap();
 
@@ -182,13 +180,13 @@ async fn query_events() {
     let client = cluster.rpc_client();
 
     let result = client
-        .query_events(EventFilter::Sender(IotaAddress::ZERO), None, None, None)
+        .query_events(EventFilter::Sender(Address::ZERO), None, None, None)
         .await;
 
     let event_page = result.unwrap();
 
     for event in event_page.data {
-        assert_eq!(event.sender, IotaAddress::ZERO);
+        assert_eq!(event.sender, Address::ZERO);
     }
 }
 
@@ -467,7 +465,7 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
     let function_1 = Identifier::from_str("split")?;
     let function_2 = Identifier::from_str("divide_and_keep")?;
 
-    let iota_type_args = type_args![GAS::type_tag()]?;
+    let iota_type_args = type_args![TypeTag::from(StructTag::new_gas())]?;
     let type_args = iota_type_args
         .into_iter()
         .map(|ty| ty.try_into())
@@ -508,8 +506,8 @@ async fn test_query_transaction_blocks() -> Result<(), anyhow::Error> {
     pt_builder.command(cmd_2);
     let pt = pt_builder.finish();
 
-    let tx_data = TransactionData::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
-    let signed_data = cluster.wallet.sign_transaction(&tx_data);
+    let tx = Transaction::new_programmable(signer, vec![gas], pt, 10_000_000, 1000);
+    let signed_data = cluster.wallet.sign_transaction(&tx);
     let _response = client
         .quorum_driver_api()
         .execute_transaction_block(
@@ -699,7 +697,7 @@ async fn test_get_dynamic_field_object() -> Result<(), anyhow::Error> {
     let bag_object_ref = objects.data.first().unwrap().object().unwrap().object_ref();
 
     let name = DynamicFieldName {
-        type_: TypeTag::U64,
+        type_tag: TypeTag::U64,
         value: IotaMoveValue::from(MoveValue::U64(0u64)).to_json_value(),
     };
 

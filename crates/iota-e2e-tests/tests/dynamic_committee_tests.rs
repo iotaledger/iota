@@ -11,12 +11,14 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_core::authority::AuthorityState;
 use iota_macros::*;
-use iota_sdk_types::{Argument, Command, ObjectId, Owner};
+use iota_sdk_types::{
+    Address, Argument, Command, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
+    TransactionEffects,
+};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
-    base_types::{IotaAddress, ObjectRef},
-    effects::{TransactionEffects, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     iota_system_state::{
         IotaSystemStateTrait,
         iota_system_state_summary::{IotaSystemStateSummary, IotaValidatorSummary},
@@ -24,7 +26,7 @@ use iota_types::{
     object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     storage::ObjectStore,
-    transaction::{CallArg, ProgrammableTransaction},
+    transaction::CallArg,
 };
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -70,14 +72,14 @@ trait StatePredicate {
 struct StressTestRunner {
     pub post_epoch_predicates: Vec<Box<dyn StatePredicate + Send + Sync>>,
     pub test_cluster: TestCluster,
-    pub accounts: Vec<IotaAddress>,
-    pub active_validators: BTreeSet<IotaAddress>,
-    pub preactive_validators: BTreeMap<IotaAddress, u64>,
-    pub removed_validators: BTreeSet<IotaAddress>,
-    pub delegation_requests_this_epoch: BTreeMap<ObjectId, IotaAddress>,
+    pub accounts: Vec<Address>,
+    pub active_validators: BTreeSet<Address>,
+    pub preactive_validators: BTreeMap<Address, u64>,
+    pub removed_validators: BTreeSet<Address>,
+    pub delegation_requests_this_epoch: BTreeMap<ObjectId, Address>,
     pub delegation_withdraws_this_epoch: u64,
-    pub delegations: BTreeMap<ObjectId, IotaAddress>,
-    pub reports: BTreeMap<IotaAddress, BTreeSet<IotaAddress>>,
+    pub delegations: BTreeMap<ObjectId, Address>,
+    pub reports: BTreeMap<Address, BTreeSet<Address>>,
     pub rng: StdRng,
 }
 
@@ -109,7 +111,7 @@ impl StressTestRunner {
         }
     }
 
-    pub fn pick_random_sender(&mut self) -> IotaAddress {
+    pub fn pick_random_sender(&mut self) -> Address {
         self.accounts[self.rng.gen_range(0..self.accounts.len())]
     }
 
@@ -132,11 +134,7 @@ impl StressTestRunner {
         random_committee_member
     }
 
-    pub async fn run(
-        &self,
-        sender: IotaAddress,
-        pt: ProgrammableTransaction,
-    ) -> TransactionEffects {
+    pub async fn run(&self, sender: Address, pt: ProgrammableTransaction) -> TransactionEffects {
         let rgp = self.test_cluster.get_reference_gas_price().await;
         let gas_object = self
             .test_cluster
@@ -259,7 +257,11 @@ impl StressTestRunner {
         builder.command(Command::new_split_coins(Argument::Gas, vec![amt_arg]))
     }
 
-    async fn get_from_effects(&self, effects: &[(ObjectRef, Owner)], name: &str) -> Option<Object> {
+    async fn get_from_effects(
+        &self,
+        effects: &[(ObjectReference, Owner)],
+        name: &str,
+    ) -> Option<Object> {
         let db = self.state().get_object_store().clone();
         let found: Vec<_> = effects
             .iter()
@@ -281,16 +283,16 @@ impl StressTestRunner {
 }
 
 mod add_stake {
-    use iota_types::effects::TransactionEffects;
+    use iota_sdk_types::TransactionEffects;
 
     use super::*;
 
     pub struct RequestAddStakeGen;
 
     pub struct RequestAddStake {
-        sender: IotaAddress,
+        sender: Address,
         stake_amount: u64,
-        staked_with: IotaAddress,
+        staked_with: Address,
     }
 
     impl GenStateChange for RequestAddStakeGen {

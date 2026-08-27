@@ -8,9 +8,9 @@
 //! `objects_version` whose value is `<= parent_version`. The state row at
 //! `(object_id, target_version)` is then read from `checkpointed_objects` (if
 //! it's the current state) or `objects_backward_history` (if it's a prior
-//! state). When the target version is a tombstone, `NotYetCreated` marker,
-//! or synth `WrappedOrDeleted` row, `owner_id`/`df_kind`/etc. are NULL — the
-//! `owner_id`/`df_kind` filter applied internally drops it.
+//! state). When the target version is a tombstone or `NotYetCreated` marker,
+//! `owner_id`/`df_kind`/etc. are NULL — the `owner_id`/`df_kind` filter
+//! applied internally drops it.
 //!
 //! Returned semantics: for each DF, the earliest state it had while the
 //! parent was at `parent_version`. Note that there can be multiple distinct DF
@@ -19,7 +19,7 @@
 use iota_indexer::types::OwnerType;
 
 use crate::{
-    backward_view::{CHECKPOINTED_COLUMNS, HISTORY_COLUMNS, merge_and_deduplicate},
+    backward_view::{OBJECT_COLUMNS, merge_and_deduplicate},
     filter, query,
     raw_query::RawQuery,
     types::{
@@ -91,7 +91,7 @@ fn dynamic_fields_from_checkpointed_objects(
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
     let checkpointed_filtered = filter_fn(query!(format!(
-        "SELECT {CHECKPOINTED_COLUMNS} FROM checkpointed_objects"
+        "SELECT {OBJECT_COLUMNS} FROM checkpointed_objects"
     )));
 
     let with_target = filter!(
@@ -155,7 +155,7 @@ fn dynamic_fields_from_historical_objects(
     // via the correlated MAX subquery.
     let (df_ids_sql, df_ids_binds) = df_ids.finish();
     let sql = format!(
-        "SELECT {HISTORY_COLUMNS} FROM ( \
+        "SELECT {OBJECT_COLUMNS} FROM ( \
              SELECT objects_backward_history.* \
              FROM ({df_ids_sql}) df_ids \
              JOIN objects_backward_history \

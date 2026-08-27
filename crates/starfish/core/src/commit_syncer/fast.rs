@@ -11,38 +11,62 @@ use std::{
     time::Duration,
 };
 
+use bytes::Bytes;
 use iota_metrics::spawn_logged_monitored_task;
 use parking_lot::RwLock;
 #[cfg(not(test))]
-use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
+use rand::prelude::SliceRandom as _;
+use rand::{SeedableRng as _, rngs::StdRng, thread_rng};
 use starfish_config::AuthorityIndex;
-use tokio::{runtime::Handle, sync::oneshot, task::JoinSet, time::MissedTickBehavior};
+use tokio::{
+    runtime::Handle,
+    sync::{oneshot, watch},
+    task::JoinSet,
+    time::{Instant, MissedTickBehavior},
+};
 use tracing::{debug, info, warn};
 
 use crate::{
     CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
-    block_header::VerifiedTransactions,
+    block_header::CommitmentVerifiedTransactions,
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, CommittedSubDag, TrustedCommit},
     commit_syncer::{
-        CommitSyncType, CommitSyncerHandle, Inner, fetch_loop as shared_fetch_loop,
+        CommitSyncType, CommitSyncerHandle, FetchedCommits, Inner, fetch_loop as shared_fetch_loop,
         handle_fetch_join_error, requeue_partial_range, schedule_commit_ranges,
         try_start_fetches as shared_try_start_fetches, verify_fetched_headers,
-        verify_transactions_with_transactions_refs,
+        verify_transactions_commitments,
     },
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, DataSource},
     error::{ConsensusError, ConsensusResult},
     header_synchronizer::HeaderSynchronizerHandle,
     misbehavior_store::MisbehaviorStore,
     network::{NetworkClient, SerializedTransactionsV2},
+    sliding_window_schedule::SlidingWindowSchedule,
     transaction_ref::{GenericTransactionRef, TransactionRef},
 };
 
 /// Timeout for fetching block headers during close-to-quorum finalization.
 const FETCH_HEADERS_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Demotes `authority` for subsequent header chunks after it failed to serve
+/// one, whether it errored, timed out, or returned headers that did not verify.
+fn record_headers_for_reinitialization_failure<C: NetworkClient>(
+    inner: &Inner<C>,
+    authority: AuthorityIndex,
+) {
+    inner
+        .context
+        .peer_responsiveness
+        .record_failure_with_timeout(
+            DataSource::FastCommitSyncer,
+            authority,
+            FETCH_HEADERS_TIMEOUT,
+        );
+}
 
 /// Which worker skipped a step because the fast commit syncer was active.
 /// Used as the `source` label on `syncer_paused_by_fast_sync`. All
@@ -105,11 +129,19 @@ pub struct FastSyncOutput {
     pub voting_block_headers: Vec<VerifiedBlockHeader>,
 }
 
+impl FetchedCommits for FastSyncOutput {
+    fn delivered_commits(&self) -> usize {
+        self.committed_subdags.len()
+    }
+}
+
 pub(crate) struct FastCommitSyncer<C: NetworkClient> {
     // States shared by scheduler and fetch tasks.
 
     // Shared components wrapper.
     inner: Arc<Inner<C>>,
+
+    block_stream_reset_sender: watch::Sender<()>,
 
     // States only used by the scheduler.
 
@@ -149,6 +181,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         header_synchronizer: Arc<HeaderSynchronizerHandle>,
         misbehavior_store: Arc<MisbehaviorStore>,
         fast_sync_active: Arc<AtomicBool>,
+        block_stream_reset_sender: watch::Sender<()>,
     ) -> Self {
         let inner = Arc::new(Inner {
             context,
@@ -170,6 +203,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         );
         FastCommitSyncer {
             inner,
+            block_stream_reset_sender,
             inflight_fetches: JoinSet::new(),
             pending_fetches: BTreeSet::new(),
             fetched_ranges: BTreeMap::new(),
@@ -239,28 +273,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 );
 
                 match Self::fetch_headers_for_reinitialization(self.inner.clone()).await {
-                    Ok(headers) => {
-                        if let Err(e) = self
-                            .inner
-                            .core_thread_dispatcher
-                            .reinitialize_components(headers)
-                            .await
-                        {
-                            warn!(
-                                "[{}] Failed to reinitialize components: {}",
-                                self.inner.sync_type.as_str(),
-                                e
-                            );
-                        } else {
-                            self.inner
-                                .header_synchronizer
-                                .clear_verified_headers_cache();
-                            info!(
-                                "[{}] Components reinitialized, fast sync complete",
-                                self.inner.sync_type.as_str()
-                            );
-                        }
-                    }
+                    Ok(headers) => self.reinitialize_components(headers).await,
                     Err(e) => {
                         warn!(
                             "[{}] Failed to fetch headers for cached rounds: {}",
@@ -297,12 +310,49 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         }
     }
 
+    async fn reinitialize_components(&self, headers: Vec<VerifiedBlockHeader>) {
+        if let Err(e) = self
+            .inner
+            .core_thread_dispatcher
+            .reinitialize_components(headers)
+            .await
+        {
+            warn!(
+                "[{}] Failed to reinitialize components: {}",
+                self.inner.sync_type.as_str(),
+                e
+            );
+            return;
+        }
+
+        self.inner
+            .header_synchronizer
+            .clear_verified_headers_cache();
+        info!(
+            "[{}] Components reinitialized, fast sync complete",
+            self.inner.sync_type.as_str()
+        );
+        if self
+            .inner
+            .context
+            .parameters
+            .enable_block_stream_reset_on_fast_sync_exit
+        {
+            self.block_stream_reset_sender.send_replace(());
+            info!(
+                "[{}] Signaled block stream reset",
+                self.inner.sync_type.as_str()
+            );
+        }
+    }
+
     fn try_schedule_once(&mut self) {
         let quorum_commit_index = self.inner.commit_vote_monitor.quorum_commit_index();
         let last_solid_commit_index = self.inner.dag_state.read().last_solid_commit_index();
         let highest_handled_index = self.inner.commit_consumer_monitor.highest_handled_commit();
         let highest_scheduled_index = self.highest_scheduled_index.unwrap_or(0);
-        let unhandled_commits_threshold = self.inner.unhandled_commits_threshold();
+        let unhandled_commits_threshold =
+            self.inner.context.parameters.unhandled_commits_threshold();
         let step = self
             .inner
             .sync_type
@@ -314,11 +364,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             || self.inner.sync_type.should_schedule(
                 gap,
                 self.inner.context.parameters.commit_sync_gap_threshold,
-                self.inner
-                    .context
-                    .protocol_config
-                    .consensus_fast_commit_sync()
-                    && self.inner.context.parameters.enable_fast_commit_syncer,
+                self.inner.context.parameters.enable_fast_commit_syncer,
             );
 
         if should_schedule {
@@ -547,7 +593,9 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         shared_fetch_loop(inner, commit_range, 2, Self::fetch_once).await
     }
 
-    // Fetches commits and transactions from a single authority.
+    // Fetches commits and transactions from a single authority. When the
+    // response covers only part of the range, returns the prefix of commits
+    // whose transactions were all fetched.
     async fn fetch_once(
         inner: Arc<Inner<C>>,
         target_authority: AuthorityIndex,
@@ -561,12 +609,16 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             .commit_sync_fetch_once_latency
             .with_label_values(&[inner.sync_type.as_str()])
             .start_timer();
-        assert!(inner.context.protocol_config.consensus_fast_commit_sync());
 
         // 1. Fetch commits, voting headers, and transactions in the commit range from
         //    the target authority. Each transaction is serialized as
         //    SerializedTransactionsV2 which includes the TransactionRef.
-        let (serialized_commits, serialized_proof_for_last_commit, serialized_transactions) = inner
+        let (
+            serialized_commits,
+            serialized_proof_for_last_commit,
+            serialized_transactions,
+            stream_error,
+        ) = inner
             .network_client
             .fetch_commits_and_transactions(target_authority, commit_range.clone(), timeout)
             .await?;
@@ -574,8 +626,8 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // 2. Verify the response contains block headers that can certify the last
         //    returned commit, and the returned commits are chained by digest,
         // so earlier commits are certified as well.
-        let batch_size = inner.sync_type.commit_sync_batch_size(&inner.context) as usize;
-        let (commits, voting_block_headers) = Handle::current()
+        let max_commits = inner.sync_type.max_commits_per_response(&inner.context);
+        let (mut commits, voting_block_headers) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
                 move || {
@@ -584,68 +636,95 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         commit_range,
                         serialized_commits,
                         serialized_proof_for_last_commit,
-                        2 * batch_size,
+                        max_commits,
                     )
                 }
             })
             .await
             .expect("Spawn blocking should not fail")?;
 
-        // 3. Collect all committed transaction block refs from commits
-        let mut committed_tx_refs: BTreeSet<TransactionRef> = commits
+        // 3. Collect the committed transaction refs of each commit. Commits passing
+        //    verify_commits are V2/V3, which only carry `TransactionRef`s, so the
+        //    legacy `BlockRef` variant is an error.
+        let mut commits_tx_refs: Vec<Vec<TransactionRef>> = commits
             .iter()
-            .flat_map(|c| c.committed_transactions())
-            .filter_map(|gen_tr_ref| gen_tr_ref.expect_transaction_ref().ok())
-            .collect();
+            .map(|c| {
+                c.committed_transactions()
+                    .into_iter()
+                    .map(GenericTransactionRef::expect_transaction_ref)
+                    .collect()
+            })
+            .collect::<ConsensusResult<_>>()?;
+        let mut committed_tx_refs: BTreeSet<TransactionRef> =
+            commits_tx_refs.iter().flatten().copied().collect();
 
         // 4. Process fetched transactions. Each serialized_transaction is a
         //    SerializedTransactionsV2 containing both the TransactionRef and the actual
         //    transaction data.
-        let mut fetched_transactions = BTreeMap::new();
-        for serialized_transaction in serialized_transactions {
-            if let Ok(tx_v2) = bcs::from_bytes::<SerializedTransactionsV2>(&serialized_transaction)
-            {
-                let transaction_ref = tx_v2.transaction_ref;
-                if !committed_tx_refs.contains(&transaction_ref) {
-                    return Err(ConsensusError::UnexpectedTransactionForCommit {
-                        peer: target_authority,
-                        received: GenericTransactionRef::TransactionRef(transaction_ref),
-                    });
-                }
-                fetched_transactions.insert(
-                    GenericTransactionRef::TransactionRef(transaction_ref),
-                    tx_v2.serialized_transactions,
-                );
-                committed_tx_refs.remove(&transaction_ref);
-            } else {
-                debug!(
-                    "[{}] Failed to deserialize SerializedTransactionsV2: {:?}",
-                    inner.sync_type.as_str(),
-                    serialized_transaction
-                );
-                continue;
-            }
-        }
+        let mut fetched_transactions = process_serialized_transactions(
+            target_authority,
+            serialized_transactions,
+            &mut committed_tx_refs,
+        )
+        .inspect_err(|_| {
+            // Truncation drops whole entries and never corrupts one, so a
+            // malformed or uncommitted entry is the peer's fault.
+            inner.misbehavior_store.record_faulty_transactions(
+                target_authority,
+                false,
+                [target_authority],
+            );
+        })?;
 
-        // Check if any committed transactions were not fetched (committed_tx_refs
-        // should be empty now)
+        // Empty payloads can be recovered from their commitments.
+        fill_missing_empty_transactions(
+            &inner.context,
+            &mut committed_tx_refs,
+            &mut fetched_transactions,
+        );
+
+        // The response may be missing transactions for a suffix of the commits,
+        // e.g. when the stream was cut off by the response byte limit or a
+        // mid-stream network error. Keep the prefix of commits whose
+        // transactions were all fetched so the fetch makes forward progress;
+        // the scheduler requeues the range after the prefix.
         if !committed_tx_refs.is_empty() {
-            // TODO: create subdags for prefix of commits
-            return Err(ConsensusError::FetchedTransactionsMismatch {
-                peer: target_authority,
-                expected: committed_tx_refs.len() + fetched_transactions.len(),
-                received: fetched_transactions.len(),
-            });
+            let fetched_commits = commits.len();
+            if let Err(mismatch) = truncate_to_fully_fetched_prefix(
+                target_authority,
+                &mut commits,
+                &mut commits_tx_refs,
+                &mut fetched_transactions,
+            ) {
+                // A cut stream explains the empty covered prefix: report the
+                // connection failure rather than transactions the peer was
+                // never able to send.
+                return Err(stream_error.unwrap_or(mismatch));
+            }
+            info!(
+                "[{}] Fetched transactions cover only {} out of {} commits received from {}, processing the covered prefix",
+                inner.sync_type.as_str(),
+                commits.len(),
+                fetched_commits,
+                target_authority,
+            );
+            inner
+                .context
+                .metrics
+                .node_metrics
+                .commit_sync_truncated_fetches
+                .with_label_values(&[inner.sync_type.as_str()])
+                .inc();
         }
 
-        // 5. Verify transactions
+        // 5. Verify the transactions against their commitments
         let mut transactions_map = if !fetched_transactions.is_empty() {
             Handle::current()
                 .spawn_blocking({
                     let context = inner.context.clone();
 
                     move || {
-                        verify_transactions_with_transactions_refs(
+                        verify_transactions_commitments(
                             &context,
                             target_authority,
                             fetched_transactions,
@@ -653,7 +732,16 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                     }
                 })
                 .await
-                .expect("Spawn blocking should not fail")?
+                .expect("Spawn blocking should not fail")
+                .inspect_err(|_| {
+                    // Not provable against the author, whose commitment the
+                    // peer may have forged.
+                    inner.misbehavior_store.record_faulty_transactions(
+                        target_authority,
+                        false,
+                        [target_authority],
+                    );
+                })?
         } else {
             BTreeMap::new()
         };
@@ -666,7 +754,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // consumers merge-max against their last-seen, so repeating absolute
         // totals across the batch is a no-op after the first.
         let misbehavior_counts = inner.dag_state.read().misbehavior_store().snapshot_totals();
-        for commit in &commits {
+        for (commit, commit_tx_refs) in commits.iter().zip(&commits_tx_refs) {
             // Get block headers from the commit
             let committed_header_refs = commit.block_headers().to_vec();
 
@@ -674,8 +762,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             let reputation_scores = commit.reputation_scores().to_vec();
 
             // Collect transactions for this commit
-            let commit_transactions: Vec<VerifiedTransactions> = commit
-                .committed_transactions()
+            let commit_transactions: Vec<CommitmentVerifiedTransactions> = commit_tx_refs
                 .iter()
                 .filter_map(|tx_ref| transactions_map.remove(tx_ref))
                 .collect();
@@ -717,7 +804,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
         // Fetch the maximum to satisfy all requirements
         let cached_rounds = inner.context.parameters.dag_state_cached_rounds;
         let gc_depth = inner.context.protocol_config.gc_depth();
-        let leader_schedule_window = crate::leader_schedule::CONSENSUS_COMMITS_PER_SCHEDULE as u32;
+        let leader_schedule_window = inner.context.protocol_config.commits_per_schedule();
         // Get block refs from recent commits stored during fast sync
         // TODO: The commits might not yet stored, but only fetched and pending
         // processing.
@@ -731,6 +818,25 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 commits_since_schedule_update,
                 max(leader_schedule_window, max(cached_rounds, gc_depth * 2)),
             );
+            // When the sliding-window leader schedule is enabled, recovery replays
+            // the scorer over `replay_start..=last`; fetch enough commits to cover
+            // that range so the replayed window matches a fully-synced node
+            let num_commits = if inner
+                .context
+                .protocol_config
+                .consensus_enable_sliding_window_leader_schedule()
+            {
+                let window = inner.context.protocol_config.leader_schedule_window_size();
+                let replay_start = SlidingWindowSchedule::replay_start(last_commit_index, window);
+                max(
+                    num_commits,
+                    last_commit_index
+                        .saturating_sub(replay_start)
+                        .saturating_add(1),
+                )
+            } else {
+                num_commits
+            };
             let block_refs = dag_state.get_block_refs_for_recent_commits(num_commits);
             (commits_since_schedule_update, block_refs)
         };
@@ -747,8 +853,6 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
             commits_since_schedule_update
         );
 
-        // Shuffle target authorities for load balancing
-        #[cfg_attr(test, expect(unused_mut))]
         let mut target_authorities: Vec<_> = inner
             .context
             .committee
@@ -761,17 +865,33 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                 }
             })
             .collect();
+        let mut rng = StdRng::from_rng(thread_rng()).expect("thread_rng should be available");
+        // Without ranking, one shuffle for load balancing covers every chunk.
         #[cfg(not(test))]
-        target_authorities.shuffle(&mut ThreadRng::default());
+        if !inner.context.parameters.enable_peer_responsiveness_ranking {
+            target_authorities.shuffle(&mut rng);
+        }
 
         // Fetch headers in chunks to avoid overwhelming the network
         let mut all_headers = Vec::new();
         for chunk in block_refs.chunks(max_headers_per_fetch) {
             let chunk_refs: Vec<_> = chunk.to_vec();
 
+            // Reordered per chunk rather than once, so a peer that stalls on one
+            // chunk is demoted for the rest instead of costing the full timeout
+            // on every one of them.
+            if inner.context.parameters.enable_peer_responsiveness_ranking {
+                inner.context.peer_responsiveness.prioritize(
+                    DataSource::FastCommitSyncer,
+                    &mut target_authorities,
+                    &mut rng,
+                );
+            }
+
             // Try fetching from different authorities until successful
             let mut fetched = false;
             for &authority in &target_authorities {
+                let started = Instant::now();
                 match tokio::time::timeout(
                     FETCH_HEADERS_TIMEOUT,
                     inner.network_client.fetch_block_headers(
@@ -787,6 +907,11 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         // Verify headers match requested refs
                         match verify_fetched_headers(authority, &chunk_refs, serialized_headers) {
                             Ok(headers) => {
+                                inner.context.peer_responsiveness.record_success(
+                                    DataSource::FastCommitSyncer,
+                                    authority,
+                                    started.elapsed(),
+                                );
                                 info!(
                                     "[{}] Fetched {} headers from authority {}",
                                     inner.sync_type.as_str(),
@@ -798,11 +923,10 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                                 break;
                             }
                             Err(e) => {
-                                // TODO: verify_fetched_headers currently only returns
-                                // fetch-shape errors (wrong count/ref) which classify
-                                // as Untracked. When per-header faults become observable
-                                // here, record them as peer misbehavior via
-                                // `inner.misbehavior_store.record_faulty_block_header`.
+                                inner
+                                    .misbehavior_store
+                                    .record_faulty_block(authority, authority, &e);
+                                record_headers_for_reinitialization_failure(&inner, authority);
                                 warn!(
                                     "[{}] Failed to verify headers from {}: {}",
                                     inner.sync_type.as_str(),
@@ -813,6 +937,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         }
                     }
                     Ok(Err(e)) => {
+                        record_headers_for_reinitialization_failure(&inner, authority);
                         warn!(
                             "[{}] Failed to fetch headers from {}: {}",
                             inner.sync_type.as_str(),
@@ -821,6 +946,7 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
                         );
                     }
                     Err(_) => {
+                        record_headers_for_reinitialization_failure(&inner, authority);
                         warn!(
                             "[{}] Timed out fetching headers from {}",
                             inner.sync_type.as_str(),
@@ -877,19 +1003,1170 @@ impl<C: NetworkClient> FastCommitSyncer<C> {
     }
 }
 
+/// Deserializes fetched transaction entries and keys them by their
+/// `TransactionRef`, consuming the matching refs from `committed_tx_refs`.
+///
+/// Every entry must deserialize and match a committed ref: a malformed entry
+/// is a peer fault, not a benign byte cutoff — skipping it would be
+/// indistinguishable from a truncated response and would let the peer cap
+/// every fetch at one commit of progress via the prefix fallback.
+fn process_serialized_transactions(
+    peer: AuthorityIndex,
+    serialized_transactions: Vec<Bytes>,
+    committed_tx_refs: &mut BTreeSet<TransactionRef>,
+) -> ConsensusResult<BTreeMap<TransactionRef, Bytes>> {
+    let mut fetched_transactions = BTreeMap::new();
+    for serialized_transaction in serialized_transactions {
+        let tx_v2: SerializedTransactionsV2 = bcs::from_bytes(&serialized_transaction)
+            .map_err(ConsensusError::MalformedTransactions)?;
+        let transaction_ref = tx_v2.transaction_ref;
+        if !committed_tx_refs.contains(&transaction_ref) {
+            return Err(ConsensusError::UnexpectedTransactionForCommit {
+                peer,
+                received: transaction_ref,
+            });
+        }
+        fetched_transactions.insert(transaction_ref, tx_v2.serialized_transactions);
+        committed_tx_refs.remove(&transaction_ref);
+    }
+    Ok(fetched_transactions)
+}
+
+fn fill_missing_empty_transactions(
+    context: &Context,
+    committed_tx_refs: &mut BTreeSet<TransactionRef>,
+    fetched_transactions: &mut BTreeMap<TransactionRef, Bytes>,
+) {
+    committed_tx_refs.retain(|transaction_ref| {
+        let Some(empty) = context.empty_transactions_for_ref((*transaction_ref).into()) else {
+            return true;
+        };
+        fetched_transactions.insert(*transaction_ref, empty.serialized().clone());
+        false
+    });
+}
+
+/// Truncates verified `commits` (and their aligned per-commit transaction
+/// refs in `commits_tx_refs`) to the longest prefix whose committed
+/// transactions are all present in `fetched_transactions`, and drops fetched
+/// transactions not referenced by that prefix. Commits verified by
+/// `verify_commits` are chained by digest up to a vote-certified last commit,
+/// so any prefix of them remains trusted on its own.
+///
+/// Returns an error naming `peer` when even the first commit is missing
+/// transactions, since the response then allows no forward progress. Not
+/// recorded as misbehavior: an honest response can be cut to any prefix.
+fn truncate_to_fully_fetched_prefix(
+    peer: AuthorityIndex,
+    commits: &mut Vec<TrustedCommit>,
+    commits_tx_refs: &mut Vec<Vec<TransactionRef>>,
+    fetched_transactions: &mut BTreeMap<TransactionRef, Bytes>,
+) -> ConsensusResult<()> {
+    let prefix_len = commits_tx_refs
+        .iter()
+        .take_while(|commit_tx_refs| {
+            commit_tx_refs
+                .iter()
+                .all(|tx_ref| fetched_transactions.contains_key(tx_ref))
+        })
+        .count();
+    if prefix_len == 0 {
+        return Err(ConsensusError::FetchedTransactionsMismatch {
+            peer,
+            expected: commits_tx_refs
+                .iter()
+                .map(|commit_tx_refs| commit_tx_refs.len())
+                .sum(),
+            received: fetched_transactions.len(),
+        });
+    }
+    if prefix_len < commits.len() {
+        commits.truncate(prefix_len);
+        commits_tx_refs.truncate(prefix_len);
+        let prefix_tx_refs: BTreeSet<&TransactionRef> = commits_tx_refs.iter().flatten().collect();
+        fetched_transactions.retain(|tx_ref, _| prefix_tx_refs.contains(tx_ref));
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
+    use std::{
+        sync::Arc,
+        time::{Duration, Instant},
+    };
 
+    use iota_metrics::monitored_mpsc::UnboundedReceiver;
     use iota_protocol_config::ProtocolConfig;
-    use prometheus::Registry;
+    use prometheus_filtered::Registry;
     use starfish_config::{Parameters, local_committee_and_keys};
     use tempfile::TempDir;
     use tokio::time::sleep;
     use tracing::info;
     use typed_store::DBMetrics;
 
-    use crate::authority_node::tests::make_authority_with_params;
+    use crate::{
+        authority_node::tests::make_authority_with_params, commit::CommittedSubDag,
+        commit_consumer::CommitConsumerMonitor, commit_syncer::tests::FakeNetworkClient,
+        context::Context, core_thread::tests::MockCoreThreadDispatcher,
+    };
+
+    mod fetch_once {
+        use std::{
+            sync::{Arc, atomic::AtomicBool},
+            time::Duration,
+        };
+
+        use bytes::Bytes;
+        use parking_lot::RwLock;
+        use starfish_config::AuthorityIndex;
+
+        use crate::{
+            CommitConsumerMonitor, Transaction,
+            block_header::{
+                BlockHeaderDigest, BlockRef, TestBlockHeader, TransactionsCommitment,
+                VerifiedBlockHeader,
+            },
+            block_verifier::NoopBlockVerifier,
+            commit::{CommitDigest, TrustedCommit},
+            commit_syncer::{
+                CommitSyncType, Inner, fast::FastCommitSyncer, tests::FakeNetworkClient,
+            },
+            commit_vote_monitor::CommitVoteMonitor,
+            context::Context,
+            core_thread::{CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
+            dag_state::DagState,
+            encoder::create_encoder,
+            error::ConsensusError,
+            header_synchronizer::HeaderSynchronizer,
+            misbehavior_store::MisbehaviorStore,
+            network::SerializedTransactionsV2,
+            storage::{Store, mem_store::MemStore},
+            transaction_ref::{GenericTransactionRef, TransactionRef},
+            transactions_synchronizer::TransactionsSynchronizer,
+        };
+
+        pub(crate) fn make_inner(
+            context: Arc<Context>,
+            network_client: Arc<FakeNetworkClient>,
+        ) -> Arc<Inner<FakeNetworkClient>> {
+            let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+            let (block_stream_reset_sender, _) = tokio::sync::watch::channel(());
+            make_syncer(
+                context,
+                network_client,
+                core_thread_dispatcher,
+                block_stream_reset_sender,
+            )
+            .inner
+        }
+
+        pub(crate) fn make_syncer<D: CoreThreadDispatcher>(
+            context: Arc<Context>,
+            network_client: Arc<FakeNetworkClient>,
+            core_thread_dispatcher: Arc<D>,
+            block_stream_reset_sender: tokio::sync::watch::Sender<()>,
+        ) -> FastCommitSyncer<FakeNetworkClient> {
+            let block_verifier = Arc::new(NoopBlockVerifier {});
+            let store: Arc<dyn Store> = Arc::new(MemStore::new());
+            let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+            let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+            let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+            let transactions_synchronizer = TransactionsSynchronizer::start(
+                network_client.clone(),
+                context.clone(),
+                core_thread_dispatcher.clone(),
+                dag_state.clone(),
+                block_verifier.clone(),
+            );
+            let header_synchronizer = HeaderSynchronizer::start(
+                network_client.clone(),
+                context.clone(),
+                core_thread_dispatcher.clone(),
+                commit_vote_monitor.clone(),
+                transactions_synchronizer,
+                block_verifier.clone(),
+                dag_state.clone(),
+                false,
+                None,
+                misbehavior_store.clone(),
+            );
+            FastCommitSyncer::new(
+                context,
+                core_thread_dispatcher,
+                commit_vote_monitor,
+                Arc::new(CommitConsumerMonitor::new(0)),
+                network_client,
+                block_verifier,
+                dag_state,
+                header_synchronizer,
+                misbehavior_store,
+                Arc::new(AtomicBool::new(false)),
+                block_stream_reset_sender,
+            )
+        }
+
+        /// A complete `fetch_commits_and_transactions` response for commit
+        /// range 1..=2: both serialized commits, vote headers from a quorum
+        /// certifying the last one, and both serialized transactions.
+        pub(crate) fn two_commit_response(
+            context: &Arc<Context>,
+        ) -> (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>) {
+            two_commit_response_with_payloads(
+                context,
+                [
+                    vec![Transaction::new(vec![1u8; 16])],
+                    vec![Transaction::new(vec![2u8; 16])],
+                ],
+            )
+        }
+
+        fn two_commit_response_with_payloads(
+            context: &Arc<Context>,
+            transactions: [Vec<Transaction>; 2],
+        ) -> (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>) {
+            let mut encoder = create_encoder(context);
+
+            // Two chained commits, each committing one transaction.
+            let mut transaction_refs = Vec::new();
+            let mut serialized_transactions = Vec::new();
+            for (round, transactions) in (1..=2u32).zip(transactions) {
+                let serialized = Transaction::serialize(&transactions).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    context,
+                    &mut encoder,
+                )
+                .unwrap();
+                transaction_refs.push(TransactionRef {
+                    round,
+                    author: AuthorityIndex::new_for_test(0),
+                    transactions_commitment: commitment,
+                });
+                serialized_transactions.push(serialized);
+            }
+            let leader_1 =
+                BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockHeaderDigest::MIN);
+            let commit_1 = TrustedCommit::new_for_test(
+                context,
+                1,
+                CommitDigest::MIN,
+                0,
+                leader_1,
+                vec![leader_1],
+                vec![GenericTransactionRef::TransactionRef(transaction_refs[0])],
+            );
+            let leader_2 =
+                BlockRef::new(2, AuthorityIndex::new_for_test(1), BlockHeaderDigest::MIN);
+            let commit_2 = TrustedCommit::new_for_test(
+                context,
+                2,
+                commit_1.digest(),
+                0,
+                leader_2,
+                vec![leader_2],
+                vec![GenericTransactionRef::TransactionRef(transaction_refs[1])],
+            );
+
+            // Vote headers from a quorum, certifying the last commit.
+            let vote_headers: Vec<Bytes> = (0..3)
+                .map(|author| {
+                    let header = TestBlockHeader::new(3, author)
+                        .set_commit_votes(vec![commit_2.reference()])
+                        .build();
+                    VerifiedBlockHeader::new_for_test(header)
+                        .serialized()
+                        .clone()
+                })
+                .collect();
+
+            let response_transactions: Vec<Bytes> = transaction_refs
+                .iter()
+                .zip(&serialized_transactions)
+                .map(|(transaction_ref, serialized)| {
+                    bcs::to_bytes(&SerializedTransactionsV2 {
+                        transaction_ref: *transaction_ref,
+                        serialized_transactions: serialized.clone(),
+                    })
+                    .unwrap()
+                    .into()
+                })
+                .collect();
+
+            (
+                vec![commit_1.serialized().clone(), commit_2.serialized().clone()],
+                vote_headers,
+                response_transactions,
+            )
+        }
+
+        fn fast_sync_context() -> Arc<Context> {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            Arc::new(context)
+        }
+
+        /// A response whose transaction payload covers only some of the
+        /// returned commits (e.g. the stream was cut off by the response byte
+        /// limit) must still produce output for the covered prefix of commits
+        /// instead of failing the whole fetch.
+        #[tokio::test]
+        async fn returns_covered_prefix_of_truncated_response() {
+            let context = fast_sync_context();
+
+            // Drop the second commit's transaction, as if the transaction
+            // stream was cut off by the response byte limit.
+            let (commits, vote_headers, mut response_transactions) = two_commit_response(&context);
+            response_transactions.truncate(1);
+
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, response_transactions)),
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client);
+
+            let output = FastCommitSyncer::fetch_once(
+                inner,
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap();
+
+            // Only the covered first commit is returned; the scheduler
+            // requeues the remainder of the range.
+            assert_eq!(output.commits.len(), 1);
+            assert_eq!(output.commits[0].reference().index, 1);
+            assert_eq!(output.committed_subdags.len(), 1);
+            assert_eq!(output.committed_subdags[0].commit_ref.index, 1);
+            assert_eq!(output.committed_subdags[0].transactions.len(), 1);
+            assert_eq!(output.voting_block_headers.len(), 3);
+            assert_eq!(
+                context
+                    .metrics
+                    .node_metrics
+                    .commit_sync_truncated_fetches
+                    .with_label_values(&[CommitSyncType::Fast.as_str()])
+                    .get(),
+                1
+            );
+        }
+
+        #[tokio::test]
+        async fn fills_empty_payload_omitted_by_peer() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) =
+                two_commit_response_with_payloads(
+                    &context,
+                    [vec![], vec![Transaction::new(vec![2u8; 16])]],
+                );
+            response_transactions.remove(0);
+
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, response_transactions)),
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client);
+
+            let output = FastCommitSyncer::fetch_once(
+                inner,
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(output.commits.len(), 2);
+            assert_eq!(output.committed_subdags.len(), 2);
+            assert_eq!(output.committed_subdags[0].transactions.len(), 1);
+            assert!(!output.committed_subdags[0].transactions[0].has_transactions());
+            assert!(output.committed_subdags[1].transactions[0].has_transactions());
+        }
+
+        /// Runs `fetch_once` against a preset response served by authority 1
+        /// and returns the error and the `Inner` whose misbehavior store the
+        /// fetch recorded into.
+        async fn fetch_once_error(
+            context: Arc<Context>,
+            response: (Vec<Bytes>, Vec<Bytes>, Vec<Bytes>),
+        ) -> (ConsensusError, Arc<Inner<FakeNetworkClient>>) {
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some(response),
+                ..Default::default()
+            });
+            let inner = make_inner(context, network_client);
+            let err = FastCommitSyncer::fetch_once(
+                inner.clone(),
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap_err();
+            (err, inner)
+        }
+
+        /// Asserts the peers' unprovable fault counts and that no provable
+        /// fault was recorded.
+        fn assert_unprovable_faults(inner: &Inner<FakeNetworkClient>, expected: Vec<u64>) {
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_unprovable(),
+                expected
+            );
+            assert_eq!(
+                inner.misbehavior_store.in_memory_faulty_blocks_provable(),
+                vec![0; 4]
+            );
+        }
+
+        /// An entry referencing a transaction no commit in the range commits
+        /// to is charged to the serving peer.
+        #[tokio::test]
+        async fn records_misbehavior_for_unrequested_transaction() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) = two_commit_response(&context);
+            let serialized = Transaction::serialize(&[Transaction::new(vec![9u8; 16])]).unwrap();
+            let mut encoder = create_encoder(&context);
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized,
+                &context,
+                &mut encoder,
+            )
+            .unwrap();
+            response_transactions.push(
+                bcs::to_bytes(&SerializedTransactionsV2 {
+                    transaction_ref: TransactionRef {
+                        round: 3,
+                        author: AuthorityIndex::new_for_test(0),
+                        transactions_commitment: commitment,
+                    },
+                    serialized_transactions: serialized,
+                })
+                .unwrap()
+                .into(),
+            );
+
+            let (err, inner) =
+                fetch_once_error(context, (commits, vote_headers, response_transactions)).await;
+
+            assert!(
+                matches!(err, ConsensusError::UnexpectedTransactionForCommit { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
+        }
+
+        /// An entry that does not deserialize is charged to the serving peer.
+        #[tokio::test]
+        async fn records_misbehavior_for_malformed_transaction_entry() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, mut response_transactions) = two_commit_response(&context);
+            response_transactions[1] = Bytes::from_static(b"garbage");
+
+            let (err, inner) =
+                fetch_once_error(context, (commits, vote_headers, response_transactions)).await;
+
+            assert!(
+                matches!(err, ConsensusError::MalformedTransactions(_)),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
+        }
+
+        /// A payload that fails the commitment of the ref it is paired with
+        /// is charged to the serving peer, which may have forged the pairing.
+        #[tokio::test]
+        async fn records_misbehavior_for_payload_commitment_mismatch() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, response_transactions) = two_commit_response(&context);
+            // Swap the two payloads so each entry fails its ref's commitment.
+            let mut entries: Vec<SerializedTransactionsV2> = response_transactions
+                .iter()
+                .map(|bytes| bcs::from_bytes(bytes).unwrap())
+                .collect();
+            let payload = entries[0].serialized_transactions.clone();
+            entries[0].serialized_transactions = entries[1].serialized_transactions.clone();
+            entries[1].serialized_transactions = payload;
+            let response_transactions = entries
+                .iter()
+                .map(|entry| bcs::to_bytes(entry).unwrap().into())
+                .collect();
+
+            let (err, inner) =
+                fetch_once_error(context, (commits, vote_headers, response_transactions)).await;
+
+            assert!(
+                matches!(err, ConsensusError::TransactionCommitmentFailure { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0, 1, 0, 0]);
+        }
+
+        /// A response with no transactions fails the fetch but records no
+        /// misbehavior, since an honest response can arrive incomplete.
+        #[tokio::test]
+        async fn does_not_record_misbehavior_for_missing_transactions() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, _) = two_commit_response(&context);
+
+            let (err, inner) = fetch_once_error(context, (commits, vote_headers, vec![])).await;
+
+            assert!(
+                matches!(err, ConsensusError::FetchedTransactionsMismatch { .. }),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0; 4]);
+        }
+
+        /// When no commit is covered because the response stream was cut, the
+        /// fetch reports the connection failure, not a transaction mismatch
+        /// blamed on the peer.
+        #[tokio::test]
+        async fn cut_stream_covering_no_commit_reports_the_cut() {
+            let context = fast_sync_context();
+            let (commits, vote_headers, _) = two_commit_response(&context);
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, vec![])),
+                stream_error_message: Some("stream cut".to_string()),
+                ..Default::default()
+            });
+            let inner = make_inner(context, network_client);
+
+            let err = FastCommitSyncer::fetch_once(
+                inner.clone(),
+                AuthorityIndex::new_for_test(1),
+                (1..=2).into(),
+                Duration::from_millis(100),
+            )
+            .await
+            .unwrap_err();
+
+            assert!(
+                matches!(err, ConsensusError::NetworkRequest(_)),
+                "unexpected error: {err:?}"
+            );
+            assert_unprovable_faults(&inner, vec![0; 4]);
+        }
+    }
+
+    #[tokio::test]
+    async fn block_stream_reset_requires_successful_reinitialization_and_enabled_flag() {
+        for (enabled, should_fail, expect_reset) in [
+            (true, false, true),
+            (false, false, false),
+            (true, true, false),
+        ] {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context
+                .parameters
+                .enable_block_stream_reset_on_fast_sync_exit = enabled;
+            let context = Arc::new(context);
+            let network_client = Arc::new(FakeNetworkClient::default());
+            let core_thread_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+            core_thread_dispatcher.set_reinitialize_components_should_fail(should_fail);
+            let (block_stream_reset_sender, block_stream_reset_receiver) =
+                tokio::sync::watch::channel(());
+            let syncer = fetch_once::make_syncer(
+                context,
+                network_client,
+                core_thread_dispatcher.clone(),
+                block_stream_reset_sender,
+            );
+
+            syncer.reinitialize_components(Vec::new()).await;
+
+            assert_eq!(core_thread_dispatcher.reinitialize_components_calls(), 1);
+            assert_eq!(
+                block_stream_reset_receiver.has_changed().unwrap(),
+                expect_reset,
+                "enabled={enabled}, should_fail={should_fail}"
+            );
+            syncer.inner.header_synchronizer.stop().await.unwrap();
+        }
+    }
+
+    /// Covers the commit-vote ordering in the shared `fetch_loop`, driven
+    /// through the fast syncer because that is the flavour `FakeNetworkClient`
+    /// serves.
+    mod peer_selection_by_commit_votes {
+        use std::{sync::Arc, time::Duration};
+
+        use starfish_config::AuthorityIndex;
+
+        use super::fetch_once::make_inner;
+        use crate::{
+            block_header::{TestBlockHeader, VerifiedBlockHeader},
+            commit::{CommitDigest, CommitRef},
+            commit_syncer::{fast::FastCommitSyncer, fetch_loop, tests::FakeNetworkClient},
+            context::Context,
+        };
+
+        /// Drives one pass of `fetch_loop` over a committee where no peer can
+        /// serve, and reports the order peers were asked in.
+        async fn asked_peers(enabled: bool, voters: &[u8]) -> Vec<AuthorityIndex> {
+            let (mut context, _) = Context::new_for_test(4);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            context
+                .parameters
+                .enable_commit_sync_peer_selection_by_commit_votes = enabled;
+            let context = Arc::new(context);
+
+            // No preset response, so every fetch fails and the loop keeps
+            // trying peers, exposing the full selection order.
+            let network_client = Arc::new(FakeNetworkClient::default());
+            let inner = make_inner(context, network_client.clone());
+            for voter in voters {
+                inner
+                    .commit_vote_monitor
+                    .observe_block(&VerifiedBlockHeader::new_for_test(
+                        TestBlockHeader::new(3, *voter)
+                            .set_commit_votes(vec![CommitRef::new(2, CommitDigest::MIN)])
+                            .build(),
+                    ));
+            }
+
+            let _ = tokio::time::timeout(
+                Duration::from_secs(1),
+                fetch_loop(inner, (1..=2).into(), 2, FastCommitSyncer::fetch_once),
+            )
+            .await;
+
+            let asked = network_client.requested_peers.lock().clone();
+            asked.into_iter().take(3).collect()
+        }
+
+        /// A peer that voted for the end of the range leads, and the peers
+        /// without a vote still follow rather than being dropped.
+        #[tokio::test(start_paused = true)]
+        async fn voters_are_asked_first() {
+            let asked = asked_peers(true, &[3]).await;
+            assert_eq!(
+                asked,
+                vec![
+                    AuthorityIndex::new_for_test(3),
+                    AuthorityIndex::new_for_test(1),
+                    AuthorityIndex::new_for_test(2),
+                ]
+            );
+        }
+
+        /// With the flag off the votes are ignored, restoring the plain order.
+        #[tokio::test(start_paused = true)]
+        async fn disabled_ignores_commit_votes() {
+            let asked = asked_peers(false, &[3]).await;
+            assert_eq!(
+                asked,
+                vec![
+                    AuthorityIndex::new_for_test(1),
+                    AuthorityIndex::new_for_test(2),
+                    AuthorityIndex::new_for_test(3),
+                ]
+            );
+        }
+    }
+
+    /// Covers the peer-responsiveness feedback and ordering in the shared
+    /// `fetch_loop`, driven through the fast syncer because that is the flavour
+    /// `FakeNetworkClient` serves.
+    mod fetch_loop_peer_responsiveness {
+        use std::{sync::Arc, time::Duration};
+
+        use starfish_config::AuthorityIndex;
+
+        use super::fetch_once::{make_inner, two_commit_response};
+        use crate::{
+            commit_syncer::{fast::FastCommitSyncer, fetch_loop, tests::FakeNetworkClient},
+            context::Context,
+            dag_state::DataSource,
+        };
+
+        /// What a failed attempt records. `fetch_loop` charges its base timeout
+        /// times the fast syncer's multiplier, which in a test build is 1s and
+        /// so is lifted to the fast-sync neutral prior; in production the
+        /// charge is 20s and stands on its own. Either way it must not climb
+        /// with the fetch timeout as rounds escalate.
+        const FAILURE_PENALTY_MS: f64 = 2_000.0;
+
+        fn fast_sync_context(committee_size: usize) -> Arc<Context> {
+            let (mut context, _) = Context::new_for_test(committee_size);
+            context
+                .protocol_config
+                .set_consensus_fast_commit_sync_for_testing(true);
+            Arc::new(context)
+        }
+
+        #[tokio::test]
+        async fn records_success_for_the_serving_peer() {
+            let context = fast_sync_context(4);
+            let (commits, vote_headers, transactions) = two_commit_response(&context);
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, transactions)),
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client.clone());
+
+            fetch_loop(inner, (1..=2).into(), 2, FastCommitSyncer::fetch_once).await;
+
+            // Every peer serves, so the first one asked is the one that
+            // succeeded, whichever the selection picked.
+            let requested = network_client.requested_peers.lock().clone();
+            assert_eq!(requested.len(), 1);
+            let latency = context
+                .peer_responsiveness
+                .effective_latency_ms(DataSource::FastCommitSyncer, requested[0])
+                .expect("a served fetch is recorded");
+            assert!(
+                latency < FAILURE_PENALTY_MS,
+                "a success must not be charged the failure penalty, got {latency}"
+            );
+        }
+
+        /// A failed attempt is charged the fixed base timeout rather than the
+        /// timeout that escalates across retry rounds, so a peer that recovers
+        /// is not held at an inflated latency.
+        #[tokio::test(start_paused = true)]
+        async fn records_fixed_penalty_for_the_failing_peer() {
+            let context = fast_sync_context(2);
+            let peer = AuthorityIndex::new_for_test(1);
+            // No preset response, so the only peer always fails and the loop
+            // retries forever.
+            let network_client = Arc::new(FakeNetworkClient::default());
+            let inner = make_inner(context.clone(), network_client);
+
+            let _ = tokio::time::timeout(
+                Duration::from_secs(5),
+                fetch_loop(inner, (1..=2).into(), 2, FastCommitSyncer::fetch_once),
+            )
+            .await;
+
+            assert_eq!(
+                context
+                    .peer_responsiveness
+                    .effective_latency_ms(DataSource::FastCommitSyncer, peer),
+                Some(FAILURE_PENALTY_MS)
+            );
+        }
+
+        /// The recorded latency is scaled by how much of the requested range
+        /// the peer actually delivered, so answering a wide request with a
+        /// short prefix does not rank as if the whole range had been served.
+        #[tokio::test(start_paused = true)]
+        async fn records_success_scaled_by_the_delivered_shortfall() {
+            let context = fast_sync_context(4);
+            let (commits, vote_headers, transactions) = two_commit_response(&context);
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, transactions)),
+                response_delay: Duration::from_millis(200),
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client.clone());
+
+            fetch_loop(inner, (1..=10).into(), 10, FastCommitSyncer::fetch_once).await;
+
+            // Ten commits asked for and two delivered, so the 200ms answer is
+            // recorded as the 1s it would have taken at that rate.
+            let requested = network_client.requested_peers.lock().clone();
+            assert_eq!(
+                context
+                    .peer_responsiveness
+                    .effective_latency_ms(DataSource::FastCommitSyncer, requested[0]),
+                Some(1_000.0)
+            );
+        }
+
+        /// However large the shortfall, a delivering peer records no worse
+        /// than the loop's failure penalty, so it can never rank behind a peer
+        /// that failed outright.
+        #[tokio::test(start_paused = true)]
+        async fn success_records_no_worse_than_the_failure_penalty() {
+            let context = fast_sync_context(4);
+            let (commits, vote_headers, transactions) = two_commit_response(&context);
+            let network_client = Arc::new(FakeNetworkClient {
+                commits_and_transactions: Some((commits, vote_headers, transactions)),
+                response_delay: Duration::from_millis(200),
+                ..Default::default()
+            });
+            let inner = make_inner(context.clone(), network_client.clone());
+
+            fetch_loop(inner, (1..=1_000).into(), 2, FastCommitSyncer::fetch_once).await;
+
+            // Two of a thousand commits delivered in 200ms would scale to
+            // 100s; the record is capped at the failure penalty of this loop.
+            let requested = network_client.requested_peers.lock().clone();
+            assert_eq!(
+                context
+                    .peer_responsiveness
+                    .effective_latency_ms(DataSource::FastCommitSyncer, requested[0]),
+                Some(1_000.0)
+            );
+        }
+
+        /// The ranked order is what runs in production, so pin that the loop
+        /// reaches it: a peer the tracker has never seen fail leads the rounds,
+        /// which the plain committee order would never produce.
+        #[tokio::test(start_paused = true)]
+        async fn ranking_on_leads_with_the_best_ranked_peer() {
+            let mut context = fast_sync_context(4);
+            Arc::get_mut(&mut context)
+                .unwrap()
+                .parameters
+                .enable_peer_responsiveness_ranking = true;
+            // Recorded at far more than a failure inside the loop costs, so
+            // peer 3 stays ahead of both: healthy in the first round, and the
+            // quickest of the failed ones from then on.
+            for peer in [1, 2] {
+                context.peer_responsiveness.record_failure_with_timeout(
+                    DataSource::FastCommitSyncer,
+                    AuthorityIndex::new_for_test(peer),
+                    Duration::from_secs(300),
+                );
+            }
+            let network_client = Arc::new(FakeNetworkClient::default());
+            let inner = make_inner(context.clone(), network_client.clone());
+
+            let _ = tokio::time::timeout(
+                Duration::from_secs(30),
+                fetch_loop(inner, (1..=2).into(), 2, FastCommitSyncer::fetch_once),
+            )
+            .await;
+
+            // No peer can serve, so every round asks all three and the rounds
+            // are consecutive chunks of the request log.
+            let asked = network_client.requested_peers.lock().clone();
+            let rounds: Vec<_> = asked.chunks(3).filter(|round| round.len() == 3).collect();
+            assert!(rounds.len() > 10, "expected several rounds, got {rounds:?}");
+            let led = rounds
+                .iter()
+                .filter(|round| round[0] == AuthorityIndex::new_for_test(3))
+                .count();
+            assert!(
+                led * 2 > rounds.len(),
+                "the best-ranked peer led {led} of {} rounds",
+                rounds.len()
+            );
+        }
+
+        /// With ranking disabled the loop keeps the previous behaviour: peers
+        /// are tried in committee order under test, where the shuffle is
+        /// compiled out.
+        #[tokio::test(start_paused = true)]
+        async fn ranking_off_preserves_committee_order() {
+            let mut context = fast_sync_context(4);
+            let parameters = &mut Arc::get_mut(&mut context).unwrap().parameters;
+            parameters.enable_peer_responsiveness_ranking = false;
+            // Isolate the ordering under test from the commit-vote grouping.
+            parameters.enable_commit_sync_peer_selection_by_commit_votes = false;
+            let network_client = Arc::new(FakeNetworkClient::default());
+            let inner = make_inner(context.clone(), network_client.clone());
+
+            let _ = tokio::time::timeout(
+                Duration::from_secs(1),
+                fetch_loop(inner, (1..=2).into(), 2, FastCommitSyncer::fetch_once),
+            )
+            .await;
+
+            let requested = network_client.requested_peers.lock().clone();
+            let expected: Vec<_> = (1..4).map(AuthorityIndex::new_for_test).collect();
+            assert_eq!(&requested[..expected.len()], &expected[..]);
+        }
+    }
+
+    mod fetch_response_processing {
+        use std::{
+            collections::{BTreeMap, BTreeSet},
+            sync::Arc,
+        };
+
+        use bytes::Bytes;
+        use starfish_config::AuthorityIndex;
+
+        use crate::{
+            BlockRef, Round,
+            block_header::{BlockHeaderDigest, TransactionsCommitment},
+            commit::{CommitDigest, TrustedCommit},
+            commit_syncer::fast::{
+                process_serialized_transactions, truncate_to_fully_fetched_prefix,
+            },
+            context::Context,
+            error::ConsensusError,
+            network::SerializedTransactionsV2,
+            transaction_ref::TransactionRef,
+        };
+
+        fn commit(
+            context: &Arc<Context>,
+            index: u32,
+            transactions: &[TransactionRef],
+        ) -> TrustedCommit {
+            let leader = BlockRef::new(
+                index,
+                AuthorityIndex::new_for_test(0),
+                BlockHeaderDigest::MIN,
+            );
+            TrustedCommit::new_for_test(
+                context,
+                index,
+                CommitDigest::MIN,
+                0,
+                leader,
+                vec![leader],
+                transactions.iter().copied().map(Into::into).collect(),
+            )
+        }
+
+        fn fetched(refs: &[TransactionRef]) -> BTreeMap<TransactionRef, Bytes> {
+            refs.iter().map(|r| (*r, Bytes::new())).collect()
+        }
+
+        #[tokio::test]
+        async fn keeps_all_commits_when_all_transactions_fetched() {
+            let (context, _) = Context::new_for_test(4);
+            let context = Arc::new(context);
+            let (tx_a, tx_b, tx_c) = (plain_ref(1), plain_ref(2), plain_ref(3));
+            let mut commits = vec![
+                commit(&context, 1, &[tx_a]),
+                commit(&context, 2, &[tx_b, tx_c]),
+            ];
+            let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b, tx_c]];
+            let mut transactions = fetched(&[tx_a, tx_b, tx_c]);
+
+            truncate_to_fully_fetched_prefix(
+                AuthorityIndex::new_for_test(1),
+                &mut commits,
+                &mut commits_tx_refs,
+                &mut transactions,
+            )
+            .unwrap();
+
+            assert_eq!(commits.len(), 2);
+            assert_eq!(transactions.len(), 3);
+        }
+
+        #[tokio::test]
+        async fn truncates_to_prefix_and_drops_unreferenced_transactions() {
+            let (context, _) = Context::new_for_test(4);
+            let context = Arc::new(context);
+            let (tx_a, tx_b, tx_c, tx_d) = (plain_ref(1), plain_ref(2), plain_ref(3), plain_ref(4));
+            let first = commit(&context, 1, &[tx_a]);
+            let mut commits = vec![
+                first.clone(),
+                // tx_b was not fetched, so the prefix ends before this commit.
+                commit(&context, 2, &[tx_b, tx_c]),
+                commit(&context, 3, &[tx_d]),
+            ];
+            let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b, tx_c], vec![tx_d]];
+            let mut transactions = fetched(&[tx_a, tx_c, tx_d]);
+
+            truncate_to_fully_fetched_prefix(
+                AuthorityIndex::new_for_test(1),
+                &mut commits,
+                &mut commits_tx_refs,
+                &mut transactions,
+            )
+            .unwrap();
+
+            assert_eq!(commits, vec![first]);
+            assert_eq!(commits_tx_refs, vec![vec![tx_a]]);
+            assert_eq!(transactions.into_keys().collect::<Vec<_>>(), vec![tx_a]);
+        }
+
+        #[tokio::test]
+        async fn errors_when_first_commit_transactions_missing() {
+            let (context, _) = Context::new_for_test(4);
+            let context = Arc::new(context);
+            let (tx_a, tx_b) = (plain_ref(1), plain_ref(2));
+            let peer = AuthorityIndex::new_for_test(1);
+            let mut commits = vec![commit(&context, 1, &[tx_a]), commit(&context, 2, &[tx_b])];
+            let mut commits_tx_refs = vec![vec![tx_a], vec![tx_b]];
+            let mut transactions = fetched(&[tx_b]);
+
+            let result = truncate_to_fully_fetched_prefix(
+                peer,
+                &mut commits,
+                &mut commits_tx_refs,
+                &mut transactions,
+            );
+
+            assert!(matches!(
+                result,
+                Err(ConsensusError::FetchedTransactionsMismatch {
+                    peer: error_peer,
+                    expected: 2,
+                    received: 1,
+                }) if error_peer == peer
+            ));
+        }
+
+        #[tokio::test]
+        async fn commit_without_transactions_counts_toward_prefix() {
+            let (context, _) = Context::new_for_test(4);
+            let context = Arc::new(context);
+            let tx_a = plain_ref(1);
+            let empty = commit(&context, 1, &[]);
+            let mut commits = vec![empty.clone(), commit(&context, 2, &[tx_a])];
+            let mut commits_tx_refs = vec![vec![], vec![tx_a]];
+            let mut transactions = fetched(&[]);
+
+            truncate_to_fully_fetched_prefix(
+                AuthorityIndex::new_for_test(1),
+                &mut commits,
+                &mut commits_tx_refs,
+                &mut transactions,
+            )
+            .unwrap();
+
+            assert_eq!(commits, vec![empty]);
+            assert!(transactions.is_empty());
+        }
+
+        fn plain_ref(round: Round) -> TransactionRef {
+            TransactionRef {
+                round,
+                author: AuthorityIndex::new_for_test(0),
+                transactions_commitment: TransactionsCommitment::MIN,
+            }
+        }
+
+        fn serialized(tx_ref: TransactionRef) -> Bytes {
+            bcs::to_bytes(&SerializedTransactionsV2 {
+                transaction_ref: tx_ref,
+                serialized_transactions: Bytes::new(),
+            })
+            .unwrap()
+            .into()
+        }
+
+        #[tokio::test]
+        async fn consumes_committed_refs_for_wellformed_entries() {
+            let (tx_a, tx_b) = (plain_ref(1), plain_ref(2));
+            let mut committed: BTreeSet<TransactionRef> = [tx_a, tx_b].into_iter().collect();
+
+            let fetched = process_serialized_transactions(
+                AuthorityIndex::new_for_test(1),
+                vec![serialized(tx_a), serialized(tx_b)],
+                &mut committed,
+            )
+            .unwrap();
+
+            assert_eq!(fetched.len(), 2);
+            assert!(committed.is_empty());
+        }
+
+        #[tokio::test]
+        async fn errors_on_malformed_entry() {
+            let tx_a = plain_ref(1);
+            let mut committed: BTreeSet<TransactionRef> = [tx_a].into_iter().collect();
+
+            let result = process_serialized_transactions(
+                AuthorityIndex::new_for_test(1),
+                vec![Bytes::from_static(b"garbage"), serialized(tx_a)],
+                &mut committed,
+            );
+
+            assert!(matches!(
+                result,
+                Err(ConsensusError::MalformedTransactions(_))
+            ));
+        }
+
+        #[tokio::test]
+        async fn errors_on_entry_not_matching_a_committed_ref() {
+            let (tx_a, tx_b) = (plain_ref(1), plain_ref(2));
+            let peer = AuthorityIndex::new_for_test(1);
+            let mut committed: BTreeSet<TransactionRef> = [tx_a].into_iter().collect();
+
+            let result =
+                process_serialized_transactions(peer, vec![serialized(tx_b)], &mut committed);
+
+            assert!(matches!(
+                result,
+                Err(ConsensusError::UnexpectedTransactionForCommit {
+                    peer: error_peer,
+                    received,
+                }) if error_peer == peer && received == tx_b
+            ));
+        }
+    }
+
+    /// Drains all ready committed subdags from the running validators (those
+    /// whose index is not in `stopped`), asserting commit indices advance
+    /// monotonically and updating both the per-validator high-water marks and
+    /// the consumer monitors.
+    fn drain_running(
+        output_receivers: &mut [UnboundedReceiver<CommittedSubDag>],
+        committed_index: &mut [u32],
+        consumer_monitors: &[Arc<CommitConsumerMonitor>],
+        stopped: &[usize],
+    ) {
+        for (index, receiver) in output_receivers.iter_mut().enumerate() {
+            if stopped.contains(&index) {
+                continue;
+            }
+            while let Ok(committed_subdag) = receiver.try_recv() {
+                let commit_index = committed_subdag.commit_ref.index;
+                assert!(
+                    commit_index > committed_index[index],
+                    "Commit index {} should be greater than previous {}",
+                    commit_index,
+                    committed_index[index]
+                );
+                committed_index[index] = commit_index;
+                consumer_monitors[index].set_highest_handled_commit(commit_index);
+            }
+        }
+    }
+
+    /// Runs the running validators (those not in `stopped`) until the highest
+    /// commit index among them reaches `target`, draining their output
+    /// meanwhile. Panics if `target` is not reached within `timeout`.
+    ///
+    /// Phases drive a target commit count rather than a fixed wall-clock
+    /// duration so the gap a restarted validator must close is deterministic
+    /// regardless of how fast the host commits: a too-small gap would fall
+    /// under the fast-sync threshold and silently downgrade to regular
+    /// sync.
+    async fn run_until_commit_index(
+        output_receivers: &mut [UnboundedReceiver<CommittedSubDag>],
+        committed_index: &mut [u32],
+        consumer_monitors: &[Arc<CommitConsumerMonitor>],
+        stopped: &[usize],
+        target: u32,
+        timeout: Duration,
+    ) {
+        let start_time = Instant::now();
+        loop {
+            drain_running(
+                output_receivers,
+                committed_index,
+                consumer_monitors,
+                stopped,
+            );
+            let highest = committed_index
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| !stopped.contains(i))
+                .map(|(_, v)| *v)
+                .max()
+                .unwrap_or(0);
+            if highest >= target {
+                return;
+            }
+            assert!(
+                start_time.elapsed() < timeout,
+                "running validators only reached commit {highest}, expected {target}, within {timeout:?}"
+            );
+            sleep(Duration::from_millis(50)).await;
+        }
+    }
 
     /// Test that voting blocks stored during fast sync can be served to peers.
     /// This test verifies:
@@ -909,7 +2186,6 @@ mod tests {
     /// - Phase 7: Restart B, needs N1-N3 → should get N2-N3 from A's voting
     ///   storage
     #[tokio::test(flavor = "current_thread")]
-    #[serial_test::serial]
     async fn test_fast_sync_voting_blocks_served_to_peer() {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
@@ -919,15 +2195,26 @@ mod tests {
         // stopped.
         const NUM_AUTHORITIES: usize = 7;
         const COMMIT_GAP_THRESHOLD: u32 = 30;
-
-        // Work phases need to be long enough to create a gap larger than
-        // COMMIT_GAP_THRESHOLD (30) for fast sync to trigger.
-        let stable_work_duration = Duration::from_secs(10);
+        // Fast-sync fetch batch size; also the stride at which a fast-syncing
+        // validator stores voting block headers.
+        const FAST_COMMIT_SYNC_BATCH_SIZE: u32 = 20;
+        // Gap a restarted validator must close, in commits. Set comfortably above
+        // COMMIT_GAP_THRESHOLD so fast sync (not regular sync) is selected even with
+        // some slack between the consumer high-water mark and the quorum index.
+        const TARGET_GAP: u32 = COMMIT_GAP_THRESHOLD * 2;
+        // Safety bound on how long a work phase waits to reach its target commit
+        // count; generous so a slow host still completes rather than hangs.
+        let work_phase_timeout = Duration::from_secs(60);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
         let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
         protocol_config.set_gc_depth_for_testing(5);
+        // Shrink the leader-schedule rotation window — which also bounds the
+        // fast-sync reinitialization fetch window — well below TARGET_GAP. With the
+        // default window a recovering node refetches the whole synced gap into its
+        // regular block storage, so the fallback always answers and the voting-block
+        // store this test exercises is never actually consulted.
+        protocol_config.set_commits_per_schedule_for_testing(10);
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -945,13 +2232,22 @@ mod tests {
         for (index, _) in committee.authorities() {
             let parameters = Parameters {
                 db_path: temp_dirs[index.value()].path().to_path_buf(),
-                dag_state_cached_rounds: 5,
+                // Retain enough recent rounds to serve voting-block headers to
+                // lagging peers during catch-up; stabilizes the A/B convergence
+                // asserted below.
+                dag_state_cached_rounds: COMMIT_GAP_THRESHOLD / 2,
                 commit_sync_parallel_fetches: 2,
                 commit_sync_batch_size: 10,
                 commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
-                fast_commit_sync_batch_size: 20,
+                fast_commit_sync_batch_size: FAST_COMMIT_SYNC_BATCH_SIZE,
                 enable_fast_commit_syncer: true,
+                // The assertion below depends on B asking A first, so keep the
+                // peer order plain. Ordering peers by their commit votes is
+                // covered separately and is orthogonal to serving voting
+                // headers.
+                enable_commit_sync_peer_selection_by_commit_votes: false,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+                enable_peer_responsiveness_ranking: false,
                 ..Default::default()
             };
             let (authority, receiver, monitor) = make_authority_with_params(
@@ -971,78 +2267,52 @@ mod tests {
             consumer_monitors.push(monitor);
         }
 
-        // Phase 1: Let all authorities run and commit transactions
-        let start_time = Instant::now();
+        // Phase 1: Let all authorities run and build a shared committed prefix.
         let mut committed_index = [0u32; NUM_AUTHORITIES];
-        while start_time.elapsed() < stable_work_duration {
-            for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                while let Ok(committed_subdag) = receiver.try_recv() {
-                    let commit_index = committed_subdag.commit_ref.index;
-                    assert!(
-                        commit_index > committed_index[index],
-                        "Commit index {} should be greater than previous {}",
-                        commit_index,
-                        committed_index[index]
-                    );
-                    committed_index[index] = commit_index;
-                    consumer_monitors[index].set_highest_handled_commit(commit_index);
-                }
-            }
-            sleep(Duration::from_millis(50)).await;
-        }
+        run_until_commit_index(
+            &mut output_receivers,
+            &mut committed_index,
+            &consumer_monitors,
+            &[],
+            TARGET_GAP,
+            work_phase_timeout,
+        )
+        .await;
 
         // Phase 2: Stop validator B first (so B misses commits created while it's down)
         let last_processed_b = consumer_monitors[validator_b_index].highest_handled_commit();
         authorities.remove(validator_b_index).stop().await;
 
-        // Phase 3: Let A and others continue committing (B misses these)
-        let start_time = Instant::now();
-        while start_time.elapsed() < stable_work_duration {
-            for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                if index == validator_b_index {
-                    continue;
-                }
-                while let Ok(committed_subdag) = receiver.try_recv() {
-                    let commit_index = committed_subdag.commit_ref.index;
-                    assert!(
-                        commit_index > committed_index[index],
-                        "Commit index {} should be greater than previous {}",
-                        commit_index,
-                        committed_index[index]
-                    );
-                    committed_index[index] = commit_index;
-                    consumer_monitors[index].set_highest_handled_commit(commit_index);
-                }
-            }
-            sleep(Duration::from_millis(50)).await;
-        }
+        // Phase 3: Let A and others continue committing (B misses these), advancing
+        // far enough beyond B's stop point that B's gap clears the fast-sync
+        // threshold on restart.
+        run_until_commit_index(
+            &mut output_receivers,
+            &mut committed_index,
+            &consumer_monitors,
+            &[validator_b_index],
+            last_processed_b + TARGET_GAP,
+            work_phase_timeout,
+        )
+        .await;
 
         // Phase 4: Stop validator A
         let last_processed_a = consumer_monitors[validator_a_index].highest_handled_commit();
         authorities.remove(validator_a_index).stop().await;
 
         // Phase 5: Let the remaining validators (all except A and B) continue
-        // committing (both A and B miss these commits)
-        let start_time = Instant::now();
-        while start_time.elapsed() < stable_work_duration {
-            for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                if index == validator_a_index || index == validator_b_index {
-                    continue;
-                }
-                while let Ok(committed_subdag) = receiver.try_recv() {
-                    let commit_index = committed_subdag.commit_ref.index;
-                    assert!(
-                        commit_index > committed_index[index],
-                        "Commit index {} should be greater than previous {}",
-                        commit_index,
-                        committed_index[index]
-                    );
-                    committed_index[index] = commit_index;
-                    consumer_monitors[index].set_highest_handled_commit(commit_index);
-                }
-            }
-            sleep(Duration::from_millis(50)).await;
-        }
+        // committing (both A and B miss these). This is the gap A must close on
+        // restart, so it must clear the fast-sync threshold for A to fast sync and
+        // store voting block headers.
+        run_until_commit_index(
+            &mut output_receivers,
+            &mut committed_index,
+            &consumer_monitors,
+            &[validator_a_index, validator_b_index],
+            last_processed_a + TARGET_GAP,
+            work_phase_timeout,
+        )
+        .await;
 
         // Phase 6: Restart validator A - it will fast sync and store voting blocks
         let parameters = Parameters {
@@ -1051,9 +2321,11 @@ mod tests {
             commit_sync_parallel_fetches: 2,
             commit_sync_batch_size: 10,
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
-            fast_commit_sync_batch_size: 20,
+            fast_commit_sync_batch_size: FAST_COMMIT_SYNC_BATCH_SIZE,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
+            enable_commit_sync_peer_selection_by_commit_votes: false,
+            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
@@ -1072,46 +2344,34 @@ mod tests {
         consumer_monitors[validator_a_index] = monitor;
         authorities.insert(validator_a_index, authority);
 
-        // Wait for validator A to catch up via fast sync
+        // Wait until A has fast-synced two batches past its restart point:
+        // enough for its voting storage to cover B's first overlapping fetch
+        // bound, yet reachable before A can stall on stopped B (batch fetching
+        // stops only within one batch of a head at least three batches ahead).
+        // Unlike a margin below the moving head, a fixed target cannot be
+        // outrun under load, and stopping short of convergence keeps A
+        // un-reinitialized, which serving from voting storage requires.
+        let a_target = last_processed_a + 2 * FAST_COMMIT_SYNC_BATCH_SIZE;
         let start_time = Instant::now();
-        let mut a_caught_up = false;
-        while start_time.elapsed() < Duration::from_secs(60) {
-            for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                if index == validator_b_index {
-                    continue;
-                }
-                while let Ok(committed_subdag) = receiver.try_recv() {
-                    let commit_index = committed_subdag.commit_ref.index;
-                    assert!(
-                        commit_index > committed_index[index],
-                        "Commit index {} should be greater than previous {}",
-                        commit_index,
-                        committed_index[index]
-                    );
-                    committed_index[index] = commit_index;
-                    consumer_monitors[index].set_highest_handled_commit(commit_index);
-                }
-            }
+        let mut a_fast_synced = false;
+        while start_time.elapsed() < Duration::from_secs(90) {
+            drain_running(
+                &mut output_receivers,
+                &mut committed_index,
+                &consumer_monitors,
+                &[validator_b_index],
+            );
 
-            let a_index = consumer_monitors[validator_a_index].highest_handled_commit();
-            let max_other = consumer_monitors
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| *i != validator_a_index && *i != validator_b_index)
-                .map(|(_, m)| m.highest_handled_commit())
-                .max()
-                .unwrap_or(0);
-
-            if a_index > 0 && a_index + 20 >= max_other {
-                a_caught_up = true;
+            if consumer_monitors[validator_a_index].highest_handled_commit() >= a_target {
+                a_fast_synced = true;
                 break;
             }
             sleep(Duration::from_millis(50)).await;
         }
 
         assert!(
-            a_caught_up,
-            "Validator A should have caught up via fast sync"
+            a_fast_synced,
+            "Validator A should have fast-synced at least two fetch batches past its restart point"
         );
 
         // Phase 7: Restart validator B - it needs commits that A fast-synced
@@ -1122,9 +2382,11 @@ mod tests {
             commit_sync_parallel_fetches: 2,
             commit_sync_batch_size: 10,
             commit_sync_gap_threshold: COMMIT_GAP_THRESHOLD,
-            fast_commit_sync_batch_size: 20,
+            fast_commit_sync_batch_size: FAST_COMMIT_SYNC_BATCH_SIZE,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
+            enable_commit_sync_peer_selection_by_commit_votes: false,
+            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(
@@ -1143,43 +2405,38 @@ mod tests {
 
         authorities.insert(validator_b_index, authority);
 
-        // Wait for validator B to catch up
+        // Wait for both restarted validators to catch up: A finishes its
+        // interrupted fast sync once B is reachable again. With all
+        // validators running, neither can stall on an unreachable peer.
         let start_time = Instant::now();
-        let mut b_caught_up = false;
-        while start_time.elapsed() < Duration::from_secs(60) {
-            for (index, receiver) in output_receivers.iter_mut().enumerate() {
-                while let Ok(committed_subdag) = receiver.try_recv() {
-                    let commit_index = committed_subdag.commit_ref.index;
-                    assert!(
-                        commit_index > committed_index[index],
-                        "Commit index {} should be greater than previous {}",
-                        commit_index,
-                        committed_index[index]
-                    );
-                    committed_index[index] = commit_index;
-                    consumer_monitors[index].set_highest_handled_commit(commit_index);
-                }
-            }
+        let mut caught_up = false;
+        while start_time.elapsed() < Duration::from_secs(90) {
+            drain_running(
+                &mut output_receivers,
+                &mut committed_index,
+                &consumer_monitors,
+                &[],
+            );
 
+            let a_index = consumer_monitors[validator_a_index].highest_handled_commit();
             let b_index = consumer_monitors[validator_b_index].highest_handled_commit();
-            let max_other = consumer_monitors
+            let max_index = consumer_monitors
                 .iter()
-                .enumerate()
-                .filter(|(i, _)| *i != validator_b_index)
-                .map(|(_, m)| m.highest_handled_commit())
+                .map(|m| m.highest_handled_commit())
                 .max()
                 .unwrap_or(0);
 
-            if b_index > 0 && b_index + 20 >= max_other {
-                b_caught_up = true;
+            if a_index > 0 && b_index > 0 && a_index + 20 >= max_index && b_index + 20 >= max_index
+            {
+                caught_up = true;
                 break;
             }
             sleep(Duration::from_millis(50)).await;
         }
 
         assert!(
-            b_caught_up,
-            "Validator B should have caught up via fast sync"
+            caught_up,
+            "Validators A and B should have caught up via fast sync"
         );
 
         // Verify both validators A and B have similar commit indices
@@ -1300,8 +2557,7 @@ mod tests {
         let stable_work_duration = Duration::from_secs(10);
 
         let (committee, keypairs) = local_committee_and_keys(0, vec![1; NUM_AUTHORITIES]);
-        let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-        protocol_config.set_consensus_fast_commit_sync_for_testing(true);
+        let protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
 
         let temp_dirs: Vec<TempDir> = (0..NUM_AUTHORITIES)
             .map(|_| TempDir::new().unwrap())
@@ -1330,6 +2586,7 @@ mod tests {
                 fast_commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
                 enable_fast_commit_syncer: index.value() != test_validator_index,
                 sync_last_known_own_block_timeout: Duration::from_millis(2_000),
+                enable_peer_responsiveness_ranking: false,
                 ..Default::default()
             };
             let (authority, receiver, monitor) = make_authority_with_params(
@@ -1514,6 +2771,7 @@ mod tests {
             fast_commit_sync_batch_size: COMMIT_SYNC_BATCH_SIZE,
             sync_last_known_own_block_timeout: Duration::from_millis(2_000),
             enable_fast_commit_syncer: true,
+            enable_peer_responsiveness_ranking: false,
             ..Default::default()
         };
         let (authority, receiver, monitor) = make_authority_with_params(

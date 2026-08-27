@@ -43,6 +43,10 @@ pub struct Committee {
 }
 
 impl Committee {
+    /// Panics on invalid input: empty or oversized committee, or zero or
+    /// overflowing stake. The committee is computed on chain, so violations
+    /// indicate a corrupted or misconstructed configuration rather than a
+    /// recoverable condition.
     pub fn new(epoch: Epoch, authorities: Vec<Authority>) -> Self {
         assert!(!authorities.is_empty(), "Committee cannot be empty!");
         assert!(
@@ -51,9 +55,21 @@ impl Committee {
             authorities.len()
         );
 
-        let total_stake = authorities.iter().map(|a| a.stake).sum::<u64>();
-        assert_ne!(total_stake, 0, "Total stake cannot be zero!");
-        let quorum_threshold = 2 * total_stake / 3 + 1;
+        for authority in &authorities {
+            assert!(
+                authority.stake > 0,
+                "Authority {} cannot have zero stake!",
+                authority.hostname
+            );
+        }
+
+        let total_stake = authorities
+            .iter()
+            .map(|a| a.stake)
+            .try_fold(0u64, u64::checked_add)
+            .expect("Total stake must not overflow u64!");
+        // Widen to u128 for the doubling; the result is at most total_stake.
+        let quorum_threshold = (2 * total_stake as u128 / 3 + 1) as u64;
         let validity_threshold = total_stake.div_ceil(3);
         let committee_size = authorities.len();
         // f and info_length are computed for uniform stakes

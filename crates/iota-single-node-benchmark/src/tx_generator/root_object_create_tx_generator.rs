@@ -4,7 +4,7 @@
 
 use iota_sdk_types::ObjectId;
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, Transaction};
+use iota_types::transaction::{CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TransactionEnvelope};
 
 use crate::{mock_account::Account, tx_generator::TxGenerator};
 
@@ -23,7 +23,7 @@ impl RootObjectCreateTxGenerator {
 }
 
 impl TxGenerator for RootObjectCreateTxGenerator {
-    fn generate_tx(&self, account: Account) -> Transaction {
+    fn generate_tx(&self, account: Account) -> TransactionEnvelope {
         TestTransactionBuilder::new(
             account.sender,
             account.gas_objects[0],
@@ -35,7 +35,7 @@ impl TxGenerator for RootObjectCreateTxGenerator {
             "generate_dynamic_fields",
             vec![CallArg::pure(&self.child_per_root)],
         )
-        .build_and_sign(account.keypair.as_ref())
+        .build_and_sign(account.private_key.as_ref())
     }
 
     fn name(&self) -> &'static str {

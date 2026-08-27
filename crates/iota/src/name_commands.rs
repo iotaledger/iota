@@ -24,11 +24,10 @@ use iota_names::{
 };
 use iota_protocol_config::Chain;
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
-use iota_sdk_types::{Identifier, ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{Address, Identifier, ObjectId, StructTag, TransactionDigest, TypeTag};
 use iota_types::{
-    base_types::IotaAddress,
     collection_types::{Entry, VecMap},
-    digests::{ChainIdentifier, TransactionDigest},
+    digests::ChainIdentifier,
     dynamic_field::Field,
     iota_sdk_types_conversions::struct_tag_sdk_to_core,
 };
@@ -815,7 +814,7 @@ impl NameCommand {
                     args: vec![
                         IotaJsonValue::from_object_id(iota_names_config.object_id),
                         IotaJsonValue::from_object_id(nft.id()),
-                        IotaJsonValue::new(serde_json::to_value(Vec::<IotaAddress>::new())?)?,
+                        IotaJsonValue::new(serde_json::to_value(Vec::<Address>::new())?)?,
                         IotaJsonValue::from_object_id(ObjectId::CLOCK),
                     ],
                     payment,
@@ -1214,7 +1213,7 @@ pub enum NameCommandResult {
     List(Vec<NameRegistration>),
     Lookup {
         name: Name,
-        target_address: Option<IotaAddress>,
+        target_address: Option<Address>,
     },
     Register {
         record: NameRecord,
@@ -1236,7 +1235,7 @@ pub enum NameCommandResult {
         digest: TransactionDigest,
     },
     ReverseLookup {
-        address: IotaAddress,
+        address: Address,
         name: Option<Name>,
     },
     SetReverseLookup {
@@ -1255,11 +1254,11 @@ pub enum NameCommandResult {
     },
     Transfer {
         name: Name,
-        to: IotaAddress,
+        to: Address,
         digest: TransactionDigest,
     },
     UnsetReverseLookup {
-        address: IotaAddress,
+        address: Address,
         digest: TransactionDigest,
     },
     UnsetTargetAddress {
@@ -1629,12 +1628,12 @@ impl std::fmt::Debug for NameCommandResult {
 impl PrintableResult for NameCommandResult {}
 
 async fn get_owned_nfts<T: DeserializeOwned + IotaNamesNft>(
-    address: IotaAddress,
+    address: Address,
     context: &mut WalletContext,
 ) -> anyhow::Result<Vec<T>> {
     let client = context.get_client().await?;
     let iota_names_config = get_iota_names_config(&client).await?;
-    let nft_type = T::type_(iota_names_config.package_address);
+    let nft_type = T::struct_tag(iota_names_config.package_address);
     let responses = PagedFn::collect::<Vec<_>>(async |cursor| {
         client
             .read_api()
@@ -1699,7 +1698,7 @@ impl FromStr for Timestamp {
 
 async fn get_owned_nft_by_name<T: DeserializeOwned + IotaNamesNft>(
     name: &Name,
-    sender: Option<IotaAddress>,
+    sender: Option<Address>,
     context: &mut WalletContext,
 ) -> anyhow::Result<T> {
     let name = name.to_string();
@@ -1716,7 +1715,7 @@ async fn get_owned_nft_by_name<T: DeserializeOwned + IotaNamesNft>(
 
 async fn get_proxy_nft_by_name(
     name: &Name,
-    sender: Option<IotaAddress>,
+    sender: Option<Address>,
     context: &mut WalletContext,
 ) -> anyhow::Result<IotaNamesNftProxy> {
     Ok(if name.is_sln() {
@@ -1737,7 +1736,7 @@ pub async fn get_registry_entry(
 }
 
 async fn get_reverse_registry_entry(
-    address: IotaAddress,
+    address: Address,
     client: &IotaClient,
 ) -> anyhow::Result<Option<ReverseRegistryEntry>> {
     let iota_names_config = get_iota_names_config(client).await?;
@@ -1867,10 +1866,10 @@ impl IotaNamesNftProxy {
         fn id(&self) -> ObjectId;
     }
 
-    fn type_(&self, package_id: IotaAddress) -> StructTag {
+    fn type_(&self, package_id: Address) -> StructTag {
         match self {
-            IotaNamesNftProxy::Name(_) => NameRegistration::type_(package_id),
-            IotaNamesNftProxy::Subname(_) => SubnameRegistration::type_(package_id),
+            IotaNamesNftProxy::Name(_) => NameRegistration::struct_tag(package_id),
+            IotaNamesNftProxy::Subname(_) => SubnameRegistration::struct_tag(package_id),
         }
     }
 
@@ -1977,7 +1976,7 @@ async fn select_coin_arg_for_payment(
     name: &str,
     coin: Option<ObjectId>,
     price: u64,
-    sender: Option<IotaAddress>,
+    sender: Option<Address>,
     context: &mut WalletContext,
 ) -> anyhow::Result<String> {
     Ok(match coin {
@@ -2028,7 +2027,7 @@ async fn fetch_package_id_by_module_and_name(
         .get_dynamic_fields(names_config.object_id, None, None)
         .await?;
     for dynamic_field in dynamic_fields_page.data {
-        if let TypeTag::Struct(ref tag) = dynamic_field.name.type_ {
+        if let TypeTag::Struct(ref tag) = dynamic_field.name.type_tag {
             for param in tag.type_params() {
                 if let TypeTag::Struct(ref param_tag) = param {
                     if param_tag.module() == module_name && param_tag.name() == struct_name {
@@ -2106,7 +2105,7 @@ struct CouponRange {
 struct CouponRules {
     pub length: Option<CouponRange>,
     pub available_claims: Option<u64>,
-    pub user: Option<IotaAddress>,
+    pub user: Option<Address>,
     pub expiration: Option<u64>,
     pub years: Option<CouponRange>,
     pub can_stack: bool,

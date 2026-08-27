@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use itertools::Itertools;
-use prometheus::proto::{Counter, Gauge, Histogram, Metric, MetricFamily, MetricType};
+use prometheus_filtered::proto::{Counter, Gauge, Histogram, Metric, MetricFamily, MetricType};
 use tracing::{debug, error};
 
 use crate::{remote_write, var};
@@ -202,7 +202,7 @@ impl Mimir<remote_write::TimeSeries> {
 
 #[cfg(test)]
 pub mod tests {
-    use prometheus::proto;
+    use prometheus_filtered::proto;
 
     use crate::{prom_to_mimir::Mimir, remote_write};
 

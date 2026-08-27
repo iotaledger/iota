@@ -10,7 +10,7 @@ use iota_data_ingestion_core::{
     reader::v2::{CheckpointReaderConfig, RemoteUrl},
 };
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};

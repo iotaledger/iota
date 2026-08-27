@@ -23,8 +23,8 @@ use axum::{
 use dashmap::DashMap;
 use once_cell::sync::OnceCell;
 use parking_lot::Mutex;
-use prometheus::{
-    Histogram, IntCounterVec, IntGaugeVec, Registry, TextEncoder,
+use prometheus_filtered::{
+    Filter, Histogram, IntCounterVec, IntGaugeVec, Registry, TextEncoder,
     core::{AtomicI64, GenericGauge},
     register_histogram_with_registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
@@ -39,10 +39,16 @@ mod guards;
 pub mod hardware_metrics;
 pub mod histogram;
 pub mod metered_channel;
+pub mod metric_groups;
 pub mod metrics_network;
 pub mod monitored_mpsc;
+// Relies on tokio's `RuntimeMetrics`, which the deterministic simulator's tokio
+// fork does not provide; the node only starts these monitors outside simtests.
+#[cfg(not(msim))]
+pub mod runtime_metrics;
 pub mod thread_stall_monitor;
 pub use guards::*;
+pub use metric_groups::{MetricGroups, MetricLevel};
 
 pub const TX_TYPE_SINGLE_WRITER_TX: &str = "single_writer";
 pub const TX_TYPE_SHARED_OBJ_TX: &str = "shared_object";
@@ -99,21 +105,24 @@ impl Metrics {
                 "monitored_tasks",
                 "Number of running tasks per callsite.",
                 &["callsite"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             futures: register_int_gauge_vec_with_registry!(
                 "monitored_futures",
                 "Number of pending futures per callsite.",
                 &["callsite"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             channel_inflight: register_int_gauge_vec_with_registry!(
                 "monitored_channel_inflight",
                 "Inflight items in channels.",
                 &["name"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             channel_sent: register_int_gauge_vec_with_registry!(
@@ -214,21 +223,31 @@ pub async fn with_new_server_timing<T>(fut: impl Future<Output = T> + Send + 'st
     ret.unwrap()
 }
 
+/// The `Server-Timing` HTTP header key.
+pub fn server_timing_header_key() -> &'static str {
+    Timer::header_key()
+}
+
+/// Add a final `finish_request` entry and write the collected timings to the
+/// `Server-Timing` response header. No-op outside a server-timing context.
+pub fn finish_and_set_server_timing_header(headers: &mut http::HeaderMap) {
+    let Some(timer) = get_server_timing() else {
+        return;
+    };
+    let header_value = {
+        let mut timer = timer.lock();
+        timer.add("finish_request");
+        timer.header_value()
+    };
+    if let Ok(value) = http::HeaderValue::try_from(header_value) {
+        headers.insert(server_timing_header_key(), value);
+    }
+}
+
 pub async fn server_timing_middleware(request: Request, next: Next) -> Response {
     with_new_server_timing(async move {
         let mut response = next.run(request).await;
-        add_server_timing("finish_request");
-
-        if let Ok(header_value) = get_server_timing()
-            .expect("server timing not set")
-            .lock()
-            .header_value()
-            .try_into()
-        {
-            response
-                .headers_mut()
-                .insert(Timer::header_key(), header_value);
-        }
+        finish_and_set_server_timing_header(response.headers_mut());
         response
     })
     .await
@@ -540,6 +559,7 @@ pub struct RegistryService {
     // Holds a Registry that is supposed to be used
     default_registry: Registry,
     registries_by_id: Arc<DashMap<Uuid, Registry>>,
+    filter: Arc<Filter>,
 }
 
 impl RegistryService {
@@ -547,6 +567,7 @@ impl RegistryService {
     // is supposed to be preserved and never get removed
     pub fn new(default_registry: Registry) -> Self {
         Self {
+            filter: default_registry.filter(),
             default_registry,
             registries_by_id: Arc::new(DashMap::new()),
         }
@@ -556,6 +577,22 @@ impl RegistryService {
     // if they don't want to create a new one.
     pub fn default_registry(&self) -> Registry {
         self.default_registry.clone()
+    }
+
+    /// Returns the metrics filter shared by the service's registries.
+    pub fn filter(&self) -> Arc<Filter> {
+        self.filter.clone()
+    }
+
+    // Creates a new registry that shares the service's metric filter. Prefer
+    // this over `Registry::new()`/`Registry::new_custom()` for registries added
+    // via `add`, so that the configured filter applies to their metrics too.
+    pub fn new_registry_custom(
+        &self,
+        prefix: Option<String>,
+        labels: Option<std::collections::HashMap<String, String>>,
+    ) -> prometheus_filtered::Result<Registry> {
+        Registry::new_custom(prefix, labels, Some(self.filter.clone()))
     }
 
     // Adds a new registry to the service. The corresponding RegistryID is returned
@@ -595,8 +632,27 @@ impl RegistryService {
     }
 
     // Returns all the metric families from the registries that a service holds.
-    pub fn gather_all(&self) -> Vec<prometheus::proto::MetricFamily> {
+    pub fn gather_all(&self) -> Vec<prometheus_filtered::proto::MetricFamily> {
         self.get_all().iter().flat_map(|r| r.gather()).collect()
+    }
+
+    /// Sets the runtime override on the shared filter; every registry's next
+    /// gather exposes metrics per the new directives. `filter` may use
+    /// [`MetricGroups`] names, which are expanded for matching while the
+    /// string is echoed back as given. Rejects the whole update if any
+    /// directive is invalid.
+    pub fn set_runtime_filter(&self, filter: &str) -> std::result::Result<(), String> {
+        let expanded = MetricGroups::expand_directives(filter)?;
+        self.filter
+            .set_runtime_filter(prometheus_filtered::FilterSource::with_display(
+                &expanded, filter,
+            ))
+    }
+
+    /// Drops the runtime override on the shared filter, restoring every
+    /// registry to its startup exposure.
+    pub fn reset_runtime_filter(&self) {
+        self.filter.reset_runtime_filter();
     }
 }
 
@@ -612,8 +668,8 @@ pub fn uptime_metric(
     process: &str,
     version: &'static str,
     chain_identifier: &str,
-) -> Box<dyn prometheus::core::Collector> {
-    let opts = prometheus::opts!("uptime", "uptime of the node service in seconds")
+) -> Box<dyn prometheus_filtered::core::Collector> {
+    let opts = prometheus_filtered::opts!("uptime", "uptime of the node service in seconds")
         .variable_label("process")
         .variable_label("version")
         .variable_label("chain_identifier")
@@ -653,7 +709,14 @@ pub const METRICS_ROUTE: &str = "/metrics";
 // A RegistryService is returned that can be used to get access in prometheus
 // Registries.
 pub fn start_prometheus_server(addr: SocketAddr) -> RegistryService {
-    let registry = Registry::new();
+    start_prometheus_server_with_filter(addr, Filter::from_env())
+}
+
+pub fn start_prometheus_server_with_filter(addr: SocketAddr, filter: Filter) -> RegistryService {
+    // The default registry has no prefix or labels, so its construction is
+    // infallible.
+    let registry = Registry::new_custom(None, None, Some(Arc::new(filter)))
+        .expect("unprefixed registry is infallible");
 
     let registry_service = RegistryService::new(registry);
 
@@ -700,14 +763,15 @@ pub async fn metrics(
 
 #[cfg(test)]
 mod tests {
-    use prometheus::{IntCounter, Registry};
+    use prometheus_filtered::{IntCounter, Registry};
 
     use crate::RegistryService;
 
     #[test]
     fn registry_service() {
         // GIVEN
-        let default_registry = Registry::new_custom(Some("default".to_string()), None).unwrap();
+        let default_registry =
+            Registry::new_custom(Some("default".to_string()), None, None).unwrap();
 
         let registry_service = RegistryService::new(default_registry.clone());
         let default_counter = IntCounter::new("counter", "counter_desc").unwrap();
@@ -719,7 +783,7 @@ mod tests {
         // AND add a metric to the default registry
 
         // AND a registry with one metric
-        let registry_1 = Registry::new_custom(Some("iota".to_string()), None).unwrap();
+        let registry_1 = Registry::new_custom(Some("iota".to_string()), None, None).unwrap();
         registry_1
             .register(Box::new(
                 IntCounter::new("counter_1", "counter_1_desc").unwrap(),
@@ -739,12 +803,12 @@ mod tests {
         assert_eq!(metric_default.name(), "default_counter");
         assert_eq!(metric_default.help(), "counter_desc");
 
-        let metric_1: prometheus::proto::MetricFamily = metrics.remove(0);
+        let metric_1: prometheus_filtered::proto::MetricFamily = metrics.remove(0);
         assert_eq!(metric_1.name(), "iota_counter_1");
         assert_eq!(metric_1.help(), "counter_1_desc");
 
         // AND add a second registry with a metric
-        let registry_2 = Registry::new_custom(Some("iota".to_string()), None).unwrap();
+        let registry_2 = Registry::new_custom(Some("iota".to_string()), None, None).unwrap();
         registry_2
             .register(Box::new(
                 IntCounter::new("counter_2", "counter_2_desc").unwrap(),
@@ -786,5 +850,68 @@ mod tests {
         let metric_1 = metrics.remove(0);
         assert_eq!(metric_1.name(), "iota_counter_2");
         assert_eq!(metric_1.help(), "counter_2_desc");
+    }
+
+    #[test]
+    fn set_runtime_filter_applies_to_all_registries() {
+        use std::sync::Arc;
+
+        use prometheus_filtered::{Filter, MetricLevel};
+
+        fn gathered_names(service: &RegistryService) -> Vec<String> {
+            let mut names: Vec<_> = service
+                .gather_all()
+                .iter()
+                .map(|f| f.name().to_owned())
+                .collect();
+            names.sort();
+            names
+        }
+
+        // Both registries share the service's filter, which starts at `warn`
+        // for this module, hiding the default-level (`debug`) gauges.
+        let filter = Arc::new(Filter::parse("iota_metrics=warn"));
+        let default_registry =
+            Registry::new_custom(Some("default".to_string()), None, Some(filter)).unwrap();
+        let registry_service = RegistryService::new(default_registry.clone());
+        let second_registry = registry_service
+            .new_registry_custom(Some("second".to_string()), None)
+            .unwrap();
+        registry_service.add(second_registry.clone());
+
+        for registry in [&default_registry, &second_registry] {
+            prometheus_filtered::register_int_gauge_with_registry!(
+                "g_warn", "h", registry; MetricLevel::Warn
+            )
+            .unwrap();
+            prometheus_filtered::register_int_gauge_with_registry!("g_debug", "h", registry)
+                .unwrap();
+        }
+        assert_eq!(
+            gathered_names(&registry_service),
+            ["default_g_warn", "second_g_warn"]
+        );
+
+        // One runtime update changes the exposure of every registry in the
+        // service.
+        registry_service
+            .set_runtime_filter("runtime=debug")
+            .unwrap();
+        assert_eq!(
+            gathered_names(&registry_service),
+            [
+                "default_g_debug",
+                "default_g_warn",
+                "second_g_debug",
+                "second_g_warn"
+            ]
+        );
+
+        // Reset restores the startup exposure across all registries.
+        registry_service.reset_runtime_filter();
+        assert_eq!(
+            gathered_names(&registry_service),
+            ["default_g_warn", "second_g_warn"]
+        );
     }
 }

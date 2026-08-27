@@ -2,13 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, StructTag, TypeTag};
+use iota_sdk_types::{ObjectId, Version};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
-use crate::{IOTA_FRAMEWORK_ADDRESS, base_types::SequenceNumber, id::ID};
+use crate::{IOTA_FRAMEWORK_ADDRESS, id::ID};
 
 pub const RESOLVED_RECEIVING_STRUCT: (&AccountAddress, &IdentStr, &IdentStr) = (
     &IOTA_FRAMEWORK_ADDRESS,
@@ -20,11 +20,11 @@ pub const RESOLVED_RECEIVING_STRUCT: (&AccountAddress, &IdentStr, &IdentStr) = (
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Receiving {
     pub id: ID,
-    pub version: SequenceNumber,
+    pub version: Version,
 }
 
 impl Receiving {
-    pub fn new(id: ObjectId, version: SequenceNumber) -> Self {
+    pub fn new(id: ObjectId, version: Version) -> Self {
         Self {
             id: ID::new(id),
             version,
@@ -33,14 +33,6 @@ impl Receiving {
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
         bcs::to_bytes(self).expect("Value representation is owned and should always serialize")
-    }
-
-    pub fn struct_tag(value_type: TypeTag) -> StructTag {
-        StructTag::new_transfer_receiving(value_type)
-    }
-
-    pub fn type_tag(value_type: TypeTag) -> TypeTag {
-        TypeTag::Struct(Box::new(Self::struct_tag(value_type)))
     }
 
     pub fn is_receiving(view: &CompiledModule, s: &SignatureToken) -> bool {

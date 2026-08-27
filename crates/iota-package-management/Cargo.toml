@@ -15,11 +15,8 @@ anyhow.workspace = true
 thiserror.workspace = true
 
 # internal dependencies
-iota-json-rpc-types.workspace = true
 iota-protocol-config.workspace = true
-iota-sdk.workspace = true
 iota-sdk-types.workspace = true
-iota-types.workspace = true
 move-package.workspace = true
 move-symbol-pool.workspace = true
 
@@ -28,7 +25,7 @@ move-symbol-pool.workspace = true
 anyhow.workspace = true
 
 # internal dependencies
-iota-framework-snapshot.workspace = true
+iota-framework-snapshot-manifest.workspace = true
 
 [lints]
 workspace = true

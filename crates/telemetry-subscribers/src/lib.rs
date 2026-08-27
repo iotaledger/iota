@@ -161,7 +161,7 @@ pub struct TelemetryConfig {
     pub crash_on_panic: bool,
     /// Optional Prometheus registry - if present, all enabled span latencies
     /// are measured.
-    pub prom_registry: Option<prometheus::Registry>,
+    pub prom_registry: Option<prometheus_filtered::Registry>,
     /// Disable the `PrometheusSpanLatencyLayer` even when a `prom_registry`
     /// is set. The layer is a known tracing hotspot in node production
     /// configs that don't read span-latency metrics.
@@ -414,7 +414,7 @@ impl TelemetryConfig {
         self
     }
 
-    pub fn with_prom_registry(mut self, registry: &prometheus::Registry) -> Self {
+    pub fn with_prom_registry(mut self, registry: &prometheus_filtered::Registry) -> Self {
         self.prom_registry = Some(registry.clone());
         self
     }
@@ -748,7 +748,7 @@ pub fn init_for_testing() {
 mod tests {
     use std::time::Duration;
 
-    use prometheus::proto::MetricType;
+    use prometheus_filtered::proto::MetricType;
     use tracing::{debug, debug_span, info, trace_span, warn};
 
     use super::*;
@@ -756,7 +756,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_telemetry_init() {
-        let registry = prometheus::Registry::new();
+        let registry = prometheus_filtered::Registry::new();
         // Default logging level is INFO, but here we set the span level to DEBUG.
         // TRACE spans should be ignored.
         let config = TelemetryConfig::new()

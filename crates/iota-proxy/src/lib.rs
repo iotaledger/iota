@@ -39,7 +39,7 @@ mod tests {
 
     use axum::{Router, http::StatusCode, routing::post};
     use iota_tls::{ClientCertVerifier, TlsAcceptor};
-    use prometheus::{Encoder, PROTOBUF_FORMAT};
+    use prometheus_filtered::{Encoder, PROTOBUF_FORMAT};
 
     use super::*;
     use crate::{
@@ -186,7 +186,7 @@ mod tests {
         );
 
         let mut buf = vec![];
-        let encoder = prometheus::ProtobufEncoder::new();
+        let encoder = prometheus_filtered::ProtobufEncoder::new();
         encoder.encode(&[mf], &mut buf).unwrap();
 
         let res = client
@@ -300,7 +300,7 @@ mod tests {
         );
 
         let mut buf = vec![];
-        let encoder = prometheus::ProtobufEncoder::new();
+        let encoder = prometheus_filtered::ProtobufEncoder::new();
         encoder.encode(&[mf], &mut buf).unwrap();
 
         let res = client

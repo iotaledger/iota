@@ -4,16 +4,8 @@
 use std::str::FromStr;
 
 use clap::{Arg, Command};
-use iota_sdk::{
-    IotaClientBuilder,
-    types::{crypto::EncodeDecodeBase64, transaction::TransactionData},
-};
-
-fn transaction_from_base64(b64: &str) -> Result<TransactionData, anyhow::Error> {
-    let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
-        .map_err(|e| anyhow::format_err!("Invalid base64 in transaction: {e}"))?;
-    bcs::from_bytes(&bytes).map_err(|e| anyhow::format_err!("Invalid transaction format: {e}"))
-}
+use iota_sdk::IotaClientBuilder;
+use iota_sdk_types::Transaction;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -68,16 +60,17 @@ async fn main() -> Result<(), anyhow::Error> {
         println!("No IOTA network specified, only blind-signing supported.");
     }
 
-    let transaction = transaction_from_base64(matches.get_one::<String>("transaction").unwrap())?;
+    let transaction = Transaction::from_base64(matches.get_one::<String>("transaction").unwrap())
+        .map_err(|e| anyhow::format_err!("Invalid transaction: {e}"))?;
 
     let signer = iota_ledger_signer::LedgerSigner::new_with_default(derivation_path, client)?;
 
     // Get the signer's address
     let address = signer.get_address()?;
-    println!("Signer address: {}", &address);
+    println!("Signer address: {address}");
 
     let signed_tx = signer.sign_transaction(&transaction, &address).await?;
-    println!("Signature: {}", signed_tx.signature.encode_base64());
+    println!("Signature: {}", signed_tx.signature.to_base64());
 
     Ok(())
 }

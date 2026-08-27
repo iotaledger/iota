@@ -12,9 +12,10 @@ use fastcrypto::{
     traits::EncodeDecodeBase64,
 };
 use iota_protocol_config::ProtocolConfig;
+use iota_sdk_crypto::{Signer as _, ToFromBytes as _};
 use iota_sdk_types::{
-    Owner,
-    crypto::{Intent, IntentMessage, IntentScope},
+    Address, Digest, Owner, TransactionDigest,
+    crypto::{Intent, IntentMessage, IntentScope, SimpleSignature},
 };
 use move_binary_format::file_format;
 
@@ -22,20 +23,19 @@ use super::*;
 use crate::{
     base_types::TypeTag,
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
-        IotaSignature, Signature, SignatureScheme,
+        AccountPrivateKey, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
         bcs_signable_test::{Bar, Foo},
-        get_key_pair, get_key_pair_from_bytes,
+        get_key_pair,
     },
-    digests::{Digest, TransactionDigest},
     dynamic_field::DynamicFieldInfo,
     gas_coin::GasCoin,
     object::Object,
+    signature::{AuthenticatorTrait, VerifyParams},
 };
 
 #[test]
 fn test_bcs_enum() {
-    let address = Owner::Address(IotaAddress::random());
+    let address = Owner::Address(Address::random());
     let shared = Owner::Shared(1.into());
 
     let address_ser = bcs::to_bytes(&address).unwrap();
@@ -48,60 +48,50 @@ fn test_bcs_enum() {
 
 #[test]
 fn test_signatures() {
-    let (addr1, sec1): (_, AccountKeyPair) = get_key_pair();
-    let (addr2, _sec2): (_, AccountKeyPair) = get_key_pair();
+    let (addr1, sec1): (_, AccountPrivateKey) = get_key_pair();
+    let addr2 = Address::random();
 
     let foo = IntentMessage::new(Intent::iota_transaction(), Foo("hello".into()));
     let foox = IntentMessage::new(Intent::iota_transaction(), Foo("hellox".into()));
     let bar = IntentMessage::new(Intent::iota_transaction(), Bar("hello".into()));
 
-    let s = Signature::new_secure(&foo, &sec1);
+    let aux = VerifyParams::default();
+    let s: SimpleSignature = sec1.sign(&foo.signing_digest());
+    assert!(s.verify_claims(&foo, addr1, &aux).is_ok());
+    assert!(s.verify_claims(&foo, addr2, &aux).is_err());
+    assert!(s.verify_claims(&foox, addr1, &aux).is_err());
     assert!(
-        s.verify_secure(&foo, addr1, SignatureScheme::ED25519)
-            .is_ok()
-    );
-    assert!(
-        s.verify_secure(&foo, addr2, SignatureScheme::ED25519)
-            .is_err()
-    );
-    assert!(
-        s.verify_secure(&foox, addr1, SignatureScheme::ED25519)
-            .is_err()
-    );
-    assert!(
-        s.verify_secure(
+        s.verify_claims(
             &IntentMessage::new(
                 Intent::iota_app(IntentScope::SenderSignedTransaction),
                 Foo("hello".into())
             ),
             addr1,
-            SignatureScheme::ED25519
+            &aux,
         )
         .is_err()
     );
 
     // The struct type is different, but the serialization is the same.
-    assert!(
-        s.verify_secure(&bar, addr1, SignatureScheme::ED25519)
-            .is_ok()
-    );
+    assert!(s.verify_claims(&bar, addr1, &aux).is_ok());
 }
 
 #[test]
 fn test_signatures_serde() {
-    let (_, sec1): (_, AccountKeyPair) = get_key_pair();
+    let sec1 = AccountPrivateKey::random();
     let foo = Foo("hello".into());
-    let s = Signature::new_secure(&IntentMessage::new(Intent::iota_transaction(), foo), &sec1);
+    let s: SimpleSignature =
+        sec1.sign(&IntentMessage::new(Intent::iota_transaction(), foo).signing_digest());
 
     let serialized = bcs::to_bytes(&s).unwrap();
     println!("{serialized:?}");
-    let deserialized: Signature = bcs::from_bytes(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), s.as_ref());
+    let deserialized: SimpleSignature = bcs::from_bytes(&serialized).unwrap();
+    assert_eq!(deserialized.to_bytes(), s.to_bytes());
 }
 
 #[test]
 fn test_max_sequence_number() {
-    let max = SequenceNumber::MAX_VALID_EXCL;
+    let max = Version::MAX_VALID_EXCL;
     assert_eq!(max * 2 + 1, u64::MAX);
 }
 
@@ -119,13 +109,13 @@ fn test_gas_coin_ser_deser_roundtrip() {
 #[test]
 fn test_lamport_increment_version() {
     let versions = [
-        SequenceNumber::from(1),
-        SequenceNumber::from(3),
-        SequenceNumber::from(257),
-        SequenceNumber::from(42),
+        Version::from(1),
+        Version::from(3),
+        Version::from(257),
+        Version::from(42),
     ];
 
-    let incremented = SequenceNumber::lamport_increment(versions).unwrap();
+    let incremented = Version::lamport_increment(versions).unwrap();
 
     for version in versions {
         assert!(version < incremented, "Expected: {version} < {incremented}");
@@ -247,44 +237,44 @@ fn test_object_id_zero_padding() {
     let obj_id_4: ObjectId = serde_json::from_str(&format!("\"{hex}\"")).unwrap();
     let obj_id_5: ObjectId = serde_json::from_str(&format!("\"{long_hex}\"")).unwrap();
     let obj_id_6: ObjectId = serde_json::from_str(&format!("\"{long_hex_alt}\"")).unwrap();
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_1.as_bytes());
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_2.as_bytes());
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_3.as_bytes());
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_4.as_bytes());
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_5.as_bytes());
-    assert_eq!(IotaAddress::FRAMEWORK.as_bytes(), obj_id_6.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_1.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_2.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_3.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_4.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_5.as_bytes());
+    assert_eq!(Address::FRAMEWORK.as_bytes(), obj_id_6.as_bytes());
 }
 
 #[test]
 fn test_address_display() {
-    let id = IotaAddress::from_str(SAMPLE_ADDRESS).unwrap();
+    let id = Address::from_str(SAMPLE_ADDRESS).unwrap();
     assert_eq!(format!("{id}"), SAMPLE_ADDRESS);
 }
 
 #[test]
 fn test_address_serde_not_human_readable() {
-    let address = IotaAddress::random();
+    let address = Address::random();
     let serialized = bincode::serialize(&address).unwrap();
     let bcs_serialized = bcs::to_bytes(&address).unwrap();
     // bincode use 8 bytes for BYTES len and bcs use 1 byte
     assert_eq!(serialized, bcs_serialized);
     assert_eq!(address.as_bytes(), &serialized[..]);
-    let deserialized: IotaAddress = bincode::deserialize(&serialized).unwrap();
+    let deserialized: Address = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, address);
 }
 
 #[test]
 fn test_address_serde_human_readable() {
-    let address = IotaAddress::random();
+    let address = Address::random();
     let serialized = serde_json::to_string(&address).unwrap();
     assert_eq!(format!("\"{address}\""), serialized);
-    let deserialized: IotaAddress = serde_json::from_str(&serialized).unwrap();
+    let deserialized: Address = serde_json::from_str(&serialized).unwrap();
     assert_eq!(deserialized, address);
 }
 
 #[test]
 fn test_address_serde_with_expected_value() {
-    let address = IotaAddress::from_bytes(SAMPLE_ADDRESS_VEC).unwrap();
+    let address = Address::from_bytes(SAMPLE_ADDRESS_VEC).unwrap();
     let json_serialized = serde_json::to_string(&address).unwrap();
     let bcs_serialized = bcs::to_bytes(&address).unwrap();
 
@@ -353,10 +343,10 @@ fn test_object_id_from_empty_string() {
 
 #[test]
 fn test_move_object_size_for_gas_metering() {
-    let object = Object::with_id_owner_for_testing(ObjectId::random(), IotaAddress::random());
+    let object = Object::with_id_owner_for_testing(ObjectId::random(), Address::random());
     let size = object.object_size_for_gas_metering();
     let serialized = bcs::to_bytes(&object).unwrap();
-    // If the following assertion breaks, it's likely you have changed MoveObject's
+    // If the following assertion breaks, it's likely you have changed MoveStruct's
     // fields. Make sure to adjust `object_size_for_gas_metering()` to include
     // those changes.
     assert_eq!(size - 4, serialized.len());
@@ -389,16 +379,15 @@ const SAMPLE_ADDRESS_VEC: [u8; 32] = [
     139, 168, 58, 57, 59, 186, 167, 215, 238, 210, 8, 42,
 ];
 
-// Derive a sample address and public key tuple from KeyPair bytes.
-fn derive_sample_address() -> (IotaAddress, AccountKeyPair) {
-    let (address, pub_key) = get_key_pair_from_bytes(&[
+// Derive a sample address and public key tuple from private key bytes.
+fn derive_sample_address() -> (Address, AccountPrivateKey) {
+    let key = AccountPrivateKey::from_bytes([
         10, 112, 5, 142, 174, 127, 187, 146, 251, 68, 22, 191, 128, 68, 84, 13, 102, 71, 77, 57,
-        92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214, 189, 215, 127, 86, 129, 189, 1, 4,
-        90, 106, 17, 10, 123, 200, 40, 18, 34, 173, 240, 91, 213, 72, 183, 249, 213, 210, 39, 181,
-        105, 254, 59, 163,
+        92, 154, 128, 240, 158, 45, 13, 123, 57, 21, 194, 214,
     ])
     .unwrap();
-    (address, pub_key)
+    let address = key.public_key().derive_address();
+    (address, key)
 }
 
 // Required to capture address derivation algorithm updates that break some

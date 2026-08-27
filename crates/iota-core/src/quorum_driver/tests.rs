@@ -13,15 +13,15 @@ use std::{
 
 use iota_common::sync::notify_read::{NotifyRead, Registration};
 use iota_macros::{register_fail_point, sim_test};
+use iota_sdk_types::{Address, TransactionDigest};
 use iota_types::{
-    base_types::{IotaAddress, TransactionDigest},
-    crypto::{AccountKeyPair, deterministic_random_account_key, get_key_pair},
+    crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair},
     effects::TransactionEffectsAPI,
     object::{Object, generate_test_gas_objects},
     quorum_driver_types::{
         ExecuteTransactionRequestV1, QuorumDriverError, QuorumDriverResponse, QuorumDriverResult,
     },
-    transaction::Transaction,
+    transaction::TransactionEnvelope,
 };
 use tokio::time::timeout;
 
@@ -35,8 +35,11 @@ use crate::{
     unit_test_utils::init_local_authorities,
 };
 
-async fn setup() -> (AuthorityAggregator<LocalAuthorityClient>, Transaction) {
-    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+async fn setup() -> (
+    AuthorityAggregator<LocalAuthorityClient>,
+    TransactionEnvelope,
+) {
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object = Object::with_owner_for_testing(sender);
     let (aggregator, authorities, genesis, _) =
         init_local_authorities(4, vec![gas_object.clone()]).await;
@@ -51,22 +54,22 @@ async fn setup() -> (AuthorityAggregator<LocalAuthorityClient>, Transaction) {
         .find(|o| o.id() == gas_object.id())
         .unwrap();
 
-    let tx = make_tx(gas_object, sender, &keypair, rgp);
+    let tx = make_tx(gas_object, sender, &sender_key, rgp);
     (aggregator, tx)
 }
 
 fn make_tx(
     gas: &Object,
-    sender: IotaAddress,
-    keypair: &AccountKeyPair,
+    sender: Address,
+    private_key: &AccountPrivateKey,
     gas_price: u64,
-) -> Transaction {
+) -> TransactionEnvelope {
     make_transfer_iota_transaction(
         gas.object_ref(),
-        IotaAddress::random(),
+        Address::random(),
         None,
         sender,
-        keypair,
+        private_key,
         gas_price,
     )
 }
@@ -246,7 +249,8 @@ async fn test_quorum_driver_update_validators_and_max_retry_times() {
 #[tokio::test]
 async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let gas_objects = generate_test_gas_objects();
-    let (sender, keypair): (IotaAddress, AccountKeyPair) = deterministic_random_account_key();
+    let (sender, sender_key): (Address, AccountPrivateKey) =
+        deterministic_random_account_private_key();
     let client_ip = SocketAddr::new([127, 0, 0, 1].into(), 0);
 
     let (aggregator, authorities, genesis, _) =
@@ -283,7 +287,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let quorum_driver = quorum_driver_handler.clone_quorum_driver();
 
     let gas = gas_objects.pop().unwrap();
-    let tx = make_tx(&gas, sender, &keypair, rgp);
+    let tx = make_tx(&gas, sender, &sender_key, rgp);
     let names: Vec<_> = aggregator.authority_clients.keys().clone().collect();
     assert_eq!(names.len(), 4);
     let client0 = aggregator.clone_client_test_only(names[0]);
@@ -304,7 +308,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
             .is_ok()
     );
 
-    let tx2 = make_tx(&gas, sender, &keypair, rgp);
+    let tx2 = make_tx(&gas, sender, &sender_key, rgp);
     let res = quorum_driver
         .submit_transaction(ExecuteTransactionRequestV1::new(tx2))
         .await
@@ -324,7 +328,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
 
     println!("Case 1 - three validators lock the object with the same tx");
     let gas = gas_objects.pop().unwrap();
-    let tx = make_tx(&gas, sender, &keypair, rgp);
+    let tx = make_tx(&gas, sender, &sender_key, rgp);
 
     assert!(
         client0
@@ -345,7 +349,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
             .is_ok(),
     );
 
-    let tx2 = make_tx(&gas, sender, &keypair, rgp);
+    let tx2 = make_tx(&gas, sender, &sender_key, rgp);
 
     let res = quorum_driver
         .submit_transaction(ExecuteTransactionRequestV1::new(tx2))
@@ -362,7 +366,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
 
     println!("Case 2 - one validator locks the object");
     let gas = gas_objects.pop().unwrap();
-    let tx = make_tx(&gas, sender, &keypair, rgp);
+    let tx = make_tx(&gas, sender, &sender_key, rgp);
     assert!(
         client0
             .handle_transaction(tx.clone(), Some(client_ip))
@@ -370,7 +374,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
             .is_ok()
     );
 
-    let tx2 = make_tx(&gas, sender, &keypair, rgp);
+    let tx2 = make_tx(&gas, sender, &sender_key, rgp);
     let tx2_digest = *tx2.digest();
 
     let res = quorum_driver
@@ -388,8 +392,8 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         "Case 3 - object is locked by 2 txes with weight 2 and 1 respectivefully. Then try to execute the third txn"
     );
     let gas = gas_objects.pop().unwrap();
-    let tx = make_tx(&gas, sender, &keypair, rgp);
-    let tx2 = make_tx(&gas, sender, &keypair, rgp);
+    let tx = make_tx(&gas, sender, &sender_key, rgp);
+    let tx2 = make_tx(&gas, sender, &sender_key, rgp);
 
     assert!(
         client0
@@ -410,7 +414,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
             .is_ok()
     );
 
-    let tx3 = make_tx(&gas, sender, &keypair, rgp);
+    let tx3 = make_tx(&gas, sender, &sender_key, rgp);
 
     let res = quorum_driver
         .submit_transaction(ExecuteTransactionRequestV1::new(tx3.clone()))
@@ -434,8 +438,8 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         "Case 4 - object is locked by 2 txes with weight 2 and 1, try to execute the lighter stake tx"
     );
     let gas = gas_objects.pop().unwrap();
-    let tx = make_tx(&gas, sender, &keypair, rgp);
-    let tx2 = make_tx(&gas, sender, &keypair, rgp);
+    let tx = make_tx(&gas, sender, &sender_key, rgp);
+    let tx2 = make_tx(&gas, sender, &sender_key, rgp);
     assert!(
         client0
             .handle_transaction(tx.clone(), Some(client_ip))
@@ -471,9 +475,9 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         "Case 5 - object is locked by 2 txes with weight 2 and 1, try to execute the heavier stake tx"
     );
     let gas = gas_objects.pop().unwrap();
-    let tx = make_tx(&gas, sender, &keypair, rgp);
+    let tx = make_tx(&gas, sender, &sender_key, rgp);
     let tx_digest = *tx.digest();
-    let tx2 = make_tx(&gas, sender, &keypair, rgp);
+    let tx2 = make_tx(&gas, sender, &sender_key, rgp);
 
     assert!(
         client0
@@ -506,9 +510,9 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
 
     println!("Case 6 - three validators lock the object, by different txes");
     let gas = gas_objects.pop().unwrap();
-    let tx = make_tx(&gas, sender, &keypair, rgp);
-    let tx2 = make_tx(&gas, sender, &keypair, rgp);
-    let tx3 = make_tx(&gas, sender, &keypair, rgp);
+    let tx = make_tx(&gas, sender, &sender_key, rgp);
+    let tx2 = make_tx(&gas, sender, &sender_key, rgp);
+    let tx3 = make_tx(&gas, sender, &sender_key, rgp);
     assert!(
         client0
             .handle_transaction(tx.clone(), Some(client_ip))
@@ -528,7 +532,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
             .is_ok()
     );
 
-    let tx4 = make_tx(&gas, sender, &keypair, rgp);
+    let tx4 = make_tx(&gas, sender, &sender_key, rgp);
     let res = quorum_driver
         .submit_transaction(ExecuteTransactionRequestV1::new(tx4.clone()))
         .await
@@ -557,7 +561,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
     telemetry_subscribers::init_for_testing();
 
     // Setup
-    let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object = Object::with_owner_for_testing(sender);
     let (mut aggregator, authorities, genesis, _) =
         init_local_authorities(4, vec![gas_object.clone()]).await;
@@ -586,7 +590,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
         .iter()
         .find(|o| o.id() == gas_object.id())
         .unwrap();
-    let tx = make_tx(gas_object, sender, &keypair, rgp);
+    let tx = make_tx(gas_object, sender, &sender_key, rgp);
 
     // Use a fail point to count the number of retries to test that the quorum
     // backoff logic respects above `overload_retry_after_handle_transaction`.

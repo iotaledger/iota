@@ -6,6 +6,7 @@ use std::{env, sync::Arc};
 
 use parking_lot::RwLock;
 use rand::{Rng, SeedableRng, prelude::SliceRandom, rngs::StdRng};
+use rstest::rstest;
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -30,14 +31,15 @@ const NUM_ROUNDS: u32 = 200;
 /// - Links to leader of previous round.
 ///
 /// Should result in a direct commit for every round.
+#[rstest]
 #[tokio::test]
-async fn test_randomized_dag_all_direct_commit() {
+async fn test_randomized_dag_all_direct_commit(#[values(false, true)] starfish_speed: bool) {
     let mut random_test_setup = random_test_setup();
 
     for _ in 0..NUM_RUNS {
         let seed = random_test_setup.seeded_rng.gen_range(0..10000);
         let num_authorities = random_test_setup.seeded_rng.gen_range(4..10);
-        let authority = authority_setup(num_authorities, 0);
+        let authority = authority_setup(num_authorities, 0, starfish_speed);
 
         let include_leader_percentage = 100;
         let dag_builder = create_random_dag(
@@ -53,8 +55,8 @@ async fn test_randomized_dag_all_direct_commit() {
             "Running test with committee size {num_authorities} & {NUM_ROUNDS} rounds in the DAG..."
         );
 
-        let last_decided = Slot::new(0, 0);
-        let sequence = authority.committer.try_decide(last_decided);
+        let last_finalized = Slot::new(0, 0);
+        let sequence = authority.committer.try_decide(last_finalized);
         tracing::debug!("Commit sequence: {sequence:#?}");
 
         assert_eq!(sequence.len(), (NUM_ROUNDS - 2) as usize);
@@ -79,14 +81,15 @@ async fn test_randomized_dag_all_direct_commit() {
 ///
 /// Blocks will randomly be fed through BlockManager and after each accepted
 /// block we will try_decide() and if there is a committed sequence we will
-/// update last_decided and continue. We do this from the perspective of two
+/// update last_finalized and continue. We do this from the perspective of two
 /// different authorities who receive the blocks in different orders and ensure
 /// the resulting sequence is the same for both authorities. The resulting
 /// sequence will include Commit & Skip decisions and potentially will stop
 /// before coming to a decision on all waves as we may have an Undecided leader
 /// somewhere early in the sequence.
+#[rstest]
 #[tokio::test]
-async fn test_randomized_dag_and_decision_sequence() {
+async fn test_randomized_dag_and_decision_sequence(#[values(false, true)] starfish_speed: bool) {
     let mut random_test_setup = random_test_setup();
 
     for _ in 0..NUM_RUNS {
@@ -94,7 +97,7 @@ async fn test_randomized_dag_and_decision_sequence() {
         let num_authorities = random_test_setup.seeded_rng.gen_range(4..10);
 
         // Setup for Authority 1
-        let mut authority_1 = authority_setup(num_authorities, 1);
+        let mut authority_1 = authority_setup(num_authorities, 1, starfish_speed);
 
         let include_leader_percentage = 50;
         let dag_builder = create_random_dag(
@@ -116,7 +119,7 @@ async fn test_randomized_dag_and_decision_sequence() {
         all_blocks.shuffle(&mut random_test_setup.seeded_rng);
 
         let mut sequenced_leaders_1 = vec![];
-        let mut last_decided = Slot::new(0, 0);
+        let mut last_finalized = Slot::new(0, 0);
         let mut i = 0;
         let mut seen_so_far = vec![];
         while i < all_blocks.len() {
@@ -128,12 +131,12 @@ async fn test_randomized_dag_and_decision_sequence() {
             let _ = authority_1
                 .block_manager
                 .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
-            let sequence = authority_1.committer.try_decide(last_decided);
+            let sequence = authority_1.committer.try_decide(last_finalized);
 
             if !sequence.is_empty() {
                 sequenced_leaders_1.extend(sequence.clone());
                 let leader_status = sequence.last().unwrap();
-                last_decided = Slot::new(leader_status.round(), leader_status.authority());
+                last_finalized = Slot::new(leader_status.round(), leader_status.authority());
             }
 
             i += chunk_size;
@@ -148,7 +151,7 @@ async fn test_randomized_dag_and_decision_sequence() {
         assert!(authority_1.block_manager.is_empty());
 
         // Setup for Authority 2
-        let mut authority_2 = authority_setup(num_authorities, 2);
+        let mut authority_2 = authority_setup(num_authorities, 2, starfish_speed);
 
         let mut all_blocks = dag_builder
             .block_headers
@@ -158,7 +161,7 @@ async fn test_randomized_dag_and_decision_sequence() {
         all_blocks.shuffle(&mut random_test_setup.seeded_rng);
 
         let mut sequenced_leaders_2 = vec![];
-        let mut last_decided = Slot::new(0, 0);
+        let mut last_finalized = Slot::new(0, 0);
         let mut i = 0;
         let mut seen_so_far = vec![];
         while i < all_blocks.len() {
@@ -171,12 +174,12 @@ async fn test_randomized_dag_and_decision_sequence() {
             let _ = authority_2
                 .block_manager
                 .try_accept_block_headers(chunk.to_vec(), DataSource::Test);
-            let sequence = authority_2.committer.try_decide(last_decided);
+            let sequence = authority_2.committer.try_decide(last_finalized);
 
             if !sequence.is_empty() {
                 sequenced_leaders_2.extend(sequence.clone());
                 let leader_status = sequence.last().unwrap();
-                last_decided = Slot::new(leader_status.round(), leader_status.authority());
+                last_finalized = Slot::new(leader_status.round(), leader_status.authority());
             }
             // Evaluate the seen blocks so far
             let (suspended, missing) = evaluate_block_headers(&seen_so_far);
@@ -191,9 +194,28 @@ async fn test_randomized_dag_and_decision_sequence() {
 
         // Ensure despite the difference in when blocks were received eventually after
         // receiving all blocks both authorities should return the same sequence of
-        // blocks.
-        assert_eq!(sequenced_leaders_1, sequenced_leaders_2);
+        // blocks. The strong voters are left out of the comparison: they are the
+        // voters the deciding authority had accepted at that point, so the two
+        // authorities list different supersets of the quorum behind the commit.
+        assert_eq!(
+            decisions_without_strong_voters(&sequenced_leaders_1),
+            decisions_without_strong_voters(&sequenced_leaders_2)
+        );
     }
+}
+
+/// The decisions with the strong voters cleared, leaving what every authority
+/// must agree on.
+fn decisions_without_strong_voters(leaders: &[DecidedLeader]) -> Vec<DecidedLeader> {
+    leaders
+        .iter()
+        .map(|leader| match leader {
+            DecidedLeader::Commit(block, metastate, _) => {
+                DecidedLeader::Commit(block.clone(), *metastate, vec![])
+            }
+            DecidedLeader::Skip(slot) => DecidedLeader::Skip(*slot),
+        })
+        .collect()
 }
 
 struct AuthorityTestFixture {
@@ -203,12 +225,18 @@ struct AuthorityTestFixture {
     block_manager: BlockManager,
 }
 
-fn authority_setup(num_authorities: usize, authority_index: u8) -> AuthorityTestFixture {
-    let context = Arc::new(
-        Context::new_for_test(num_authorities)
-            .0
-            .with_authority_index(AuthorityIndex::new_for_test(authority_index)),
-    );
+fn authority_setup(
+    num_authorities: usize,
+    authority_index: u8,
+    starfish_speed: bool,
+) -> AuthorityTestFixture {
+    let mut context = Context::new_for_test(num_authorities)
+        .0
+        .with_authority_index(AuthorityIndex::new_for_test(authority_index));
+    context
+        .protocol_config
+        .set_consensus_starfish_speed_for_testing(starfish_speed);
+    let context = Arc::new(context);
     let leader_schedule = Arc::new(LeaderSchedule::new(
         context.clone(),
         LeaderSwapTable::default(),

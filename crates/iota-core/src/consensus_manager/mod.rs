@@ -12,13 +12,13 @@ use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use fastcrypto::traits::KeyPair as _;
 use iota_config::{ConsensusConfig, NodeConfig};
-use iota_metrics::{RegistryID, RegistryService};
+use iota_metrics::RegistryService;
 use iota_protocol_config::ProtocolVersion;
 use iota_types::{committee::EpochId, error::IotaResult, messages_consensus::ConsensusTransaction};
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
-use starfish_core::ConsensusAuthority;
+use prometheus_filtered::{IntGauge, Registry, register_int_gauge_with_registry};
+use starfish_core::CommitConsumerMonitor;
 use tokio::{
-    sync::{Mutex, MutexGuard},
+    sync::{Mutex, MutexGuard, broadcast},
     time::{sleep, timeout},
 };
 use tracing::info;
@@ -54,7 +54,7 @@ pub trait ConsensusManagerTrait {
 
     async fn is_running(&self) -> bool;
 
-    fn replay_waiter(&self) -> Option<ReplayWaiter>;
+    fn replay_waiter(&self) -> ReplayWaiter;
 }
 
 /// Used by IOTA validator to start consensus protocol for each epoch.
@@ -122,7 +122,7 @@ impl ConsensusManagerTrait for ConsensusManager {
         self.starfish_manager.is_running().await
     }
 
-    fn replay_waiter(&self) -> Option<ReplayWaiter> {
+    fn replay_waiter(&self) -> ReplayWaiter {
         self.starfish_manager.replay_waiter()
     }
 }
@@ -184,18 +184,38 @@ impl ConsensusClient for UpdatableConsensusClient {
     }
 }
 
-#[derive(Clone)]
+/// Waits for consensus to finish replaying at consensus handler.
 pub struct ReplayWaiter {
-    authority: Arc<(ConsensusAuthority, RegistryID)>,
+    consumer_monitor_receiver: broadcast::Receiver<Arc<CommitConsumerMonitor>>,
 }
 
 impl ReplayWaiter {
-    pub(crate) fn new(authority: Arc<(ConsensusAuthority, RegistryID)>) -> Self {
-        Self { authority }
+    pub(crate) fn new(
+        consumer_monitor_receiver: broadcast::Receiver<Arc<CommitConsumerMonitor>>,
+    ) -> Self {
+        Self {
+            consumer_monitor_receiver,
+        }
     }
 
-    pub(crate) async fn wait_for_replay(&self) {
-        self.authority.0.replay_complete().await;
+    pub(crate) async fn wait_for_replay(mut self) {
+        loop {
+            info!("Waiting for consensus to start replaying ...");
+            let Ok(monitor) = self.consumer_monitor_receiver.recv().await else {
+                continue;
+            };
+            info!("Waiting for consensus handler to finish replaying ...");
+            monitor.replay_complete().await;
+            break;
+        }
+    }
+}
+
+impl Clone for ReplayWaiter {
+    fn clone(&self) -> Self {
+        Self {
+            consumer_monitor_receiver: self.consumer_monitor_receiver.resubscribe(),
+        }
     }
 }
 

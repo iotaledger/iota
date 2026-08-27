@@ -11,7 +11,7 @@ use std::{
 };
 
 use iota_protocol_config::ProtocolVersion;
-use iota_sdk_types::{StructTag, TypeTag};
+use iota_sdk_types::{Address, StructTag, TypeTag, Version};
 use serde::{
     self, Deserialize, Serialize,
     de::{Deserializer, Error},
@@ -19,7 +19,7 @@ use serde::{
 };
 use serde_with::{Bytes, DeserializeAs, DisplayFromStr, SerializeAs, serde_as};
 
-use crate::{base_types::IotaAddress, parse_iota_struct_tag, parse_iota_type_tag};
+use crate::{parse_iota_struct_tag, parse_iota_type_tag};
 
 #[inline]
 pub(crate) fn to_custom_deser_error<'de, D, E>(e: E) -> D::Error
@@ -105,14 +105,14 @@ impl SerializeAs<StructTag> for IotaStructTag {
     }
 }
 
-const IOTA_ADDRESSES: [IotaAddress; 7] = [
-    IotaAddress::ZERO,
-    IotaAddress::STD,
-    IotaAddress::FRAMEWORK,
-    IotaAddress::SYSTEM,
-    IotaAddress::STARDUST,
-    IotaAddress::SYSTEM_STATE,
-    IotaAddress::CLOCK,
+const IOTA_ADDRESSES: [Address; 7] = [
+    Address::ZERO,
+    Address::STD,
+    Address::FRAMEWORK,
+    Address::SYSTEM,
+    Address::STARDUST,
+    Address::SYSTEM_STATE,
+    Address::CLOCK,
 ];
 /// Serialize StructTag as a string, retaining the leading zeros in the address.
 pub fn to_iota_struct_tag_string(value: &StructTag) -> Result<String, fmt::Error> {
@@ -281,11 +281,8 @@ where
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Copy)]
 pub struct SequenceNumber(u64);
 
-impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {
-    fn serialize_as<S>(
-        value: &crate::base_types::SequenceNumber,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+impl SerializeAs<Version> for SequenceNumber {
+    fn serialize_as<S>(value: &Version, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -294,13 +291,13 @@ impl SerializeAs<crate::base_types::SequenceNumber> for SequenceNumber {
     }
 }
 
-impl<'de> DeserializeAs<'de, crate::base_types::SequenceNumber> for SequenceNumber {
-    fn deserialize_as<D>(deserializer: D) -> Result<crate::base_types::SequenceNumber, D::Error>
+impl<'de> DeserializeAs<'de, Version> for SequenceNumber {
+    fn deserialize_as<D>(deserializer: D) -> Result<Version, D::Error>
     where
         D: Deserializer<'de>,
     {
         let b = BigInt::deserialize(deserializer)?;
-        Ok(crate::base_types::SequenceNumber::from_u64(*b))
+        Ok(Version::from_u64(*b))
     }
 }
 

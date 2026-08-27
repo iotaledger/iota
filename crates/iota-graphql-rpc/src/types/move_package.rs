@@ -15,8 +15,9 @@ use diesel::{
 };
 use iota_indexer::{models::objects::StoredHistoryObject, schema::packages};
 use iota_package_resolver::{Package as ParsedMovePackage, error::Error as PackageCacheError};
-use iota_sdk_types::{Identifier, move_package::MovePackage as NativeMovePackage};
-use iota_types::object::Data;
+use iota_sdk_types::{
+    Address, Identifier, ObjectData, move_package::MovePackage as NativeMovePackage,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -37,7 +38,7 @@ use crate::{
         iota_names_registration::{NameFormat, NameRegistration},
         move_module::MoveModule,
         move_object::MoveObject,
-        object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
+        object::{self, ActiveObject, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
         owner::OwnerImpl,
         stake::StakedIota,
         transaction_block::{self, TransactionBlock, TransactionBlockFilter},
@@ -161,9 +162,9 @@ pub(crate) struct PackageCursor {
     pub checkpoint_viewed_at: u64,
 }
 
-/// `DataLoader` key for fetching the storage ID of the (user) package that
-/// shares an original (aka runtime) ID with the package stored at `package_id`,
-/// and whose version is `version`.
+/// `DataLoader` key for fetching the storage ID of the (user) package at
+/// `version` that shares an original (aka runtime) ID with the package version
+/// stored at `address`.
 ///
 /// Note that this is different from looking up the historical version of an
 /// object -- the query returns the ID of the package (each version of a user
@@ -319,8 +320,6 @@ impl MovePackage {
     ///   contents of a genesis or system package upgrade transaction.
     /// - INDEXED: The object is retrieved from the off-chain index and
     ///   represents the most recent or historical state of the object.
-    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
-    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
@@ -362,10 +361,11 @@ impl MovePackage {
     /// Note that objects that have been sent to a package become inaccessible.
     ///
     /// `scanLimit` restricts the number of candidate transactions scanned when
-    /// gathering a page of results. It is required for queries that apply
-    /// more than two complex filters (on function, kind, sender, recipient,
-    /// input object, changed object, or ids), and can be at most
-    /// `serviceConfig.maxScanLimit`.
+    /// gathering a page of results. It is required for queries that apply two
+    /// or more complex filters (on function, affected address, recipient, input
+    /// object, changed object, or wrapped or deleted object), and can be at
+    /// most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+    /// combined with any of them.
     ///
     /// When the scan limit is reached the page will be returned even if it has
     /// fewer than `first` results when paginating forward (`last` when
@@ -384,6 +384,10 @@ impl MovePackage {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    ///
+    /// DEPRECATION NOTICE: Support for the combination of two or more complex
+    /// filters as discussed above will stop with the v1.38 release. `scanLimit`
+    /// will thus become obsolete and will be removed as well.
     #[graphql(
         complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
     )]
@@ -395,6 +399,9 @@ impl MovePackage {
         last: Option<u64>,
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
+        #[graphql(
+            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
+        )]
         scan_limit: Option<u64>,
     ) -> Result<ScanConnection<String, TransactionBlock>> {
         ObjectImpl(&self.super_)
@@ -679,7 +686,7 @@ impl MovePackage {
                 version,
                 checkpoint_viewed_at,
             } => {
-                if iota_types::base_types::IotaAddress::new(address.0).is_system_package() {
+                if Address::new(address.0).is_system_package() {
                     (address, Object::at_version(version, checkpoint_viewed_at))
                 } else {
                     let DataLoader(loader) = &ctx.data_unchecked();
@@ -697,7 +704,7 @@ impl MovePackage {
             PackageLookup::Latest {
                 checkpoint_viewed_at,
             } => {
-                if iota_types::base_types::IotaAddress::new(address.0).is_system_package() {
+                if Address::new(address.0).is_system_package() {
                     (address, Object::latest_at(checkpoint_viewed_at))
                 } else {
                     let DataLoader(loader) = &ctx.data_unchecked();
@@ -827,8 +834,8 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let package =
-                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?;
+            let active_object = ActiveObject::try_from(stored.object)?;
+            let package = MovePackage::from_active_object(active_object, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));
         }
 
@@ -866,7 +873,7 @@ impl MovePackage {
                 page.paginate_raw_query::<StoredHistoryPackage>(
                     conn,
                     checkpoint_viewed_at,
-                    if iota_types::base_types::IotaAddress::new(package.0).is_system_package() {
+                    if Address::new(package.0).is_system_package() {
                         system_package_version_query(package, filter)
                     } else {
                         user_package_version_query(package, filter)
@@ -881,8 +888,8 @@ impl MovePackage {
         // queries.
         for stored in results {
             let cursor = stored.cursor(checkpoint_viewed_at).encode_cursor();
-            let package =
-                MovePackage::try_from_stored_history_object(stored.object, checkpoint_viewed_at)?;
+            let active_object = ActiveObject::try_from(stored.object)?;
+            let package = MovePackage::from_active_object(active_object, checkpoint_viewed_at)?;
             conn.edges.push(Edge::new(cursor, package));
         }
 
@@ -893,16 +900,12 @@ impl MovePackage {
     /// `MovePackage` came from. This is stored in the `MovePackage` so that
     /// related fields from the package are read from the same checkpoint
     /// (consistently).
-    pub(crate) fn try_from_stored_history_object(
-        history_object: StoredHistoryObject,
+    pub(crate) fn from_active_object(
+        active_object: ActiveObject,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
-        let object = Object::try_from_stored_history_object(
-            history_object,
-            checkpoint_viewed_at,
-            // root_version
-            None,
-        )?;
+        // root_version
+        let object = Object::from_active_object(active_object, checkpoint_viewed_at, None);
         Self::try_from(&object).map_err(|_| Error::Internal("Not a package!".to_string()))
     }
 }
@@ -1105,11 +1108,9 @@ impl TryFrom<&Object> for MovePackage {
     type Error = MovePackageDowncastError;
 
     fn try_from(object: &Object) -> Result<Self, MovePackageDowncastError> {
-        let Some(native) = object.native_impl() else {
-            return Err(MovePackageDowncastError);
-        };
+        let native = object.native_impl();
 
-        if let Data::Package(move_package) = &native.data {
+        if let ObjectData::Package(move_package) = &native.data {
             Ok(Self {
                 super_: object.clone(),
                 native: move_package.clone(),

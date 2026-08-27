@@ -20,15 +20,16 @@ use iota_network::{
     DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
 };
 use iota_network_stack::config::Config;
-use iota_sdk_types::ObjectId;
-use iota_swarm_config::network_config::NetworkConfig;
+use iota_sdk_types::{
+    ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionEvents,
+};
 use iota_types::{
     base_types::*,
     committee::{Committee, CommitteeTrait, CommitteeWithNetworkMetadata, StakeUnit},
     crypto::{AuthorityPublicKeyBytes, AuthoritySignInfo},
     effects::{
-        CertifiedTransactionEffects, SignedTransactionEffects, TransactionEffects,
-        TransactionEvents, VerifiedCertifiedTransactionEffects,
+        CertifiedTransactionEffects, SignedTransactionEffects, VerifiedCertifiedTransactionEffects,
     },
     error::{IotaError, IotaResult, UserInputError},
     fp_ensure,
@@ -46,10 +47,10 @@ use iota_types::{
     quorum_driver_types::{GroupedErrors, QuorumDriverResponse},
     transaction::*,
 };
-use prometheus::{
-    Histogram, IntCounter, IntCounterVec, IntGauge, Registry, register_histogram_with_registry,
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry,
+use prometheus_filtered::{
+    Histogram, IntCounter, IntCounterVec, IntGauge, MetricLevel, Registry,
+    register_histogram_with_registry, register_int_counter_vec_with_registry,
+    register_int_counter_with_registry, register_int_gauge_with_registry,
 };
 use thiserror::Error;
 use tokio::time::{sleep, timeout};
@@ -118,7 +119,7 @@ pub struct AuthAggMetrics {
 
 impl AuthAggMetrics {
     /// Create a new instance of `AuthAggMetrics` with a Prometheus registry.
-    pub fn new(registry: &prometheus::Registry) -> Self {
+    pub fn new(registry: &prometheus_filtered::Registry) -> Self {
         Self {
             total_tx_certificates_created: register_int_counter_with_registry!(
                 "total_tx_certificates_created",
@@ -157,7 +158,8 @@ impl AuthAggMetrics {
                 "total_rpc_err",
                 "Total number of rpc errors returned from validators, grouped by validator short name and RPC error message",
                 &["name", "error_message"],
-                registry,
+                registry;
+                MetricLevel::Warn,
             )
             .unwrap(),
             inflight_transactions: register_int_gauge_with_registry!(
@@ -223,7 +225,7 @@ impl AuthAggMetrics {
 
     /// Creates a new instance of `AuthAggMetrics` for testing.
     pub fn new_for_tests() -> Self {
-        let registry = prometheus::Registry::new();
+        let registry = prometheus_filtered::Registry::new();
         Self::new(&registry)
     }
 }
@@ -251,7 +253,7 @@ pub enum AggregatorProcessTransactionError {
     FatalConflictingTransaction {
         errors: GroupedErrors,
         conflicting_tx_digests:
-            BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
+            BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectReference)>, StakeUnit)>,
     },
 
     #[error(
@@ -389,7 +391,7 @@ struct ProcessTransactionState {
     retryable_overload_info: RetryableOverloadInfo,
     // If there are conflicting transactions, we note them down to report to user.
     conflicting_tx_digests:
-        BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectRef)>, StakeUnit)>,
+        BTreeMap<TransactionDigest, (Vec<(AuthorityName, ObjectReference)>, StakeUnit)>,
     // As long as none of the exit criteria are met we consider the state retryable
     // 1) >= 2f+1 signatures
     // 2) >= f+1 non-retryable errors
@@ -512,8 +514,7 @@ impl ProcessTransactionResult {
 
 /// The AuthorityAggregator is responsible for aggregating the responses from
 /// the validators and determining the final state of the transaction.
-#[derive(Clone)]
-pub struct AuthorityAggregator<A: Clone> {
+pub struct AuthorityAggregator<A> {
     /// Our IOTA committee.
     pub committee: Arc<Committee>,
     /// For more human readable metrics reporting.
@@ -532,7 +533,21 @@ pub struct AuthorityAggregator<A: Clone> {
     pub committee_store: Arc<CommitteeStore>,
 }
 
-impl<A: Clone> AuthorityAggregator<A> {
+impl<A> Clone for AuthorityAggregator<A> {
+    fn clone(&self) -> Self {
+        Self {
+            committee: Arc::clone(&self.committee),
+            validator_display_names: Arc::clone(&self.validator_display_names),
+            authority_clients: Arc::clone(&self.authority_clients),
+            metrics: Arc::clone(&self.metrics),
+            safe_client_metrics_base: self.safe_client_metrics_base.clone(),
+            timeouts: self.timeouts.clone(),
+            committee_store: Arc::clone(&self.committee_store),
+        }
+    }
+}
+
+impl<A> AuthorityAggregator<A> {
     /// Create a new `AuthorityAggregator`.
     pub fn new(
         committee: Committee,
@@ -634,10 +649,7 @@ impl<A: Clone> AuthorityAggregator<A> {
     }
 
     /// Gets the cloned authority client for the given name.
-    pub fn clone_client_test_only(&self, name: &AuthorityName) -> Arc<SafeClient<A>>
-    where
-        A: Clone,
-    {
+    pub fn clone_client_test_only(&self, name: &AuthorityName) -> Arc<SafeClient<A>> {
         self.authority_clients[name].clone()
     }
 
@@ -652,7 +664,10 @@ impl<A: Clone> AuthorityAggregator<A> {
     }
 
     /// Get the cloned authority clients.
-    pub fn clone_inner_clients_test_only(&self) -> BTreeMap<AuthorityName, SafeClient<A>> {
+    pub fn clone_inner_clients_test_only(&self) -> BTreeMap<AuthorityName, SafeClient<A>>
+    where
+        A: Clone,
+    {
         (*self.authority_clients)
             .clone()
             .into_iter()
@@ -662,7 +677,7 @@ impl<A: Clone> AuthorityAggregator<A> {
 }
 
 /// Creates safe clients for each authority.
-fn create_safe_clients<A: Clone>(
+fn create_safe_clients<A>(
     authority_clients: BTreeMap<AuthorityName, A>,
     committee_store: &Arc<CommitteeStore>,
     safe_client_metrics_base: &SafeClientMetricsBase,
@@ -746,7 +761,7 @@ impl AuthorityAggregator<NetworkAuthorityClient> {
 
 impl<A> AuthorityAggregator<A>
 where
-    A: AuthorityAPI + Send + Sync + 'static + Clone,
+    A: AuthorityAPI + Send + Sync + 'static,
 {
     // Repeatedly calls the provided closure on a randomly selected validator until
     // it succeeds. Once all validators have been attempted, starts over at the
@@ -1079,7 +1094,7 @@ where
     #[instrument(level = "trace", skip_all)]
     pub async fn process_transaction(
         &self,
-        transaction: Transaction,
+        transaction: TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<ProcessTransactionResult, AggregatorProcessTransactionError> {
         // Now broadcast the transaction to all authorities.
@@ -1088,10 +1103,7 @@ where
             tx_digest = ?tx_digest,
             "Broadcasting transaction request to authorities"
         );
-        trace!(
-            "Transaction data: {:?}",
-            transaction.data().intent_message().value
-        );
+        trace!("Transaction data: {:?}", transaction.data().transaction());
         let committee = self.committee.clone();
         let state = ProcessTransactionState {
             tx_signatures: StakeAggregator::new(committee.clone()),
@@ -1839,7 +1851,7 @@ where
     #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub async fn execute_transaction_block(
         &self,
-        transaction: &Transaction,
+        transaction: &TransactionEnvelope,
         client_addr: Option<SocketAddr>,
     ) -> Result<VerifiedCertifiedTransactionEffects, anyhow::Error> {
         let tx_guard = GaugeGuard::acquire(&self.metrics.inflight_transactions);
@@ -2036,7 +2048,6 @@ where
 /// customizable configurations for the IOTA network.
 #[derive(Default)]
 pub struct AuthorityAggregatorBuilder<'a> {
-    network_config: Option<&'a NetworkConfig>,
     genesis: Option<&'a Genesis>,
     committee: Option<Committee>,
     committee_store: Option<Arc<CommitteeStore>>,
@@ -2045,14 +2056,6 @@ pub struct AuthorityAggregatorBuilder<'a> {
 }
 
 impl<'a> AuthorityAggregatorBuilder<'a> {
-    /// Creates a new `AuthorityAggregatorBuilder` from a `NetworkConfig`.
-    pub fn from_network_config(config: &'a NetworkConfig) -> Self {
-        Self {
-            network_config: Some(config),
-            ..Default::default()
-        }
-    }
-
     /// Creates a new `AuthorityAggregatorBuilder` from a `Genesis`.
     pub fn from_genesis(genesis: &'a Genesis) -> Self {
         Self {
@@ -2096,14 +2099,9 @@ impl<'a> AuthorityAggregatorBuilder<'a> {
     }
 
     fn get_network_committee(&self) -> CommitteeWithNetworkMetadata {
-        let genesis = if let Some(network_config) = self.network_config {
-            &network_config.genesis
-        } else if let Some(genesis) = self.genesis {
-            genesis
-        } else {
-            panic!("need either NetworkConfig or Genesis.");
-        };
-        genesis.committee_with_network()
+        self.genesis
+            .expect("need a Genesis.")
+            .committee_with_network()
     }
 
     fn get_committee(&self) -> Committee {

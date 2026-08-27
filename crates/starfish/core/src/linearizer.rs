@@ -136,7 +136,7 @@ impl Linearizer {
                 self.add_committed_transaction_acks(
                     block_header.round(),
                     block_header.author(),
-                    block_header.acknowledgments().to_vec(),
+                    block_header.acknowledgments(),
                 )
             })
             .collect::<Vec<BlockRef>>();
@@ -153,7 +153,7 @@ impl Linearizer {
                 committed_transactions.extend(self.add_committed_transaction_acks(
                     leader_block.round() + 1,
                     *strong_voter,
-                    refs.clone(),
+                    &refs,
                 ));
             }
             // The order in which transactions are added to the committed_transactions
@@ -169,34 +169,29 @@ impl Linearizer {
             "Duplicate BlockRef found"
         );
 
-        // Convert BlockRef to GenericTransactionRef based on protocol flag
-        let committed_transactions_refs: Vec<GenericTransactionRef> =
-            if self.context.protocol_config.consensus_fast_commit_sync() {
-                // Use batch function to get transaction commitments efficiently
-                let dag_state_guard = self.dag_state.read();
-                let transactions_commitments =
-                    dag_state_guard.get_transactions_commitments_batch(&committed_transactions);
+        // Convert each committed BlockRef to a TransactionRef, looking up its
+        // transactions commitment.
+        let committed_transactions_refs: Vec<GenericTransactionRef> = {
+            // Use batch function to get transaction commitments efficiently
+            let dag_state_guard = self.dag_state.read();
+            let transactions_commitments =
+                dag_state_guard.get_transactions_commitments_batch(&committed_transactions);
 
-                // Zip block_refs with their corresponding transaction commitments
-                committed_transactions
-                    .into_iter()
-                    .zip(transactions_commitments)
-                    .map(|(block_ref, transactions_commitment_opt)| {
-                        let transactions_commitment = transactions_commitment_opt
-                            .expect("Block header must exist for committed transaction");
-                        GenericTransactionRef::TransactionRef(TransactionRef {
-                            round: block_ref.round,
-                            author: block_ref.author,
-                            transactions_commitment,
-                        })
+            // Zip block_refs with their corresponding transaction commitments
+            committed_transactions
+                .into_iter()
+                .zip(transactions_commitments)
+                .map(|(block_ref, transactions_commitment_opt)| {
+                    let transactions_commitment = transactions_commitment_opt
+                        .expect("Block header must exist for committed transaction");
+                    GenericTransactionRef::TransactionRef(TransactionRef {
+                        round: block_ref.round,
+                        author: block_ref.author,
+                        transactions_commitment,
                     })
-                    .collect()
-            } else {
-                committed_transactions
-                    .into_iter()
-                    .map(GenericTransactionRef::BlockRef)
-                    .collect()
-            };
+                })
+                .collect()
+        };
 
         // Create the Commit.
         let commit = Commit::new(
@@ -374,10 +369,10 @@ impl Linearizer {
         &mut self,
         round: Round,
         authority: AuthorityIndex,
-        acknowledgments: Vec<BlockRef>,
+        acknowledgments: &[BlockRef],
     ) -> Vec<BlockRef> {
         let mut transactions_to_commit = Vec::new();
-        for block_ref in acknowledgments {
+        for &block_ref in acknowledgments {
             if block_ref.round < round.saturating_sub(self.context.protocol_config.gc_depth()) {
                 continue; // Ignore acknowledgments for blocks that are too old
             }
@@ -639,12 +634,18 @@ mod tests {
     async fn test_handle_commit_with_schedule_update() {
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
-        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        // The expected scores come from V2 vote scoring, which is skipped
+        // when the sliding-window schedule is on; run with it off.
+        let mut context = Context::new_for_test(num_authorities).0;
+        context
+            .protocol_config
+            .set_consensus_enable_sliding_window_leader_schedule_for_testing(false);
+        let context = Arc::new(context);
         let dag_state = Arc::new(RwLock::new(DagState::new(
             context.clone(),
             Arc::new(MemStore::new()),
         )));
-        const NUM_OF_COMMITS_PER_SCHEDULE: u64 = 10;
+        const NUM_OF_COMMITS_PER_SCHEDULE: u32 = 10;
         let leader_schedule = Arc::new(
             LeaderSchedule::new(context.clone(), LeaderSwapTable::default())
                 .with_num_commits_per_schedule(NUM_OF_COMMITS_PER_SCHEDULE),
@@ -884,7 +885,7 @@ mod tests {
                 Round 5 : { * },
             }";
 
-        let dag_builder = parse_dag(dag_str).expect("Invalid dag");
+        let dag_builder = parse_dag(dag_str, false).expect("Invalid dag");
         dag_builder.print();
         dag_builder.persist_all_blocks(dag_state.clone());
 

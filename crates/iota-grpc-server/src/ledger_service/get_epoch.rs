@@ -10,7 +10,7 @@ use iota_grpc_types::{
     read_masks::GET_EPOCH_READ_MASK,
     v1::{
         bcs::BcsData,
-        epoch::{Epoch, ProtocolConfig},
+        epoch::{Epoch, EpochCloseProof, ProtocolConfig},
         ledger_service::{GetEpochRequest, GetEpochResponse},
     },
 };
@@ -46,6 +46,7 @@ impl Merge<&EpochReadSource> for Epoch {
             || mask.contains(Self::END_FIELD.name)
             || mask.contains(Self::REFERENCE_GAS_PRICE_FIELD.name)
             || mask.subtree(Self::PROTOCOL_CONFIG_FIELD.name).is_some()
+            || mask.subtree(Self::EPOCH_CLOSE_PROOF_FIELD.name).is_some()
             || (mask.contains(Self::BCS_SYSTEM_STATE_FIELD.name)
                 && source.epoch != source.current_epoch);
 
@@ -64,7 +65,7 @@ impl Merge<&EpochReadSource> for Epoch {
             }
 
             if mask.contains(Self::LAST_CHECKPOINT_FIELD.name) {
-                if let Some(end_checkpoint) = epoch_info.end_checkpoint {
+                if let Some(end_checkpoint) = epoch_info.end_checkpoint() {
                     self.last_checkpoint = Some(end_checkpoint);
                 }
             }
@@ -74,22 +75,34 @@ impl Merge<&EpochReadSource> for Epoch {
             }
 
             if mask.contains(Self::END_FIELD.name) {
-                if let Some(end_timestamp_ms) = epoch_info.end_timestamp_ms {
+                if let Some(end_timestamp_ms) = epoch_info.end_timestamp_ms() {
                     self.end = Some(timestamp_ms_to_proto(end_timestamp_ms));
                 }
             }
 
             if mask.contains(Self::REFERENCE_GAS_PRICE_FIELD.name) {
-                self.reference_gas_price = Some(epoch_info.reference_gas_price);
+                self.reference_gas_price = Some(epoch_info.reference_gas_price());
             }
 
             if let Some(submask) = mask.subtree(Self::PROTOCOL_CONFIG_FIELD.name) {
+                let protocol_version = epoch_info.protocol_version();
                 let iota_config = IotaProtocolConfig::get_for_version_if_supported(
-                    epoch_info.protocol_version.into(),
+                    protocol_version.into(),
                     source.chain,
                 )
-                .ok_or_else(|| ProtocolVersionNotFoundError::new(epoch_info.protocol_version))?;
+                .ok_or_else(|| ProtocolVersionNotFoundError::new(protocol_version))?;
                 self.protocol_config = Some(ProtocolConfig::merge_from(&iota_config, &submask)?);
+            }
+
+            // `epoch_close_proof` is `None` until this epoch's boundary is
+            // indexed (including for the still-open current epoch) — absence
+            // is not an error, the field is simply omitted from the response.
+            if let Some(submask) = mask.subtree(Self::EPOCH_CLOSE_PROOF_FIELD.name) {
+                self.epoch_close_proof = epoch_info
+                    .epoch_close_proof
+                    .as_ref()
+                    .map(|entry| EpochCloseProof::merge_from(entry, &submask))
+                    .transpose()?;
             }
         }
 
@@ -164,6 +177,20 @@ impl Merge<&EpochReadSource> for Epoch {
 ///   - `protocol_config.attributes` - the individual protocol attributes during
 ///     the epoch (use `protocol_config.attributes.<key>` to filter specific
 ///     attributes)
+///
+/// ## Epoch Close Proof Fields
+/// - `epoch_close_proof` - proof of how this epoch closed; absent (not an
+///   error) until the epoch closes.
+///   - `epoch_close_proof.checkpoint` - the certified checkpoint that closed
+///     the epoch (see `get_checkpoint`'s doc comment for the full nested list
+///     of `checkpoint.*` sub-paths)
+///   - `epoch_close_proof.end_of_epoch_transaction_effects` - effects of the
+///     epoch-change transaction
+///   - `epoch_close_proof.end_of_epoch_transaction_events` - events emitted by
+///     the epoch-change transaction (may be empty on safe-mode boundaries)
+///   - `epoch_close_proof.bcs_next_epoch_system_state_objects` - raw BCS of the
+///     system-state wrapper (`0x5`) and inner state objects written by this
+///     epoch boundary, byte-for-byte as stored
 #[tracing::instrument(skip(service))]
 pub fn get_epoch(
     service: &LedgerGrpcService,

@@ -13,7 +13,7 @@ use iota_config::node::AuthorityOverloadConfig;
 use iota_core::consensus_adapter::position_submit_certificate;
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::{register_fail_point_async, sim_test};
-use iota_sdk_types::{Event, ExecutionStatus};
+use iota_sdk_types::{Event, ExecutionStatus, SharedObjectReference};
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
 use iota_test_transaction_builder::{
     TestTransactionBuilder, publish_basics_package, publish_basics_package_and_make_counter,
@@ -21,10 +21,10 @@ use iota_test_transaction_builder::{
 use iota_types::{
     effects::TransactionEffectsAPI,
     messages_grpc::{LayoutGenerationOption, ObjectInfoRequest},
-    transaction::{CallArg, SharedObjectRef},
+    transaction::CallArg,
 };
 use rand::distributions::Distribution;
-use test_cluster::TestClusterBuilder;
+use test_cluster::{TestClusterBuilder, override_pcool_flow};
 use tokio::time::sleep;
 
 /// Send a simple shared object transaction to IOTA and ensures the client gets
@@ -70,12 +70,10 @@ async fn shared_object_deletion() {
         .build();
     let effects = test_cluster
         .sign_and_execute_transaction(&transaction)
-        .await
-        .effects
-        .unwrap();
+        .await;
 
     assert_eq!(effects.deleted().len(), 1);
-    assert_eq!(effects.shared_objects().len(), 1);
+    assert_eq!(effects.input_shared_objects().len(), 1);
 
     // assert the shared object was deleted
     let deleted_obj_id = effects.deleted()[0].object_id;
@@ -84,6 +82,7 @@ async fn shared_object_deletion() {
 
 #[sim_test]
 async fn shared_object_deletion_multiple_times() {
+    let _pcool_guard = override_pcool_flow(false);
     let num_deletions = 300;
     let mut test_cluster = TestClusterBuilder::new()
         .with_accounts(vec![AccountConfig {
@@ -140,12 +139,13 @@ async fn shared_object_deletion_multiple_times() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .notify_read_executed_effects_for_testing("", &digests)
         .await;
 }
 
 #[sim_test]
 async fn shared_object_deletion_multiple_times_cert_racing() {
+    let _pcool_guard = override_pcool_flow(false);
     let num_deletions = 10;
     let mut test_cluster = TestClusterBuilder::new()
         .with_accounts(vec![AccountConfig {
@@ -196,7 +196,7 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&digests)
+        .notify_read_executed_effects_for_testing("", &digests)
         .await;
 }
 
@@ -216,6 +216,7 @@ async fn shared_object_deletion_multiple_times_cert_racing() {
 /// regardless of the order. (checkpoint fork detection will also test this).
 #[sim_test]
 async fn shared_object_deletion_multi_certs() {
+    let _pcool_guard = override_pcool_flow(false);
     // cause random delay just before tx is executed
     register_fail_point_async("transaction_execution_delay", move || async move {
         let delay = {
@@ -311,7 +312,7 @@ async fn shared_object_deletion_multi_certs() {
     fullnode
         .state()
         .get_transaction_cache_reader()
-        .notify_read_executed_effects(&[inc_tx_a_digest, inc_tx_b_digest])
+        .notify_read_executed_effects_for_testing("", &[inc_tx_a_digest, inc_tx_b_digest])
         .await;
 }
 
@@ -324,12 +325,12 @@ async fn call_shared_object_contract() {
     let package_id = package.object_id;
     let counter_id = counter.object_id;
     let counter_initial_shared_version = counter.version;
-    let counter_object_arg = CallArg::Shared(SharedObjectRef::new(
+    let counter_object_arg = CallArg::Shared(SharedObjectReference::new(
         counter_id,
         counter_initial_shared_version,
         true,
     ));
-    let counter_object_arg_imm = CallArg::Shared(SharedObjectRef::new(
+    let counter_object_arg_imm = CallArg::Shared(SharedObjectReference::new(
         counter_id,
         counter_initial_shared_version,
         false,
@@ -359,9 +360,7 @@ async fn call_shared_object_contract() {
             .build();
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
-            .await
-            .effects
-            .unwrap();
+            .await;
         // Check that all reads must depend on the creation of the counter, but not to
         // any previous reads.
         assert!(
@@ -385,9 +384,7 @@ async fn call_shared_object_contract() {
         .build();
     let effects = test_cluster
         .sign_and_execute_transaction(&transaction)
-        .await
-        .effects
-        .unwrap();
+        .await;
     let increment_transaction = *effects.transaction_digest();
     assert!(
         effects
@@ -427,9 +424,7 @@ async fn call_shared_object_contract() {
             .build();
         let effects = test_cluster
             .sign_and_execute_transaction(&transaction)
-            .await
-            .effects
-            .unwrap();
+            .await;
         assert!(effects.dependencies().contains(&increment_transaction));
         if let Some(prev) = assert_value_mut_transaction {
             assert!(effects.dependencies().contains(&prev));
@@ -523,18 +518,14 @@ async fn access_clock_object_test() {
 
     let mut attempt = 0;
     loop {
-        let checkpoint = test_cluster
-            .fullnode_handle
-            .iota_node
-            .with_async(|node| async {
-                node.state()
-                    .get_transaction_checkpoint_for_tests(
-                        &digest,
-                        &node.state().epoch_store_for_testing(),
-                    )
-                    .unwrap()
-            })
-            .await;
+        let checkpoint = test_cluster.fullnode_handle.iota_node.with(|node| {
+            node.state()
+                .get_transaction_checkpoint_for_tests(
+                    &digest,
+                    &node.state().epoch_store_for_testing(),
+                )
+                .unwrap()
+        });
         let Some(checkpoint) = checkpoint else {
             attempt += 1;
             if attempt > 30 {
@@ -553,6 +544,7 @@ async fn access_clock_object_test() {
 
 #[sim_test]
 async fn shared_object_sync() {
+    let _pcool_guard = override_pcool_flow(false);
     let test_cluster = TestClusterBuilder::new()
         // Set the threshold high enough so it won't be triggered.
         .with_authority_overload_config(AuthorityOverloadConfig {
@@ -665,17 +657,12 @@ async fn replay_shared_object_transaction() {
     for _ in 0..2 {
         let effects = test_cluster
             .execute_transaction(create_counter_transaction.clone())
-            .await
-            .effects
-            .unwrap();
+            .await;
 
         // Ensure the sequence number of the shared object did not change.
-        let curr = effects.created()[0].reference.version;
+        let curr = effects.created()[0].0.version;
         if let Some(prev) = version {
-            assert_eq!(
-                prev, curr,
-                "SequenceNumber of shared object did not change."
-            );
+            assert_eq!(prev, curr, "Version of shared object did not change.");
         }
 
         version = Some(curr);

@@ -12,7 +12,7 @@ use rand::Rng;
 use tokio::sync::{Semaphore, mpsc::UnboundedReceiver, oneshot};
 use tracing::{Instrument, error_span, info, instrument, warn};
 
-use crate::{authority::AuthorityState, transaction_manager::PendingCertificate};
+use crate::{authority::AuthorityState, execution_scheduler::PendingTransaction};
 
 #[cfg(test)]
 #[path = "unit_tests/execution_driver_tests.rs"]
@@ -22,13 +22,13 @@ const QUEUEING_DELAY_SAMPLING_RATIO: f64 = 0.05;
 
 /// When a notification that a new pending transaction is received we activate
 /// processing the transaction in a loop.
-#[instrument("start_execute_pending_certs", level = "trace", skip_all)]
+#[instrument("start_execute_pending_transactions", level = "trace", skip_all)]
 pub async fn execution_process(
     authority_state: Weak<AuthorityState>,
-    mut rx_ready_certificates: UnboundedReceiver<PendingCertificate>,
+    mut rx_ready_transactions: UnboundedReceiver<PendingTransaction>,
     mut rx_execution_shutdown: oneshot::Receiver<()>,
 ) {
-    info!("Starting pending certificates execution process.");
+    info!("Starting pending transactions execution process.");
 
     // Rate limit concurrent executions to # of cpus.
     let limit = Arc::new(Semaphore::new(num_cpus::get()));
@@ -37,19 +37,23 @@ pub async fn execution_process(
     loop {
         let _scope = monitored_scope("ExecutionDriver::loop");
 
-        let certificate;
+        let transaction;
         let expected_effects_digest;
         let txn_ready_time;
+        // Held until execution completes, keeping the executing-certificates gauge
+        // accurate for ExecutionScheduler (always None for TransactionManager).
+        let executing_guard;
         tokio::select! {
-            result = rx_ready_certificates.recv() => {
-                if let Some(pending_cert) = result {
-                    certificate = pending_cert.certificate;
-                    expected_effects_digest = pending_cert.expected_effects_digest;
-                    txn_ready_time = pending_cert.stats.ready_time.unwrap();
+            result = rx_ready_transactions.recv() => {
+                if let Some(pending_tx) = result {
+                    transaction = pending_tx.transaction;
+                    expected_effects_digest = pending_tx.expected_effects_digest;
+                    txn_ready_time = pending_tx.stats.ready_time.unwrap();
+                    executing_guard = pending_tx.executing_guard;
                 } else {
-                    // Should only happen after the AuthorityState has shut down and tx_ready_certificate
-                    // has been dropped by TransactionManager.
-                    info!("No more certificate will be received. Exiting executor ...");
+                    // Should only happen after the AuthorityState has shut down and
+                    // the scheduler has dropped its tx_ready_transactions sender.
+                    info!("No more transaction will be received. Exiting executor ...");
                     return;
                 };
             }
@@ -63,7 +67,7 @@ pub async fn execution_process(
             authority
         } else {
             // Terminate the execution if authority has already shutdown, even if there can
-            // be more items in rx_ready_certificates.
+            // be more items in rx_ready_transactions.
             info!("Authority state has shutdown. Exiting ...");
             return;
         };
@@ -73,14 +77,14 @@ pub async fn execution_process(
         // each epoch.
         let epoch_store = authority.load_epoch_store_one_call_per_task();
 
-        let digest = *certificate.digest();
+        let digest = *transaction.digest();
 
-        if epoch_store.epoch() != certificate.epoch() {
+        if epoch_store.epoch() != transaction.epoch() {
             info!(
                 ?digest,
                 cur_epoch = epoch_store.epoch(),
-                cert_epoch = certificate.epoch(),
-                "Ignoring certificate from previous epoch."
+                tx_epoch = transaction.epoch(),
+                "Ignoring transaction from previous epoch."
             );
             continue;
         }
@@ -105,12 +109,16 @@ pub async fn execution_process(
 
         authority.metrics.execution_rate_tracker.lock().record();
 
-        // Certificate execution can take significant time, so run it in a separate
+        // Transaction execution can take significant time, so run it in a separate
         // task.
         let epoch_store_clone = epoch_store.clone();
         spawn_monitored_task!(epoch_store.within_alive_epoch(async move {
             let _scope = monitored_scope("ExecutionDriver::task");
             let _guard = permit;
+            // Held for the whole execution, not dropped at dispatch:
+            // `num_pending_transactions` counts executing transactions too, and
+            // overload admission reads that count.
+            let _executing_guard = executing_guard;
             if let Ok(true) = authority.try_is_tx_already_executed(&digest) {
                 return;
             }
@@ -118,16 +126,16 @@ pub async fn execution_process(
             fail_point_async!("transaction_execution_delay");
 
             match authority.try_execute_immediately(
-                &certificate,
+                &transaction,
                 expected_effects_digest,
                 &epoch_store_clone,
             ) {
                 Err(IotaError::ValidatorHaltedAtEpochEnd) => {
-                    warn!("Could not execute transaction {digest} because validator is halted at epoch end. certificate={certificate:?}");
+                    warn!("Could not execute transaction {digest:?} because validator is halted at epoch end.");
                     return;
                 }
                 Err(e) => {
-                    fatal!("Failed to execute certified transaction {digest}! error={e} certificate={certificate:?}");
+                    fatal!("Failed to execute transaction {digest:?}! error={e}");
                 }
                 _ => (),
             }
@@ -135,6 +143,6 @@ pub async fn execution_process(
                 .metrics
                 .execution_driver_executed_transactions
                 .inc();
-        }.instrument(error_span!("executing_pending_cert", tx_digest = ?digest))));
+        }.instrument(error_span!("executing_pending_transaction", tx_digest = ?digest))));
     }
 }

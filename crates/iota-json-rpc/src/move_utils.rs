@@ -12,11 +12,8 @@ use iota_json_rpc_types::{
     MoveFunctionArgType, ObjectValueKind,
 };
 use iota_open_rpc::Module;
-use iota_sdk_types::ObjectId;
-use iota_types::{
-    move_package::normalize_modules,
-    object::{Data, ObjectRead},
-};
+use iota_sdk_types::{ObjectData, ObjectId};
+use iota_types::{move_package::normalize_modules, object::ObjectRead};
 use jsonrpsee::{RpcModule, core::RpcResult};
 #[cfg(test)]
 use mockall::automock;
@@ -95,7 +92,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
         match object_read {
             ObjectRead::Exists(_obj_ref, object, _layout) => {
                 match object.into_inner().data {
-                    Data::Package(p) => {
+                    ObjectData::Package(p) => {
                         // we are on the read path - it's OK to use VERSION_MAX of the supported
                         // Move binary format
                         let binary_config = BinaryConfig::with_extraneous_bytes_check(false);
@@ -243,7 +240,7 @@ impl MoveUtilsServer for MoveUtils {
             let pool = &mut normalized::RcPool::new();
             let normalized = match object_read {
                 ObjectRead::Exists(_obj_ref, object, _layout) => match object.into_inner().data {
-                    Data::Package(p) => {
+                    ObjectData::Package(p) => {
                         // we are on the read path - it's OK to use VERSION_MAX of the supported
                         // Move binary format
                         let binary_config = BinaryConfig::with_extraneous_bytes_check(false);

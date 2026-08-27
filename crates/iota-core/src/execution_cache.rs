@@ -5,13 +5,14 @@
 use std::{collections::HashSet, path::Path, sync::Arc};
 
 use futures::{FutureExt, future::BoxFuture};
-use iota_common::{fatal, sync::notify_read::NotifyRead};
+use iota_common::sync::notify_read::NotifyRead;
 use iota_config::ExecutionCacheConfig;
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{
+    ObjectId, ObjectReference, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    TransactionEvents, Version,
+};
 use iota_types::{
-    base_types::{EpochId, ObjectRef, SequenceNumber, VerifiedExecutionData},
-    digests::{TransactionDigest, TransactionEffectsDigest},
-    effects::{TransactionEffects, TransactionEvents},
+    base_types::{EpochId, VerifiedExecutionData},
     error::{IotaError, IotaResult, UserInputError},
     executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,
@@ -21,9 +22,9 @@ use iota_types::{
         BackingPackageStore, BackingStore, InputKey, MarkerValue, ObjectKey, ObjectOrTombstone,
         ObjectStore, PackageObject,
     },
-    transaction::{VerifiedSignedTransaction, VerifiedTransaction},
+    transaction::{SenderSignedTransactionAPI, VerifiedSignedTransaction, VerifiedTransaction},
 };
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use tracing::instrument;
 use typed_store::rocks::DBBatch;
 
@@ -51,84 +52,6 @@ mod notify_read_input_objects_tests;
 use metrics::ExecutionCacheMetrics;
 pub use writeback_cache::WritebackCache;
 
-/// Shared implementation of `notify_read_input_objects` used by
-/// `WritebackCache`. Waits until all input and receiving objects become
-/// available by checking the cache/store via `ObjectCacheRead` trait methods
-/// and registering for notifications on missing keys.
-fn notify_read_input_objects_impl<'a>(
-    object_notify_read: &'a NotifyRead<InputKey, ()>,
-    cache: &'a (impl ObjectCacheRead + ?Sized),
-    input_and_receiving_keys: &'a [InputKey],
-    receiving_keys: &'a HashSet<InputKey>,
-    epoch: &'a EpochId,
-) -> BoxFuture<'a, Vec<()>> {
-    async move {
-        object_notify_read
-            .read::<std::convert::Infallible>(input_and_receiving_keys, |keys| {
-                let mut results = vec![None; keys.len()];
-
-                let (keys_with_version, keys_without_version): (Vec<_>, Vec<_>) = keys
-                    .iter()
-                    .enumerate()
-                    .filter(|(idx, key)| {
-                        if key.is_cancelled() {
-                            // Shared objects in canceled transactions are always available.
-                            results[*idx] = Some(());
-                            false
-                        } else {
-                            true
-                        }
-                    })
-                    .partition(|(_, key)| key.version().is_some());
-                let versioned_object_keys: Vec<_> = keys_with_version
-                    .iter()
-                    .map(|(_, key)| ObjectKey(key.id(), key.version().unwrap()))
-                    .collect();
-                ObjectCacheRead::multi_get_objects_by_key(cache, &versioned_object_keys)
-                    .into_iter()
-                    .zip(keys_with_version.iter())
-                    .for_each(|(o, (idx, input_key))| match o {
-                        Some(_) => results[*idx] = Some(()),
-                        None => {
-                            if receiving_keys.contains(input_key) {
-                                // There could be a more recent version of this object, and the
-                                // object at the specified version could have already been pruned.
-                                // In such a case `has_key` will be false, but since this is a
-                                // receiving object we should mark it as available if we can
-                                // determine that an object with a version greater than or equal to
-                                // the specified version exists or was deleted. We will then let
-                                // mark it as available to let the transaction through so it can
-                                // fail at execution.
-                                let is_available =
-                                    ObjectCacheRead::get_object(cache, &input_key.id())
-                                        .map(|obj| obj.version() >= input_key.version().unwrap())
-                                        .unwrap_or(false);
-                                if is_available {
-                                    results[*idx] = Some(());
-                                }
-                            } else if cache
-                                .get_last_shared_object_deletion_info(&input_key.id(), *epoch)
-                                .is_some()
-                            {
-                                // If the shared object was deleted, mark it as
-                                // available so the transaction can proceed.
-                                results[*idx] = Some(());
-                            }
-                        }
-                    });
-                keys_without_version.iter().for_each(|(idx, key)| {
-                    if cache.get_package_object(&key.id()).is_some() {
-                        results[*idx] = Some(());
-                    }
-                });
-                Ok(results)
-            })
-            .await
-            .unwrap()
-    }
-    .boxed()
-}
-
 /// Notify waiters that a written object is now available. Packages are notified
 /// via `InputKey::Package`, non-child objects via `InputKey::VersionedObject`.
 /// Child objects are never awaited so they are skipped.
@@ -146,15 +69,25 @@ fn notify_object_written(object_notify_read: &NotifyRead<InputKey, ()>, object: 
     }
 }
 
-/// Notify waiters that a marker value has been written. Only `SharedDeleted`
-/// markers need notification, since they satisfy input object reads for shared
-/// objects that were deleted.
+/// Notify waiters that a marker value has been written. Both `SharedDeleted`
+/// and `OwnedDeleted` markers can satisfy an input object read (the latter for
+/// a received-then-deleted owned object used as a receiving input), and the
+/// deleted object is never written at that version, so no object-write
+/// notification will arrive to release the waiter.
+///
+/// `NotifyRead::notify` resolves registrations without re-checking, so this
+/// also wakes a waiter on the same `(id, version)` as a plain, non-receiving
+/// input; that transaction would then panic in the input loader. It requires an
+/// owned input version that was never live, which input validation rejects.
 fn notify_marker_written(
     object_notify_read: &NotifyRead<InputKey, ()>,
     object_key: &ObjectKey,
     marker_value: &MarkerValue,
 ) {
-    if matches!(marker_value, MarkerValue::SharedDeleted(_)) {
+    if matches!(
+        marker_value,
+        MarkerValue::SharedDeleted(_) | MarkerValue::OwnedDeleted
+    ) {
         object_notify_read.notify(
             &InputKey::VersionedObject {
                 id: object_key.0,
@@ -261,7 +194,16 @@ pub type Batch = (Vec<Arc<TransactionOutputs>>, DBBatch);
 
 pub trait ExecutionCacheCommit: Send + Sync {
     /// Build a DBBatch containing the given transaction outputs.
-    fn build_db_batch(&self, epoch: EpochId, digests: &[TransactionDigest]) -> Batch;
+    ///
+    /// `checkpoint_sequence_number` is the sequence number of the checkpoint
+    /// that contains these transactions; it is stamped onto each newly
+    /// written object's `previous_transaction_checkpoint` field.
+    fn build_db_batch(
+        &self,
+        epoch: EpochId,
+        checkpoint_sequence_number: CheckpointSequenceNumber,
+        digests: &[TransactionDigest],
+    ) -> Batch;
 
     /// Durably commit the outputs of the given transactions to the database.
     /// Will be called by CheckpointExecutor to ensure that transaction outputs
@@ -334,10 +276,10 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectId,
-    ) -> IotaResult<Option<ObjectRef>>;
+    ) -> IotaResult<Option<ObjectReference>>;
 
     /// Non-fallible version of `try_get_latest_object_ref_or_tombstone`.
-    fn get_latest_object_ref_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectRef> {
+    fn get_latest_object_ref_or_tombstone(&self, object_id: ObjectId) -> Option<ObjectReference> {
         self.try_get_latest_object_ref_or_tombstone(object_id)
             .expect("storage access failed")
     }
@@ -359,11 +301,11 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_get_object_by_key(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>>;
 
     /// Non-fallible version of `try_get_object_by_key`.
-    fn get_object_by_key(&self, object_id: &ObjectId, version: SequenceNumber) -> Option<Object> {
+    fn get_object_by_key(&self, object_id: &ObjectId, version: Version) -> Option<Object> {
         self.try_get_object_by_key(object_id, version)
             .expect("storage access failed")
     }
@@ -379,14 +321,10 @@ pub trait ObjectCacheRead: Send + Sync {
             .expect("storage access failed")
     }
 
-    fn try_object_exists_by_key(
-        &self,
-        object_id: &ObjectId,
-        version: SequenceNumber,
-    ) -> IotaResult<bool>;
+    fn try_object_exists_by_key(&self, object_id: &ObjectId, version: Version) -> IotaResult<bool>;
 
     /// Non-fallible version of `try_object_exists_by_key`.
-    fn object_exists_by_key(&self, object_id: &ObjectId, version: SequenceNumber) -> bool {
+    fn object_exists_by_key(&self, object_id: &ObjectId, version: Version) -> bool {
         self.try_object_exists_by_key(object_id, version)
             .expect("storage access failed")
     }
@@ -409,7 +347,7 @@ pub trait ObjectCacheRead: Send + Sync {
     /// indicates this is retriable.
     fn try_multi_get_objects_with_more_accurate_error_return(
         &self,
-        object_refs: &[ObjectRef],
+        object_refs: &[ObjectReference],
     ) -> Result<Vec<Object>, IotaError> {
         let objects = self.try_multi_get_objects_by_key(
             &object_refs.iter().map(ObjectKey::from).collect::<Vec<_>>(),
@@ -445,7 +383,7 @@ pub trait ObjectCacheRead: Send + Sync {
     /// `try_multi_get_objects_with_more_accurate_error_return`.
     fn multi_get_objects_with_more_accurate_error_return(
         &self,
-        object_refs: &[ObjectRef],
+        object_refs: &[ObjectReference],
     ) -> Vec<Object> {
         self.try_multi_get_objects_with_more_accurate_error_return(object_refs)
             .expect("storage access failed")
@@ -459,12 +397,24 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_multi_input_objects_available(
         &self,
         keys: &[InputKey],
-        receiving_objects: HashSet<InputKey>,
+        receiving_objects: &HashSet<InputKey>,
         epoch: EpochId,
     ) -> Result<Vec<bool>, IotaError> {
+        // Cancelled (shared) objects are always available immediately. Filter
+        // them out before the version-based check, which would otherwise treat
+        // their sentinel versions as a real (never-appearing) version.
+        let mut cancelled_results = vec![];
         let (keys_with_version, keys_without_version): (Vec<_>, Vec<_>) = keys
             .iter()
             .enumerate()
+            .filter(|(idx, key)| {
+                if key.is_cancelled() {
+                    cancelled_results.push((*idx, true));
+                    false
+                } else {
+                    true
+                }
+            })
             .partition(|(_, key)| key.version().is_some());
 
         let mut versioned_results = vec![];
@@ -476,11 +426,6 @@ pub trait ObjectCacheRead: Send + Sync {
                     .collect::<Vec<_>>(),
             )?,
         ) {
-            assert!(
-                input_key.version().is_none() || input_key.version().unwrap().is_valid(),
-                "Shared objects in cancelled transaction should always be available immediately,
-                 but it appears that transaction manager is waiting for {input_key:?} to become available"
-            );
             // If the key exists at the specified version, then the object is available.
             if has_key {
                 versioned_results.push((*idx, true))
@@ -527,7 +472,7 @@ pub trait ObjectCacheRead: Send + Sync {
                     .expect("read cannot fail")
                 {
                     None => false,
-                    Some(entry) => entry.digest.is_object_alive(),
+                    Some(entry) => entry.digest.is_alive(),
                 },
             )
         });
@@ -535,6 +480,7 @@ pub trait ObjectCacheRead: Send + Sync {
         let mut results = versioned_results
             .into_iter()
             .chain(unversioned_results)
+            .chain(cancelled_results)
             .collect::<Vec<_>>();
         results.sort_by_key(|(idx, _)| *idx);
         Ok(results.into_iter().map(|(_, result)| result).collect())
@@ -544,12 +490,22 @@ pub trait ObjectCacheRead: Send + Sync {
     fn multi_input_objects_available(
         &self,
         keys: &[InputKey],
-        receiving_objects: HashSet<InputKey>,
+        receiving_objects: &HashSet<InputKey>,
         epoch: EpochId,
     ) -> Vec<bool> {
         self.try_multi_input_objects_available(keys, receiving_objects, epoch)
             .expect("storage access failed")
     }
+
+    /// Like `multi_input_objects_available`, but consults only the in-memory
+    /// cache (no store reads). Used as a fast-path availability check before
+    /// registering for change notifications.
+    ///
+    /// Implementations MUST NOT read the store: this check runs on the hot
+    /// scheduling path and is meant to stay free of store I/O. Reporting an
+    /// available input as unavailable is safe — the caller then waits on the
+    /// full, marker-aware path, which reads the store.
+    fn multi_input_objects_available_cache_only(&self, keys: &[InputKey]) -> Vec<bool>;
 
     /// Return the object with version less then or eq to the provided seq
     /// number. This is used by indexer to find the correct version of
@@ -559,14 +515,14 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaResult<Option<Object>>;
 
     /// Non-fallible version of `try_find_object_lt_or_eq_version`.
     fn find_object_lt_or_eq_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> Option<Object> {
         self.try_find_object_lt_or_eq_version(object_id, version)
             .expect("storage access failed")
@@ -574,14 +530,14 @@ pub trait ObjectCacheRead: Send + Sync {
 
     fn try_get_lock(
         &self,
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaLockResult;
 
     /// Non-fallible version of `try_get_lock`.
     fn get_lock(
         &self,
-        obj_ref: ObjectRef,
+        obj_ref: ObjectReference,
         epoch_store: &AuthorityPerEpochStore,
     ) -> ObjectLockStatus {
         self.try_get_lock(obj_ref, epoch_store)
@@ -590,15 +546,16 @@ pub trait ObjectCacheRead: Send + Sync {
 
     // This method is considered "private" - only used by
     // multi_get_objects_with_more_accurate_error_return
-    fn _try_get_live_objref(&self, object_id: ObjectId) -> IotaResult<ObjectRef>;
+    fn _try_get_live_objref(&self, object_id: ObjectId) -> IotaResult<ObjectReference>;
 
     // Check that the given set of objects are live at the given version. This is
     // used as a safety check before execution, and could potentially be deleted
     // or changed to a debug_assert
-    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult;
+    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectReference])
+    -> IotaResult;
 
     /// Non-fallible version of `try_check_owned_objects_are_live`.
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) {
+    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectReference]) {
         self.try_check_owned_objects_are_live(owned_object_refs)
             .expect("storage access failed")
     }
@@ -617,7 +574,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_get_marker_value(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<MarkerValue>>;
 
@@ -625,7 +582,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn get_marker_value(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> Option<MarkerValue> {
         self.try_get_marker_value(object_id, version, epoch_id)
@@ -637,14 +594,14 @@ pub trait ObjectCacheRead: Send + Sync {
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, MarkerValue)>>;
+    ) -> IotaResult<Option<(Version, MarkerValue)>>;
 
     /// Non-fallible version of `try_get_latest_marker`.
     fn get_latest_marker(
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> Option<(SequenceNumber, MarkerValue)> {
+    ) -> Option<(Version, MarkerValue)> {
         self.try_get_latest_marker(object_id, epoch_id)
             .expect("storage access failed")
     }
@@ -655,7 +612,7 @@ pub trait ObjectCacheRead: Send + Sync {
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> IotaResult<Option<(SequenceNumber, TransactionDigest)>> {
+    ) -> IotaResult<Option<(Version, TransactionDigest)>> {
         match self.try_get_latest_marker(object_id, epoch_id)? {
             Some((version, MarkerValue::SharedDeleted(digest))) => Ok(Some((version, digest))),
             _ => Ok(None),
@@ -667,7 +624,7 @@ pub trait ObjectCacheRead: Send + Sync {
         &self,
         object_id: &ObjectId,
         epoch_id: EpochId,
-    ) -> Option<(SequenceNumber, TransactionDigest)> {
+    ) -> Option<(Version, TransactionDigest)> {
         self.try_get_last_shared_object_deletion_info(object_id, epoch_id)
             .expect("storage access failed")
     }
@@ -677,7 +634,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_get_deleted_shared_object_previous_tx_digest(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<Option<TransactionDigest>> {
         match self.try_get_marker_value(object_id, version, epoch_id)? {
@@ -691,7 +648,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn get_deleted_shared_object_previous_tx_digest(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> Option<TransactionDigest> {
         self.try_get_deleted_shared_object_previous_tx_digest(object_id, version, epoch_id)
@@ -701,7 +658,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_have_received_object_at_version(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<bool> {
         match self.try_get_marker_value(object_id, version, epoch_id)? {
@@ -714,7 +671,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn have_received_object_at_version(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> bool {
         self.try_have_received_object_at_version(object_id, version, epoch_id)
@@ -724,7 +681,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn try_have_deleted_owned_object_at_version_or_after(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> IotaResult<bool> {
         match self.try_get_latest_marker(object_id, epoch_id)? {
@@ -740,7 +697,7 @@ pub trait ObjectCacheRead: Send + Sync {
     fn have_deleted_owned_object_at_version_or_after(
         &self,
         object_id: &ObjectId,
-        version: SequenceNumber,
+        version: Version,
         epoch_id: EpochId,
     ) -> bool {
         self.try_have_deleted_owned_object_at_version_or_after(object_id, version, epoch_id)
@@ -768,8 +725,8 @@ pub trait ObjectCacheRead: Send + Sync {
         &'a self,
         input_and_receiving_keys: &'a [InputKey],
         receiving_keys: &'a HashSet<InputKey>,
-        epoch: &'a EpochId,
-    ) -> BoxFuture<'a, Vec<()>>;
+        epoch: EpochId,
+    ) -> BoxFuture<'a, ()>;
 }
 
 pub trait TransactionCacheRead: Send + Sync {
@@ -979,16 +936,18 @@ pub trait TransactionCacheRead: Send + Sync {
 
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>>;
 
     /// Non-fallible version of `try_notify_read_executed_effects_digests`.
     fn notify_read_executed_effects_digests<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, Vec<TransactionEffectsDigest>> {
         Box::pin(async move {
-            self.try_notify_read_executed_effects_digests(digests)
+            self.try_notify_read_executed_effects_digests(task_name, digests)
                 .await
                 .expect("storage access failed")
         })
@@ -1002,34 +961,42 @@ pub trait TransactionCacheRead: Send + Sync {
     /// ExecutionLockReadGuard would also prevent reconfig from happening while
     /// waiting, but this is very dangerous, as it could prevent
     /// reconfiguration from ever occurring!
+    ///
+    /// Returns an error if any of the requested effects have been pruned from
+    /// the database.
     fn try_notify_read_executed_effects<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffects>>> {
         async move {
-            let digests = self
-                .try_notify_read_executed_effects_digests(digests)
+            let effects_digests = self
+                .try_notify_read_executed_effects_digests(task_name, digests)
                 .await?;
-            // once digests are available, effects must be present as well
-            self.try_multi_get_effects(&digests).map(|effects| {
-                effects
-                    .into_iter()
-                    .map(|e| e.unwrap_or_else(|| fatal!("digests must exist")))
-                    .collect()
-            })
+            self.try_multi_get_effects(&effects_digests)?
+                .into_iter()
+                .zip(digests)
+                .map(|(effects, digest)| {
+                    effects.ok_or(IotaError::TransactionEffectsNotFound { digest: *digest })
+                })
+                .collect()
         }
         .boxed()
     }
 
     /// Non-fallible version of `try_notify_read_executed_effects`.
-    fn notify_read_executed_effects<'a>(
+    ///
+    /// Panics if any of the requested effects are not found. For paths where
+    /// effects may have been pruned, use `try_notify_read_executed_effects`.
+    fn notify_read_executed_effects_for_testing<'a>(
         &'a self,
+        task_name: &'static str,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, Vec<TransactionEffects>> {
         Box::pin(async move {
-            self.try_notify_read_executed_effects(digests)
+            self.try_notify_read_executed_effects(task_name, digests)
                 .await
-                .expect("storage access failed")
+                .unwrap_or_else(|e| panic!("effects must exist: {e}"))
         })
     }
 }
@@ -1061,6 +1028,13 @@ pub trait ExecutionCacheWrite: Send + Sync {
         tx_outputs: Arc<TransactionOutputs>,
     ) -> IotaResult;
 
+    /// Writes a single object entry directly to the cache, for tests that need
+    /// to make an input object available without constructing full transaction
+    /// outputs. Notifies any waiter (e.g. the execution scheduler) registered
+    /// for the object.
+    #[cfg(test)]
+    fn write_object_entry_for_test(&self, object: Object);
+
     /// Non-fallible version of `try_write_transaction_outputs`.
     fn write_transaction_outputs(&self, epoch_id: EpochId, tx_outputs: Arc<TransactionOutputs>) {
         self.try_write_transaction_outputs(epoch_id, tx_outputs)
@@ -1071,7 +1045,7 @@ pub trait ExecutionCacheWrite: Send + Sync {
     fn try_acquire_transaction_locks(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
         transaction: VerifiedSignedTransaction,
     ) -> IotaResult;
 
@@ -1079,7 +1053,7 @@ pub trait ExecutionCacheWrite: Send + Sync {
     fn acquire_transaction_locks(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        owned_input_objects: &[ObjectRef],
+        owned_input_objects: &[ObjectReference],
         transaction: VerifiedSignedTransaction,
     ) {
         self.try_acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
@@ -1088,7 +1062,8 @@ pub trait ExecutionCacheWrite: Send + Sync {
 
     /// Validates that all owned input objects exist and their versions/digests
     /// match the live objects. Does not acquire any locks.
-    fn validate_owned_object_versions(&self, owned_input_objects: &[ObjectRef]) -> IotaResult;
+    fn validate_owned_object_versions(&self, owned_input_objects: &[ObjectReference])
+    -> IotaResult;
 }
 
 pub trait CheckpointCache: Send + Sync {

@@ -21,13 +21,10 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
     TransactionBlocksPage, TransactionFilter,
 };
-use iota_sdk_types::{ObjectId, TransactionKind};
+use iota_sdk_types::{Address, ObjectId, Transaction, TransactionDigest, TransactionKind, Version};
 use iota_types::{
-    base_types::{IotaAddress, SequenceNumber, TransactionDigest},
-    dynamic_field::DynamicFieldName,
-    iota_serde::BigInt,
+    dynamic_field::DynamicFieldName, iota_serde::BigInt,
     messages_checkpoint::CheckpointSequenceNumber,
-    transaction::TransactionData,
 };
 use jsonrpsee::core::client::Subscription;
 
@@ -60,12 +57,13 @@ impl ReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
+    /// use iota_sdk::IotaClientBuilder;
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
     ///         .get_owned_objects(address, None, None, None)
@@ -75,7 +73,7 @@ impl ReadApi {
     /// ```
     pub async fn get_owned_objects(
         &self,
-        address: IotaAddress,
+        address: Address,
         query: impl Into<Option<IotaObjectResponseQuery>>,
         cursor: impl Into<Option<ObjectId>>,
         limit: impl Into<Option<usize>>,
@@ -101,13 +99,13 @@ impl ReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{IotaClientBuilder, types::base_types::IotaAddress};
-    /// use iota_sdk_types::ObjectId;
+    /// use iota_sdk::IotaClientBuilder;
+    /// use iota_sdk_types::{Address, ObjectId};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
     ///         .get_owned_objects(address, None, None, None)
@@ -183,15 +181,13 @@ impl ReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{
-    ///     IotaClientBuilder, rpc_types::IotaObjectDataOptions, types::base_types::IotaAddress,
-    /// };
-    /// use iota_sdk_types::ObjectId;
+    /// use iota_sdk::{IotaClientBuilder, rpc_types::IotaObjectDataOptions};
+    /// use iota_sdk_types::{Address, ObjectId};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
     ///         .get_owned_objects(address, None, None, None)
@@ -229,13 +225,13 @@ impl ReadApi {
     pub async fn try_get_parsed_past_object(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
         options: IotaObjectDataOptions,
     ) -> IotaRpcResult<IotaPastObjectResponse> {
         Ok(self
             .api
             .http
-            .try_get_past_object(object_id, version, Some(options))
+            .try_get_past_object(object_id, version.into(), Some(options))
             .await?)
     }
 
@@ -252,14 +248,13 @@ impl ReadApi {
     /// use iota_sdk::{
     ///     IotaClientBuilder,
     ///     rpc_types::{IotaGetPastObjectRequest, IotaObjectDataOptions},
-    ///     types::base_types::IotaAddress,
     /// };
-    /// use iota_sdk_types::ObjectId;
+    /// use iota_sdk_types::{Address, ObjectId};
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
     ///         .get_owned_objects(address, None, None, None)
@@ -333,14 +328,13 @@ impl ReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{
-    ///     IotaClientBuilder, rpc_types::IotaObjectDataOptions, types::base_types::IotaAddress,
-    /// };
+    /// use iota_sdk::{IotaClientBuilder, rpc_types::IotaObjectDataOptions};
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
     ///         .get_owned_objects(address, None, None, None)
@@ -389,14 +383,13 @@ impl ReadApi {
     /// ```rust,no_run
     /// use std::str::FromStr;
     ///
-    /// use iota_sdk::{
-    ///     IotaClientBuilder, rpc_types::IotaObjectDataOptions, types::base_types::IotaAddress,
-    /// };
+    /// use iota_sdk::{IotaClientBuilder, rpc_types::IotaObjectDataOptions};
+    /// use iota_sdk_types::Address;
     ///
     /// #[tokio::main]
     /// async fn main() -> Result<(), anyhow::Error> {
     ///     let iota = IotaClientBuilder::default().build_testnet().await?;
-    ///     let address = IotaAddress::from_str("0x0000....0000")?;
+    ///     let address = Address::from_str("0x0000....0000")?;
     ///     let owned_objects = iota
     ///         .read_api()
     ///         .get_owned_objects(address, None, None, None)
@@ -666,12 +659,12 @@ impl ReadApi {
     /// any side-effects of a transaction before you execute it on the network.
     pub async fn dry_run_transaction_block(
         &self,
-        tx: TransactionData,
+        tx: Transaction,
     ) -> IotaRpcResult<DryRunTransactionBlockResponse> {
         Ok(self
             .api
             .http
-            .dry_run_transaction_block(Base64::from_bytes(&bcs::to_bytes(&tx)?))
+            .dry_run_transaction_block(Base64::from_bytes(&tx.to_bcs()))
             .await?)
     }
 
@@ -700,7 +693,7 @@ impl ReadApi {
     /// [Self::dry_run_transaction_block] instead.
     pub async fn dev_inspect_transaction_block(
         &self,
-        sender_address: IotaAddress,
+        sender_address: Address,
         tx: TransactionKind,
         gas_price: impl Into<Option<BigInt<u64>>>,
         epoch: impl Into<Option<BigInt<u64>>>,
@@ -711,7 +704,7 @@ impl ReadApi {
             .http
             .dev_inspect_transaction_block(
                 sender_address,
-                Base64::from_bytes(&bcs::to_bytes(&tx)?),
+                Base64::from_bytes(&tx.to_bcs()),
                 gas_price.into(),
                 epoch.into(),
                 additional_args.into(),
@@ -733,7 +726,7 @@ impl ReadApi {
     pub async fn try_get_object_before_version(
         &self,
         object_id: ObjectId,
-        version: SequenceNumber,
+        version: Version,
     ) -> IotaRpcResult<IotaPastObjectResponse> {
         Ok(self
             .api
@@ -752,7 +745,7 @@ impl ReadApi {
     /// Return the resolved name for the given address.
     pub async fn iota_names_reverse_lookup(
         &self,
-        address: IotaAddress,
+        address: Address,
     ) -> IotaRpcResult<Option<String>> {
         Ok(self.api.http.iota_names_reverse_lookup(address).await?)
     }
@@ -761,7 +754,7 @@ impl ReadApi {
     /// Find all registration NFTs for the given address.
     pub async fn iota_names_find_all_registration_nfts(
         &self,
-        address: IotaAddress,
+        address: Address,
         cursor: Option<ObjectId>,
         limit: Option<usize>,
         options: Option<IotaObjectDataOptions>,

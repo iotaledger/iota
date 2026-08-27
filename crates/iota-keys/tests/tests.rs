@@ -12,9 +12,11 @@ use iota_keys::{
     key_derive::generate_new_key,
     keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore, LegacyAlias},
 };
+use iota_sdk_crypto::ToFromBech32;
+use iota_sdk_types::{Address, SignatureScheme};
 use iota_types::{
-    base_types::{IOTA_ADDRESS_LENGTH, IotaAddress},
-    crypto::{DefaultHash, Ed25519IotaSignature, IotaSignatureInner, SignatureScheme},
+    base_types::IOTA_ADDRESS_LENGTH,
+    crypto::{DefaultHash, PublicKey},
 };
 use tempfile::TempDir;
 
@@ -25,7 +27,7 @@ fn alias_exists_test() {
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
     keystore
         .generate_and_add_new_key(
-            SignatureScheme::ED25519,
+            SignatureScheme::Ed25519,
             Some("my_alias_test".to_string()),
             None,
             None,
@@ -45,7 +47,7 @@ fn create_alias_if_not_exists_test() {
 
     let alias = Some("my_alias_test".to_string());
     keystore
-        .generate_and_add_new_key(SignatureScheme::ED25519, alias.clone(), None, None)
+        .generate_and_add_new_key(SignatureScheme::Ed25519, alias.clone(), None, None)
         .unwrap();
 
     // test error first
@@ -67,7 +69,7 @@ fn update_alias_test() {
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
     keystore
         .generate_and_add_new_key(
-            SignatureScheme::ED25519,
+            SignatureScheme::Ed25519,
             Some("my_alias_test".to_string()),
             None,
             None,
@@ -107,7 +109,7 @@ fn update_alias_test() {
     // check that updating alias does not allow duplicates
     keystore
         .generate_and_add_new_key(
-            SignatureScheme::ED25519,
+            SignatureScheme::Ed25519,
             Some("my_alias_test".to_string()),
             None,
             None,
@@ -125,7 +127,7 @@ fn update_alias_in_memory_test() {
     let mut keystore = Keystore::InMem(InMemKeystore::new_insecure_for_tests(0));
     keystore
         .generate_and_add_new_key(
-            SignatureScheme::ED25519,
+            SignatureScheme::Ed25519,
             Some("my_alias_test".to_string()),
             None,
             None,
@@ -153,15 +155,15 @@ fn mnemonic_test() {
     let keystore_path = temp_dir.path().join("iota.keystore");
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
     let (address, phrase, scheme) = keystore
-        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
+        .generate_and_add_new_key(SignatureScheme::Ed25519, None, None, None)
         .unwrap();
 
     let keystore_path_2 = temp_dir.path().join("iota2.keystore");
     let mut keystore2 = Keystore::from(FileBasedKeystore::new(&keystore_path_2).unwrap());
     let imported_address = keystore2
-        .import_from_mnemonic(&phrase, SignatureScheme::ED25519, None, None)
+        .import_from_mnemonic(&phrase, SignatureScheme::Ed25519, None, None)
         .unwrap();
-    assert_eq!(scheme.flag(), Ed25519IotaSignature::SCHEME.flag());
+    assert_eq!(scheme, SignatureScheme::Ed25519);
     assert_eq!(address, imported_address);
 }
 
@@ -170,27 +172,26 @@ fn mnemonic_test() {
 #[test]
 fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
     let phrase = "result crisp session latin must fruit genuine question prevent start coconut brave speak student dismiss";
-    let expected_address = IotaAddress::from_str(
-        "0x61d6b774051d92c8c4863782933e915f88c433e9542ca534b233dc8ef1155137",
-    )?;
+    let expected_address =
+        Address::from_str("0x61d6b774051d92c8c4863782933e915f88c433e9542ca534b233dc8ef1155137")?;
 
     let temp_dir = TempDir::new().unwrap();
     let keystore_path = temp_dir.path().join("iota.keystore");
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
 
     keystore
-        .import_from_mnemonic(phrase, SignatureScheme::ED25519, None, None)
+        .import_from_mnemonic(phrase, SignatureScheme::Ed25519, None, None)
         .unwrap();
 
     let pubkey = keystore.keys()[0].public();
-    assert_eq!(pubkey.flag(), Ed25519IotaSignature::SCHEME.flag());
+    assert_eq!(pubkey.flag(), SignatureScheme::Ed25519.to_u8());
 
     let mut hasher = DefaultHash::default();
     hasher.update(pubkey);
     let g_arr = hasher.finalize();
     let mut res = [0u8; IOTA_ADDRESS_LENGTH];
     res.copy_from_slice(&AsRef::<[u8]>::as_ref(&g_arr)[..IOTA_ADDRESS_LENGTH]);
-    let address = IotaAddress::from_bytes(res.as_slice())?;
+    let address = Address::from_bytes(res.as_slice())?;
 
     assert_eq!(expected_address, address);
 
@@ -214,12 +215,12 @@ fn get_alias_by_address_test() {
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
     let alias = "my_alias_test".to_string();
     let keypair = keystore
-        .generate_and_add_new_key(SignatureScheme::ED25519, Some(alias.clone()), None, None)
+        .generate_and_add_new_key(SignatureScheme::Ed25519, Some(alias.clone()), None, None)
         .unwrap();
     assert_eq!(alias, keystore.get_alias_by_address(&keypair.0).unwrap());
 
     // Test getting an alias of an address that is not in keystore
-    let address = generate_new_key(SignatureScheme::ED25519, None, None).unwrap();
+    let address = generate_new_key(SignatureScheme::Ed25519, None, None).unwrap();
     assert!(keystore.get_alias_by_address(&address.0).is_err())
 }
 
@@ -231,7 +232,7 @@ fn remove_key_test() {
 
     let address = keystore
         .generate_and_add_new_key(
-            SignatureScheme::ED25519,
+            SignatureScheme::Ed25519,
             Some("test_key".to_string()),
             None,
             None,
@@ -258,9 +259,9 @@ fn test_migrate_v1_to_v2_no_aliases() {
     let temp_dir = TempDir::new().unwrap();
     let keystore_path = temp_dir.path().join("test.keystore_extension");
 
-    let (_, keypair, _, _) = generate_new_key(SignatureScheme::ED25519, None, None).unwrap();
+    let (_, keypair, _, _) = generate_new_key(SignatureScheme::Ed25519, None, None).unwrap();
     // Create a v1 keystore file with a single key
-    let private_keys = vec![keypair.encode().unwrap()];
+    let private_keys = vec![keypair.to_bech32().unwrap()];
     let keystore_data = serde_json::to_string_pretty(&private_keys).unwrap();
     fs::write(&keystore_path, keystore_data).unwrap();
 
@@ -268,12 +269,13 @@ fn test_migrate_v1_to_v2_no_aliases() {
     assert!(keystore_path.exists());
     assert_eq!(1, keystore.aliases().len());
     assert_eq!(
-        *keystore
-            .get_key(&IotaAddress::from(&keypair.public()))
+        keystore
+            .get_key(&Address::from(&PublicKey::from(&keypair)))
             .unwrap()
             .as_keypair()
-            .unwrap(),
-        keypair,
+            .unwrap()
+            .to_bytes(),
+        keypair.to_bytes(),
     );
 
     let mut backup_keystore_path = keystore_path.clone();
@@ -294,16 +296,16 @@ fn test_migrate_v1_to_v2_with_aliases() {
     let mut aliases_path = keystore_path.clone();
     aliases_path.set_extension("aliases");
 
-    let (_, keypair, _, _) = generate_new_key(SignatureScheme::ED25519, None, None).unwrap();
+    let (_, keypair, _, _) = generate_new_key(SignatureScheme::Ed25519, None, None).unwrap();
     // Create a v1 keystore file with a single key
-    let private_keys = vec![keypair.encode().unwrap()];
+    let private_keys = vec![keypair.to_bech32().unwrap()];
     let keystore_data = serde_json::to_string_pretty(&private_keys).unwrap();
     fs::write(&keystore_path, keystore_data).unwrap();
 
     // Create an aliases file with a single alias
     let aliases = vec![LegacyAlias {
         alias: "test_alias".to_string(),
-        public_key_base64: keypair.public().encode_base64(),
+        public_key_base64: PublicKey::from(&keypair).encode_base64(),
     }];
     let aliases_data = serde_json::to_string_pretty(&aliases).unwrap();
     fs::write(&aliases_path, aliases_data).unwrap();
@@ -312,16 +314,17 @@ fn test_migrate_v1_to_v2_with_aliases() {
     assert!(keystore_path.exists());
     assert_eq!(1, keystore.aliases().len());
     assert_eq!(
-        *keystore
-            .get_key(&IotaAddress::from(&keypair.public()))
+        keystore
+            .get_key(&Address::from(&PublicKey::from(&keypair)))
             .unwrap()
             .as_keypair()
-            .unwrap(),
-        keypair,
+            .unwrap()
+            .to_bytes(),
+        keypair.to_bytes(),
     );
     assert_eq!(
         keystore
-            .get_alias_by_address(&IotaAddress::from(&keypair.public()))
+            .get_alias_by_address(&Address::from(&PublicKey::from(&keypair)))
             .unwrap(),
         "test_alias"
     );

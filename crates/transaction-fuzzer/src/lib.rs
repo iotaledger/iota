@@ -13,21 +13,18 @@ use std::fmt::Debug;
 
 use executor::Executor;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, Owner};
+use iota_sdk_types::{Address, GasPayment, MoveStruct, ObjectId, Owner, TransactionDigest};
 use iota_types::{
-    base_types::IotaAddress,
-    crypto::{AccountKeyPair, get_key_pair},
-    digests::TransactionDigest,
+    crypto::{AccountPrivateKey, get_key_pair},
     gas_coin::NANOS_PER_IOTA,
-    object::{MoveObject, MoveObjectExt, OBJECT_START_VERSION, Object},
-    transaction::GasData,
+    object::{MoveStructExt, OBJECT_START_VERSION, Object},
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
-        MoveObject::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), balance),
+        MoveStruct::new_gas_coin(OBJECT_START_VERSION, ObjectId::random(), balance),
         owner,
         TransactionDigest::GENESIS_MARKER,
     )
@@ -46,7 +43,7 @@ fn generate_random_gas_data(
     // was implemented.
     const MAX_GAS_BALANCE: u64 = 4_600_000_000 * NANOS_PER_IOTA;
 
-    let (sender, sender_key): (IotaAddress, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
     let mut rng = StdRng::from_seed(seed);
     let mut gas_objects = vec![];
     let mut object_refs = vec![];
@@ -80,13 +77,13 @@ fn generate_random_gas_data(
     assert_eq!(
         gas_objects
             .iter()
-            .map(|o| o.data.as_struct_opt().unwrap().get_coin_value_unchecked())
+            .map(|o| o.data.as_opt_struct().unwrap().get_coin_value_unchecked())
             .sum::<u64>(),
         total_gas_balance
     );
 
     GasDataWithObjects {
-        gas_data: GasData {
+        gas_data: GasPayment {
             objects: object_refs,
             owner: sender,
             price: rng.gen_range(0..=ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price()),
@@ -100,8 +97,8 @@ fn generate_random_gas_data(
 /// Need to have a wrapper struct here so we can implement Arbitrary for it.
 #[derive(Debug)]
 pub struct GasDataWithObjects {
-    pub gas_data: GasData,
-    pub sender_key: AccountKeyPair,
+    pub gas_data: GasPayment,
+    pub sender_key: AccountPrivateKey,
     pub objects: Vec<Object>,
 }
 

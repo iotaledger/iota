@@ -11,7 +11,7 @@ use iota_core::{
     consensus_handler::SequencedConsensusTransaction,
 };
 use iota_types::{error::IotaResult, messages_consensus::ConsensusTransaction};
-use prometheus::IntCounter;
+use prometheus_filtered::IntCounter;
 use tokio::{sync::mpsc, task::JoinHandle};
 
 pub(crate) struct MockConsensusClient {

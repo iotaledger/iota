@@ -8,15 +8,19 @@ use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::gas::GasCostSummary;
+use iota_sdk_types::{
+    Address,
+    checkpoint::{CheckpointContents, CheckpointSummary},
+    gas::GasCostSummary,
+};
 use iota_types::{
     committee::Committee,
-    crypto::{AccountKeyPair, AuthorityKeyPair, get_key_pair},
-    messages_checkpoint::{CheckpointContents, CheckpointSummary, SignedCheckpointSummary},
+    crypto::{AccountPrivateKey, AuthorityKeyPair, get_key_pair},
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSummaryExt, SignedCheckpointSummary},
     transaction::CertifiedTransaction,
 };
 use itertools::Itertools as _;
-use prometheus::Registry;
+use prometheus_filtered::Registry;
 use rand::{Rng, thread_rng};
 
 use crate::{
@@ -30,10 +34,10 @@ fn gen_certs(
     key_pairs: &[AuthorityKeyPair],
     count: usize,
 ) -> Vec<CertifiedTransaction> {
-    let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+    let receiver = Address::random();
 
     let senders: Vec<_> = (0..count)
-        .map(|_| get_key_pair::<AccountKeyPair>())
+        .map(|_| get_key_pair::<AccountPrivateKey>())
         .collect();
 
     let txns: Vec<_> = senders
@@ -57,7 +61,7 @@ fn gen_ckpts(
             let name = k.public().into();
             SignedCheckpointSummary::new(
                 committee.epoch,
-                CheckpointSummary::new(
+                CheckpointSummary::new_with_protocol_config(
                     &ProtocolConfig::get_for_max_version_UNSAFE(),
                     committee.epoch,
                     // insert different data for each checkpoint so that we can swap sigs later
@@ -104,11 +108,11 @@ async fn test_batch_verify() {
         .unwrap_err();
     }
 
-    let (other_sender, other_sender_sec): (_, AccountKeyPair) = get_key_pair();
+    let (other_sender, other_sender_sec): (_, AccountPrivateKey) = get_key_pair();
     // this test is a bit much for the current implementation - it was originally
     // written to verify a bisecting fall back approach.
     for i in 0..16 {
-        let (receiver, _): (_, AccountKeyPair) = get_key_pair();
+        let receiver = Address::random();
         let mut certs = certs.clone();
         let other_tx = make_dummy_tx(receiver, other_sender, &other_sender_sec);
         let other_cert = make_cert_with_large_committee(&committee, &key_pairs, &other_tx);
@@ -152,8 +156,8 @@ async fn test_async_verifier() {
             tokio::task::spawn(async move {
                 let certs = gen_certs(&committee, &key_pairs, 100);
 
-                let (receiver, _): (_, AccountKeyPair) = get_key_pair();
-                let (other_sender, other_sender_sec): (_, AccountKeyPair) = get_key_pair();
+                let receiver = Address::random();
+                let (other_sender, other_sender_sec): (_, AccountPrivateKey) = get_key_pair();
                 let other_tx = make_dummy_tx(receiver, other_sender, &other_sender_sec);
                 let other_cert = make_cert_with_large_committee(&committee, &key_pairs, &other_tx);
 
