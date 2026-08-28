@@ -92,8 +92,7 @@ pub(crate) struct CordialKnowledge {
     /// Authors for which recent peer block bundles contained an accepted header
     /// or referenced a missing ancestor, indexed by author.
     missing_authors: Vec<Option<MissingAuthor>>,
-    /// Highest local own-block round seen. It timestamps useful-header reports,
-    /// so peer block rounds cannot leave requests active for too long.
+    /// Highest local own-block round seen.
     latest_own_block_round: Round,
     /// Whether headers are currently requested from each peer. This ensures an
     /// empty set is sent once when the last request is removed.
