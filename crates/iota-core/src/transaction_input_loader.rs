@@ -205,7 +205,9 @@ impl TransactionInputLoader {
                         // Do not need to fetch shared object for cancelled transaction.
                         results[i] = Some(ObjectReadResult {
                             input_object_kind: *input,
-                            object: ObjectReadResultKind::CancelledTransactionSharedObject(*version),
+                            object: ObjectReadResultKind::CancelledTransactionSharedObject(
+                                *version,
+                            ),
                         })
                     } else {
                         object_keys.push(ObjectKey(*id, *version));

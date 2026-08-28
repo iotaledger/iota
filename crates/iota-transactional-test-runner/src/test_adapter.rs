@@ -2133,7 +2133,7 @@ impl IotaTestAdapter {
             .unwrap();
         }
         out.push('\n');
-        write!(out, "gas summary: {gas_summary}").unwrap();
+        write!(out, "gas summary: {}", flat_gas_summary(gas_summary)).unwrap();
 
         if out.is_empty() { None } else { Some(out) }
     }
@@ -2424,6 +2424,27 @@ impl IotaTestAdapter {
 
         Ok(builder.finish())
     }
+}
+
+/// Render a gas summary on a single line.
+///
+/// `GasCostSummary`'s own `Display` renders a multi-line tree, which would turn
+/// every gas summary in a test baseline into six lines.
+fn flat_gas_summary(gas_summary: &GasCostSummary) -> String {
+    let GasCostSummary {
+        computation_cost,
+        computation_cost_burned,
+        storage_cost,
+        storage_rebate,
+        non_refundable_storage_fee,
+    } = gas_summary;
+    format!(
+        "computation_cost: {computation_cost}, \
+         computation_cost_burned: {computation_cost_burned}, \
+         storage_cost: {storage_cost}, \
+         storage_rebate: {storage_rebate}, \
+         non_refundable_storage_fee: {non_refundable_storage_fee}"
+    )
 }
 
 impl<'a> GetModule for &'a IotaTestAdapter {
