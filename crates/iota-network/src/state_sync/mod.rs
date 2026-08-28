@@ -913,25 +913,24 @@ where
     ) {
         let highest_verified_checkpoint = self
             .store
-            .try_get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint_seq_number()
             .expect("store operation should not fail");
         let highest_synced_checkpoint = self
             .store
-            .try_get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint_seq_number()
             .expect("store operation should not fail");
 
-        if highest_verified_checkpoint.sequence_number()
-            > highest_synced_checkpoint.sequence_number()
+        if highest_verified_checkpoint > highest_synced_checkpoint
             // Skip if we aren't connected to any peers that can help
             && self
                 .peer_heights
                 .read()
                 .unwrap()
                 .highest_known_checkpoint_sequence_number()
-                > Some(highest_synced_checkpoint.sequence_number())
+                > Some(highest_synced_checkpoint)
         {
             let _ = target_sequence_channel.send_if_modified(|num| {
-                let new_num = highest_verified_checkpoint.sequence_number();
+                let new_num = highest_verified_checkpoint;
                 if *num == new_num {
                     return false;
                 }
@@ -1173,6 +1172,25 @@ where
 
     let mut last_cleaned = current.sequence_number();
     while let Some((maybe_checkpoint, next, maybe_peer_id)) = request_stream.next().await {
+        // Don't redo work: the archive sync advances the same watermark, and
+        // may already have passed the range this task fixed when it started.
+        let highest_verified = store
+            .try_get_highest_verified_checkpoint_seq_number()
+            .expect("store operation should not fail");
+        if highest_verified > current.sequence_number() {
+            debug!(
+                highest_verified,
+                walked_to = current.sequence_number(),
+                "stopping a checkpoint summary sync another writer has passed",
+            );
+            // Everything up to there is another task's business now, and this
+            // is the last chance to drop what this one accumulated.
+            peer_heights
+                .write()
+                .unwrap()
+                .cleanup_old_checkpoints(highest_verified);
+            return Ok(());
+        }
         assert_eq!(
             current
                 .sequence_number()
@@ -1327,7 +1345,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         .iter()
         .map(|(_p, state_sync_info)| state_sync_info.lowest)
         .min();
-    let highest_synced = store.get_highest_synced_checkpoint().sequence_number;
+    let highest_synced = store.get_highest_synced_checkpoint_seq_number();
     // Only sync from checkpoint archive when there is at least one checkpoint in
     // the gap [highest_synced+1, lowest_peer). If highest_synced+1 ==
     // lowest_peer the archive range is empty and there is nothing to do.
@@ -1406,9 +1424,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             }
         };
         let run_result = run_future.await;
-        let highest_synced_now = store_for_log
-            .get_highest_synced_checkpoint()
-            .sequence_number;
+        let highest_synced_now = store_for_log.get_highest_synced_checkpoint_seq_number();
         match run_result {
             Ok(_) => info!(
                 "State sync from checkpoint archive finished. Highest synced checkpoint = \
@@ -1652,9 +1668,8 @@ where
     // retrying failed content syncs at the front of the queue, blocking
     // the watermark from advancing past them.
     if store
-        .try_get_highest_synced_checkpoint()
+        .try_get_highest_synced_checkpoint_seq_number()
         .expect("store operation should not fail")
-        .sequence_number()
         >= checkpoint.sequence_number()
     {
         debug!("checkpoint was already created via consensus output");
@@ -1793,12 +1808,12 @@ where
     loop {
         tokio::select! {
              _now = interval.tick() => {
-                let highest_verified_checkpoint = store.try_get_highest_verified_checkpoint()
-                    .expect("store operation should not fail");
-                metrics.set_highest_verified_checkpoint(highest_verified_checkpoint.sequence_number);
-                let highest_synced_checkpoint = store.try_get_highest_synced_checkpoint()
-                    .expect("store operation should not fail");
-                metrics.set_highest_synced_checkpoint(highest_synced_checkpoint.sequence_number);
+                metrics.set_highest_verified_checkpoint(
+                    store.get_highest_verified_checkpoint_seq_number(),
+                );
+                metrics.set_highest_synced_checkpoint(
+                    store.get_highest_synced_checkpoint_seq_number(),
+                );
              },
             _ = &mut recv => break,
         }
