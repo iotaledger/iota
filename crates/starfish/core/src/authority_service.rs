@@ -835,7 +835,37 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let block_ref = verified_block.reference();
         let transaction_ref = verified_block.transaction_ref();
         let gen_transaction_ref = GenericTransactionRef::from(transaction_ref);
-        // 1b. The stream carries the peer's own blocks in proposal order, so the
+        // 1b. Two signed headers from the author's own stream for one slot are
+        // provable equivocation, so drop the block before its shards and payload
+        // are processed, and charge the author. Runs before the order check so
+        // the stronger charge wins whenever the slot is already accepted.
+        if self
+            .dag_state
+            .read()
+            .contains_other_block_header_at_slot(&block_ref)
+        {
+            let e = ConsensusError::BlockHeaderEquivocation {
+                authority: peer,
+                round: block_ref.round,
+            };
+            self.misbehavior_store.record_faulty_block(peer, peer, &e);
+            self.context
+                .metrics
+                .node_metrics
+                .dropped_slot_cap_headers_total
+                .with_label_values(&[
+                    self.context.authority_hostname(peer),
+                    DataSource::BlockStreaming.as_str(),
+                ])
+                .inc();
+            warn!(
+                "Peer {peer} equivocated: dropping streamed block {block_ref}, its slot already \
+                 holds a header with a different digest"
+            );
+            return Err(e);
+        }
+
+        // 1c. The stream carries the peer's own blocks in proposal order, so the
         // round must strictly increase over one connection, starting above the
         // round the subscription asked for. A same-round block with another
         // digest is the peer's equivocation.
@@ -879,36 +909,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             return Err(e);
         }
         *last_streamed_block = StreamPosition::from(block_ref);
-
-        // 1c. Two signed headers from the author's own stream for one slot are
-        // provable equivocation, so drop the block before its shards and payload
-        // are processed, and charge the author. A same-slot header still only
-        // suspended is caught by the equivalent cap in the block manager.
-        if self
-            .dag_state
-            .read()
-            .contains_other_block_header_at_slot(&block_ref)
-        {
-            let e = ConsensusError::BlockHeaderEquivocation {
-                authority: peer,
-                round: block_ref.round,
-            };
-            self.misbehavior_store.record_faulty_block(peer, peer, &e);
-            self.context
-                .metrics
-                .node_metrics
-                .dropped_slot_cap_headers_total
-                .with_label_values(&[
-                    self.context.authority_hostname(peer),
-                    DataSource::BlockStreaming.as_str(),
-                ])
-                .inc();
-            warn!(
-                "Peer {peer} equivocated: dropping streamed block {block_ref}, its slot already \
-                 holds a header with a different digest"
-            );
-            return Err(e);
-        }
 
         // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
         let now = self.context.clock.timestamp_utc_ms();
@@ -2568,10 +2568,10 @@ mod tests {
         }
     }
 
-    /// A same-round block for a slot whose header is both accepted and the
-    /// stream position is charged once, as equivocation.
+    /// A block below the stream position whose slot already holds an accepted
+    /// header is charged as equivocation, not as a regression.
     #[tokio::test(flavor = "current_thread")]
-    async fn test_handle_subscribed_block_bundle_stream_round_order_charges_equivocation_once() {
+    async fn test_handle_subscribed_block_bundle_accepted_slot_beats_stream_order() {
         let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let fixture = stream_fixture(context.clone());
@@ -2595,7 +2595,11 @@ mod tests {
             DataSource::BlockBundleStream,
         );
 
-        let mut last_streamed_block = StreamPosition::from(accepted.reference());
+        // The stream has already moved on to round 2.
+        let mut last_streamed_block = StreamPosition {
+            round: 2,
+            digest: None,
+        };
         let result = fixture
             .authority_service
             .handle_subscribed_block_bundle(
@@ -2619,10 +2623,22 @@ mod tests {
             context
                 .metrics
                 .node_metrics
-                .dropped_out_of_order_streamed_blocks_total
-                .with_label_values(&[context.authority_hostname(peer), "equivocation"])
+                .dropped_slot_cap_headers_total
+                .with_label_values(&[
+                    context.authority_hostname(peer),
+                    DataSource::BlockStreaming.as_str(),
+                ])
                 .get(),
             1
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_out_of_order_streamed_blocks_total
+                .with_label_values(&[context.authority_hostname(peer), "regression"])
+                .get(),
+            0
         );
     }
 
