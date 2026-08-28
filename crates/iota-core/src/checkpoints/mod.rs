@@ -816,8 +816,7 @@ impl CheckpointStore {
     ///
     /// Only for tooling that deliberately rewinds it. The node writes this row
     /// through [`Self::update_highest_verified_checkpoint`], which declines to
-    /// move it backwards — though it reads and writes without a lock, so two
-    /// writers racing can still leave it behind where one of them saw it.
+    /// move it backwards, under a lock its callers share.
     pub fn set_highest_verified_checkpoint_subtle(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -832,8 +831,8 @@ impl CheckpointStore {
     /// forwards.
     ///
     /// Only for tooling that deliberately rewinds it. The node writes this row
-    /// through [`Self::multi_update_highest_synced_checkpoint`], which
-    /// declines to move it backwards.
+    /// through [`Self::multi_update_highest_synced_checkpoint`], which declines
+    /// to move it backwards, under a lock its callers share.
     pub fn set_highest_synced_checkpoint_subtle(
         &self,
         checkpoint: &VerifiedCheckpoint,
