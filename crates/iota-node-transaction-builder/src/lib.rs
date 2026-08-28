@@ -14,7 +14,7 @@
 //! The client is ledger-only: it resolves objects, gas, and protocol
 //! parameters, but does not simulate or execute, so transactions are built
 //! with an explicit gas budget via
-//! [`TransactionBuilder::finish_with_budget`].
+//! [`TransactionBuilder::finish_with_budget`](iota_sdk_transaction_builder::TransactionBuilder::finish_with_budget).
 
 use std::sync::Arc;
 
