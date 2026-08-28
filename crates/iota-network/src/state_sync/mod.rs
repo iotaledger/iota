@@ -1183,6 +1183,12 @@ where
                 walked_to = current.sequence_number(),
                 "stopping a checkpoint summary sync another writer has passed",
             );
+            // Everything up to there is another task's business now, and this
+            // is the last chance to drop what this one accumulated.
+            peer_heights
+                .write()
+                .unwrap()
+                .cleanup_old_checkpoints(highest_verified);
             return Ok(());
         }
         assert_eq!(

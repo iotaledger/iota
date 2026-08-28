@@ -403,8 +403,12 @@ impl CheckpointStore {
         self.tables.checkpoint_content.multi_get(contents_digest)
     }
 
-    /// The row `watermark` holds — the sequence number and digest of the
-    /// checkpoint it names — and `None` when it has never been written.
+    /// The row `watermark` holds — a sequence number and a digest — and `None`
+    /// when it has never been written.
+    ///
+    /// Only the verified, synced and executed rows name a checkpoint. The
+    /// pruner writes a random digest for `HighestPruned`, since nothing reads
+    /// it, so that row's sequence number is the only part worth having.
     fn get_watermark(
         &self,
         watermark: CheckpointWatermark,
@@ -679,8 +683,9 @@ impl CheckpointStore {
     }
 
     /// Marks a consecutive run of checkpoints as synced: writes the watermark
-    /// once, for the last checkpoint, but notifies waiters of every
-    /// checkpoint in the run.
+    /// once, for the last checkpoint, and notifies the waiters that write
+    /// releases. Does nothing when another writer has already carried the
+    /// watermark past the run.
     pub fn multi_update_highest_synced_checkpoint(
         &self,
         checkpoints: &[VerifiedCheckpoint],
@@ -806,17 +811,13 @@ impl CheckpointStore {
         )
     }
 
-    /// Sets highest executed checkpoint to any value.
-    ///
-    /// WARNING: This method is very subtle and can corrupt the database if used
-    /// incorrectly. It should only be used in one-off cases or tests after
-    /// fully understanding the risk.
     /// Sets the verified watermark to `checkpoint` whether or not that moves
     /// it forwards.
     ///
-    /// Only for tooling that deliberately rewinds it. Every path the node
-    /// takes goes through [`Self::update_highest_verified_checkpoint`], which
-    /// only ever advances it.
+    /// Only for tooling that deliberately rewinds it. The node writes this row
+    /// through [`Self::update_highest_verified_checkpoint`], which declines to
+    /// move it backwards — though it reads and writes without a lock, so two
+    /// writers racing can still leave it behind where one of them saw it.
     pub fn set_highest_verified_checkpoint_subtle(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -830,10 +831,9 @@ impl CheckpointStore {
     /// Sets the synced watermark to `checkpoint` whether or not that moves it
     /// forwards.
     ///
-    /// Only for tooling that deliberately rewinds it. Every path the node
-    /// takes goes through
-    /// [`Self::multi_update_highest_synced_checkpoint`], which only ever
-    /// advances it.
+    /// Only for tooling that deliberately rewinds it. The node writes this row
+    /// through [`Self::multi_update_highest_synced_checkpoint`], which
+    /// declines to move it backwards.
     pub fn set_highest_synced_checkpoint_subtle(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -844,6 +844,11 @@ impl CheckpointStore {
         )
     }
 
+    /// Sets highest executed checkpoint to any value.
+    ///
+    /// WARNING: This method is very subtle and can corrupt the database if used
+    /// incorrectly. It should only be used in one-off cases or tests after
+    /// fully understanding the risk.
     pub fn set_highest_executed_checkpoint_subtle(
         &self,
         checkpoint: &VerifiedCheckpoint,
