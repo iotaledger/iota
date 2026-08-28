@@ -835,12 +835,81 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let block_ref = verified_block.reference();
         let transaction_ref = verified_block.transaction_ref();
         let gen_transaction_ref = GenericTransactionRef::from(transaction_ref);
-        // 1b. Track the highest primary block round seen on this connection; the
-        // order check against it runs in step 5c, after the slot check.
+        // 1b. The stream carries the peer's own blocks in proposal order, so the
+        // round must strictly increase over one connection, starting above the
+        // round the subscription asked for. A same-round block with another
+        // digest is the peer's equivocation.
         let previous = *last_streamed_block;
-        if block_ref.round > previous.round {
-            *last_streamed_block = StreamPosition::from(block_ref);
+        if block_ref.round <= previous.round {
+            let equivocation = block_ref.round == previous.round
+                && previous
+                    .digest
+                    .is_some_and(|digest| digest != block_ref.digest);
+            let e = if equivocation {
+                ConsensusError::BlockHeaderEquivocation {
+                    authority: peer,
+                    round: block_ref.round,
+                }
+            } else {
+                ConsensusError::StreamedBlockRoundNotIncreasing {
+                    peer,
+                    round: block_ref.round,
+                    last_round: previous.round,
+                }
+            };
+            self.misbehavior_store.record_faulty_block(peer, peer, &e);
+            let reason = if equivocation {
+                "equivocation"
+            } else if block_ref.round == previous.round {
+                "repeat"
+            } else {
+                "regression"
+            };
+            self.context
+                .metrics
+                .node_metrics
+                .dropped_out_of_order_streamed_blocks_total
+                .with_label_values(&[peer_hostname.as_str(), reason])
+                .inc();
+            warn!(
+                "Peer {peer} streamed block {block_ref} at or below its round {} already held: \
+                 dropping it ({reason})",
+                previous.round
+            );
+            return Err(e);
         }
+        *last_streamed_block = StreamPosition::from(block_ref);
+
+        // 1c. Two signed headers from the author's own stream for one slot are
+        // provable equivocation, so drop the block before its shards and payload
+        // are processed, and charge the author. A same-slot header still only
+        // suspended is caught by the equivalent cap in the block manager.
+        if self
+            .dag_state
+            .read()
+            .contains_other_block_header_at_slot(&block_ref)
+        {
+            let e = ConsensusError::BlockHeaderEquivocation {
+                authority: peer,
+                round: block_ref.round,
+            };
+            self.misbehavior_store.record_faulty_block(peer, peer, &e);
+            self.context
+                .metrics
+                .node_metrics
+                .dropped_slot_cap_headers_total
+                .with_label_values(&[
+                    self.context.authority_hostname(peer),
+                    DataSource::BlockStreaming.as_str(),
+                ])
+                .inc();
+            warn!(
+                "Peer {peer} equivocated: dropping streamed block {block_ref}, its slot already \
+                 holds a header with a different digest"
+            );
+            return Err(e);
+        }
+
         // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
         let now = self.context.clock.timestamp_utc_ms();
         let block_timestamp_ms = verified_block.timestamp_ms();
@@ -913,94 +982,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             );
         }
 
-        // 5b. Two signed headers from the author's own stream for one slot are
-        // provable equivocation, so drop the block before its shards and payload
-        // are processed, and charge the author. A same-slot header still only
-        // suspended is caught by the equivalent cap in the block manager.
-        let primary_block_equivocates = !primary_block_far_future
-            && self
-                .dag_state
-                .read()
-                .contains_other_block_header_at_slot(&block_ref);
-        if primary_block_equivocates {
-            let e = ConsensusError::BlockHeaderEquivocation {
-                authority: peer,
-                round: block_ref.round,
-            };
-            self.misbehavior_store.record_faulty_block(peer, peer, &e);
-            self.context
-                .metrics
-                .node_metrics
-                .dropped_slot_cap_headers_total
-                .with_label_values(&[
-                    self.context.authority_hostname(peer),
-                    DataSource::BlockStreaming.as_str(),
-                ])
-                .inc();
-            warn!(
-                "Peer {peer} equivocated: dropping streamed block {block_ref}, its slot already \
-                 holds a header with a different digest"
-            );
-        }
-        // 5c. The stream carries the peer's own blocks in proposal order, so the
-        // round must strictly increase over one connection, starting above the
-        // round the subscription asked for. A repeated or regressing block is
-        // dropped and charged to the peer; a same-round block with another
-        // digest is the peer's equivocation, charged here unless the slot check
-        // above already charged it.
-        let primary_block_out_of_order = if block_ref.round <= previous.round {
-            let equivocation = block_ref.round == previous.round
-                && previous
-                    .digest
-                    .is_some_and(|digest| digest != block_ref.digest);
-            if !primary_block_equivocates {
-                let e = if equivocation {
-                    ConsensusError::BlockHeaderEquivocation {
-                        authority: peer,
-                        round: block_ref.round,
-                    }
-                } else {
-                    ConsensusError::StreamedBlockRoundNotIncreasing {
-                        peer,
-                        round: block_ref.round,
-                        last_round: previous.round,
-                    }
-                };
-                self.misbehavior_store.record_faulty_block(peer, peer, &e);
-            }
-            let reason = if equivocation {
-                "equivocation"
-            } else if block_ref.round == previous.round {
-                "repeat"
-            } else {
-                "regression"
-            };
-            self.context
-                .metrics
-                .node_metrics
-                .dropped_out_of_order_streamed_blocks_total
-                .with_label_values(&[peer_hostname.as_str(), reason])
-                .inc();
-            warn!(
-                "Peer {peer} streamed block {block_ref} at or below its round {} already held: \
-                 dropping it ({reason})",
-                previous.round
-            );
-            true
-        } else {
-            false
-        };
-        // The block is not accepted for any of these reasons, so the steps below
-        // skip it.
-        let primary_block_dropped =
-            primary_block_far_future || primary_block_equivocates || primary_block_out_of_order;
-
         // 6. Collect shards from a bundle and check their proofs. Skipped for a
         // dropped primary block so its shards never reach the reconstructor. The
         // bundled headers still go through: they are signed by their authors and
         // already verified, while a shard's proof is checked only against the
         // commitment carried inside the shard itself.
-        let verified_shards = if primary_block_dropped {
+        let verified_shards = if primary_block_far_future {
             Vec::new()
         } else {
             let serialized_shards =
@@ -1061,7 +1048,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 9. Prepare transaction messages for shard reconstructor and send them.
         // Skipped for a dropped primary block (no shards were collected).
-        if !primary_block_dropped {
+        if !primary_block_far_future {
             let transaction_messages = TransactionMessage::create_transaction_messages(
                 &verified_blocks[0],
                 &verified_shards,
@@ -1096,7 +1083,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 11. Add the block to dag, add its missing ancestors to the set. A
         // block dropped above is not forwarded to the core.
-        if !primary_block_dropped {
+        if !primary_block_far_future {
             let (missing_block_ancestors, missing_block_committed_transactions) = self
                 .core_dispatcher
                 .add_blocks(verified_blocks, DataSource::BlockStreaming)
@@ -1123,7 +1110,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 12. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions and the block was not dropped.
-        if let Some(shard_for_core) = shard_for_core.filter(|_| !primary_block_dropped) {
+        if let Some(shard_for_core) = shard_for_core.filter(|_| !primary_block_far_future) {
             let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
                 .map_err(ConsensusError::SerializationFailure)?
                 .into();
@@ -2341,15 +2328,18 @@ mod tests {
             .accept_block_header(accepted, DataSource::BlockBundleStream);
 
         let bundle = SerializedBlockBundle::try_from(input_block).unwrap();
-        authority_service
+        let result = authority_service
             .handle_subscribed_block_bundle(
                 peer,
                 bundle,
                 &mut encoder,
                 &mut StreamPosition::default(),
             )
-            .await
-            .unwrap();
+            .await;
+        assert!(matches!(
+            result,
+            Err(ConsensusError::BlockHeaderEquivocation { .. })
+        ));
 
         assert!(
             tx_message_receiver.try_recv().is_err(),
@@ -2521,7 +2511,7 @@ mod tests {
                     &mut last_streamed_block,
                 )
                 .await
-                .unwrap();
+                .unwrap_err();
             assert!(
                 fixture.tx_message_receiver.try_recv().is_err(),
                 "a dropped block must not feed the shard reconstructor"
@@ -2578,8 +2568,8 @@ mod tests {
         }
     }
 
-    /// A same-round block the slot check already charged as equivocation is
-    /// not charged again by the stream order check.
+    /// A same-round block for a slot whose header is both accepted and the
+    /// stream position is charged once, as equivocation.
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_stream_round_order_charges_equivocation_once() {
         let (context, _keys) = Context::new_for_test(4);
@@ -2606,7 +2596,7 @@ mod tests {
         );
 
         let mut last_streamed_block = StreamPosition::from(accepted.reference());
-        fixture
+        let result = fixture
             .authority_service
             .handle_subscribed_block_bundle(
                 peer,
@@ -2614,8 +2604,11 @@ mod tests {
                 &mut encoder,
                 &mut last_streamed_block,
             )
-            .await
-            .unwrap();
+            .await;
+        assert!(matches!(
+            result,
+            Err(ConsensusError::BlockHeaderEquivocation { .. })
+        ));
 
         assert!(fixture.core_dispatcher.get_blocks().is_empty());
         let totals = fixture.misbehavior_store.snapshot_totals();
@@ -2664,7 +2657,7 @@ mod tests {
             round: 4,
             digest: None,
         };
-        for block in [&block_3, &block_4_other, &block_5] {
+        for block in [&block_3, &block_4_other] {
             fixture
                 .authority_service
                 .handle_subscribed_block_bundle(
@@ -2674,8 +2667,18 @@ mod tests {
                     &mut last_streamed_block,
                 )
                 .await
-                .unwrap();
+                .unwrap_err();
         }
+        fixture
+            .authority_service
+            .handle_subscribed_block_bundle(
+                peer,
+                SerializedBlockBundle::try_from(block_5.clone()).unwrap(),
+                &mut encoder,
+                &mut last_streamed_block,
+            )
+            .await
+            .unwrap();
         assert_eq!(fixture.core_dispatcher.get_blocks(), vec![block_5.clone()]);
         let totals = fixture.misbehavior_store.snapshot_totals();
         let counts = totals[peer.value()].as_v2();
@@ -2684,7 +2687,7 @@ mod tests {
 
         // Requested blocks above round 4 while holding block 4 itself.
         let mut last_streamed_block = StreamPosition::from(block_4.reference());
-        fixture
+        let result = fixture
             .authority_service
             .handle_subscribed_block_bundle(
                 peer,
@@ -2692,8 +2695,11 @@ mod tests {
                 &mut encoder,
                 &mut last_streamed_block,
             )
-            .await
-            .unwrap();
+            .await;
+        assert!(matches!(
+            result,
+            Err(ConsensusError::BlockHeaderEquivocation { .. })
+        ));
         let totals = fixture.misbehavior_store.snapshot_totals();
         let counts = totals[peer.value()].as_v2();
         assert_eq!(counts.faulty_blocks_provable, 1);
