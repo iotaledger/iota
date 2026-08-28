@@ -21,7 +21,7 @@ use crate::{
     dag_state::DagState,
     encoder::create_encoder,
     error::ConsensusError,
-    network::{NetworkClient, NetworkService},
+    network::{NetworkClient, NetworkService, StreamPosition},
 };
 
 /// Returns whether the reset channel closed; otherwise records the reset and
@@ -198,7 +198,21 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             }
             retries += 1;
 
-            let last_received = dag_state.read().resume_round_for_authority(peer);
+            let (last_received, mut last_streamed_block) = {
+                let dag_state = dag_state.read();
+                let last_received = dag_state.resume_round_for_authority(peer);
+                let last_header = dag_state
+                    .get_last_block_header_for_authority(peer)
+                    .reference();
+                let digest = (last_header.round == last_received).then_some(last_header.digest);
+                (
+                    last_received,
+                    StreamPosition {
+                        round: last_received,
+                        digest,
+                    },
+                )
+            };
             // Wrap subscribe_block_bundles in a timeout and increment metric on timeout
             let subscribe_future =
                 network_client.subscribe_block_bundles(peer, last_received, MAX_RETRY_INTERVAL);
@@ -265,7 +279,6 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                 .with_label_values(&[peer_hostname])
                 .set(1);
 
-            let mut last_streamed_block = None;
             'stream: loop {
                 // Observe a reset only between bundles: wrapping the handler
                 // below in this select would cancel it mid-bundle.

@@ -33,7 +33,7 @@ use starfish_config::{AuthorityIndex, Committee};
 use crate::{
     Round, VerifiedBlockHeader,
     authority_set::AuthoritySet,
-    block_header::{BlockRef, VerifiedBlock},
+    block_header::{BlockHeaderDigest, BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
@@ -155,20 +155,38 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     ) -> ConsensusResult<Vec<Bytes>>;
 }
 
+/// Where a block subscription stream stands: the highest round of the peer's
+/// own blocks the receiver holds, and that block's digest when it is known.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct StreamPosition {
+    pub(crate) round: Round,
+    pub(crate) digest: Option<BlockHeaderDigest>,
+}
+
+impl From<BlockRef> for StreamPosition {
+    fn from(block_ref: BlockRef) -> Self {
+        Self {
+            round: block_ref.round,
+            digest: Some(block_ref.digest),
+        }
+    }
+}
+
 /// Network service for handling requests from peers.
 #[async_trait]
 pub(crate) trait NetworkService: Send + Sync + 'static {
     /// Handles the block and headers sent from the peer via subscription
     /// stream. Peer value can be trusted to be a valid authority index. But
     /// serialized_block must be verified before its contents are trusted.
-    /// `last_streamed_block` is the highest-round primary block received so
-    /// far on this connection; the caller keeps it per connection.
+    /// `last_streamed_block` is the highest round of the peer's own blocks the
+    /// receiver holds, from the subscription request or from this connection;
+    /// the caller keeps it per connection.
     async fn handle_subscribed_block_bundle(
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
-        last_streamed_block: &mut Option<BlockRef>,
+        last_streamed_block: &mut StreamPosition,
     ) -> ConsensusResult<()>;
 
     /// Handles the subscription request from the peer.
