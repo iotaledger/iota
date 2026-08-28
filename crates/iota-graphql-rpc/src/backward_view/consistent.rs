@@ -75,37 +75,73 @@ fn consistent_checkpointed_objects(
 /// Returns active objects from `objects_backward_history` that were consistent
 /// at the given checkpoint.
 ///
-/// Picks the earliest superseded version (`MIN(object_version)`) per object,
-/// which represents the state just before the first change after the target
-/// checkpoint. Keeps only `Active` entries: when that earliest version is a
-/// tombstone (or `NotYetCreated`), the object had no live state at the target
-/// checkpoint and drops out of the join.
+/// Picks the earliest superseded version per object, which represents the state
+/// just before the first change after the target checkpoint. Keeps only
+/// `Active` entries: when that earliest version is a tombstone (or
+/// `NotYetCreated`), the object had no live state at the target checkpoint and
+/// drops out.
+///
+/// # Implementation notes
+///
+/// The candidate object_ids matching the filter are deduplicated first, so the
+/// per-object live-version lookup runs once per object and only matching
+/// objects are visited. The lookup finds the newest version already superseded
+/// at the checkpoint by scanning `object_version DESC` and returns the next
+/// one, so it reads only the object's recent versions. `MIN(object_version)
+/// WHERE object_id = ... AND superseded_at_checkpoint > cp` would instead scan
+/// up from the oldest version through everything superseded by the checkpoint -
+/// slower the more history an object has.
 fn consistent_historical_objects(
     checkpoint_viewed_at: i64,
     page: &Page<Cursor>,
     filter_fn: &impl Fn(RawQuery) -> RawQuery,
 ) -> RawQuery {
-    let history_filtered = filter_fn(query!(format!(
-        "SELECT {OBJECT_COLUMNS} FROM objects_backward_history"
-    )));
+    // Distinct object_ids that changed after the checkpoint and match the filter.
+    // The filtered columns are indexed on objects_backward_history, so this scans
+    // only matching objects - except an unfiltered listing, which scans the window.
+    let candidate_ids = filter!(
+        filter_fn(query!(
+            "SELECT DISTINCT object_id FROM objects_backward_history"
+        )),
+        format!("superseded_at_checkpoint > {checkpoint_viewed_at}")
+    );
+    let (candidate_ids_sql, binds) = candidate_ids.finish();
 
-    let history_window = filter!(
-        history_filtered,
-        format!("superseded_at_checkpoint > {checkpoint_viewed_at} AND object_status = {ACTIVE}")
+    // Find the highest version already superseded by the checkpoint and take the
+    // next one - that is the version that was live at the checkpoint (or the
+    // object's first version, if no version was superseded earlier).
+    let live_version = format!(
+        "SELECT live.object_version FROM objects_backward_history live \
+         WHERE live.object_id = candidate_ids.object_id \
+           AND live.object_version > COALESCE(( \
+                 SELECT superseded.object_version \
+                 FROM objects_backward_history superseded \
+                 WHERE superseded.object_id = candidate_ids.object_id \
+                   AND superseded.superseded_at_checkpoint <= {checkpoint_viewed_at} \
+                 ORDER BY superseded.object_version DESC \
+                 LIMIT 1), -1) \
+         ORDER BY live.object_version ASC \
+         LIMIT 1"
     );
 
-    let oldest_subquery = query!(format!(
-        "SELECT object_id, MIN(object_version) AS min_version \
-         FROM objects_backward_history \
-         WHERE superseded_at_checkpoint > {checkpoint_viewed_at} \
-         GROUP BY object_id"
-    ));
-    let source = query!(
-        r#"SELECT candidates.* FROM ({}) candidates
-           JOIN ({}) oldest ON candidates.object_id = oldest.object_id
-               AND candidates.object_version = oldest.min_version"#,
-        history_window,
-        oldest_subquery
+    let live_rows = RawQuery::new(
+        format!(
+            "SELECT {OBJECT_COLUMNS} FROM ( \
+                 SELECT objects_backward_history.* \
+                 FROM ({candidate_ids_sql}) candidate_ids \
+                 JOIN objects_backward_history \
+                     ON objects_backward_history.object_id = candidate_ids.object_id \
+                 WHERE objects_backward_history.object_version = ({live_version}) \
+             ) AS objects_backward_history"
+        ),
+        binds,
     );
+
+    // An object is in candidate_ids if any of its versions superseded after the
+    // checkpoint matched the filter, but the version live at the checkpoint might
+    // not. Re-apply the filter and require Active to drop those.
+    let history_window = filter!(filter_fn(live_rows), format!("object_status = {ACTIVE}"));
+
+    let source = query!("SELECT candidates.* FROM ({}) candidates", history_window);
     page.apply::<StoredBackwardObject>(source)
 }
