@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS objects_backward_history_package_module_name;
