@@ -425,16 +425,16 @@ mod sim_only_tests {
         let shared_id = effects
             .created()
             .iter()
-            .find_map(|(obj, owner)| {
-                if let Owner::Shared(_) = owner {
+            .find_map(|obj| {
+                if let Owner::Shared(_) = obj.owner {
                     let is_framework_obj = [
                         ObjectId::SYSTEM_STATE,
                         ObjectId::CLOCK,
                         ObjectId::AUTHENTICATOR_STATE,
                         ObjectId::RANDOMNESS_STATE,
                     ]
-                    .contains(&obj.object_id);
-                    (!is_framework_obj).then_some(obj.object_id)
+                    .contains(&obj.reference.object_id);
+                    (!is_framework_obj).then_some(obj.reference.object_id)
                 } else {
                     None
                 }
@@ -632,10 +632,10 @@ mod sim_only_tests {
         let modified_at = effects
             .modified_at_versions()
             .iter()
-            .find_map(|(id, v)| (id == &ObjectId::SYSTEM).then_some(*v));
+            .find_map(|ov| (ov.object_id == ObjectId::SYSTEM).then_some(ov.version));
 
-        let mutated_to = effects.mutated().iter().find_map(|(object_ref, _)| {
-            (object_ref.object_id == ObjectId::SYSTEM).then_some(object_ref.version)
+        let mutated_to = effects.mutated().iter().find_map(|obj| {
+            (obj.reference.object_id == ObjectId::SYSTEM).then_some(obj.reference.version)
         });
 
         (modified_at, mutated_to)

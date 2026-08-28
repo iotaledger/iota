@@ -103,7 +103,7 @@ fn execute_commits_writes_to_store() {
     // A new coin was created and is now committed to the store.
     let created = result.effects.created();
     assert_eq!(created.len(), 1, "transfer_iota creates exactly one coin");
-    let new_coin_id = created[0].0.object_id;
+    let new_coin_id = created[0].reference.object_id;
     assert!(
         vm.store()
             .get_object(&new_coin_id, None)
@@ -225,7 +225,7 @@ fn dev_inspect_and_dry_run_leave_store_unchanged() {
         );
         assert!(
             vm.store()
-                .get_object(&created[0].0.object_id, None)
+                .get_object(&created[0].reference.object_id, None)
                 .expect("store lookup")
                 .is_none(),
             "{mode:?}: created object must NOT be committed"

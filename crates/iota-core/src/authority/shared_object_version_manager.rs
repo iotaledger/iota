@@ -101,9 +101,9 @@ impl SharedObjVerManager {
             let mut tx_assigned_versions: Vec<_> = effects
                 .input_shared_objects()
                 .into_iter()
-                .map(|iso| {
-                    let (object_id, version) = iso.id_and_version();
-                    VersionAssignment::new(object_id, version)
+                .map(|shared| {
+                    let reference = shared.object_reference();
+                    VersionAssignment::new(reference.object_id, reference.version)
                 })
                 .collect();
             // A cancelled transaction without shared inputs carries the

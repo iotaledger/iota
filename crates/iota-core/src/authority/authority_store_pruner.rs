@@ -242,8 +242,8 @@ impl AuthorityStorePruner {
         let mut live_object_keys_to_prune = vec![];
         let mut object_tombstones_to_prune = vec![];
         for effects in &transaction_effects {
-            for (object_id, seq_number) in effects.modified_at_versions() {
-                live_object_keys_to_prune.push(ObjectKey(object_id, seq_number));
+            for modified in effects.modified_at_versions() {
+                live_object_keys_to_prune.push(ObjectKey(modified.object_id, modified.version));
             }
 
             for deleted_object_key in effects.all_tombstones() {

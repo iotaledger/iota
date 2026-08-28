@@ -577,7 +577,7 @@ async fn shared_object_sync() {
         .await
         .unwrap();
     assert!(effects.status().is_success());
-    let (counter_ref, _) = effects.created()[0];
+    let counter_ref = effects.created()[0].reference;
 
     // Check that the counter object exists in at least one of the validators the
     // transaction was sent to.
@@ -660,7 +660,7 @@ async fn replay_shared_object_transaction() {
             .await;
 
         // Ensure the sequence number of the shared object did not change.
-        let curr = effects.created()[0].0.version;
+        let curr = effects.created()[0].reference.version;
         if let Some(prev) = version {
             assert_eq!(prev, curr, "Version of shared object did not change.");
         }

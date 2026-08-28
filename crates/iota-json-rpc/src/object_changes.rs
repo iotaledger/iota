@@ -5,26 +5,34 @@
 use std::collections::BTreeMap;
 
 use iota_json_rpc_types::ObjectChange;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, Owner, StructTag, Version};
-use iota_types::{effects::ObjectRemoveKind, storage::WriteKind};
+use iota_sdk_types::{
+    Address, ObjectReference, ObjectRemoveKind, ObjectVersion, OwnedObjectReference, StructTag,
+    WriteKind,
+};
 
 use crate::ObjectProvider;
 
 pub async fn get_object_changes<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
     sender: Address,
-    modified_at_versions: Vec<(ObjectId, Version)>,
-    all_changed_objects: Vec<(ObjectReference, Owner, WriteKind)>,
+    modified_at_versions: Vec<ObjectVersion>,
+    all_changed_objects: Vec<(OwnedObjectReference, WriteKind)>,
     all_removed_objects: Vec<(ObjectReference, ObjectRemoveKind)>,
 ) -> Result<Vec<ObjectChange>, E> {
     let mut object_changes = vec![];
 
-    let modify_at_version = modified_at_versions.into_iter().collect::<BTreeMap<_, _>>();
+    let modify_at_version = modified_at_versions
+        .into_iter()
+        .map(|modified| (modified.object_id, modified.version))
+        .collect::<BTreeMap<_, _>>();
 
-    for (changed_object, owner, kind) in all_changed_objects {
-        let object_id = changed_object.object_id;
-        let version = changed_object.version;
-        let digest = changed_object.digest;
+    for (changed, kind) in all_changed_objects {
+        let OwnedObjectReference { reference, owner } = changed;
+        let ObjectReference {
+            object_id,
+            version,
+            digest,
+        } = reference;
         let o = object_provider.get_object(&object_id, &version).await?;
         if let Some(object_type) = o.data.opt_object_type() {
             let object_type: StructTag = object_type.clone().into();

@@ -5,9 +5,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
-    EpochId, ExecutionStatus, GasCostSummary, IntentScope, ObjectDigest, ObjectId, ObjectReference,
-    Owner, TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest,
-    UnchangedSharedKind, UnchangedSharedObject, Version,
+    Address, EpochId, ExecutionStatus, GasCostSummary, InputSharedObject, IntentScope,
+    ObjectChange, ObjectDigest, ObjectId, ObjectReference, ObjectRemoveKind, ObjectVersion,
+    OwnedObjectReference, Owner, TransactionDigest, TransactionEffectsDigest,
+    TransactionEventsDigest, UnchangedSharedKind, UnchangedSharedObject, Version, WriteKind,
     crypto::Intent,
     effects::{
         ChangedObject, IdOperation, ObjectIn, ObjectOut, TransactionEffects, TransactionEffectsV1,
@@ -26,7 +27,7 @@ use crate::{
     error::IotaResult,
     execution::SharedInput,
     message_envelope::{Envelope, Message, TrustedEnvelope, VerifiedEnvelope},
-    storage::WriteKind,
+    object::OBJECT_START_VERSION,
 };
 
 mod test_effects_builder;
@@ -58,62 +59,6 @@ impl Message for TransactionEffects {
     }
 }
 
-pub enum ObjectRemoveKind {
-    Delete,
-    Wrap,
-}
-
-/// Description of a shared object that was used as input to a transaction.
-///
-/// Captures how each shared object was accessed during execution: whether it
-/// was mutated, read-only, deleted after mutable or read-only access, or
-/// cancelled.
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub enum InputSharedObject {
-    Mutate(ObjectReference),
-    ReadOnly(ObjectReference),
-    ReadDeleted(ObjectId, Version),
-    MutateDeleted(ObjectId, Version),
-    Cancelled(ObjectId, Version),
-}
-
-impl InputSharedObject {
-    pub fn id_and_version(&self) -> (ObjectId, Version) {
-        let (object_id, version, ..) = self.object_ref().into_parts();
-        (object_id, version)
-    }
-
-    pub fn object_ref(&self) -> ObjectReference {
-        match self {
-            InputSharedObject::Mutate(oref) | InputSharedObject::ReadOnly(oref) => *oref,
-            InputSharedObject::ReadDeleted(id, version)
-            | InputSharedObject::MutateDeleted(id, version) => {
-                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_DELETED)
-            }
-            InputSharedObject::Cancelled(id, version) => {
-                ObjectReference::new(*id, *version, ObjectDigest::OBJECT_CANCELED)
-            }
-        }
-    }
-}
-
-/// Effect on an individual object, keyed by its [`ObjectId`].
-///
-/// Describes the input and output version/digest of a single object that was
-/// read or modified during transaction execution, along with the
-/// [`IdOperation`] that was applied to it. This is a flattened,
-/// version-agnostic view derived from the effects via
-/// [`TransactionEffectsAPI::object_changes`].
-#[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub struct ObjectChange {
-    pub id: ObjectId,
-    pub input_version: Option<Version>,
-    pub input_digest: Option<ObjectDigest>,
-    pub output_version: Option<Version>,
-    pub output_digest: Option<ObjectDigest>,
-    pub id_operation: IdOperation,
-}
-
 mod transaction_effects_api {
     pub trait Sealed {}
     impl Sealed for super::TransactionEffects {}
@@ -137,7 +82,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// Return the `(ObjectId, Version)` pair, at their pre-execution version,
     /// of every object that existed in the store before this transaction
     /// and was modified by it (mutated, wrapped, or deleted).
-    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)>;
+    fn modified_at_versions(&self) -> Vec<ObjectVersion>;
 
     /// The version assigned to all output objects (apart from packages).
     fn lamport_version(&self) -> Version;
@@ -146,7 +91,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// exists in the store prior to this transaction and is modified in
     /// this transaction. It includes objects that are mutated, wrapped and
     /// deleted.
-    fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)>;
+    fn old_object_metadata(&self) -> Vec<OwnedObjectReference>;
 
     /// Returns the list of sequenced shared objects used in the input.
     /// This is needed in effects because in transaction we only have object ID
@@ -160,16 +105,16 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// Objects (Move objects and packages) newly created by this transaction,
     /// paired with their owner. Excludes objects that were created and then
     /// wrapped within the same transaction.
-    fn created(&self) -> Vec<(ObjectReference, Owner)>;
+    fn created(&self) -> Vec<OwnedObjectReference>;
 
     /// Objects that existed before this transaction and whose contents were
     /// updated by it (in-place mutations and system package upgrades),
     /// reported at their post-execution `(ObjectReference, Owner)`.
-    fn mutated(&self) -> Vec<(ObjectReference, Owner)>;
+    fn mutated(&self) -> Vec<OwnedObjectReference>;
 
     /// Objects that were wrapped inside another object before this transaction
     /// and have been promoted back to top-level objects in the store by it.
-    fn unwrapped(&self) -> Vec<(ObjectReference, Owner)>;
+    fn unwrapped(&self) -> Vec<OwnedObjectReference>;
 
     /// Objects that existed before this transaction and were deleted by it.
     /// References use the post-execution version and the
@@ -199,7 +144,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     // TODO: We should consider having this function to return Option.
     // When the gas object is not available (i.e. system transaction), we currently
     // return dummy object ref and owner. This is not ideal.
-    fn gas_object(&self) -> (ObjectReference, Owner);
+    fn gas_object(&self) -> OwnedObjectReference;
 
     /// Digest of the events emitted by this transaction, or `None` if it
     /// emitted no events.
@@ -221,11 +166,11 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
         self.input_shared_objects()
             .into_iter()
             .filter_map(|kind| match kind {
-                InputSharedObject::MutateDeleted(id, _) => Some(id),
+                InputSharedObject::MutateDeleted(object) => Some(object.object_id),
                 InputSharedObject::Mutate(..)
                 | InputSharedObject::ReadOnly(..)
                 | InputSharedObject::ReadDeleted(..)
-                | InputSharedObject::Cancelled(..) => None,
+                | InputSharedObject::Canceled(..) => None,
             })
             .collect()
     }
@@ -241,21 +186,19 @@ pub trait TransactionEffectsAPIForTesting: TransactionEffectsAPI {
     // All of these should be #[cfg(test)], but they are used by tests in other
     // crates.
 
-    /// Returns a mutable reference to the execution status, for tests.
-    fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus;
-
     /// Returns a mutable reference to the gas cost summary, for tests.
     fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary;
-
-    /// Returns a mutable reference to the transaction digest, for tests.
-    fn transaction_digest_mut_for_testing(&mut self) -> &mut TransactionDigest;
 
     /// Returns a mutable reference to the dependency list, for tests.
     fn dependencies_mut_for_testing(&mut self) -> &mut Vec<TransactionDigest>;
 
-    /// Records `kind` as an input shared object without validating that it is
-    /// consistent with the rest of the effects. For tests only.
-    fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject);
+    /// Records a shared object these effects read without changing, for tests.
+    /// Unsafe: makes no attempt to keep the effects self-consistent.
+    fn unsafe_add_read_only_shared_object_for_testing(&mut self, object: ObjectReference);
+
+    /// Records a shared object these effects took mutably, for tests. Unsafe:
+    /// makes no attempt to keep the effects self-consistent.
+    fn unsafe_add_mutated_shared_object_for_testing(&mut self, object: ObjectReference);
 
     /// Records an entry that represents the pre-execution version of a still
     /// live object, without validating consistency with the rest of the
@@ -299,7 +242,7 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     /// mutated, created and unwrapped objects. In other words, all objects
     /// that still exist in the object state after this transaction.
     /// It doesn't include deleted/wrapped objects.
-    fn all_changed_objects(&self) -> Vec<(ObjectReference, Owner, WriteKind)>;
+    fn all_changed_objects(&self) -> Vec<(OwnedObjectReference, WriteKind)>;
 
     /// Return all objects that existed in the state prior to the transaction
     /// but no longer exist in the state after the transaction.
@@ -315,7 +258,7 @@ pub trait TransactionEffectsExt: transaction_effects_ext::Sealed {
     fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, Version)>;
 
     /// Return an iterator of mutated objects, but excluding the gas object.
-    fn mutated_excluding_gas(&self) -> Vec<(ObjectReference, Owner)>;
+    fn mutated_excluding_gas(&self) -> Vec<OwnedObjectReference>;
 
     /// Returns all affected objects in this transaction effects.
     /// Affected objects include created, mutated, unwrapped, deleted,
@@ -361,11 +304,28 @@ pub trait TransactionEffectsExtForTesting: transaction_effects_ext::Sealed {
     fn new_empty_v1_for_testing(transaction_digest: TransactionDigest) -> Self;
 }
 
-// Helper macro to reduce boilerplate code
-macro_rules! delegate_effects_api {
-    ($self:ident, $method:ident $(, $arg:expr)*) => {
+// The version these effects are, which is where everything about them is read
+// from. A new variant has to be handled in one place: here.
+macro_rules! effects_version {
+    ($self:ident) => {
         match $self {
-            TransactionEffects::V1(v1) => v1.$method($($arg),*),
+            TransactionEffects::V1(v1) => &**v1,
+            _ => unimplemented!(
+                "a new TransactionEffects enum variant was added and needs to be handled"
+            ),
+        }
+    };
+    (mut $self:ident) => {
+        match $self {
+            TransactionEffects::V1(v1) => &mut **v1,
+            _ => unimplemented!(
+                "a new TransactionEffects enum variant was added and needs to be handled"
+            ),
+        }
+    };
+    (into $self:ident) => {
+        match $self {
+            TransactionEffects::V1(v1) => *v1,
             _ => unimplemented!(
                 "a new TransactionEffects enum variant was added and needs to be handled"
             ),
@@ -375,113 +335,175 @@ macro_rules! delegate_effects_api {
 
 impl TransactionEffectsAPI for TransactionEffects {
     fn status(&self) -> &ExecutionStatus {
-        delegate_effects_api!(self, status)
+        &effects_version!(self).status
     }
 
     fn into_status(self) -> ExecutionStatus {
-        delegate_effects_api!(self, into_status)
+        effects_version!(into self).status
     }
 
     fn epoch(&self) -> EpochId {
-        delegate_effects_api!(self, epoch)
+        effects_version!(self).epoch
     }
 
-    fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
-        delegate_effects_api!(self, modified_at_versions)
+    fn modified_at_versions(&self) -> Vec<ObjectVersion> {
+        effects_version!(self).modified_at_versions()
     }
 
     fn lamport_version(&self) -> Version {
-        delegate_effects_api!(self, lamport_version)
+        effects_version!(self).lamport_version
     }
 
-    fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, old_object_metadata)
+    fn old_object_metadata(&self) -> Vec<OwnedObjectReference> {
+        effects_version!(self).old_object_metadata()
     }
 
     fn input_shared_objects(&self) -> Vec<InputSharedObject> {
-        delegate_effects_api!(self, input_shared_objects)
+        effects_version!(self).input_shared_objects()
     }
 
-    fn created(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, created)
+    fn created(&self) -> Vec<OwnedObjectReference> {
+        effects_version!(self).created()
     }
 
-    fn mutated(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, mutated)
+    fn mutated(&self) -> Vec<OwnedObjectReference> {
+        effects_version!(self).mutated()
     }
 
-    fn unwrapped(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, unwrapped)
+    fn unwrapped(&self) -> Vec<OwnedObjectReference> {
+        effects_version!(self).unwrapped()
     }
 
     fn deleted(&self) -> Vec<ObjectReference> {
-        delegate_effects_api!(self, deleted)
+        effects_version!(self).deleted()
     }
 
     fn unwrapped_then_deleted(&self) -> Vec<ObjectReference> {
-        delegate_effects_api!(self, unwrapped_then_deleted)
+        effects_version!(self).unwrapped_then_deleted()
     }
 
     fn wrapped(&self) -> Vec<ObjectReference> {
-        delegate_effects_api!(self, wrapped)
+        effects_version!(self).wrapped()
     }
 
     fn object_changes(&self) -> Vec<ObjectChange> {
-        delegate_effects_api!(self, object_changes)
+        effects_version!(self).object_changes()
     }
 
-    fn gas_object(&self) -> (ObjectReference, Owner) {
-        delegate_effects_api!(self, gas_object)
+    fn gas_object(&self) -> OwnedObjectReference {
+        // A system transaction pays no gas, so its effects name no gas object;
+        // this reports the dummy reference callers here have always been given
+        // for that case.
+        effects_version!(self).gas_object().unwrap_or_else(|| {
+            OwnedObjectReference::new(
+                ObjectReference::new(ObjectId::ZERO, Version::default(), ObjectDigest::MIN),
+                Owner::Address(Address::ZERO),
+            )
+        })
     }
 
     fn events_digest(&self) -> Option<&TransactionEventsDigest> {
-        delegate_effects_api!(self, events_digest)
+        effects_version!(self).events_digest.as_ref()
     }
 
     fn dependencies(&self) -> &[TransactionDigest] {
-        delegate_effects_api!(self, dependencies)
+        &effects_version!(self).dependencies
     }
 
     fn transaction_digest(&self) -> &TransactionDigest {
-        delegate_effects_api!(self, transaction_digest)
+        &effects_version!(self).transaction_digest
     }
 
     fn gas_cost_summary(&self) -> &GasCostSummary {
-        delegate_effects_api!(self, gas_cost_summary)
+        &effects_version!(self).gas_cost_summary
     }
 
     fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)> {
-        delegate_effects_api!(self, unchanged_shared_objects)
+        effects_version!(self)
+            .unchanged_shared_objects
+            .iter()
+            .map(|unchanged| (unchanged.object_id, unchanged.kind.clone()))
+            .collect()
     }
 }
 
 impl TransactionEffectsAPIForTesting for TransactionEffects {
-    fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
-        delegate_effects_api!(self, status_mut_for_testing)
-    }
-
     fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary {
-        delegate_effects_api!(self, gas_cost_summary_mut_for_testing)
-    }
-
-    fn transaction_digest_mut_for_testing(&mut self) -> &mut TransactionDigest {
-        delegate_effects_api!(self, transaction_digest_mut_for_testing)
+        &mut effects_version!(mut self).gas_cost_summary
     }
 
     fn dependencies_mut_for_testing(&mut self) -> &mut Vec<TransactionDigest> {
-        delegate_effects_api!(self, dependencies_mut_for_testing)
+        &mut effects_version!(mut self).dependencies
     }
 
-    fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject) {
-        delegate_effects_api!(self, unsafe_add_input_shared_object_for_testing, kind)
+    fn unsafe_add_read_only_shared_object_for_testing(&mut self, object: ObjectReference) {
+        let ObjectReference {
+            object_id,
+            version,
+            digest,
+        } = object;
+        effects_version!(mut self)
+            .unchanged_shared_objects
+            .push(UnchangedSharedObject {
+                object_id,
+                kind: UnchangedSharedKind::ReadOnlyRoot { version, digest },
+            })
+    }
+
+    fn unsafe_add_mutated_shared_object_for_testing(&mut self, object: ObjectReference) {
+        let ObjectReference {
+            object_id,
+            version,
+            digest,
+        } = object;
+        effects_version!(mut self)
+            .changed_objects
+            .push(ChangedObject {
+                object_id,
+                input_state: ObjectIn::Data {
+                    version,
+                    digest,
+                    owner: Owner::Shared(OBJECT_START_VERSION),
+                },
+                output_state: ObjectOut::ObjectWrite {
+                    digest,
+                    owner: Owner::Shared(version),
+                },
+                id_operation: IdOperation::None,
+            })
     }
 
     fn unsafe_add_deleted_live_object_for_testing(&mut self, object_ref: ObjectReference) {
-        delegate_effects_api!(self, unsafe_add_deleted_live_object_for_testing, object_ref)
+        let v1 = effects_version!(mut self);
+        let (object_id, version, digest) = object_ref.into_parts();
+        v1.changed_objects.push(ChangedObject {
+            object_id,
+            input_state: ObjectIn::Data {
+                version,
+                digest,
+                owner: Owner::Address(Address::ZERO),
+            },
+            output_state: ObjectOut::ObjectWrite {
+                digest,
+                owner: Owner::Address(Address::ZERO),
+            },
+            id_operation: IdOperation::None,
+        })
     }
 
     fn unsafe_add_object_tombstone_for_testing(&mut self, object_ref: ObjectReference) {
-        delegate_effects_api!(self, unsafe_add_object_tombstone_for_testing, object_ref)
+        let v1 = effects_version!(mut self);
+        let (object_id, version, digest) = object_ref.into_parts();
+        v1.changed_objects.push(ChangedObject {
+            object_id,
+            input_state: ObjectIn::Data {
+                version,
+                digest,
+                owner: Owner::Address(Address::ZERO),
+            },
+            output_state: ObjectOut::Missing,
+            id_operation: IdOperation::Deleted,
+        })
     }
 }
 
@@ -521,33 +543,12 @@ impl TransactionEffectsExt for TransactionEffects {
         }
     }
 
-    fn all_changed_objects(&self) -> Vec<(ObjectReference, Owner, WriteKind)> {
-        self.mutated()
-            .into_iter()
-            .map(|(r, o)| (r, o, WriteKind::Mutate))
-            .chain(
-                self.created()
-                    .into_iter()
-                    .map(|(r, o)| (r, o, WriteKind::Create)),
-            )
-            .chain(
-                self.unwrapped()
-                    .into_iter()
-                    .map(|(r, o)| (r, o, WriteKind::Unwrap)),
-            )
-            .collect()
+    fn all_changed_objects(&self) -> Vec<(OwnedObjectReference, WriteKind)> {
+        effects_version!(self).all_changed_objects()
     }
 
     fn all_removed_objects(&self) -> Vec<(ObjectReference, ObjectRemoveKind)> {
-        self.deleted()
-            .iter()
-            .map(|obj_ref| (*obj_ref, ObjectRemoveKind::Delete))
-            .chain(
-                self.wrapped()
-                    .iter()
-                    .map(|obj_ref| (*obj_ref, ObjectRemoveKind::Wrap)),
-            )
-            .collect()
+        effects_version!(self).all_removed_objects()
     }
 
     fn all_tombstones(&self) -> Vec<(ObjectId, Version)> {
@@ -570,7 +571,7 @@ impl TransactionEffectsExt for TransactionEffects {
                     && change.output_digest.is_none()
                     && change.id_operation == IdOperation::Created
                 {
-                    Some((change.id, change.output_version.unwrap_or_default()))
+                    Some((change.object_id, change.output_version.unwrap_or_default()))
                 } else {
                     None
                 }
@@ -578,23 +579,25 @@ impl TransactionEffectsExt for TransactionEffects {
             .collect::<Vec<_>>()
     }
 
-    fn mutated_excluding_gas(&self) -> Vec<(ObjectReference, Owner)> {
+    fn mutated_excluding_gas(&self) -> Vec<OwnedObjectReference> {
+        let gas = self.gas_object();
         self.mutated()
             .into_iter()
-            .filter(|o| o != &self.gas_object())
+            .filter(|mutated| *mutated != gas)
             .collect()
     }
 
     fn all_affected_objects(&self) -> Vec<ObjectReference> {
+        let reference = |owned: OwnedObjectReference| owned.reference;
         self.created()
             .into_iter()
-            .map(|(r, _)| r)
-            .chain(self.mutated().into_iter().map(|(r, _)| r))
-            .chain(self.unwrapped().into_iter().map(|(r, _)| r))
+            .map(reference)
+            .chain(self.mutated().into_iter().map(reference))
+            .chain(self.unwrapped().into_iter().map(reference))
             .chain(
                 self.input_shared_objects()
                     .into_iter()
-                    .map(|r| r.object_ref()),
+                    .map(|shared| shared.object_reference()),
             )
             .chain(self.deleted())
             .chain(self.unwrapped_then_deleted())

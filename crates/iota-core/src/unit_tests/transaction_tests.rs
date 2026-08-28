@@ -873,7 +873,7 @@ async fn test_handle_soft_bundle_certificates() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0.object_id;
+        let shared_object_id = effects.created()[0].reference.object_id;
         authority.get_object(&shared_object_id).unwrap()
     };
     let initial_shared_version = shared_object.version();
@@ -1039,7 +1039,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         .await
         .unwrap();
         effects.status().unwrap();
-        let shared_object_id = effects.created()[0].0.object_id;
+        let shared_object_id = effects.created()[0].reference.object_id;
         authority.get_object(&shared_object_id).unwrap()
     };
     let initial_shared_version = shared_object.version();

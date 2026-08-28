@@ -618,12 +618,16 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
         .await?;
     let fx = &response.effects.effects;
 
-    let mut expected_input_objects = fx.modified_at_versions();
+    let mut expected_input_objects = fx
+        .modified_at_versions()
+        .into_iter()
+        .map(|modified| (modified.object_id, modified.version))
+        .collect::<Vec<_>>();
     expected_input_objects.sort_by_key(|&(id, _version)| id);
     let mut expected_output_objects = fx
         .all_changed_objects()
         .into_iter()
-        .map(|(object_ref, _, _)| object_ref)
+        .map(|(owned_object_ref, _)| owned_object_ref.reference)
         .collect::<Vec<_>>();
     expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
@@ -1199,12 +1203,16 @@ async fn execute_transaction_v1_staking_transaction() -> Result<(), anyhow::Erro
         .await?;
     let fx = &response.effects.effects;
 
-    let mut expected_input_objects = fx.modified_at_versions();
+    let mut expected_input_objects = fx
+        .modified_at_versions()
+        .into_iter()
+        .map(|modified| (modified.object_id, modified.version))
+        .collect::<Vec<_>>();
     expected_input_objects.sort_by_key(|&(id, _version)| id);
     let mut expected_output_objects = fx
         .all_changed_objects()
         .into_iter()
-        .map(|(object_ref, _, _)| object_ref)
+        .map(|(owned_object_ref, _)| owned_object_ref.reference)
         .collect::<Vec<_>>();
     expected_output_objects.sort_by_key(|&object_ref| object_ref.object_id);
 
@@ -1518,11 +1526,12 @@ async fn test_execution_worker_congestion_end_to_end() -> Result<(), anyhow::Err
             // The cancelled execution charged gas, so the gas object's
             // version moved: take the current reference from the certified
             // effects (the fullnode's own object view may lag behind them).
-            let (gas_object, _) = *effects
+            let gas_object = effects
                 .mutated()
                 .iter()
-                .find(|(obj_ref, _)| obj_ref.object_id == obj.object_id)
-                .expect("the cancelled execution charges the gas object");
+                .find(|mutated| mutated.reference.object_id == obj.object_id)
+                .expect("the cancelled execution charges the gas object")
+                .reference;
             congested = Some((*address, gas_object, suggested_gas_price));
             break 'bursts;
         }
@@ -1642,11 +1651,12 @@ async fn test_execution_worker_congestion_cancellation_validator_restart()
             else {
                 continue;
             };
-            let (gas_object, _) = *effects
+            let gas_object = effects
                 .mutated()
                 .iter()
-                .find(|(obj_ref, _)| obj_ref.object_id == obj.object_id)
-                .expect("the cancelled execution charges the gas object");
+                .find(|mutated| mutated.reference.object_id == obj.object_id)
+                .expect("the cancelled execution charges the gas object")
+                .reference;
             congested = Some((*address, gas_object, suggested_gas_price));
             break 'bursts;
         }

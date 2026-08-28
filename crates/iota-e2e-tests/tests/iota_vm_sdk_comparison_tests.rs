@@ -22,8 +22,8 @@ use std::{
 
 use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffectsAPI};
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, Owner, StructTag,
-    TransactionEffects,
+    Address, ExecutionError, ExecutionStatus, ObjectId, ObjectReference, OwnedObjectReference,
+    Owner, StructTag, TransactionEffects,
 };
 use iota_test_transaction_builder::{TestTransactionBuilder, publish_package};
 use iota_types::{
@@ -98,22 +98,22 @@ async fn compare_local_vm_staking_against_test_cluster() {
     // content digest (its post-execution balance). It is compared by its own
     // assertion below and kept out of the mutated set so it is not checked
     // twice.
-    let node_gas: (ObjectReference, Owner) = {
+    let node_gas: OwnedObjectReference = {
         let gas = dry_run.effects.gas_object();
-        (gas.reference, gas.owner)
+        OwnedObjectReference::new(gas.reference, gas.owner)
     };
-    let node_created: BTreeSet<(ObjectReference, Owner)> = dry_run
+    let node_created: BTreeSet<OwnedObjectReference> = dry_run
         .effects
         .created()
         .iter()
-        .map(|o| (o.reference, o.owner))
+        .map(|o| OwnedObjectReference::new(o.reference, o.owner))
         .collect();
-    let node_mutated: BTreeSet<(ObjectReference, Owner)> = dry_run
+    let node_mutated: BTreeSet<OwnedObjectReference> = dry_run
         .effects
         .mutated()
         .iter()
-        .filter(|o| o.object_id() != node_gas.0.object_id)
-        .map(|o| (o.reference, o.owner))
+        .filter(|o| o.reference.object_id != node_gas.reference.object_id)
+        .map(|o| OwnedObjectReference::new(o.reference, o.owner))
         .collect();
     let node_deleted: BTreeSet<ObjectReference> =
         dry_run.effects.deleted().iter().copied().collect();
@@ -154,13 +154,13 @@ async fn compare_local_vm_staking_against_test_cluster() {
             local_gas, node_gas,
             "{mode}: gas object must match the node in full (ref and owner)"
         );
-        let local_created: BTreeSet<(ObjectReference, Owner)> =
+        let local_created: BTreeSet<OwnedObjectReference> =
             result.effects.created().into_iter().collect();
-        let local_mutated: BTreeSet<(ObjectReference, Owner)> = result
+        let local_mutated: BTreeSet<OwnedObjectReference> = result
             .effects
             .mutated()
             .into_iter()
-            .filter(|(r, _)| r.object_id != node_gas.0.object_id)
+            .filter(|mutated| mutated.reference.object_id != node_gas.reference.object_id)
             .collect();
         let local_deleted: BTreeSet<ObjectReference> =
             result.effects.deleted().into_iter().collect();
@@ -446,28 +446,36 @@ async fn execute_tto_call(
 
 /// Pick the (parent, child) pair out of `tto::start`'s created objects: the
 /// child is the object owned by another created object's address.
-fn parent_and_child(created: Vec<(ObjectReference, Owner)>) -> (ObjectReference, ObjectReference) {
-    let created_ids: HashSet<_> = created.iter().map(|(oref, _)| oref.object_id).collect();
+fn parent_and_child(created: Vec<OwnedObjectReference>) -> (ObjectReference, ObjectReference) {
+    let created_ids: HashSet<_> = created
+        .iter()
+        .map(|owned| owned.reference.object_id)
+        .collect();
     let (child, parent_id) = created
         .iter()
-        .find_map(|(oref, owner)| match owner {
-            Owner::Address(a) if created_ids.contains(&ObjectId::from(*a)) => {
-                Some((*oref, ObjectId::from(*a)))
-            }
-            _ => None,
-        })
+        .find_map(
+            |OwnedObjectReference {
+                 reference: oref,
+                 owner,
+             }| match owner {
+                Owner::Address(a) if created_ids.contains(&ObjectId::from(*a)) => {
+                    Some((*oref, ObjectId::from(*a)))
+                }
+                _ => None,
+            },
+        )
         .expect("start must create an object owned by another created object");
     let parent = created
         .iter()
-        .find(|(oref, _)| oref.object_id == parent_id)
+        .find(|owned| owned.reference.object_id == parent_id)
         .expect("the owning parent must be among the created objects");
-    (parent.0, child)
+    (parent.reference, child)
 }
 
 /// The post-execution reference of the mutated object `id`.
 fn mutated_ref(fx: &TransactionEffects, id: ObjectId) -> ObjectReference {
     fx.mutated_excluding_gas()
         .iter()
-        .find_map(|(oref, _)| (oref.object_id == id).then_some(*oref))
+        .find_map(|mutated| (mutated.reference.object_id == id).then_some(mutated.reference))
         .unwrap_or_else(|| panic!("object {id} must be among the mutated objects"))
 }

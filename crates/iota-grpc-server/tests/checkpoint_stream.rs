@@ -52,15 +52,17 @@ fn objects_for_effects(
     let input_objects = effects
         .modified_at_versions()
         .into_iter()
-        .map(|(id, version)| Object::with_id_owner_version_for_testing(id, version, owner))
+        .map(|modified| {
+            Object::with_id_owner_version_for_testing(modified.object_id, modified.version, owner)
+        })
         .collect();
     let output_objects = effects
         .all_changed_objects()
         .into_iter()
-        .map(|(object_ref, _, _)| {
+        .map(|(changed, _)| {
             Object::with_id_owner_version_for_testing(
-                object_ref.object_id,
-                object_ref.version,
+                changed.reference.object_id,
+                changed.reference.version,
                 owner,
             )
         })

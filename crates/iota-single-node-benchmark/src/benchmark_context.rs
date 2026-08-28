@@ -10,7 +10,9 @@ use std::{
 
 use futures::{StreamExt, stream::FuturesUnordered};
 use iota_config::node::RunWithRange;
-use iota_sdk_types::{Address, ObjectId, ObjectReference, TransactionEffects, Version};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, OwnedObjectReference, TransactionEffects, Version,
+};
 use iota_test_transaction_builder::PublishData;
 use iota_types::{
     effects::TransactionEffectsAPI,
@@ -133,11 +135,16 @@ impl BenchmarkContext {
             let (owner, root_object) = effects
                 .created()
                 .into_iter()
-                .filter_map(|(oref, owner)| owner.as_opt_address().map(|owner| (*owner, oref)))
+                .filter_map(
+                    |OwnedObjectReference {
+                         reference: oref,
+                         owner,
+                     }| owner.as_opt_address().map(|owner| (*owner, oref)),
+                )
                 .next()
                 .unwrap();
             root_objects.insert(owner, root_object);
-            let gas_object = effects.gas_object().0;
+            let gas_object = effects.gas_object().reference;
             new_gas_objects.insert(gas_object.object_id, gas_object);
         }
         self.refresh_gas_objects(new_gas_objects);
@@ -174,17 +181,22 @@ impl BenchmarkContext {
             let shared_object = effects
                 .created()
                 .into_iter()
-                .filter_map(|(oref, owner)| {
-                    if owner.is_shared() {
-                        Some((oref.object_id, oref.version))
-                    } else {
-                        None
-                    }
-                })
+                .filter_map(
+                    |OwnedObjectReference {
+                         reference: oref,
+                         owner,
+                     }| {
+                        if owner.is_shared() {
+                            Some((oref.object_id, oref.version))
+                        } else {
+                            None
+                        }
+                    },
+                )
                 .next()
                 .unwrap();
             shared_objects.push(shared_object);
-            let gas_object = effects.gas_object().0;
+            let gas_object = effects.gas_object().reference;
             new_gas_objects.insert(gas_object.object_id, gas_object);
             // Make sure to commit them to DB. This is needed by both the execution-only
             // mode and the checkpoint-executor mode. For execution-only mode,

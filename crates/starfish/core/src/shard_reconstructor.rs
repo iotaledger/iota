@@ -754,11 +754,9 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             return Ok(());
         }
 
-        // Relaying two shards for one slot is the peer's own fault;
-        // exceeding the accumulator limit is not, as others may have
-        // filled the slot.
-        // TODO: charge the peer for the former once every validator
-        // runs the per-slot header cap.
+        // Relaying two shards for one slot is the peer's own fault and is
+        // charged; exceeding the accumulator limit is not, as others may
+        // have filled the slot.
         let slot_start = TransactionRef {
             round: tx_ref.round,
             author: tx_ref.author,
@@ -779,10 +777,12 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             }
         }
 
-        // One shard per (relaying peer, slot), across all accumulators:
-        // an honest peer holds exactly one shard per slot, so a peer
-        // whose index already appears in another accumulator of the
-        // slot has spent the contribution it was entitled to.
+        // One shard per (relaying peer, slot), across all accumulators: the
+        // per-slot header cap leaves an honest peer holding exactly one own
+        // shard per slot, so a peer whose index already appears in another
+        // accumulator of the slot has relayed a shard it could not have held
+        // honestly. The shard carries no relayer signature, so the evidence
+        // stays local.
         if peer_in_other_accumulator {
             self.context
                 .metrics
@@ -794,6 +794,21 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                 "Dropping shard for {tx_ref:?}: peer index {} already contributed a shard in this slot",
                 shard_msg.shard_index
             );
+            if let Some(peer) = self
+                .context
+                .committee
+                .to_authority_index(shard_msg.shard_index)
+            {
+                self.misbehavior_store.record_faulty_block(
+                    peer,
+                    peer,
+                    &ConsensusError::SecondShardForSlot {
+                        peer,
+                        author: tx_ref.author,
+                        round: tx_ref.round,
+                    },
+                );
+            }
             return Ok(());
         }
 
@@ -1886,9 +1901,10 @@ mod tests {
     }
 
     /// A peer gets one shard per (author, round) slot across all accumulators:
-    /// its shard for a second commitment in the slot is dropped whether that
-    /// would create a new accumulator or join one another peer created. The
-    /// first commitment still reconstructs from `info_length` distinct peers.
+    /// its shard for a second commitment in the slot is dropped and charged as
+    /// a bundle-part fault, whether that would create a new accumulator or
+    /// join one another peer created. The first commitment still reconstructs
+    /// from `info_length` distinct peers.
     #[tokio::test]
     async fn test_shard_admission_one_shard_per_peer_per_slot() {
         telemetry_subscribers::init_for_testing();
@@ -1992,6 +2008,17 @@ mod tests {
             first_commitment
         );
 
+        // Only peer 0 is charged, once per dropped shard; peer 1 relayed a
+        // single shard into the slot and stays clean.
+        let counts = h.dag_state.read().misbehavior_store().snapshot_totals();
+        assert_eq!(
+            counts[0].as_v2().invalid_bundle_parts,
+            2,
+            "each second shard relayed into the slot must be charged to peer 0"
+        );
+        assert_eq!(counts[0].as_v2().faulty_blocks_unprovable, 0);
+        assert_eq!(counts[1].as_v2().invalid_bundle_parts, 0);
+
         h.handle.stop().await.unwrap();
     }
 
@@ -2063,6 +2090,11 @@ mod tests {
                 .get(),
             0,
             "honest single-shard-per-peer traffic must never be dropped"
+        );
+        let counts = h.dag_state.read().misbehavior_store().snapshot_totals();
+        assert!(
+            counts.iter().all(|c| c.as_v2().invalid_bundle_parts == 0),
+            "honest single-shard-per-peer traffic must never be charged"
         );
 
         h.handle.stop().await.unwrap();

@@ -153,7 +153,7 @@ mod sim_only_tests {
             )
             .await
             .created()[0]
-            .0
+            .reference
             .object_id;
 
         (package_id, object_id)
@@ -170,7 +170,7 @@ mod sim_only_tests {
             )
             .await
             .created()[0]
-            .0
+            .reference
             .object_id
     }
 

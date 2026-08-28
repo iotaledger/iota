@@ -358,7 +358,7 @@ impl TransactionFilter {
                 .mutated()
                 .iter()
                 .chain(item.effects.unwrapped().iter())
-                .any(|(_, owner)| matches!(owner, Owner::Address(addr) if *addr == *a)),
+                .any(|changed| matches!(changed.owner, Owner::Address(addr) if addr == *a)),
 
             TransactionFilter::AffectedObject(o) => item
                 .effects

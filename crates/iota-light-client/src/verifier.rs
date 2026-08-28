@@ -87,7 +87,7 @@ pub async fn get_verified_object(config: &Config, object_id: ObjectId) -> Result
     effects
         .all_changed_objects()
         .iter()
-        .find(|object_ref| object_ref.0 == target_object_ref)
+        .find(|(changed, _)| changed.reference == target_object_ref)
         .ok_or_else(|| anyhow!("Object not found"))?;
 
     Ok(object)
@@ -211,7 +211,7 @@ pub async fn get_verified_checkpoint(
     effects
         .all_changed_objects()
         .iter()
-        .find(|object_ref| object_ref.0 == target_object_ref)
+        .find(|(changed, _)| changed.reference == target_object_ref)
         .ok_or_else(|| anyhow!("Object not found"))?;
 
     // Create object store

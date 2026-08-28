@@ -738,7 +738,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             let mut created_ids: Vec<_> = effects
                                 .created()
                                 .iter()
-                                .map(|(object_ref, _)| object_ref.object_id)
+                                .map(|created| created.reference.object_id)
                                 .collect();
                             created_ids.sort_by_key(|id| self.get_object_sorting_key(id));
                             for id in created_ids {
@@ -1910,17 +1910,17 @@ impl IotaTestAdapter {
         let mut created_ids: Vec<_> = effects
             .created()
             .iter()
-            .map(|(object_ref, _)| object_ref.object_id)
+            .map(|created| created.reference.object_id)
             .collect();
         let mut mutated_ids: Vec<_> = effects
             .mutated()
             .iter()
-            .map(|(object_ref, _)| object_ref.object_id)
+            .map(|mutated| mutated.reference.object_id)
             .collect();
         let mut unwrapped_ids: Vec<_> = effects
             .unwrapped()
             .iter()
-            .map(|(object_ref, _)| object_ref.object_id)
+            .map(|unwrapped| unwrapped.reference.object_id)
             .collect();
         let mut deleted_ids: Vec<_> = effects
             .deleted()

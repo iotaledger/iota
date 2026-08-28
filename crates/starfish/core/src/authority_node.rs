@@ -263,6 +263,7 @@ impl ConsensusAuthority {
             .parameters
             .enable_fast_commit_syncer
             .then(|| Arc::new(AtomicBool::new(fast_sync_ongoing)));
+        let (block_stream_reset_sender, _) = tokio::sync::watch::channel(());
 
         let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
@@ -308,6 +309,7 @@ impl ConsensusAuthority {
                 header_synchronizer.clone(),
                 misbehavior_store.clone(),
                 flag.clone(),
+                block_stream_reset_sender.clone(),
             )
             .start()
         });
@@ -332,6 +334,7 @@ impl ConsensusAuthority {
             network_client,
             network_service.clone(),
             dag_state.clone(),
+            block_stream_reset_sender,
         );
         for (peer, _) in context.committee.authorities() {
             if peer != context.own_index {
