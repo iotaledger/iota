@@ -161,11 +161,14 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     /// Handles the block and headers sent from the peer via subscription
     /// stream. Peer value can be trusted to be a valid authority index. But
     /// serialized_block must be verified before its contents are trusted.
+    /// `last_streamed_block` is the highest-round primary block received so
+    /// far on this connection; the caller keeps it per connection.
     async fn handle_subscribed_block_bundle(
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+        last_streamed_block: &mut Option<BlockRef>,
     ) -> ConsensusResult<()>;
 
     /// Handles the subscription request from the peer.

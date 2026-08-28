@@ -795,6 +795,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+        last_streamed_block: &mut Option<BlockRef>,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
         let _s = self
@@ -834,6 +835,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let block_ref = verified_block.reference();
         let transaction_ref = verified_block.transaction_ref();
         let gen_transaction_ref = GenericTransactionRef::from(transaction_ref);
+        // 1b. Track the highest primary block round seen on this connection; the
+        // order check against it runs in step 5c, after the slot check.
+        let previous_streamed_block = *last_streamed_block;
+        if previous_streamed_block.is_none_or(|last| block_ref.round > last.round) {
+            *last_streamed_block = Some(block_ref);
+        }
         // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
         let now = self.context.clock.timestamp_utc_ms();
         let block_timestamp_ms = verified_block.timestamp_ms();
@@ -935,8 +942,54 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                  holds a header with a different digest"
             );
         }
-        // The block is not accepted for either reason, so the steps below skip it.
-        let primary_block_dropped = primary_block_far_future || primary_block_equivocates;
+        // 5c. The stream carries the peer's own blocks in proposal order, so the
+        // round must strictly increase over one connection. A repeated or
+        // regressing block is dropped and charged to the peer; a same-round
+        // block with another digest is the peer's equivocation, charged here
+        // unless the slot check above already charged it.
+        let primary_block_out_of_order = match previous_streamed_block {
+            Some(last) if block_ref.round <= last.round => {
+                let equivocation = block_ref.round == last.round && block_ref.digest != last.digest;
+                if !primary_block_equivocates {
+                    let e = if equivocation {
+                        ConsensusError::BlockHeaderEquivocation {
+                            authority: peer,
+                            round: block_ref.round,
+                        }
+                    } else {
+                        ConsensusError::StreamedBlockRoundNotIncreasing {
+                            peer,
+                            round: block_ref.round,
+                            last_round: last.round,
+                        }
+                    };
+                    self.misbehavior_store.record_faulty_block(peer, peer, &e);
+                }
+                let reason = if equivocation {
+                    "equivocation"
+                } else if block_ref.round == last.round {
+                    "repeat"
+                } else {
+                    "regression"
+                };
+                self.context
+                    .metrics
+                    .node_metrics
+                    .dropped_out_of_order_streamed_blocks_total
+                    .with_label_values(&[peer_hostname.as_str(), reason])
+                    .inc();
+                warn!(
+                    "Peer {peer} streamed block {block_ref} after its block {last}: dropping it \
+                     ({reason})"
+                );
+                true
+            }
+            _ => false,
+        };
+        // The block is not accepted for any of these reasons, so the steps below
+        // skip it.
+        let primary_block_dropped =
+            primary_block_far_future || primary_block_equivocates || primary_block_out_of_order;
 
         // 6. Collect shards from a bundle and check their proofs. Skipped for a
         // dropped primary block so its shards never reach the reconstructor. The
@@ -1935,7 +1988,7 @@ mod tests {
         core::{Core, CoreSignals, ReasonToCreateBlock},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::{DagState, DataSource},
-        encoder::create_encoder,
+        encoder::{ShardEncoder, create_encoder},
         error::{ConsensusError, ConsensusResult},
         header_synchronizer::HeaderSynchronizer,
         leader_schedule::LeaderSchedule,
@@ -1945,6 +1998,7 @@ mod tests {
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
             SerializedTransactionsV2, TransactionFetchMode,
         },
+        shard_reconstructor::TransactionMessage,
         storage::{Store, WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
@@ -2091,6 +2145,7 @@ mod tests {
                 context.committee.to_authority_index(1).unwrap(),
                 serialized_block_bundle.clone(),
                 &mut encoder,
+                &mut None,
             )
             .await;
 
@@ -2107,6 +2162,7 @@ mod tests {
                     context.committee.to_authority_index(0).unwrap(),
                     serialized_block_bundle,
                     &mut encoder,
+                    &mut None,
                 )
                 .await
                 .unwrap();
@@ -2180,6 +2236,7 @@ mod tests {
                 context.committee.to_authority_index(0).unwrap(),
                 bundle,
                 &mut encoder,
+                &mut None,
             )
             .await
             .unwrap();
@@ -2281,7 +2338,7 @@ mod tests {
 
         let bundle = SerializedBlockBundle::try_from(input_block).unwrap();
         authority_service
-            .handle_subscribed_block_bundle(peer, bundle, &mut encoder)
+            .handle_subscribed_block_bundle(peer, bundle, &mut encoder, &mut None)
             .await
             .unwrap();
 
@@ -2310,6 +2367,254 @@ mod tests {
         assert_eq!(
             counts.faulty_blocks_provable, 1,
             "two signed headers for one slot are provable equivocation"
+        );
+    }
+
+    /// Service wired to a mock core, for tests that drive
+    /// `handle_subscribed_block_bundle` directly.
+    struct StreamFixture {
+        authority_service: Arc<AuthorityService<MockCoreThreadDispatcher>>,
+        misbehavior_store: Arc<MisbehaviorStore>,
+        core_dispatcher: Arc<MockCoreThreadDispatcher>,
+        dag_state: Arc<RwLock<DagState>>,
+        tx_message_receiver: mpsc::Receiver<Vec<TransactionMessage>>,
+    }
+
+    fn stream_fixture(context: Arc<Context>) -> StreamFixture {
+        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
+        let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, tx_message_receiver) = mpsc::channel(100);
+        let network_client = Arc::new(FakeNetworkClient::default());
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        let transactions_synchronizer = TransactionsSynchronizer::start(
+            network_client.clone(),
+            context.clone(),
+            core_dispatcher.clone(),
+            dag_state.clone(),
+            block_verifier.clone(),
+        );
+        let header_synchronizer = HeaderSynchronizer::start(
+            network_client,
+            context.clone(),
+            core_dispatcher.clone(),
+            commit_vote_monitor.clone(),
+            transactions_synchronizer.clone(),
+            block_verifier.clone(),
+            dag_state.clone(),
+            false,
+            None,
+            Arc::new(MisbehaviorStore::new(&context)),
+        );
+        let misbehavior_store = Arc::new(MisbehaviorStore::new(&context));
+        let authority_service = Arc::new(AuthorityService::new(
+            context,
+            block_verifier,
+            commit_vote_monitor,
+            header_synchronizer,
+            transactions_synchronizer,
+            core_dispatcher.clone(),
+            rx_block_broadcast,
+            dag_state.clone(),
+            store,
+            misbehavior_store.clone(),
+            tx_message_sender,
+            cordial_knowledge,
+        ));
+        StreamFixture {
+            authority_service,
+            misbehavior_store,
+            core_dispatcher,
+            dag_state,
+            tx_message_receiver,
+        }
+    }
+
+    /// A block of authority 0 at `round`; `ancestors` only varies the digest.
+    fn own_block(
+        context: &Arc<Context>,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+        round: Round,
+        ancestors: Vec<BlockRef>,
+    ) -> VerifiedBlock {
+        VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(round, 0, context, encoder)
+                .set_ancestors(ancestors)
+                .build(),
+        )
+    }
+
+    /// Over one subscription stream the peer's primary block round must
+    /// strictly increase. A repeated or regressing block is dropped before its
+    /// payload reaches the reconstructor or the core and is charged to the
+    /// peer; a same-round block with another digest is charged as
+    /// equivocation; a gap in rounds is fine.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_enforces_stream_round_order() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let mut fixture = stream_fixture(context.clone());
+        let mut encoder = create_encoder(&context);
+        let peer = context.committee.to_authority_index(0).unwrap();
+
+        let block_2 = own_block(&context, &mut encoder, 2, vec![]);
+        let block_4 = own_block(&context, &mut encoder, 4, vec![]);
+        let block_3 = own_block(&context, &mut encoder, 3, vec![]);
+        let block_4_other = own_block(
+            &context,
+            &mut encoder,
+            4,
+            vec![BlockRef::new(
+                GENESIS_ROUND,
+                AuthorityIndex::new_for_test(1),
+                BlockHeaderDigest::MIN,
+            )],
+        );
+        let block_5 = own_block(&context, &mut encoder, 5, vec![]);
+        assert_ne!(block_4.reference(), block_4_other.reference());
+
+        let mut last_streamed_block = None;
+        for block in [&block_2, &block_4] {
+            fixture
+                .authority_service
+                .handle_subscribed_block_bundle(
+                    peer,
+                    SerializedBlockBundle::try_from(block.clone()).unwrap(),
+                    &mut encoder,
+                    &mut last_streamed_block,
+                )
+                .await
+                .unwrap();
+        }
+        assert_eq!(
+            fixture.core_dispatcher.get_blocks(),
+            vec![block_2.clone(), block_4.clone()],
+            "increasing rounds, with a gap, are accepted"
+        );
+        assert_eq!(last_streamed_block, Some(block_4.reference()));
+        while fixture.tx_message_receiver.try_recv().is_ok() {}
+
+        // A repeat, a regression, and a second digest for a round already
+        // streamed.
+        for block in [&block_4, &block_3, &block_4_other] {
+            fixture
+                .authority_service
+                .handle_subscribed_block_bundle(
+                    peer,
+                    SerializedBlockBundle::try_from(block.clone()).unwrap(),
+                    &mut encoder,
+                    &mut last_streamed_block,
+                )
+                .await
+                .unwrap();
+            assert!(
+                fixture.tx_message_receiver.try_recv().is_err(),
+                "a dropped block must not feed the shard reconstructor"
+            );
+        }
+        assert_eq!(
+            fixture.core_dispatcher.get_blocks().len(),
+            2,
+            "dropped blocks are not forwarded to the core"
+        );
+        assert_eq!(
+            last_streamed_block,
+            Some(block_4.reference()),
+            "dropped blocks do not move the stream position"
+        );
+
+        fixture
+            .authority_service
+            .handle_subscribed_block_bundle(
+                peer,
+                SerializedBlockBundle::try_from(block_5.clone()).unwrap(),
+                &mut encoder,
+                &mut last_streamed_block,
+            )
+            .await
+            .unwrap();
+        assert_eq!(fixture.core_dispatcher.get_blocks().len(), 3);
+        assert_eq!(last_streamed_block, Some(block_5.reference()));
+
+        let totals = fixture.misbehavior_store.snapshot_totals();
+        let counts = totals[peer.value()].as_v2();
+        assert_eq!(
+            counts.faulty_blocks_unprovable, 2,
+            "the repeat and the regression are charged to the peer"
+        );
+        assert_eq!(
+            counts.faulty_blocks_provable, 1,
+            "a second digest for a streamed round is equivocation"
+        );
+        for reason in ["repeat", "regression", "equivocation"] {
+            assert_eq!(
+                context
+                    .metrics
+                    .node_metrics
+                    .dropped_out_of_order_streamed_blocks_total
+                    .with_label_values(&[context.authority_hostname(peer), reason])
+                    .get(),
+                1,
+                "one dropped block counted as {reason}"
+            );
+        }
+    }
+
+    /// A same-round block the slot check already charged as equivocation is
+    /// not charged again by the stream order check.
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_handle_subscribed_block_bundle_stream_round_order_charges_equivocation_once() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let fixture = stream_fixture(context.clone());
+        let mut encoder = create_encoder(&context);
+        let peer = context.committee.to_authority_index(0).unwrap();
+
+        let accepted = own_block(
+            &context,
+            &mut encoder,
+            1,
+            vec![BlockRef::new(
+                GENESIS_ROUND,
+                AuthorityIndex::new_for_test(1),
+                BlockHeaderDigest::MIN,
+            )],
+        );
+        let input_block = own_block(&context, &mut encoder, 1, vec![]);
+        assert_ne!(accepted.reference(), input_block.reference());
+        fixture.dag_state.write().accept_block_header(
+            accepted.verified_block_header.clone(),
+            DataSource::BlockBundleStream,
+        );
+
+        let mut last_streamed_block = Some(accepted.reference());
+        fixture
+            .authority_service
+            .handle_subscribed_block_bundle(
+                peer,
+                SerializedBlockBundle::try_from(input_block).unwrap(),
+                &mut encoder,
+                &mut last_streamed_block,
+            )
+            .await
+            .unwrap();
+
+        assert!(fixture.core_dispatcher.get_blocks().is_empty());
+        let totals = fixture.misbehavior_store.snapshot_totals();
+        let counts = totals[peer.value()].as_v2();
+        assert_eq!(counts.faulty_blocks_provable, 1);
+        assert_eq!(counts.faulty_blocks_unprovable, 0);
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_out_of_order_streamed_blocks_total
+                .with_label_values(&[context.authority_hostname(peer), "equivocation"])
+                .get(),
+            1
         );
     }
 
@@ -2395,7 +2700,7 @@ mod tests {
         let bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
 
         let result = authority_service
-            .handle_subscribed_block_bundle(peer, bundle.clone(), &mut encoder)
+            .handle_subscribed_block_bundle(peer, bundle.clone(), &mut encoder, &mut None)
             .await;
         assert!(
             matches!(result, Err(ConsensusError::BlockRejected { .. })),
@@ -2431,7 +2736,7 @@ mod tests {
         });
 
         authority_service
-            .handle_subscribed_block_bundle(peer, bundle, &mut encoder)
+            .handle_subscribed_block_bundle(peer, bundle, &mut encoder, &mut None)
             .await
             .unwrap();
         assert_eq!(core_dispatcher.get_blocks(), vec![input_block]);
@@ -2524,7 +2829,7 @@ mod tests {
         let bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
 
         authority_service
-            .handle_subscribed_block_bundle(peer, bundle, &mut encoder)
+            .handle_subscribed_block_bundle(peer, bundle, &mut encoder, &mut None)
             .await
             .unwrap();
         assert_eq!(core_dispatcher.get_blocks(), vec![input_block]);
@@ -2613,6 +2918,7 @@ mod tests {
                 context.committee.to_authority_index(0).unwrap(),
                 serialized_block_bundle,
                 &mut encoder,
+                &mut None,
             )
             .await;
 
@@ -2645,6 +2951,7 @@ mod tests {
                 context.committee.to_authority_index(0).unwrap(),
                 malformed_bundle,
                 &mut encoder,
+                &mut None,
             )
             .await;
         assert!(matches!(
@@ -2747,6 +3054,7 @@ mod tests {
                 context.committee.to_authority_index(0).unwrap(),
                 serialized_block_bundle_with_big_round,
                 &mut encoder,
+                &mut None,
             )
             .await;
 
@@ -2790,6 +3098,7 @@ mod tests {
                 context.committee.to_authority_index(0).unwrap(),
                 serialized_block_bundle,
                 &mut encoder,
+                &mut None,
             )
             .await;
 
@@ -2834,6 +3143,7 @@ mod tests {
                     context.committee.to_authority_index(0).unwrap(),
                     serialized_block_bundle,
                     &mut encoder,
+                    &mut None,
                 )
                 .await
                 .unwrap();
@@ -2921,6 +3231,7 @@ mod tests {
                 context.committee.to_authority_index(0).unwrap(),
                 serialized_block_bundle,
                 &mut encoder,
+                &mut None,
             )
             .await;
 
@@ -3241,6 +3552,7 @@ mod tests {
             all_headers.push(dag_builder.block_headers(round..=round));
             all_transactions.push(dag_builder.transactions(round..=round));
         }
+        let mut last_streamed_blocks = vec![None; validators];
         for round in 1..=rounds {
             core_dispatcher
                 .add_block_headers(
@@ -3282,6 +3594,7 @@ mod tests {
                         context.committee.to_authority_index(peer).unwrap(),
                         serialized_block_bundle,
                         &mut encoder,
+                        &mut last_streamed_blocks[peer],
                     )
                     .await
                     .expect("bundle is expected to be processed successfully");
@@ -3457,6 +3770,7 @@ mod tests {
                     ],
                 ),
                 &mut encoder,
+                &mut None,
             )
             .await
             .expect("bundle is expected to be processed successfully");
@@ -3490,6 +3804,7 @@ mod tests {
                 peer_2,
                 send_bundle(2, vec![newest_of_author_3.clone()]),
                 &mut encoder,
+                &mut None,
             )
             .await
             .expect("bundle is expected to be processed successfully");
@@ -3612,6 +3927,7 @@ mod tests {
             all_headers.push(dag_builder.block_headers(round..=round));
             all_transactions.push(dag_builder.transactions(round..=round));
         }
+        let mut last_streamed_blocks = vec![None; validators];
         for round in 1..=rounds {
             core_dispatcher
                 .add_block_headers(
@@ -3645,6 +3961,7 @@ mod tests {
                         context.committee.to_authority_index(peer).unwrap(),
                         serialized_block_bundle,
                         &mut encoder,
+                        &mut last_streamed_blocks[peer],
                     )
                     .await
                     .expect("bundle is expected to be processed successfully");

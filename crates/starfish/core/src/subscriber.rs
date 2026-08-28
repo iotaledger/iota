@@ -265,6 +265,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                 .with_label_values(&[peer_hostname])
                 .set(1);
 
+            let mut last_streamed_block = None;
             'stream: loop {
                 // Observe a reset only between bundles: wrapping the handler
                 // below in this select would cancel it mid-bundle.
@@ -288,7 +289,12 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
-                            .handle_subscribed_block_bundle(peer, block, &mut encoder)
+                            .handle_subscribed_block_bundle(
+                                peer,
+                                block,
+                                &mut encoder,
+                                &mut last_streamed_block,
+                            )
                             .await;
                         if let Err(e) = result {
                             match e {
