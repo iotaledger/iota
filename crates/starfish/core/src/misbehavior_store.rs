@@ -317,7 +317,7 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
     match error {
         // Pre-signature / parsing errors — the header's author field can't
         // be trusted, so charge the sender, not the claimed author. A streamed
-        // block that repeats or regresses the peer's own round is charged the
+        // block that repeats or lowers the peer's own round is charged the
         // same way: the signed header proves authorship, not the send order.
         ConsensusError::WrongEpoch { .. }
         | ConsensusError::UnexpectedGenesisHeader

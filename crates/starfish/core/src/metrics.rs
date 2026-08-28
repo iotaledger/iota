@@ -1509,8 +1509,8 @@ impl NodeMetrics {
             ).unwrap(),
             dropped_out_of_order_streamed_blocks_total: register_int_counter_vec_with_registry!(
                 "dropped_out_of_order_streamed_blocks_total",
-                "Number of streamed primary blocks dropped because their round did not increase over the subscription stream, by peer and reason (repeat, regression, equivocation)",
-                &["peer", "reason"],
+                "Number of streamed primary blocks dropped because their round did not increase over the subscription stream, by peer",
+                &["peer"],
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),

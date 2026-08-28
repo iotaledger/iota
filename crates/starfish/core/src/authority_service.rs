@@ -865,22 +865,27 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 }
             };
             self.misbehavior_store.record_faulty_block(peer, peer, &e);
-            let reason = if equivocation {
-                "equivocation"
-            } else if block_ref.round == previous.round {
-                "repeat"
+            if equivocation {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .dropped_slot_cap_headers_total
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        DataSource::BlockStreaming.as_str(),
+                    ])
+                    .inc();
             } else {
-                "regression"
-            };
-            self.context
-                .metrics
-                .node_metrics
-                .dropped_out_of_order_streamed_blocks_total
-                .with_label_values(&[peer_hostname.as_str(), reason])
-                .inc();
+                self.context
+                    .metrics
+                    .node_metrics
+                    .dropped_out_of_order_streamed_blocks_total
+                    .with_label_values(&[peer_hostname.as_str()])
+                    .inc();
+            }
             warn!(
                 "Peer {peer} streamed block {block_ref} at or below its round {} already held: \
-                 dropping it ({reason})",
+                 dropping it ({e})",
                 previous.round
             );
             return Err(e);
@@ -2309,9 +2314,9 @@ mod tests {
     }
 
     /// Over one subscription stream the peer's primary block round must
-    /// strictly increase. A repeated or regressing block is dropped before its
-    /// payload reaches the reconstructor or the core and is charged to the
-    /// peer; a same-round block with another digest is charged as
+    /// strictly increase. A block at or below the highest round seen is dropped
+    /// before its payload reaches the reconstructor or the core and is charged
+    /// to the peer; a same-round block with another digest is charged as
     /// equivocation; a gap in rounds is fine.
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_enforces_stream_round_order() {
@@ -2361,8 +2366,8 @@ mod tests {
         );
         while fixture.tx_message_receiver.try_recv().is_ok() {}
 
-        // A repeat, a regression, and a second digest for a round already
-        // streamed.
+        // The same block again, a lower round, and a second digest for a round
+        // already streamed.
         for block in [&block_4, &block_3, &block_4_other] {
             fixture
                 .authority_service
@@ -2410,28 +2415,39 @@ mod tests {
         let counts = totals[peer.value()].as_v2();
         assert_eq!(
             counts.faulty_blocks_unprovable, 2,
-            "the repeat and the regression are charged to the peer"
+            "the repeated block and the lower round are charged to the peer"
         );
         assert_eq!(
             counts.faulty_blocks_provable, 1,
             "a second digest for a streamed round is equivocation"
         );
-        for reason in ["repeat", "regression", "equivocation"] {
-            assert_eq!(
-                context
-                    .metrics
-                    .node_metrics
-                    .dropped_out_of_order_streamed_blocks_total
-                    .with_label_values(&[context.authority_hostname(peer), reason])
-                    .get(),
-                1,
-                "one dropped block counted as {reason}"
-            );
-        }
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_out_of_order_streamed_blocks_total
+                .with_label_values(&[context.authority_hostname(peer)])
+                .get(),
+            2,
+            "the repeated block and the lower round are counted as round violations"
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_slot_cap_headers_total
+                .with_label_values(&[
+                    context.authority_hostname(peer),
+                    DataSource::BlockStreaming.as_str(),
+                ])
+                .get(),
+            1,
+            "the second digest is counted as an equivocation drop"
+        );
     }
 
     /// A block below the stream position whose slot already holds an accepted
-    /// header is charged as equivocation, not as a regression.
+    /// header is charged as equivocation, not merely for the round.
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_accepted_slot_beats_stream_order() {
         let (context, _keys) = Context::new_for_test(4);
@@ -2481,23 +2497,33 @@ mod tests {
         let counts = totals[peer.value()].as_v2();
         assert_eq!(counts.faulty_blocks_provable, 1);
         assert_eq!(counts.faulty_blocks_unprovable, 0);
-        for (reason, expected) in [("equivocation", 1), ("regression", 0)] {
-            assert_eq!(
-                context
-                    .metrics
-                    .node_metrics
-                    .dropped_out_of_order_streamed_blocks_total
-                    .with_label_values(&[context.authority_hostname(peer), reason])
-                    .get(),
-                expected
-            );
-        }
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_slot_cap_headers_total
+                .with_label_values(&[
+                    context.authority_hostname(peer),
+                    DataSource::BlockStreaming.as_str(),
+                ])
+                .get(),
+            1
+        );
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .dropped_out_of_order_streamed_blocks_total
+                .with_label_values(&[context.authority_hostname(peer)])
+                .get(),
+            0
+        );
     }
 
     /// A subscription asks for blocks above `last_received`, so a fresh stream
     /// starting at or below that round is a violation from its first block.
-    /// Without a digest for that round the same-round block can only be
-    /// charged as a repeat; with one, another digest is equivocation.
+    /// Without a digest for that round a same-round block can only be charged
+    /// for the round; with one, another digest is equivocation.
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_stream_must_start_above_requested_round() {
         let (context, _keys) = Context::new_for_test(4);
