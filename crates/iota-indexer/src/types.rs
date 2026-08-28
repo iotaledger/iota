@@ -842,11 +842,18 @@ pub(crate) mod grpc_conversion {
     use iota_grpc_types::v1::{
         command::{CommandOutputs as GrpcCommandOutputs, CommandResults as GrpcCommandResults},
         object::Objects as GrpcObjects,
+        transaction::{
+            BalanceChanges as GrpcBalanceChanges, ObjectChanges as GrpcObjectChanges,
+            object_change::Kind as GrpcObjectChangeKind,
+        },
     };
-    use iota_json_rpc_types::{IotaArgument, IotaExecutionResult, IotaTypeTag};
+    use iota_json_rpc_types::{
+        BalanceChange, IotaArgument, IotaExecutionResult, IotaTypeTag, ObjectChange,
+    };
+    use iota_sdk_types::{StructTag, TypeTag, Version};
     use iota_types::object::Object;
 
-    use crate::types::IndexerResult;
+    use crate::{errors::IndexerError, types::IndexerResult};
 
     /// Converts [`GrpcObjects`] into [`Vec<Object>`]
     pub(crate) fn objects(objects: &GrpcObjects) -> IndexerResult<Vec<Object>> {
@@ -854,6 +861,100 @@ pub(crate) mod grpc_conversion {
             .objects
             .iter()
             .map(|o| -> IndexerResult<_> { Ok(Object::from(o.object()?)) })
+            .collect()
+    }
+
+    /// Converts [`GrpcBalanceChanges`] into [`Vec<BalanceChange>`]
+    pub(crate) fn balance_changes(
+        balance_changes: &GrpcBalanceChanges,
+    ) -> IndexerResult<Vec<BalanceChange>> {
+        balance_changes
+            .balance_changes
+            .iter()
+            .map(|change| -> IndexerResult<_> {
+                Ok(BalanceChange {
+                    owner: change.owner()?,
+                    coin_type: change.coin_type()?,
+                    amount: change.amount_i128()?,
+                })
+            })
+            .collect()
+    }
+
+    fn object_change_version(version: Option<u64>) -> IndexerResult<Version> {
+        version
+            .map(Version::from_u64)
+            .ok_or_else(|| IndexerError::Grpc("object change version should be present".into()))
+    }
+
+    fn object_change_struct_tag(object_type: TypeTag) -> IndexerResult<StructTag> {
+        object_type.into_struct_tag_opt().ok_or_else(|| {
+            IndexerError::Grpc("object change object type should be a struct tag".into())
+        })
+    }
+
+    /// Converts [`GrpcObjectChanges`] into [`Vec<ObjectChange>`]
+    pub(crate) fn object_changes(
+        object_changes: &GrpcObjectChanges,
+    ) -> IndexerResult<Vec<ObjectChange>> {
+        object_changes
+            .object_changes
+            .iter()
+            .map(|change| -> IndexerResult<_> {
+                let kind = change.kind.as_ref().ok_or_else(|| {
+                    IndexerError::Grpc("object change kind should be present".into())
+                })?;
+                Ok(match kind {
+                    GrpcObjectChangeKind::Published(published) => ObjectChange::Published {
+                        package_id: published.package_id()?,
+                        version: object_change_version(published.version)?,
+                        digest: published.digest()?,
+                        modules: published.modules.clone(),
+                    },
+                    GrpcObjectChangeKind::Mutated(mutated) => ObjectChange::Mutated {
+                        sender: mutated.sender()?,
+                        owner: mutated.owner()?,
+                        object_type: object_change_struct_tag(mutated.object_type()?)?,
+                        object_id: mutated.object_id()?,
+                        version: object_change_version(mutated.version)?,
+                        previous_version: object_change_version(mutated.previous_version)?,
+                        digest: mutated.digest()?,
+                    },
+                    GrpcObjectChangeKind::Deleted(deleted) => ObjectChange::Deleted {
+                        sender: deleted.sender()?,
+                        object_type: object_change_struct_tag(deleted.object_type()?)?,
+                        object_id: deleted.object_id()?,
+                        version: object_change_version(deleted.version)?,
+                    },
+                    GrpcObjectChangeKind::Wrapped(wrapped) => ObjectChange::Wrapped {
+                        sender: wrapped.sender()?,
+                        object_type: object_change_struct_tag(wrapped.object_type()?)?,
+                        object_id: wrapped.object_id()?,
+                        version: object_change_version(wrapped.version)?,
+                    },
+                    GrpcObjectChangeKind::Unwrapped(unwrapped) => ObjectChange::Unwrapped {
+                        sender: unwrapped.sender()?,
+                        owner: unwrapped.owner()?,
+                        object_type: object_change_struct_tag(unwrapped.object_type()?)?,
+                        object_id: unwrapped.object_id()?,
+                        version: object_change_version(unwrapped.version)?,
+                        digest: unwrapped.digest()?,
+                    },
+                    GrpcObjectChangeKind::Created(created) => ObjectChange::Created {
+                        sender: created.sender()?,
+                        owner: created.owner()?,
+                        object_type: object_change_struct_tag(created.object_type()?)?,
+                        object_id: created.object_id()?,
+                        version: object_change_version(created.version)?,
+                        digest: created.digest()?,
+                    },
+                    kind => {
+                        return Err(IndexerError::Grpc(format!(
+                            "unknown object change kind: {kind:?}"
+                        )));
+                    }
+                })
+            })
             .collect()
     }
 
