@@ -1339,7 +1339,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         .iter()
         .map(|(_p, state_sync_info)| state_sync_info.lowest)
         .min();
-    let highest_synced = store.get_highest_synced_checkpoint().sequence_number;
+    let highest_synced = store.get_highest_synced_checkpoint_seq_number();
     // Only sync from checkpoint archive when there is at least one checkpoint in
     // the gap [highest_synced+1, lowest_peer). If highest_synced+1 ==
     // lowest_peer the archive range is empty and there is nothing to do.
@@ -1418,9 +1418,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
             }
         };
         let run_result = run_future.await;
-        let highest_synced_now = store_for_log
-            .get_highest_synced_checkpoint()
-            .sequence_number;
+        let highest_synced_now = store_for_log.get_highest_synced_checkpoint_seq_number();
         match run_result {
             Ok(_) => info!(
                 "State sync from checkpoint archive finished. Highest synced checkpoint = \
@@ -1804,12 +1802,12 @@ where
     loop {
         tokio::select! {
              _now = interval.tick() => {
-                let highest_verified_checkpoint = store.try_get_highest_verified_checkpoint()
-                    .expect("store operation should not fail");
-                metrics.set_highest_verified_checkpoint(highest_verified_checkpoint.sequence_number);
-                let highest_synced_checkpoint = store.try_get_highest_synced_checkpoint()
-                    .expect("store operation should not fail");
-                metrics.set_highest_synced_checkpoint(highest_synced_checkpoint.sequence_number);
+                metrics.set_highest_verified_checkpoint(
+                    store.get_highest_verified_checkpoint_seq_number(),
+                );
+                metrics.set_highest_synced_checkpoint(
+                    store.get_highest_synced_checkpoint_seq_number(),
+                );
              },
             _ = &mut recv => break,
         }

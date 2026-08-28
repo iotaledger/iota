@@ -73,6 +73,20 @@ impl ReadStore for SharedInMemoryStore {
             .pipe(Ok)
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        self.inner()
+            .get_highest_verified_checkpoint_seq_number()
+            .expect("storage should have been initialized with genesis checkpoint")
+            .pipe(Ok)
+    }
+
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        self.inner()
+            .get_highest_synced_checkpoint_seq_number()
+            .expect("storage should have been initialized with genesis checkpoint")
+            .pipe(Ok)
+    }
+
     fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {
         Ok(self.inner().get_lowest_available_checkpoint())
     }
@@ -308,6 +322,16 @@ impl InMemoryStore {
             .and_then(|(_, digest)| self.get_checkpoint_by_digest(digest))
     }
 
+    pub fn get_highest_verified_checkpoint_seq_number(&self) -> Option<CheckpointSequenceNumber> {
+        self.highest_verified_checkpoint
+            .map(|(sequence_number, _digest)| sequence_number)
+    }
+
+    pub fn get_highest_synced_checkpoint_seq_number(&self) -> Option<CheckpointSequenceNumber> {
+        self.highest_synced_checkpoint
+            .map(|(sequence_number, _digest)| sequence_number)
+    }
+
     pub fn get_lowest_available_checkpoint(&self) -> CheckpointSequenceNumber {
         self.lowest_checkpoint_number
     }
@@ -527,6 +551,14 @@ impl ReadStore for SingleCheckpointSharedInMemoryStore {
 
     fn try_get_highest_synced_checkpoint(&self) -> Result<VerifiedCheckpoint> {
         self.0.try_get_highest_synced_checkpoint()
+    }
+
+    fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        self.0.try_get_highest_verified_checkpoint_seq_number()
+    }
+
+    fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
+        self.0.try_get_highest_synced_checkpoint_seq_number()
     }
 
     fn try_get_lowest_available_checkpoint(&self) -> Result<CheckpointSequenceNumber> {

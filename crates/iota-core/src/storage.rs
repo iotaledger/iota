@@ -489,10 +489,22 @@ impl ReadStore for GrpcReadStore {
         self.rocks.try_get_highest_verified_checkpoint()
     }
 
+    fn try_get_highest_verified_checkpoint_seq_number(
+        &self,
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+        self.rocks.try_get_highest_verified_checkpoint_seq_number()
+    }
+
     fn try_get_highest_synced_checkpoint(
         &self,
     ) -> iota_types::storage::error::Result<VerifiedCheckpoint> {
         self.rocks.try_get_highest_synced_checkpoint()
+    }
+
+    fn try_get_highest_synced_checkpoint_seq_number(
+        &self,
+    ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
+        self.rocks.try_get_highest_synced_checkpoint_seq_number()
     }
 
     fn try_get_lowest_available_checkpoint(

@@ -103,13 +103,21 @@ pub trait ReadStore: ObjectStore {
     /// The sequence number of the highest verified checkpoint, without the
     /// checkpoint itself.
     ///
-    /// Cheaper than [`Self::try_get_highest_verified_checkpoint`] for a caller
-    /// that only compares positions, and it cannot fail to find a checkpoint
-    /// the watermark names.
+    /// For a caller that only compares positions. An implementation holding
+    /// the watermark should override this to read it directly, which is a
+    /// lookup cheaper and cannot fail to find a checkpoint the watermark
+    /// names; the default resolves the checkpoint and so does neither.
     fn try_get_highest_verified_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
         Ok(self
             .try_get_highest_verified_checkpoint()?
             .sequence_number())
+    }
+
+    /// Non-fallible version of
+    /// `try_get_highest_verified_checkpoint_seq_number`.
+    fn get_highest_verified_checkpoint_seq_number(&self) -> CheckpointSequenceNumber {
+        self.try_get_highest_verified_checkpoint_seq_number()
+            .expect("storage access failed")
     }
 
     /// Get the highest synced checkpoint. This is the highest checkpoint that
@@ -129,6 +137,12 @@ pub trait ReadStore: ObjectStore {
     /// [`Self::try_get_highest_verified_checkpoint_seq_number`].
     fn try_get_highest_synced_checkpoint_seq_number(&self) -> Result<CheckpointSequenceNumber> {
         Ok(self.try_get_highest_synced_checkpoint()?.sequence_number())
+    }
+
+    /// Non-fallible version of `try_get_highest_synced_checkpoint_seq_number`.
+    fn get_highest_synced_checkpoint_seq_number(&self) -> CheckpointSequenceNumber {
+        self.try_get_highest_synced_checkpoint_seq_number()
+            .expect("storage access failed")
     }
 
     /// Lowest available checkpoint for which transaction and checkpoint data
