@@ -3822,14 +3822,17 @@ mod tests {
                 (AuthorityIndex::new_for_test(2), GENESIS_ROUND),
                 (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
             ]),
-            useful_headers_from_peer: BTreeMap::from([
-                (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
-                (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
-            ]),
             useful_shards_from_peer: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
         };
         {
-            connection_knowledge.write().process_one_message(msg);
+            let mut connection_knowledge = connection_knowledge.write();
+            connection_knowledge.process_one_message(msg);
+            connection_knowledge.process_one_message(
+                ConnectionKnowledgeMessage::SetUsefulHeadersFromPeer(BTreeMap::from([
+                    (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
+                    (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
+                ])),
+            );
         }
         // WHEN
         // Call handle_subscribe_block_bundles_request with last_received = 2
