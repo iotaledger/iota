@@ -182,6 +182,11 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_enable_peer_responsiveness_ranking")]
     pub enable_peer_responsiveness_ranking: bool,
 
+    /// Ask only a bounded number of peers that recently supplied a new header
+    /// or referenced a missing one to push more headers from that author.
+    #[serde(default = "Parameters::default_enable_bounded_header_advertisement")]
+    pub enable_bounded_header_advertisement: bool,
+
     /// Port for the DAG visualizer gRPC server (localhost only).
     /// When set, starts a debugging server for real-time DAG visualization.
     /// Only has an effect when the `dag-visualizer` feature is compiled in.
@@ -486,6 +491,10 @@ impl Parameters {
         true
     }
 
+    pub(crate) fn default_enable_bounded_header_advertisement() -> bool {
+        true
+    }
+
     pub(crate) fn default_solid_commit_lag_threshold() -> u32 {
         // The healthy gap is a few rounds at most; 500 rounds (a few minutes of
         // commits) is far above live jitter yet caps how long a solidification
@@ -539,6 +548,8 @@ impl Default for Parameters {
                 Parameters::default_enable_starfish_speed_adaptive_acknowledgments(),
             enable_peer_responsiveness_ranking:
                 Parameters::default_enable_peer_responsiveness_ranking(),
+            enable_bounded_header_advertisement:
+                Parameters::default_enable_bounded_header_advertisement(),
             dag_visualizer_port: None,
             solid_commit_lag_threshold: Parameters::default_solid_commit_lag_threshold(),
             shard_budget_per_authority: Parameters::default_shard_budget_per_authority(),
