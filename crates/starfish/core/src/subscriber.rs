@@ -124,6 +124,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         if let Some(subscription) = subscription.take() {
             subscription.abort();
         }
+        self.context
+            .peer_responsiveness
+            .clear_streaming_block_delivery(peer);
         // There is a race between shutting down the subscription task and clearing the
         // metric here. TODO: fix the race when unsubscribe_locked() gets called
         // outside of stop().
@@ -160,6 +163,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let mut encoder = create_encoder(&context);
 
         'subscription: loop {
+            context
+                .peer_responsiveness
+                .clear_streaming_block_delivery(peer);
             context
                 .metrics
                 .node_metrics
@@ -525,6 +531,23 @@ mod test {
 
     fn header_for(peer: AuthorityIndex, round: Round) -> VerifiedBlockHeader {
         VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, peer.value() as u8).build())
+    }
+
+    #[test]
+    fn unsubscribe_clears_streaming_block_latency() {
+        let f = fixture(test_context(4), TestService::new(), StreamMode::Pending);
+        f.context
+            .peer_responsiveness
+            .record_streaming_block_delivery(f.peer, Duration::from_millis(10));
+
+        f.subscriber.unsubscribe(f.peer);
+
+        assert_eq!(
+            f.context
+                .peer_responsiveness
+                .streaming_block_latency_ms(f.peer),
+            None
+        );
     }
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
