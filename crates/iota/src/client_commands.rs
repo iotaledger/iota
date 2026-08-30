@@ -3332,7 +3332,7 @@ async fn grpc_coin(
         .await?
         .ok_or_else(|| anyhow!("Coin {coin_id} does not exist"))?;
     let coin_type = object
-        .coin_type_opt()
+        .opt_coin_type()
         .ok_or_else(|| anyhow!("Object {coin_id} is not a coin"))?
         .clone();
 
