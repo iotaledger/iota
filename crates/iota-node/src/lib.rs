@@ -1121,7 +1121,7 @@ impl IotaNode {
                 quic_config.crypto_buffer_size = Some(1 << 20);
             }
             if quic_config.max_idle_timeout_ms.is_none() {
-                quic_config.max_idle_timeout_ms = Some(30_000);
+                quic_config.max_idle_timeout_ms = Some(10_000);
             }
             if quic_config.keep_alive_interval_ms.is_none() {
                 quic_config.keep_alive_interval_ms = Some(5_000);
