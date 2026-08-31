@@ -1738,7 +1738,7 @@ impl AuthorityState {
         params: TrafficControlReconfigParams,
     ) -> Result<TrafficControlReconfigParams, IotaError> {
         if let Some(traffic_controller) = self.traffic_controller.as_ref() {
-            traffic_controller.admin_reconfigure(params).await
+            traffic_controller.admin_reconfigure(params)
         } else {
             Err(IotaError::InvalidAdminRequest(
                 "Traffic controller is not configured on this node".to_string(),
@@ -3026,18 +3026,13 @@ impl AuthorityState {
         let rgp = epoch_store.reference_gas_price();
         let traffic_controller_metrics =
             Arc::new(TrafficControllerMetrics::new(prometheus_registry));
-        let traffic_controller = if let Some(policy_config) = policy_config {
-            Some(Arc::new(
-                TrafficController::init(
-                    policy_config,
-                    traffic_controller_metrics,
-                    firewall_config.clone(),
-                )
-                .await,
+        let traffic_controller = policy_config.map(|policy_config| {
+            Arc::new(TrafficController::init(
+                policy_config,
+                traffic_controller_metrics,
+                firewall_config.clone(),
             ))
-        } else {
-            None
-        };
+        });
         let state = Arc::new(AuthorityState {
             name,
             secret,
