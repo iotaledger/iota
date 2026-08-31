@@ -4,7 +4,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque, btree_map::Entry},
-    fmt,
+    fmt::{self, Write as _},
     fs::File,
     io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
@@ -181,11 +181,12 @@ impl PartialEq for Dependency {
     // We store the original dependency name in the graph for printing user-friendly
     // error messages, but we don't want to consider it when comparing
     // dependencies for equality.
+    //
+    // Dependency equality also ignores the `dep_override` flag, since two
+    // dependencies still refer to the same package even if one of them is an
+    // override.
     fn eq(&self, other: &Self) -> bool {
-        self.mode == other.mode
-            && self.subst == other.subst
-            && self.digest == other.digest
-            && self.dep_override == other.dep_override
+        self.mode == other.mode && self.subst == other.subst && self.digest == other.digest
     }
 }
 
@@ -1761,17 +1762,18 @@ fn format_deps(
     if !dependencies.is_empty() {
         for (dep, _, pkg) in dependencies {
             let pkg_name = dep.dep_name;
-            s.push_str("\n\t");
-            s.push_str(&format!("{pkg_name} = "));
-            s.push_str("{ ");
-            s.push_str(&format!("{pkg}"));
+            // SAFETY: writes to strings can't fail
+            write!(s, "\n\t{pkg_name} = {{ {pkg}").unwrap();
             if let Some(digest) = dep.digest {
-                s.push_str(&format!(", digest = {digest}"));
+                write!(s, ", digest = {digest}").unwrap();
             }
             if let Some(subst) = &dep.subst {
-                s.push_str(&format!(", addr_subst = {}", SubstTOML(subst)));
+                write!(s, ", addr_subst = {}", SubstTOML(subst)).unwrap();
             }
             s.push_str(" }");
+            if let Some(version) = pkg.version {
+                write!(s, " # version {version}").unwrap();
+            }
         }
     } else {
         s.push_str("\n\tno dependencies");
@@ -1799,7 +1801,7 @@ fn deps_equal<'a>(
 > {
     // Unwraps in the code below are safe as these edges (and target nodes) must
     // exist either in the sub-graph or in the pre-populated combined graph (see
-    // pkg_table_for_deps_compare's doc comment for a more detailed
+    // [pkg_table_for_deps_compare]'s doc comment for a more detailed
     // explanation). If these were to fail, it would indicate a bug in
     // the algorithm so it's OK to panic here.
     let graph1_edges = graph1
