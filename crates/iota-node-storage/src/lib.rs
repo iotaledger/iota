@@ -85,7 +85,8 @@ pub trait GrpcIndexes: Send + Sync {
     /// `object_type`.
     ///
     /// Each item includes an [`OwnedObjectCursor`] for seek-based pagination.
-    /// The `cursor` bound is **inclusive**.
+    /// The `cursor` is **exclusive**: only items strictly after the cursor
+    /// position are returned, even when the cursor's row no longer exists.
     fn account_owned_objects_info_iter(
         &self,
         owner: Address,

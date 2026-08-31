@@ -228,25 +228,28 @@ fn hash_type_params(tag: &StructTag) -> u64 {
     hasher.finish()
 }
 
-/// Compute inclusive lower and upper `OwnerIndexKey` bounds for a
-/// `safe_iter_with_bounds` range scan, narrowed by `type_filter`.
+/// Compute lower and upper `OwnerIndexKey` bounds for a range scan,
+/// narrowed by `type_filter`. The upper bound is an exclusive sentinel past
+/// the last real key of the prefix.
 ///
-/// When `cursor` is `Some`, the lower bound is set to the cursor's exact
-/// position (inclusive) so that RocksDB can seek directly.
+/// When `cursor` is `Some`, the lower bound excludes the cursor position
+/// itself, so the scan resumes strictly after the last returned item — even
+/// when the cursor's index row no longer exists (e.g. the coin's balance
+/// changed, which moves its key).
 fn owner_bounds(
     owner: Address,
     cursor: Option<&OwnedObjectCursor>,
     filter: &OwnerTypeFilter,
-) -> (OwnerIndexKey, OwnerIndexKey) {
+) -> (Bound<OwnerIndexKey>, OwnerIndexKey) {
     let lower_bound = if let Some(c) = cursor {
-        // Resume from the exact cursor position.
-        OwnerIndexKey {
+        // Resume strictly after the cursor position.
+        Bound::Excluded(OwnerIndexKey {
             owner,
             object_type_identifier: c.object_type_identifier,
             object_type_params: c.object_type_params,
             inverted_balance: c.inverted_balance,
             object_id: c.object_id,
-        }
+        })
     } else {
         let (lower_id, _, lower_params, _) = match filter {
             OwnerTypeFilter::None => (0, u64::MAX, 0, u64::MAX),
@@ -257,13 +260,13 @@ fn owner_bounds(
                 ..
             } => (*id_hash, *id_hash, *params_hash, *params_hash),
         };
-        OwnerIndexKey {
+        Bound::Included(OwnerIndexKey {
             owner,
             object_type_identifier: lower_id,
             object_type_params: lower_params,
             inverted_balance: None,
             object_id: ObjectId::ZERO,
-        }
+        })
     };
 
     let (_, upper_bound_id, _, upper_bound_params) = match filter {
@@ -801,7 +804,7 @@ impl IndexStoreTables {
         let (lower_bound, upper_bound) = owner_bounds(owner, cursor, &type_filter);
         Ok(self
             .owner
-            .safe_iter_with_bounds(Some(lower_bound), Some(upper_bound))
+            .safe_range_iter((lower_bound, Bound::Excluded(upper_bound)))
             .filter(move |result| match result {
                 // Post-filter out hash collisions based on the full `StructTag` stored in the
                 // value.
@@ -1440,6 +1443,75 @@ mod tests {
             .unwrap();
         assert_eq!(owned.len(), 1, "restored object must be owner-indexed");
         assert_eq!(owned[0].0.object_id, object_id);
+    }
+
+    /// The `cursor` of `owner_iter` is exclusive: the cursor row itself is
+    /// never returned again, and when the cursor row no longer exists (the
+    /// coin's balance changed, which moves its index key) the scan resumes
+    /// at the next live row without skipping it.
+    #[tokio::test]
+    async fn owner_iter_cursor_is_exclusive() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+
+        let owner = Address::from_u16(42);
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        for balance in [300, 200, 100] {
+            partition
+                .index_object(Object::new_gas_with_balance_and_owner_for_testing(
+                    balance, owner,
+                ))
+                .unwrap();
+        }
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        let all: Vec<_> = grpc
+            .owner_iter(owner, None, OwnerTypeFilter::None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(all.len(), 3);
+        let ids: Vec<_> = all.iter().map(|(key, _)| key.object_id).collect();
+        let first_key = &all[0].0;
+        let cursor = OwnedObjectCursor {
+            object_type_identifier: first_key.object_type_identifier,
+            object_type_params: first_key.object_type_params,
+            inverted_balance: first_key.inverted_balance,
+            object_id: first_key.object_id,
+        };
+
+        // Live cursor row: the scan starts strictly after it.
+        let after: Vec<_> = grpc
+            .owner_iter(owner, Some(&cursor), OwnerTypeFilter::None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            after
+                .iter()
+                .map(|(key, _)| key.object_id)
+                .collect::<Vec<_>>(),
+            ids[1..],
+            "the cursor row itself must not be returned again",
+        );
+
+        // Vanished cursor row: the scan resumes at the next live row.
+        grpc.tables.owner.remove(first_key).unwrap();
+        let after_removal: Vec<_> = grpc
+            .owner_iter(owner, Some(&cursor), OwnerTypeFilter::None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            after_removal
+                .iter()
+                .map(|(key, _)| key.object_id)
+                .collect::<Vec<_>>(),
+            ids[1..],
+            "the next live row must not be skipped",
+        );
     }
 
     /// `finalize_restore` must leave a store that `GrpcIndexesStore::new`

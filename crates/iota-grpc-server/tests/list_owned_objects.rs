@@ -571,3 +571,83 @@ async fn type_filter_with_pagination() {
     // This validates that type filtering + pagination work together.
     assert_eq!(total_filtered, 5);
 }
+
+/// A cursor row that vanishes between pages (e.g. the cursor coin's balance
+/// changed, which moves its index key) must not cause the next live row to
+/// be skipped: an object that did not change is always returned.
+#[tokio::test]
+async fn cursor_row_removed_between_pages_loses_no_object() {
+    let owner = Address::random();
+    let (mock, _ids) = make_coin_mock(owner, 3);
+    // `owned_objects` is sorted in index order; remember it and derive the
+    // state where the first row (the future cursor row) is gone from the
+    // index while the object store is unchanged.
+    let index_ids: Vec<ObjectId> = mock
+        .owned_objects
+        .iter()
+        .map(|(info, _)| info.object_id)
+        .collect();
+    let objects_after = mock.objects.clone();
+    let mut owned_after = mock.owned_objects.clone();
+    owned_after.remove(0);
+
+    // Page 1 against the full state returns the first row and a token
+    // pointing at it.
+    let (handle, _reader) = start_test_server(Arc::new(mock), |_| {}).await;
+    let mut client = connect_state_client(&handle).await;
+    let base = ListOwnedObjectsRequest::default()
+        .with_owner(owner_proto(owner))
+        .with_page_size(1)
+        .with_read_mask(FieldMask::from_str("reference.object_id"));
+    let page1 = client
+        .list_owned_objects(base.clone())
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(
+        page1.objects[0]
+            .reference
+            .as_ref()
+            .unwrap()
+            .object_id
+            .as_ref()
+            .unwrap()
+            .object_id
+            .to_vec(),
+        index_ids[0].as_bytes().to_vec(),
+    );
+    let token = page1.next_page_token.clone().expect("more rows exist");
+
+    // Page 2 against the state without the cursor row.
+    let mock_after = MockGrpcStateReader {
+        objects: objects_after,
+        owned_objects: owned_after,
+        ..Default::default()
+    };
+    let (handle_after, _reader_after) = start_test_server(Arc::new(mock_after), |_| {}).await;
+    let mut client_after = connect_state_client(&handle_after).await;
+    let page2 = client_after
+        .list_owned_objects(base.with_page_token(token))
+        .await
+        .unwrap()
+        .into_inner();
+
+    let returned: Vec<Vec<u8>> = page2
+        .objects
+        .iter()
+        .map(|o| {
+            o.reference
+                .as_ref()
+                .unwrap()
+                .object_id
+                .as_ref()
+                .unwrap()
+                .object_id
+                .to_vec()
+        })
+        .collect();
+    assert!(
+        returned.contains(&index_ids[1].as_bytes().to_vec()),
+        "the unchanged second row must not be skipped when the cursor row is gone",
+    );
+}
