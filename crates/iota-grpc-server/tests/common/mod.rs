@@ -144,6 +144,11 @@ pub struct MockGrpcStateReader {
         iota_types::storage::OwnedObjectCursor,
     )>,
 
+    // -- Dynamic fields (for list_dynamic_fields pagination tests) --
+    /// Pre-sorted in dynamic-field index key order (`parent`, `field_id`).
+    /// The iterator respects cursor-based seeking.
+    pub dynamic_fields: Vec<iota_types::storage::DynamicFieldKey>,
+
     // -- Transactions --
     pub transactions: HashMap<TransactionDigest, Arc<VerifiedTransaction>>,
     pub effects: HashMap<TransactionDigest, TransactionEffects>,
@@ -468,8 +473,8 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 
     fn dynamic_field_iter(
         &self,
-        _parent: ObjectId,
-        _cursor: Option<ObjectId>,
+        parent: ObjectId,
+        cursor: Option<ObjectId>,
     ) -> StorageResult<
         Box<
             dyn Iterator<
@@ -480,7 +485,13 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
                 > + '_,
         >,
     > {
-        Ok(Box::new(std::iter::empty()))
+        // Seek strictly past the cursor position (the cursor is exclusive).
+        let iter = self
+            .dynamic_fields
+            .iter()
+            .filter(move |key| key.parent == parent && cursor.is_none_or(|c| key.field_id > c))
+            .map(|key| Ok(*key));
+        Ok(Box::new(iter))
     }
 
     fn get_coin_info(

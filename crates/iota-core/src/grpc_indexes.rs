@@ -828,9 +828,17 @@ impl IndexStoreTables {
         cursor: Option<ObjectId>,
     ) -> Result<impl Iterator<Item = Result<DynamicFieldKey, TypedStoreError>> + '_, TypedStoreError>
     {
+        // When `cursor` is `Some`, the lower bound excludes the cursor
+        // position itself, so the scan resumes strictly after the last
+        // returned field — even when the cursor's index row no longer exists
+        // (e.g. the field was deleted between pages).
+        let lower = match &cursor {
+            Some(field_id) => Bound::Excluded(field_id),
+            None => Bound::Unbounded,
+        };
         let iter = self
             .dynamic_field
-            .safe_iter_with_prefix_from(&parent, Bound::Included(&cursor.unwrap_or(ObjectId::ZERO)))
+            .safe_iter_with_prefix_from(&parent, lower)
             .map(|r| r.map(|(key, ())| key));
         Ok(iter)
     }
@@ -1510,6 +1518,81 @@ mod tests {
                 .map(|(key, _)| key.object_id)
                 .collect::<Vec<_>>(),
             ids[1..],
+            "the next live row must not be skipped",
+        );
+    }
+
+    /// A `0x2::dynamic_field::Field<u64, u64>` object owned by `parent`, as
+    /// the dynamic-field index sees one.
+    fn dynamic_field_object(parent: ObjectId, field_id: ObjectId) -> Object {
+        let field = iota_types::dynamic_field::Field {
+            id: iota_types::id::UID::new(field_id),
+            name: 0u64,
+            value: 0u64,
+        };
+        let move_struct = iota_sdk_types::MoveStruct::new(
+            StructTag::new_dynamic_field(TypeTag::U64, TypeTag::U64).into(),
+            iota_types::object::OBJECT_START_VERSION,
+            bcs::to_bytes(&field).unwrap(),
+        )
+        .unwrap();
+        Object::new_move(
+            move_struct,
+            Owner::Object(parent),
+            TransactionDigest::GENESIS_MARKER,
+        )
+    }
+
+    /// The `cursor` of `dynamic_field_iter` is exclusive: the cursor row
+    /// itself is never returned again, and when the cursor row no longer
+    /// exists (the field was deleted or transferred between pages) the scan
+    /// resumes at the next live row without skipping it.
+    #[tokio::test]
+    async fn dynamic_field_iter_cursor_is_exclusive() {
+        let tmp_dir = iota_common::tempdir();
+        let grpc = GrpcIndexesStore::new_without_init(tmp_dir.path().to_path_buf());
+
+        let parent = ObjectId::random();
+        let restorer = grpc.live_object_restorer(100);
+        let mut partition = restorer.begin_partition();
+        for _ in 0..3 {
+            partition
+                .index_object(dynamic_field_object(parent, ObjectId::random()))
+                .unwrap();
+        }
+        partition.finish().unwrap();
+        restorer.finish().unwrap();
+
+        let all: Vec<_> = grpc
+            .dynamic_field_iter(parent, None)
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(all.len(), 3);
+        let cursor = all[0].field_id;
+
+        // Live cursor row: the scan starts strictly after it.
+        let after: Vec<_> = grpc
+            .dynamic_field_iter(parent, Some(cursor))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            after,
+            all[1..],
+            "the cursor row itself must not be returned again",
+        );
+
+        // Vanished cursor row: the scan resumes at the next live row.
+        grpc.tables.dynamic_field.remove(&all[0]).unwrap();
+        let after_removal: Vec<_> = grpc
+            .dynamic_field_iter(parent, Some(cursor))
+            .unwrap()
+            .collect::<Result<Vec<_>, _>>()
+            .unwrap();
+        assert_eq!(
+            after_removal,
+            all[1..],
             "the next live row must not be skipped",
         );
     }

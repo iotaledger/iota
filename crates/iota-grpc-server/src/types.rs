@@ -698,16 +698,15 @@ impl GrpcReader {
 
     /// Iterate over dynamic fields of a parent object.
     ///
-    /// When `cursor` is `Some`, the cursor item itself is automatically skipped
-    /// so callers get items *after* the cursor (exclusive lower bound).
+    /// The cursor is exclusive: items *after* the cursor position are
+    /// returned.
     pub fn dynamic_field_iter(
         &self,
         parent: ObjectId,
         cursor: Option<ObjectId>,
     ) -> anyhow::Result<Box<dyn Iterator<Item = DynamicFieldIterItem> + '_>> {
-        let skip = usize::from(cursor.is_some());
         let iter = self.require_indexes()?.dynamic_field_iter(parent, cursor)?;
-        Ok(Box::new(iter.map(|r| r.map_err(Into::into)).skip(skip)))
+        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
     }
 
     /// Get unified coin info.
