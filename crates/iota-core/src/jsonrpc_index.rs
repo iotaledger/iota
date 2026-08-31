@@ -519,7 +519,7 @@ impl IndexStore {
             .iter()
             .filter_map(|(owner, obj_id)| {
                 let object = input_coins.get(obj_id).or(written_coins.get(obj_id))?;
-                let coin_type_tag = object.coin_type_opt().unwrap_or_else(|| {
+                let coin_type_tag = object.opt_coin_type().unwrap_or_else(|| {
                     panic!(
                         "object_id: {obj_id} is not a coin type, input_coins: {input_coins:?}, written_coins: {written_coins:?}, tx_digest: {digest}"
                     )
@@ -556,7 +556,7 @@ impl IndexStore {
         .filter_map(|((owner, obj_id), obj_info)| {
             // If it's in written_coins, then it's not a coin. Skip it.
             let obj = written_coins.get(obj_id)?;
-            let coin_type_tag = obj.coin_type_opt().cloned().unwrap_or_else(|| {
+            let coin_type_tag = obj.opt_coin_type().cloned().unwrap_or_else(|| {
                 panic!(
                     "object_id: {obj_id} in written_coins is not a coin type, written_coins: {written_coins:?}, tx_digest: {digest}"
                 )
