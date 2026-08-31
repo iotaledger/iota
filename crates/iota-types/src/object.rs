@@ -9,6 +9,7 @@ use std::{
     sync::Arc,
 };
 
+use iota_common::debug_fatal;
 use iota_protocol_config::ProtocolConfig;
 pub use iota_sdk_types::Object as ObjectInner;
 use iota_sdk_types::{
@@ -56,6 +57,7 @@ pub trait MoveStructExt: Sized + move_struct_ext::Sealed {
         version: Version,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
+        system_mutation: bool,
     ) -> Result<Self, ExecutionError>;
     fn new_from_execution_with_limit(
         tag: StructTag,
@@ -68,15 +70,12 @@ pub trait MoveStructExt: Sized + move_struct_ext::Sealed {
     fn get_coin_value_unchecked(&self) -> u64;
     fn set_coin_value_unchecked(&mut self, value: u64);
     fn set_clock_timestamp_ms_unchecked(&mut self, timestamp_ms: u64);
-    fn update_contents(
+    /// Update the contents of this object but does not increment its version
+    /// This should only be used for safe mode epoch advancement.
+    fn update_contents_advance_epoch_safe_mode(
         &mut self,
         new_contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
-    ) -> Result<(), ExecutionError>;
-    fn update_contents_with_limit(
-        &mut self,
-        new_contents: Vec<u8>,
-        max_move_object_size: u64,
     ) -> Result<(), ExecutionError>;
     fn increment_version_to(&mut self, next: Version);
     fn decrement_version_to(&mut self, prev: Version);
@@ -105,13 +104,25 @@ impl MoveStructExt for MoveStruct {
         version: Version,
         contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
+        system_mutation: bool,
     ) -> Result<Self, ExecutionError> {
-        Self::new_from_execution_with_limit(
-            tag,
-            version,
-            contents,
-            protocol_config.max_move_object_size(),
-        )
+        let bound = if protocol_config.allow_unbounded_system_objects() && system_mutation {
+            if contents.len() as u64 > protocol_config.max_move_object_size() {
+                debug_fatal!(
+                    "System created object (ID = {:?}) of type {:?} and size {} exceeds normal max size {}",
+                    contents
+                        .get(..ObjectId::LENGTH)
+                        .and_then(|id| ObjectId::from_bytes(id).ok()),
+                    tag,
+                    contents.len(),
+                    protocol_config.max_move_object_size()
+                );
+            }
+            u64::MAX
+        } else {
+            protocol_config.max_move_object_size()
+        };
+        Self::new_from_execution_with_limit(tag, version, contents, bound)
     }
 
     /// Creates a new Move object of type `tag` with BCS encoded bytes in
@@ -201,26 +212,28 @@ impl MoveStructExt for MoveStruct {
     }
 
     /// Update the contents of this object but does not increment its version
-    fn update_contents(
+    /// This should only be used for safe mode epoch advancement.
+    fn update_contents_advance_epoch_safe_mode(
         &mut self,
         new_contents: Vec<u8>,
         protocol_config: &ProtocolConfig,
     ) -> Result<(), ExecutionError> {
-        self.update_contents_with_limit(new_contents, protocol_config.max_move_object_size())
-    }
-
-    fn update_contents_with_limit(
-        &mut self,
-        new_contents: Vec<u8>,
-        max_move_object_size: u64,
-    ) -> Result<(), ExecutionError> {
-        if new_contents.len() as u64 > max_move_object_size {
-            return Err(ExecutionError::from_kind(
-                ExecutionErrorKind::ObjectTooBig {
-                    object_size: new_contents.len() as u64,
-                    max_object_size: max_move_object_size,
-                },
-            ));
+        if new_contents.len() as u64 > protocol_config.max_move_object_size() {
+            if protocol_config.allow_unbounded_system_objects() {
+                debug_fatal!(
+                    "Safe mode object update (ID = {}) of size {} exceeds normal max size {}",
+                    self.id(),
+                    new_contents.len(),
+                    protocol_config.max_move_object_size()
+                )
+            } else {
+                return Err(ExecutionError::from_kind(
+                    ExecutionErrorKind::ObjectTooBig {
+                        object_size: new_contents.len() as u64,
+                        max_object_size: protocol_config.max_move_object_size(),
+                    },
+                ));
+            }
         }
 
         #[cfg(debug_assertions)]

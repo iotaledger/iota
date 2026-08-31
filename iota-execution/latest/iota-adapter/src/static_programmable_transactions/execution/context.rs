@@ -285,7 +285,8 @@ impl<'env, 'pc, 'vm, 'state, 'linkage, 'gas> Context<'env, 'pc, 'vm, 'state, 'li
             let Some(bytes) = value.simple_serialize(&layout) else {
                 invariant_violation!("Failed to deserialize already serialized Move value");
             };
-            let move_object = create_written_object(env, &loaded_runtime_objects, id, ty, bytes)?;
+            let move_object =
+                create_written_object::<Mode>(env, &loaded_runtime_objects, id, ty, bytes)?;
             let object = Object::new_move(move_object, recipient, tx_digest);
             written_objects.insert(id, object);
         }
@@ -820,7 +821,7 @@ fn refund_max_gas_budget<OType>(
 }
 
 /// Generate a `MoveStruct` given an updated/written object
-fn create_written_object(
+fn create_written_object<Mode: ExecutionMode>(
     env: &Env,
     objects_modified_at: &BTreeMap<ObjectId, LoadedRuntimeObject>,
     id: ObjectId,
@@ -849,5 +850,6 @@ fn create_written_object(
         old_obj_ver.unwrap_or_default(),
         contents,
         env.protocol_config,
+        Mode::packages_are_predefined(),
     )
 }
