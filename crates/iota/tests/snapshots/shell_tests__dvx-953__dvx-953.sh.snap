@@ -1,0 +1,24 @@
+---
+source: crates/iota/tests/shell_tests.rs
+---
+----- script -----
+# Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2026 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+cd A && iota move build
+
+----- results -----
+success: true
+exit_code: 0
+----- stdout -----
+
+----- stderr -----
+INCLUDING DEPENDENCY B
+INCLUDING DEPENDENCY C
+INCLUDING DEPENDENCY D
+INCLUDING DEPENDENCY IotaSystem
+INCLUDING DEPENDENCY Stardust
+INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY MoveStdlib
+BUILDING A
