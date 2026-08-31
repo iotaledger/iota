@@ -35,11 +35,11 @@ use iota_grpc_types::v1::{
     },
     types::TypeTag as ProtoTypeTag,
 };
-use iota_json_rpc_types::ObjectChange;
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::{ObjectId, TypeTag};
 use iota_test_transaction_builder::PublishData;
+use iota_types::effects::TransactionEffectsAPI;
 use prost_types::{FieldMask, Struct, Value, value::Kind};
 use serde::Serialize;
 use test_cluster::TestCluster;
@@ -78,22 +78,32 @@ async fn publish_view_demo(
         .publish_with_data(PublishData::CompiledPackage(compiled_package))
         .build();
     let signed_tx = test_cluster.sign_transaction(&tx_data);
-    let response = test_cluster.execute_transaction(signed_tx).await;
-    assert_eq!(
-        response.status_ok(),
-        Some(true),
-        "publishing view_demo package should succeed"
+    let (effects, _) = test_cluster
+        .execute_transaction_return_raw_effects(signed_tx)
+        .await
+        .expect("publishing view_demo package should be submitted");
+    assert!(
+        effects.status().is_success(),
+        "publishing view_demo package should succeed: {:?}",
+        effects.status()
     );
 
-    let package_id = response
-        .object_changes
-        .expect("publish response should include object_changes")
-        .iter()
-        .find_map(|change| match change {
-            ObjectChange::Published { package_id, .. } => Some(*package_id),
-            _ => None,
-        })
-        .expect("publish should create the package object");
+    // A publish creates the package alongside its metadata objects, which are
+    // immutable too, so the package is picked by reading the created objects
+    // back from the store.
+    let mut package_id = None;
+    for object in &effects.created() {
+        let object_id = object.reference.object_id;
+        let stored = test_cluster
+            .get_object_from_fullnode_store(&object_id)
+            .await
+            .expect("a created object should be in the store");
+        if stored.data.is_package() {
+            package_id = Some(object_id);
+            break;
+        }
+    }
+    let package_id = package_id.expect("publish should create the package object");
 
     wait_for_executed_transactions_checkpointed(test_cluster, client).await;
     package_id

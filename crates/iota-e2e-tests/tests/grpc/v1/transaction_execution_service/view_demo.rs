@@ -12,11 +12,11 @@ use iota_grpc_types::v1::{
     },
     types::TypeTag as ProtoTypeTag,
 };
-use iota_json_rpc_types::ObjectChange;
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::{Address, ObjectId, Owner, SharedObjectReference, TypeTag};
 use iota_test_transaction_builder::PublishData;
+use iota_types::effects::TransactionEffectsAPI;
 use prost_types::{ListValue, Struct, Value, value::Kind};
 use test_cluster::TestCluster;
 
@@ -64,44 +64,48 @@ async fn publish_view_demo_package(
         .publish_with_data(PublishData::CompiledPackage(compiled_package))
         .build();
     let signed_tx = test_cluster.sign_transaction(&tx_data);
-    let response = test_cluster.execute_transaction(signed_tx).await;
-    assert_eq!(
-        response.status_ok(),
-        Some(true),
-        "publishing view_demo package should succeed"
+    let (effects, _) = test_cluster
+        .execute_transaction_return_raw_effects(signed_tx)
+        .await
+        .expect("publishing view_demo package should be submitted");
+    assert!(
+        effects.status().is_success(),
+        "publishing view_demo package should succeed: {:?}",
+        effects.status()
     );
 
-    let object_changes = response
-        .object_changes
-        .expect("publish response should include object_changes");
-    let package_id = object_changes
-        .iter()
-        .find_map(|change| match change {
-            ObjectChange::Published { package_id, .. } => Some(*package_id),
-            _ => None,
-        })
-        .expect("publish should create the package object");
-
-    let shared_object_named = |name: &str| {
-        object_changes
-            .iter()
-            .find_map(|change| match change {
-                ObjectChange::Created {
-                    object_id,
-                    owner: Owner::Shared(initial_shared_version),
-                    object_type,
-                    ..
-                } if object_type.name().as_str() == name => Some(SharedObjectReference::new(
-                    *object_id,
-                    *initial_shared_version,
-                    true,
-                )),
-                _ => None,
-            })
-            .unwrap_or_else(|| panic!("init should create the shared {name} object"))
-    };
-    let shop = shared_object_named("Shop");
-    let box_u64 = shared_object_named("Box");
+    // A publish creates the package alongside its metadata objects, and the
+    // effects say nothing about what each created object is, so every one of
+    // them is read back from the store to be told apart.
+    let mut package_id = None;
+    let mut shop = None;
+    let mut box_u64 = None;
+    for object in &effects.created() {
+        let object_id = object.reference.object_id;
+        let stored = test_cluster
+            .get_object_from_fullnode_store(&object_id)
+            .await
+            .expect("a created object should be in the store");
+        if stored.data.is_package() {
+            package_id = Some(object_id);
+            continue;
+        }
+        let Owner::Shared(initial_shared_version) = object.owner else {
+            continue;
+        };
+        let Some(struct_tag) = stored.data.opt_struct_tag() else {
+            continue;
+        };
+        let shared = SharedObjectReference::new(object_id, initial_shared_version, true);
+        match struct_tag.name().as_str() {
+            "Shop" => shop = Some(shared),
+            "Box" => box_u64 = Some(shared),
+            _ => {}
+        }
+    }
+    let package_id = package_id.expect("publish should create the package object");
+    let shop = shop.expect("init should create the shared Shop object");
+    let box_u64 = box_u64.expect("init should create the shared Box object");
 
     wait_for_executed_transactions_checkpointed(test_cluster, client).await;
 

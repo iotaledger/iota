@@ -23,7 +23,7 @@ use iota_grpc_types::{
 use iota_json::{
     IotaJsonValue, IotaMoveCallInputValue, ResolvedCallArg, resolve_move_function_args,
 };
-use iota_node_transaction_builder::NodeTransactionBuilderResolveClient;
+use iota_node_transaction_builder::NodeTransactionBuilderLedgerClient;
 use iota_sdk_transaction_builder::TransactionBuilder;
 use iota_sdk_types::{
     Address, GasPayment, Identifier, ObjectId, TransactionExpiration, TypeTag,
@@ -60,7 +60,7 @@ use crate::{error::RpcError, merge::Merge, types::GrpcReader, validation::valida
 pub async fn view_function_calls(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
-    build_client: &NodeTransactionBuilderResolveClient,
+    build_client: &NodeTransactionBuilderLedgerClient,
     config: &iota_config::node::GrpcApiConfig,
     request: ViewFunctionCallsRequest,
 ) -> Result<ViewFunctionCallsResponse, RpcError> {
@@ -104,7 +104,7 @@ pub async fn view_function_calls(
 async fn view_function_call(
     reader: &Arc<GrpcReader>,
     executor: &Arc<dyn TransactionExecutor>,
-    build_client: &NodeTransactionBuilderResolveClient,
+    build_client: &NodeTransactionBuilderLedgerClient,
     config: &iota_config::node::GrpcApiConfig,
     item: &ViewFunctionCallItem,
     read_mask: &FieldMaskTree,
@@ -252,7 +252,7 @@ fn build_execution_error(
 /// `MoveCall` command to `builder`.
 fn add_view_function_call(
     reader: &Arc<GrpcReader>,
-    builder: &mut TransactionBuilder<NodeTransactionBuilderResolveClient>,
+    builder: &mut TransactionBuilder<NodeTransactionBuilderLedgerClient>,
     item: &ViewFunctionCallItem,
 ) -> Result<(), RpcError> {
     let (package_id, module, function) = parse_fq_function_name(&item.fq_function_name)?;
@@ -267,7 +267,7 @@ fn add_view_function_call(
         .get_object(&package_id)
         .map_err(|e| RpcError::new(Code::Internal, format!("failed to read package: {e}")))?
         .ok_or_else(|| RpcError::new(Code::NotFound, format!("package {package_id} not found")))?;
-    let package = object.as_package_opt().ok_or_else(|| {
+    let package = object.as_opt_package().ok_or_else(|| {
         RpcError::new(
             Code::InvalidArgument,
             format!("{package_id} is not a package"),

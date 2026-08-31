@@ -11,12 +11,11 @@ use iota_grpc_types::v1::{
         view_function_call_outputs, view_function_call_result,
     },
 };
-use iota_json_rpc_types::ObjectChange;
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
 use iota_sdk_types::{ObjectId, Owner, SharedObjectReference};
 use iota_test_transaction_builder::PublishData;
-use iota_types::transaction::CallArg;
+use iota_types::{effects::TransactionEffectsAPI, transaction::CallArg};
 use prost_types::{Value, value::Kind};
 use test_cluster::TestCluster;
 
@@ -57,38 +56,48 @@ async fn publish_view_functions_package(
         .publish_with_data(PublishData::CompiledPackage(compiled_package))
         .build();
     let signed_tx = test_cluster.sign_transaction(&tx_data);
-    let response = test_cluster.execute_transaction(signed_tx).await;
-    assert_eq!(
-        response.status_ok(),
-        Some(true),
-        "publishing view_functions package should succeed"
+    let (effects, _) = test_cluster
+        .execute_transaction_return_raw_effects(signed_tx)
+        .await
+        .expect("publishing view_functions package should be submitted");
+    assert!(
+        effects.status().is_success(),
+        "publishing view_functions package should succeed: {:?}",
+        effects.status()
     );
 
-    let object_changes = response
-        .object_changes
-        .expect("publish response should include object_changes");
-    let package_id = object_changes
-        .iter()
-        .find_map(|change| match change {
-            ObjectChange::Published { package_id, .. } => Some(*package_id),
-            _ => None,
-        })
-        .expect("publish should create the package object");
-    let counter = object_changes
-        .iter()
-        .find_map(|change| match change {
-            ObjectChange::Created {
+    // A publish creates the package alongside its metadata objects, and the
+    // effects say nothing about what each created object is, so every one of
+    // them is read back from the store to be told apart.
+    let mut package_id = None;
+    let mut counter = None;
+    for object in &effects.created() {
+        let object_id = object.reference.object_id;
+        let stored = test_cluster
+            .get_object_from_fullnode_store(&object_id)
+            .await
+            .expect("a created object should be in the store");
+        if stored.data.is_package() {
+            package_id = Some(object_id);
+            continue;
+        }
+        let Owner::Shared(initial_shared_version) = object.owner else {
+            continue;
+        };
+        if stored
+            .data
+            .opt_struct_tag()
+            .is_some_and(|struct_tag| struct_tag.name().as_str() == "Counter")
+        {
+            counter = Some(SharedObjectReference::new(
                 object_id,
-                owner: Owner::Shared(initial_shared_version),
-                ..
-            } => Some(SharedObjectReference::new(
-                *object_id,
-                *initial_shared_version,
+                initial_shared_version,
                 true,
-            )),
-            _ => None,
-        })
-        .expect("init should create the shared Counter object");
+            ));
+        }
+    }
+    let package_id = package_id.expect("publish should create the package object");
+    let counter = counter.expect("init should create the shared Counter object");
 
     wait_for_executed_transactions_checkpointed(test_cluster, client).await;
 
@@ -290,11 +299,14 @@ async fn view_reflects_state_change() {
         )
         .build();
     let signed_tx = test_cluster.sign_transaction(&tx_data);
-    let response = test_cluster.execute_transaction(signed_tx).await;
-    assert_eq!(
-        response.status_ok(),
-        Some(true),
-        "bump transaction should succeed"
+    let (bump_effects, _) = test_cluster
+        .execute_transaction_return_raw_effects(signed_tx)
+        .await
+        .expect("bump transaction should be submitted");
+    assert!(
+        bump_effects.status().is_success(),
+        "bump transaction should succeed: {:?}",
+        bump_effects.status()
     );
     wait_for_executed_transactions_checkpointed(&test_cluster, &client).await;
 
