@@ -214,6 +214,8 @@ pub const PROTOCOL_VERSION_IIP8: u64 = 20;
 //             resolution.
 // Version 35: Rebuild the framework binaries to add the Move stdlib `bool`
 //             module and vector sorting functions.
+//             Allow objects created or mutated by system transactions to exceed
+//             the max object size limit.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -633,6 +635,10 @@ struct FeatureFlags {
     // If true, enables better errors and bounds for max ptb values
     #[serde(skip_serializing_if = "is_false")]
     max_ptb_value_size_v2: bool,
+
+    // Allow objects created or mutated in system transactions to exceed the max object size limit.
+    #[serde(skip_serializing_if = "is_false")]
+    allow_unbounded_system_objects: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -2070,6 +2076,8 @@ impl ProtocolConfig {
             "max_concurrent_execution_workers must be positive when set"
         );
         res
+    pub fn allow_unbounded_system_objects(&self) -> bool {
+        self.feature_flags.allow_unbounded_system_objects
     }
 }
 
@@ -3375,8 +3383,10 @@ impl ProtocolConfig {
                 }
                 35 => {
                     // Rebuild the framework binaries to add the Move stdlib
-                    // `bool` module and vector sorting functions.
+                    // `bool` module and vector sorting functions. The change is
+                    // additive to the framework and needs no config flags.
                     cfg.feature_flags.max_ptb_value_size_v2 = true;
+                    cfg.feature_flags.allow_unbounded_system_objects = true;
                 }
                 // Use this template when making changes:
                 //
