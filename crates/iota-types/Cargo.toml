@@ -48,6 +48,7 @@ thiserror.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+iota-common.workspace = true
 iota-macros.workspace = true
 iota-multiaddr.workspace = true
 iota-protocol-config.workspace = true
@@ -70,6 +71,8 @@ fastcrypto-tbls.workspace = true
 tonic.workspace = true
 
 # internal dependencies
+iota-metrics.workspace = true
+iota-network-stack.workspace = true
 prometheus-filtered.workspace = true
 
 [dev-dependencies]
