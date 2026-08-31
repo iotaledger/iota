@@ -1054,12 +1054,6 @@ impl AuthorityStorePruner {
                 effective = pruning_config.num_epochs_to_retain,
                 "overriding the configured object retention"
             );
-        } else if configured_retention_epochs > 0 && configured_retention_epochs < u64::MAX {
-            warn!(
-                "Using objects pruner with num_epochs_to_retain = {configured_retention_epochs} \
-                 can lead to performance issues; consider an aggressive pruner \
-                 (num_epochs_to_retain = 0)"
-            );
         }
         let retention_epochs = Arc::new(AtomicU64::new(pruning_config.num_epochs_to_retain));
         // Coordination channel between the checkpoint executor and the pruner
