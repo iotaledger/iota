@@ -16,7 +16,7 @@ use iota_grpc_types::{
         versioned::{VersionedCheckpointSummary, VersionedEvent, VersionedObject},
     },
 };
-use iota_protocol_config::{ProtocolConfig as IotaProtocolConfig, ProtocolConfigValue};
+use iota_protocol_config::ProtocolConfig as IotaProtocolConfig;
 use iota_types::iota_sdk_types_conversions::SdkTypeConversionError;
 
 use crate::{error::RpcError, validation::object_id_proto};
@@ -73,28 +73,19 @@ impl Merge<&IotaProtocolConfig> for ProtocolConfig {
                 None => source
                     .attr_map()
                     .into_iter()
-                    .filter_map(|(k, v)| v.map(|v| (k, protocol_config_value_to_string(v))))
+                    .filter_map(|(k, v)| v.map(|v| (k, v.to_string())))
                     .collect(),
                 Some(keys) => source
                     .attr_map()
                     .into_iter()
                     .filter(|(k, _)| keys.contains(k))
-                    .filter_map(|(k, v)| v.map(|v| (k, protocol_config_value_to_string(v))))
+                    .filter_map(|(k, v)| v.map(|v| (k, v.to_string())))
                     .collect(),
             };
             self.attributes = Some(ProtocolAttributes::default().with_attributes(attrs));
         }
 
         Ok(())
-    }
-}
-
-fn protocol_config_value_to_string(v: ProtocolConfigValue) -> String {
-    match v {
-        ProtocolConfigValue::u16(x) => x.to_string(),
-        ProtocolConfigValue::u32(x) => x.to_string(),
-        ProtocolConfigValue::u64(x) => x.to_string(),
-        ProtocolConfigValue::bool(x) => x.to_string(),
     }
 }
 

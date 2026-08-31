@@ -20,7 +20,7 @@ use std::sync::Arc;
 
 use iota_node_storage::GrpcStateReader;
 use iota_protocol_config::{
-    ProtocolConfig as NodeProtocolConfig, ProtocolConfigValue, ProtocolVersion,
+    ProtocolConfig as NodeProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_transaction_builder::{
     ObjectsPage, ProtocolConfig, TransactionBuilderClientBase, TransactionBuilderLedgerClient,
@@ -35,7 +35,8 @@ use iota_types::{
 use typed_store_error::TypedStoreError;
 
 /// Default number of objects returned by
-/// [`TransactionBuilderLedgerClient::objects`] when no limit is given.
+/// [`TransactionBuilderLedgerClient::objects`] when no limit (or a zero
+/// limit) is given.
 const DEFAULT_OBJECTS_PAGE_SIZE: usize = 50;
 
 /// Upper bound on the number of objects returned by
@@ -90,15 +91,6 @@ impl NodeTransactionBuilderLedgerClient {
     }
 }
 
-fn protocol_config_value_to_string(value: ProtocolConfigValue) -> String {
-    match value {
-        ProtocolConfigValue::u16(x) => x.to_string(),
-        ProtocolConfigValue::u32(x) => x.to_string(),
-        ProtocolConfigValue::u64(x) => x.to_string(),
-        ProtocolConfigValue::bool(x) => x.to_string(),
-    }
-}
-
 impl TransactionBuilderClientBase for NodeTransactionBuilderLedgerClient {
     type Error = Error;
 }
@@ -123,9 +115,12 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
         cursor: Option<Vec<u8>>,
         limit: Option<usize>,
     ) -> Result<ObjectsPage, Self::Error> {
-        let limit = limit
-            .unwrap_or(DEFAULT_OBJECTS_PAGE_SIZE)
-            .clamp(1, MAX_OBJECTS_PAGE_SIZE);
+        // `Some(0)` falls back to the default, matching the gRPC server's
+        // page-size validation.
+        let limit = match limit {
+            None | Some(0) => DEFAULT_OBJECTS_PAGE_SIZE,
+            Some(limit) => limit.min(MAX_OBJECTS_PAGE_SIZE),
+        };
         let cursor: Option<OwnedObjectCursor> = cursor
             .map(|bytes| bcs::from_bytes(&bytes))
             .transpose()
@@ -165,10 +160,9 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
 
         let has_more = iter.next().transpose()?.is_some();
         let next_cursor = if has_more {
-            last_cursor
-                .map(|cursor| bcs::to_bytes(&cursor))
-                .transpose()
-                .map_err(Error::Cursor)?
+            last_cursor.map(|cursor| {
+                bcs::to_bytes(&cursor).expect("serializing a flat cursor struct cannot fail")
+            })
         } else {
             None
         };
@@ -182,7 +176,7 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
             .attr_map()
             .into_iter()
             .filter_map(|(name, value)| {
-                value.map(|value| (name, protocol_config_value_to_string(value)))
+                value.map(|value| (name, value.to_string()))
             })
             .collect();
         Ok(ProtocolConfig { attributes })

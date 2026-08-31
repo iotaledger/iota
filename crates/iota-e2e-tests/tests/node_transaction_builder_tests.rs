@@ -34,12 +34,24 @@ async fn transaction_builder_via_node_internal_client() {
     assert!(reference_gas_price > 0);
 
     let protocol_config = client.protocol_config().await.unwrap();
-    assert!(protocol_config.attributes.contains_key("max_tx_gas"));
+    let max_tx_gas: u64 = protocol_config.attributes["max_tx_gas"]
+        .parse()
+        .expect("attribute values are stringified numbers");
+    assert!(max_tx_gas > 0);
     assert!(
         protocol_config
             .attributes
             .contains_key("max_gas_payment_objects")
     );
+
+    // A zero limit falls back to the default page size instead of clamping
+    // to one, matching the gRPC server.
+    let full_page = client
+        .objects(Some(StructTag::new_gas_coin()), sender, None, Some(0))
+        .await
+        .unwrap();
+    assert!(full_page.data.len() > 1);
+    assert!(full_page.next_cursor.is_none());
 
     // Owned-object listing with cursor pagination through the gRPC indexes.
     let first_page = client
