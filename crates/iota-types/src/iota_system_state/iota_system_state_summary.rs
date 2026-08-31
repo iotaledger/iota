@@ -14,7 +14,7 @@ use super::{IotaSystemState, IotaSystemStateTrait};
 use crate::{
     base_types::AuthorityName,
     committee::{CommitteeWithNetworkMetadata, NetworkMetadata},
-    crypto::NetworkPublicKey,
+    crypto::network_pubkey_from_bytes,
     dynamic_field::get_dynamic_field_from_store,
     error::IotaError,
     id::ID,
@@ -547,7 +547,7 @@ impl IotaSystemStateSummaryV1 {
                                 .unwrap(),
                             primary_address: Multiaddr::try_from(validator.primary_address.clone())
                                 .unwrap(),
-                            network_public_key: NetworkPublicKey::from_bytes(
+                            network_public_key: network_pubkey_from_bytes(
                                 &validator.network_pubkey_bytes,
                             )
                             .ok(),
@@ -587,7 +587,7 @@ impl IotaSystemStateSummaryV2 {
                                 .unwrap(),
                             primary_address: Multiaddr::try_from(validator.primary_address.clone())
                                 .unwrap(),
-                            network_public_key: NetworkPublicKey::from_bytes(
+                            network_public_key: network_pubkey_from_bytes(
                                 &validator.network_pubkey_bytes,
                             )
                             .ok(),

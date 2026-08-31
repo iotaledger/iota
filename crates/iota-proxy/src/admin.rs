@@ -6,10 +6,8 @@ use std::{net::SocketAddr, sync::Arc, time::Duration};
 
 use anyhow::{Error, Result};
 use axum::{Extension, Router, extract::DefaultBodyLimit, middleware, routing::post};
-use fastcrypto::{
-    ed25519::{Ed25519KeyPair, Ed25519PublicKey},
-    traits::{KeyPair, ToFromBytes},
-};
+use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
+use iota_sdk_types::{Ed25519PublicKey, crypto::PublicKeyExt as _};
 use iota_tls::{
     AllowAll, ClientCertVerifier, IOTA_VALIDATOR_SERVER_NAME, SelfSignedCertificate, TlsAcceptor,
     rustls::ServerConfig,
@@ -174,12 +172,9 @@ pub struct CertKeyPair(pub SelfSignedCertificate, pub Ed25519PublicKey);
 
 /// Generate server certs for use with peer verification
 pub fn generate_self_cert(hostname: String) -> CertKeyPair {
-    let mut rng = rand::thread_rng();
-    let keypair = Ed25519KeyPair::generate(&mut rng);
-    CertKeyPair(
-        SelfSignedCertificate::new(keypair.copy().private(), &hostname),
-        keypair.public().to_owned(),
-    )
+    let keypair = Ed25519PrivateKey::random();
+    let public_key = keypair.public_key();
+    CertKeyPair(SelfSignedCertificate::new(keypair, &hostname), public_key)
 }
 
 /// Load a certificate for use by the listening service
@@ -209,7 +204,7 @@ fn load_static_peers(
         .into_iter()
         .map(|spk| {
             let peer_id = hex::decode(spk.peer_id).unwrap();
-            let public_key = Ed25519PublicKey::from_bytes(peer_id.as_ref()).unwrap();
+            let public_key = Ed25519PublicKey::from_bytes(peer_id.as_slice()).unwrap();
             let s = AllowedPeer {
                 name: spk.name,
                 public_key,

@@ -10,9 +10,8 @@ use std::{
 
 use anyhow::Result;
 use bcs;
-use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes};
 use iota_sdk::{IotaClient, IotaClientBuilder, rpc_types::IotaObjectDataOptions};
-use iota_sdk_types::ObjectId;
+use iota_sdk_types::{Ed25519PublicKey, ObjectId, crypto::PublicKeyExt as _};
 use iota_tls::Allower;
 use iota_types::{
     dynamic_field::Field,
