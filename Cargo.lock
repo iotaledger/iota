@@ -4214,12 +4214,6 @@ dependencies = [
 
 [[package]]
 name = "fixedbitset"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
-
-[[package]]
-name = "fixedbitset"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
@@ -8774,6 +8768,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "lcov"
+version = "0.8.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4dab4f1d99e0dd8008da0d3452bb71ce08e1645465c2accc124bcb599c6b3143"
+dependencies = [
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "leb128"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9427,7 +9430,7 @@ dependencies = [
  "indexmap 2.11.0",
  "move-binary-format",
  "move-core-types",
- "petgraph 0.5.1",
+ "petgraph 0.8.3",
  "serde-reflection",
 ]
 
@@ -9443,7 +9446,7 @@ dependencies = [
  "move-core-types",
  "move-regex-borrow-graph",
  "move-vm-config",
- "petgraph 0.5.1",
+ "petgraph 0.8.3",
 ]
 
 [[package]]
@@ -9491,6 +9494,7 @@ dependencies = [
  "move-model-2",
  "move-package",
  "move-stdlib-natives",
+ "move-trace-format",
  "move-unit-test",
  "move-vm-profiler",
  "move-vm-runtime",
@@ -9544,7 +9548,7 @@ dependencies = [
  "move-proc-macros",
  "move-symbol-pool",
  "once_cell",
- "petgraph 0.5.1",
+ "petgraph 0.8.3",
  "rayon",
  "regex",
  "serde",
@@ -9589,13 +9593,17 @@ dependencies = [
  "codespan",
  "colored",
  "indexmap 2.11.0",
+ "lcov",
  "move-abstract-interpreter",
  "move-binary-format",
  "move-bytecode-source-map",
+ "move-bytecode-verifier",
  "move-command-line-common",
+ "move-compiler",
  "move-core-types",
  "move-ir-types",
- "petgraph 0.5.1",
+ "move-trace-format",
+ "petgraph 0.8.3",
  "serde",
 ]
 
@@ -9731,7 +9739,7 @@ dependencies = [
  "move-symbol-pool",
  "named-lock",
  "once_cell",
- "petgraph 0.5.1",
+ "petgraph 0.8.3",
  "regex",
  "serde",
  "serde_yaml",
@@ -9759,7 +9767,7 @@ dependencies = [
  "move-command-line-common",
  "move-core-types",
  "move-package",
- "petgraph 0.5.1",
+ "petgraph 0.8.3",
  "regex",
  "serde",
  "serde_json",
@@ -9787,7 +9795,7 @@ version = "0.0.1"
 dependencies = [
  "move-binary-format",
  "move-core-types",
- "petgraph 0.5.1",
+ "petgraph 0.8.3",
 ]
 
 [[package]]
@@ -11112,16 +11120,6 @@ dependencies = [
 
 [[package]]
 name = "petgraph"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "467d164a6de56270bd7c4d070df81d07beace25012d5103ced4e9ff08d6afdb7"
-dependencies = [
- "fixedbitset 0.2.0",
- "indexmap 1.9.3",
-]
-
-[[package]]
-name = "petgraph"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b4c5cc86750666a3ed20bdaf5ca2a0344f9c67674cae0515bec2da16fbaa47db"
@@ -11139,6 +11137,7 @@ dependencies = [
  "fixedbitset 0.5.7",
  "hashbrown 0.15.4",
  "indexmap 2.11.0",
+ "serde",
 ]
 
 [[package]]
