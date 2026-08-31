@@ -47,10 +47,10 @@ pub enum PublishedAtError {
     },
 }
 
-/// Update the `Move.lock` file with automated address management info.
-/// Expects a wallet context, the publish or upgrade command, its response.
-/// The `Move.lock` principally file records the published address (i.e.,
-/// package ID) of a package under an environment determined by the wallet
+/// Update the `Move.lock` file with automated address management info. Expects
+/// a wallet context, the publish or upgrade command, and its response. The
+/// `Move.lock` file principally records the published address (i.e., package
+/// ID) of a package under an environment determined by the wallet
 /// context config. See the `ManagedPackage` type in the lock file for a
 /// complete spec.
 pub async fn update_lock_file(
@@ -79,7 +79,7 @@ pub async fn update_lock_file(
 /// This variant accepts the package ID and version directly, allowing for
 /// updates when a single transaction publishes multiple packages.
 /// Expects a wallet context, the publish or upgrade command, and the package
-/// details. The `Move.lock` principally file records the published address
+/// details. The `Move.lock` file principally records the published address
 /// (i.e., package ID) of a package under an environment determined by the
 /// wallet context config. See the `ManagedPackage` type in the lock file for a
 /// complete spec.
@@ -99,7 +99,37 @@ pub async fn update_lock_file_with_package_id(
         .get_chain_identifier()
         .await
         .context("Network issue: couldn't determine chain identifier for updating Move.lock")?;
+    let env = context.active_env().context(
+        "Could not resolve environment from active wallet context. \
+         Try ensure `iota client active-env` is valid.",
+    )?;
 
+    update_lock_file_for_chain_env(
+        &chain_identifier,
+        env.alias(),
+        command,
+        install_dir,
+        lock_file,
+        original_id,
+        version,
+    )
+    .await
+}
+
+/// Update the `Move.lock` file with automated address management info. Expects
+/// a chain identifier, env alias, the publish or upgrade command, and the
+/// package details. The `Move.lock` file principally records the published
+/// address (i.e., package ID) of a package under an environment in the given
+/// chain. See the `ManagedPackage` type in the lock file for a complete spec.
+pub async fn update_lock_file_for_chain_env(
+    chain_identifier: &str,
+    env_alias: &str,
+    command: LockCommand,
+    install_dir: Option<PathBuf>,
+    lock_file: Option<PathBuf>,
+    original_id: ObjectId,
+    version: u64,
+) -> Result<(), anyhow::Error> {
     let Some(lock_file) = lock_file else {
         bail!(
             "Expected a `Move.lock` file to exist after publishing \
@@ -108,24 +138,20 @@ pub async fn update_lock_file_with_package_id(
         )
     };
     let install_dir = install_dir.unwrap_or(PathBuf::from("."));
-    let env = context.active_env().context(
-        "Could not resolve environment from active wallet context. \
-         Try ensure `iota client active-env` is valid.",
-    )?;
 
     let mut lock = LockFile::from(install_dir, &lock_file)?;
     match command {
         LockCommand::Publish => lock_file::schema::update_managed_address(
             &mut lock,
-            env.alias(),
+            env_alias,
             lock_file::schema::ManagedAddressUpdate::Published {
-                chain_id: chain_identifier,
+                chain_id: chain_identifier.to_string(),
                 original_id: original_id.to_string(),
             },
         ),
         LockCommand::Upgrade => lock_file::schema::update_managed_address(
             &mut lock,
-            env.alias(),
+            env_alias,
             lock_file::schema::ManagedAddressUpdate::Upgraded {
                 latest_id: original_id.to_string(),
                 version,
