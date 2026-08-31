@@ -67,13 +67,40 @@ async fn transaction_builder_via_node_internal_client() {
         .objects(
             Some(StructTag::new_gas_coin()),
             sender,
-            Some(cursor),
+            Some(cursor.clone()),
             Some(1),
         )
         .await
         .unwrap();
     assert_eq!(second_page.data.len(), 1);
     assert_ne!(first_page.data[0].id(), second_page.data[0].id());
+
+    // The cursor is bound to the request that produced it: replaying it
+    // with a different owner or type filter is rejected instead of silently
+    // resuming from a meaningless position.
+    let mismatched_owner = client
+        .objects(
+            Some(StructTag::new_gas_coin()),
+            recipient,
+            Some(cursor.clone()),
+            Some(1),
+        )
+        .await;
+    assert!(
+        matches!(
+            mismatched_owner,
+            Err(iota_node_transaction_builder::Error::CursorMismatch)
+        ),
+        "a cursor from another owner's listing must be rejected: {mismatched_owner:?}",
+    );
+    let mismatched_filter = client.objects(None, sender, Some(cursor), Some(1)).await;
+    assert!(
+        matches!(
+            mismatched_filter,
+            Err(iota_node_transaction_builder::Error::CursorMismatch)
+        ),
+        "a cursor from a differently-filtered listing must be rejected: {mismatched_filter:?}",
+    );
 
     // Object lookup by id.
     let coin = client

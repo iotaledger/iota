@@ -19,9 +19,7 @@
 use std::sync::Arc;
 
 use iota_node_storage::GrpcStateReader;
-use iota_protocol_config::{
-    ProtocolConfig as NodeProtocolConfig, ProtocolVersion,
-};
+use iota_protocol_config::{ProtocolConfig as NodeProtocolConfig, ProtocolVersion};
 use iota_sdk_transaction_builder::{
     ObjectsPage, ProtocolConfig, TransactionBuilderClientBase, TransactionBuilderLedgerClient,
 };
@@ -32,6 +30,7 @@ use iota_types::{
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     storage::OwnedObjectCursor,
 };
+use serde::{Deserialize, Serialize};
 use typed_store_error::TypedStoreError;
 
 /// Default number of objects returned by
@@ -42,6 +41,19 @@ const DEFAULT_OBJECTS_PAGE_SIZE: usize = 50;
 /// Upper bound on the number of objects returned by
 /// [`TransactionBuilderLedgerClient::objects`].
 const MAX_OBJECTS_PAGE_SIZE: usize = 1000;
+
+/// Payload of the opaque [`TransactionBuilderLedgerClient::objects`] cursor.
+///
+/// Binds the index position to the request that produced it — mirroring the
+/// gRPC server's page token — so a cursor replayed with a different `owner`
+/// or `struct_tag` is rejected instead of silently resuming from a
+/// meaningless position.
+#[derive(Serialize, Deserialize)]
+struct PageToken {
+    owner: Address,
+    struct_tag: Option<StructTag>,
+    cursor: OwnedObjectCursor,
+}
 
 /// Error type for [`NodeTransactionBuilderLedgerClient`].
 #[derive(Debug, thiserror::Error)]
@@ -56,6 +68,8 @@ pub enum Error {
     Node(#[from] IotaError),
     #[error("invalid objects page cursor: {0}")]
     Cursor(bcs::Error),
+    #[error("objects page cursor does not match the request parameters")]
+    CursorMismatch,
     #[error("gRPC indexes are disabled on this node")]
     IndexesDisabled,
     #[error("protocol version {0} is not supported by this node")]
@@ -121,17 +135,23 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
             None | Some(0) => DEFAULT_OBJECTS_PAGE_SIZE,
             Some(limit) => limit.min(MAX_OBJECTS_PAGE_SIZE),
         };
-        let cursor: Option<OwnedObjectCursor> = cursor
-            .map(|bytes| bcs::from_bytes(&bytes))
-            .transpose()
-            .map_err(Error::Cursor)?;
+        let cursor: Option<OwnedObjectCursor> = match cursor {
+            Some(bytes) => {
+                let token: PageToken = bcs::from_bytes(&bytes).map_err(Error::Cursor)?;
+                if token.owner != owner || token.struct_tag != struct_tag {
+                    return Err(Error::CursorMismatch);
+                }
+                Some(token.cursor)
+            }
+            None => None,
+        };
 
         let indexes = self.reader.grpc_indexes().ok_or(Error::IndexesDisabled)?;
         // The index iterator's cursor bound is inclusive, so skip the cursor
         // item itself to advance past the previous page.
         let skip = usize::from(cursor.is_some());
         let mut iter = indexes
-            .account_owned_objects_info_iter(owner, cursor.as_ref(), struct_tag)?
+            .account_owned_objects_info_iter(owner, cursor.as_ref(), struct_tag.clone())?
             .skip(skip);
 
         let mut data = Vec::with_capacity(limit);
@@ -161,7 +181,12 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
         let has_more = iter.next().transpose()?.is_some();
         let next_cursor = if has_more {
             last_cursor.map(|cursor| {
-                bcs::to_bytes(&cursor).expect("serializing a flat cursor struct cannot fail")
+                bcs::to_bytes(&PageToken {
+                    owner,
+                    struct_tag,
+                    cursor,
+                })
+                .expect("page token serialization cannot fail")
             })
         } else {
             None
@@ -175,9 +200,7 @@ impl TransactionBuilderLedgerClient for NodeTransactionBuilderLedgerClient {
             .node_protocol_config()?
             .attr_map()
             .into_iter()
-            .filter_map(|(name, value)| {
-                value.map(|value| (name, value.to_string()))
-            })
+            .filter_map(|(name, value)| value.map(|value| (name, value.to_string())))
             .collect();
         Ok(ProtocolConfig { attributes })
     }
