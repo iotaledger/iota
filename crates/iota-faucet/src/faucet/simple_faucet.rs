@@ -13,20 +13,24 @@ use std::{
 
 use async_recursion::async_recursion;
 use async_trait::async_trait;
-use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, OwnedObjectRef,
+use iota_grpc_client::{
+    Client as GrpcClient,
+    read_mask_fields::{ObjectField, ObjectReadMask, OwnedObjectReadMask, TransactionField},
 };
 use iota_keys::keystore::AccountKeystore;
 use iota_metrics::spawn_monitored_task;
 use iota_sdk::wallet_context::WalletContext;
-use iota_sdk_types::{Address, ObjectId, Owner, Transaction, TransactionDigest, crypto::Intent};
+use iota_sdk_types::{
+    Address, ObjectId, ObjectReference, Owner, StructTag, Transaction, TransactionDigest,
+    TransactionEffects, crypto::Intent,
+};
 #[cfg(test)]
 use iota_types::transaction::SenderSignedTransactionAPI;
 use iota_types::{
+    effects::TransactionEffectsAPI,
     gas_coin::GasCoin,
+    object::Object,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
-    quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{TransactionAPI, TransactionEnvelope},
 };
 use prometheus_filtered::Registry;
@@ -52,6 +56,7 @@ use crate::{
 
 pub struct SimpleFaucet {
     wallet: WalletContext,
+    grpc_client: GrpcClient,
     active_address: Address,
     producer: Mutex<Sender<ObjectId>>,
     consumer: Mutex<Receiver<ObjectId>>,
@@ -102,6 +107,9 @@ const DEFAULT_GAS_COMPUTATION_BUCKET: u64 = 10_000_000;
 const LOCK_TIMEOUT: Duration = Duration::from_secs(10);
 const RECV_TIMEOUT: Duration = Duration::from_secs(5);
 const BATCH_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long the fullnode should wait for an executed transaction to be
+/// included in a checkpoint before returning.
+const CHECKPOINT_INCLUSION_TIMEOUT_MS: u64 = 60_000;
 
 const MAX_TRACKED_ADDRESSES: usize = 100_000;
 
@@ -117,13 +125,24 @@ impl SimpleFaucet {
             .map_err(|err| FaucetError::Wallet(err.to_string()))?;
         info!("SimpleFaucet::new with active address: {active_address}");
 
-        let coins = wallet
-            .gas_objects(active_address)
+        let grpc_client =
+            GrpcClient::new(&config.fullnode_grpc_url).map_err(FaucetError::internal)?;
+
+        let coins = grpc_client
+            .list_owned_objects(
+                active_address,
+                StructTag::new_gas_coin(),
+                None,
+                None,
+                OwnedObjectReadMask::default(),
+            )
+            .collect(None)
             .await
-            .map_err(|e| FaucetError::Wallet(e.to_string()))?
+            .map_err(|e| FaucetError::FullnodeReading(e.to_string()))?
+            .body()
             .iter()
-            // Ok to unwrap() since `get_gas_objects` guarantees gas
-            .map(|q| GasCoin::try_from(&q.1).unwrap())
+            // Ok to unwrap() since the server-side type filter guarantees gas coins
+            .map(|obj| GasCoin::try_from(&Object::from(obj.object().unwrap())).unwrap())
             .filter(|coin| coin.0.balance.value() >= (config.amount * config.num_coins as u64))
             .collect::<Vec<GasCoin>>();
 
@@ -194,6 +213,7 @@ impl SimpleFaucet {
 
         let faucet = Self {
             wallet,
+            grpc_client,
             active_address,
             producer: Mutex::new(producer),
             consumer: Mutex::new(consumer),
@@ -350,6 +370,42 @@ impl SimpleFaucet {
         }
     }
 
+    /// Fetch an object from the fullnode via gRPC.
+    ///
+    /// Returns Ok(None) if the object does not exist (anymore).
+    async fn get_object(&self, object_id: ObjectId) -> anyhow::Result<Option<Object>> {
+        let response = self
+            .grpc_client
+            .get_objects([object_id], ObjectReadMask::default())
+            .await?;
+        match response.into_parts().0.into_iter().next() {
+            Some(Ok(proto_object)) => Ok(Some(Object::from(proto_object.object()?))),
+            // Per-item error: the object does not exist (anymore).
+            Some(Err(iota_grpc_client::Error::Server(status)))
+                if status.code == tonic::Code::NotFound as i32 =>
+            {
+                Ok(None)
+            }
+            Some(Err(e)) => Err(e.into()),
+            None => Ok(None),
+        }
+    }
+
+    /// Fetch the latest object reference of an object via gRPC.
+    async fn get_object_ref(&self, object_id: ObjectId) -> anyhow::Result<ObjectReference> {
+        let response = self
+            .grpc_client
+            .get_objects([object_id], ObjectField::REFERENCE)
+            .await?;
+        let proto_object = response
+            .into_parts()
+            .0
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("object {object_id} not found"))??;
+        Ok(proto_object.object_reference()?)
+    }
+
     /// Check if the gas coin is still valid. A valid gas coin
     /// 1. Exists presently
     /// 2. is a gas coin
@@ -361,23 +417,12 @@ impl SimpleFaucet {
         &self,
         coin_id: ObjectId,
     ) -> anyhow::Result<Option<(Option<Owner>, GasCoin)>> {
-        let client = self.wallet.get_client().await?;
-        let gas_obj = client
-            .read_api()
-            .get_object_with_options(
-                coin_id,
-                IotaObjectDataOptions::new()
-                    .with_type()
-                    .with_owner()
-                    .with_content(),
-            )
-            .await?;
-        let o = gas_obj.data;
-        if let Some(o) = o {
-            Ok(GasCoin::try_from(&o).ok().map(|coin| (o.owner, coin)))
-        } else {
-            Ok(None)
-        }
+        let Some(object) = self.get_object(coin_id).await? else {
+            return Ok(None);
+        };
+        Ok(GasCoin::try_from(&object)
+            .ok()
+            .map(|coin| (Some(*object.owner()), coin)))
     }
 
     /// Similar to get_coin but checks that the owner is the active
@@ -438,7 +483,7 @@ impl SimpleFaucet {
         coin_id: ObjectId,
         tx: Transaction,
         for_batch: bool,
-    ) -> Result<IotaTransactionBlockResponse, FaucetError> {
+    ) -> Result<TransactionEffects, FaucetError> {
         let signature = self
             .wallet
             .config()
@@ -605,7 +650,7 @@ impl SimpleFaucet {
         coin_id: ObjectId,
         recipient: Address,
         uuid: Uuid,
-    ) -> IotaTransactionBlockResponse {
+    ) -> TransactionEffects {
         let mut retry_delay = Duration::from_millis(500);
 
         loop {
@@ -637,20 +682,20 @@ impl SimpleFaucet {
         coin_id: ObjectId,
         recipient: Address,
         uuid: Uuid,
-    ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
+    ) -> Result<TransactionEffects, anyhow::Error> {
         self.metrics.current_executions_in_flight.inc();
         let _metrics_guard = scopeguard::guard(self.metrics.clone(), |metrics| {
             metrics.current_executions_in_flight.dec();
         });
 
         let tx_digest = tx.digest();
-        let client = self.wallet.get_client().await?;
-        Ok(client
-            .quorum_driver_api()
-            .execute_transaction_block(
-                tx.clone(),
-                IotaTransactionBlockResponseOptions::new().with_effects(),
-                Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        let signed_tx: iota_sdk_types::SignedTransaction = tx.clone().into();
+        let response = self
+            .grpc_client
+            .execute_transaction(
+                signed_tx,
+                CHECKPOINT_INCLUSION_TIMEOUT_MS,
+                [TransactionField::EFFECTS_BCS, TransactionField::CHECKPOINT],
             )
             .await
             .tap_err(|e| {
@@ -661,7 +706,20 @@ impl SimpleFaucet {
                     ?uuid,
                     "transfer Transaction failed: {e:?}"
                 )
-            })?)
+            })?;
+        let executed = response.into_parts().0;
+
+        // The server only sets `checkpoint` once the transaction has been included in
+        // a checkpoint within the timeout. Treat absence as failure so the retry loop
+        // re-submits the same transaction (safe: identical digest).
+        if executed.checkpoint.is_none() {
+            anyhow::bail!(
+                "transaction {tx_digest} was executed but not included in a checkpoint within \
+                 {CHECKPOINT_INCLUSION_TIMEOUT_MS} ms"
+            );
+        }
+
+        Ok(executed.effects()?.effects()?)
     }
 
     async fn get_gas_cost(&self) -> Result<u64, FaucetError> {
@@ -670,15 +728,10 @@ impl SimpleFaucet {
     }
 
     async fn get_gas_price(&self) -> Result<u64, FaucetError> {
-        let client = self
-            .wallet
-            .get_client()
-            .await
-            .map_err(|e| FaucetError::Wallet(format!("Unable to get client: {e:?}")))?;
-        client
-            .read_api()
+        self.grpc_client
             .get_reference_gas_price()
             .await
+            .map(|response| *response.body())
             .map_err(|e| FaucetError::FullnodeReading(format!("Error fetch gas price {e:?}")))
     }
 
@@ -690,35 +743,31 @@ impl SimpleFaucet {
         amounts: &[u64],
         budget: u64,
     ) -> Result<Transaction, anyhow::Error> {
-        let recipients = vec![recipient; amounts.len()];
-        let client = self.wallet.get_client().await?;
-        client
-            .transaction_builder()
-            .pay_iota(signer, vec![coin_id], recipients, amounts.to_vec(), budget)
-            .await
-            .map_err(|e| {
-                anyhow::anyhow!(
-                    "failed to build PayIota transaction for coin {coin_id}, with err {e}"
-                )
-            })
+        let gas_payment = self.get_object_ref(coin_id).await?;
+        let gas_price = self.get_gas_price().await?;
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.pay_iota(vec![recipient; amounts.len()], amounts.to_vec())?;
+            builder.finish()
+        };
+
+        Ok(Transaction::new_programmable(
+            signer,
+            vec![gas_payment],
+            pt,
+            budget,
+            gas_price,
+        ))
     }
 
     async fn check_and_map_transfer_gas_result(
         &self,
-        res: IotaTransactionBlockResponse,
+        effects: TransactionEffects,
         number_of_coins: usize,
         recipient: Address,
     ) -> Result<(TransactionDigest, Vec<ObjectId>), FaucetError> {
-        let created = res
-            .effects
-            .ok_or_else(|| {
-                FaucetError::ParseTransactionResponse(format!(
-                    "effects field missing for txn {}",
-                    res.digest
-                ))
-            })?
-            .created()
-            .to_vec();
+        let digest = *effects.transaction_digest();
+        let created = effects.created();
         if created.len() != number_of_coins {
             return Err(FaucetError::CoinAmountTransferredIncorrect(format!(
                 "PayIota Transaction should create exact {number_of_coins:?} new coins, but got {created:?}"
@@ -727,13 +776,13 @@ impl SimpleFaucet {
         assert!(
             created
                 .iter()
-                .all(|created_coin_owner_ref| created_coin_owner_ref.owner == recipient)
+                .all(|(_, owner)| matches!(owner, Owner::Address(addr) if *addr == recipient))
         );
         let coin_ids: Vec<ObjectId> = created
             .iter()
-            .map(|created_coin_owner_ref| created_coin_owner_ref.reference.object_id)
+            .map(|(object_ref, _)| *object_ref.object_id())
             .collect();
-        Ok((res.digest, coin_ids))
+        Ok((digest, coin_ids))
     }
 
     async fn build_batch_pay_iota_txn(
@@ -743,8 +792,8 @@ impl SimpleFaucet {
         signer: Address,
         budget: u64,
     ) -> Result<Transaction, anyhow::Error> {
-        let gas_payment = self.wallet.get_object_ref(coin_id).await?;
-        let gas_price = self.wallet.get_reference_gas_price().await?;
+        let gas_payment = self.get_object_ref(coin_id).await?;
+        let gas_price = self.get_gas_price().await?;
         // TODO (Jian): change to make this more efficient by changing impl to one
         // Splitcoin, and many TransferObjects
         let pt = {
@@ -767,32 +816,21 @@ impl SimpleFaucet {
 
     async fn check_and_map_batch_transfer_gas_result(
         &self,
-        res: IotaTransactionBlockResponse,
+        effects: TransactionEffects,
         requests: Vec<(Uuid, Address, Vec<u64>)>,
     ) -> Result<(), FaucetError> {
+        let digest = *effects.transaction_digest();
         // Grab the list of created coins and turn it into a map of destination
         // Address to Vec<Coins>
-        let created = res
-            .effects
-            .ok_or_else(|| {
-                FaucetError::ParseTransactionResponse(format!(
-                    "effects field missing for txn {}",
-                    res.digest
-                ))
-            })?
-            .created()
-            .to_vec();
+        let created = effects.created();
 
-        let mut address_coins_map: HashMap<Address, Vec<OwnedObjectRef>> = HashMap::new();
-        created.iter().for_each(|created_coin_owner_ref| {
-            let owner = created_coin_owner_ref.owner;
-            let coin_obj_ref = created_coin_owner_ref.clone();
-
+        let mut address_coins_map: HashMap<Address, Vec<ObjectReference>> = HashMap::new();
+        created.iter().for_each(|(object_ref, owner)| {
             // Insert the coins into the map based on the destination address
             address_coins_map
                 .entry(*owner.address_or_object().unwrap())
                 .or_default()
-                .push(coin_obj_ref);
+                .push(*object_ref);
         });
 
         // Assert that the number of times a iota_address occurs is the number of times
@@ -828,8 +866,8 @@ impl SimpleFaucet {
                 .iter()
                 .zip(amounts)
                 .map(|(coin, amount)| CoinInfo {
-                    id: coin.object_id(),
-                    transfer_tx_digest: res.digest,
+                    id: *coin.object_id(),
+                    transfer_tx_digest: digest,
                     amount,
                 })
                 .collect();
@@ -1132,9 +1170,10 @@ pub async fn batch_transfer_gases(
                     wal.reserve(uuid, coin_id, recipient, tx_data.clone())
                         .map_err(FaucetError::internal)?;
                 }
-                let response = faucet
+                let effects = faucet
                     .sign_and_execute_txn(uuid, recipient, coin_id, tx_data, true)
                     .await?;
+                let digest = *effects.transaction_digest();
 
                 faucet
                     .metrics
@@ -1142,10 +1181,10 @@ pub async fn batch_transfer_gases(
                     .add(total_requests as i64);
 
                 faucet
-                    .check_and_map_batch_transfer_gas_result(response.clone(), requests)
+                    .check_and_map_batch_transfer_gas_result(effects, requests)
                     .await?;
 
-                return Ok(response.digest);
+                return Ok(digest);
             }
 
             GasCoinResponse::UnknownGasCoin(coin_id) => {
@@ -1178,7 +1217,9 @@ pub async fn batch_transfer_gases(
 #[cfg(test)]
 mod tests {
     use anyhow::*;
-    use iota_json_rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};
+    use iota_json_rpc_types::{
+        IotaExecutionStatus, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    };
     use iota_sdk::wallet_context::WalletContext;
     use iota_sdk_types::{SenderSignedTransaction, crypto::Intent};
     use iota_types::transaction::TransactionAPI;
@@ -1213,10 +1254,17 @@ mod tests {
     #[tokio::test]
     async fn simple_faucet_basic_interface_should_work() {
         telemetry_subscribers::init_for_testing();
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
-        let config = FaucetConfig::default();
+        let config = FaucetConfig {
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
+            ..Default::default()
+        };
 
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
@@ -1264,7 +1312,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_init_gas_queue() {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let address = test_cluster.get_address_0();
         let context = test_cluster.wallet;
         let gas_coins = context
@@ -1275,7 +1327,10 @@ mod tests {
 
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
-        let config = FaucetConfig::default();
+        let config = FaucetConfig {
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
+            ..Default::default()
+        };
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
@@ -1299,7 +1354,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_transfer_state() {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let address = test_cluster.get_address_0();
         let context = test_cluster.wallet;
         let gas_coins = context
@@ -1310,7 +1369,10 @@ mod tests {
 
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
-        let config = FaucetConfig::default();
+        let config = FaucetConfig {
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
+            ..Default::default()
+        };
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
@@ -1346,9 +1408,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_transfer_interface() {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let config: FaucetConfig = FaucetConfig {
             batch_enabled: true,
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
             ..Default::default()
         };
         let coin_amount = config.amount;
@@ -1445,12 +1512,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_ttl_cache_expires_after_duration() {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let context = test_cluster.wallet;
         // We set it to a fast expiration for the purposes of testing and so these
         // requests don't have time to pass through the batch process.
         let config = FaucetConfig {
             ttl_expiration: 1,
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
             ..Default::default()
         };
         let prom_registry = Registry::new();
@@ -1494,7 +1566,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_discard_invalid_gas() {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let address = test_cluster.get_address_0();
         let context = test_cluster.wallet;
         let mut gas_coins = context
@@ -1507,7 +1583,10 @@ mod tests {
 
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
-        let config = FaucetConfig::default();
+        let config = FaucetConfig {
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
+            ..Default::default()
+        };
 
         let client = context.get_client().await.unwrap();
         let faucet = SimpleFaucet::new(
@@ -1560,11 +1639,18 @@ mod tests {
     #[tokio::test]
     async fn test_clear_wal() {
         telemetry_subscribers::init_for_testing();
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let context = test_cluster.wallet;
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
-        let config = FaucetConfig::default();
+        let config = FaucetConfig {
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
+            ..Default::default()
+        };
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
@@ -1625,7 +1711,11 @@ mod tests {
     #[tokio::test]
     async fn test_discard_smaller_amount_gas() {
         telemetry_subscribers::init_for_testing();
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
         let gas_coins = context
@@ -1636,7 +1726,10 @@ mod tests {
         // split out a coin that has a very small balance such that
         // this coin will be not used later on. This is the new default amount for
         // faucet due to gas changes
-        let config = FaucetConfig::default();
+        let config = FaucetConfig {
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
+            ..Default::default()
+        };
         let tiny_value = (config.num_coins as u64 * config.amount) + 1;
         let client = context.get_client().await.unwrap();
         let tx_kind = client
@@ -1716,14 +1809,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_insufficient_balance_will_retry_success() {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
         let gas_coins = context
             .get_all_gas_objects_owned_by_address(address)
             .await
             .unwrap();
-        let config = FaucetConfig::default();
+        let config = FaucetConfig {
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
+            ..Default::default()
+        };
 
         // The coin that is split off stays because we don't try to refresh the coin
         // vector
@@ -1774,7 +1874,10 @@ mod tests {
 
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
-        let config = FaucetConfig::default();
+        let config = FaucetConfig {
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
+            ..Default::default()
+        };
         let faucet = SimpleFaucet::new(
             context,
             &prom_registry,
@@ -1801,14 +1904,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_faucet_no_loop_forever() {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let address = test_cluster.get_address_0();
         let mut context = test_cluster.wallet;
         let gas_coins = context
             .get_all_gas_objects_owned_by_address(address)
             .await
             .unwrap();
-        let config = FaucetConfig::default();
+        let config = FaucetConfig {
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
+            ..Default::default()
+        };
 
         let tiny_value = (config.num_coins as u64 * config.amount) + 1;
         let client = context.get_client().await.unwrap();
@@ -1882,11 +1992,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_faucet_restart_clears_wal() {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let context = test_cluster.wallet;
         let tmp_dir = iota_common::tempdir();
         let prom_registry = Registry::new();
-        let config = FaucetConfig::default();
+        let config = FaucetConfig {
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
+            ..Default::default()
+        };
 
         let faucet = SimpleFaucet::new(
             context,
@@ -1943,7 +2060,10 @@ mod tests {
             kept_context,
             &prom_registry_new,
             &tmp_dir.path().join("faucet.wal"),
-            FaucetConfig::default(),
+            FaucetConfig {
+                fullnode_grpc_url,
+                ..Default::default()
+            },
         )
         .await
         .unwrap();
@@ -1954,9 +2074,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_amounts_transferred_on_batch() {
-        let test_cluster = TestClusterBuilder::new().build().await;
+        let test_cluster = TestClusterBuilder::new()
+            .with_fullnode_enable_grpc_api(true)
+            .build()
+            .await;
+        let fullnode_grpc_url = test_cluster.grpc_url();
         let config: FaucetConfig = FaucetConfig {
             batch_enabled: true,
+            fullnode_grpc_url: fullnode_grpc_url.clone(),
             ..Default::default()
         };
         let address = test_cluster.get_address_0();

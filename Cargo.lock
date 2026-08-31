@@ -6127,6 +6127,7 @@ dependencies = [
  "iota-metrics",
  "iota-network-stack",
  "iota-sdk",
+ "iota-sdk-grpc-client",
  "iota-sdk-types",
  "iota-types",
  "parking_lot 0.12.3",

@@ -34,7 +34,13 @@ impl FaucetClientFactory {
                     .instrument(info_span!("init_wallet_context_for_faucet"));
 
                 let prom_registry = prometheus_filtered::Registry::new();
-                let config = FaucetConfig::default();
+                let config = FaucetConfig {
+                    fullnode_grpc_url: cluster
+                        .grpc_url()
+                        .expect("local cluster should expose a gRPC endpoint")
+                        .to_string(),
+                    ..Default::default()
+                };
                 let simple_faucet = SimpleFaucet::new(
                     wallet_context.into_inner(),
                     &prom_registry,

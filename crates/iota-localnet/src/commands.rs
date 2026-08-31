@@ -617,6 +617,14 @@ async fn start(
         swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(true);
     }
 
+    // the faucet communicates with the fullnode via gRPC, we must enable it by
+    // default.
+    if with_faucet.is_some() {
+        // the gRPC api uses default values if config is not provided,
+        // allowing to not override it when provided in fullnode config.
+        swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(true);
+    }
+
     // the indexer requires to set the fullnode's data ingestion directory
     // note that this overrides the default configuration that is set when running
     // the genesis command, which sets data_ingestion_dir to None.
@@ -782,11 +790,26 @@ async fn start(
             _ => bail!("faucet configuration requires an IPv4 address"),
         };
 
+        let fullnode_grpc_url = {
+            let socket_addr = swarm
+                .fullnodes()
+                .next()
+                .and_then(|node| {
+                    node.config()
+                        .grpc_api_config
+                        .as_ref()
+                        .map(|grpc| grpc.address)
+                })
+                .unwrap_or_else(|| GrpcApiConfig::default().address);
+            format!("http://{socket_addr}")
+        };
+
         let config = FaucetConfig {
             host_ip,
             port: faucet_address.port(),
             num_coins: faucet_coin_count.unwrap_or(DEFAULT_FAUCET_NUM_COINS),
             amount: faucet_amount.unwrap_or(DEFAULT_FAUCET_NANOS_AMOUNT),
+            fullnode_grpc_url,
             ..Default::default()
         };
 

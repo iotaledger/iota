@@ -5329,14 +5329,19 @@ async fn test_balance() -> Result<(), anyhow::Error> {
 async fn test_faucet() -> Result<(), anyhow::Error> {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_rpc_port(9000)
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
+    let fullnode_grpc_url = test_cluster.grpc_url();
     let context = test_cluster.wallet;
 
     let tmp_dir = iota_common::tempdir();
     let prom_registry = prometheus_filtered::Registry::new();
-    let config = iota_faucet::FaucetConfig::default();
+    let config = iota_faucet::FaucetConfig {
+        fullnode_grpc_url,
+        ..Default::default()
+    };
 
     let prometheus_registry = prometheus_filtered::Registry::new();
     let app_state = std::sync::Arc::new(iota_faucet::AppState {
@@ -5387,15 +5392,18 @@ async fn test_faucet() -> Result<(), anyhow::Error> {
 async fn test_faucet_batch() -> Result<(), anyhow::Error> {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_rpc_port(9000)
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
+    let fullnode_grpc_url = test_cluster.grpc_url();
     let context = test_cluster.wallet;
 
     let tmp_dir = iota_common::tempdir();
     let prom_registry = prometheus_filtered::Registry::new();
     let config = iota_faucet::FaucetConfig {
         batch_enabled: true,
+        fullnode_grpc_url,
         ..Default::default()
     };
 
@@ -5514,15 +5522,18 @@ async fn test_faucet_batch() -> Result<(), anyhow::Error> {
 async fn test_faucet_batch_concurrent_requests() -> Result<(), anyhow::Error> {
     let test_cluster = TestClusterBuilder::new()
         .with_fullnode_rpc_port(9000)
+        .with_fullnode_enable_grpc_api(true)
         .build()
         .await;
 
+    let fullnode_grpc_url = test_cluster.grpc_url();
     let context = test_cluster.wallet;
 
     let tmp_dir = iota_common::tempdir();
     let prom_registry = prometheus_filtered::Registry::new();
     let config = iota_faucet::FaucetConfig {
         batch_enabled: true,
+        fullnode_grpc_url,
         ..Default::default()
     };
 
