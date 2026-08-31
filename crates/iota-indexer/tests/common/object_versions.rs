@@ -5,23 +5,31 @@
 
 use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use iota_indexer::{
-    errors::IndexerError, models::obj_indices::StoredObjectVersion, schema::objects_version,
-    store::PgIndexerStore,
+    errors::IndexerError,
+    models::obj_indices::StoredObjectVersion,
+    read_only_blocking,
+    schema::objects_version,
+    store::{PgIndexerStore, diesel_macro::spawn_blocking_task},
 };
 
 /// Looks up all object-version entries for a checkpoint, ordered by
 /// (object_id, object_version).
-pub fn find_object_versions_at_checkpoint(
+pub async fn find_object_versions_at_checkpoint(
     store: &PgIndexerStore,
     checkpoint: i64,
 ) -> Result<Vec<StoredObjectVersion>, IndexerError> {
-    iota_indexer::read_only_blocking!(&store.blocking_cp(), |conn| {
-        objects_version::table
-            .filter(objects_version::cp_sequence_number.eq(checkpoint))
-            .order((
-                objects_version::object_id.asc(),
-                objects_version::object_version.asc(),
-            ))
-            .load::<StoredObjectVersion>(conn)
+    let blocking_cp = store.blocking_cp();
+    spawn_blocking_task(move || {
+        read_only_blocking!(&blocking_cp, |conn| {
+            objects_version::table
+                .filter(objects_version::cp_sequence_number.eq(checkpoint))
+                .order((
+                    objects_version::object_id.asc(),
+                    objects_version::object_version.asc(),
+                ))
+                .load::<StoredObjectVersion>(conn)
+        })
     })
+    .await
+    .expect("failed to join Tokio blocking task")
 }

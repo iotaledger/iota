@@ -23,7 +23,6 @@ use tracing::info;
 
 use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
 use crate::{
-    blocking_call_is_ok_or_panic,
     db::ConnectionPool,
     errors::{Context, IndexerError},
     ingestion::{
@@ -56,7 +55,7 @@ use crate::{
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
     persist_chunk_into_table_in_existing_connection,
     pruning::pruner::PrunableTable,
-    read_only_blocking, run_query, run_query_with_retry,
+    read_only_blocking, run_query_with_retry,
     schema::{
         chain_identifier, checkpointed_objects, checkpoints, display, epochs, event_emit_module,
         event_emit_package, event_senders, event_struct_instantiation, event_struct_module,
@@ -66,7 +65,7 @@ use crate::{
         tx_calls_pkg, tx_changed_objects, tx_global_order, tx_input_objects, tx_kinds,
         tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
     },
-    store::{IndexerStore, diesel_macro::mark_in_blocking_pool},
+    store::{IndexerStore, diesel_macro},
     transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
@@ -150,8 +149,7 @@ impl PgIndexerStore {
             .unwrap_or_else(|_e| PG_COMMIT_OBJECTS_PARALLEL_CHUNK_SIZE.to_string())
             .parse::<usize>()
             .unwrap();
-        let partition_manager = PgPartitionManager::new(blocking_cp.clone())
-            .expect("failed to initialize partition manager");
+        let partition_manager = PgPartitionManager::new(blocking_cp.clone());
         let config = PgIndexerStoreConfig {
             parallel_chunk_size,
             parallel_objects_chunk_size,
@@ -1560,7 +1558,7 @@ impl PgIndexerStore {
         epochs: &[u64],
     ) -> Result<HashMap<u64, (u64, u64)>, IndexerError> {
         let pool = &self.blocking_cp;
-        let results: Vec<(i64, i64, i64)> = run_query!(pool, move |conn| {
+        let results: Vec<(i64, i64, i64)> = read_only_blocking!(pool, move |conn| {
             epochs::table
                 .filter(epochs::epoch.eq_any(epochs.iter().map(|&e| e as i64)))
                 .select((
@@ -1717,15 +1715,10 @@ impl PgIndexerStore {
         R: Send + 'static,
     {
         let this = self.clone();
-        let current_span = tracing::Span::current();
-        tokio::task::spawn_blocking(move || {
-            mark_in_blocking_pool();
-            let _guard = current_span.enter();
-            f(this)
-        })
-        .await
-        .map_err(Into::into)
-        .and_then(std::convert::identity)
+        diesel_macro::spawn_blocking_task(move || f(this))
+            .await
+            .map_err(Into::into)
+            .and_then(std::convert::identity)
     }
 
     pub(crate) fn spawn_blocking_task<F, R>(
@@ -1737,11 +1730,8 @@ impl PgIndexerStore {
         R: Send + 'static,
     {
         let this = self.clone();
-        let current_span = tracing::Span::current();
         let guard = self.metrics.tokio_blocking_task_wait_latency.start_timer();
-        tokio::task::spawn_blocking(move || {
-            mark_in_blocking_pool();
-            let _guard = current_span.enter();
+        diesel_macro::spawn_blocking_task(move || {
             let _elapsed = guard.stop_and_record();
             f(this)
         })
