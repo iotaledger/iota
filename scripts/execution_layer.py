@@ -175,7 +175,7 @@ def do_generate_lib(args):
 
 def fmt_file(path):
     try:
-        subprocess.run(['cargo', '+nightly', 'fmt', '--', path, '--unstable-features', '--skip-children'],
+        subprocess.run(['cargo', '+nightly-2026-06-29', 'fmt', '--', path, '--unstable-features', '--skip-children'],
                        check=True)
     except subprocess.CalledProcessError as e:
         print(f"cargo fmt failed with error code {e.returncode}")
