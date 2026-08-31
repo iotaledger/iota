@@ -90,10 +90,7 @@ use crate::{
         objects, objects_version, optimistic_transactions, packages, pruner_cp_watermark,
         transactions, tx_global_order,
     },
-    store::{
-        diesel_macro::{mark_in_blocking_pool, *},
-        package_resolver::IndexerStorePackageResolver,
-    },
+    store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
 };
 
@@ -281,14 +278,9 @@ impl IndexerReader {
         E: Send + 'static,
     {
         let this = self.clone();
-        let current_span = tracing::Span::current();
-        tokio::task::spawn_blocking(move || {
-            mark_in_blocking_pool();
-            let _guard = current_span.enter();
-            f(this)
-        })
-        .await
-        .expect("propagate any panics")
+        spawn_blocking_task(move || f(this))
+            .await
+            .expect("propagate any panics")
     }
 
     pub fn get_pool(&self) -> ConnectionPool {
@@ -333,7 +325,7 @@ impl IndexerReader {
     ) -> Result<Option<StoredObject>, IndexerError> {
         let object_id = object_id.as_bytes();
 
-        let stored_object = run_query!(&self.pool, |conn| {
+        let stored_object = read_only_blocking!(&self.pool, |conn| {
             if let Some(version) = version {
                 objects::dsl::objects
                     .filter(objects::dsl::object_id.eq(object_id))
@@ -388,7 +380,7 @@ impl IndexerReader {
 
     fn get_object_raw(&self, object_id: ObjectId) -> Result<Option<StoredObject>, IndexerError> {
         let id = object_id.as_bytes();
-        let stored_object = run_query!(&self.pool, |conn| {
+        let stored_object = read_only_blocking!(&self.pool, |conn| {
             objects::dsl::objects
                 .filter(objects::dsl::object_id.eq(id))
                 .first::<StoredObject>(conn)
@@ -558,7 +550,7 @@ impl IndexerReader {
         &self,
         epoch: Option<EpochId>,
     ) -> Result<Option<StoredEpochInfo>, IndexerError> {
-        let stored_epoch = run_query!(&self.pool, |conn| {
+        let stored_epoch = read_only_blocking!(&self.pool, |conn| {
             if let Some(epoch) = epoch {
                 epochs::dsl::epochs
                     .filter(epochs::epoch.eq(epoch as i64))
@@ -576,7 +568,7 @@ impl IndexerReader {
     }
 
     pub fn get_latest_epoch_info_from_db(&self) -> Result<StoredEpochInfo, IndexerError> {
-        let stored_epoch = run_query!(&self.pool, |conn| {
+        let stored_epoch = read_only_blocking!(&self.pool, |conn| {
             epochs::dsl::epochs
                 .order_by(epochs::epoch.desc())
                 .first::<StoredEpochInfo>(conn)
@@ -606,7 +598,7 @@ impl IndexerReader {
         limit: usize,
         descending_order: bool,
     ) -> Result<Vec<StoredEpochInfo>, IndexerError> {
-        run_query!(&self.pool, |conn| {
+        read_only_blocking!(&self.pool, |conn| {
             let mut boxed_query = epochs::table.into_boxed();
             if let Some(cursor) = cursor {
                 if descending_order {
@@ -671,7 +663,7 @@ impl IndexerReader {
     }
 
     pub fn get_chain_identifier(&self) -> Result<ChainIdentifier, IndexerError> {
-        let stored_chain_identifier = run_query!(&self.pool, |conn| {
+        let stored_chain_identifier = read_only_blocking!(&self.pool, |conn| {
             chain_identifier::dsl::chain_identifier
                 .first::<StoredChainIdentifier>(conn)
                 .optional()
@@ -693,7 +685,7 @@ impl IndexerReader {
     }
 
     pub fn get_latest_checkpoint_from_db(&self) -> Result<StoredCheckpoint, IndexerError> {
-        let stored_checkpoint = run_query!(&self.pool, |conn| {
+        let stored_checkpoint = read_only_blocking!(&self.pool, |conn| {
             checkpoints::dsl::checkpoints
                 .order_by(checkpoints::sequence_number.desc())
                 .first::<StoredCheckpoint>(conn)
@@ -1057,7 +1049,7 @@ impl IndexerReader {
             .filter(txdsl::tx_sequence_number.le(max_seq))
             .order(txdsl::tx_sequence_number.asc())
             .into_boxed();
-        run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))
+        read_only_blocking!(&self.pool, |conn| query.load::<StoredTransaction>(conn))
     }
 
     pub async fn get_owned_objects_in_blocking_task(
@@ -1078,7 +1070,7 @@ impl IndexerReader {
         cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
-        run_query!(&self.pool, |conn| {
+        read_only_blocking!(&self.pool, |conn| {
             let mut query = objects::dsl::objects
                 .filter(objects::dsl::owner_type.eq(OwnerType::Address as i16))
                 .filter(objects::dsl::owner_id.eq(address.as_bytes()))
@@ -1152,7 +1144,7 @@ impl IndexerReader {
     fn get_singleton_object(&self, struct_tag: StructTag) -> Result<Option<Object>, IndexerError> {
         let object_type = struct_tag.to_canonical_string(/* with_prefix */ true);
 
-        run_query!(&self.pool, |conn| {
+        read_only_blocking!(&self.pool, |conn| {
             let object = match objects::dsl::objects
                 .filter(objects::object_type_package.eq(struct_tag.address().as_bytes().to_vec()))
                 .filter(objects::object_type_module.eq(struct_tag.module().to_string()))
@@ -1183,7 +1175,7 @@ impl IndexerReader {
         object_ids: Vec<ObjectId>,
     ) -> Result<Vec<StoredObject>, IndexerError> {
         let object_ids = object_ids.iter().map(|id| id.as_bytes()).collect_vec();
-        run_query!(&self.pool, |conn| {
+        read_only_blocking!(&self.pool, |conn| {
             objects::dsl::objects
                 .filter(objects::object_id.eq_any(object_ids))
                 .load::<StoredObject>(conn)
@@ -1251,7 +1243,7 @@ impl IndexerReader {
             result: Option<bool>,
         }
 
-        run_query!(&self.pool, |conn| {
+        read_only_blocking!(&self.pool, |conn| {
             diesel::sql_query(query)
                 .get_result::<TriState>(conn)
                 .map(|r| match r.result {
@@ -1962,7 +1954,7 @@ impl IndexerReader {
     ) -> IndexerResult<bool> {
         self.spawn_blocking(move |this| {
             let digest_bytes = digest.inner().to_vec();
-            let global_order_entry = run_query!(&this.pool, |conn| {
+            let global_order_entry = read_only_blocking!(&this.pool, |conn| {
                 tx_global_order::table
                     .filter(tx_global_order::tx_digest.eq(digest_bytes))
                     .select((
@@ -1978,7 +1970,7 @@ impl IndexerReader {
                 Some((opt_seq, _)) if opt_seq > 0 => Ok(true),
                 // Checkpoint tx: check if the latest indexed checkpoint covers this tx.
                 Some((_, Some(tx_seq))) => {
-                    let max_indexed_tx = run_query!(&this.pool, |conn| {
+                    let max_indexed_tx = read_only_blocking!(&this.pool, |conn| {
                         checkpoints::table
                             .order(checkpoints::sequence_number.desc())
                             .select(checkpoints::max_tx_sequence_number)
@@ -2355,7 +2347,7 @@ impl IndexerReader {
         cursor: Option<ObjectId>,
         limit: usize,
     ) -> Result<Vec<StoredObject>, IndexerError> {
-        let objects: Vec<StoredObject> = run_query!(&self.pool, |conn| {
+        let objects: Vec<StoredObject> = read_only_blocking!(&self.pool, |conn| {
             let mut query = objects::dsl::objects
                 .filter(objects::dsl::owner_type.eq(OwnerType::Object as i16))
                 .filter(objects::dsl::owner_id.eq(parent_object_id.as_bytes()))
@@ -2484,7 +2476,7 @@ impl IndexerReader {
         &self,
         object_type: String,
     ) -> Result<Option<VecMap<String, String>>, IndexerError> {
-        let stored_display = run_query!(&self.pool, |conn| {
+        let stored_display = read_only_blocking!(&self.pool, |conn| {
             display::table
                 .filter(display::object_type.eq(object_type))
                 .first::<StoredDisplay>(conn)
@@ -2532,7 +2524,8 @@ impl IndexerReader {
             .order(objects::dsl::object_id.asc())
             .limit(limit as i64);
 
-        let stored_objects = run_query!(&self.pool, |conn| query.load::<StoredObject>(conn))?;
+        let stored_objects =
+            read_only_blocking!(&self.pool, |conn| query.load::<StoredObject>(conn))?;
 
         stored_objects
             .into_iter()
@@ -2580,7 +2573,7 @@ impl IndexerReader {
         );
 
         tracing::debug!("get coin balances query: {query}");
-        let coin_balances = run_query!(&self.pool, |conn| diesel::sql_query(query)
+        let coin_balances = read_only_blocking!(&self.pool, |conn| diesel::sql_query(query)
             .load::<CoinBalance>(conn))?;
         coin_balances
             .into_iter()
@@ -2589,21 +2582,21 @@ impl IndexerReader {
     }
 
     pub fn get_latest_network_metrics(&self) -> IndexerResult<NetworkMetrics> {
-        let mut metrics = run_query!(&self.pool, |conn| {
+        let mut metrics = read_only_blocking!(&self.pool, |conn| {
             diesel::sql_query("SELECT * FROM network_metrics;")
                 .get_result::<StoredNetworkMetrics>(conn)
         })?;
         if metrics.total_addresses == -1 {
             // this implies that the estimate is not available in the db
             // so we fallback to the more expensive count query
-            metrics.total_addresses = run_query!(&self.pool, |conn| {
+            metrics.total_addresses = read_only_blocking!(&self.pool, |conn| {
                 addresses::dsl::addresses.count().get_result::<i64>(conn)
             })?;
         }
         if metrics.total_packages == -1 {
             // this implies that the estimate is not available in the db
             // so we fallback to the more expensive count query
-            metrics.total_packages = run_query!(&self.pool, |conn| {
+            metrics.total_packages = read_only_blocking!(&self.pool, |conn| {
                 packages::dsl::packages.count().get_result::<i64>(conn)
             })?;
         }
@@ -2651,7 +2644,7 @@ impl IndexerReader {
             LIMIT 10
         ";
 
-        let queried_metrics = run_query!(&self.pool, |conn| sql_query(query)
+        let queried_metrics = read_only_blocking!(&self.pool, |conn| sql_query(query)
             .bind::<BigInt, _>(day_value)
             .load::<QueriedMoveCallMetrics>(conn))?;
 
@@ -2667,7 +2660,7 @@ impl IndexerReader {
     }
 
     pub fn get_latest_address_metrics(&self) -> IndexerResult<AddressMetrics> {
-        let stored_address_metrics = run_query!(&self.pool, |conn| {
+        let stored_address_metrics = read_only_blocking!(&self.pool, |conn| {
             address_metrics::table
                 .order(address_metrics::dsl::checkpoint.desc())
                 .first::<StoredAddressMetrics>(conn)
@@ -2679,7 +2672,7 @@ impl IndexerReader {
         &self,
         checkpoint_seq: u64,
     ) -> IndexerResult<AddressMetrics> {
-        let stored_address_metrics = run_query!(&self.pool, |conn| {
+        let stored_address_metrics = read_only_blocking!(&self.pool, |conn| {
             address_metrics::table
                 .filter(address_metrics::dsl::checkpoint.eq(checkpoint_seq as i64))
                 .first::<StoredAddressMetrics>(conn)
@@ -2706,7 +2699,7 @@ impl IndexerReader {
               WHERE row_num = 1 ORDER BY epoch {}",
             if is_descending { "DESC" } else { "ASC" },
         );
-        let epoch_address_metrics = run_query!(&self.pool, |conn| {
+        let epoch_address_metrics = read_only_blocking!(&self.pool, |conn| {
             diesel::sql_query(epoch_address_metrics_query).load::<StoredAddressMetrics>(conn)
         })?;
 
@@ -2876,7 +2869,7 @@ impl IndexerReader {
     /// number of unique addresses that have delegated stake in the current
     /// epoch. Includes both staked and timelocked staked IOTA.
     pub fn get_participation_metrics(&self) -> IndexerResult<ParticipationMetrics> {
-        run_query!(&self.pool, |conn| {
+        read_only_blocking!(&self.pool, |conn| {
             diesel::sql_query("SELECT * FROM participation_metrics")
                 .get_result::<StoredParticipationMetrics>(conn)
         })

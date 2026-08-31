@@ -16,7 +16,10 @@ use crate::{
     metrics::IndexerMetrics,
     models::watermarks::StoredWatermark,
     spawn_monitored_task,
-    store::{IndexerStore, PgIndexerStore, pg_partition_manager::PgPartitionManager},
+    store::{
+        IndexerStore, PgIndexerStore, diesel_macro::spawn_blocking_task,
+        pg_partition_manager::PgPartitionManager,
+    },
     types::IndexerResult,
 };
 
@@ -377,8 +380,13 @@ impl<'a> TablePruner<'a> {
         match self.table.pruning_strategy() {
             PruningStrategy::ByEpochPartition => {
                 for epoch in start..=end {
-                    self.partition_manager
-                        .drop_table_partition(self.table.as_ref().to_string(), epoch)?;
+                    let partition_manager = self.partition_manager.clone();
+                    let table = self.table.as_ref().to_string();
+                    spawn_blocking_task(move || {
+                        partition_manager.drop_table_partition(table, epoch)
+                    })
+                    .await
+                    .map_err(IndexerError::from)??;
                     info!(
                         "dropped epoch {epoch} partition for table {}",
                         self.table.as_ref()
@@ -495,7 +503,7 @@ impl Pruner {
         metrics: IndexerMetrics,
     ) -> Result<Self, IndexerError> {
         let blocking_cp = PrimaryWorker::pg_blocking_cp(store.clone()).unwrap();
-        let partition_manager = PgPartitionManager::new(blocking_cp)?;
+        let partition_manager = PgPartitionManager::new(blocking_cp);
         let retention_policies = retention_config.retention_policies();
 
         Ok(Self {

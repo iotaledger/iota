@@ -36,7 +36,9 @@ use crate::{
         active_addresses, address_metrics, addresses, checkpoints, epoch_peak_tps,
         move_call_metrics, move_calls, transactions, tx_count_metrics,
     },
-    store::diesel_macro::{read_only_blocking, transactional_blocking_with_retry},
+    store::diesel_macro::{
+        read_only_blocking, spawn_blocking_task, transactional_blocking_with_retry,
+    },
     types::IndexerResult,
 };
 
@@ -51,30 +53,48 @@ impl PgIndexerAnalyticalStore {
     pub fn new(blocking_cp: ConnectionPool) -> Self {
         Self { blocking_cp }
     }
+
+    async fn execute_in_blocking_worker<F, R>(&self, f: F) -> Result<R, IndexerError>
+    where
+        F: FnOnce(Self) -> Result<R, IndexerError> + Send + 'static,
+        R: Send + 'static,
+    {
+        let this = self.clone();
+        spawn_blocking_task(move || f(this))
+            .await
+            .map_err(Into::into)
+            .and_then(std::convert::identity)
+    }
 }
 
 #[async_trait]
 impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
     async fn get_latest_stored_checkpoint(&self) -> IndexerResult<Option<StoredCheckpoint>> {
-        let latest_cp = read_only_blocking!(&self.blocking_cp, |conn| {
-            checkpoints::dsl::checkpoints
-                .order(checkpoints::sequence_number.desc())
-                .first::<StoredCheckpoint>(conn)
-                .optional()
+        self.execute_in_blocking_worker(move |this| {
+            let latest_cp = read_only_blocking!(&this.blocking_cp, |conn| {
+                checkpoints::dsl::checkpoints
+                    .order(checkpoints::sequence_number.desc())
+                    .first::<StoredCheckpoint>(conn)
+                    .optional()
+            })
+            .context("failed reading latest checkpoint from PostgresDB")?;
+            Ok(latest_cp)
         })
-        .context("failed reading latest checkpoint from PostgresDB")?;
-        Ok(latest_cp)
+        .await
     }
 
     async fn get_latest_stored_transaction(&self) -> IndexerResult<Option<StoredTransaction>> {
-        let latest_tx = read_only_blocking!(&self.blocking_cp, |conn| {
-            transactions::dsl::transactions
-                .order(transactions::tx_sequence_number.desc())
-                .first::<StoredTransaction>(conn)
-                .optional()
+        self.execute_in_blocking_worker(move |this| {
+            let latest_tx = read_only_blocking!(&this.blocking_cp, |conn| {
+                transactions::dsl::transactions
+                    .order(transactions::tx_sequence_number.desc())
+                    .first::<StoredTransaction>(conn)
+                    .optional()
+            })
+            .context("failed reading latest transaction from PostgresDB")?;
+            Ok(latest_tx)
         })
-        .context("failed reading latest transaction from PostgresDB")?;
-        Ok(latest_tx)
+        .await
     }
 
     async fn get_checkpoints_in_range(
@@ -82,15 +102,18 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         start_checkpoint: i64,
         end_checkpoint: i64,
     ) -> IndexerResult<Vec<StoredCheckpoint>> {
-        let cps = read_only_blocking!(&self.blocking_cp, |conn| {
-            checkpoints::dsl::checkpoints
-                .filter(checkpoints::sequence_number.ge(start_checkpoint))
-                .filter(checkpoints::sequence_number.lt(end_checkpoint))
-                .order(checkpoints::sequence_number.asc())
-                .load::<StoredCheckpoint>(conn)
+        self.execute_in_blocking_worker(move |this| {
+            let cps = read_only_blocking!(&this.blocking_cp, |conn| {
+                checkpoints::dsl::checkpoints
+                    .filter(checkpoints::sequence_number.ge(start_checkpoint))
+                    .filter(checkpoints::sequence_number.lt(end_checkpoint))
+                    .order(checkpoints::sequence_number.asc())
+                    .load::<StoredCheckpoint>(conn)
+            })
+            .context("failed reading checkpoints from PostgresDB")?;
+            Ok(cps)
         })
-        .context("failed reading checkpoints from PostgresDB")?;
-        Ok(cps)
+        .await
     }
 
     async fn get_tx_timestamps_in_checkpoint_range(
@@ -98,19 +121,22 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         start_checkpoint: i64,
         end_checkpoint: i64,
     ) -> IndexerResult<Vec<StoredTransactionTimestamp>> {
-        let tx_timestamps = read_only_blocking!(&self.blocking_cp, |conn| {
-            transactions::dsl::transactions
-                .filter(transactions::dsl::checkpoint_sequence_number.ge(start_checkpoint))
-                .filter(transactions::dsl::checkpoint_sequence_number.lt(end_checkpoint))
-                .order(transactions::dsl::tx_sequence_number.asc())
-                .select((
-                    transactions::dsl::tx_sequence_number,
-                    transactions::dsl::timestamp_ms,
-                ))
-                .load::<StoredTransactionTimestamp>(conn)
+        self.execute_in_blocking_worker(move |this| {
+            let tx_timestamps = read_only_blocking!(&this.blocking_cp, |conn| {
+                transactions::dsl::transactions
+                    .filter(transactions::dsl::checkpoint_sequence_number.ge(start_checkpoint))
+                    .filter(transactions::dsl::checkpoint_sequence_number.lt(end_checkpoint))
+                    .order(transactions::dsl::tx_sequence_number.asc())
+                    .select((
+                        transactions::dsl::tx_sequence_number,
+                        transactions::dsl::timestamp_ms,
+                    ))
+                    .load::<StoredTransactionTimestamp>(conn)
+            })
+            .context("failed reading transaction timestamps from PostgresDB")?;
+            Ok(tx_timestamps)
         })
-        .context("failed reading transaction timestamps from PostgresDB")?;
-        Ok(tx_timestamps)
+        .await
     }
 
     async fn get_tx_checkpoints_in_checkpoint_range(
@@ -118,19 +144,22 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         start_checkpoint: i64,
         end_checkpoint: i64,
     ) -> IndexerResult<Vec<StoredTransactionCheckpoint>> {
-        let tx_checkpoints = read_only_blocking!(&self.blocking_cp, |conn| {
-            transactions::dsl::transactions
-                .filter(transactions::dsl::checkpoint_sequence_number.ge(start_checkpoint))
-                .filter(transactions::dsl::checkpoint_sequence_number.lt(end_checkpoint))
-                .order(transactions::dsl::tx_sequence_number.asc())
-                .select((
-                    transactions::dsl::tx_sequence_number,
-                    transactions::dsl::checkpoint_sequence_number,
-                ))
-                .load::<StoredTransactionCheckpoint>(conn)
+        self.execute_in_blocking_worker(move |this| {
+            let tx_checkpoints = read_only_blocking!(&this.blocking_cp, |conn| {
+                transactions::dsl::transactions
+                    .filter(transactions::dsl::checkpoint_sequence_number.ge(start_checkpoint))
+                    .filter(transactions::dsl::checkpoint_sequence_number.lt(end_checkpoint))
+                    .order(transactions::dsl::tx_sequence_number.asc())
+                    .select((
+                        transactions::dsl::tx_sequence_number,
+                        transactions::dsl::checkpoint_sequence_number,
+                    ))
+                    .load::<StoredTransactionCheckpoint>(conn)
+            })
+            .context("failed reading transaction checkpoints from PostgresDB")?;
+            Ok(tx_checkpoints)
         })
-        .context("failed reading transaction checkpoints from PostgresDB")?;
-        Ok(tx_checkpoints)
+        .await
     }
 
     async fn get_tx_success_cmd_counts_in_checkpoint_range(
@@ -138,64 +167,80 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         start_checkpoint: i64,
         end_checkpoint: i64,
     ) -> IndexerResult<Vec<StoredTransactionSuccessCommandCount>> {
-        let tx_success_cmd_counts = read_only_blocking!(&self.blocking_cp, |conn| {
-            transactions::dsl::transactions
-                .filter(transactions::dsl::checkpoint_sequence_number.ge(start_checkpoint))
-                .filter(transactions::dsl::checkpoint_sequence_number.lt(end_checkpoint))
-                .order(transactions::dsl::tx_sequence_number.asc())
-                .select((
-                    transactions::dsl::tx_sequence_number,
-                    transactions::dsl::checkpoint_sequence_number,
-                    transactions::dsl::success_command_count,
-                    transactions::dsl::timestamp_ms,
-                ))
-                .load::<StoredTransactionSuccessCommandCount>(conn)
+        self.execute_in_blocking_worker(move |this| {
+            let tx_success_cmd_counts = read_only_blocking!(&this.blocking_cp, |conn| {
+                transactions::dsl::transactions
+                    .filter(transactions::dsl::checkpoint_sequence_number.ge(start_checkpoint))
+                    .filter(transactions::dsl::checkpoint_sequence_number.lt(end_checkpoint))
+                    .order(transactions::dsl::tx_sequence_number.asc())
+                    .select((
+                        transactions::dsl::tx_sequence_number,
+                        transactions::dsl::checkpoint_sequence_number,
+                        transactions::dsl::success_command_count,
+                        transactions::dsl::timestamp_ms,
+                    ))
+                    .load::<StoredTransactionSuccessCommandCount>(conn)
+            })
+            .context("failed reading transaction success command counts from PostgresDB")?;
+            Ok(tx_success_cmd_counts)
         })
-        .context("failed reading transaction success command counts from PostgresDB")?;
-        Ok(tx_success_cmd_counts)
+        .await
     }
+
     async fn get_tx(&self, tx_sequence_number: i64) -> IndexerResult<Option<StoredTransaction>> {
-        let tx = read_only_blocking!(&self.blocking_cp, |conn| {
-            transactions::dsl::transactions
-                .filter(transactions::dsl::tx_sequence_number.eq(tx_sequence_number))
-                .first::<StoredTransaction>(conn)
-                .optional()
+        self.execute_in_blocking_worker(move |this| {
+            let tx = read_only_blocking!(&this.blocking_cp, |conn| {
+                transactions::dsl::transactions
+                    .filter(transactions::dsl::tx_sequence_number.eq(tx_sequence_number))
+                    .first::<StoredTransaction>(conn)
+                    .optional()
+            })
+            .context("failed reading transaction from PostgresDB")?;
+            Ok(tx)
         })
-        .context("failed reading transaction from PostgresDB")?;
-        Ok(tx)
+        .await
     }
 
     async fn get_cp(&self, sequence_number: i64) -> IndexerResult<Option<StoredCheckpoint>> {
-        let cp = read_only_blocking!(&self.blocking_cp, |conn| {
-            checkpoints::dsl::checkpoints
-                .filter(checkpoints::dsl::sequence_number.eq(sequence_number))
-                .first::<StoredCheckpoint>(conn)
-                .optional()
+        self.execute_in_blocking_worker(move |this| {
+            let cp = read_only_blocking!(&this.blocking_cp, |conn| {
+                checkpoints::dsl::checkpoints
+                    .filter(checkpoints::dsl::sequence_number.eq(sequence_number))
+                    .first::<StoredCheckpoint>(conn)
+                    .optional()
+            })
+            .context("failed reading checkpoint from PostgresDB")?;
+            Ok(cp)
         })
-        .context("failed reading checkpoint from PostgresDB")?;
-        Ok(cp)
+        .await
     }
 
     async fn get_latest_tx_count_metrics(&self) -> IndexerResult<Option<StoredTxCountMetrics>> {
-        let latest_tx_count = read_only_blocking!(&self.blocking_cp, |conn| {
-            tx_count_metrics::dsl::tx_count_metrics
-                .order(tx_count_metrics::dsl::checkpoint_sequence_number.desc())
-                .first::<StoredTxCountMetrics>(conn)
-                .optional()
+        self.execute_in_blocking_worker(move |this| {
+            let latest_tx_count = read_only_blocking!(&this.blocking_cp, |conn| {
+                tx_count_metrics::dsl::tx_count_metrics
+                    .order(tx_count_metrics::dsl::checkpoint_sequence_number.desc())
+                    .first::<StoredTxCountMetrics>(conn)
+                    .optional()
+            })
+            .context("failed reading latest tx count metrics from PostgresDB")?;
+            Ok(latest_tx_count)
         })
-        .context("failed reading latest tx count metrics from PostgresDB")?;
-        Ok(latest_tx_count)
+        .await
     }
 
     async fn get_latest_epoch_peak_tps(&self) -> IndexerResult<Option<StoredEpochPeakTps>> {
-        let latest_network_metrics = read_only_blocking!(&self.blocking_cp, |conn| {
-            epoch_peak_tps::dsl::epoch_peak_tps
-                .order(epoch_peak_tps::dsl::epoch.desc())
-                .first::<StoredEpochPeakTps>(conn)
-                .optional()
+        self.execute_in_blocking_worker(move |this| {
+            let latest_network_metrics = read_only_blocking!(&this.blocking_cp, |conn| {
+                epoch_peak_tps::dsl::epoch_peak_tps
+                    .order(epoch_peak_tps::dsl::epoch.desc())
+                    .first::<StoredEpochPeakTps>(conn)
+                    .optional()
+            })
+            .context("failed reading latest epoch peak TPS from PostgresDB")?;
+            Ok(latest_network_metrics)
         })
-        .context("failed reading latest epoch peak TPS from PostgresDB")?;
-        Ok(latest_network_metrics)
+        .await
     }
 
     /// Persists the transaction count metrics for the given checkpoint range.
@@ -229,50 +274,56 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
     }
 
     async fn persist_epoch_peak_tps(&self, epoch: i64) -> IndexerResult<()> {
-        let epoch_peak_tps_query = construct_peak_tps_query(epoch, 1);
-        let peak_tps_30d_query = construct_peak_tps_query(epoch, 30);
-        let epoch_tps: Tps =
-            read_only_blocking!(&self.blocking_cp, |conn| diesel::RunQueryDsl::get_result(
-                diesel::sql_query(epoch_peak_tps_query),
-                conn
-            ))
-            .context("failed reading epoch peak TPS from PostgresDB")?;
-        let tps_30d: Tps =
-            read_only_blocking!(&self.blocking_cp, |conn| diesel::RunQueryDsl::get_result(
-                diesel::sql_query(peak_tps_30d_query),
-                conn
-            ))
-            .context("failed reading 30d peak TPS from PostgresDB")?;
+        self.execute_in_blocking_worker(move |this| {
+            let epoch_peak_tps_query = construct_peak_tps_query(epoch, 1);
+            let peak_tps_30d_query = construct_peak_tps_query(epoch, 30);
+            let epoch_tps: Tps =
+                read_only_blocking!(&this.blocking_cp, |conn| diesel::RunQueryDsl::get_result(
+                    diesel::sql_query(epoch_peak_tps_query),
+                    conn
+                ))
+                .context("failed reading epoch peak TPS from PostgresDB")?;
+            let tps_30d: Tps =
+                read_only_blocking!(&this.blocking_cp, |conn| diesel::RunQueryDsl::get_result(
+                    diesel::sql_query(peak_tps_30d_query),
+                    conn
+                ))
+                .context("failed reading 30d peak TPS from PostgresDB")?;
 
-        let epoch_peak_tps = StoredEpochPeakTps {
-            epoch,
-            peak_tps: epoch_tps.peak_tps,
-            peak_tps_30d: tps_30d.peak_tps,
-        };
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                diesel::insert_into(epoch_peak_tps::table)
-                    .values(epoch_peak_tps.clone())
-                    .on_conflict_do_nothing()
-                    .execute(conn)
-            },
-            Duration::from_secs(10)
-        )
-        .context("failed persisting epoch peak TPS to PostgresDB.")?;
-        Ok(())
+            let epoch_peak_tps = StoredEpochPeakTps {
+                epoch,
+                peak_tps: epoch_tps.peak_tps,
+                peak_tps_30d: tps_30d.peak_tps,
+            };
+            transactional_blocking_with_retry!(
+                &this.blocking_cp,
+                |conn| {
+                    diesel::insert_into(epoch_peak_tps::table)
+                        .values(epoch_peak_tps.clone())
+                        .on_conflict_do_nothing()
+                        .execute(conn)
+                },
+                Duration::from_secs(10)
+            )
+            .context("failed persisting epoch peak TPS to PostgresDB.")?;
+            Ok(())
+        })
+        .await
     }
 
     async fn get_address_metrics_last_processed_tx_seq(&self) -> IndexerResult<Option<TxSeq>> {
-        let last_processed_tx_seq = read_only_blocking!(&self.blocking_cp, |conn| {
-            active_addresses::dsl::active_addresses
-                .order(active_addresses::dsl::last_appearance_tx.desc())
-                .select((active_addresses::dsl::last_appearance_tx,))
-                .first::<TxSeq>(conn)
-                .optional()
+        self.execute_in_blocking_worker(move |this| {
+            let last_processed_tx_seq = read_only_blocking!(&this.blocking_cp, |conn| {
+                active_addresses::dsl::active_addresses
+                    .order(active_addresses::dsl::last_appearance_tx.desc())
+                    .select((active_addresses::dsl::last_appearance_tx,))
+                    .first::<TxSeq>(conn)
+                    .optional()
+            })
+            .context("failed to read address metrics last processed tx sequence.")?;
+            Ok(last_processed_tx_seq)
         })
-        .context("failed to read address metrics last processed tx sequence.")?;
-        Ok(last_processed_tx_seq)
+        .await
     }
 
     /// Calls the stored procedure `persist_address_analytics`.
@@ -314,70 +365,79 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .pop();
         }
         let checkpoint = checkpoint_opt.unwrap();
-        let cp_timestamp_ms = checkpoint.timestamp_ms;
-        let addr_count = read_only_blocking!(&self.blocking_cp, |conn| {
-            addresses::dsl::addresses
-                .filter(addresses::first_appearance_time.le(cp_timestamp_ms))
-                .count()
-                .get_result::<i64>(conn)
-        })?;
-        let active_addr_count = read_only_blocking!(&self.blocking_cp, |conn| {
-            active_addresses::dsl::active_addresses
-                .filter(active_addresses::first_appearance_time.le(cp_timestamp_ms))
-                .count()
-                .get_result::<i64>(conn)
-        })?;
-        let time_one_day_ago = cp_timestamp_ms - 1000 * 60 * 60 * 24;
-        let daily_active_addresses = read_only_blocking!(&self.blocking_cp, |conn| {
-            active_addresses::dsl::active_addresses
-                .filter(active_addresses::first_appearance_time.le(cp_timestamp_ms))
-                .filter(active_addresses::last_appearance_time.gt(time_one_day_ago))
-                .select(count(active_addresses::address))
-                .first(conn)
-        })?;
-        let address_metrics_to_commit = StoredAddressMetrics {
-            checkpoint: checkpoint.sequence_number,
-            epoch: checkpoint.epoch,
-            timestamp_ms: checkpoint.timestamp_ms,
-            cumulative_addresses: addr_count,
-            cumulative_active_addresses: active_addr_count,
-            daily_active_addresses,
-        };
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                diesel::insert_into(address_metrics::table)
-                    .values(address_metrics_to_commit.clone())
-                    .on_conflict_do_nothing()
-                    .execute(conn)
-            },
-            Duration::from_secs(60)
-        )
-        .context("failed persisting address metrics to PostgresDB")?;
-        Ok(())
+        self.execute_in_blocking_worker(move |this| {
+            let cp_timestamp_ms = checkpoint.timestamp_ms;
+            let addr_count = read_only_blocking!(&this.blocking_cp, |conn| {
+                addresses::dsl::addresses
+                    .filter(addresses::first_appearance_time.le(cp_timestamp_ms))
+                    .count()
+                    .get_result::<i64>(conn)
+            })?;
+            let active_addr_count = read_only_blocking!(&this.blocking_cp, |conn| {
+                active_addresses::dsl::active_addresses
+                    .filter(active_addresses::first_appearance_time.le(cp_timestamp_ms))
+                    .count()
+                    .get_result::<i64>(conn)
+            })?;
+            let time_one_day_ago = cp_timestamp_ms - 1000 * 60 * 60 * 24;
+            let daily_active_addresses = read_only_blocking!(&this.blocking_cp, |conn| {
+                active_addresses::dsl::active_addresses
+                    .filter(active_addresses::first_appearance_time.le(cp_timestamp_ms))
+                    .filter(active_addresses::last_appearance_time.gt(time_one_day_ago))
+                    .select(count(active_addresses::address))
+                    .first(conn)
+            })?;
+            let address_metrics_to_commit = StoredAddressMetrics {
+                checkpoint: checkpoint.sequence_number,
+                epoch: checkpoint.epoch,
+                timestamp_ms: checkpoint.timestamp_ms,
+                cumulative_addresses: addr_count,
+                cumulative_active_addresses: active_addr_count,
+                daily_active_addresses,
+            };
+            transactional_blocking_with_retry!(
+                &this.blocking_cp,
+                |conn| {
+                    diesel::insert_into(address_metrics::table)
+                        .values(address_metrics_to_commit.clone())
+                        .on_conflict_do_nothing()
+                        .execute(conn)
+                },
+                Duration::from_secs(60)
+            )
+            .context("failed persisting address metrics to PostgresDB")?;
+            Ok(())
+        })
+        .await
     }
 
     async fn get_latest_move_call_tx_seq(&self) -> IndexerResult<Option<TxSeq>> {
-        let last_processed_tx_seq = read_only_blocking!(&self.blocking_cp, |conn| {
-            move_calls::dsl::move_calls
-                .order(move_calls::dsl::transaction_sequence_number.desc())
-                .select((move_calls::dsl::transaction_sequence_number,))
-                .first::<TxSeq>(conn)
-                .optional()
+        self.execute_in_blocking_worker(move |this| {
+            let last_processed_tx_seq = read_only_blocking!(&this.blocking_cp, |conn| {
+                move_calls::dsl::move_calls
+                    .order(move_calls::dsl::transaction_sequence_number.desc())
+                    .select((move_calls::dsl::transaction_sequence_number,))
+                    .first::<TxSeq>(conn)
+                    .optional()
+            })
+            .unwrap_or_default();
+            Ok(last_processed_tx_seq)
         })
-        .unwrap_or_default();
-        Ok(last_processed_tx_seq)
+        .await
     }
 
     async fn get_latest_move_call_metrics(&self) -> IndexerResult<Option<StoredMoveCallMetrics>> {
-        let latest_move_call_metrics = read_only_blocking!(&self.blocking_cp, |conn| {
-            move_call_metrics::dsl::move_call_metrics
-                .order(move_call_metrics::epoch.desc())
-                .first::<QueriedMoveCallMetrics>(conn)
-                .optional()
+        self.execute_in_blocking_worker(move |this| {
+            let latest_move_call_metrics = read_only_blocking!(&this.blocking_cp, |conn| {
+                move_call_metrics::dsl::move_call_metrics
+                    .order(move_call_metrics::epoch.desc())
+                    .first::<QueriedMoveCallMetrics>(conn)
+                    .optional()
+            })
+            .unwrap_or_default();
+            Ok(latest_move_call_metrics.map(|m| m.into()))
         })
-        .unwrap_or_default();
-        Ok(latest_move_call_metrics.map(|m| m.into()))
+        .await
     }
 
     fn persist_move_calls_in_tx_range(
@@ -405,19 +465,19 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
 
         let mut calculate_tasks = vec![];
         let blocking_cp_3d = self.blocking_cp.clone();
-        calculate_tasks.push(tokio::task::spawn_blocking(move || {
+        calculate_tasks.push(spawn_blocking_task(move || {
             read_only_blocking!(&blocking_cp_3d, |conn| {
                 diesel::sql_query(move_call_query_3d).get_results::<QueriedMoveMetrics>(conn)
             })
         }));
         let blocking_cp_7d = self.blocking_cp.clone();
-        calculate_tasks.push(tokio::task::spawn_blocking(move || {
+        calculate_tasks.push(spawn_blocking_task(move || {
             read_only_blocking!(&blocking_cp_7d, |conn| {
                 diesel::sql_query(move_call_query_7d).get_results::<QueriedMoveMetrics>(conn)
             })
         }));
         let blocking_cp_30d = self.blocking_cp.clone();
-        calculate_tasks.push(tokio::task::spawn_blocking(move || {
+        calculate_tasks.push(spawn_blocking_task(move || {
             read_only_blocking!(&blocking_cp_30d, |conn| {
                 diesel::sql_query(move_call_query_30d).get_results::<QueriedMoveMetrics>(conn)
             })
@@ -464,18 +524,21 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             })
             .collect();
 
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                diesel::insert_into(move_call_metrics::table)
-                    .values(move_call_metrics.clone())
-                    .on_conflict_do_nothing()
-                    .execute(conn)
-            },
-            Duration::from_secs(60)
-        )
-        .context("failed persisting move call metrics to PostgresDB")?;
-        Ok(())
+        self.execute_in_blocking_worker(move |this| {
+            transactional_blocking_with_retry!(
+                &this.blocking_cp,
+                |conn| {
+                    diesel::insert_into(move_call_metrics::table)
+                        .values(move_call_metrics.clone())
+                        .on_conflict_do_nothing()
+                        .execute(conn)
+                },
+                Duration::from_secs(60)
+            )
+            .context("failed persisting move call metrics to PostgresDB")?;
+            Ok(())
+        })
+        .await
     }
 }
 

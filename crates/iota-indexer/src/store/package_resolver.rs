@@ -112,6 +112,6 @@ impl IndexerStorePackageResolver {
         id: Address,
     ) -> Result<Package, IndexerError> {
         let this = self.clone();
-        tokio::task::spawn_blocking(move || this.get_package_from_db(id)).await?
+        spawn_blocking_task(move || this.get_package_from_db(id)).await?
     }
 }

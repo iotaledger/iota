@@ -8,8 +8,12 @@ use std::str::FromStr;
 
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, SelectableHelper};
 use iota_indexer::{
-    errors::IndexerError, models::objects::StoredCheckpointedObject, schema::checkpointed_objects,
-    store::PgIndexerStore, types::ObjectStatus,
+    errors::IndexerError,
+    models::objects::StoredCheckpointedObject,
+    read_only_blocking,
+    schema::checkpointed_objects,
+    store::{PgIndexerStore, diesel_macro::spawn_blocking_task},
+    types::ObjectStatus,
 };
 use iota_json::call_args;
 use iota_sdk_crypto::simple::SimpleKeypair;
@@ -23,17 +27,23 @@ use crate::{
     },
 };
 
-fn find_checkpointed_object(
+async fn find_checkpointed_object(
     store: &PgIndexerStore,
     object_id: &[u8],
 ) -> Result<Option<StoredCheckpointedObject>, IndexerError> {
-    iota_indexer::read_only_blocking!(&store.blocking_cp(), |conn| {
-        checkpointed_objects::table
-            .filter(checkpointed_objects::object_id.eq(object_id))
-            .select(StoredCheckpointedObject::as_select())
-            .first::<StoredCheckpointedObject>(conn)
-            .optional()
+    let blocking_cp = store.blocking_cp();
+    let object_id = object_id.to_vec();
+    spawn_blocking_task(move || {
+        read_only_blocking!(&blocking_cp, |conn| {
+            checkpointed_objects::table
+                .filter(checkpointed_objects::object_id.eq(object_id))
+                .select(StoredCheckpointedObject::as_select())
+                .first::<StoredCheckpointedObject>(conn)
+                .optional()
+        })
     })
+    .await
+    .expect("failed to join Tokio blocking task")
 }
 
 #[test]
@@ -77,7 +87,8 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         .await;
         let (item_id, _) = first_created(&resp);
 
-        let entry = find_checkpointed_object(store, item_id.as_bytes())?
+        let entry = find_checkpointed_object(store, item_id.as_bytes())
+            .await?
             .expect("item should exist in checkpointed_objects after creation");
         assert_eq!(
             entry.object_status,
@@ -102,7 +113,8 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         .await;
         let (box_id, _) = first_created(&resp);
 
-        let entry = find_checkpointed_object(store, item_id.as_bytes())?
+        let entry = find_checkpointed_object(store, item_id.as_bytes())
+            .await?
             .expect("wrapped item should still exist in checkpointed_objects as tombstone");
         assert_eq!(
             entry.object_status,
@@ -114,7 +126,8 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         assert!(entry.serialized_object.is_none());
 
         // Box should be Active.
-        let entry = find_checkpointed_object(store, box_id.as_bytes())?
+        let entry = find_checkpointed_object(store, box_id.as_bytes())
+            .await?
             .expect("box should exist in checkpointed_objects");
         assert_eq!(
             entry.object_status,
@@ -135,7 +148,8 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         )
         .await;
 
-        let entry = find_checkpointed_object(store, item_id.as_bytes())?
+        let entry = find_checkpointed_object(store, item_id.as_bytes())
+            .await?
             .expect("unwrapped item should exist in checkpointed_objects");
         assert_eq!(
             entry.object_status,
@@ -147,7 +161,8 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         assert!(entry.serialized_object.is_some());
 
         // Box should be WrappedOrDeleted (it was consumed by unwrap).
-        let entry = find_checkpointed_object(store, box_id.as_bytes())?
+        let entry = find_checkpointed_object(store, box_id.as_bytes())
+            .await?
             .expect("deleted box should still exist as tombstone");
         assert_eq!(
             entry.object_status,
@@ -168,7 +183,8 @@ fn checkpointed_objects_wrap_delete_unwrap_lifecycle() -> Result<(), anyhow::Err
         )
         .await;
 
-        let entry = find_checkpointed_object(store, item_id.as_bytes())?
+        let entry = find_checkpointed_object(store, item_id.as_bytes())
+            .await?
             .expect("deleted item should still exist as tombstone");
         assert_eq!(
             entry.object_status,

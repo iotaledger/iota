@@ -14,7 +14,7 @@ use crate::{
     IndexerMetrics, Registry, backfill::ingestion::IngestionBackfill, db::ConnectionPool,
     errors::IndexerError, ingestion::primary::prepare::PrimaryWorker,
     models::transactions::StoredTransaction, schema::transactions,
-    transactional_blocking_with_retry,
+    store::diesel_macro::spawn_blocking_task, transactional_blocking_with_retry,
 };
 
 const PG_DB_COMMIT_SLEEP_DURATION: Duration = Duration::from_secs(3600);
@@ -93,19 +93,25 @@ impl IngestionBackfill for ObjectChangesUnwrappedBackfill {
 
         // The UPDATE only affects rows that exist in the database. Update for
         // non-existing rows is silently skipped.
-        transactional_blocking_with_retry!(
-            &pool,
-            |conn| {
-                for (tx_seq, obj_changes) in tx_sequence_numbers.iter().zip(object_changes.iter()) {
-                    diesel::update(transactions::table)
-                        .filter(transactions::tx_sequence_number.eq(tx_seq))
-                        .set(transactions::object_changes.eq(obj_changes))
-                        .execute(conn)?;
-                }
+        spawn_blocking_task(move || {
+            transactional_blocking_with_retry!(
+                &pool,
+                |conn| {
+                    for (tx_seq, obj_changes) in
+                        tx_sequence_numbers.iter().zip(object_changes.iter())
+                    {
+                        diesel::update(transactions::table)
+                            .filter(transactions::tx_sequence_number.eq(tx_seq))
+                            .set(transactions::object_changes.eq(obj_changes))
+                            .execute(conn)?;
+                    }
 
-                Ok::<(), IndexerError>(())
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
+                    Ok::<(), IndexerError>(())
+                },
+                PG_DB_COMMIT_SLEEP_DURATION
+            )
+        })
+        .await
+        .map_err(IndexerError::from)?
     }
 }
