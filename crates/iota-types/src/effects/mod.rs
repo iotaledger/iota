@@ -6,8 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
     Address, EpochId, ExecutionStatus, GasCostSummary, InputSharedObject, IntentScope,
-    ResolvedObjectChange, ObjectDigest, ObjectId, ObjectReference, ObjectRemoveKind, ObjectVersion,
-    OwnedObjectReference, Owner, TransactionDigest, TransactionEffectsDigest,
+    ObjectDigest, ObjectId, ObjectReference, ObjectRemoveKind, ObjectVersion, OwnedObjectReference,
+    Owner, ResolvedObjectChange, TransactionDigest, TransactionEffectsDigest,
     TransactionEventsDigest, UnchangedSharedKind, UnchangedSharedObject, Version, WriteKind,
     crypto::Intent,
     effects::{
