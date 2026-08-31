@@ -888,7 +888,7 @@ pub(crate) mod grpc_conversion {
     }
 
     fn object_change_struct_tag(object_type: TypeTag) -> IndexerResult<StructTag> {
-        object_type.into_struct_tag_opt().ok_or_else(|| {
+        object_type.into_opt_struct_tag().ok_or_else(|| {
             IndexerError::Grpc("object change object type should be a struct tag".into())
         })
     }
