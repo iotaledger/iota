@@ -9,7 +9,7 @@ use std::{
     path::Path,
 };
 
-use iota_framework_snapshot::{load_bytecode_snapshot_manifest, manifest_path};
+use iota_framework_snapshot_manifest::{load_bytecode_snapshot_manifest, manifest_path};
 
 /// Output a file `OUT_DIR/system_packages_version_table.rs` containing the
 /// contents of the manifest as a rust literal of type `[(ProtocolVersion,

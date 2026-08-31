@@ -15,16 +15,14 @@ use anyhow::{Context, anyhow, bail, ensure};
 use bip32::DerivationPath;
 use bip39::{Language, Mnemonic, Seed};
 use iota_sdk_crypto::{
-    ToFromBech32, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
+    Signer, ToFromBech32, ed25519::Ed25519PrivateKey, secp256k1::Secp256k1PrivateKey,
     secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{
     Address, SignatureScheme,
     crypto::{Intent, IntentMessage, SimpleSignature},
 };
-use iota_types::crypto::{
-    EncodeDecodeBase64, IotaSignature, PublicKey, enum_dispatch, get_key_pair_from_rng,
-};
+use iota_types::crypto::{EncodeDecodeBase64, PublicKey, enum_dispatch, get_key_pair_from_rng};
 use rand::{SeedableRng, rngs::StdRng};
 use regex::Regex;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -355,7 +353,7 @@ impl AccountKeystore for FileBasedKeystore {
         })?;
 
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_hashed(msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(keypair.sign(msg)),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_hashed is not supported for account type",
             )),
@@ -379,7 +377,7 @@ impl AccountKeystore for FileBasedKeystore {
 
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_secure(intent_msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(keypair.sign(&intent_msg.signing_digest())),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_secure is not supported for account type",
             )),
@@ -748,7 +746,7 @@ impl AccountKeystore for InMemKeystore {
         })?;
 
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_hashed(msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(keypair.sign(msg)),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_hashed is not supported for account type",
             )),
@@ -772,7 +770,7 @@ impl AccountKeystore for InMemKeystore {
 
         let intent_msg = &IntentMessage::new(intent, msg);
         match stored_key {
-            StoredKey::KeyPair(keypair) => Ok(SimpleSignature::new_secure(intent_msg, keypair)),
+            StoredKey::KeyPair(keypair) => Ok(keypair.sign(&intent_msg.signing_digest())),
             StoredKey::Account(_) => Err(signature::Error::from_source(
                 "sign_secure is not supported for account type",
             )),

@@ -14,7 +14,7 @@ use iota_sdk_types::{
     VersionAssignment,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
@@ -65,7 +65,7 @@ struct GasPriceFeedbackTester {
     authority_state: Arc<AuthorityState>,
     protocol_config: ProtocolConfig,
     sender: Address,
-    sender_key: AccountKeyPair,
+    sender_key: AccountPrivateKey,
     gas_object_ids: Vec<ObjectId>,
     package: ObjectReference,
     shared_counter_1: ObjectReference,
@@ -86,7 +86,7 @@ impl GasPriceFeedbackTester {
         enable_gas_price_feedback_mechanism: bool,
         num_gas_objects: usize,
     ) -> Self {
-        let (sender, sender_key): (Address, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (Address, AccountPrivateKey) = get_key_pair();
 
         let mut protocol_config =
             ProtocolConfig::get_for_version(ProtocolVersion::max(), Chain::Unknown);
@@ -176,7 +176,7 @@ impl GasPriceFeedbackTester {
         package_id: &ObjectId,
         gas_object_id: &ObjectId,
         sender: &Address,
-        sender_key: &AccountKeyPair,
+        sender_key: &AccountPrivateKey,
     ) -> ObjectReference {
         let mut builder = ProgrammableTransactionBuilder::new();
 
@@ -215,7 +215,7 @@ impl GasPriceFeedbackTester {
         );
         assert_eq!(effects.created().len(), 1);
 
-        effects.created()[0].0
+        effects.created()[0].reference
     }
 
     /// Build and sign a programmable transaction.

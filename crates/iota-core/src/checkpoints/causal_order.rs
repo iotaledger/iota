@@ -4,11 +4,8 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use iota_sdk_types::{TransactionDigest, TransactionEffects};
-use iota_types::{
-    effects::{InputSharedObject, TransactionEffectsAPI},
-    storage::ObjectKey,
-};
+use iota_sdk_types::{InputSharedObject, TransactionDigest, TransactionEffects};
+use iota_types::{effects::TransactionEffectsAPI, storage::ObjectKey};
 use tracing::trace;
 
 pub struct CausalOrder {
@@ -149,20 +146,20 @@ impl RWLockDependencyBuilder {
                             .or_default()
                             .push(obj_key);
                     }
-                    InputSharedObject::ReadDeleted(oid, version) => read_version
-                        .entry(ObjectKey(oid, version))
+                    InputSharedObject::ReadDeleted(object) => read_version
+                        .entry(ObjectKey(object.object_id, object.version))
                         .or_default()
                         .push(*effect.transaction_digest()),
-                    InputSharedObject::MutateDeleted(oid, version) => overwrite_versions
+                    InputSharedObject::MutateDeleted(object) => overwrite_versions
                         .entry(*effect.transaction_digest())
                         .or_default()
-                        .push(ObjectKey(oid, version)),
-                    InputSharedObject::Cancelled(..) => (), /* TODO: confirm that
-                                                             * consensus_commit_prologue is
-                                                             * always at the beginning of the
-                                                             * checkpoint, so that cancelled txn
-                                                             * don't need to worry about
-                                                             * dependency. */
+                        .push(ObjectKey(object.object_id, object.version)),
+                    InputSharedObject::Canceled(..) => (), /* TODO: confirm that
+                                                            * consensus_commit_prologue is
+                                                            * always at the beginning of the
+                                                            * checkpoint, so that cancelled txn
+                                                            * don't need to worry about
+                                                            * dependency. */
                 }
             }
         }
@@ -258,15 +255,10 @@ mod tests {
         let mut e2 = e(d(2), vec![]);
         let mut e3 = e(d(3), vec![]);
         let obj_digest = ObjectDigest::new(Default::default());
-        e5.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(
-            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
-        ));
-        e2.unsafe_add_input_shared_object_for_testing(InputSharedObject::ReadOnly(
-            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
-        ));
-        e3.unsafe_add_input_shared_object_for_testing(InputSharedObject::Mutate(
-            ObjectReference::new(o(1), Version::from_u64(1), obj_digest),
-        ));
+        let shared = ObjectReference::new(o(1), Version::from_u64(1), obj_digest);
+        e5.unsafe_add_read_only_shared_object_for_testing(shared);
+        e2.unsafe_add_read_only_shared_object_for_testing(shared);
+        e3.unsafe_add_mutated_shared_object_for_testing(shared);
 
         let r = extract(CausalOrder::causal_sort(vec![e5, e2, e3]));
         assert_eq!(r.len(), 3);

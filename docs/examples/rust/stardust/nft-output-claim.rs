@@ -14,7 +14,6 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::NftOutput,
@@ -22,7 +21,8 @@ use iota_sdk::{
     },
 };
 use iota_sdk_types::{
-    Argument, Identifier, ObjectId, SignatureScheme, Transaction, TypeTag, crypto::Intent,
+    Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
+    crypto::Intent,
 };
 use iota_types::transaction::TransactionAPI;
 
@@ -113,7 +113,7 @@ async fn main() -> Result<(), anyhow::Error> {
         let mut builder = ProgrammableTransactionBuilder::new();
 
         // Extract nft assets(base token, native tokens bag, nft asset itself).
-        let type_arguments = vec![GAS::type_tag()];
+        let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
         let arguments = vec![builder.obj(CallArg::ImmutableOrOwned(nft_output_object_ref))?];
         // Finally call the nft_output::extract_assets function
         if let Argument::Result(extracted_assets) = builder.programmable_move_call(
@@ -132,7 +132,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
             // Extract IOTA balance
             let arguments = vec![extracted_base_token];
-            let type_arguments = vec![GAS::type_tag()];
+            let type_arguments = vec![TypeTag::from(StructTag::new_gas())];
             let iota_coin = builder.programmable_move_call(
                 ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,

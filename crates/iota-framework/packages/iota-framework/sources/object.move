@@ -41,6 +41,9 @@ const IOTA_RANDOM_ID: address = @0x8;
 /// The hardcoded ID for the singleton DenyList.
 const IOTA_DENY_LIST_OBJECT_ID: address = @0x403;
 
+/// The hardcoded ID for the singleton TransactionDenyRules.
+const IOTA_TRANSACTION_DENY_RULES_OBJECT_ID: address = @0xDE9;
+
 /// Sender is not @0x0 the system address.
 const ENotSystemAddress: u64 = 0;
 
@@ -131,6 +134,14 @@ public(package) fun randomness_state(): UID {
 public(package) fun iota_deny_list_object_id(): UID {
     UID {
         id: ID { bytes: IOTA_DENY_LIST_OBJECT_ID },
+    }
+}
+
+/// Create the `UID` for the singleton `TransactionDenyRules` object.
+/// This should only be called once from `transaction_deny_rules`.
+public(package) fun transaction_deny_rules(): UID {
+    UID {
+        id: ID { bytes: IOTA_TRANSACTION_DENY_RULES_OBJECT_ID },
     }
 }
 

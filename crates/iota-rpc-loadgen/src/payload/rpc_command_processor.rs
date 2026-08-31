@@ -21,11 +21,9 @@ use iota_json_rpc_types::{
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_sdk_crypto::{ToFromBech32, simple::SimpleKeypair};
-use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Transaction, TransactionDigest, crypto::SimpleSignature,
-};
+use iota_sdk_types::{Address, ObjectId, ObjectReference, Transaction, TransactionDigest};
 use iota_types::{
-    crypto::{AccountKeyPair, IotaSignature, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::TransactionEnvelope,
 };
@@ -595,8 +593,8 @@ async fn prepare_new_signer_and_coins(
     // having a million coin objects in our address. We can also fetch directly
     // from the faucet, but in some environment that might not be possible when
     // faucet resource is scarce
-    let (burner_address, burner_keypair): (_, AccountKeyPair) = get_key_pair();
-    let burner_keypair = SimpleKeypair::from(burner_keypair);
+    let (burner_address, burner_key): (_, AccountPrivateKey) = get_key_pair();
+    let burner_keypair = SimpleKeypair::from(burner_key);
     let pay_amounts = split_amounts
         .iter()
         .map(|(amount, _)| *amount)
@@ -793,12 +791,10 @@ pub(crate) async fn sign_and_execute(
     tx: Transaction,
     request_type: ExecuteTransactionRequestType,
 ) -> IotaTransactionBlockResponse {
-    let signature = SimpleSignature::new_secure(&tx.intent_message(), keypair);
-
     let transaction_response = match client
         .quorum_driver_api()
         .execute_transaction_block(
-            TransactionEnvelope::from_data(tx, vec![signature]),
+            TransactionEnvelope::from_data_and_signer(tx, vec![keypair]),
             IotaTransactionBlockResponseOptions::new().with_effects(),
             Some(request_type),
         )

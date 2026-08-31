@@ -448,7 +448,8 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         let iter = self.owned_objects[start..]
             .iter()
             .filter(move |(info, _)| {
-                info.owner == owner_filter && type_filter.as_ref().is_none_or(|t| info.type_ == *t)
+                info.owner == owner_filter
+                    && type_filter.as_ref().is_none_or(|t| info.object_type == *t)
             })
             .map(|(info, cursor)| {
                 Ok((
@@ -456,7 +457,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
                         owner: info.owner,
                         object_id: info.object_id,
                         version: info.version,
-                        type_: info.type_.clone(),
+                        object_type: info.object_type.clone(),
                     },
                     cursor.clone(),
                 ))
@@ -511,7 +512,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
 async fn start_test_server_with(
     state_reader: Arc<MockGrpcStateReader>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
-    traffic_controller: Option<Arc<iota_core::traffic_controller::TrafficController>>,
+    traffic_controller: Option<Arc<iota_traffic_controller::TrafficController>>,
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     let grpc_reader = Arc::new(GrpcReader::new(state_reader, Some("test".to_string())));
@@ -557,7 +558,7 @@ pub async fn start_test_server(
 /// registered).
 pub async fn start_test_server_with_traffic_controller(
     state_reader: Arc<MockGrpcStateReader>,
-    traffic_controller: Arc<iota_core::traffic_controller::TrafficController>,
+    traffic_controller: Arc<iota_traffic_controller::TrafficController>,
     executor: Option<Arc<dyn iota_types::transaction_executor::TransactionExecutor>>,
 ) -> (GrpcServerHandle, Arc<GrpcReader>) {
     start_test_server_with(state_reader, executor, Some(traffic_controller), |_| {}).await

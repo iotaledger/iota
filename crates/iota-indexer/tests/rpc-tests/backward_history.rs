@@ -15,7 +15,7 @@ use iota_json_rpc_types::{
 };
 use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{Address, ObjectId, Version};
-use iota_types::crypto::{AccountKeyPair, get_key_pair};
+use iota_types::crypto::{AccountPrivateKey, get_key_pair};
 use jsonrpsee::http_client::HttpClient;
 
 use crate::{
@@ -139,8 +139,8 @@ fn backward_history_all_lifecycle_events() -> Result<(), anyhow::Error> {
 
     runtime.block_on(async move {
         // --- Set up a funded address ---
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let keypair = SimpleKeypair::from(keypair);
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
+        let keypair = SimpleKeypair::from(key);
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

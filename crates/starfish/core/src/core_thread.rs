@@ -20,7 +20,9 @@ use tracing::{info, warn};
 
 use crate::{
     VerifiedBlockHeader,
-    block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
+    block_header::{
+        BlockRef, CommitmentVerifiedTransactions, Round, VerifiedBlock, VerifiedOwnShard,
+    },
     commit::CertifiedCommits,
     commit_syncer::fast::FastSyncOutput,
     context::Context,
@@ -74,7 +76,11 @@ enum CoreThreadCommand {
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
     /// Add transactions to be processed and accepted
-    AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>, DataSource),
+    AddTransactions(
+        Vec<CommitmentVerifiedTransactions>,
+        oneshot::Sender<()>,
+        DataSource,
+    ),
     /// Add shards to the dag_state
     AddShards(Vec<VerifiedOwnShard>, oneshot::Sender<()>),
     /// Get missing transaction data that need to be synced
@@ -132,7 +138,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
 
     async fn add_transactions(
         &self,
-        transactions: Vec<VerifiedTransactions>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
         source: DataSource,
     ) -> Result<(), CoreError>;
 
@@ -213,6 +219,15 @@ impl CoreThread {
             self.fast_sync_ongoing
         );
 
+        // The per-command `Core::*` scopes nest, so they cannot be summed; this
+        // times the whole dispatch instead.
+        let handle_command = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["CoreThread::handle_command"]);
+
         loop {
             tokio::select! {
                 command = self.receiver.recv() => {
@@ -220,6 +235,7 @@ impl CoreThread {
                         break;
                     };
                     self.context.metrics.node_metrics.core_lock_dequeued.inc();
+                    let _scope = handle_command.start_timer();
 
                     // During fast sync, ignore all commands except AddSubdagFromFastSync and ReinitializeComponents
                     if self.fast_sync_ongoing && !matches!(command, CoreThreadCommand::AddSubdagFromFastSync(..) | CoreThreadCommand::ReinitializeComponents { .. }) {
@@ -401,6 +417,13 @@ impl ChannelCoreThreadDispatcher {
     async fn send(&self, command: CoreThreadCommand) {
         self.context.metrics.node_metrics.core_lock_enqueued.inc();
         if let Some(sender) = self.sender.upgrade() {
+            // Sampled here rather than on dequeue so a stalled core thread,
+            // which stops dequeuing entirely, still reports its backlog.
+            self.context
+                .metrics
+                .node_metrics
+                .core_thread_command_queue_peak
+                .observe((CORE_THREAD_COMMANDS_CHANNEL_SIZE - sender.capacity()) as u64);
             if let Err(err) = sender.send(command).await {
                 warn!(
                     "Couldn't send command to core thread, probably is shutting down: {}",
@@ -453,7 +476,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
 
     async fn add_transactions(
         &self,
-        transactions: Vec<VerifiedTransactions>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
         source: DataSource,
     ) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
@@ -582,6 +605,8 @@ pub(crate) mod tests {
         last_known_proposed_round: Mutex<Vec<Round>>,
         new_block_calls: Arc<Mutex<Vec<(Round, ReasonToCreateBlock, Instant)>>>,
         quorum_subscribers_exists: Mutex<bool>,
+        reinitialize_components_calls: Mutex<usize>,
+        reinitialize_components_should_fail: Mutex<bool>,
     }
 
     impl MockCoreThreadDispatcher {
@@ -621,6 +646,14 @@ pub(crate) mod tests {
             let mut binding = self.new_block_calls.lock();
             let all_calls = binding.drain(0..);
             all_calls.into_iter().collect()
+        }
+
+        pub(crate) fn set_reinitialize_components_should_fail(&self, should_fail: bool) {
+            *self.reinitialize_components_should_fail.lock() = should_fail;
+        }
+
+        pub(crate) fn reinitialize_components_calls(&self) -> usize {
+            *self.reinitialize_components_calls.lock()
         }
     }
 
@@ -664,7 +697,7 @@ pub(crate) mod tests {
 
         async fn add_transactions(
             &self,
-            _transactions: Vec<VerifiedTransactions>,
+            _transactions: Vec<CommitmentVerifiedTransactions>,
             _source: DataSource,
         ) -> Result<(), CoreError> {
             unimplemented!()
@@ -704,7 +737,12 @@ pub(crate) mod tests {
             &self,
             _block_headers: Vec<VerifiedBlockHeader>,
         ) -> Result<(), CoreError> {
-            unimplemented!()
+            *self.reinitialize_components_calls.lock() += 1;
+            if *self.reinitialize_components_should_fail.lock() {
+                Err(CoreError::Shutdown("test failure".to_owned()))
+            } else {
+                Ok(())
+            }
         }
 
         async fn new_block(

@@ -19,7 +19,10 @@ use colored::Colorize;
 use fastcrypto::encoding::{Base64, Encoding};
 use futures::{StreamExt, TryStreamExt};
 use iota_config::verifier_signing_config::VerifierSigningConfig;
-use iota_grpc_client::read_mask_fields::{ObjectField, OwnedObjectReadMask};
+use iota_grpc_client::{
+    Client as GrpcClient,
+    read_mask_fields::{ObjectField, OwnedObjectReadMask},
+};
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
     Coin, DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, DynamicFieldPage,
@@ -49,9 +52,9 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_transaction_builder::{TransactionBuilder, TransactionBuilderClient, unresolved};
+use iota_sdk_transaction_builder::{TransactionBuilderLedgerClient, unresolved};
 use iota_sdk_types::{
-    Address, Identifier, MoveAuthenticatorV1, ObjectId, ObjectReference, Owner,
+    Address, Identifier, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference, Owner,
     SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
     TransactionDigest, TransactionKind, TypeTag, UserSignature, Version,
     crypto::{Intent, IntentMessage},
@@ -967,12 +970,11 @@ impl IotaClientCommands {
                 let (upgrade_policy, compiled_package) =
                     upgrade_result.map_err(|e| anyhow!("{e}"))?;
 
-                let compiled_modules =
-                    compiled_package.get_package_bytes(with_unpublished_dependencies);
+                let package_data = MovePackageData::new(
+                    compiled_package.get_package_bytes(with_unpublished_dependencies),
+                    compiled_package.get_published_dependencies_ids(),
+                );
                 let package_id = compiled_package.published_at.clone()?;
-                let package_digest =
-                    compiled_package.get_package_digest(with_unpublished_dependencies);
-                let dep_ids = compiled_package.get_published_dependencies_ids();
 
                 if verify_compatibility {
                     let protocol_version =
@@ -1008,23 +1010,17 @@ impl IotaClientCommands {
                     .await?;
                 }
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .upgrade_tx_kind(
-                        package_id,
-                        compiled_modules,
-                        dep_ids,
-                        upgrade_capability,
-                        upgrade_policy,
-                        package_digest.to_vec(),
-                    )
-                    .await?;
+                let grpc_client = context.get_grpc_client().await?;
+                let mut builder = grpc_client.transaction_builder(sender);
+                builder.upgrade_package(
+                    package_id,
+                    package_data,
+                    upgrade_capability,
+                    upgrade_policy,
+                );
+                let tx_kind = builder.finish_kind().await?;
 
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
-
+                let gas_payment = grpc_input_refs(&grpc_client, &payment.gas).await?;
                 let result = dry_run_or_execute_or_serialize(
                     sender,
                     tx_kind,
@@ -1133,18 +1129,18 @@ impl IotaClientCommands {
                 }
 
                 let compiled_package = compile_result?;
-                let compiled_modules =
-                    compiled_package.get_package_bytes(with_unpublished_dependencies);
-                let dep_ids = compiled_package.get_published_dependencies_ids();
+                let package_data = MovePackageData::new(
+                    compiled_package.get_package_bytes(with_unpublished_dependencies),
+                    compiled_package.get_published_dependencies_ids(),
+                );
 
-                let tx_kind = client
-                    .transaction_builder()
-                    .publish_tx_kind(sender, compiled_modules, dep_ids)
-                    .await?;
-                let gas_payment = client
-                    .transaction_builder()
-                    .input_refs(&payment.gas)
-                    .await?;
+                let grpc_client = context.get_grpc_client().await?;
+                let mut builder = grpc_client.transaction_builder(sender);
+                let upgrade_cap = builder.publish_package(package_data).result();
+                builder.transfer_objects(sender, [upgrade_cap]);
+                let tx_kind = builder.finish_kind().await?;
+
+                let gas_payment = grpc_input_refs(&grpc_client, &payment.gas).await?;
                 let result = dry_run_or_execute_or_serialize(
                     sender,
                     tx_kind,
@@ -1366,7 +1362,7 @@ impl IotaClientCommands {
                 let signer = context.get_object_owner(&object_id).await?;
                 let to = get_identity_address(Some(to), context).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.transfer_objects(to, [object_id]);
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
@@ -1416,7 +1412,7 @@ impl IotaClientCommands {
                     .await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.pay(input_coins.clone(), recipients.into_iter().zip(amounts));
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
@@ -1462,7 +1458,7 @@ impl IotaClientCommands {
                 let signer =
                     get_identity_address(processing.sender.map(Into::into), context).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.pay_iota(recipients.into_iter().zip(amounts.iter().copied()));
                 let tx_kind = builder.finish_kind().await?;
 
@@ -1519,7 +1515,7 @@ impl IotaClientCommands {
                 let recipient = get_identity_address(Some(recipient), context).await?;
                 let signer = context.get_object_owner(&input_coins[0]).await?;
                 let client = context.get_grpc_client().await?;
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.transfer_objects(recipient, [unresolved::Argument::Gas]);
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &input_coins).await?;
@@ -1681,7 +1677,7 @@ impl IotaClientCommands {
                     && iota_coins.next_page_token.is_none()
                     && iota_coins.items[0].id() == &coin_id;
 
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 let (coin, coin_type) = if split_from_gas {
                     (
                         builder.apply_argument(unresolved::Argument::Gas),
@@ -1738,7 +1734,7 @@ impl IotaClientCommands {
                 let signer = context.get_object_owner(&primary_coin).await?;
                 let client = context.get_grpc_client().await?;
 
-                let mut builder = TransactionBuilder::new(signer).with_client(&client);
+                let mut builder = client.transaction_builder(signer);
                 builder.merge_coins(primary_coin, [coin_to_merge]);
                 let tx_kind = builder.finish_kind().await?;
                 let gas_payment = grpc_input_refs(&client, &payment.gas).await?;
@@ -2861,7 +2857,7 @@ pub struct ObjectOutput {
 
 impl From<&IotaObjectData> for ObjectOutput {
     fn from(obj: &IotaObjectData) -> Self {
-        let obj_type = match obj.type_.as_ref() {
+        let obj_type = match obj.object_type.as_ref() {
             Some(x) => x.to_string(),
             None => "unknown".to_string(),
         };
@@ -2909,7 +2905,7 @@ impl ObjectsOutput {
     fn from(obj: IotaObjectResponse) -> Result<Self, anyhow::Error> {
         let obj = obj.into_object()?;
         // this replicates the object type display as in the iota explorer
-        let object_type = match obj.type_ {
+        let object_type = match obj.object_type {
             Some(iota_types::base_types::ObjectType::Struct(x)) => {
                 let address = x.address().to_string();
                 // check if the address has length of 64 characters
@@ -3305,8 +3301,8 @@ pub async fn max_gas_budget(client: &IotaClient) -> Result<u64, anyhow::Error> {
 }
 
 /// Fetch the current object references for the given object IDs over gRPC.
-async fn grpc_input_refs(
-    client: &iota_grpc_client::Client,
+pub(crate) async fn grpc_input_refs(
+    client: &GrpcClient,
     object_ids: &[ObjectId],
 ) -> Result<Vec<ObjectReference>, anyhow::Error> {
     if object_ids.is_empty() {
@@ -3328,7 +3324,7 @@ async fn grpc_input_refs(
 /// Fetch the coin with the given ID over gRPC, as a reference pinning the
 /// version its type was read at, and the `T` of its `Coin<T>`.
 async fn grpc_coin(
-    client: &iota_grpc_client::Client,
+    client: &GrpcClient,
     coin_id: ObjectId,
 ) -> Result<(ObjectReference, TypeTag), anyhow::Error> {
     let object = client
@@ -3522,7 +3518,7 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
                 .quorum_driver_api()
                 .execute_transaction_block(
                     transaction,
-                    opts_from_cli(display),
+                    opts_from_cli(&display),
                     Some(ExecuteTransactionRequestType::WaitForLocalExecution),
                 )
                 .await?;
@@ -3536,6 +3532,11 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
             })?;
             if let IotaExecutionStatus::Failure { error } = effects.status() {
                 bail!("Error executing transaction '{}': {error}", response.digest);
+            }
+            // Effects are always requested for the status check above, so drop
+            // them here when the display selection excludes them.
+            if !display.is_empty() && !display.contains(&DisplayOption::Effects) {
+                response.effects = None;
             }
             Ok(IotaClientCommandResult::TransactionBlock(response))
         }
@@ -3586,7 +3587,7 @@ pub(crate) async fn prerender_clever_errors(
     }
 }
 
-fn opts_from_cli(opts: HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {
+fn opts_from_cli(opts: &HashSet<DisplayOption>) -> IotaTransactionBlockResponseOptions {
     if opts.is_empty() {
         IotaTransactionBlockResponseOptions::new()
             .with_input()
@@ -3598,6 +3599,9 @@ fn opts_from_cli(opts: HashSet<DisplayOption>) -> IotaTransactionBlockResponseOp
         IotaTransactionBlockResponseOptions {
             show_input: opts.contains(&DisplayOption::Input),
             show_raw_input: false,
+            // Effects are always requested because the execution status check
+            // needs them; they are dropped from the response afterwards when
+            // the display selection excludes them.
             show_effects: true,
             show_raw_effects: false,
             show_events: opts.contains(&DisplayOption::Events),

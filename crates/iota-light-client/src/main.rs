@@ -182,7 +182,9 @@ pub async fn main() -> Result<()> {
 
             if let Some(events) = &events {
                 for event in &events.0 {
-                    let type_layout = resolver.type_layout(event.type_.clone().into()).await?;
+                    let type_layout = resolver
+                        .type_layout(event.struct_tag.clone().into())
+                        .await?;
 
                     let result = BoundedVisitor::deserialize_value(&event.contents, &type_layout)
                         .context("Failed to deserialize event")?;
@@ -192,7 +194,7 @@ pub async fn main() -> Result<()> {
                         event.package_id,
                         event.module,
                         event.sender,
-                        event.type_,
+                        event.struct_tag,
                         serde_json::to_string(&result).expect("JSON deserialization error")
                     );
                 }

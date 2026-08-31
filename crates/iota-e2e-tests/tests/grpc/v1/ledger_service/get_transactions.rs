@@ -11,7 +11,7 @@ use iota_grpc_types::{
     },
 };
 use iota_macros::sim_test;
-use iota_sdk_types::{Digest, TransactionDigest};
+use iota_sdk_types::{Digest, StructTag, TransactionDigest, TypeTag};
 use prost_types::FieldMask;
 
 use crate::utils::{
@@ -321,7 +321,7 @@ async fn get_transactions_derived_changes_failed_transaction() {
         normalize_grpc_balance_changes(executed_transaction),
         vec![(
             iota_sdk_types::Owner::Address(sender),
-            iota_types::gas_coin::GAS::type_tag(),
+            TypeTag::from(StructTag::new_gas()),
             -gas,
         )],
         "failed transaction should produce a single gas-only balance change"

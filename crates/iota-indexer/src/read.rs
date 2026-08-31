@@ -7,6 +7,7 @@ use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
     num::NonZeroUsize,
+    ops::Bound,
     sync::{Arc, Mutex},
 };
 
@@ -14,9 +15,8 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use cached::{Cached, SizedCache};
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
-    OptionalExtension, PgConnection, QueryDsl, QueryableByName, RunQueryDsl, SelectableHelper,
-    TextExpressionMethods,
+    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
+    QueryDsl, QueryableByName, RunQueryDsl, SelectableHelper, TextExpressionMethods,
     dsl::sql,
     r2d2::ConnectionManager,
     sql_query,
@@ -88,7 +88,7 @@ use crate::{
     schema::{
         address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
         objects, objects_version, optimistic_transactions, packages, pruner_cp_watermark,
-        transactions, tx_digests, tx_global_order,
+        transactions, tx_global_order,
     },
     store::{
         diesel_macro::{mark_in_blocking_pool, *},
@@ -98,9 +98,6 @@ use crate::{
 };
 
 pub const TX_SEQUENCE_NUMBER_STR: &str = "tx_sequence_number";
-pub const GLOBAL_SEQUENCE_NUMBER_STR: &str = "global_sequence_number";
-pub const OPTIMISTIC_SEQUENCE_NUMBER_STR: &str = "optimistic_sequence_number";
-pub const TX_DIGEST_STR: &str = "tx_digest";
 pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 
 /// Result of checking input object dependencies.
@@ -203,13 +200,20 @@ impl IndexerReader {
     ///
     /// In case the IndexerReader fails to retrieve data, the fallback reader
     /// will be used to retrieve the data.
-    pub(crate) fn with_fallback_reader(&mut self, fallback: HistoricalFallbackReader) {
+    pub fn with_fallback_reader(&mut self, fallback: HistoricalFallbackReader) {
         self.fallback = Some(fallback);
     }
 
     /// Access the internal fallback reader.
     pub(crate) fn fallback_reader(&self) -> Option<&HistoricalFallbackReader> {
         self.fallback.as_ref()
+    }
+
+    /// Returns `true` if a historical fallback reader is configured on this
+    /// `IndexerReader`. Callers can use this to decide whether pruned-range
+    /// reads will be served by the fallback.
+    pub fn is_fallback_enabled(&self) -> bool {
+        self.fallback.is_some()
     }
 
     /// Accesses the watermark cache.
@@ -289,6 +293,34 @@ impl IndexerReader {
 
     pub fn get_pool(&self) -> ConnectionPool {
         self.pool.clone()
+    }
+}
+
+/// A transaction returned by `IndexerReader::multi_get_transactions` or
+/// [`IndexerReader::multi_get_transactions_with_fallback`]. Each row is
+/// either checkpointed (from Postgres or the historical fallback) or
+/// optimistic (from Postgres).
+pub enum TransactionRead {
+    Checkpointed(StoredTransaction),
+    Optimistic(OptimisticTransaction),
+}
+
+impl TransactionRead {
+    /// Raw transaction digest bytes, common to both variants.
+    pub fn transaction_digest(&self) -> &[u8] {
+        match self {
+            Self::Checkpointed(s) => &s.transaction_digest,
+            Self::Optimistic(o) => &o.transaction_digest,
+        }
+    }
+}
+
+impl From<TransactionRead> for StoredTransaction {
+    fn from(tx: TransactionRead) -> Self {
+        match tx {
+            TransactionRead::Checkpointed(s) => s,
+            TransactionRead::Optimistic(o) => o.into(),
+        }
     }
 }
 
@@ -483,6 +515,28 @@ impl IndexerReader {
                 Ok(PastObjectRead::VersionFound(obj_ref, object, layout))
             }
         }
+    }
+
+    /// Fetches objects by their ID and version from the historical fallback
+    /// storage. Returns one entry per requested pair in the same order, `None`
+    /// when the fallback does not have the object.
+    ///
+    /// - If `before_version` is `false`, it looks for the exact version.
+    /// - If `true`, it finds the latest version before the given one.
+    ///
+    /// Returns [`IndexerError::NotSupported`] when the historical fallback is
+    /// not configured; check [`Self::is_fallback_enabled`] before calling.
+    pub async fn multi_get_fallback_objects(
+        &self,
+        object_refs: &[(ObjectId, Version)],
+        before_version: bool,
+    ) -> IndexerResult<Vec<Option<StoredObject>>> {
+        let Some(kv_reader) = self.fallback_reader() else {
+            return Err(IndexerError::NotSupported(
+                "historical fallback is not configured".to_string(),
+            ));
+        };
+        kv_reader.objects(object_refs, before_version).await
     }
 
     pub async fn get_package(&self, package_id: ObjectId) -> Result<Package, IndexerError> {
@@ -815,101 +869,152 @@ impl IndexerReader {
             .collect()
     }
 
-    /// Fetches multiple transactions from the database.
+    /// Fetches a batch of checkpoints by sequence number. Each requested seq
+    /// resolves to `Some(StoredCheckpoint)` if it lives in Postgres or in the
+    /// historical fallback (when enabled), or to `None` otherwise. The
+    /// returned vector has the same length as `seqs` and preserves its order.
+    pub async fn get_stored_checkpoints_by_seqs_with_fallback(
+        &self,
+        seqs: Vec<CheckpointSequenceNumber>,
+    ) -> IndexerResult<Vec<Option<StoredCheckpoint>>> {
+        if seqs.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let db_rows = self.db().multi_get_checkpoints_by_seqs(&seqs).await?;
+        let mut by_seq: HashMap<CheckpointSequenceNumber, StoredCheckpoint> = db_rows
+            .into_iter()
+            .map(|c| (c.sequence_number as u64, c))
+            .collect();
+
+        let missing: Vec<CheckpointSequenceNumber> = seqs
+            .iter()
+            .copied()
+            .filter(|s| !by_seq.contains_key(s))
+            .collect();
+        if !missing.is_empty() {
+            if let Some(fallback) = self.fallback_reader() {
+                for stored in fallback.checkpoints(missing).await?.into_iter().flatten() {
+                    by_seq.insert(stored.sequence_number as u64, stored);
+                }
+            }
+        }
+
+        Ok(seqs.into_iter().map(|s| by_seq.get(&s).cloned()).collect())
+    }
+
+    /// Fetches a batch of checkpoints by digest. Each requested digest
+    /// resolves to `Some(StoredCheckpoint)` if it lives in Postgres or in the
+    /// historical fallback (when enabled), or to `None` otherwise. The
+    /// returned vector has the same length as `digests` and preserves its
+    /// order.
+    pub async fn get_stored_checkpoints_by_digests_with_fallback(
+        &self,
+        digests: Vec<CheckpointDigest>,
+    ) -> IndexerResult<Vec<Option<StoredCheckpoint>>> {
+        if digests.is_empty() {
+            return Ok(vec![]);
+        }
+
+        let digest_bytes: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
+        let db_rows = self
+            .db()
+            .multi_get_checkpoints_by_digests(&digest_bytes)
+            .await?;
+        let mut by_digest: HashMap<Vec<u8>, StoredCheckpoint> = db_rows
+            .into_iter()
+            .map(|c| (c.checkpoint_digest.clone(), c))
+            .collect();
+
+        let missing: Vec<CheckpointDigest> = digests
+            .iter()
+            .filter(|d| !by_digest.contains_key(d.inner().as_slice()))
+            .copied()
+            .collect();
+        if !missing.is_empty() {
+            if let Some(fallback) = self.fallback_reader() {
+                for stored in fallback
+                    .checkpoints_by_digests(missing)
+                    .await?
+                    .into_iter()
+                    .flatten()
+                {
+                    by_digest.insert(stored.checkpoint_digest.clone(), stored);
+                }
+            }
+        }
+
+        Ok(digests
+            .into_iter()
+            .map(|d| by_digest.get(d.inner().as_slice()).cloned())
+            .collect())
+    }
+
+    /// Fetches multiple transactions from the database. Each row is returned
+    /// as [`TransactionRead::Checkpointed`] or [`TransactionRead::Optimistic`]
+    /// depending on which table it came from.
     ///
-    ///  Retrieval order:
+    /// Retrieval order per digest:
     /// 1. Checkpointed data (finalized transactions)
     /// 2. Optimistic data (pending transactions not yet checkpointed)
     pub(crate) async fn multi_get_transactions(
         &self,
         digests: &[TransactionDigest],
-    ) -> IndexerResult<Vec<StoredTransaction>> {
-        let digests: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
-        let checkpointed_txs = self
+    ) -> IndexerResult<Vec<TransactionRead>> {
+        let digest_bytes: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
+        let mut found: Vec<TransactionRead> = self
             .db()
-            .get_checkpointed_transactions(digests.clone())
-            .await?;
-
-        if checkpointed_txs.len() == digests.len() {
-            return Ok(checkpointed_txs);
-        }
-
-        let missing_digests = Self::check_for_missing_tx_digests(&digests, &checkpointed_txs);
-        let optimistic_txs = self
-            .db()
-            .get_optimistic_transactions(missing_digests)
-            .await?;
-
-        Ok(checkpointed_txs
-            .into_iter()
-            .chain(optimistic_txs.into_iter().map(Into::into))
-            .collect::<Vec<StoredTransaction>>())
-    }
-
-    /// Fetches multiple transactions from the indexer storage.
-    ///
-    /// Retrieval order:
-    /// 1. Checkpointed data (finalized transactions)
-    /// 2. Optimistic data (pending transactions not yet checkpointed)
-    /// 3. Historical fallback storage (if enabled)
-    async fn multi_get_transactions_with_fallback(
-        &self,
-        digests: &[TransactionDigest],
-    ) -> IndexerResult<Vec<StoredTransaction>> {
-        let fetched_transactions = self.multi_get_transactions(digests).await?;
-
-        // fallback to historical storage
-        let Some(fallback) = self
-            .fallback_reader()
-            // As for now we don't have a way to identify if the user requested pruned or invalid
-            // transaction digests. As a measure, we check if the number of requested transactions
-            // matches the number of fetched transactions. In case of missing transactions,
-            // if fallback is enabled, we use it to fetch the missing ones.
-            .filter(|_| fetched_transactions.len() != digests.len())
-        else {
-            // return data from database.
-            return Ok(fetched_transactions);
-        };
-
-        let digests: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
-        let missing_digests = Self::check_for_missing_tx_digests(&digests, &fetched_transactions)
-            .iter()
-            .map(|digest| {
-                TransactionDigest::from_bytes(digest.as_slice()).map_err(|e| {
-                    IndexerError::PersistentStorageDataCorruption(format!(
-                        "can't convert {digest:?} as tx_digest. Error: {e}",
-                    ))
-                })
-            })
-            .collect::<IndexerResult<Vec<TransactionDigest>>>()?;
-
-        let historical_transactions = fallback
-            .transactions(&missing_digests)
+            .get_checkpointed_transactions(digest_bytes)
             .await?
             .into_iter()
-            .flatten()
-            .collect::<Vec<StoredTransaction>>();
+            .map(TransactionRead::Checkpointed)
+            .collect();
 
-        Ok(fetched_transactions
-            .into_iter()
-            .chain(historical_transactions)
-            .collect())
+        let missing = Self::check_for_missing_tx_digests(digests, &found);
+        if !missing.is_empty() {
+            let missing_bytes: Vec<Vec<u8>> = missing.iter().map(|d| d.inner().to_vec()).collect();
+            for opt in self.db().get_optimistic_transactions(missing_bytes).await? {
+                found.push(TransactionRead::Optimistic(opt));
+            }
+        }
+        Ok(found)
     }
 
-    /// Checks for missing transaction digests in the fetched transactions.
+    /// Same as `Self::multi_get_transactions`, but also reads from the
+    /// historical fallback (when configured) for digests not found in
+    /// Postgres. Fallback rows are returned as
+    /// [`TransactionRead::Checkpointed`].
+    pub async fn multi_get_transactions_with_fallback(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> IndexerResult<Vec<TransactionRead>> {
+        let mut found = self.multi_get_transactions(digests).await?;
+
+        if found.len() == digests.len() {
+            return Ok(found);
+        }
+        let Some(fallback) = self.fallback_reader() else {
+            return Ok(found);
+        };
+
+        let missing = Self::check_for_missing_tx_digests(digests, &found);
+        for stored in fallback.transactions(&missing).await?.into_iter().flatten() {
+            found.push(TransactionRead::Checkpointed(stored));
+        }
+        Ok(found)
+    }
+
+    /// Returns the `requested` digests that are not in `found`.
     fn check_for_missing_tx_digests(
-        requested_digests: &[Vec<u8>],
-        fetched_txs: &[StoredTransaction],
-    ) -> Vec<Vec<u8>> {
-        let fetched_txs_digests_set = fetched_txs
+        requested: &[TransactionDigest],
+        found: &[TransactionRead],
+    ) -> Vec<TransactionDigest> {
+        let found_set: HashSet<&[u8]> = found.iter().map(|t| t.transaction_digest()).collect();
+        requested
             .iter()
-            .map(|tx| &tx.transaction_digest)
-            .collect::<HashSet<&Vec<u8>>>();
-        requested_digests
-            .iter()
-            .filter(|digest| !fetched_txs_digests_set.contains(digest))
-            .cloned()
-            .collect::<Vec<Vec<u8>>>()
+            .filter(|d| !found_set.contains(d.inner().as_slice()))
+            .copied()
+            .collect()
     }
 
     /// This method tries to transform [`StoredTransaction`] values
@@ -1219,47 +1324,75 @@ impl IndexerReader {
             .await
     }
 
-    /// Fetches a paginated list of transactions that affect a given address,
-    /// using the fallback storage if the database is pruned.
-    async fn query_transactions_by_affected_addresses_with_fallback(
+    /// Fetches transactions belonging to a checkpoint whose
+    /// `tx_sequence_number` falls within the given range. Falls back to the
+    /// historical storage (when configured) if the checkpoint has been pruned
+    /// from Postgres.
+    pub async fn query_stored_transactions_by_checkpoint_seq_with_fallback(
         &self,
-        address: Address,
-        cursor: Option<TransactionDigest>,
+        checkpoint_seq: u64,
+        tx_seq_range: (Bound<u64>, Bound<u64>),
         limit: usize,
         is_descending: bool,
-        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
-    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+    ) -> IndexerResult<Vec<StoredTransaction>> {
+        let db_res = self
+            .db()
+            .query_transactions_by_checkpoint_seq_in_range(
+                checkpoint_seq,
+                tx_seq_range,
+                limit,
+                is_descending,
+            )
+            .await;
+        if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
+            (db_res.as_ref(), self.fallback_reader())
+        {
+            return kv_reader
+                .checkpoint_transactions_in_seq_range(
+                    checkpoint_seq,
+                    tx_seq_range,
+                    limit,
+                    is_descending,
+                )
+                .await
+                .context(&format!("fallback triggered by {err}"));
+        }
+        db_res
+    }
+
+    /// Fetches a paginated list of transactions that affect a given address,
+    /// using the fallback storage if the database is pruned.
+    pub async fn query_stored_transactions_by_affected_addresses_with_fallback(
+        &self,
+        address: Address,
+        cursor_tx_seq: Option<u64>,
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<StoredTransaction>> {
         let watermark = self.affected_addresses_tx_watermark();
 
-        // fast path: cursor is known to KV (cached) and in pruned territory
-        // (below watermark). Serve directly from KV until pagination crosses
-        // into the unpruned DB range.
-        if let Some((cursor, kv_reader)) = cursor.zip(self.fallback_reader()).filter(|(c, kv)| {
-            kv.cursor_cache
-                .get(c)
-                .is_some_and(|s| (s as i64) < watermark)
-        }) {
-            let stored_txs = kv_reader
-                .transactions_by_address(address, Some(cursor), limit, !is_descending)
+        // fast path: the cursor is in pruned territory (below the watermark).
+        // Serve directly from KV until pagination crosses into the unpruned
+        // DB range.
+        if let Some((cursor_tx_seq, kv_reader)) = cursor_tx_seq
+            .zip(self.fallback_reader())
+            .filter(|(c, _)| (*c as i64) < watermark)
+        {
+            return Ok(kv_reader
+                .transactions_by_address(address, Some(cursor_tx_seq), limit, !is_descending)
                 .await?
                 .into_iter()
                 .flatten()
-                .collect();
-
-            return self
-                .stored_transaction_to_transaction_block(stored_txs, options)
-                .await;
+                .collect());
         };
 
         let db_res = self
             .db()
-            .query_transactions_by_affected_addresses(address, cursor, limit, is_descending)
+            .query_transactions_by_affected_addresses(address, cursor_tx_seq, limit, is_descending)
             .await;
 
         let Some(kv_reader) = self.fallback_reader() else {
-            return self
-                .stored_transaction_to_transaction_block(db_res?, options)
-                .await;
+            return db_res;
         };
 
         let (mut rows, id_db_pruned) = match db_res {
@@ -1274,20 +1407,9 @@ impl IndexerReader {
             // Continue pagination from the last DB row, or from the original
             // cursor if the DB returned nothing. Avoids restarting KV from the
             // top of history and re-fetching rows the user already saw.
-            let kv_cursor = if let Some(tx) = rows.last() {
-                let digest =
-                    TransactionDigest::from_bytes(&tx.transaction_digest).map_err(|e| {
-                        IndexerError::PersistentStorageDataCorruption(format!(
-                            "failed to decode transaction digest: {:?} with err: {e:?}",
-                            tx.transaction_digest
-                        ))
-                    })?;
-                kv_reader
-                    .cursor_cache
-                    .insert(digest, tx.tx_sequence_number as u64);
-                Some(digest)
-            } else {
-                cursor
+            let kv_cursor = match rows.last() {
+                Some(tx) => Some(tx.tx_sequence_number as u64),
+                None => cursor_tx_seq,
             };
 
             let kv_rows = kv_reader
@@ -1297,6 +1419,60 @@ impl IndexerReader {
                 .flatten();
             rows.extend(kv_rows);
         }
+
+        Ok(rows)
+    }
+
+    /// Fetches a paginated list of transactions that affect a given address,
+    /// using the fallback storage if the database is pruned.
+    async fn query_transactions_by_affected_addresses_with_fallback(
+        &self,
+        address: Address,
+        cursor: Option<TransactionDigest>,
+        limit: usize,
+        is_descending: bool,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
+        let cursor_tx_seq = match cursor {
+            None => None,
+            Some(digest) => {
+                Some(
+                    match self
+                        .db()
+                        .resolve_cursor_tx_digest_to_seq_num_maybe(digest)
+                        .await?
+                    {
+                        Some(tx_seq) => tx_seq as u64,
+                        // The digest is not in Postgres: resolve it through the
+                        // fallback (which checks its cursor cache first).
+                        None => match self.fallback_reader() {
+                            Some(kv_reader) => {
+                                kv_reader.resolve_cursor_tx_sequence_number(digest).await?
+                            }
+                            None if self.affected_addresses_tx_watermark() > 0 => {
+                                return Err(IndexerError::DataPruned(format!(
+                                    "unable to resolve cursor digest: {digest} potentially pruned"
+                                )));
+                            }
+                            None => {
+                                return Err(IndexerError::InvalidArgument(format!(
+                                    "cursor with digest {digest} not found"
+                                )));
+                            }
+                        },
+                    },
+                )
+            }
+        };
+
+        let rows = self
+            .query_stored_transactions_by_affected_addresses_with_fallback(
+                address,
+                cursor_tx_seq,
+                limit,
+                is_descending,
+            )
+            .await?;
 
         self.stored_transaction_to_transaction_block(rows, options)
             .await
@@ -1603,52 +1779,52 @@ impl IndexerReader {
                 function,
                 ..
             }) => match (module, function) {
-                (Some(_), Some(_)) => &[TxCallsFun, TxDigests],
-                (Some(_), None) => &[TxCallsMod, TxDigests],
+                (Some(_), Some(_)) => &[TxCallsFun, TxGlobalOrder],
+                (Some(_), None) => &[TxCallsMod, TxGlobalOrder],
                 (None, Some(_)) => {
                     return Err(IndexerError::InvalidArgument(
                         "Function cannot be present without Module.".into(),
                     ));
                 }
-                (None, None) => &[TxCallsPkg, TxDigests],
+                (None, None) => &[TxCallsPkg, TxGlobalOrder],
             },
             TransactionFilterKind::V1(TransactionFilter::InputObject(_))
             | TransactionFilterKind::V2(TransactionFilterV2::InputObject(_)) => {
-                &[TxInputObjects, TxDigests]
+                &[TxInputObjects, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::ChangedObject(_))
             | TransactionFilterKind::V2(TransactionFilterV2::ChangedObject(_)) => {
-                &[TxChangedObjects, TxDigests]
+                &[TxChangedObjects, TxGlobalOrder]
             }
             TransactionFilterKind::V2(TransactionFilterV2::WrappedOrDeletedObject(_)) => {
-                &[TxWrappedOrDeletedObjects, TxDigests]
+                &[TxWrappedOrDeletedObjects, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::FromAddress(_))
             | TransactionFilterKind::V2(TransactionFilterV2::FromAddress(_)) => {
-                &[TxSenders, TxDigests]
+                &[TxSenders, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::ToAddress(_))
             | TransactionFilterKind::V2(TransactionFilterV2::ToAddress(_)) => {
-                &[TxRecipients, TxDigests]
+                &[TxRecipients, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::FromAndToAddress { .. })
             | TransactionFilterKind::V2(TransactionFilterV2::FromAndToAddress { .. }) => {
-                &[TxSenders, TxRecipients, TxDigests]
+                &[TxSenders, TxRecipients, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::TransactionKind(_))
             | TransactionFilterKind::V2(TransactionFilterV2::TransactionKind(_))
             | TransactionFilterKind::V1(TransactionFilter::TransactionKindIn(_))
             | TransactionFilterKind::V2(TransactionFilterV2::TransactionKindIn(_)) => {
-                &[TxKinds, TxDigests]
+                &[TxKinds, TxGlobalOrder]
             }
             // Served by dedicated fallback paths
             TransactionFilterKind::V1(TransactionFilter::Checkpoint(_))
             | TransactionFilterKind::V2(TransactionFilterV2::Checkpoint(_)) => {
-                &[Transactions, PrunerCpWatermark, TxDigests]
+                &[Transactions, PrunerCpWatermark, TxGlobalOrder]
             }
             TransactionFilterKind::V1(TransactionFilter::FromOrToAddress { .. })
             | TransactionFilterKind::V2(TransactionFilterV2::FromOrToAddress { .. }) => {
-                &[TxSenders, TxRecipients, TxDigests]
+                &[TxSenders, TxRecipients, TxGlobalOrder]
             }
             // Unsupported V2-only filters error out in the query match.
             TransactionFilterKind::V2(_) => {
@@ -1665,7 +1841,12 @@ impl IndexerReader {
         digests: &[TransactionDigest],
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
     ) -> Result<Vec<iota_json_rpc_types::IotaTransactionBlockResponse>, IndexerError> {
-        let stored_txes = self.multi_get_transactions_with_fallback(digests).await?;
+        let stored_txes: Vec<StoredTransaction> = self
+            .multi_get_transactions_with_fallback(digests)
+            .await?
+            .into_iter()
+            .map(StoredTransaction::from)
+            .collect();
         self.stored_transaction_to_transaction_block(stored_txes, options)
             .await
     }
@@ -1773,8 +1954,8 @@ impl IndexerReader {
     /// - Optimistic transactions: `optimistic_sequence_number > 0` (objects are
     ///   committed atomically with the tx)
     /// - Checkpoint transactions: the latest indexed checkpoint's
-    ///   `max_tx_sequence_number >= chk_tx_sequence_number`, meaning the
-    ///   checkpoint containing this tx has been fully persisted
+    ///   `max_tx_sequence_number >= tx_sequence_number`, meaning the checkpoint
+    ///   containing this tx has been fully persisted
     pub(crate) async fn is_transaction_fully_indexed(
         &self,
         digest: TransactionDigest,
@@ -1786,7 +1967,7 @@ impl IndexerReader {
                     .filter(tx_global_order::tx_digest.eq(digest_bytes))
                     .select((
                         tx_global_order::optimistic_sequence_number,
-                        tx_global_order::chk_tx_sequence_number,
+                        tx_global_order::tx_sequence_number,
                     ))
                     .first::<(i64, Option<i64>)>(conn)
                     .optional()
@@ -1808,7 +1989,7 @@ impl IndexerReader {
                         .flatten()
                         .is_some_and(|max_tx| max_tx >= tx_seq))
                 }
-                // Row not found or chk_tx_sequence_number not yet set.
+                // Row not found or tx_sequence_number not yet set.
                 _ => Ok(false),
             }
         })
@@ -1892,13 +2073,16 @@ impl IndexerReader {
             .map(|iota_tx_event| iota_tx_event.data)
     }
 
-    async fn query_events_by_tx_digest_with_fallback(
+    /// Fetches events belonging to a transaction, paginated by an exclusive
+    /// `cursor`. Falls back to the historical storage (when configured) if the
+    /// transaction has been pruned from Postgres.
+    pub async fn query_stored_events_by_tx_digest_with_fallback(
         &self,
         tx_digest: TransactionDigest,
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
-    ) -> IndexerResult<Vec<IotaEvent>> {
+    ) -> IndexerResult<Vec<StoredEvent>> {
         let db_res = self
             .db()
             .query_events_by_tx_digest(tx_digest, cursor, limit, descending_order)
@@ -1907,27 +2091,45 @@ impl IndexerReader {
         if let (Err(IndexerError::DataPruned(err)), Some(kv_reader)) =
             (db_res.as_ref(), self.fallback_reader())
         {
-            kv_reader
+            return kv_reader
                 .events(tx_digest, cursor, limit, descending_order)
                 .await
-                .context(&format!("fallback triggered by {err}"))
-        } else {
-            let mut iota_event_futures = vec![];
-            for stored_event in db_res? {
-                iota_event_futures.push(tokio::task::spawn(
-                    stored_event.try_into_iota_event(self.package_resolver.clone()),
-                ));
-            }
-
-            futures::future::join_all(iota_event_futures)
-                .await
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-                .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
-                .into_iter()
-                .collect::<Result<Vec<_>, _>>()
-                .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))
+                .context(&format!("fallback triggered by {err}"));
         }
+        db_res
+    }
+
+    async fn query_events_by_tx_digest_with_fallback(
+        &self,
+        tx_digest: TransactionDigest,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending_order: bool,
+    ) -> IndexerResult<Vec<IotaEvent>> {
+        let stored_events = self
+            .query_stored_events_by_tx_digest_with_fallback(
+                tx_digest,
+                cursor,
+                limit,
+                descending_order,
+            )
+            .await?;
+
+        let mut iota_event_futures = vec![];
+        for stored_event in stored_events {
+            iota_event_futures.push(tokio::task::spawn(
+                stored_event.try_into_iota_event(self.package_resolver.clone()),
+            ));
+        }
+
+        futures::future::join_all(iota_event_futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))
     }
 
     pub(crate) async fn query_only_checkpointed_events_in_blocking_task(
@@ -2205,7 +2407,7 @@ impl IndexerReader {
             .tap_err(|e| tracing::warn!("{e}"))?;
 
         let name = DynamicFieldName {
-            type_: name_type,
+            type_tag: name_type,
             value: IotaMoveValue::from(name_value).to_json_value(),
         };
 
@@ -2256,12 +2458,12 @@ impl IndexerReader {
     ) -> Result<Vec<u8>, IndexerError> {
         let move_type_layout = self
             .package_resolver()
-            .type_layout(name.type_.clone())
+            .type_layout(name.type_tag.clone())
             .await
             .map_err(|e| {
                 IndexerError::ResolveMoveStruct(format!(
                     "Failed to get type layout for type {}: {}",
-                    name.type_, e
+                    name.type_tag, e
                 ))
             })?;
         let iota_json_value = iota_json::IotaJsonValue::new(name.value.clone())?;
@@ -2785,6 +2987,35 @@ impl<'a> DBReader<'a> {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<StoredTransaction>> {
+        let tx_seq_range = match cursor {
+            Some(cursor) => {
+                let cursor_tx_seq = self.resolve_cursor_tx_digest_to_seq_num(cursor).await? as u64;
+                if is_descending {
+                    (Bound::Unbounded, Bound::Excluded(cursor_tx_seq))
+                } else {
+                    (Bound::Excluded(cursor_tx_seq), Bound::Unbounded)
+                }
+            }
+            None => (Bound::Unbounded, Bound::Unbounded),
+        };
+        self.query_transactions_by_checkpoint_seq_in_range(
+            checkpoint_seq,
+            tx_seq_range,
+            limit,
+            is_descending,
+        )
+        .await
+    }
+
+    /// Same as [`Self::query_transactions_by_checkpoint_seq`], but bounded by
+    /// a `tx_sequence_number` range instead of a digest cursor.
+    async fn query_transactions_by_checkpoint_seq_in_range(
+        &self,
+        checkpoint_seq: u64,
+        tx_seq_range: (Bound<u64>, Bound<u64>),
+        limit: usize,
+        is_descending: bool,
+    ) -> IndexerResult<Vec<StoredTransaction>> {
         self.main_reader.ensure_data_not_pruned_for_checkpoint(
             checkpoint_seq,
             &[
@@ -2808,24 +3039,29 @@ impl<'a> DBReader<'a> {
         })
         .context("failed to get transaction range from pruner_cp_watermark table")?;
 
-        let cursor_tx_seq = if let Some(cursor) = cursor {
-            Some(self.resolve_cursor_tx_digest_to_seq_num(cursor).await?)
-        } else {
-            None
-        };
-
         let mut query = transactions::dsl::transactions
             .filter(transactions::tx_sequence_number.between(tx_range.0, tx_range.1))
             .into_boxed();
 
-        // Translate transaction digest cursor to tx sequence number
-        if let Some(cursor_tx_seq) = cursor_tx_seq {
-            if is_descending {
-                query = query.filter(transactions::dsl::tx_sequence_number.lt(cursor_tx_seq));
-            } else {
-                query = query.filter(transactions::dsl::tx_sequence_number.gt(cursor_tx_seq));
+        let (min_tx_seq, max_tx_seq) = tx_seq_range;
+        query = match min_tx_seq {
+            Bound::Included(min) => {
+                query.filter(transactions::dsl::tx_sequence_number.ge(min as i64))
             }
-        }
+            Bound::Excluded(min) => {
+                query.filter(transactions::dsl::tx_sequence_number.gt(min as i64))
+            }
+            Bound::Unbounded => query,
+        };
+        query = match max_tx_seq {
+            Bound::Included(max) => {
+                query.filter(transactions::dsl::tx_sequence_number.le(max as i64))
+            }
+            Bound::Excluded(max) => {
+                query.filter(transactions::dsl::tx_sequence_number.lt(max as i64))
+            }
+            Bound::Unbounded => query,
+        };
         if is_descending {
             query = query.order(transactions::dsl::tx_sequence_number.desc());
         } else {
@@ -2870,12 +3106,15 @@ impl<'a> DBReader<'a> {
         }
 
         query = query.filter(
-            events::tx_sequence_number.nullable().eq(tx_digests::table
-                .select(tx_digests::tx_sequence_number)
-                // we filter the tx_digests table because it is indexed by digest,
-                // events table is not
-                .filter(tx_digests::tx_digest.eq(tx_digest.into_inner().to_vec()))
-                .single_value()),
+            events::tx_sequence_number
+                .nullable()
+                .eq(tx_global_order::table
+                    .select(tx_global_order::tx_sequence_number.assume_not_null())
+                    // we filter the tx_global_order table because it is indexed by digest,
+                    // events table is not
+                    .filter(tx_global_order::tx_digest.eq(tx_digest.into_inner().to_vec()))
+                    .filter(tx_global_order::tx_sequence_number.is_not_null())
+                    .single_value()),
         );
 
         let pool = self.main_reader.get_pool();
@@ -2914,11 +3153,12 @@ impl<'a> DBReader<'a> {
     ) -> IndexerResult<Option<i64>> {
         let pool = self.main_reader.get_pool();
         run_query_async!(&pool, move |conn| {
-            tx_digests::table
-                .select(tx_digests::tx_sequence_number)
-                // we filter the tx_digests table because it is indexed by digest,
+            tx_global_order::table
+                .select(tx_global_order::tx_sequence_number.assume_not_null())
+                // we filter the tx_global_order table because it is indexed by digest,
                 // transactions (and other tables) are not
-                .filter(tx_digests::tx_digest.eq(cursor.into_inner().to_vec()))
+                .filter(tx_global_order::tx_digest.eq(cursor.into_inner().to_vec()))
+                .filter(tx_global_order::tx_sequence_number.is_not_null())
                 .first::<i64>(conn)
                 .optional()
         })
@@ -2934,11 +3174,12 @@ impl<'a> DBReader<'a> {
                 .filter(
                     transactions::tx_sequence_number
                         .nullable()
-                        .eq(tx_digests::table
-                            .select(tx_digests::tx_sequence_number)
-                            // we filter the tx_digests table because it is indexed by digest,
+                        .eq(tx_global_order::table
+                            .select(tx_global_order::tx_sequence_number.assume_not_null())
+                            // we filter the tx_global_order table because it is indexed by digest,
                             // transactions table is not
-                            .filter(tx_digests::tx_digest.eq(digest.into_inner().to_vec()))
+                            .filter(tx_global_order::tx_digest.eq(digest.into_inner().to_vec()))
+                            .filter(tx_global_order::tx_sequence_number.is_not_null())
                             .single_value()),
                 )
                 .select((transactions::timestamp_ms, transactions::events))
@@ -2955,12 +3196,8 @@ impl<'a> DBReader<'a> {
         run_query_async!(&pool, move |conn| {
             optimistic_transactions::table
                 .inner_join(
-                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
-                        .eq(tx_global_order::global_sequence_number)
-                        .and(
-                            optimistic_transactions::optimistic_sequence_number
-                                .eq(tx_global_order::optimistic_sequence_number),
-                        )),
+                    tx_global_order::table.on(optimistic_transactions::optimistic_sequence_number
+                        .eq(tx_global_order::optimistic_sequence_number)),
                 )
                 // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not
@@ -3007,6 +3244,42 @@ impl<'a> DBReader<'a> {
         }
 
         Ok(checkpoint)
+    }
+
+    /// Fetches from the `checkpoints` table by sequence numbers list.
+    /// Pruned/missing seqs are simply absent from the result.
+    async fn multi_get_checkpoints_by_seqs(
+        &self,
+        seqs: &[CheckpointSequenceNumber],
+    ) -> IndexerResult<Vec<StoredCheckpoint>> {
+        if seqs.is_empty() {
+            return Ok(vec![]);
+        }
+        let seqs_i64: Vec<i64> = seqs.iter().map(|s| *s as i64).collect();
+        let pool = self.main_reader.get_pool();
+        run_query_async!(&pool, move |conn| {
+            checkpoints::dsl::checkpoints
+                .filter(checkpoints::sequence_number.eq_any(seqs_i64))
+                .load::<StoredCheckpoint>(conn)
+        })
+    }
+
+    /// Fetches from the `checkpoints` table by digests list.
+    /// Pruned/missing digests are simply absent from the result.
+    async fn multi_get_checkpoints_by_digests(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> IndexerResult<Vec<StoredCheckpoint>> {
+        if digests.is_empty() {
+            return Ok(vec![]);
+        }
+        let digests = digests.to_vec();
+        let pool = self.main_reader.get_pool();
+        run_query_async!(&pool, move |conn| {
+            checkpoints::dsl::checkpoints
+                .filter(checkpoints::checkpoint_digest.eq_any(digests))
+                .load::<StoredCheckpoint>(conn)
+        })
     }
 
     async fn get_checkpoints(
@@ -3169,19 +3442,15 @@ impl<'a> DBReader<'a> {
         run_query_async!(&pool, |conn| {
             optimistic_transactions::table
                 .inner_join(
-                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
-                        .eq(tx_global_order::global_sequence_number)
-                        .and(
-                            optimistic_transactions::optimistic_sequence_number
-                                .eq(tx_global_order::optimistic_sequence_number),
-                        )),
+                    tx_global_order::table.on(optimistic_transactions::optimistic_sequence_number
+                        .eq(tx_global_order::optimistic_sequence_number)),
                 )
                 // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not
                 .filter(tx_global_order::tx_digest.eq_any(digests))
                 .select((
                     OptimisticTransaction::as_select(),
-                    tx_global_order::chk_tx_sequence_number,
+                    tx_global_order::tx_sequence_number,
                 ))
                 .load::<(OptimisticTransaction, Option<i64>)>(conn)
         })
@@ -3201,9 +3470,10 @@ impl<'a> DBReader<'a> {
         let pool = self.main_reader.get_pool();
         run_query_async!(&pool, |conn| {
             // using two-step query to allow partition pruning during execution.
-            let tx_sequence_numbers = tx_digests::table
-                .filter(tx_digests::tx_digest.eq_any(&digests))
-                .select(tx_digests::tx_sequence_number)
+            let tx_sequence_numbers = tx_global_order::table
+                .filter(tx_global_order::tx_digest.eq_any(&digests))
+                .filter(tx_global_order::tx_sequence_number.is_not_null())
+                .select(tx_global_order::tx_sequence_number.assume_not_null())
                 .load::<i64>(conn)?;
 
             if tx_sequence_numbers.is_empty() {
@@ -3227,12 +3497,8 @@ impl<'a> DBReader<'a> {
         run_query_async!(&pool, |conn| {
             optimistic_transactions::table
                 .inner_join(
-                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
-                        .eq(tx_global_order::global_sequence_number)
-                        .and(
-                            optimistic_transactions::optimistic_sequence_number
-                                .eq(tx_global_order::optimistic_sequence_number),
-                        )),
+                    tx_global_order::table.on(optimistic_transactions::optimistic_sequence_number
+                        .eq(tx_global_order::optimistic_sequence_number)),
                 )
                 // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not
@@ -3304,9 +3570,12 @@ impl<'a> DBReader<'a> {
         let pool = self.main_reader.get_pool();
 
         let rows = run_query_async!(&pool, |conn| {
-            tx_digests::table
-                .filter(tx_digests::tx_sequence_number.eq_any(tx_sequence_numbers))
-                .select(tx_digests::tx_digest)
+            tx_global_order::table
+                .filter(
+                    tx_global_order::tx_sequence_number
+                        .eq_any(tx_sequence_numbers.into_iter().map(Some)),
+                )
+                .select(tx_global_order::tx_digest)
                 .load::<Vec<u8>>(conn)
         })?;
 
@@ -3363,51 +3632,36 @@ impl<'a> DBReader<'a> {
     ///
     /// # Errors
     ///
-    /// * [`IndexerError::DataPruned`] — signals the caller to fall back to the
-    ///   historical store. Two triggers:
-    ///   * `cursor` resolves to a sequence number below the pruning
-    ///     min_available_tx.
-    ///   * `cursor = None && is_descending = false && min_available_tx > 0`:
-    ///     the DB cannot tell whether the address has pre-watermark history.
-    /// * [`IndexerError::InvalidArgument`]: the cursor is invalid (digest
-    ///   absent from `tx_digests` AND the database is not pruned).
+    /// [`IndexerError::DataPruned`] — signals the caller to fall back to the
+    /// historical store. Two triggers:
+    /// * the first transaction of the page is below the pruning
+    ///   min_available_tx.
+    /// * `cursor_tx_seq = None && is_descending = false && min_available_tx >
+    ///   0`: the DB cannot tell whether the address has pre-watermark history.
     async fn query_transactions_by_affected_addresses(
         &self,
         addr: Address,
-        cursor: Option<TransactionDigest>,
+        cursor_tx_seq: Option<u64>,
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<StoredTransaction>> {
         let min_available_tx = self.main_reader.affected_addresses_tx_watermark();
 
-        let cursor_tx_seq = if let Some(cursor) = cursor {
-            match self
-                .resolve_cursor_tx_digest_to_seq_num_maybe(cursor)
-                .await?
-            {
-                Some(tx_seq) => {
-                    self.main_reader.ensure_data_not_pruned_for_tx(
-                        tx_seq,
-                        IndexerReader::TRANSACTIONS_BY_ADDRESS_TABLES,
-                    )?;
-                    Some(tx_seq)
-                }
-                None if min_available_tx > 0 => {
-                    return Err(IndexerError::DataPruned(format!(
-                        "unable to resolve cursor digest: {cursor} potentially pruned"
-                    )));
-                }
-                None => {
-                    return Err(IndexerError::InvalidArgument(format!(
-                        "cursor with digest {cursor} not found"
-                    )));
-                }
-            }
-        } else {
-            None
-        };
+        if let Some(cursor_tx_seq) = cursor_tx_seq {
+            // The page starts right after/before cursor in the pagination direction.
+            // The cursor row itself is allowed to be pruned.
+            let page_start = if is_descending {
+                cursor_tx_seq.saturating_sub(1)
+            } else {
+                cursor_tx_seq.saturating_add(1)
+            };
+            self.main_reader.ensure_data_not_pruned_for_tx(
+                page_start as i64,
+                IndexerReader::TRANSACTIONS_BY_ADDRESS_TABLES,
+            )?;
+        }
 
-        if !is_descending && cursor.is_none() && min_available_tx > 0 {
+        if !is_descending && cursor_tx_seq.is_none() && min_available_tx > 0 {
             return Err(IndexerError::DataPruned(format!(
                 "DB may be missing earliest history for address {addr} due to pruning"
             )));

@@ -16,7 +16,7 @@ use iota_swarm_config::{genesis_config::AccountConfig, network_config_builder::C
 use iota_types::{
     base_types::VersionNumber,
     committee::{Committee, EpochId},
-    crypto::AccountKeyPair,
+    crypto::AccountPrivateKey,
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     messages_checkpoint::{CheckpointSequenceNumber, VerifiedCheckpoint},
@@ -107,7 +107,7 @@ impl PersistedStore {
         chain_start_timestamp_ms: u64,
         protocol_version: ProtocolVersion,
         account_configs: Vec<AccountConfig>,
-        validator_keys: Option<Vec<AccountKeyPair>>,
+        validator_keys: Option<Vec<AccountPrivateKey>>,
         reference_gas_price: Option<u64>,
         path: Option<PathBuf>,
     ) -> (Simulacrum<R, Self>, PersistedStoreInnerReadOnlyWrapper)

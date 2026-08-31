@@ -248,10 +248,11 @@ impl NameRegistration {
     /// The transaction blocks that sent objects to this object.
     ///
     /// `scanLimit` restricts the number of candidate transactions scanned when
-    /// gathering a page of results. It is required for queries that apply
-    /// more than two complex filters (on function, kind, sender, recipient,
-    /// input object, changed object, or ids), and can be at most
-    /// `serviceConfig.maxScanLimit`.
+    /// gathering a page of results. It is required for queries that apply two
+    /// or more complex filters (on function, affected address, recipient, input
+    /// object, changed object, or wrapped or deleted object), and can be at
+    /// most `serviceConfig.maxScanLimit`. A `kind` filter cannot be
+    /// combined with any of them.
     ///
     /// When the scan limit is reached the page will be returned even if it has
     /// fewer than `first` results when paginating forward (`last` when
@@ -270,6 +271,10 @@ impl NameRegistration {
     /// GraphQL, but it can be restricted by the `after` and `before`
     /// cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
     /// `atCheckpoint` filters.
+    ///
+    /// DEPRECATION NOTICE: Support for the combination of two or more complex
+    /// filters as discussed above will stop with the v1.38 release. `scanLimit`
+    /// will thus become obsolete and will be removed as well.
     #[graphql(
         complexity = "first.or(last).unwrap_or(DEFAULT_PAGE_SIZE as u64) as usize * child_complexity"
     )]
@@ -281,6 +286,9 @@ impl NameRegistration {
         last: Option<u64>,
         before: Option<transaction_block::Cursor>,
         filter: Option<TransactionBlockFilter>,
+        #[graphql(
+            deprecation = "`scanLimit` will be removed with v1.38, along with the support for combining complex filters."
+        )]
         scan_limit: Option<u64>,
     ) -> Result<ScanConnection<String, TransactionBlock>> {
         ObjectImpl(&self.super_.super_)
@@ -599,7 +607,7 @@ impl NameRegistration {
         owner: IotaAddress,
         checkpoint_viewed_at: u64,
     ) -> Result<Connection<String, NameRegistration>, Error> {
-        let type_ = NameRegistration::type_(config.package_address.into());
+        let type_ = NameRegistration::struct_tag(config.package_address.into());
 
         let filter = ObjectFilter {
             type_: Some(type_.clone().into()),
@@ -626,8 +634,8 @@ impl NameRegistration {
 
     /// Return the type representing a `NameRegistration` on chain. This
     /// can change from chain to chain (mainnet, testnet, devnet etc).
-    pub(crate) fn type_(package: IotaAddress) -> StructTag {
-        iota_names::NameRegistration::type_(package.into())
+    pub(crate) fn struct_tag(package: IotaAddress) -> StructTag {
+        iota_names::NameRegistration::struct_tag(package.into())
     }
 
     // Because the type of the NameRegistration object is not constant,

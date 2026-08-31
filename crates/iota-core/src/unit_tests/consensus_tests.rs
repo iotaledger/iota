@@ -14,7 +14,7 @@ use iota_sdk_types::{
 };
 use iota_types::{
     base_types::ExecutionDigests,
-    crypto::deterministic_random_account_key,
+    crypto::deterministic_random_account_private_key,
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContentsExt, CheckpointSignatureMessage,
         CheckpointSummaryExt, SignedCheckpointSummary,
@@ -46,7 +46,7 @@ pub fn test_gas_objects() -> Vec<Object> {
         static GAS_OBJECTS: Vec<Object> = (0..4)
             .map(|_| {
                 let gas_object_id = ObjectId::random();
-                let (owner, _) = deterministic_random_account_key();
+                let (owner, _) = deterministic_random_account_private_key();
                 Object::with_id_owner_for_testing(gas_object_id, owner)
             })
             .collect();
@@ -61,7 +61,7 @@ pub async fn test_certificates(
     shared_object: Object,
 ) -> Vec<CertifiedTransaction> {
     let epoch_store = authority.load_epoch_store_one_call_per_task();
-    let (sender, keypair) = deterministic_random_account_key();
+    let (sender, sender_key) = deterministic_random_account_private_key();
     let rgp = epoch_store.reference_gas_price();
 
     let mut certificates = Vec::new();
@@ -97,7 +97,7 @@ pub async fn test_certificates(
         .unwrap();
 
         let transaction = epoch_store
-            .verify_transaction(to_sender_signed_transaction(tx, &keypair))
+            .verify_transaction(to_sender_signed_transaction(tx, &sender_key))
             .unwrap();
 
         // Submit the transaction and assemble a certificate.

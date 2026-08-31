@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk_types::{ObjectId, StructTag, TypeTag, Version};
+use iota_sdk_types::{ObjectId, Version};
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
@@ -33,14 +33,6 @@ impl Receiving {
 
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
         bcs::to_bytes(self).expect("Value representation is owned and should always serialize")
-    }
-
-    pub fn struct_tag(value_type: TypeTag) -> StructTag {
-        StructTag::new_transfer_receiving(value_type)
-    }
-
-    pub fn type_tag(value_type: TypeTag) -> TypeTag {
-        TypeTag::Struct(Box::new(Self::struct_tag(value_type)))
     }
 
     pub fn is_receiving(view: &CompiledModule, s: &SignatureToken) -> bool {

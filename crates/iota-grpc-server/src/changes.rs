@@ -18,15 +18,13 @@ use std::{
 
 use iota_grpc_types::v1::transaction as grpc_tx;
 use iota_sdk_types::{
-    Address, ExecutionStatus, ObjectDigest, ObjectId, Owner, StructTag, TransactionEffects,
-    TypeTag, Version,
+    Address, ExecutionStatus, ObjectDigest, ObjectId, ObjectReference, ObjectRemoveKind,
+    OwnedObjectReference, Owner, StructTag, TransactionEffects, TypeTag, Version, WriteKind,
 };
 use iota_types::{
     coin::Coin,
-    effects::{ObjectRemoveKind, TransactionEffectsAPI, TransactionEffectsExt},
-    gas_coin::GAS,
+    effects::{TransactionEffectsAPI, TransactionEffectsExt},
     object::Object,
-    storage::WriteKind,
 };
 
 /// Error deriving balance or object changes from a transaction's effects.
@@ -154,13 +152,13 @@ pub fn derive_balance_changes(
     output_objects: &[Object],
     mocked_coin: Option<ObjectId>,
 ) -> Result<Vec<DerivedBalanceChange>, DeriveChangesError> {
-    let (_, gas_owner) = effects.gas_object();
+    let gas_owner = effects.gas_object().owner;
 
     // Only charge gas when the tx fails, skip all object parsing
     if effects.status() != &ExecutionStatus::Success {
         return Ok(vec![DerivedBalanceChange {
             owner: gas_owner,
-            coin_type: GAS::type_tag(),
+            coin_type: TypeTag::from(StructTag::new_gas()),
             amount: (effects.gas_cost_summary().net_gas_usage() as i128).neg(),
         }]);
     }
@@ -180,7 +178,8 @@ pub fn derive_balance_changes(
     let mut balances = BTreeMap::<(Owner, TypeTag), i128>::new();
 
     // 1. subtract all input coins
-    for (id, version) in effects.modified_at_versions() {
+    for modified in effects.modified_at_versions() {
+        let (id, version) = (modified.object_id, modified.version);
         // Skip the mocked gas coin, which is not present in the input objects
         if matches!(mocked_coin, Some(coin) if id == coin) {
             continue;
@@ -195,7 +194,8 @@ pub fn derive_balance_changes(
     }
 
     // 2. add all mutated coins
-    for (object_ref, _, _) in effects.all_changed_objects() {
+    for (changed, _) in effects.all_changed_objects() {
+        let object_ref = changed.reference;
         // Skip the mocked gas coin, which is not present in the output objects
         if matches!(mocked_coin, Some(coin) if object_ref.object_id == coin) {
             continue;
@@ -236,7 +236,7 @@ fn coin_owner_type_value(
             version,
         });
     };
-    let Some(move_object_type) = object.type_() else {
+    let Some(move_object_type) = object.data.opt_object_type() else {
         return Ok(None);
     };
     if !move_object_type.is_coin() {
@@ -279,6 +279,7 @@ pub fn derive_object_changes(
     let modified_at_versions = effects
         .modified_at_versions()
         .into_iter()
+        .map(|modified| (modified.object_id, modified.version))
         .collect::<BTreeMap<_, _>>();
 
     let outputs: BTreeMap<(ObjectId, Version), &Object> = output_objects
@@ -291,14 +292,17 @@ pub fn derive_object_changes(
     let inputs_by_id: BTreeMap<ObjectId, &Object> =
         input_objects.iter().map(|o| (o.id(), o)).collect();
 
-    for (changed_object, owner, kind) in effects.all_changed_objects() {
-        let object_id = changed_object.object_id;
-        let version = changed_object.version;
-        let digest = changed_object.digest;
+    for (changed, kind) in effects.all_changed_objects() {
+        let OwnedObjectReference { reference, owner } = changed;
+        let ObjectReference {
+            object_id,
+            version,
+            digest,
+        } = reference;
         let Some(object) = outputs.get(&(object_id, version)) else {
             return Err(DeriveChangesError::MissingObject { object_id, version });
         };
-        if let Some(move_object_type) = object.type_() {
+        if let Some(move_object_type) = object.data.opt_object_type() {
             let object_type: StructTag = move_object_type.clone().into();
 
             match kind {
@@ -363,7 +367,7 @@ pub fn derive_object_changes(
             });
         };
         // Packages cannot be removed; skip non-Move objects
-        if let Some(move_object_type) = object.type_() {
+        if let Some(move_object_type) = object.data.opt_object_type() {
             let object_type: StructTag = move_object_type.clone().into();
             match kind {
                 ObjectRemoveKind::Delete => object_changes.push(DerivedObjectChange::Deleted {
@@ -587,12 +591,12 @@ mod tests {
                 let mut expected = vec![
                     DerivedBalanceChange {
                         owner: Owner::Address(sender_address()),
-                        coin_type: GAS::type_tag(),
+                        coin_type: TypeTag::from(StructTag::new_gas()),
                         amount: -30,
                     },
                     DerivedBalanceChange {
                         owner: Owner::Address(recipient_address()),
-                        coin_type: GAS::type_tag(),
+                        coin_type: TypeTag::from(StructTag::new_gas()),
                         amount: 30,
                     },
                 ];
@@ -684,7 +688,7 @@ mod tests {
             changes,
             Ok(vec![DerivedBalanceChange {
                 owner: Owner::Address(sender_address()),
-                coin_type: GAS::type_tag(),
+                coin_type: TypeTag::from(StructTag::new_gas()),
                 amount: -1000,
             }])
         );
@@ -706,7 +710,7 @@ mod tests {
             changes,
             Ok(vec![DerivedBalanceChange {
                 owner: Owner::Address(recipient_address()),
-                coin_type: GAS::type_tag(),
+                coin_type: TypeTag::from(StructTag::new_gas()),
                 amount: 30,
             }])
         );
@@ -748,7 +752,7 @@ mod tests {
             .effects
             .modified_at_versions()
             .into_iter()
-            .find_map(|(id, version)| (id == object_id(0)).then_some(version))
+            .find_map(|modified| (modified.object_id == object_id(0)).then_some(modified.version))
             .unwrap();
         assert!(changes.iter().any(|change| matches!(
             change,
@@ -804,8 +808,8 @@ mod tests {
         let created_version = effects
             .all_changed_objects()
             .into_iter()
-            .find_map(|(object_ref, _, kind)| {
-                (kind == WriteKind::Create).then_some(object_ref.version)
+            .find_map(|(changed, kind)| {
+                (kind == WriteKind::Create).then_some(changed.reference.version)
             })
             .unwrap();
         assert_eq!(

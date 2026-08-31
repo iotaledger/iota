@@ -13,11 +13,11 @@ use iota_sdk_types::{
     Address, Argument, CanceledTransaction, ChangeEpoch, ChangeEpochV2, ChangeEpochV3,
     ChangeEpochV4, Command, ConsensusCommitDigest, ConsensusDeterminedVersionAssignments,
     EndOfEpochTransactionKind, ExecutionError as ExecutionFailureStatus, ExecutionStatus,
-    GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference, Owner,
-    ProgrammableTransaction, SenderSignedTransaction, SharedObjectReference, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEvents, TransactionEventsDigest,
-    TransactionKind, TransferObjects, TypeTag, UserSignature, Version, VersionAssignment,
-    gas::GasCostSummary,
+    GenesisObject, Identifier, MoveCall, ObjectDigest, ObjectId, ObjectReference,
+    OwnedObjectReference, Owner, ProgrammableTransaction, SenderSignedTransaction,
+    SharedObjectReference, Transaction, TransactionDigest, TransactionEffects, TransactionEvents,
+    TransactionEventsDigest, TransactionKind, TransferObjects, TypeTag, UserSignature, Version,
+    VersionAssignment, WriteKind, gas::GasCostSummary,
 };
 use iota_types::{
     base_types::EpochId,
@@ -31,7 +31,7 @@ use iota_types::{
     object::bounded_visitor::BoundedVisitor,
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType as NativeExecuteTransactionRequestType,
-    storage::{DeleteKind, WriteKind},
+    storage::DeleteKind,
     transaction::{CallArg, InputObjectKind, TransactionAPI},
 };
 use move_binary_format::CompiledModule;
@@ -474,6 +474,9 @@ pub enum IotaTransactionBlockKind {
     ProgrammableTransaction(IotaProgrammableTransactionBlock),
     /// A transaction which updates global randomness state
     RandomnessStateUpdate(IotaRandomnessStateUpdate),
+    /// A transaction which applies an add/remove delta to the on-chain
+    /// transaction deny rules
+    TransactionDenyRulesUpdate(IotaTransactionDenyRulesUpdate),
     /// The transaction which occurs only at the end of the epoch
     EndOfEpochTransaction(IotaEndOfEpochTransaction),
     // .. more transaction types go here
@@ -504,6 +507,9 @@ impl Display for IotaTransactionBlockKind {
             }
             Self::RandomnessStateUpdate(_) => {
                 writeln!(writer, "Transaction Kind: Randomness State Update")?;
+            }
+            Self::TransactionDenyRulesUpdate(_) => {
+                writeln!(writer, "Transaction Kind: Transaction Deny Rules Update")?;
             }
             Self::EndOfEpochTransaction(_) => {
                 writeln!(writer, "Transaction Kind: End of Epoch Transaction")?;
@@ -562,6 +568,24 @@ impl IotaTransactionBlockKind {
                     random_bytes: update.random_bytes,
                 }))
             }
+            TransactionKind::TransactionDenyRulesUpdate(update) => Ok(
+                Self::TransactionDenyRulesUpdate(IotaTransactionDenyRulesUpdate {
+                    epoch: update.epoch,
+                    round: update.round,
+                    added_addresses: update.added_addresses.into_iter().collect(),
+                    removed_addresses: update.removed_addresses.into_iter().collect(),
+                    added_objects: update.added_objects.into_iter().collect(),
+                    removed_objects: update.removed_objects.into_iter().collect(),
+                    added_packages: update.added_packages.into_iter().collect(),
+                    removed_packages: update.removed_packages.into_iter().collect(),
+                    package_publish_disabled: update.package_publish_disabled,
+                    package_upgrade_disabled: update.package_upgrade_disabled,
+                    shared_object_disabled: update.shared_object_disabled,
+                    user_transaction_disabled: update.user_transaction_disabled,
+                    receiving_objects_disabled: update.receiving_objects_disabled,
+                    move_authenticator_disabled: update.move_authenticator_disabled,
+                }),
+            ),
             TransactionKind::EndOfEpoch(end_of_epoch_tx) => {
                 Ok(Self::EndOfEpochTransaction(IotaEndOfEpochTransaction {
                     transactions: end_of_epoch_tx
@@ -578,6 +602,9 @@ impl IotaTransactionBlockKind {
                             }
                             EndOfEpochTransactionKind::ChangeEpochV4(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                            }
+                            EndOfEpochTransactionKind::TransactionDenyRulesCreate => {
+                                IotaEndOfEpochTransactionKind::TransactionDenyRulesCreate
                             }
                             _ => unimplemented!(
                                 "a new EndOfEpochTransactionKind enum variant was added and needs to be handled"
@@ -635,6 +662,7 @@ impl IotaTransactionBlockKind {
             Self::ConsensusCommitPrologueV1(_) => "ConsensusCommitPrologueV1",
             Self::ProgrammableTransaction(_) => "ProgrammableTransaction",
             Self::RandomnessStateUpdate(_) => "RandomnessStateUpdate",
+            Self::TransactionDenyRulesUpdate(_) => "TransactionDenyRulesUpdate",
             Self::EndOfEpochTransaction(_) => "EndOfEpochTransaction",
         }
     }
@@ -1007,7 +1035,7 @@ impl IotaTransactionBlockEffects {
                 .await;
         match native {
             TransactionEffects::V1(inner) => {
-                let mut inner = IotaTransactionBlockEffectsV1::from(*inner);
+                let mut inner = IotaTransactionBlockEffectsV1::from(TransactionEffects::V1(inner));
                 inner.status = clever_status;
                 inner.into()
             }
@@ -1034,18 +1062,16 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
             modified_at_versions: native
                 .modified_at_versions()
                 .into_iter()
-                .map(
-                    |(object_id, sequence_number)| IotaTransactionBlockEffectsModifiedAtVersions {
-                        object_id,
-                        sequence_number,
-                    },
-                )
+                .map(|modified| IotaTransactionBlockEffectsModifiedAtVersions {
+                    object_id: modified.object_id,
+                    sequence_number: modified.version,
+                })
                 .collect(),
             gas_used: native.gas_cost_summary().clone(),
             shared_objects: native
                 .input_shared_objects()
                 .into_iter()
-                .map(|kind| kind.object_ref())
+                .map(|shared| shared.object_reference())
                 .collect(),
             transaction_digest: *native.transaction_digest(),
             created: to_owned_ref(native.created()),
@@ -1055,8 +1081,8 @@ impl<T: TransactionEffectsAPI> From<T> for IotaTransactionBlockEffectsV1 {
             unwrapped_then_deleted: native.unwrapped_then_deleted().to_vec(),
             wrapped: native.wrapped().to_vec(),
             gas_object: OwnedObjectRef {
-                owner: native.gas_object().1,
-                reference: native.gas_object().0,
+                owner: native.gas_object().owner,
+                reference: native.gas_object().reference,
             },
             events_digest: native.events_digest().copied(),
             dependencies: native.dependencies().to_vec(),
@@ -1087,7 +1113,7 @@ impl Display for IotaTransactionBlockEffects {
         builder.push_record(vec![format!("Executed Epoch: {}", self.executed_epoch())]);
 
         if !self.created().is_empty() {
-            builder.push_record(vec![format!("\nCreated Objects: ")]);
+            builder.push_record(vec!["\nCreated Objects: ".to_string()]);
 
             for oref in self.created() {
                 builder.push_record(vec![owned_objref_string(oref)]);
@@ -1095,21 +1121,21 @@ impl Display for IotaTransactionBlockEffects {
         }
 
         if !self.mutated().is_empty() {
-            builder.push_record(vec![format!("Mutated Objects: ")]);
+            builder.push_record(vec!["Mutated Objects: ".to_string()]);
             for oref in self.mutated() {
                 builder.push_record(vec![owned_objref_string(oref)]);
             }
         }
 
         if !self.shared_objects().is_empty() {
-            builder.push_record(vec![format!("Shared Objects: ")]);
+            builder.push_record(vec!["Shared Objects: ".to_string()]);
             for oref in self.shared_objects() {
                 builder.push_record(vec![objref_string(oref)]);
             }
         }
 
         if !self.deleted().is_empty() {
-            builder.push_record(vec![format!("Deleted Objects: ")]);
+            builder.push_record(vec!["Deleted Objects: ".to_string()]);
 
             for oref in self.deleted() {
                 builder.push_record(vec![objref_string(oref)]);
@@ -1117,7 +1143,7 @@ impl Display for IotaTransactionBlockEffects {
         }
 
         if !self.wrapped().is_empty() {
-            builder.push_record(vec![format!("Wrapped Objects: ")]);
+            builder.push_record(vec!["Wrapped Objects: ".to_string()]);
 
             for oref in self.wrapped() {
                 builder.push_record(vec![objref_string(oref)]);
@@ -1125,7 +1151,7 @@ impl Display for IotaTransactionBlockEffects {
         }
 
         if !self.unwrapped().is_empty() {
-            builder.push_record(vec![format!("Unwrapped Objects: ")]);
+            builder.push_record(vec!["Unwrapped Objects: ".to_string()]);
             for oref in self.unwrapped() {
                 builder.push_record(vec![owned_objref_string(oref)]);
             }
@@ -1153,7 +1179,7 @@ impl Display for IotaTransactionBlockEffects {
 
         let dependencies = self.dependencies();
         if !dependencies.is_empty() {
-            builder.push_record(vec![format!("\nTransaction Dependencies:")]);
+            builder.push_record(vec!["\nTransaction Dependencies:".to_string()]);
             for dependency in dependencies {
                 builder.push_record(vec![format!("   {dependency}")]);
             }
@@ -1204,7 +1230,7 @@ impl IotaTransactionBlockEvents {
                 .drain(..)
                 .enumerate()
                 .map(|(seq, event)| {
-                    let layout = resolver.get_annotated_layout(&event.type_)?;
+                    let layout = resolver.get_annotated_layout(&event.struct_tag)?;
                     IotaEvent::try_from(event, tx_digest, seq as u64, timestamp_ms, layout)
                 })
                 .collect::<Result<_, _>>()?,
@@ -1224,7 +1250,7 @@ impl IotaTransactionBlockEvents {
                 .drain(..)
                 .enumerate()
                 .map(|(seq, event)| {
-                    let layout = get_layout_from_struct_tag(event.type_.clone(), resolver)?;
+                    let layout = get_layout_from_struct_tag(event.struct_tag.clone(), resolver)?;
                     IotaEvent::try_from(event, tx_digest, seq as u64, timestamp_ms, layout)
                 })
                 .collect::<Result<_, _>>()?,
@@ -1597,12 +1623,12 @@ impl From<ExecutionStatus> for IotaExecutionStatus {
     }
 }
 
-fn to_owned_ref(owned_refs: Vec<(ObjectReference, Owner)>) -> Vec<OwnedObjectRef> {
+fn to_owned_ref(owned_refs: Vec<OwnedObjectReference>) -> Vec<OwnedObjectRef> {
     owned_refs
         .into_iter()
-        .map(|(oref, owner)| OwnedObjectRef {
-            owner,
-            reference: oref,
+        .map(|owned| OwnedObjectRef {
+            owner: owned.owner,
+            reference: owned.reference,
         })
         .collect()
 }
@@ -1812,7 +1838,7 @@ impl Display for IotaTransactionBlock {
         let mut builder = TableBuilder::default();
 
         builder.push_record(vec![format!("{}", self.data)]);
-        builder.push_record(vec![format!("Signatures:")]);
+        builder.push_record(vec!["Signatures:".to_string()]);
         for tx_sig in &self.tx_signatures {
             builder.push_record(vec![format!(
                 "   {}\n",
@@ -1950,6 +1976,45 @@ pub struct IotaRandomnessStateUpdate {
     pub random_bytes: Vec<u8>,
 }
 
+/// The add/remove delta a `TransactionDenyRulesUpdate` system transaction
+/// applies to the on-chain transaction deny rules; the switch states are
+/// absolute.
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct IotaTransactionDenyRulesUpdate {
+    #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
+    pub epoch: u64,
+
+    #[schemars(with = "String")]
+    #[serde_as(as = "DisplayFromStr")]
+    pub round: u64,
+    #[schemars(with = "Vec<AddressSchema>")]
+    #[serde_as(as = "Vec<AddressSchema>")]
+    pub added_addresses: Vec<Address>,
+    #[schemars(with = "Vec<AddressSchema>")]
+    #[serde_as(as = "Vec<AddressSchema>")]
+    pub removed_addresses: Vec<Address>,
+    #[schemars(with = "Vec<ObjectIdSchema>")]
+    #[serde_as(as = "Vec<ObjectIdSchema>")]
+    pub added_objects: Vec<ObjectId>,
+    #[schemars(with = "Vec<ObjectIdSchema>")]
+    #[serde_as(as = "Vec<ObjectIdSchema>")]
+    pub removed_objects: Vec<ObjectId>,
+    #[schemars(with = "Vec<ObjectIdSchema>")]
+    #[serde_as(as = "Vec<ObjectIdSchema>")]
+    pub added_packages: Vec<ObjectId>,
+    #[schemars(with = "Vec<ObjectIdSchema>")]
+    #[serde_as(as = "Vec<ObjectIdSchema>")]
+    pub removed_packages: Vec<ObjectId>,
+    pub package_publish_disabled: bool,
+    pub package_upgrade_disabled: bool,
+    pub shared_object_disabled: bool,
+    pub user_transaction_disabled: bool,
+    pub receiving_objects_disabled: bool,
+    pub move_authenticator_disabled: bool,
+}
+
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct IotaEndOfEpochTransaction {
@@ -1961,6 +2026,7 @@ pub struct IotaEndOfEpochTransaction {
 pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     ChangeEpochV2(IotaChangeEpochV2),
+    TransactionDenyRulesCreate,
 }
 
 #[serde_as]
@@ -2239,7 +2305,7 @@ impl From<Command> for IotaCommand {
             ),
             Command::Publish(cmd) => IotaCommand::Publish(cmd.dependencies),
             Command::MakeMoveVector(cmd) => IotaCommand::MakeMoveVec(
-                cmd.type_.map(|tag| tag.to_string()),
+                cmd.type_tag.map(|tag| tag.to_string()),
                 cmd.elements.into_iter().map(IotaArgument::from).collect(),
             ),
             Command::Upgrade(cmd) => IotaCommand::Upgrade(
@@ -2949,6 +3015,7 @@ pub enum IotaTransactionKind {
     ConsensusCommitPrologueV1 = 3,
     RandomnessStateUpdate = 5,
     EndOfEpochTransaction = 6,
+    TransactionDenyRulesUpdate = 7,
 }
 
 impl IotaTransactionKind {
@@ -2966,6 +3033,7 @@ impl From<&TransactionKind> for IotaTransactionKind {
             #[allow(deprecated)]
             TransactionKind::AuthenticatorStateUpdateV1Deprecated => Self::SystemTransaction,
             TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
+            TransactionKind::TransactionDenyRulesUpdate(_) => Self::TransactionDenyRulesUpdate,
             TransactionKind::EndOfEpoch(_) => Self::EndOfEpochTransaction,
             TransactionKind::Programmable(_) => Self::ProgrammableTransaction,
             _ => unimplemented!(

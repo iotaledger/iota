@@ -69,7 +69,7 @@ pub struct TestEvent {
 }
 
 impl TestEvent {
-    fn type_() -> StructTag {
+    fn struct_tag() -> StructTag {
         StructTag::new(
             ObjectId::FRAMEWORK,
             Identifier::from_static("IOTA"),
@@ -80,7 +80,7 @@ impl TestEvent {
 
     fn layout() -> MoveStructLayout {
         MoveStructLayout {
-            type_: struct_tag_sdk_to_core(&Self::type_()),
+            type_: struct_tag_sdk_to_core(&Self::struct_tag()),
             fields: vec![
                 MoveFieldLayout::new(ident_str!("creator").to_owned(), MoveTypeLayout::Address),
                 MoveFieldLayout::new(
@@ -118,12 +118,12 @@ impl From<&str> for UTF8String {
 }
 
 impl UTF8String {
-    fn type_() -> StructTag {
+    fn struct_tag() -> StructTag {
         StructTag::new_string()
     }
     fn layout() -> MoveStructLayout {
         MoveStructLayout {
-            type_: struct_tag_sdk_to_core(&Self::type_()),
+            type_: struct_tag_sdk_to_core(&Self::struct_tag()),
             fields: vec![MoveFieldLayout::new(
                 ident_str!("bytes").to_owned(),
                 MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8)),

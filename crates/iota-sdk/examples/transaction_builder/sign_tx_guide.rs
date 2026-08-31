@@ -19,13 +19,12 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::IotaTransactionBlockResponseOptions,
     types::{
-        crypto::{IotaSignature, PublicKey},
-        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        crypto::PublicKey, programmable_transaction_builder::ProgrammableTransactionBuilder,
         transaction::TransactionAPI,
     },
 };
 use iota_sdk_crypto::{
-    Signer as _, ToFromBase64, ToFromBech32, ed25519::Ed25519PrivateKey,
+    IotaVerifier as _, Signer as _, ToFromBase64, ToFromBech32, ed25519::Ed25519PrivateKey,
     secp256k1::Secp256k1PrivateKey, secp256r1::Secp256r1PrivateKey, simple::SimpleKeypair,
 };
 use iota_sdk_types::{Address, Transaction, UserSignature, crypto::SimpleSignature};
@@ -39,11 +38,12 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // deterministically generate a keypair, testing only, do not use for mainnet,
     // use the next section to randomly generate a keypair instead.
-    let ikp_determ_0 = SimpleKeypair::from(Ed25519PrivateKey::generate(StdRng::from_seed([0; 32])));
+    let ikp_determ_0 =
+        SimpleKeypair::from(Ed25519PrivateKey::random_with(StdRng::from_seed([0; 32])));
     let _ikp_determ_1 =
-        SimpleKeypair::from(Secp256k1PrivateKey::generate(StdRng::from_seed([0; 32])));
+        SimpleKeypair::from(Secp256k1PrivateKey::random_with(StdRng::from_seed([0; 32])));
     let _ikp_determ_2 =
-        SimpleKeypair::from(Secp256r1PrivateKey::generate(StdRng::from_seed([0; 32])));
+        SimpleKeypair::from(Secp256r1PrivateKey::random_with(StdRng::from_seed([0; 32])));
 
     // randomly generate a keypair.
     let _ikp_rand_0 = SimpleKeypair::from(Ed25519PrivateKey::random());
@@ -142,10 +142,12 @@ async fn main() -> Result<(), anyhow::Error> {
     // use SimpleKeypair to sign the digest.
     let iota_sig: SimpleSignature = ikp_determ_0.sign(&digest);
 
-    // if you would like to verify the signature locally before submission, use this
-    // function. if it fails to verify locally, the transaction will fail to
-    // execute in IOTA.
-    let res = iota_sig.verify_secure(&intent_msg, sender);
+    // If you would like to verify the signature locally before submission,
+    // verify it against the transaction with the sender's public key, which
+    // also ensures the signature carries the matching public key. If it fails
+    // to verify locally, the transaction will fail to execute in IOTA.
+    let iota_sig = UserSignature::Simple(iota_sig);
+    let res = ikp_determ_0.public_key().verify_transaction(&tx, &iota_sig);
     assert!(res.is_ok());
 
     // execute the transaction.
@@ -154,7 +156,7 @@ async fn main() -> Result<(), anyhow::Error> {
         .execute_transaction_block(
             iota_types::transaction::TransactionEnvelope::from_user_sig_data(
                 intent_msg.value.clone(),
-                vec![UserSignature::Simple(iota_sig)],
+                vec![iota_sig],
             ),
             IotaTransactionBlockResponseOptions::default(),
             None,

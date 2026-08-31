@@ -19,9 +19,9 @@ fn publish_type_factory(exec: &mut Executor, account: &mut AccountCurrent) -> Ob
     let package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap();
-    package.0
+    package.reference
 }
 
 fn _all_valid_type_tag_fuzzing(add_sub: isize) {

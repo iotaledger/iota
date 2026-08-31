@@ -29,7 +29,9 @@ use crate::{
         authority_per_epoch_store::{
             LockDetails, LockDetailsWrapper, report_aggregator::DBReceivedReportsStatePerAuthority,
         },
-        shared_object_congestion_tracker::CongestionPerObjectDebt,
+        shared_object_congestion_tracker::{
+            CongestionPerObjectDebt, CongestionWorkerDebt, WorkerDebtSlots,
+        },
         shared_object_version_manager::AssignedTxAndVersions,
     },
     checkpoints::PendingCheckpoint,
@@ -60,6 +62,10 @@ pub(crate) struct ConsensusCommitOutput {
     congestion_control_object_debts: Vec<(ObjectId, u64)>,
     // debts for shared objects with randomness
     congestion_control_randomness_object_debts: Vec<(ObjectId, u64)>,
+    // execution-worker debt carried over to the next commit (slots relative
+    // to the next commit's start); covers all transactions, which one tracker
+    // schedules. `None` when execution-worker congestion control is inactive.
+    congestion_control_worker_debt: Option<WorkerDebtSlots>,
     // TODO: If we delay committing consensus output until after all deferrals have been loaded,
     // we can move deferred_txns to the ConsensusOutputCache and save disk bandwidth.
     deferred_txns: Vec<(DeferralKey, Vec<DeferredTransaction>)>,
@@ -101,6 +107,11 @@ pub(crate) struct ConsensusCommitOutput {
     // commit. Flushed to `deny_rule_proposals` atomically with
     // `last_consensus_stats`.
     deny_rule_proposals: BTreeMap<AuthorityName, TransactionDenyRuleProposal>,
+
+    // The mirror state reached by this commit's injected updates, when it
+    // injected any. Written to `deny_rule_mirror` atomically with
+    // `last_consensus_stats`.
+    deny_rule_mirror: Option<DenyRuleSet>,
 }
 
 impl ConsensusCommitOutput {
@@ -237,6 +248,10 @@ impl ConsensusCommitOutput {
         self.congestion_control_randomness_object_debts = object_debts;
     }
 
+    pub fn set_congestion_control_worker_debt(&mut self, debt: WorkerDebtSlots) {
+        self.congestion_control_worker_debt = Some(debt);
+    }
+
     pub fn set_owned_object_locks(&mut self, locks: HashMap<ObjectReference, LockDetails>) {
         self.owned_object_locks = locks;
     }
@@ -255,6 +270,18 @@ impl ConsensusCommitOutput {
             self.deny_rule_proposals
                 .insert(proposal.authority, proposal);
         }
+    }
+
+    /// The deny rule proposals recorded during this commit so far.
+    pub(super) fn deny_rule_proposals(
+        &self,
+    ) -> &BTreeMap<AuthorityName, TransactionDenyRuleProposal> {
+        &self.deny_rule_proposals
+    }
+
+    /// Records the mirror state reached by this commit's injected updates.
+    pub fn record_deny_rule_mirror(&mut self, rules: DenyRuleSet) {
+        self.deny_rule_mirror = Some(rules);
     }
 
     pub fn write_to_batch(
@@ -365,6 +392,16 @@ impl ConsensusCommitOutput {
                 }),
         )?;
 
+        if let Some(debt) = self.congestion_control_worker_debt {
+            batch.insert_batch(
+                &tables.congestion_control_worker_debt,
+                [(
+                    SINGLETON_KEY,
+                    CongestionWorkerDebt::new(self.consensus_round, debt),
+                )],
+            )?;
+        }
+
         if !self.report_state_snapshots.is_empty() {
             batch.insert_batch(
                 &tables.received_reports_state,
@@ -380,13 +417,15 @@ impl ConsensusCommitOutput {
                     .map(|(obj_ref, lock)| (obj_ref, LockDetailsWrapper::from(lock))),
             )?;
         }
-
         batch.insert_batch(
             &tables.authority_overload_notifications,
             self.overload_notifications,
         )?;
 
         batch.insert_batch(&tables.deny_rule_proposals, self.deny_rule_proposals)?;
+        if let Some(mirror) = self.deny_rule_mirror {
+            batch.insert_batch(&tables.deny_rule_mirror, [((), mirror)])?;
+        }
 
         Ok(())
     }
@@ -1144,6 +1183,46 @@ impl ConsensusOutputQuarantine {
                 let debt = debt.saturating_sub(per_commit_limit * num_rounds);
                 (object_id, debt)
             }))
+    }
+
+    /// Loads the execution-worker debt carried over into `current_round`
+    /// (aged for the elapsed commits), to seed the worker concurrency profile.
+    /// Reads the most recent debt from the in-memory quarantine, falling
+    /// back to the last checkpointed value in the epoch store. Returns an
+    /// empty debt when none is recorded.
+    pub(crate) fn load_initial_worker_debt(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        current_round: CommitRound,
+    ) -> IotaResult<WorkerDebtSlots> {
+        let tables = epoch_store.tables()?;
+        let per_commit_limit = epoch_store
+            .protocol_config()
+            .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
+            .unwrap_or_default();
+
+        // Most recent debt from a not-yet-checkpointed commit, else the
+        // last checkpointed value persisted in the epoch store.
+        let debt = self
+            .output_queue
+            .iter()
+            .rev()
+            .find_map(|output| {
+                output
+                    .congestion_control_worker_debt
+                    .clone()
+                    .map(|slots| CongestionWorkerDebt::new(output.consensus_round, slots))
+            })
+            .or_else(|| {
+                tables
+                    .congestion_control_worker_debt
+                    .get(&SINGLETON_KEY)
+                    .expect("db error")
+            });
+
+        Ok(debt
+            .map(|debt| debt.decayed(current_round, per_commit_limit))
+            .unwrap_or_default())
     }
 
     /// Used in testing to load debts. Only looks in the in-memory quarantine.

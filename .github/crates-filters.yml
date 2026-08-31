@@ -32,6 +32,8 @@ iota-framework:
   - "crates/iota-framework/**"
 iota-framework-snapshot:
   - "crates/iota-framework-snapshot/**"
+iota-framework-snapshot-manifest:
+  - "crates/iota-framework-snapshot-manifest/**"
 iota-framework-tests:
   - "crates/iota-framework-tests/**"
 iota-genesis-builder:
@@ -104,6 +106,8 @@ iota-node:
   - "crates/iota-node/**"
 iota-node-storage:
   - "crates/iota-node-storage/**"
+iota-node-transaction-builder:
+  - "crates/iota-node-transaction-builder/**"
 iota-open-rpc:
   - "crates/iota-open-rpc/**"
 iota-open-rpc-macros:
@@ -158,6 +162,8 @@ iota-tls:
   - "crates/iota-tls/**"
 iota-tool:
   - "crates/iota-tool/**"
+iota-traffic-controller:
+  - "crates/iota-traffic-controller/**"
 iota-transaction-builder:
   - "crates/iota-transaction-builder/**"
 iota-transaction-checks:

@@ -40,7 +40,7 @@ use tokio::{
 use tracing::{debug, error, info, trace, warn};
 
 use self::metrics::TrafficControllerMetrics;
-use crate::traffic_controller::{
+use crate::{
     nodefw_client::{BlockAddress, BlockAddresses, NodeFWClient},
     policies::{Policy, PolicyResponse, TrafficControlPolicy, TrafficTally},
 };
@@ -170,14 +170,14 @@ impl TrafficController {
         let policy_config = { self.policy_config.read().await.clone() };
         Self::set_policy_config_metrics(&policy_config, self.metrics.clone());
         let (tx, rx) = mpsc::channel(policy_config.channel_capacity);
-        // Memoized drainfile existence state. This is passed into delegation
-        // functions to prevent them from continuing to populate blocklists
-        // if drain is set, as otherwise it will grow without bounds
-        // without the firewall running to periodically clear it.
+        // Drain file state, refreshed by the tally loop. While the firewall
+        // drains, the node blocks locally instead of delegating.
         let mem_drainfile_present = self
             .fw_config
             .as_ref()
-            .map(|config| config.drain_path.exists())
+            // An unreadable path counts as a drain, thus the node does not
+            // delegate while it cannot tell.
+            .map(|config| config.drain_path.try_exists().unwrap_or(true))
             .unwrap_or(false);
         self.metrics
             .deadmans_switch_enabled
@@ -190,6 +190,7 @@ impl TrafficController {
         let tally_loop_metrics = self.metrics.clone();
         let clear_loop_metrics = self.metrics.clone();
         let tally_loop_fw_config = self.fw_config.clone();
+        let tally_loop_dry_run = self.dry_run.clone();
 
         let spam_policy = self
             .spam_policy
@@ -209,6 +210,7 @@ impl TrafficController {
             tally_loop_blocklists,
             tally_loop_metrics,
             mem_drainfile_present,
+            tally_loop_dry_run,
         ));
         spawn_monitored_task!(run_clear_blocklists_loop(blocklists, clear_loop_metrics));
         self.open_tally_channel(tx);
@@ -255,7 +257,7 @@ impl TrafficController {
             self.metrics
                 .error_client_threshold
                 .set(error_threshold as i64);
-            Self::update_policy_threshold(policy, error_threshold, dry_run).await?;
+            Self::update_policy_threshold(policy, error_threshold).await?;
         }
         if let Some(spam_threshold) = spam_threshold {
             let policy = self.spam_policy.as_ref().ok_or_else(|| {
@@ -266,7 +268,7 @@ impl TrafficController {
             self.metrics
                 .spam_client_threshold
                 .set(spam_threshold as i64);
-            Self::update_policy_threshold(policy, spam_threshold, dry_run).await?;
+            Self::update_policy_threshold(policy, spam_threshold).await?;
         }
         if let Some(dry_run) = dry_run {
             self.metrics.dry_run_enabled.set(dry_run as i64);
@@ -279,21 +281,14 @@ impl TrafficController {
     async fn update_policy_threshold(
         policy: &Arc<Mutex<TrafficControlPolicy>>,
         threshold: u64,
-        dry_run: Option<bool>,
     ) -> Result<(), IotaError> {
         match *policy.lock().await {
             TrafficControlPolicy::FreqThreshold(ref mut policy) => {
                 policy.client_threshold = threshold;
-                if let Some(dry_run) = dry_run {
-                    policy.config.dry_run = dry_run;
-                }
                 Ok(())
             }
             TrafficControlPolicy::TestNConnIP(ref mut policy) => {
                 policy.threshold = threshold;
-                if let Some(dry_run) = dry_run {
-                    policy.config.dry_run = dry_run;
-                }
                 Ok(())
             }
             _ => Err(IotaError::InvalidAdminRequest(
@@ -471,6 +466,7 @@ async fn run_tally_loop(
     blocklists: Blocklists,
     metrics: Arc<TrafficControllerMetrics>,
     mut mem_drainfile_present: bool,
+    dry_run: Arc<AtomicBool>,
 ) {
     let spam_blocklists = Arc::new(blocklists.clone());
     let error_blocklists = Arc::new(blocklists);
@@ -490,6 +486,10 @@ async fn run_tally_loop(
                 metrics.tallies.inc();
                 match received {
                     Some(tally) => {
+                        // The firewall must receive no blocks during a drain
+                        // or a dry run.
+                        let delegation_allowed = !mem_drainfile_present
+                            && !dry_run.load(Ordering::Relaxed);
                         // TODO: spawn a task to handle tallying concurrently
                         if let Err(err) = handle_spam_tally(
                             spam_policy.clone(),
@@ -499,7 +499,7 @@ async fn run_tally_loop(
                             tally.clone(),
                             spam_blocklists.clone(),
                             metrics.clone(),
-                            mem_drainfile_present,
+                            delegation_allowed,
                         )
                         .await {
                             warn!("Error handling spam tally: {}", err);
@@ -512,7 +512,7 @@ async fn run_tally_loop(
                             tally,
                             error_blocklists.clone(),
                             metrics.clone(),
-                            mem_drainfile_present,
+                            delegation_allowed,
                         )
                         .await {
                             warn!("Error handling error tally: {}", err);
@@ -528,15 +528,11 @@ async fn run_tally_loop(
             _ = tokio::time::sleep(tokio::time::Duration::from_secs(timeout)) => {
                 if let Some(fw_config) = &fw_config {
                     error!("No traffic tallies received in {} seconds.", timeout);
-                    if mem_drainfile_present {
-                        continue;
-                    }
-                    if !fw_config.drain_path.exists() {
-                        mem_drainfile_present = true;
+                    if !fw_config.drain_path.try_exists().unwrap_or(true) {
                         warn!("Draining Node firewall.");
-                        File::create(&fw_config.drain_path)
-                            .expect("Failed to touch nodefw drain file");
-                        metrics.deadmans_switch_enabled.set(1);
+                        if let Err(err) = File::create(&fw_config.drain_path) {
+                            error!("Failed to touch nodefw drain file: {err}");
+                        }
                     }
                 }
             }
@@ -545,6 +541,19 @@ async fn run_tally_loop(
         // every N seconds, we update metrics and logging that would be too
         // spammy to be handled while processing each tally
         if metric_timer.elapsed() > Duration::from_secs(METRICS_INTERVAL_SECS) {
+            // The operator can add or remove the drain file at any time. The
+            // loop reads it again, thus delegation restarts after a drain. An
+            // I/O error keeps the last known state, because `exists` cannot
+            // tell an error from a removal.
+            if let Some(fw_config) = &fw_config {
+                match fw_config.drain_path.try_exists() {
+                    Ok(drainfile_present) => mem_drainfile_present = drainfile_present,
+                    Err(err) => warn!("Failed to read the nodefw drain file: {err}"),
+                }
+                metrics
+                    .deadmans_switch_enabled
+                    .set(mem_drainfile_present as i64);
+            }
             if let TrafficControlPolicy::FreqThreshold(ref spam_policy) = *spam_policy.lock().await
             {
                 if let Some(highest_direct_rate) = spam_policy.highest_direct_rate() {
@@ -598,7 +607,7 @@ async fn handle_error_tally(
     tally: TrafficTally,
     blocklists: Arc<Blocklists>,
     metrics: Arc<TrafficControllerMetrics>,
-    mem_drainfile_present: bool,
+    delegation_allowed: bool,
 ) -> Result<(), reqwest::Error> {
     let Some((error_weight, error_type)) = tally.clone().error_info else {
         return Ok(());
@@ -617,7 +626,7 @@ async fn handle_error_tally(
     let resp = policy.lock().await.handle_tally(tally);
     metrics.error_tally_handled.inc();
     if let Some(fw_config) = fw_config {
-        if fw_config.delegate_error_blocking && !mem_drainfile_present {
+        if fw_config.delegate_error_blocking && delegation_allowed {
             let client = nodefw_client
                 .as_ref()
                 .expect("Expected NodeFWClient for blocklist delegation");
@@ -643,7 +652,7 @@ async fn handle_spam_tally(
     tally: TrafficTally,
     blocklists: Arc<Blocklists>,
     metrics: Arc<TrafficControllerMetrics>,
-    mem_drainfile_present: bool,
+    delegation_allowed: bool,
 ) -> Result<(), reqwest::Error> {
     if !(tally.spam_weight.is_sampled() && policy_config.spam_sample_rate.is_sampled()) {
         return Ok(());
@@ -651,7 +660,7 @@ async fn handle_spam_tally(
     let resp = policy.lock().await.handle_tally(tally.clone());
     metrics.tally_handled.inc();
     if let Some(fw_config) = fw_config {
-        if fw_config.delegate_spam_blocking && !mem_drainfile_present {
+        if fw_config.delegate_spam_blocking && delegation_allowed {
             let client = nodefw_client
                 .as_ref()
                 .expect("Expected NodeFWClient for blocklist delegation");
@@ -1085,5 +1094,262 @@ pub fn get_client_ip(
                 None => ClientIpStatus::XForwardedForUnparsable,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{net::Ipv4Addr, path::PathBuf};
+
+    use super::*;
+
+    const CLIENT: IpAddr = IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1));
+
+    /// The policy that the request breaches.
+    #[derive(Clone, Copy)]
+    enum PolicyKind {
+        Spam,
+        Error,
+    }
+
+    /// Where the block for one breaching request went.
+    #[derive(Debug, PartialEq)]
+    struct Outcome {
+        blocked_locally: i64,
+        delegated: u64,
+    }
+
+    /// Blocks the direct client on every tally of the given policy.
+    fn policy_config(dry_run: bool, kind: PolicyKind) -> PolicyConfig {
+        let error = matches!(kind, PolicyKind::Error);
+        let blocking_policy = PolicyType::TestNConnIP(1);
+        PolicyConfig {
+            spam_policy_type: if error {
+                PolicyType::NoOp
+            } else {
+                blocking_policy.clone()
+            },
+            error_policy_type: if error {
+                blocking_policy
+            } else {
+                PolicyType::NoOp
+            },
+            spam_sample_rate: Weight::one(),
+            // The default of zero clears the counts every second.
+            connection_blocklist_ttl_sec: 120,
+            dry_run,
+            ..Default::default()
+        }
+    }
+
+    /// Delegates both policies. No server listens on the firewall URL, thus the
+    /// metrics show if the node delegates a block.
+    fn fw_config(drain_path: PathBuf) -> RemoteFirewallConfig {
+        RemoteFirewallConfig {
+            remote_fw_url: "http://127.0.0.1:1".to_string(),
+            destination_port: 8080,
+            delegate_spam_blocking: true,
+            delegate_error_blocking: true,
+            drain_path,
+            drain_timeout_secs: 300,
+        }
+    }
+
+    fn breach(kind: PolicyKind) -> TrafficTally {
+        let error_info =
+            matches!(kind, PolicyKind::Error).then(|| (Weight::one(), "error".to_string()));
+        TrafficTally::new(Some(CLIENT), None, error_info, Weight::one())
+    }
+
+    /// Tallies one breaching request against a controller whose firewall config
+    /// delegates both policies.
+    async fn tally_one_breach(dry_run: bool, kind: PolicyKind) -> Outcome {
+        let (_tmp_dir, controller) = delegating_controller(dry_run, kind).await;
+        controller.tally(breach(kind));
+        wait_for_block(&controller).await
+    }
+
+    /// Makes a controller that delegates both policies. Keep the directory: the
+    /// tally loop reads `drain_path` in it.
+    async fn delegating_controller(
+        dry_run: bool,
+        kind: PolicyKind,
+    ) -> (impl Drop, TrafficController) {
+        let tmp_dir = iota_common::tempdir();
+        let controller = TrafficController::init_for_test(
+            policy_config(dry_run, kind),
+            Some(fw_config(tmp_dir.path().join("drain"))),
+        )
+        .await;
+        (tmp_dir, controller)
+    }
+
+    /// Waits for the tally loop to record the block, then reports where it
+    /// went.
+    async fn wait_for_block(controller: &TrafficController) -> Outcome {
+        let metrics = &controller.metrics;
+        for _ in 0..100 {
+            let outcome = Outcome {
+                blocked_locally: metrics.connection_ip_blocklist_len.get(),
+                delegated: metrics.blocks_delegated_to_firewall.get(),
+            };
+            if outcome
+                != (Outcome {
+                    blocked_locally: 0,
+                    delegated: 0,
+                })
+            {
+                return outcome;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("the tally loop recorded no block in one second");
+    }
+
+    #[tokio::test]
+    async fn test_dry_run_reports_the_block_it_does_not_apply() {
+        let (_tmp_dir, controller) = delegating_controller(true, PolicyKind::Spam).await;
+        controller.tally(breach(PolicyKind::Spam));
+        assert_eq!(
+            wait_for_block(&controller).await,
+            Outcome {
+                blocked_locally: 1,
+                delegated: 0,
+            }
+        );
+
+        // Dry run lets the request through, but it counts the client that the
+        // node would block.
+        assert!(controller.check(&Some(CLIENT), &None).await);
+        assert_eq!(controller.metrics.num_dry_run_blocked_requests.get(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_the_admin_api_turns_dry_run_off_at_once() {
+        let (_tmp_dir, controller) = delegating_controller(true, PolicyKind::Spam).await;
+        controller.tally(breach(PolicyKind::Spam));
+        assert_eq!(wait_for_block(&controller).await.delegated, 0);
+
+        controller
+            .admin_reconfigure(TrafficControlReconfigParams {
+                error_threshold: None,
+                spam_threshold: None,
+                dry_run: Some(false),
+            })
+            .await
+            .expect("the request changes only the dry-run flag");
+
+        // The tally loop must read the new value, not the value it started with.
+        for _ in 0..100 {
+            controller.tally(breach(PolicyKind::Spam));
+            if controller.metrics.blocks_delegated_to_firewall.get() > 0 {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("the node delegated no block after the admin API turned dry run off");
+    }
+
+    #[tokio::test]
+    async fn test_an_unreadable_drain_path_stops_delegation() {
+        // The drain path goes through a file, thus `try_exists` gives an error
+        // and the node cannot tell if the firewall drains.
+        let tmp_dir = iota_common::tempdir();
+        let blocker = tmp_dir.path().join("blocker");
+        File::create(&blocker).expect("the file is created");
+        let controller = TrafficController::init_for_test(
+            policy_config(false, PolicyKind::Spam),
+            Some(fw_config(blocker.join("drain"))),
+        )
+        .await;
+        controller.tally(breach(PolicyKind::Spam));
+
+        // The node keeps the block, because the firewall possibly drains.
+        assert_eq!(
+            wait_for_block(&controller).await,
+            Outcome {
+                blocked_locally: 1,
+                delegated: 0,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_delegation_restarts_when_the_drain_file_goes_away() {
+        let tmp_dir = iota_common::tempdir();
+        let drain_path = tmp_dir.path().join("drain");
+        File::create(&drain_path).expect("the drain file is created");
+        let controller = TrafficController::init_for_test(
+            policy_config(false, PolicyKind::Spam),
+            Some(fw_config(drain_path.clone())),
+        )
+        .await;
+        let metrics = &controller.metrics;
+
+        // The firewall drains, thus the node blocks locally.
+        controller.tally(breach(PolicyKind::Spam));
+        for _ in 0..100 {
+            if metrics.connection_ip_blocklist_len.get() > 0 {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        assert_eq!(metrics.connection_ip_blocklist_len.get(), 1);
+        assert_eq!(metrics.blocks_delegated_to_firewall.get(), 0);
+
+        // The operator removes the drain file, thus delegation restarts.
+        fs::remove_file(&drain_path).expect("the drain file is removed");
+        for _ in 0..100 {
+            controller.tally(breach(PolicyKind::Spam));
+            if metrics.blocks_delegated_to_firewall.get() > 0 {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+        panic!("the node delegated no block in ten seconds");
+    }
+
+    #[tokio::test]
+    async fn test_dry_run_keeps_spam_blocks_local() {
+        assert_eq!(
+            tally_one_breach(true, PolicyKind::Spam).await,
+            Outcome {
+                blocked_locally: 1,
+                delegated: 0,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dry_run_keeps_error_blocks_local() {
+        assert_eq!(
+            tally_one_breach(true, PolicyKind::Error).await,
+            Outcome {
+                blocked_locally: 1,
+                delegated: 0,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_spam_blocks_are_delegated_without_dry_run() {
+        assert_eq!(
+            tally_one_breach(false, PolicyKind::Spam).await,
+            Outcome {
+                blocked_locally: 0,
+                delegated: 1,
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn test_error_blocks_are_delegated_without_dry_run() {
+        assert_eq!(
+            tally_one_breach(false, PolicyKind::Error).await,
+            Outcome {
+                blocked_locally: 0,
+                delegated: 1,
+            }
+        );
     }
 }
