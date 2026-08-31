@@ -1231,9 +1231,9 @@ mod test {
         let validator = ValidatorInfo {
             name: "0".into(),
             authority_key: authority_key.public().into(),
-            protocol_key: protocol_key.public().clone(),
+            protocol_key: protocol_key.public_key(),
             account_address,
-            network_key: network_key.public().clone(),
+            network_key: network_key.public_key(),
             gas_price: DEFAULT_VALIDATOR_GAS_PRICE,
             commission_rate: DEFAULT_COMMISSION_RATE,
             network_address: local_ip_utils::new_local_tcp_address_for_testing(),

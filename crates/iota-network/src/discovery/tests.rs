@@ -5,7 +5,6 @@
 use std::{collections::HashSet, time::Duration};
 
 use anemo::{Result, types::PeerAffinity};
-use fastcrypto::{ed25519::Ed25519PublicKey, traits::KeyPair};
 use futures::stream::FuturesUnordered;
 use iota_config::{local_ip_utils, p2p::AllowlistedPeer};
 use tokio::time::timeout;
@@ -307,7 +306,7 @@ async fn get_known_peers() -> Result<()> {
     let config = default_p2p_config_with_private_addresses_allowed();
 
     let (discovery, server, network, key) = set_up_network(config, None);
-    let key_for_signing = key.copy();
+    let key_for_signing = key.clone();
     let (_event_loop, _handle, state) = start_network(discovery, network.clone(), key);
 
     // Err when own_info not set
@@ -349,7 +348,7 @@ async fn get_known_peers() -> Result<()> {
         peer_info_other.peer_id,
         VerifiedSignedNodeInfo::new_unchecked(SignedNodeInfo::new_from_data_and_sig(
             peer_info_other.clone(),
-            Ed25519Signature::default(),
+            Ed25519Signature::new([0; 64]),
         )),
     );
     let response = server
@@ -571,12 +570,10 @@ async fn peers_are_added_from_reconfig_channel() -> Result<()> {
     let (mut subscriber_2, _) = network_2.subscribe()?;
 
     // We send peer 1 a new peer info (peer 2) in the channel.
-    let peer_2_network_pubkey =
-        Ed25519PublicKey(ed25519_consensus::VerificationKey::try_from(peer_id_2.0).unwrap());
     let peer2_addr: Multiaddr = local_multiaddr_from_network(&network_2);
     tx_1.send(TrustedPeerChangeEvent {
         new_committee: vec![PeerInfo {
-            peer_id: PeerId(peer_2_network_pubkey.0.to_bytes()),
+            peer_id: peer_id_2,
             affinity: PeerAffinity::High,
             address: vec![peer2_addr.to_anemo_address().unwrap()],
         }],
@@ -1144,7 +1141,7 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     // Create a legitimate node that will be spoofed
     let (discovery_legitimate, _server_legitimate, network_legitimate, key_legitimate) =
         set_up_network(config.clone(), None);
-    let key_legitimate_for_signing = key_legitimate.copy(); // Keep a copy for signing
+    let key_legitimate_for_signing = key_legitimate.clone(); // Keep a copy for signing
     let (mut event_loop_legitimate, _handle_legitimate, _state_legitimate) = start_network(
         discovery_legitimate,
         network_legitimate.clone(),
@@ -1182,9 +1179,8 @@ async fn test_address_spoofing_prevention() -> Result<()> {
 
     for i in 0..5 {
         // Create different keypairs (different private keys) for each malicious peer
-        let malicious_key = NetworkKeyPair::generate(&mut rand::thread_rng());
-        let malicious_peer_id =
-            anemo::PeerId(malicious_key.public().as_bytes().try_into().unwrap());
+        let malicious_key = NetworkKeyPair::random();
+        let malicious_peer_id = anemo::PeerId(malicious_key.public_key().into_inner());
         let timestamp_malicious = start_timestamp_ms + i + 100;
 
         let signed_peer_info_malicious = NodeInfo {
@@ -1203,9 +1199,8 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     // Malicious actor claims to be a legitimate peer but at a fake
     // non-existing/non-reachable address
     let fake_address: Multiaddr = "/dns/localhost/udp/54321".parse()?;
-    let key_malicious_2 = NetworkKeyPair::generate(&mut rand::thread_rng());
-    let peer_id_malicious_2 =
-        anemo::PeerId(key_malicious_2.public().as_bytes().try_into().unwrap());
+    let key_malicious_2 = NetworkKeyPair::random();
+    let peer_id_malicious_2 = anemo::PeerId(key_malicious_2.public_key().into_inner());
     let timestamp_malicious_2 = start_timestamp_ms + 1000; // Newer timestamp
     let signed_peer_info_spoof_fake_addr = NodeInfo {
         peer_id: peer_id_malicious_2,
@@ -1221,7 +1216,7 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     // Create another legitimate node to use as the "malicious_address"
     let (discovery_malicious_3, _server_malicious_3, network_malicious_3, key_malicious_3) =
         set_up_network(config.clone(), None);
-    let key_malicious_3_for_signing = key_malicious_3.copy(); // Keep a copy for signing
+    let key_malicious_3_for_signing = key_malicious_3.clone(); // Keep a copy for signing
     let (event_loop_malicious_3, _handle_malicious_3) =
         discovery_malicious_3.build(network_malicious_3.clone(), key_malicious_3);
 
@@ -1332,7 +1327,7 @@ async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
 
     // Create network 1 first
     let (discovery_1, _server_1, network_1, key_1) = set_up_network(config.clone(), None);
-    let key_1_for_signing = key_1.copy();
+    let key_1_for_signing = key_1.clone();
     let (event_loop_1, handle_1, _state_1) = start_network(discovery_1, network_1.clone(), key_1);
     let peer_id_1 = network_1.peer_id();
 
@@ -1387,7 +1382,7 @@ async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
     // Create network 2 with the same address that 1 was using
     let (discovery_2, _server_2, network_2, key_2) =
         set_up_network(config.clone(), Some(shared_socket_addr.into()));
-    let key_2_for_signing = key_2.copy();
+    let key_2_for_signing = key_2.clone();
     let (event_loop_2, handle_2, _state_2) = start_network(discovery_2, network_2.clone(), key_2);
     let peer_id_2 = network_2.peer_id();
 
@@ -1446,7 +1441,7 @@ async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
     // Create network 3 with the same address
     let (discovery_3, _server_3, network_3, key_3) =
         set_up_network(config.clone(), Some(shared_socket_addr.into()));
-    let key_3_for_signing = key_3.copy();
+    let key_3_for_signing = key_3.clone();
     let (_event_loop_3, _handle_3, _state_3) = start_network(discovery_3, network_3.clone(), key_3);
     let peer_id_3 = network_3.peer_id();
 
@@ -1615,11 +1610,11 @@ async fn test_peer_deduplication() -> Result<()> {
     // each field in NodeInfo individually
 
     // Create test keypairs
-    let key1 = NetworkKeyPair::generate(&mut rand::thread_rng());
-    let key2 = NetworkKeyPair::generate(&mut rand::thread_rng());
+    let key1 = NetworkKeyPair::random();
+    let key2 = NetworkKeyPair::random();
 
-    let peer_id1 = anemo::PeerId(key1.public().as_bytes().try_into().unwrap());
-    let peer_id2 = anemo::PeerId(key2.public().as_bytes().try_into().unwrap());
+    let peer_id1 = anemo::PeerId(key1.public_key().into_inner());
+    let peer_id2 = anemo::PeerId(key2.public_key().into_inner());
 
     let address1: Multiaddr = "/dns/localhost/udp/1111".parse()?;
     let address2: Multiaddr = "/dns/localhost/udp/2222".parse()?;
@@ -1908,8 +1903,8 @@ async fn test_private_address_filtering() -> Result<()> {
 
     // Create peers with private/unroutable addresses (should be filtered)
     for (i, address_str) in filtered_addresses.iter().enumerate() {
-        let key = NetworkKeyPair::generate(&mut rand::thread_rng());
-        let peer_id = anemo::PeerId(key.public().0.to_bytes());
+        let key = NetworkKeyPair::random();
+        let peer_id = anemo::PeerId(key.public_key().into_inner());
 
         let peer_info = NodeInfo {
             peer_id,
@@ -1928,8 +1923,8 @@ async fn test_private_address_filtering() -> Result<()> {
 
     // Create peers with public addresses (should reach verification)
     for (i, address_str) in public_addresses.iter().enumerate() {
-        let key = NetworkKeyPair::generate(&mut rand::thread_rng());
-        let peer_id = anemo::PeerId(key.public().0.to_bytes());
+        let key = NetworkKeyPair::random();
+        let peer_id = anemo::PeerId(key.public_key().into_inner());
 
         let peer_info = NodeInfo {
             peer_id,

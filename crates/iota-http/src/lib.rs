@@ -478,15 +478,12 @@ mod tests {
     /// A server config and a client config that trusts it, without client
     /// authentication.
     fn test_tls_configs() -> (rustls::ServerConfig, rustls::ClientConfig) {
-        use fastcrypto::{
-            ed25519::{Ed25519KeyPair, Ed25519PrivateKey},
-            traits::{KeyPair, ToFromBytes},
-        };
+        use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
 
-        let keypair = Ed25519KeyPair::from(Ed25519PrivateKey::from_bytes(&[42; 32]).unwrap());
-        let public_key = keypair.public().to_owned();
+        let keypair = Ed25519PrivateKey::new([42; 32]);
+        let public_key = keypair.public_key();
         (
-            iota_tls::create_rustls_server_config(keypair.private(), SERVER_NAME.to_string()),
+            iota_tls::create_rustls_server_config(keypair, SERVER_NAME.to_string()),
             iota_tls::create_rustls_client_config(public_key, SERVER_NAME.to_string(), None),
         )
     }

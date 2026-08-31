@@ -10,7 +10,8 @@ use std::sync::Arc;
 
 pub use acceptor::{TlsAcceptor, TlsConnectionInfo};
 pub use certgen::SelfSignedCertificate;
-use fastcrypto::ed25519::{Ed25519PrivateKey, Ed25519PublicKey};
+use iota_sdk_crypto::ed25519::Ed25519PrivateKey;
+use iota_sdk_types::Ed25519PublicKey;
 pub use rustls;
 use rustls::ClientConfig;
 use tokio_rustls::rustls::ServerConfig;
@@ -99,7 +100,6 @@ pub fn create_rustls_client_config(
 mod tests {
     use std::collections::BTreeSet;
 
-    use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
     use rustls::{
         client::danger::ServerCertVerifier as _,
         pki_types::{ServerName, UnixTime},
@@ -110,13 +110,12 @@ mod tests {
 
     #[test]
     fn verify_allowall() {
-        let mut rng = rand::thread_rng();
-        let allowed = Ed25519KeyPair::generate(&mut rng);
-        let disallowed = Ed25519KeyPair::generate(&mut rng);
+        let allowed = Ed25519PrivateKey::random();
+        let disallowed = Ed25519PrivateKey::random();
         let random_cert_bob =
-            SelfSignedCertificate::new(allowed.private(), IOTA_VALIDATOR_SERVER_NAME);
+            SelfSignedCertificate::new(allowed, IOTA_VALIDATOR_SERVER_NAME);
         let random_cert_alice =
-            SelfSignedCertificate::new(disallowed.private(), IOTA_VALIDATOR_SERVER_NAME);
+            SelfSignedCertificate::new(disallowed, IOTA_VALIDATOR_SERVER_NAME);
 
         let verifier = ClientCertVerifier::new(AllowAll, IOTA_VALIDATOR_SERVER_NAME.to_string());
 
@@ -137,14 +136,13 @@ mod tests {
 
     #[test]
     fn verify_server_cert() {
-        let mut rng = rand::thread_rng();
-        let allowed = Ed25519KeyPair::generate(&mut rng);
-        let disallowed = Ed25519KeyPair::generate(&mut rng);
-        let allowed_public_key = allowed.public().to_owned();
+        let allowed = Ed25519PrivateKey::random();
+        let disallowed = Ed25519PrivateKey::random();
+        let allowed_public_key = allowed.public_key();
         let random_cert_bob =
-            SelfSignedCertificate::new(allowed.private(), IOTA_VALIDATOR_SERVER_NAME);
+            SelfSignedCertificate::new(allowed, IOTA_VALIDATOR_SERVER_NAME);
         let random_cert_alice =
-            SelfSignedCertificate::new(disallowed.private(), IOTA_VALIDATOR_SERVER_NAME);
+            SelfSignedCertificate::new(disallowed, IOTA_VALIDATOR_SERVER_NAME);
 
         let verifier =
             ServerCertVerifier::new(allowed_public_key, IOTA_VALIDATOR_SERVER_NAME.to_string());
@@ -178,16 +176,14 @@ mod tests {
 
     #[test]
     fn verify_hashset() {
-        let mut rng = rand::thread_rng();
-        let allowed = Ed25519KeyPair::generate(&mut rng);
-        let disallowed = Ed25519KeyPair::generate(&mut rng);
+        let allowed = Ed25519PrivateKey::random();
+        let disallowed = Ed25519PrivateKey::random();
 
-        let allowed_public_keys = BTreeSet::from([allowed.public().to_owned()]);
-        let allowed_cert =
-            SelfSignedCertificate::new(allowed.private(), IOTA_VALIDATOR_SERVER_NAME);
+        let allowed_public_keys = BTreeSet::from([allowed.public_key()]);
+        let allowed_cert = SelfSignedCertificate::new(allowed, IOTA_VALIDATOR_SERVER_NAME);
 
         let disallowed_cert =
-            SelfSignedCertificate::new(disallowed.private(), IOTA_VALIDATOR_SERVER_NAME);
+            SelfSignedCertificate::new(disallowed, IOTA_VALIDATOR_SERVER_NAME);
 
         let allowlist = AllowPublicKeys::new(allowed_public_keys);
         let verifier =
@@ -220,12 +216,11 @@ mod tests {
 
     #[test]
     fn invalid_server_name() {
-        let mut rng = rand::thread_rng();
-        let keypair = Ed25519KeyPair::generate(&mut rng);
-        let public_key = keypair.public().to_owned();
-        let cert = SelfSignedCertificate::new(keypair.private(), "not-iota");
+        let keypair = Ed25519PrivateKey::random();
+        let public_key = keypair.public_key();
+        let cert = SelfSignedCertificate::new(keypair, "not-iota");
 
-        let allowlist = AllowPublicKeys::new(BTreeSet::from([public_key.clone()]));
+        let allowlist = AllowPublicKeys::new(BTreeSet::from([public_key]));
         let client_verifier =
             ClientCertVerifier::new(allowlist, IOTA_VALIDATOR_SERVER_NAME.to_string());
 
@@ -261,15 +256,12 @@ mod tests {
 
     #[tokio::test]
     async fn axum_acceptor() {
-        use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
-
-        let mut rng = rand::thread_rng();
-        let client_keypair = Ed25519KeyPair::generate(&mut rng);
-        let client_public_key = client_keypair.public().to_owned();
+        let client_keypair = Ed25519PrivateKey::random();
+        let client_public_key = client_keypair.public_key();
         let client_certificate =
-            SelfSignedCertificate::new(client_keypair.private(), IOTA_VALIDATOR_SERVER_NAME);
-        let server_keypair = Ed25519KeyPair::generate(&mut rng);
-        let server_certificate = SelfSignedCertificate::new(server_keypair.private(), "localhost");
+            SelfSignedCertificate::new(client_keypair, IOTA_VALIDATOR_SERVER_NAME);
+        let server_keypair = Ed25519PrivateKey::random();
+        let server_certificate = SelfSignedCertificate::new(server_keypair, "localhost");
 
         let client = reqwest::Client::builder()
             .add_root_certificate(server_certificate.reqwest_certificate())
@@ -309,7 +301,7 @@ mod tests {
 
         // Insert the client's public key into the allowlist and verify the request is
         // successful
-        allowlist.update(BTreeSet::from([client_public_key.clone()]));
+        allowlist.update(BTreeSet::from([client_public_key]));
 
         let res = client.get(&server_url).send().await.unwrap();
         let body = res.text().await.unwrap();

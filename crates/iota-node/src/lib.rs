@@ -1134,7 +1134,9 @@ impl IotaNode {
             let server_name = format!("iota-{chain_identifier}");
             let network = Network::bind(config.p2p_config.listen_address)
                 .server_name(&server_name)
-                .private_key(config.network_key_pair().copy().private().0.to_bytes())
+                .private_key(iota_sdk_crypto::ToFromBytes::to_bytes(
+                    &config.network_key_pair(),
+                ))
                 .config(anemo_config)
                 .outbound_request_layer(outbound_layer)
                 .start(service)?;
@@ -1147,8 +1149,7 @@ impl IotaNode {
             network
         };
 
-        let discovery_handle =
-            discovery.start(p2p_network.clone(), config.network_key_pair().copy());
+        let discovery_handle = discovery.start(p2p_network.clone(), config.network_key_pair());
         let state_sync_handle = state_sync.start(p2p_network.clone());
         let randomness_handle = randomness.start(p2p_network.clone());
 
@@ -1579,7 +1580,7 @@ impl IotaNode {
                 );
 
         let tls_config = iota_tls::create_rustls_server_config(
-            config.network_key_pair().copy().private(),
+            config.network_key_pair(),
             IOTA_TLS_SERVER_NAME.to_string(),
         );
 

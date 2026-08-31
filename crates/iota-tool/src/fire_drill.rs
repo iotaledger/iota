@@ -18,10 +18,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::bail;
 use clap::*;
-use fastcrypto::{
-    ed25519::Ed25519KeyPair,
-    traits::{KeyPair, ToFromBytes},
-};
+use fastcrypto::traits::{KeyPair, ToFromBytes};
 use iota_config::{
     Config, NodeConfig, PersistedConfig, local_ip_utils,
     node::{AuthorityKeyPairWithPath, KeyPairWithPath},
@@ -34,10 +31,7 @@ use iota_sdk_crypto::simple::SimpleKeypair;
 use iota_sdk_types::{Address, Identifier, ObjectId, ObjectReference, Transaction};
 use iota_types::{
     committee::EpochId,
-    crypto::{
-        generate_proof_of_possession, get_authority_key_pair, get_key_pair,
-        network_to_simple_keypair,
-    },
+    crypto::{NetworkKeyPair, generate_proof_of_possession, get_authority_key_pair},
     transaction::{CallArg, TEST_ONLY_GAS_UNIT_FOR_GENERIC, TransactionAPI, TransactionEnvelope},
 };
 use tracing::info;
@@ -151,16 +145,14 @@ async fn update_next_epoch_metadata(
     new_config.authority_key_pair = AuthorityKeyPairWithPath::new(new_authority_key_pair);
 
     // network key
-    let new_network_key_pair: Ed25519KeyPair = get_key_pair().1;
-    let new_network_key_pair_copy = new_network_key_pair.copy();
-    new_config.network_key_pair =
-        KeyPairWithPath::new(network_to_simple_keypair(&new_network_key_pair));
+    let new_network_key_pair = NetworkKeyPair::random();
+    let new_network_key_pair_copy = new_network_key_pair.clone();
+    new_config.network_key_pair = KeyPairWithPath::new(new_network_key_pair.into());
 
     // protocol key
-    let new_protocol_key_pair: Ed25519KeyPair = get_key_pair().1;
-    let new_protocol_key_pair_copy = new_protocol_key_pair.copy();
-    new_config.protocol_key_pair =
-        KeyPairWithPath::new(network_to_simple_keypair(&new_protocol_key_pair));
+    let new_protocol_key_pair = NetworkKeyPair::random();
+    let new_protocol_key_pair_copy = new_protocol_key_pair.clone();
+    new_config.protocol_key_pair = KeyPairWithPath::new(new_protocol_key_pair.into());
 
     // needs to be active_validators instead of committee_members here, so that
     // every validator can update their own metadata
@@ -237,7 +229,7 @@ async fn update_next_epoch_metadata(
         account_key,
         "update_validator_next_epoch_network_pubkey",
         vec![CallArg::pure(
-            &new_network_key_pair_copy.public().as_bytes().to_vec(),
+            &new_network_key_pair_copy.public_key().inner().to_vec(),
         )],
         iota_client,
     )
@@ -248,7 +240,7 @@ async fn update_next_epoch_metadata(
         account_key,
         "update_validator_next_epoch_protocol_pubkey",
         vec![CallArg::pure(
-            &new_protocol_key_pair_copy.public().as_bytes().to_vec(),
+            &new_protocol_key_pair_copy.public_key().inner().to_vec(),
         )],
         iota_client,
     )

@@ -27,55 +27,54 @@ use tracing::instrument;
 
 /// Network key is used for TLS and as the network identity of the authority.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct NetworkPublicKey(ed25519::Ed25519PublicKey);
-pub struct NetworkPrivateKey(ed25519::Ed25519PrivateKey);
-pub struct NetworkKeyPair(ed25519::Ed25519KeyPair);
+pub struct NetworkPublicKey(iota_sdk_types::Ed25519PublicKey);
+pub struct NetworkPrivateKey(iota_sdk_crypto::ed25519::Ed25519PrivateKey);
+#[derive(Clone)]
+pub struct NetworkKeyPair(iota_sdk_crypto::ed25519::Ed25519PrivateKey);
 
 impl NetworkPublicKey {
-    pub fn new(key: ed25519::Ed25519PublicKey) -> Self {
+    pub fn new(key: iota_sdk_types::Ed25519PublicKey) -> Self {
         Self(key)
     }
 
-    pub fn into_inner(self) -> ed25519::Ed25519PublicKey {
+    pub fn into_inner(self) -> iota_sdk_types::Ed25519PublicKey {
         self.0
     }
 
     pub fn to_bytes(&self) -> [u8; 32] {
-        self.0.0.to_bytes()
+        self.0.into_inner()
     }
 }
 
 impl NetworkPrivateKey {
-    pub fn into_inner(self) -> ed25519::Ed25519PrivateKey {
+    pub fn into_inner(self) -> iota_sdk_crypto::ed25519::Ed25519PrivateKey {
         self.0
     }
 }
 
 impl NetworkKeyPair {
-    pub fn new(keypair: ed25519::Ed25519KeyPair) -> Self {
+    pub fn new(keypair: iota_sdk_crypto::ed25519::Ed25519PrivateKey) -> Self {
         Self(keypair)
     }
 
-    pub fn generate<R: rand::Rng + fastcrypto::traits::AllowedRng>(rng: &mut R) -> Self {
-        Self(ed25519::Ed25519KeyPair::generate(rng))
+    pub fn generate<R: rand::RngCore + rand::CryptoRng>(rng: &mut R) -> Self {
+        Self(iota_sdk_crypto::ed25519::Ed25519PrivateKey::random_with(
+            rng,
+        ))
     }
 
     pub fn public(&self) -> NetworkPublicKey {
-        NetworkPublicKey(self.0.public().clone())
+        NetworkPublicKey(self.0.public_key())
     }
 
     pub fn private_key(self) -> NetworkPrivateKey {
-        NetworkPrivateKey(self.0.copy().private())
+        NetworkPrivateKey(self.0)
     }
 
     pub fn private_key_bytes(self) -> [u8; 32] {
-        self.0.private().0.to_bytes()
-    }
-}
+        use iota_sdk_crypto::ToFromBytes as _;
 
-impl Clone for NetworkKeyPair {
-    fn clone(&self) -> Self {
-        Self(self.0.copy())
+        self.0.to_bytes()
     }
 }
 

@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use fastcrypto::traits::ToFromBytes as _;
 use iota_types::iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait;
 use starfish_config::{Authority, Committee as ConsensusCommittee};
 use tracing::error;
@@ -23,9 +24,12 @@ pub fn get_consensus_committee<T: EpochStartSystemStateTrait>(state: &T) -> Cons
                 validator.authority_pubkey.clone(),
             ),
             protocol_key: <starfish_config::ProtocolPublicKey>::new(
-                validator.protocol_pubkey.clone(),
+                fastcrypto::ed25519::Ed25519PublicKey::from_bytes(
+                    validator.protocol_pubkey.inner(),
+                )
+                .expect("valid ed25519 public key bytes"),
             ),
-            network_key: <starfish_config::NetworkPublicKey>::new(validator.network_pubkey.clone()),
+            network_key: <starfish_config::NetworkPublicKey>::new(validator.network_pubkey),
         });
     }
 
@@ -62,7 +66,6 @@ mod test {
             EpochStartSystemState, EpochStartSystemStateTrait, EpochStartValidatorInfoV1,
         },
     };
-    use rand::thread_rng;
 
     use super::get_consensus_committee;
 
@@ -73,13 +76,13 @@ mod test {
 
         for i in 0..10 {
             let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
+            let protocol_network_key = NetworkKeyPair::random();
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
                 authority_pubkey: authority_key.public().clone(),
-                network_pubkey: protocol_network_key.public().clone(),
-                protocol_pubkey: protocol_network_key.public().clone(),
+                network_pubkey: protocol_network_key.public_key(),
+                protocol_pubkey: protocol_network_key.public_key(),
                 iota_net_address: Multiaddr::empty(),
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),
@@ -142,13 +145,13 @@ mod test {
 
         for i in 0..10 {
             let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
+            let protocol_network_key = NetworkKeyPair::random();
 
             committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
                 authority_pubkey: authority_key.public().clone(),
-                network_pubkey: protocol_network_key.public().clone(),
-                protocol_pubkey: protocol_network_key.public().clone(),
+                network_pubkey: protocol_network_key.public_key(),
+                protocol_pubkey: protocol_network_key.public_key(),
                 iota_net_address: Multiaddr::empty(),
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),
@@ -157,13 +160,13 @@ mod test {
             });
 
             let (iota_address, authority_key): (Address, AuthorityKeyPair) = get_key_pair();
-            let protocol_network_key = NetworkKeyPair::generate(&mut thread_rng());
+            let protocol_network_key = NetworkKeyPair::random();
 
             non_committee_validators.push(EpochStartValidatorInfoV1 {
                 iota_address,
                 authority_pubkey: authority_key.public().clone(),
-                network_pubkey: protocol_network_key.public().clone(),
-                protocol_pubkey: protocol_network_key.public().clone(),
+                network_pubkey: protocol_network_key.public_key(),
+                protocol_pubkey: protocol_network_key.public_key(),
                 iota_net_address: Multiaddr::empty(),
                 p2p_address: Multiaddr::empty(),
                 primary_address: Multiaddr::empty(),

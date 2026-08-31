@@ -12,7 +12,7 @@ use iota_metrics::hardware_metrics::register_hardware_metrics;
 use iota_multiaddr::Multiaddr;
 use iota_node::{IotaNode, ServerVersion};
 use iota_types::{
-    committee::EpochId, crypto::KeypairTraits, messages_checkpoint::CheckpointSequenceNumber,
+    committee::EpochId, messages_checkpoint::CheckpointSequenceNumber,
     supported_protocol_versions::SupportedProtocolVersions,
 };
 #[cfg(all(feature = "flamegraph-alloc", nightly))]
@@ -128,7 +128,7 @@ fn main() {
                 iota_metrics_push_client::start_metrics_push_task(
                     metrics_config.push_interval_seconds,
                     push_url.clone(),
-                    config.network_key_pair().copy(),
+                    config.network_key_pair(),
                     registry_service.clone(),
                 );
             }

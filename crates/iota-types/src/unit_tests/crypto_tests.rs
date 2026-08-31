@@ -109,7 +109,7 @@ proptest! {
         bytes in collection::vec(any::<u8>(), 0..1024)
     ){
         let _key_pair = get_key_pair_from_bytes::<AuthorityKeyPair>(&bytes);
-        let _key_pair = get_key_pair_from_bytes::<NetworkKeyPair>(&bytes);
+        let _key_pair = NetworkKeyPair::from_bytes(&bytes);
         let _key = AccountPrivateKey::from_bytes(&bytes);
     }
 
