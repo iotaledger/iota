@@ -69,7 +69,7 @@ static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
 pub const EPOCH_DURATION_MS_FOR_TESTING: u64 = 24 * 60 * 60 * 1000;
 pub const MIN_EPOCHS_TO_RETAIN_FOR_INDEXES: u64 = 7;
 
-/// Object-version retention floor applied to validators when the attestation
+/// Object-version retention floor applied to every node when the attestation
 /// flow is enabled.
 pub const MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION: u64 = 1;
 
@@ -141,13 +141,11 @@ fn object_retention_epochs(
         num_epochs_to_retain = 0;
     }
     // Move authentication is re-run at the object versions an attestation
-    // recorded, which the transaction has since superseded, and the verdict
-    // goes into its effects. Whole epochs are retained so that the retained
-    // set is identical across validators.
-    if is_validator
-        && enable_validator_attestation
-        && num_epochs_to_retain < MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION
-    {
+    // recorded, and the verdict goes into effects. The re-run only ever loads
+    // versions superseded in the current epoch, so whole-epoch retention keeps
+    // them loadable on every node that executes — fullnodes and state-syncing
+    // validators replay the same verdict, hence no committee-membership guard.
+    if enable_validator_attestation && num_epochs_to_retain < MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION {
         num_epochs_to_retain = MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION;
     }
     num_epochs_to_retain
@@ -1623,10 +1621,11 @@ mod tests {
     }
 
     /// The attestation flow re-runs Move authentication at the object versions
-    /// an attestation recorded, so a validator running it must keep superseded
-    /// versions for the epoch instead of pruning aggressively.
+    /// an attestation recorded, so every executing node — fullnodes replay the
+    /// same verdict — must keep superseded versions for the epoch instead of
+    /// pruning aggressively.
     #[test]
-    fn test_object_retention_epochs_floors_attesting_validators() {
+    fn test_object_retention_epochs_floors_attesting_nodes() {
         // A validator's configured value is reset to the aggressive pruner...
         assert_eq!(object_retention_epochs(5, true, false), 0);
         // ...unless the attestation flow needs the versions kept.
@@ -1634,20 +1633,25 @@ mod tests {
             object_retention_epochs(5, true, true),
             MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION
         );
-        // The floor also lifts the default of pruning everything.
+        // The floor also lifts the default of pruning everything, on
+        // validators and fullnodes alike.
         assert_eq!(object_retention_epochs(0, true, false), 0);
         assert_eq!(
             object_retention_epochs(0, true, true),
             MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION
         );
+        assert_eq!(object_retention_epochs(0, false, false), 0);
+        assert_eq!(
+            object_retention_epochs(0, false, true),
+            MIN_EPOCHS_TO_RETAIN_FOR_ATTESTATION
+        );
     }
 
-    /// Only validators judge an attestation, and `u64::MAX` already retains
-    /// every version, so neither is touched by the floor.
+    /// A configured value at or above the floor, and `u64::MAX` (retain
+    /// everything), are not touched by it.
     #[test]
     fn test_object_retention_epochs_leaves_others_alone() {
         assert_eq!(object_retention_epochs(5, false, true), 5);
-        assert_eq!(object_retention_epochs(0, false, true), 0);
         assert_eq!(object_retention_epochs(u64::MAX, true, true), u64::MAX);
         assert_eq!(object_retention_epochs(u64::MAX, false, true), u64::MAX);
     }
