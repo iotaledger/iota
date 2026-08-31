@@ -34,6 +34,7 @@ move-ir-types.workspace = true
 move-model-2.workspace = true
 move-package.workspace = true
 move-stdlib-natives.workspace = true
+move-trace-format.workspace = true
 move-unit-test.workspace = true
 move-vm-profiler.workspace = true
 move-vm-runtime.workspace = true
