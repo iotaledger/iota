@@ -420,8 +420,8 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
         object_type: Option<StructTag>,
     ) -> StorageResult<Box<dyn Iterator<Item = iota_types::storage::OwnedObjectIteratorItem> + '_>>
     {
-        // Find the start index: if cursor is provided, seek to its position
-        // (inclusive — the GrpcReader wrapper handles skip(1)).
+        // Find the start index: if a cursor is provided, seek strictly past
+        // its position (the cursor is exclusive).
         let start = if let Some(c) = cursor {
             self.owned_objects
                 .iter()
@@ -431,7 +431,7 @@ impl iota_node_storage::GrpcIndexes for MockGrpcStateReader {
                         oc.object_type_params,
                         oc.inverted_balance,
                         oc.object_id,
-                    ) >= (
+                    ) > (
                         c.object_type_identifier,
                         c.object_type_params,
                         c.inverted_balance,

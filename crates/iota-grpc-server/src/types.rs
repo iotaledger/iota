@@ -690,11 +690,10 @@ impl GrpcReader {
         let indexes = self
             .require_indexes()
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        let skip = usize::from(cursor.is_some());
         let iter = indexes
             .account_owned_objects_info_iter(owner, cursor, object_type)
             .map_err(|e| crate::error::RpcError::internal().with_context(e))?;
-        Ok(Box::new(iter.map(|r| r.map_err(Into::into)).skip(skip)))
+        Ok(Box::new(iter.map(|r| r.map_err(Into::into))))
     }
 
     /// Iterate over dynamic fields of a parent object.
