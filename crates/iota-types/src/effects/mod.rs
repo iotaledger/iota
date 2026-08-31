@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use iota_sdk_types::{
     Address, EpochId, ExecutionStatus, GasCostSummary, InputSharedObject, IntentScope,
-    ObjectChange, ObjectDigest, ObjectId, ObjectReference, ObjectRemoveKind, ObjectVersion,
+    ResolvedObjectChange, ObjectDigest, ObjectId, ObjectReference, ObjectRemoveKind, ObjectVersion,
     OwnedObjectReference, Owner, TransactionDigest, TransactionEffectsDigest,
     TransactionEventsDigest, UnchangedSharedKind, UnchangedSharedObject, Version, WriteKind,
     crypto::Intent,
@@ -138,7 +138,7 @@ pub trait TransactionEffectsAPI: transaction_effects_api::Sealed {
     /// effects: for each touched object, the input and output version/digest
     /// (when present) together with the [`IdOperation`] describing whether
     /// the ID was created, deleted, or unchanged.
-    fn object_changes(&self) -> Vec<ObjectChange>;
+    fn object_changes(&self) -> Vec<ResolvedObjectChange>;
 
     /// Returns the post-execution reference and owner of the gas object.
     // TODO: We should consider having this function to return Option.
@@ -386,7 +386,7 @@ impl TransactionEffectsAPI for TransactionEffects {
         effects_version!(self).wrapped()
     }
 
-    fn object_changes(&self) -> Vec<ObjectChange> {
+    fn object_changes(&self) -> Vec<ResolvedObjectChange> {
         effects_version!(self).object_changes()
     }
 
@@ -561,7 +561,7 @@ impl TransactionEffectsExt for TransactionEffects {
     }
 
     fn created_then_wrapped_objects(&self) -> Vec<(ObjectId, Version)> {
-        // Filter `ObjectChange` where:
+        // Filter `ResolvedObjectChange` where:
         // - `input_digest` and `output_digest` are `None`, and
         // - `id_operation` is `Created`.
         self.object_changes()
