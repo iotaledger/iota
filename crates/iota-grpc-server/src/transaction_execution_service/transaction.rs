@@ -104,14 +104,14 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
             let (effects, input_objects, output_objects) = source.changes_source()?;
             self.balance_changes = Some(
                 grpc_tx::BalanceChanges::default().with_balance_changes(
-                    crate::changes::derive_balance_changes(
+                    iota_types::changes::derive_balance_changes(
                         effects,
                         input_objects,
                         output_objects,
                         source.mocked_coin,
                     )?
                     .into_iter()
-                    .map(Into::into)
+                    .map(crate::changes::balance_change_to_proto)
                     .collect(),
                 ),
             );
@@ -129,14 +129,14 @@ impl Merge<&TransactionReadSource<'_>> for grpc_tx::ExecutedTransaction {
             let (effects, input_objects, output_objects) = source.changes_source()?;
             self.object_changes = Some(
                 grpc_tx::ObjectChanges::default().with_object_changes(
-                    crate::changes::derive_object_changes(
+                    iota_types::changes::derive_object_changes(
                         sender,
                         effects,
                         input_objects,
                         output_objects,
                     )?
                     .into_iter()
-                    .map(Into::into)
+                    .map(crate::changes::object_change_to_proto)
                     .collect(),
                 ),
             );

@@ -31,6 +31,7 @@ pub mod account_abstraction;
 pub mod auth_context;
 pub mod balance;
 pub mod base_types;
+pub mod changes;
 pub mod clock;
 pub mod coin;
 pub mod coin_manager;

@@ -1399,14 +1399,14 @@ impl Merge<CheckpointTransactionWithContext>
         if mask.subtree(Self::BALANCE_CHANGES_FIELD.name).is_some() {
             self.balance_changes = Some(
                 iota_grpc_types::v1::transaction::BalanceChanges::default().with_balance_changes(
-                    crate::changes::derive_balance_changes(
+                    iota_types::changes::derive_balance_changes(
                         &source.transaction.effects,
                         &source.transaction.input_objects,
                         &source.transaction.output_objects,
                         None,
                     )?
                     .into_iter()
-                    .map(Into::into)
+                    .map(crate::changes::balance_change_to_proto)
                     .collect(),
                 ),
             );
@@ -1419,14 +1419,14 @@ impl Merge<CheckpointTransactionWithContext>
             let sender = source.transaction.transaction.transaction().sender();
             self.object_changes = Some(
                 iota_grpc_types::v1::transaction::ObjectChanges::default().with_object_changes(
-                    crate::changes::derive_object_changes(
+                    iota_types::changes::derive_object_changes(
                         sender,
                         &source.transaction.effects,
                         &source.transaction.input_objects,
                         &source.transaction.output_objects,
                     )?
                     .into_iter()
-                    .map(Into::into)
+                    .map(crate::changes::object_change_to_proto)
                     .collect(),
                 ),
             );

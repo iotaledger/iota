@@ -5,6 +5,7 @@
 use std::fmt::{Display, Formatter, Result};
 
 use iota_sdk_types::{Owner, TypeTag};
+use iota_types::changes::DerivedBalanceChange;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{DisplayFromStr, serde_as};
@@ -28,6 +29,16 @@ pub struct BalanceChange {
     #[schemars(with = "String")]
     #[serde_as(as = "DisplayFromStr")]
     pub amount: i128,
+}
+
+impl From<DerivedBalanceChange> for BalanceChange {
+    fn from(change: DerivedBalanceChange) -> Self {
+        Self {
+            owner: change.owner,
+            coin_type: change.coin_type,
+            amount: change.amount,
+        }
+    }
 }
 
 impl Display for BalanceChange {

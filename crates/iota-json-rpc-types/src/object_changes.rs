@@ -5,6 +5,7 @@
 use std::fmt::{Display, Formatter, Result};
 
 use iota_sdk_types::{Address, ObjectDigest, ObjectId, ObjectReference, Owner, StructTag, Version};
+use iota_types::changes::DerivedObjectChange;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -160,6 +161,93 @@ pub enum ObjectChange {
         #[schemars(with = "Base58Schema")]
         digest: ObjectDigest,
     },
+}
+
+impl From<DerivedObjectChange> for ObjectChange {
+    fn from(change: DerivedObjectChange) -> Self {
+        match change {
+            DerivedObjectChange::Published {
+                package_id,
+                version,
+                digest,
+                modules,
+            } => Self::Published {
+                package_id,
+                version,
+                digest,
+                modules,
+            },
+            DerivedObjectChange::Mutated {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                previous_version,
+                digest,
+            } => Self::Mutated {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                previous_version,
+                digest,
+            },
+            DerivedObjectChange::Deleted {
+                sender,
+                object_type,
+                object_id,
+                version,
+            } => Self::Deleted {
+                sender,
+                object_type,
+                object_id,
+                version,
+            },
+            DerivedObjectChange::Wrapped {
+                sender,
+                object_type,
+                object_id,
+                version,
+            } => Self::Wrapped {
+                sender,
+                object_type,
+                object_id,
+                version,
+            },
+            DerivedObjectChange::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            } => Self::Unwrapped {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            },
+            DerivedObjectChange::Created {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            } => Self::Created {
+                sender,
+                owner,
+                object_type,
+                object_id,
+                version,
+                digest,
+            },
+        }
+    }
 }
 
 impl ObjectChange {
