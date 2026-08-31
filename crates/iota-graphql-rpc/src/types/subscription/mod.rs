@@ -22,9 +22,9 @@ use crate::{
     types::{
         digest::Digest,
         event::Event,
+        int::try_into_int,
         subscription::filter::{SubscriptionEventFilter, SubscriptionTransactionFilter},
         transaction_block::{TransactionBlock, TransactionBlockInner},
-        uint53::UInt53,
     },
 };
 
@@ -39,7 +39,7 @@ const BROKER_CHANNEL_SIZE: NonZeroUsize =
 #[derive(SimpleObject, Clone)]
 pub(crate) struct Lagged {
     /// Number of missed payloads since the previous emitted one.
-    count: UInt53,
+    count: i32,
 }
 
 /// Possible responses from a subscription.
@@ -179,8 +179,7 @@ impl GraphQLStream {
                     }
                     Err(IndexerStreamingError::Lagged(BroadcastStreamRecvError::Lagged(count))) => {
                         warn!("subscriber lagging by {count} messages");
-                        UInt53::try_from(count)
-                            .map(|count| SubscriptionItem::Lagged(Lagged { count }))
+                        try_into_int(count).map(|count| SubscriptionItem::Lagged(Lagged { count }))
                     }
                     Err(err) => Err(err.into()),
                 };
@@ -215,8 +214,7 @@ impl GraphQLStream {
                     }
                     Err(IndexerStreamingError::Lagged(BroadcastStreamRecvError::Lagged(count))) => {
                         warn!("subscriber lagging by {count} messages");
-                        UInt53::try_from(count)
-                            .map(|count| SubscriptionItem::Lagged(Lagged { count }))
+                        try_into_int(count).map(|count| SubscriptionItem::Lagged(Lagged { count }))
                     }
                     Err(err) => Err(err.into()),
                 };

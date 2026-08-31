@@ -115,11 +115,11 @@ impl NativeStateValidatorInfo {
                 self.pending_active_validators_size,
             )?),
             staking_pool_mappings_id: Some(self.staking_pool_mappings_id.into()),
-            staking_pool_mappings_size: Some(self.staking_pool_mappings_size.try_into()?),
+            staking_pool_mappings_size: Some(try_into_int(self.staking_pool_mappings_size)?),
             inactive_pools_id: Some(self.inactive_pools_id.into()),
-            inactive_pools_size: Some(self.inactive_pools_size.try_into()?),
+            inactive_pools_size: Some(try_into_int(self.inactive_pools_size)?),
             validator_candidates_id: Some(self.validator_candidates_id.into()),
-            validator_candidates_size: Some(self.validator_candidates_size.try_into()?),
+            validator_candidates_size: Some(try_into_int(self.validator_candidates_size)?),
             checkpoint_viewed_at,
         })
     }

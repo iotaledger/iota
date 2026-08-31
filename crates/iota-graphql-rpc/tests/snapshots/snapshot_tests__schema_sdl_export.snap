@@ -1681,7 +1681,7 @@ type Lagged {
 	"""
 	Number of missed payloads since the previous emitted one.
 	"""
-	count: UInt53!
+	count: Int!
 }
 
 """
@@ -5167,7 +5167,7 @@ type ValidatorSet {
 	"""
 	Size of the stake pool mappings `Table`.
 	"""
-	stakingPoolMappingsSize: UInt53
+	stakingPoolMappingsSize: Int
 	"""
 	Object ID of the `Table` storing the inactive staking pools.
 	"""
@@ -5175,7 +5175,7 @@ type ValidatorSet {
 	"""
 	Size of the inactive pools `Table`.
 	"""
-	inactivePoolsSize: UInt53
+	inactivePoolsSize: Int
 	"""
 	Object ID of the `Table` storing the validator candidates.
 	"""
@@ -5183,7 +5183,7 @@ type ValidatorSet {
 	"""
 	Size of the validator candidates `Table`.
 	"""
-	validatorCandidatesSize: UInt53
+	validatorCandidatesSize: Int
 	"""
 	The current set of active validators.
 	"""

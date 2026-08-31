@@ -13,7 +13,6 @@ use crate::{
         big_int::BigInt,
         cursor::{JsonCursor, Page},
         iota_address::IotaAddress,
-        uint53::UInt53,
         validator::Validator,
     },
 };
@@ -50,19 +49,19 @@ pub(crate) struct ValidatorSet {
     pub staking_pool_mappings_id: Option<IotaAddress>,
 
     /// Size of the stake pool mappings `Table`.
-    pub staking_pool_mappings_size: Option<UInt53>,
+    pub staking_pool_mappings_size: Option<i32>,
 
     /// Object ID of the `Table` storing the inactive staking pools.
     pub inactive_pools_id: Option<IotaAddress>,
 
     /// Size of the inactive pools `Table`.
-    pub inactive_pools_size: Option<UInt53>,
+    pub inactive_pools_size: Option<i32>,
 
     /// Object ID of the `Table` storing the validator candidates.
     pub validator_candidates_id: Option<IotaAddress>,
 
     /// Size of the validator candidates `Table`.
-    pub validator_candidates_size: Option<UInt53>,
+    pub validator_candidates_size: Option<i32>,
 
     #[graphql(skip)]
     pub checkpoint_viewed_at: u64,
