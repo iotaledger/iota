@@ -96,8 +96,10 @@ pub trait GrpcIndexes: Send + Sync {
 
     /// Iterate over the dynamic fields of `parent`.
     ///
-    /// The `cursor` bound is **inclusive**.  Only the `DynamicFieldKey` is
-    /// returned; field metadata is loaded on demand from the object store.
+    /// The `cursor` is **exclusive**: only fields strictly after the cursor
+    /// position are returned, even when the cursor's row no longer exists.
+    /// Only the `DynamicFieldKey` is returned; field metadata is loaded on
+    /// demand from the object store.
     fn dynamic_field_iter(
         &self,
         parent: ObjectId,
