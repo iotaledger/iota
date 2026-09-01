@@ -455,3 +455,77 @@ fun to_iota_address_vectors() {
         MULTISIG_MIXED_ADDR,
     );
 }
+
+// === key_id ===
+
+// Asserts that `key_id` of the key encoded by `prefixed_bytes` is the
+// Blake2b256 of those very bytes — the flag-prefixed encoding *is* the preimage.
+fun assert_key_id_hashes_prefixed_bytes(prefixed_bytes: vector<u8>) {
+    assert_eq(
+        public_key::from_prefixed_bytes(prefixed_bytes).key_id(),
+        iota::address::from_bytes(iota::hash::blake2b256(&prefixed_bytes)),
+    );
+}
+
+#[test]
+fun key_id_hashes_flag_and_raw_bytes() {
+    assert_key_id_hashes_prefixed_bytes(ED25519_PK);
+    assert_key_id_hashes_prefixed_bytes(SECP256K1_PK);
+    assert_key_id_hashes_prefixed_bytes(SECP256R1_PK);
+    assert_key_id_hashes_prefixed_bytes(PASSKEY_PK);
+    assert_key_id_hashes_prefixed_bytes(MULTISIG_PK);
+    assert_key_id_hashes_prefixed_bytes(MULTISIG_MIXED_PK);
+}
+
+#[test]
+fun key_id_differs_from_ed25519_address() {
+    // Ed25519 address derivation omits the flag byte; key_id never does, so the
+    // two must not collide.
+    let public_key = public_key::from_prefixed_bytes(ED25519_PK);
+
+    assert!(public_key.key_id() != public_key.to_iota_address());
+}
+
+#[test]
+fun key_id_matches_address_for_flag_prefixed_schemes() {
+    // Secp256k1/r1 and Passkey addresses are already `Blake2b256(flag || raw)`,
+    // so for those schemes key_id and address coincide by construction.
+    assert_eq(public_key::from_prefixed_bytes(SECP256K1_PK).key_id(), SECP256K1_ADDR);
+    assert_eq(public_key::from_prefixed_bytes(SECP256R1_PK).key_id(), SECP256R1_ADDR);
+    assert_eq(public_key::from_prefixed_bytes(PASSKEY_PK).key_id(), PASSKEY_ADDR);
+}
+
+#[test]
+fun key_id_distinguishes_schemes_sharing_raw_bytes() {
+    // Secp256r1 and Passkey share the same raw key material; only the flag
+    // separates them, so key_id must too.
+    let secp256r1 = public_key::from_prefixed_bytes(SECP256R1_PK);
+    let passkey = public_key::from_prefixed_bytes(PASSKEY_PK);
+
+    assert_ref_eq(secp256r1.raw_bytes(), passkey.raw_bytes());
+    assert!(secp256r1.key_id() != passkey.key_id());
+}
+
+// Expected `key_id` values for the vectors above, pinned against the identical
+// table in `iota_types::claim_registry::tests::KEY_ID_VECTORS` so the Move and
+// Rust derivations cannot drift apart silently.
+const ED25519_KEY_ID: address = @0x43541042c153e0e498a08a8db868f1614c9366694fa730bd8a07fc5d7c931f0d;
+const SECP256K1_KEY_ID: address =
+    @0x2fecbdf2652b089c64d127158d388621fdbbd156533fbcca5a0082aa0d2939fa;
+const SECP256R1_KEY_ID: address =
+    @0x318f591092f10b67a81963954fb9539ea3919444417726be4e1b95ce44fe2fc0;
+const PASSKEY_KEY_ID: address = @0xa2f90cd2552d45ab5ba157dacf19597e2018108c6a80e4d7a4a5680d1542a7e8;
+const MULTISIG_KEY_ID: address =
+    @0x37330e88388d526046696b5b5113cd64e81eb1b1bcd403372666cc54970ddbf4;
+const MULTISIG_MIXED_KEY_ID: address =
+    @0xdd22eb5c98cdc27de98174a69b68ca1603bdda8aeb226c5232273cfdc9655811;
+
+#[test]
+fun key_id_vectors() {
+    assert_eq(public_key::from_prefixed_bytes(ED25519_PK).key_id(), ED25519_KEY_ID);
+    assert_eq(public_key::from_prefixed_bytes(SECP256K1_PK).key_id(), SECP256K1_KEY_ID);
+    assert_eq(public_key::from_prefixed_bytes(SECP256R1_PK).key_id(), SECP256R1_KEY_ID);
+    assert_eq(public_key::from_prefixed_bytes(PASSKEY_PK).key_id(), PASSKEY_KEY_ID);
+    assert_eq(public_key::from_prefixed_bytes(MULTISIG_PK).key_id(), MULTISIG_KEY_ID);
+    assert_eq(public_key::from_prefixed_bytes(MULTISIG_MIXED_PK).key_id(), MULTISIG_MIXED_KEY_ID);
+}

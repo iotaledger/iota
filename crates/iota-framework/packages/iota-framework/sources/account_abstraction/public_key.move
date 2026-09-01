@@ -26,9 +26,11 @@
 /// authenticatable rather than bricking the account at verification time.
 module iota::public_key;
 
+use iota::address;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
+use iota::hash;
 use iota::multisig;
 use iota::signature_scheme::{Self, SignatureScheme};
 
@@ -104,6 +106,21 @@ public fun raw_bytes(self: &PublicKey): &vector<u8> {
 /// See `to_iota_address_impl` for the exact per-scheme derivation rules.
 public fun to_iota_address(self: &PublicKey): address {
     to_iota_address_impl(self.scheme.flag(), &self.raw_bytes)
+}
+
+/// Returns the canonical identity hash of this key: `Blake2b256(flag || raw_bytes)`,
+/// reinterpreted as an `address`.
+///
+/// Unlike `to_iota_address`, the scheme flag is part of the hash input for every
+/// scheme — Ed25519 included, which has no legacy exemption here. A `key_id` is
+/// therefore never equal to the Ed25519 address of the same key.
+///
+/// This is the identity under which account-discoverability events index a key.
+/// It must stay in sync with `iota_types::claim_registry::key_id` on the Rust side.
+public fun key_id(self: &PublicKey): address {
+    let mut preimage = vector[self.scheme.flag()];
+    preimage.append(self.raw_bytes);
+    address::from_bytes(hash::blake2b256(&preimage))
 }
 
 // === Admin Functions ===

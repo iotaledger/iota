@@ -2341,6 +2341,9 @@ raw_bytes
 to_iota_address
 	public fun
 	0x2::public_key
+key_id
+	public fun
+	0x2::public_key
 validate_public_key
 	fun
 	0x2::public_key
