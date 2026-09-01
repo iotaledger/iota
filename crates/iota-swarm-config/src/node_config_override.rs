@@ -840,7 +840,7 @@ mod tests {
         config.policy_config = Some(PolicyConfig {
             // The config carries the section, and with it the serialized
             // variant name, only while the field deviates from its default.
-            channel_capacity: 42,
+            connection_blocklist_ttl_sec: 42,
             ..PolicyConfig::default_dos_protection_policy()
         });
         let err = config_override
@@ -936,10 +936,9 @@ mod tests {
         );
         assert_eq!(applied.get("dry-run"), Some(&Value::Bool(false)));
         // The DoS protection policy the config carried set both policy
-        // types and a larger channel. The field defaults set neither.
+        // types. The field defaults set neither.
         assert_eq!(applied.get("spam-policy-type"), Some(&Value::from("NoOp")));
         assert_eq!(applied.get("error-policy-type"), Some(&Value::from("NoOp")));
-        assert_eq!(applied.get("channel-capacity"), Some(&Value::from(100)));
     }
 
     #[test]
