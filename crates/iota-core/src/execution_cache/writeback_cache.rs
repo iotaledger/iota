@@ -2382,6 +2382,14 @@ impl ExecutionCacheReconfigAPI for WritebackCache {
         self.clear_state_end_of_epoch_impl(execution_guard)
     }
 
+    fn expire_epoch_markers(
+        &self,
+        new_epoch: EpochId,
+        execution_guard: &ExecutionLockWriteGuard<'_>,
+    ) -> IotaResult<()> {
+        self.store.expire_epoch_markers(new_epoch, execution_guard)
+    }
+
     fn try_expensive_check_iota_conservation(
         &self,
         old_epoch_store: &AuthorityPerEpochStore,

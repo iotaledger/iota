@@ -216,13 +216,14 @@ pub struct AuthorityPerpetualTables {
     /// storage_fund_balance - sum(storage_rebate).
     pub(crate) expected_storage_fund_imbalance: DBMap<(), i64>,
 
-    /// Table that stores the set of received objects and deleted objects and
-    /// the version at which they were received. This is used to prevent
-    /// possible race conditions around receiving objects (since they are
-    /// not locked by the transaction manager) and for tracking shared
-    /// objects that have been deleted. This table is meant to be pruned
-    /// per-epoch, and all previous epochs other than the current epoch may
-    /// be pruned safely.
+    /// Superseded by
+    /// [`EpochMarkers`](crate::authority::epoch_markers::EpochMarkers): the
+    /// objects received, deleted or wrapped during an epoch are written to
+    /// and read from that epoch's marker bucket. Rows written before the move
+    /// are still on disk here, and the one-time migration into the buckets is
+    /// their only reader.
+    // TODO: remove this table once every database has migrated its markers,
+    // <https://github.com/iotaledger/iota/issues/12712>
     pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
 
     /// How far the one-time sweep of the object versions superseded before
