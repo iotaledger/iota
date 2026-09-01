@@ -63,6 +63,7 @@ use crate::{
     historical_fallback::reader::HistoricalFallbackReader,
     ingestion::common::persist::CommitterTables,
     models::{
+        account_key_links::{LINK_STATUS_ACTIVE, StoredAccountKeyLink},
         address_metrics::StoredAddressMetrics,
         checkpoints::{StoredChainIdentifier, StoredCheckpoint},
         display::StoredDisplay,
@@ -82,9 +83,9 @@ use crate::{
     },
     pruning::watermark_task::WatermarkCache,
     schema::{
-        address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
-        objects, objects_version, optimistic_transactions, packages, pruner_cp_watermark,
-        transactions, tx_digests, tx_global_order,
+        account_key_links, address_metrics, addresses, chain_identifier, checkpoints, display,
+        epochs, events, objects, objects_version, optimistic_transactions, packages,
+        pruner_cp_watermark, transactions, tx_digests, tx_global_order,
     },
     store::{
         diesel_macro::{mark_in_blocking_pool, *},
@@ -325,6 +326,36 @@ impl IndexerReader {
 
         let object = stored_package.try_into()?;
         Ok(Some(object))
+    }
+
+    /// Returns the links recorded for `key_id`, newest change first.
+    ///
+    /// Unless `include_unlinked` is set, tombstoned links — keys rotated away
+    /// or detached — are left out.
+    fn get_account_key_links(
+        &self,
+        key_id: Vec<u8>,
+        include_unlinked: bool,
+    ) -> Result<Vec<StoredAccountKeyLink>, IndexerError> {
+        run_query!(&self.pool, |conn| {
+            let mut query = account_key_links::dsl::account_key_links
+                .filter(account_key_links::dsl::key_id.eq(key_id.clone()))
+                .order(account_key_links::dsl::last_change_tx_sequence_number.desc())
+                .into_boxed();
+            if !include_unlinked {
+                query = query.filter(account_key_links::dsl::status.eq(LINK_STATUS_ACTIVE));
+            }
+            query.load::<StoredAccountKeyLink>(conn)
+        })
+    }
+
+    pub async fn get_account_key_links_in_blocking_task(
+        &self,
+        key_id: Vec<u8>,
+        include_unlinked: bool,
+    ) -> Result<Vec<StoredAccountKeyLink>, IndexerError> {
+        self.spawn_blocking(move |this| this.get_account_key_links(key_id, include_unlinked))
+            .await
     }
 
     pub async fn get_object_in_blocking_task(

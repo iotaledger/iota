@@ -2,11 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use fastcrypto::encoding::Base64;
 use iota_json_rpc_types::{
     AddressMetrics, EpochInfo, EpochMetrics, EpochMetricsPage, EpochPage, MoveCallMetrics,
     NetworkMetrics, Page, ParticipationMetrics,
+    iota_primitives::{Address as AddressSchema, Base64 as Base64Schema},
 };
 use iota_open_rpc_macros::open_rpc;
+use iota_sdk_types::Address;
 use iota_types::iota_serde::BigInt;
 use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 
@@ -84,4 +87,27 @@ pub trait ExtendedApi {
     /// Exclusively served by the indexer.
     #[method(name = "getParticipationMetrics")]
     async fn get_participation_metrics(&self) -> RpcResult<ParticipationMetrics>;
+
+    /// Return the addresses of the accounts controlled by a public key.
+    ///
+    /// The result is folded from the on-chain account-discoverability event
+    /// stream (`ClaimedAddress`, `PublicKeyAttached`, `PublicKeyRotated` and
+    /// `PublicKeyDetached`), which lets a wallet holding only a seed recover
+    /// its accounts. Because those events are public, the same index can be
+    /// rebuilt independently by anyone replaying them, and a caller who does
+    /// not want to trust this indexer can verify each returned account against
+    /// the chain.
+    ///
+    /// Exclusively served by the indexer.
+    #[rustfmt::skip]
+    #[method(name = "getAccountsByPublicKey")]
+    #[schemars(with = "Vec<AddressSchema>")]
+    async fn get_accounts_by_public_key(
+        &self,
+        /// The scheme-flag-prefixed public key bytes (`flag || raw key bytes`), base-64 encoded — the wire format of `iota::public_key::from_prefixed_bytes`.
+        #[schemars(with = "Base64Schema")]
+        public_key: Base64,
+        /// When true, also return accounts this key no longer controls because it was rotated away or detached. Defaults to false.
+        include_unlinked: Option<bool>,
+    ) -> RpcResult<Vec<Address>>;
 }

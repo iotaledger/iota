@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_json_rpc::IotaRpcModule;
+use fastcrypto::encoding::Base64;
+use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
 use iota_json_rpc_api::{
     ExtendedApiServer, QUERY_MAX_RESULT_LIMIT_CHECKPOINTS, internal_error, validate_limit,
 };
@@ -11,7 +12,8 @@ use iota_json_rpc_types::{
     NetworkMetrics, Page, ParticipationMetrics,
 };
 use iota_open_rpc::Module;
-use iota_types::iota_serde::BigInt;
+use iota_sdk_types::Address;
+use iota_types::{claim_registry::key_id_from_prefixed_bytes, iota_serde::BigInt};
 use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::read::IndexerReader;
@@ -161,6 +163,41 @@ impl ExtendedApiServer for ExtendedApi {
             .spawn_blocking(|this| this.get_participation_metrics())
             .await
             .map_err(Into::into)
+    }
+
+    async fn get_accounts_by_public_key(
+        &self,
+        public_key: Base64,
+        include_unlinked: Option<bool>,
+    ) -> RpcResult<Vec<Address>> {
+        let public_key = public_key
+            .to_vec()
+            .map_err(|e| IotaRpcInputError::GenericInvalid(format!("Invalid base64: {e}")))?;
+        let key_id = key_id_from_prefixed_bytes(&public_key).ok_or_else(|| {
+            IotaRpcInputError::GenericInvalid("Public key must not be empty".to_string())
+        })?;
+
+        let links = self
+            .inner
+            .get_account_key_links_in_blocking_task(
+                key_id.as_bytes().to_vec(),
+                include_unlinked.unwrap_or(false),
+            )
+            .await?;
+
+        links
+            .into_iter()
+            .map(|link| {
+                <[u8; Address::LENGTH]>::try_from(link.account_id.as_slice())
+                    .map(Address::new)
+                    .map_err(|_| {
+                        internal_error(format!(
+                            "account_key_links holds a malformed account id of {} bytes",
+                            link.account_id.len()
+                        ))
+                    })
+            })
+            .collect()
     }
 }
 

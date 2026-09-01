@@ -3338,6 +3338,42 @@
       }
     },
     {
+      "name": "iotax_getAccountsByPublicKey",
+      "tags": [
+        {
+          "name": "Extended API"
+        }
+      ],
+      "description": "Return the addresses of the accounts controlled by a public key.\n\nThe result is folded from the on-chain account-discoverability event stream (`ClaimedAddress`, `PublicKeyAttached`, `PublicKeyRotated` and `PublicKeyDetached`), which lets a wallet holding only a seed recover its accounts. Because those events are public, the same index can be rebuilt independently by anyone replaying them, and a caller who does not want to trust this indexer can verify each returned account against the chain.\n\nExclusively served by the indexer.",
+      "params": [
+        {
+          "name": "public_key",
+          "description": "The scheme-flag-prefixed public key bytes (`flag || raw key bytes`), base-64 encoded — the wire format of `iota::public_key::from_prefixed_bytes`.",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/Base64"
+          }
+        },
+        {
+          "name": "include_unlinked",
+          "description": "When true, also return accounts this key no longer controls because it was rotated away or detached. Defaults to false.",
+          "schema": {
+            "type": "boolean"
+          }
+        }
+      ],
+      "result": {
+        "name": "Vec<AddressSchema>",
+        "required": true,
+        "schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Address"
+          }
+        }
+      }
+    },
+    {
       "name": "iotax_getAllBalances",
       "tags": [
         {
