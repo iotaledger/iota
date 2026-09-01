@@ -257,7 +257,7 @@ async fn test_get_transactions_batching_within_limit() {
             .map(|d| {
                 TransactionRequest::default().with_digest(
                     iota_grpc_types::v1::types::Digest::default()
-                        .with_digest(d.into_inner().to_vec()),
+                        .with_digest(d.into_bytes().to_vec()),
                 )
             })
             .collect(),

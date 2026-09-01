@@ -41,7 +41,7 @@ const TEST_PRUNING_DELAY_MS: u64 = 1000; // 1 second
 ///                 insert_or_ignore_into!(
 ///                     tx_insertion_order::table,
 ///                     (
-///                         tx_insertion_order::dsl::tx_digest.eq(digest.inner().to_vec()),
+///                         tx_insertion_order::dsl::tx_digest.eq(digest.bytes().to_vec()),
 ///                         tx_insertion_order::dsl::insertion_order.eq(123),
 ///                     ),
 ///                     conn

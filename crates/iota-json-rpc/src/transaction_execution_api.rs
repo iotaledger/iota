@@ -328,7 +328,7 @@ impl TransactionExecutionApi {
             },
             tx_data,
         );
-        let txn_digest = TransactionDigest::new(intent_msg.value.digest().into_inner());
+        let txn_digest = TransactionDigest::new(intent_msg.value.digest().into_bytes());
         Ok((intent_msg.value, txn_digest, input_objs))
     }
 

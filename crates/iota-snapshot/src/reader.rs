@@ -398,7 +398,7 @@ impl StateSnapshotReaderV1 {
                         .context(format!("No part exists for bucket: {bucket}, part: {part}"))?;
 
                     for object_ref in ref_iter {
-                        hasher.update(object_ref.digest.inner());
+                        hasher.update(object_ref.digest.bytes());
                         empty = false;
                     }
 

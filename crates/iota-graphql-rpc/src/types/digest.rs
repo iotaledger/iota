@@ -77,7 +77,7 @@ impl From<Digest> for TransactionDigest {
 
 impl From<TransactionDigest> for Digest {
     fn from(digest: TransactionDigest) -> Self {
-        Digest(digest.into_inner())
+        Digest(digest.into_bytes())
     }
 }
 

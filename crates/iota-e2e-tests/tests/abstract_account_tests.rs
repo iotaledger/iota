@@ -113,7 +113,7 @@ async fn test_abstract_account_creation_and_issue_tx(pcool: bool) -> Result<(), 
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
@@ -406,7 +406,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -429,7 +429,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
             pt2, aa_gas2, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest2 = tx_data2.digest().into_inner();
+    let tx_digest2 = tx_data2.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
@@ -530,7 +530,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -553,7 +553,7 @@ async fn test_abstract_account_post_consensus_deletion_failure() -> Result<(), a
             pt2, aa_gas2, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest2 = tx_data2.digest().into_inner();
+    let tx_digest2 = tx_data2.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
@@ -655,7 +655,7 @@ async fn test_abstract_account_shared_object_congestion_cancellation() -> Result
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -757,7 +757,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
             pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest)?];
     // Create the TX envelope and send it for validators signing
@@ -780,7 +780,7 @@ async fn test_abstract_account_post_consensus_failure_without_report_flag()
             pt2, aa_gas2, aa_sender, None, // No sponsor
         )
         .await?;
-    let tx_digest2 = tx_data2.digest().into_inner();
+    let tx_digest2 = tx_data2.digest().into_bytes();
     // Create the MoveAuthenticator for the Ed25519 signature authenticator
     let signatures2 = vec![test_env.create_move_authenticator_for_ed25519(&tx_digest2)?];
     // Create the TX envelope and send it for validators signing
@@ -1464,7 +1464,7 @@ async fn test_aa_sender_and_aa_sponsor_succeeded_with_enabled_move_auth_for_spon
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Both sender and sponsor provide MoveAuthenticators.
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
@@ -1571,7 +1571,7 @@ async fn test_aa_sender_and_aa_sponsor_use_the_same_shared_object_succeeded_with
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Both sender and sponsor provide MoveAuthenticators.
     let sender_aa_sig = test_env.create_move_authenticator_for_ed25519(&tx_digest)?;
@@ -1817,7 +1817,7 @@ async fn test_aa_sender_and_aa_sponsor_rejected_when_sponsor_aa_fails_with_enabl
     let tx_data = test_env
         .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor_addr))
         .await?;
-    let tx_digest = tx_data.digest().into_inner();
+    let tx_digest = tx_data.digest().into_bytes();
 
     // Both sender and sponsor provide MoveAuthenticators.
     let sender_aa_sig = test_env.create_move_authenticator_for_free_access()?;

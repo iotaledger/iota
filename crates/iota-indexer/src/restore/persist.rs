@@ -44,7 +44,7 @@ struct ObjectDerivedData {
 
 impl ObjectDerivedData {
     fn extend(&mut self, object: &Object, checkpoint_sequence_number: u64) {
-        self.hasher.update(object.object_ref().digest.inner());
+        self.hasher.update(object.object_ref().digest.bytes());
         if let Some(display) = StoredDisplay::try_from_object(object) {
             self.displays.insert(display.object_type.clone(), display);
         }
@@ -168,7 +168,7 @@ impl EpochToCommit {
 }
 
 async fn populate_chain_id(store: &PgIndexerStore, chain_id: ChainIdentifier) -> IndexerResult<()> {
-    let checkpoint_digest = chain_id.digest().into_inner().to_vec();
+    let checkpoint_digest = chain_id.digest().into_bytes().to_vec();
     store
         .execute_in_blocking_worker(|this| {
             this.persist_chain_identifier(StoredChainIdentifier { checkpoint_digest })
@@ -180,7 +180,7 @@ async fn populate_protocol_and_feature_flags(
     store: &PgIndexerStore,
     chain_id: ChainIdentifier,
 ) -> IndexerResult<()> {
-    let checkpoint_digest = chain_id.digest().into_inner().to_vec();
+    let checkpoint_digest = chain_id.digest().into_bytes().to_vec();
     store
         .execute_in_blocking_worker(move |this| {
             this.persist_protocol_configs_and_feature_flags(checkpoint_digest)

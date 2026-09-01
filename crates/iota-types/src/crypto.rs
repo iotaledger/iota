@@ -156,13 +156,13 @@ impl IotaKeyPair {
     pub fn public(&self) -> PublicKey {
         match self {
             IotaKeyPair::Ed25519(kp) => {
-                PublicKey::Ed25519(BytesRepresentation(kp.public_key().into_inner()))
+                PublicKey::Ed25519(BytesRepresentation(kp.public_key().into_bytes()))
             }
             IotaKeyPair::Secp256k1(kp) => {
-                PublicKey::Secp256k1(BytesRepresentation(kp.public_key().into_inner()))
+                PublicKey::Secp256k1(BytesRepresentation(kp.public_key().into_bytes()))
             }
             IotaKeyPair::Secp256r1(kp) => {
-                PublicKey::Secp256r1(BytesRepresentation(kp.public_key().into_inner()))
+                PublicKey::Secp256r1(BytesRepresentation(kp.public_key().into_bytes()))
             }
         }
     }
@@ -628,7 +628,7 @@ macro_rules! random_key_pair_from_sdk {
         impl RandomKeyPair for $private_key {
             fn generate_with_address(rng: &mut StdRng) -> (Address, Self) {
                 let kp = <$private_key>::random_with(rng);
-                let public = PublicKey::$variant(BytesRepresentation(kp.public_key().into_inner()));
+                let public = PublicKey::$variant(BytesRepresentation(kp.public_key().into_bytes()));
                 (Address::from(&public), kp)
             }
         }

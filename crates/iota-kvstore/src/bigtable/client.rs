@@ -94,7 +94,7 @@ impl KeyValueStoreWriter for BigTableClient {
                     bcs::to_bytes(checkpoint_number)?,
                 ),
             ];
-            rows.push(Row::new(transaction.digest().inner().to_vec(), cells));
+            rows.push(Row::new(transaction.digest().bytes().to_vec(), cells));
         }
         self.multi_set(TRANSACTIONS_TABLE, rows)
             .await
@@ -112,7 +112,7 @@ impl KeyValueStoreWriter for BigTableClient {
                 let key = encode_transaction_by_address_key(&address, seq.into());
                 let cells = [Cell::new(
                     DEFAULT_COLUMN_QUALIFIER.as_bytes().into(),
-                    transaction_digest.inner().into(),
+                    transaction_digest.bytes().into(),
                 )];
                 Row::new(key.into(), cells.into())
             });
@@ -146,7 +146,7 @@ impl KeyValueStoreWriter for BigTableClient {
         &mut self,
         checkpoint: &CheckpointData,
     ) -> Result<(), Self::Error> {
-        let key = checkpoint.checkpoint_summary.digest().inner();
+        let key = checkpoint.checkpoint_summary.digest().bytes();
 
         let value = checkpoint
             .checkpoint_summary
@@ -183,7 +183,7 @@ impl KeyValueStoreReader for BigTableClient {
         &mut self,
         transactions: &[TransactionDigest],
     ) -> Result<Vec<TransactionData>, Self::Error> {
-        let keys = transactions.iter().map(|tx| tx.inner().to_vec()).collect();
+        let keys = transactions.iter().map(|tx| tx.bytes().to_vec()).collect();
         let mut result = vec![];
         for row in self.multi_get(TRANSACTIONS_TABLE, keys, None).await? {
             let mut transaction = None;
@@ -340,7 +340,7 @@ impl KeyValueStoreReader for BigTableClient {
     {
         let keys = digests
             .into_iter()
-            .map(|digest| digest.inner().to_vec())
+            .map(|digest| digest.bytes().to_vec())
             .collect::<Vec<_>>();
 
         self.multi_get(CHECKPOINTS_BY_DIGEST_TABLE, keys, None)

@@ -213,7 +213,7 @@ impl MoveType {
 
 impl From<MoveObjectType> for MoveType {
     fn from(obj: MoveObjectType) -> Self {
-        obj.into_inner().into()
+        obj.into_struct_tag().into()
     }
 }
 

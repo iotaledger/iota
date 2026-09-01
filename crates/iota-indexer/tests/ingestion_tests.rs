@@ -117,14 +117,14 @@ mod ingestion_tests {
         // Read the transaction from the database directly.
         let db_txn: StoredTransaction = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             transactions::table
-                .filter(transactions::transaction_digest.eq(digest.inner().to_vec()))
+                .filter(transactions::transaction_digest.eq(digest.bytes().to_vec()))
                 .first::<StoredTransaction>(conn)
         })
         .context("failed reading transaction from PostgresDB")?;
 
         // Check that the transaction was stored correctly.
         assert_eq!(db_txn.tx_sequence_number, 1);
-        assert_eq!(db_txn.transaction_digest, digest.inner().to_vec());
+        assert_eq!(db_txn.transaction_digest, digest.bytes().to_vec());
         assert_eq!(
             db_txn.raw_transaction,
             bcs::to_bytes(&transaction.data()).unwrap()
@@ -221,7 +221,7 @@ mod ingestion_tests {
 
         let stored_tx_digest = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             tx_digests::table
-                .filter(tx_digests::tx_digest.eq(digest.inner().to_vec()))
+                .filter(tx_digests::tx_digest.eq(digest.bytes().to_vec()))
                 .select(StoredTxDigest::as_select())
                 .first::<StoredTxDigest>(conn)
         })
@@ -229,7 +229,7 @@ mod ingestion_tests {
 
         let stored_global_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             tx_global_order::table
-                .filter(tx_global_order::tx_digest.eq(digest.inner().to_vec()))
+                .filter(tx_global_order::tx_digest.eq(digest.bytes().to_vec()))
                 .select(TxGlobalOrder::as_select())
                 .first::<TxGlobalOrder>(conn)
         })
@@ -270,7 +270,7 @@ mod ingestion_tests {
                     &pg_store.blocking_cp(),
                     |conn| {
                         let insertable = TxGlobalOrder {
-                            tx_digest: digest.inner().to_vec(),
+                            tx_digest: digest.bytes().to_vec(),
                             global_sequence_number,
                             optimistic_sequence_number: None,
                             chk_tx_sequence_number: None,
@@ -298,7 +298,7 @@ mod ingestion_tests {
         // Read the transaction from the database directly.
         let stored = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             tx_global_order::table
-                .filter(tx_global_order::tx_digest.eq(digest.inner().to_vec()))
+                .filter(tx_global_order::tx_digest.eq(digest.bytes().to_vec()))
                 .select(TxGlobalOrder::as_select())
                 .first::<TxGlobalOrder>(conn)
         })

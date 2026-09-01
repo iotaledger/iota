@@ -58,7 +58,7 @@ impl Coin {
         let ObjectData::Struct(obj) = &object.data else {
             return Ok(None);
         };
-        let Some(_) = obj.struct_tag().coin_type_opt() else {
+        let Some(_) = obj.struct_tag().opt_coin_type() else {
             return Ok(None);
         };
 

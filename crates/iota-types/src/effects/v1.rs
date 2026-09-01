@@ -618,7 +618,7 @@ fn check_invariant(v1: &TransactionEffectsV1) {
     }
 
     // Make sure that gas object exists in changed_objects.
-    let (_, owner) = v1.gas_object();
+    let (_, owner) = <TransactionEffectsV1 as TransactionEffectsAPI>::gas_object(v1);
     assert!(matches!(owner, Owner::Address(_)));
 
     for unchanged in &v1.unchanged_shared_objects {

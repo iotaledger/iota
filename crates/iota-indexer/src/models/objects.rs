@@ -77,7 +77,7 @@ impl TryFrom<IndexedObject> for StoredCheckpointedObject {
         })? as i64;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
         let coin_type = object
-            .coin_type_opt()
+            .opt_coin_type()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
             Some(object.get_coin_value_unchecked())
@@ -89,7 +89,7 @@ impl TryFrom<IndexedObject> for StoredCheckpointedObject {
             object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
             object_status: ObjectStatus::Active as i16,
-            object_digest: Some(object.digest().into_inner().to_vec()),
+            object_digest: Some(object.digest().into_bytes().to_vec()),
             checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
             owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
@@ -267,7 +267,7 @@ impl TryFrom<IndexedObject> for StoredBackwardHistoryObject {
         })? as i64;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
         let coin_type = object
-            .coin_type_opt()
+            .opt_coin_type()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
             Some(object.get_coin_value_unchecked())
@@ -279,7 +279,7 @@ impl TryFrom<IndexedObject> for StoredBackwardHistoryObject {
             object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
             object_status: ObjectStatus::Active as i16,
-            object_digest: Some(object.digest().into_inner().to_vec()),
+            object_digest: Some(object.digest().into_bytes().to_vec()),
             superseded_at_checkpoint: checkpoint_sequence_number,
             owner_type: Some(owner_type as i16),
             owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
@@ -350,7 +350,7 @@ impl From<IndexedObject> for StoredObject {
         } = o;
         let (owner_type, owner_id) = owner_to_owner_info(&object.owner);
         let coin_type = object
-            .coin_type_opt()
+            .opt_coin_type()
             .map(|t| t.to_canonical_string(/* with_prefix */ true));
         let coin_balance = if coin_type.is_some() {
             Some(object.get_coin_value_unchecked())
@@ -360,7 +360,7 @@ impl From<IndexedObject> for StoredObject {
         Self {
             object_id: object.id().as_bytes().to_vec(),
             object_version: object.version().as_u64() as i64,
-            object_digest: object.digest().into_inner().to_vec(),
+            object_digest: object.digest().into_bytes().to_vec(),
             owner_type: owner_type as i16,
             owner_id: owner_id.map(|id| id.as_bytes().to_vec()),
             object_type: object

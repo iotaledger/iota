@@ -2656,7 +2656,7 @@ impl AuthorityState {
             },
             transaction,
         );
-        let transaction_digest = TransactionDigest::new(intent_msg.value.digest().into_inner());
+        let transaction_digest = TransactionDigest::new(intent_msg.value.digest().into_bytes());
         let (inner_temp_store, _, effects, execution_result) = executor.dev_inspect_transaction(
             self.get_backing_store().as_ref(),
             protocol_config,

@@ -334,7 +334,7 @@ async fn execute_transaction_batch() {
     // Both should succeed and match the input ordering
     let expected_digests: Vec<_> = [&txn1, &txn2]
         .iter()
-        .map(|t| t.digest().into_inner())
+        .map(|t| t.digest().into_bytes())
         .collect();
     for (i, result) in response.transaction_results.iter().enumerate() {
         let executed = result.executed_transaction().unwrap_or_else(|| {

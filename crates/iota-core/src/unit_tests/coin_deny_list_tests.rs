@@ -443,7 +443,7 @@ impl RegulatedCoinEnv {
             }
             if object.type_().unwrap().is_deny_cap_v1() {
                 deny_cap_id = Some(object.id());
-            } else if !object.is_gas_coin() && object.coin_type_opt().is_some() {
+            } else if !object.is_gas_coin() && object.opt_coin_type().is_some() {
                 coin_id = Some(object.id());
             }
         }

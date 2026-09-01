@@ -824,7 +824,7 @@ impl IndexerReader {
         &self,
         digests: &[TransactionDigest],
     ) -> IndexerResult<Vec<StoredTransaction>> {
-        let digests: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
+        let digests: Vec<Vec<u8>> = digests.iter().map(|d| d.bytes().to_vec()).collect();
         let checkpointed_txs = self
             .db()
             .get_checkpointed_transactions(digests.clone())
@@ -871,7 +871,7 @@ impl IndexerReader {
             return Ok(fetched_transactions);
         };
 
-        let digests: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
+        let digests: Vec<Vec<u8>> = digests.iter().map(|d| d.bytes().to_vec()).collect();
         let missing_digests = Self::check_for_missing_tx_digests(&digests, &fetched_transactions)
             .iter()
             .map(|digest| {
@@ -1780,7 +1780,7 @@ impl IndexerReader {
         digest: TransactionDigest,
     ) -> IndexerResult<bool> {
         self.spawn_blocking(move |this| {
-            let digest_bytes = digest.inner().to_vec();
+            let digest_bytes = digest.bytes().to_vec();
             let global_order_entry = run_query!(&this.pool, |conn| {
                 tx_global_order::table
                     .filter(tx_global_order::tx_digest.eq(digest_bytes))
@@ -2874,7 +2874,7 @@ impl<'a> DBReader<'a> {
                 .select(tx_digests::tx_sequence_number)
                 // we filter the tx_digests table because it is indexed by digest,
                 // events table is not
-                .filter(tx_digests::tx_digest.eq(tx_digest.into_inner().to_vec()))
+                .filter(tx_digests::tx_digest.eq(tx_digest.into_bytes().to_vec()))
                 .single_value()),
         );
 
@@ -2918,7 +2918,7 @@ impl<'a> DBReader<'a> {
                 .select(tx_digests::tx_sequence_number)
                 // we filter the tx_digests table because it is indexed by digest,
                 // transactions (and other tables) are not
-                .filter(tx_digests::tx_digest.eq(cursor.into_inner().to_vec()))
+                .filter(tx_digests::tx_digest.eq(cursor.into_bytes().to_vec()))
                 .first::<i64>(conn)
                 .optional()
         })
@@ -2938,7 +2938,7 @@ impl<'a> DBReader<'a> {
                             .select(tx_digests::tx_sequence_number)
                             // we filter the tx_digests table because it is indexed by digest,
                             // transactions table is not
-                            .filter(tx_digests::tx_digest.eq(digest.into_inner().to_vec()))
+                            .filter(tx_digests::tx_digest.eq(digest.into_bytes().to_vec()))
                             .single_value()),
                 )
                 .select((transactions::timestamp_ms, transactions::events))
@@ -2964,7 +2964,7 @@ impl<'a> DBReader<'a> {
                 )
                 // we filter the `tx_global_order` table because it is indexed by digest,
                 // optimistic_transactions table is not
-                .filter(tx_global_order::tx_digest.eq(digest.into_inner().to_vec()))
+                .filter(tx_global_order::tx_digest.eq(digest.into_bytes().to_vec()))
                 .select(optimistic_transactions::events)
                 .first::<StoredTransactionEvents>(conn)
                 .optional()
@@ -2989,7 +2989,7 @@ impl<'a> DBReader<'a> {
                     .first::<StoredCheckpoint>(conn)
                     .optional(),
                 CheckpointId::Digest(digest) => checkpoints::dsl::checkpoints
-                    .filter(checkpoints::checkpoint_digest.eq(digest.into_inner().to_vec()))
+                    .filter(checkpoints::checkpoint_digest.eq(digest.into_bytes().to_vec()))
                     .first::<StoredCheckpoint>(conn)
                     .optional(),
             }
@@ -3246,7 +3246,7 @@ impl<'a> DBReader<'a> {
         &self,
         digest: TransactionDigest,
     ) -> IndexerResult<Option<StoredTransaction>> {
-        let digests = vec![digest.inner().to_vec()];
+        let digests = vec![digest.bytes().to_vec()];
         let optimistic_tx_future = self
             .get_optimistic_transactions_with_cp_info(digests.clone())
             .map(|result| result.map(|mut txs| txs.pop()));

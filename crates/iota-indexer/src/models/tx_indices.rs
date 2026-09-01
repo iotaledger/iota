@@ -197,7 +197,7 @@ impl From<TxIndex> for TxIndexSplit {
             .collect();
 
         let stored_tx_digest = StoredTxDigest {
-            tx_digest: value.transaction_digest.into_inner().to_vec(),
+            tx_digest: value.transaction_digest.into_bytes().to_vec(),
             tx_sequence_number,
         };
 

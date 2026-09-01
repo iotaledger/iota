@@ -365,10 +365,22 @@ pub trait TransactionEffectsExtForTesting: transaction_effects_ext::Sealed {
 }
 
 // Helper macro to reduce boilerplate code
+// The SDK's `TransactionEffectsV1` has inherent methods whose names match this
+// crate's effects traits. Inherent methods win method resolution, so the trait
+// is named explicitly: some of those SDK methods differ from ours, e.g. their
+// `gas_object` returns `None` where ours panics on a malformed gas object.
 macro_rules! delegate_effects_api {
-    ($self:ident, $method:ident $(, $arg:expr)*) => {
+    (owned $trait:ident, $self:ident, $method:ident $(, $arg:expr)*) => {
         match $self {
-            TransactionEffects::V1(v1) => v1.$method($($arg),*),
+            TransactionEffects::V1(v1) => <TransactionEffectsV1 as $trait>::$method(*v1 $(, $arg)*),
+            _ => unimplemented!(
+                "a new TransactionEffects enum variant was added and needs to be handled"
+            ),
+        }
+    };
+    ($trait:ident, $self:ident, $method:ident $(, $arg:expr)*) => {
+        match $self {
+            TransactionEffects::V1(v1) => <TransactionEffectsV1 as $trait>::$method(v1 $(, $arg)*),
             _ => unimplemented!(
                 "a new TransactionEffects enum variant was added and needs to be handled"
             ),
@@ -378,113 +390,144 @@ macro_rules! delegate_effects_api {
 
 impl TransactionEffectsAPI for TransactionEffects {
     fn status(&self) -> &ExecutionStatus {
-        delegate_effects_api!(self, status)
+        delegate_effects_api!(TransactionEffectsAPI, self, status)
     }
 
     fn into_status(self) -> ExecutionStatus {
-        delegate_effects_api!(self, into_status)
+        delegate_effects_api!(owned TransactionEffectsAPI, self, into_status)
     }
 
     fn epoch(&self) -> EpochId {
-        delegate_effects_api!(self, epoch)
+        delegate_effects_api!(TransactionEffectsAPI, self, epoch)
     }
 
     fn modified_at_versions(&self) -> Vec<(ObjectId, Version)> {
-        delegate_effects_api!(self, modified_at_versions)
+        delegate_effects_api!(TransactionEffectsAPI, self, modified_at_versions)
     }
 
     fn lamport_version(&self) -> Version {
-        delegate_effects_api!(self, lamport_version)
+        delegate_effects_api!(TransactionEffectsAPI, self, lamport_version)
     }
 
     fn old_object_metadata(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, old_object_metadata)
+        delegate_effects_api!(TransactionEffectsAPI, self, old_object_metadata)
     }
 
     fn input_shared_objects(&self) -> Vec<InputSharedObject> {
-        delegate_effects_api!(self, input_shared_objects)
+        delegate_effects_api!(TransactionEffectsAPI, self, input_shared_objects)
     }
 
     fn created(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, created)
+        delegate_effects_api!(TransactionEffectsAPI, self, created)
     }
 
     fn mutated(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, mutated)
+        delegate_effects_api!(TransactionEffectsAPI, self, mutated)
     }
 
     fn unwrapped(&self) -> Vec<(ObjectReference, Owner)> {
-        delegate_effects_api!(self, unwrapped)
+        delegate_effects_api!(TransactionEffectsAPI, self, unwrapped)
     }
 
     fn deleted(&self) -> Vec<ObjectReference> {
-        delegate_effects_api!(self, deleted)
+        delegate_effects_api!(TransactionEffectsAPI, self, deleted)
     }
 
     fn unwrapped_then_deleted(&self) -> Vec<ObjectReference> {
-        delegate_effects_api!(self, unwrapped_then_deleted)
+        delegate_effects_api!(TransactionEffectsAPI, self, unwrapped_then_deleted)
     }
 
     fn wrapped(&self) -> Vec<ObjectReference> {
-        delegate_effects_api!(self, wrapped)
+        delegate_effects_api!(TransactionEffectsAPI, self, wrapped)
     }
 
     fn object_changes(&self) -> Vec<ObjectChange> {
-        delegate_effects_api!(self, object_changes)
+        delegate_effects_api!(TransactionEffectsAPI, self, object_changes)
     }
 
     fn gas_object(&self) -> (ObjectReference, Owner) {
-        delegate_effects_api!(self, gas_object)
+        delegate_effects_api!(TransactionEffectsAPI, self, gas_object)
     }
 
     fn events_digest(&self) -> Option<&TransactionEventsDigest> {
-        delegate_effects_api!(self, events_digest)
+        delegate_effects_api!(TransactionEffectsAPI, self, events_digest)
     }
 
     fn dependencies(&self) -> &[TransactionDigest] {
-        delegate_effects_api!(self, dependencies)
+        delegate_effects_api!(TransactionEffectsAPI, self, dependencies)
     }
 
     fn transaction_digest(&self) -> &TransactionDigest {
-        delegate_effects_api!(self, transaction_digest)
+        delegate_effects_api!(TransactionEffectsAPI, self, transaction_digest)
     }
 
     fn gas_cost_summary(&self) -> &GasCostSummary {
-        delegate_effects_api!(self, gas_cost_summary)
+        delegate_effects_api!(TransactionEffectsAPI, self, gas_cost_summary)
     }
 
     fn unchanged_shared_objects(&self) -> Vec<(ObjectId, UnchangedSharedKind)> {
-        delegate_effects_api!(self, unchanged_shared_objects)
+        delegate_effects_api!(TransactionEffectsAPI, self, unchanged_shared_objects)
     }
 }
 
 impl TransactionEffectsAPIForTesting for TransactionEffects {
     fn status_mut_for_testing(&mut self) -> &mut ExecutionStatus {
-        delegate_effects_api!(self, status_mut_for_testing)
+        delegate_effects_api!(
+            TransactionEffectsAPIForTesting,
+            self,
+            status_mut_for_testing
+        )
     }
 
     fn gas_cost_summary_mut_for_testing(&mut self) -> &mut GasCostSummary {
-        delegate_effects_api!(self, gas_cost_summary_mut_for_testing)
+        delegate_effects_api!(
+            TransactionEffectsAPIForTesting,
+            self,
+            gas_cost_summary_mut_for_testing
+        )
     }
 
     fn transaction_digest_mut_for_testing(&mut self) -> &mut TransactionDigest {
-        delegate_effects_api!(self, transaction_digest_mut_for_testing)
+        delegate_effects_api!(
+            TransactionEffectsAPIForTesting,
+            self,
+            transaction_digest_mut_for_testing
+        )
     }
 
     fn dependencies_mut_for_testing(&mut self) -> &mut Vec<TransactionDigest> {
-        delegate_effects_api!(self, dependencies_mut_for_testing)
+        delegate_effects_api!(
+            TransactionEffectsAPIForTesting,
+            self,
+            dependencies_mut_for_testing
+        )
     }
 
     fn unsafe_add_input_shared_object_for_testing(&mut self, kind: InputSharedObject) {
-        delegate_effects_api!(self, unsafe_add_input_shared_object_for_testing, kind)
+        delegate_effects_api!(
+            TransactionEffectsAPIForTesting,
+            self,
+            unsafe_add_input_shared_object_for_testing,
+            kind
+        )
     }
 
     fn unsafe_add_deleted_live_object_for_testing(&mut self, object_ref: ObjectReference) {
-        delegate_effects_api!(self, unsafe_add_deleted_live_object_for_testing, object_ref)
+        delegate_effects_api!(
+            TransactionEffectsAPIForTesting,
+            self,
+            unsafe_add_deleted_live_object_for_testing,
+            object_ref
+        )
     }
 
     fn unsafe_add_object_tombstone_for_testing(&mut self, object_ref: ObjectReference) {
-        delegate_effects_api!(self, unsafe_add_object_tombstone_for_testing, object_ref)
+        delegate_effects_api!(
+            TransactionEffectsAPIForTesting,
+            self,
+            unsafe_add_object_tombstone_for_testing,
+            object_ref
+        )
     }
 }
 

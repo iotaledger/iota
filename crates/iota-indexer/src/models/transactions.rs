@@ -61,7 +61,7 @@ impl From<&IndexedTransaction> for TxGlobalOrder {
         Self {
             chk_tx_sequence_number: Some(tx.tx_sequence_number as i64),
             global_sequence_number: tx.tx_sequence_number as i64,
-            tx_digest: tx.tx_digest.into_inner().to_vec(),
+            tx_digest: tx.tx_digest.into_bytes().to_vec(),
             optimistic_sequence_number: Some(CHECKPOINT_TX_OPTIMISTIC_SEQ),
         }
     }
@@ -197,7 +197,7 @@ impl From<&IndexedTransaction> for StoredTransaction {
     fn from(tx: &IndexedTransaction) -> Self {
         StoredTransaction {
             tx_sequence_number: tx.tx_sequence_number as i64,
-            transaction_digest: tx.tx_digest.into_inner().to_vec(),
+            transaction_digest: tx.tx_digest.into_bytes().to_vec(),
             raw_transaction: bcs::to_bytes(&tx.sender_signed_data).unwrap(),
             raw_effects: bcs::to_bytes(&tx.effects).unwrap(),
             checkpoint_sequence_number: tx.checkpoint_sequence_number as i64,
