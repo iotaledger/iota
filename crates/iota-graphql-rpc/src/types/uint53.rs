@@ -51,7 +51,7 @@ impl TryFrom<u64> for UInt53 {
     fn try_from(value: u64) -> Result<Self, Self::Error> {
         if value > MAX_UINT53 {
             return Err(Error::Internal(format!(
-                "value {value} exceeds the maximum of UInt53 (2^53 - 1)"
+                "Value {value} exceeds the maximum of UInt53 (2^53 - 1)"
             )));
         }
         Ok(Self(value))

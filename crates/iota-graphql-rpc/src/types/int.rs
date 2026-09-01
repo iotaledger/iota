@@ -17,5 +17,5 @@ where
 {
     value
         .try_into()
-        .map_err(|_| Error::Internal(format!("value {value} does not fit in a GraphQL Int")))
+        .map_err(|_| Error::Internal(format!("Value {value} does not fit in a GraphQL Int")))
 }
