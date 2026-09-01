@@ -93,10 +93,6 @@ name = "move_view_function_call"
 path = "examples/read_api/move_view_function_call.rs"
 
 [[example]]
-name = "grpc_view_function_call"
-path = "examples/read_api/grpc_view_function_call.rs"
-
-[[example]]
 name = "read_api_objects"
 path = "examples/read_api/read_api_objects.rs"
 
