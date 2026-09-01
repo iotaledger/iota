@@ -23,6 +23,7 @@ use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     crypto::deterministic_random_account_private_key,
     dynamic_field::DynamicFieldName,
+    event::EventID,
     id::UID,
     object::{MoveStructExt, OBJECT_START_VERSION, ObjectInner},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
@@ -189,6 +190,37 @@ async fn query_events() {
 
     for event in event_page.data {
         assert_eq!(event.sender, Address::ZERO);
+    }
+}
+
+/// A cursor naming an event its transaction does not have is refused, rather
+/// than continuing a page from the wrong place.
+#[sim_test]
+async fn query_events_refuses_a_cursor_naming_no_event() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let client = cluster.rpc_client();
+
+    let page = client
+        .query_events(EventFilter::All(vec![]), None, Some(1), None)
+        .await
+        .unwrap();
+    let event = page.data.first().expect("genesis emits events");
+    let cursor = EventID {
+        tx_digest: event.id.tx_digest,
+        event_seq: 9_999,
+    };
+
+    for filter in [
+        EventFilter::TimeRange {
+            start_time: 0,
+            end_time: u64::MAX,
+        },
+        EventFilter::Sender(event.sender),
+    ] {
+        let result = client
+            .query_events(filter.clone(), Some(cursor), Some(10), None)
+            .await;
+        assert!(result.is_err(), "{filter:?}: {result:?}");
     }
 }
 
