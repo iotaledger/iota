@@ -74,7 +74,7 @@ The metrics, admin interface, p2p, network and primary addresses are on `127.0.0
 | `9184` | Fullnode metrics. |
 | `9185` | Fullnode admin interface. |
 | `9186` | Fullnode p2p (UDP). |
-| `50051` | Fullnode gRPC API (`--with-grpc`). |
+| `50051` | Fullnode gRPC API (`--node-config-override fullnode:enable-grpc-api=true`). |
 
 Each validator owns a block of ten ports starting at `9200 + 10 * i`: validator 0 owns `9200`-`9209`, validator 1 owns `9210`-`9219`, and so on. Only the first five of a block are used; the other five are reserved so future endpoints don't shift the layout.
 
