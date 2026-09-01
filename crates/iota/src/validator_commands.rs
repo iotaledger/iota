@@ -244,9 +244,9 @@ impl IotaValidatorCommand {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
                         authority_key: authority_keypair.public().into(),
-                        protocol_key: protocol_keypair.public().clone(),
+                        protocol_key: protocol_keypair.public_key(),
                         account_address,
-                        network_key: network_keypair.public().clone(),
+                        network_key: network_keypair.public_key(),
                         gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                         commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                         network_address: Multiaddr::try_from(format!(
@@ -279,8 +279,8 @@ impl IotaValidatorCommand {
                     CallArg::pure(&AuthorityPublicKeyBytes::from_bytes(
                         validator.authority_key().as_bytes(),
                     )?),
-                    CallArg::pure(&validator.network_key().as_bytes().to_vec()),
-                    CallArg::pure(&validator.protocol_key().as_bytes().to_vec()),
+                    CallArg::pure(&validator.network_key().inner().to_vec()),
+                    CallArg::pure(&validator.protocol_key().inner().to_vec()),
                     CallArg::pure(&validator_info.proof_of_possession.as_ref().to_vec()),
                     CallArg::pure(&validator.name().to_owned().into_bytes()),
                     CallArg::pure(&validator.description.clone().into_bytes()),
@@ -1012,8 +1012,8 @@ async fn update_metadata(
         MetadataUpdate::NetworkPubKey { file } => {
             can_validator_mutate_all_data(context).await?;
             let network_pub_key: NetworkPublicKey =
-                read_network_keypair_from_file(file)?.public().clone();
-            let args = vec![CallArg::pure(&network_pub_key.as_bytes().to_vec())];
+                read_network_keypair_from_file(file)?.public_key();
+            let args = vec![CallArg::pure(&network_pub_key.inner().to_vec())];
             call_0x5(
                 context,
                 "update_validator_next_epoch_network_pubkey",
@@ -1025,8 +1025,8 @@ async fn update_metadata(
         MetadataUpdate::ProtocolPubKey { file } => {
             can_validator_mutate_all_data(context).await?;
             let protocol_pub_key: NetworkPublicKey =
-                read_network_keypair_from_file(file)?.public().clone();
-            let args = vec![CallArg::pure(&protocol_pub_key.as_bytes().to_vec())];
+                read_network_keypair_from_file(file)?.public_key();
+            let args = vec![CallArg::pure(&protocol_pub_key.inner().to_vec())];
             call_0x5(
                 context,
                 "update_validator_next_epoch_protocol_pubkey",

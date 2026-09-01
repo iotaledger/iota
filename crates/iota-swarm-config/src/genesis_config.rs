@@ -32,6 +32,7 @@ use tracing::info;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SsfnGenesisConfig {
     pub p2p_address: Multiaddr,
+    #[serde(with = "optional_base64_formatted_network_keypair")]
     pub network_key_pair: Option<NetworkKeyPair>,
 }
 
@@ -40,11 +41,17 @@ pub struct SsfnGenesisConfig {
 pub struct ValidatorGenesisConfig {
     #[serde(default = "default_bls12381_key_pair")]
     pub authority_key_pair: AuthorityKeyPair,
-    #[serde(default = "default_ed25519_key_pair")]
+    #[serde(
+        default = "default_ed25519_key_pair",
+        with = "base64_formatted_network_keypair"
+    )]
     pub protocol_key_pair: NetworkKeyPair,
     #[serde(default = "default_iota_key_pair", with = "base64_formatted_keypair")]
     pub account_key_pair: SimpleKeypair,
-    #[serde(default = "default_ed25519_key_pair")]
+    #[serde(
+        default = "default_ed25519_key_pair",
+        with = "base64_formatted_network_keypair"
+    )]
     pub network_key_pair: NetworkKeyPair,
     pub network_address: Multiaddr,
     pub p2p_address: Multiaddr,
@@ -65,8 +72,8 @@ impl ValidatorGenesisConfig {
     pub fn to_validator_info(&self, name: String) -> GenesisValidatorInfo {
         let authority_key: AuthorityPublicKeyBytes = self.authority_key_pair.public().into();
         let account_key = PublicKey::from(&self.account_key_pair);
-        let network_key: NetworkPublicKey = self.network_key_pair.public().clone();
-        let protocol_key: NetworkPublicKey = self.protocol_key_pair.public().clone();
+        let network_key: NetworkPublicKey = self.network_key_pair.public_key();
+        let protocol_key: NetworkPublicKey = self.protocol_key_pair.public_key();
         let network_address = self.network_address.clone();
 
         let info = ValidatorInfo {
@@ -332,6 +339,51 @@ mod base64_formatted_keypair {
         let s = String::deserialize(d)?;
         let bytes = Base64::decode(&s).map_err(Error::custom)?;
         SimpleKeypair::from_bytes(&bytes).map_err(Error::custom)
+    }
+}
+
+// Serde adapter storing the network keypair as base64 of the raw private key
+// bytes, the on-disk format of these config fields.
+mod base64_formatted_network_keypair {
+    use iota_sdk_crypto::ToFromBase64 as _;
+    use iota_types::crypto::NetworkKeyPair;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(kp: &NetworkKeyPair, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&kp.to_base64())
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<NetworkKeyPair, D::Error> {
+        use serde::de::Error;
+
+        let s = String::deserialize(d)?;
+        NetworkKeyPair::from_base64(&s).map_err(Error::custom)
+    }
+}
+
+mod optional_base64_formatted_network_keypair {
+    use iota_sdk_crypto::ToFromBase64 as _;
+    use iota_types::crypto::NetworkKeyPair;
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(
+        kp: &Option<NetworkKeyPair>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match kp {
+            Some(kp) => serializer.serialize_some(&kp.to_base64()),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        d: D,
+    ) -> Result<Option<NetworkKeyPair>, D::Error> {
+        use serde::de::Error;
+
+        Option::<String>::deserialize(d)?
+            .map(|s| NetworkKeyPair::from_base64(&s).map_err(Error::custom))
+            .transpose()
     }
 }
 

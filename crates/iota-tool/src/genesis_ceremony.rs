@@ -195,9 +195,9 @@ pub async fn run(cmd: Ceremony) -> Result<()> {
                 iota_genesis_builder::validator_info::ValidatorInfo {
                     name,
                     authority_key: authority_keypair.public().into(),
-                    protocol_key: protocol_keypair.public().clone(),
+                    protocol_key: protocol_keypair.public_key(),
                     account_address: account_keypair.public_key().derive_address(),
-                    network_key: network_keypair.public().clone(),
+                    network_key: network_keypair.public_key(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                     network_address,
@@ -336,9 +336,7 @@ mod test {
     use iota_keys::keypair_file::{write_authority_keypair_to_file, write_keypair_to_file};
     use iota_macros::nondeterministic;
     use iota_sdk_crypto::simple::SimpleKeypair;
-    use iota_types::crypto::{
-        AccountPrivateKey, AuthorityKeyPair, get_key_pair_from_rng, network_to_simple_keypair,
-    };
+    use iota_types::crypto::{AccountPrivateKey, AuthorityKeyPair, get_key_pair_from_rng};
 
     use super::*;
 
@@ -359,9 +357,9 @@ mod test {
                 let info = ValidatorInfo {
                     name: format!("validator-{i}"),
                     authority_key: authority_keypair.public().into(),
-                    protocol_key: protocol_keypair.public().clone(),
+                    protocol_key: protocol_keypair.public_key(),
                     account_address: account_private_key.public_key().derive_address(),
-                    network_key: network_keypair.public().clone(),
+                    network_key: network_keypair.public_key(),
                     gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                     commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                     network_address: local_ip_utils::new_local_tcp_address_for_testing(),
@@ -376,14 +374,14 @@ mod test {
 
                 let protocol_key_file = dir.path().join(format!("{}.key", info.name));
                 write_keypair_to_file(
-                    &network_to_simple_keypair(&protocol_keypair),
+                    &SimpleKeypair::from(protocol_keypair),
                     &protocol_key_file,
                 )
                 .unwrap();
 
                 let network_key_file = dir.path().join(format!("{}-1.key", info.name));
                 write_keypair_to_file(
-                    &network_to_simple_keypair(&network_keypair),
+                    &SimpleKeypair::from(network_keypair),
                     &network_key_file,
                 )
                 .unwrap();

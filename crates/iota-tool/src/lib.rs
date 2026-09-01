@@ -122,9 +122,7 @@ async fn make_clients(
             .unwrap()
             .rewrite_http_to_https();
         let tls_config = iota_tls::create_rustls_client_config(
-            iota_types::crypto::NetworkPublicKey::from_bytes(
-                &committee_member.network_pubkey_bytes,
-            )?,
+            iota_types::crypto::network_pubkey_from_bytes(&committee_member.network_pubkey_bytes)?,
             iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
             None,
         );

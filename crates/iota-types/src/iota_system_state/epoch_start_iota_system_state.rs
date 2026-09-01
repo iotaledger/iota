@@ -208,7 +208,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
                         NetworkMetadata {
                             network_address: validator.iota_net_address.clone(),
                             primary_address: validator.primary_address.clone(),
-                            network_public_key: Some(validator.network_pubkey.clone()),
+                            network_public_key: Some(validator.network_pubkey),
                         },
                     ),
                 )
@@ -241,7 +241,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
                     .to_anemo_address()
                     .into_iter()
                     .collect::<Vec<_>>();
-                let peer_id = PeerId(validator.network_pubkey.0.to_bytes());
+                let peer_id = PeerId(validator.network_pubkey.into_inner());
                 if address.is_empty() {
                     warn!(
                         ?peer_id,
@@ -262,7 +262,7 @@ impl EpochStartSystemStateTrait for EpochStartSystemStateV1 {
             .iter()
             .map(|validator| {
                 let name = validator.authority_name();
-                let peer_id = PeerId(validator.network_pubkey.0.to_bytes());
+                let peer_id = PeerId(validator.network_pubkey.into_inner());
 
                 (name, peer_id)
             })
@@ -396,8 +396,8 @@ pub fn convert_validator_to_epoch_start_info(validator: &ValidatorV1) -> EpochSt
     EpochStartValidatorInfoV1 {
         iota_address: metadata.iota_address,
         authority_pubkey: metadata.authority_pubkey.clone(),
-        network_pubkey: metadata.network_pubkey.clone(),
-        protocol_pubkey: metadata.protocol_pubkey.clone(),
+        network_pubkey: metadata.network_pubkey,
+        protocol_pubkey: metadata.protocol_pubkey,
         iota_net_address: metadata.net_address.clone(),
         p2p_address: metadata.p2p_address.clone(),
         primary_address: metadata.primary_address.clone(),
@@ -413,7 +413,6 @@ mod test {
     use iota_multiaddr::Multiaddr;
     use iota_protocol_config::ProtocolVersion;
     use iota_sdk_types::Address;
-    use rand::thread_rng;
 
     use crate::{
         crypto::{AuthorityKeyPair, NetworkKeyPair, get_key_pair},
@@ -426,7 +425,7 @@ mod test {
     fn test_epoch_start_system_state_versioning() {
         // Create test validators
         let (iota_address1, authority_key1): (Address, AuthorityKeyPair) = get_key_pair();
-        let protocol_network_key1 = NetworkKeyPair::generate(&mut thread_rng());
+        let protocol_network_key1 = NetworkKeyPair::random();
         let net_address1 = "/ip4/127.0.0.1/tcp/1337".parse().unwrap();
         let p2p_address1 = "/ip4/127.0.0.1/tcp/1338".parse().unwrap();
         let primary_address1 = "/ip4/127.0.0.1/tcp/1339".parse().unwrap();
@@ -434,8 +433,8 @@ mod test {
         let committee_validator = EpochStartValidatorInfoV1 {
             iota_address: iota_address1,
             authority_pubkey: authority_key1.public().clone(),
-            network_pubkey: protocol_network_key1.public().clone(),
-            protocol_pubkey: protocol_network_key1.public().clone(),
+            network_pubkey: protocol_network_key1.public_key(),
+            protocol_pubkey: protocol_network_key1.public_key(),
             iota_net_address: net_address1,
             p2p_address: p2p_address1,
             primary_address: primary_address1,
@@ -444,7 +443,7 @@ mod test {
         };
 
         let (iota_address2, authority_key2): (Address, AuthorityKeyPair) = get_key_pair();
-        let protocol_network_key2 = NetworkKeyPair::generate(&mut thread_rng());
+        let protocol_network_key2 = NetworkKeyPair::random();
         let net_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2337".parse().unwrap();
         let p2p_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2338".parse().unwrap();
         let primary_address2: Multiaddr = "/ip4/127.0.0.1/tcp/2339".parse().unwrap();
@@ -452,8 +451,8 @@ mod test {
         let non_committee_validator = EpochStartValidatorInfoV1 {
             iota_address: iota_address2,
             authority_pubkey: authority_key2.public().clone(),
-            network_pubkey: protocol_network_key2.public().clone(),
-            protocol_pubkey: protocol_network_key2.public().clone(),
+            network_pubkey: protocol_network_key2.public_key(),
+            protocol_pubkey: protocol_network_key2.public_key(),
             iota_net_address: net_address2,
             p2p_address: p2p_address2,
             primary_address: primary_address2,

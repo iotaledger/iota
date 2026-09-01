@@ -13,13 +13,16 @@ use anemo::{
     Network, Peer, PeerId, Request, Response,
     types::{PeerEvent, PeerInfo},
 };
-use fastcrypto::ed25519::{Ed25519PublicKey, Ed25519Signature};
 use futures::StreamExt;
 use iota_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
 use iota_multiaddr::Multiaddr;
-use iota_sdk_types::{Digest, crypto::IntentScope};
+use iota_sdk_crypto::{Signer as _, Verifier as _, ed25519::Ed25519VerifyingKey};
+use iota_sdk_types::{
+    Digest,
+    crypto::{Ed25519Signature, IntentScope},
+};
 use iota_types::{
-    crypto::{NetworkKeyPair, Signer, ToFromBytes, VerifyingKey},
+    crypto::{NetworkKeyPair, NetworkPublicKey},
     message_envelope::{Envelope, Message, VerifiedEnvelope},
 };
 use serde::{Deserialize, Serialize};
@@ -883,16 +886,18 @@ fn verify_peer_infos(
         }
 
         // Verify the signature
-        let Ok(public_key) = Ed25519PublicKey::from_bytes(&peer_info.peer_id.0) else {
+        let Ok(verifying_key) =
+            Ed25519VerifyingKey::new(&NetworkPublicKey::new(peer_info.peer_id.0))
+        else {
             debug!(
                 // This should never happen.
-                "Failed to convert anemo PeerId {:?} to Ed25519PublicKey",
+                "Failed to convert anemo PeerId {:?} to an ed25519 public key",
                 peer_info.peer_id
             );
             continue;
         };
         let msg = bcs::to_bytes(peer_info.data()).expect("BCS serialization should not fail");
-        if let Err(e) = public_key.verify(&msg, peer_info.auth_sig()) {
+        if let Err(e) = verifying_key.verify(&msg, peer_info.auth_sig()) {
             debug!(
                 "Discovery failed to verify signature for NodeInfo for peer {:?}: {e:?}",
                 peer_info.peer_id

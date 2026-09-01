@@ -5,7 +5,7 @@
 use std::{collections::BTreeSet, sync::Arc};
 
 use arc_swap::ArcSwap;
-use fastcrypto::{ed25519::Ed25519PublicKey, traits::ToFromBytes};
+use iota_sdk_types::Ed25519PublicKey;
 use rustls::{
     crypto::WebPkiSupportedAlgorithms,
     pki_types::{
@@ -348,7 +348,5 @@ pub fn public_key_from_certificate(
         <ed25519::pkcs8::PublicKeyBytes as pkcs8::DecodePublicKey>::from_public_key_der(spki.raw)
             .map_err(|e| rustls::Error::General(format!("invalid ed25519 public key: {e}")))?;
 
-    let public_key = Ed25519PublicKey::from_bytes(public_key_bytes.as_ref())
-        .map_err(|e| rustls::Error::General(format!("invalid ed25519 public key: {e}")))?;
-    Ok(public_key)
+    Ok(Ed25519PublicKey::new(public_key_bytes.to_bytes()))
 }

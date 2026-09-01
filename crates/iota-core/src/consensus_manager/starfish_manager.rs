@@ -6,7 +6,7 @@ use std::{path::PathBuf, sync::Arc};
 
 use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
-use fastcrypto::ed25519;
+use fastcrypto::{ed25519, traits::ToFromBytes as _};
 use iota_config::NodeConfig;
 use iota_metrics::{RegistryID, RegistryService, monitored_mpsc::unbounded_channel};
 use iota_types::committee::EpochId;
@@ -54,8 +54,8 @@ impl StarfishManager {
     /// But for security, the protocol keypair must be different from the
     /// network keypair.
     pub fn new(
-        protocol_keypair: ed25519::Ed25519KeyPair,
-        network_keypair: ed25519::Ed25519KeyPair,
+        protocol_keypair: iota_types::crypto::NetworkKeyPair,
+        network_keypair: iota_types::crypto::NetworkKeyPair,
         storage_base_path: PathBuf,
         registry_service: RegistryService,
         metrics: Arc<ConsensusManagerMetrics>,
@@ -63,7 +63,12 @@ impl StarfishManager {
     ) -> Self {
         let (consumer_monitor_sender, _) = broadcast::channel(1);
         Self {
-            protocol_keypair: ProtocolKeyPair::new(protocol_keypair),
+            protocol_keypair: ProtocolKeyPair::new(
+                ed25519::Ed25519KeyPair::from_bytes(&iota_sdk_crypto::ToFromBytes::to_bytes(
+                    &protocol_keypair,
+                ))
+                .expect("valid ed25519 private key bytes"),
+            ),
             network_keypair: NetworkKeyPair::new(network_keypair),
             storage_base_path,
             running: Mutex::new(Running::False),
