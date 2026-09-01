@@ -46,6 +46,10 @@ pub struct BenchmarkContext {
     /// per-transaction wall-clock measurements are not contaminated by
     /// contention.
     sequential: bool,
+    /// Cap on transactions executing at once (0 = unbounded). Used by the
+    /// concurrency contrast runs to measure per-transaction time under a
+    /// controlled number of parallel workers.
+    concurrency: usize,
 }
 
 /// Total size of all files under `path`, for tracking store growth.
@@ -104,6 +108,7 @@ impl BenchmarkContext {
             admin_account,
             benchmark_component,
             sequential: config.sequential,
+            concurrency: config.concurrency,
         }
     }
 
@@ -488,7 +493,7 @@ impl BenchmarkContext {
         );
 
         let has_shared_object = transactions.iter().any(|tx| tx.contains_shared_object());
-        if has_shared_object || self.sequential {
+        if has_shared_object || self.sequential || self.concurrency == 1 {
             // With shared objects, we must execute each transaction in order.
             for transaction in transactions {
                 self.validator
@@ -496,12 +501,25 @@ impl BenchmarkContext {
                     .await;
             }
         } else {
+            // A permit is acquired before execution begins, so at most
+            // `concurrency` transactions run at once; the per-transaction
+            // wall-clock timer starts after the permit is held, so queueing
+            // time is excluded from the measurement. `concurrency == 0` leaves
+            // the semaphore off (unbounded, all-at-once).
+            let limit = self.concurrency_limiter();
             let tasks: FuturesUnordered<_> = transactions
                 .into_iter()
                 .map(|tx| {
                     let validator = self.validator();
                     let component = self.benchmark_component;
-                    tokio::spawn(async move { validator.execute_certificate(tx, component).await })
+                    let limit = limit.clone();
+                    tokio::spawn(async move {
+                        let _permit = match &limit {
+                            Some(sem) => Some(sem.acquire().await.unwrap()),
+                            None => None,
+                        };
+                        validator.execute_certificate(tx, component).await
+                    })
                 })
                 .collect();
             let results: Vec<_> = tasks.collect().await;
@@ -664,7 +682,7 @@ impl BenchmarkContext {
         transactions: Vec<CertifiedTransaction>,
     ) -> Vec<TransactionEffects> {
         let has_shared_object = transactions.iter().any(|tx| tx.contains_shared_object());
-        if has_shared_object || self.sequential {
+        if has_shared_object || self.sequential || self.concurrency == 1 {
             // With shared objects, we must execute each transaction in order.
             let mut effects = Vec::new();
             for transaction in transactions {
@@ -676,19 +694,33 @@ impl BenchmarkContext {
             }
             effects
         } else {
+            let limit = self.concurrency_limiter();
             let tasks: FuturesUnordered<_> = transactions
                 .into_iter()
                 .map(|tx| {
                     let store = store.clone();
                     let validator = self.validator();
-                    tokio::spawn(
-                        async move { validator.execute_transaction_in_memory(store, tx).await },
-                    )
+                    let limit = limit.clone();
+                    tokio::spawn(async move {
+                        let _permit = match &limit {
+                            Some(sem) => Some(sem.acquire().await.unwrap()),
+                            None => None,
+                        };
+                        validator.execute_transaction_in_memory(store, tx).await
+                    })
                 })
                 .collect();
             let results: Vec<_> = tasks.collect().await;
             results.into_iter().map(|r| r.unwrap()).collect()
         }
+    }
+
+    /// A semaphore bounding concurrent execution to `self.concurrency`, or
+    /// `None` when unbounded (`concurrency == 0`). `concurrency == 1` is
+    /// handled by the sequential branch, so this is only consulted for
+    /// `concurrency >= 2`.
+    fn concurrency_limiter(&self) -> Option<Arc<tokio::sync::Semaphore>> {
+        (self.concurrency >= 2).then(|| Arc::new(tokio::sync::Semaphore::new(self.concurrency)))
     }
 
     fn refresh_gas_objects(&mut self, mut new_gas_objects: HashMap<ObjectId, ObjectReference>) {
