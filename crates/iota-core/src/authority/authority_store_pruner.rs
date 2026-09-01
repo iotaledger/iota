@@ -41,7 +41,7 @@ use super::authority_store_tables::AuthorityPerpetualTables;
 use crate::{
     checkpoint_progress_tracker::CheckpointProgressTracker,
     checkpoints::{CheckpointStore, CheckpointWatermark, EMPTY_CHECKPOINT_CONTENTS_DIGEST},
-    rpc_indexes::{IndexStore, grpc_api::GrpcIndexesStore},
+    rpc_indexes::RpcIndexesStore,
 };
 
 static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
@@ -738,34 +738,15 @@ impl AuthorityStorePruner {
         Ok(())
     }
 
-    /// Drops the gRPC digest history of epochs past the checkpoint
-    /// retention, mirroring how the checkpoints themselves are pruned.
-    fn prune_grpc_indexes(
-        grpc_indexes_store: Option<&GrpcIndexesStore>,
-        config: &AuthorityStorePruningConfig,
-    ) -> anyhow::Result<()> {
-        if let (Some(epochs_to_retain), Some(grpc_indexes_store)) = (
-            config.num_epochs_to_retain_for_checkpoints(),
-            grpc_indexes_store,
-        ) {
-            grpc_indexes_store.prune(epochs_to_retain)?;
-        }
-        Ok(())
-    }
-
+    /// Drops the RPC index history of expired epochs. The retention the
+    /// store was opened with governs every history table, the transaction
+    /// digests both API surfaces share included.
     fn prune_indexes(
-        indexes: Option<&IndexStore>,
-        config: &AuthorityStorePruningConfig,
+        indexes: Option<&RpcIndexesStore>,
         metrics: &AuthorityStorePruningMetrics,
     ) -> anyhow::Result<()> {
-        if let (Some(mut epochs_to_retain), Some(indexes)) =
-            (config.num_epochs_to_retain_for_indexes, indexes)
-        {
-            if epochs_to_retain < MIN_EPOCHS_TO_RETAIN_FOR_INDEXES {
-                warn!("num_epochs_to_retain_for_indexes is too low. Resetting it to 7");
-                epochs_to_retain = MIN_EPOCHS_TO_RETAIN_FOR_INDEXES;
-            }
-            if let Some(earliest_retained_epoch) = indexes.prune(epochs_to_retain)? {
+        if let Some(indexes) = indexes {
+            if let Some(earliest_retained_epoch) = indexes.prune()? {
                 metrics
                     .earliest_retained_indexes_epoch
                     .set(earliest_retained_epoch as i64);
@@ -832,8 +813,7 @@ impl AuthorityStorePruner {
         epoch_duration_ms: u64,
         perpetual_db: Arc<AuthorityPerpetualTables>,
         checkpoint_store: Arc<CheckpointStore>,
-        grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
-        jsonrpc_index: Option<Arc<IndexStore>>,
+        rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
         metrics: Arc<AuthorityStorePruningMetrics>,
         progress_tracker: Option<Arc<CheckpointProgressTracker>>,
         mut executed_rx: watch::Receiver<CheckpointSequenceNumber>,
@@ -980,30 +960,14 @@ impl AuthorityStorePruner {
                         error!("Failed to prune checkpoints: {:?}", err);
                     }
                 }
-                if prune_checkpoints {
-                    // Digest retention follows checkpoint retention: the API
-                    // answers about locally available checkpoints. The drops
-                    // block queries on the bucket-map lock; keep them off
-                    // the async workers.
-                    let grpc_indexes_store = grpc_indexes_store.clone();
-                    let config = config.clone();
-                    let result = tokio::task::spawn_blocking(move || {
-                        Self::prune_grpc_indexes(grpc_indexes_store.as_deref(), &config)
-                    })
-                    .await;
-                    if let Ok(Err(err)) | Err(err) = result.map_err(anyhow::Error::from) {
-                        error!("Failed to prune the gRPC digest history: {:?}", err);
-                    }
-                }
                 if prune_indexes {
-                    // `IndexStore::prune` blocks queries on its lock while
-                    // dropping column families; keep it off the async
+                    // `RpcIndexesStore::prune` blocks queries on its lock
+                    // while dropping column families; keep it off the async
                     // workers.
-                    let jsonrpc_index = jsonrpc_index.clone();
-                    let config = config.clone();
+                    let rpc_indexes_store = rpc_indexes_store.clone();
                     let metrics = metrics.clone();
                     let result = tokio::task::spawn_blocking(move || {
-                        Self::prune_indexes(jsonrpc_index.as_deref(), &config, &metrics)
+                        Self::prune_indexes(rpc_indexes_store.as_deref(), &metrics)
                     })
                     .await;
                     if let Ok(Err(err)) | Err(err) = result.map_err(anyhow::Error::from) {
@@ -1040,8 +1004,7 @@ impl AuthorityStorePruner {
     pub fn new(
         perpetual_db: Arc<AuthorityPerpetualTables>,
         checkpoint_store: Arc<CheckpointStore>,
-        grpc_indexes_store: Option<Arc<GrpcIndexesStore>>,
-        jsonrpc_index: Option<Arc<IndexStore>>,
+        rpc_indexes_store: Option<Arc<RpcIndexesStore>>,
         mut pruning_config: AuthorityStorePruningConfig,
         is_validator: bool,
         epoch_duration_ms: u64,
@@ -1077,8 +1040,7 @@ impl AuthorityStorePruner {
                 epoch_duration_ms,
                 perpetual_db,
                 checkpoint_store,
-                grpc_indexes_store,
-                jsonrpc_index,
+                rpc_indexes_store,
                 AuthorityStorePruningMetrics::new(registry),
                 progress_tracker,
                 executed_rx,
