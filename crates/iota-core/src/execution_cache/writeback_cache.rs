@@ -950,13 +950,15 @@ impl WritebackCache {
         }
 
         // The versions this transaction consumed stop being current here.
-        for (object_id, version) in effects.modified_at_versions() {
-            self.dirty
-                .superseded_versions
-                .entry(object_id)
-                .or_default()
-                .value_mut()
-                .insert(version, epoch_id);
+        if tx_outputs.record_superseded_versions {
+            for (object_id, version) in effects.modified_at_versions() {
+                self.dirty
+                    .superseded_versions
+                    .entry(object_id)
+                    .or_default()
+                    .value_mut()
+                    .insert(version, epoch_id);
+            }
         }
 
         // Write children before parents to ensure that readers do not observe a parent
@@ -1219,14 +1221,16 @@ impl WritebackCache {
             );
         }
 
-        for (object_id, version) in effects.modified_at_versions() {
-            Self::move_version_from_dirty_to_cache(
-                &self.dirty.superseded_versions,
-                &self.cached.superseded_version_cache,
-                object_id,
-                version,
-                &epoch,
-            );
+        if outputs.record_superseded_versions {
+            for (object_id, version) in effects.modified_at_versions() {
+                Self::move_version_from_dirty_to_cache(
+                    &self.dirty.superseded_versions,
+                    &self.cached.superseded_version_cache,
+                    object_id,
+                    version,
+                    &epoch,
+                );
+            }
         }
 
         for (object_id, object) in written.iter() {

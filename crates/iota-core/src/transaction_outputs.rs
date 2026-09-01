@@ -29,6 +29,7 @@ pub struct TransactionOutputs {
     pub live_object_markers_to_delete: Vec<ObjectReference>,
     pub new_live_object_markers_to_init: Vec<ObjectReference>,
     pub written: WrittenObjects,
+    pub record_superseded_versions: bool,
 }
 
 impl TransactionOutputs {
@@ -38,6 +39,7 @@ impl TransactionOutputs {
         transaction: VerifiedTransaction,
         effects: TransactionEffects,
         inner_temporary_store: InnerTemporaryStore,
+        record_superseded_versions: bool,
     ) -> TransactionOutputs {
         let InnerTemporaryStore {
             input_objects,
@@ -138,6 +140,7 @@ impl TransactionOutputs {
             live_object_markers_to_delete,
             new_live_object_markers_to_init,
             written,
+            record_superseded_versions,
         }
     }
 }

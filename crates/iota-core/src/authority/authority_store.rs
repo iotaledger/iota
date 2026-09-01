@@ -928,13 +928,15 @@ impl AuthorityStore {
         write_batch.insert_batch(&self.perpetual_tables.objects, new_objects)?;
 
         // The versions this transaction consumed stop being current here
-        write_batch.insert_batch(
-            &self.perpetual_tables.object_superseded_in_epoch,
-            effects
-                .modified_at_versions()
-                .into_iter()
-                .map(|(object_id, version)| (ObjectKey(object_id, version), epoch_id)),
-        )?;
+        if tx_outputs.record_superseded_versions {
+            write_batch.insert_batch(
+                &self.perpetual_tables.object_superseded_in_epoch,
+                effects
+                    .modified_at_versions()
+                    .into_iter()
+                    .map(|(object_id, version)| (ObjectKey(object_id, version), epoch_id)),
+            )?;
+        }
 
         // Write events into the new table keyed off of transaction_digest
         if effects.events_digest().is_some() {

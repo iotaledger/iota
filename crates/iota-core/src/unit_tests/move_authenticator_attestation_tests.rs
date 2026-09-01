@@ -123,6 +123,12 @@ async fn structural_move_auth_failure_resolves_to_invalid_attestation() {
 /// supersession committed so the answer comes from the database.
 #[tokio::test]
 async fn attested_object_version_state_follows_the_superseding_transaction() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config
+    });
+
     let (sender, sender_key) = get_account_key_pair();
     let (recipient, _) = get_account_key_pair();
 
@@ -214,6 +220,12 @@ async fn attested_object_version_state_follows_the_superseding_transaction() {
 /// same read from the cache and read from the database.
 #[tokio::test]
 async fn attested_object_version_state_does_not_depend_on_flush_state() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config
+    });
+
     let (sender, sender_key) = get_account_key_pair();
     let (recipient, _) = get_account_key_pair();
 
@@ -284,6 +296,12 @@ async fn attested_object_version_state_does_not_depend_on_flush_state() {
 /// this epoch and is still re-runnable rather than being written off as stale.
 #[tokio::test]
 async fn attested_object_version_state_judges_a_deleted_object() {
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config.set_enable_validator_attestation_for_testing(true);
+        config
+    });
+
     let (sender, sender_key) = get_account_key_pair();
 
     let attested_id = ObjectId::random();
