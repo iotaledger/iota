@@ -4,7 +4,7 @@
 
 use std::collections::BTreeMap;
 
-use im::ordmap::OrdMap;
+use imbl::ordmap::OrdMap;
 use lsp_types::Position;
 use move_compiler::{
     expansion::ast::ModuleIdent,
@@ -26,19 +26,6 @@ use crate::{
     },
     utils::expansion_mod_ident_to_map_key,
 };
-
-use imbl::ordmap::OrdMap;
-use lsp_types::Position;
-use std::collections::BTreeMap;
-
-use move_compiler::{
-    expansion::ast::ModuleIdent,
-    parser::ast as P,
-    shared::{NamedAddressMap, files::MappedFiles, unique_map::UniqueMap},
-    typing::{ast::ModuleDefinition, visitor::TypingVisitorContext},
-};
-use move_ir_types::location::Loc;
-use move_symbol_pool::Symbol;
 
 pub mod parsing_analysis;
 pub mod typing_analysis;
