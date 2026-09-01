@@ -23,6 +23,7 @@ async fn main() {
             print_sample_tx: args.print_sample_tx,
             skip_signing: args.skip_signing,
             sequential: args.sequential,
+            concurrency: args.concurrency,
             duration_secs: args.duration_secs,
             db_path: args.db_path,
             enable_write_stall: args.enable_write_stall,

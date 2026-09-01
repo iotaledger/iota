@@ -54,6 +54,15 @@ pub struct Command {
     pub sequential: bool,
     #[arg(
         long,
+        default_value_t = 0,
+        help = "Cap the number of transactions executing at once (0 = unbounded, \
+        the default all-at-once behavior). Set to N to measure per-transaction \
+        wall-clock under exactly N-way contention; --concurrency 1 is equivalent \
+        to --sequential."
+    )]
+    pub concurrency: usize,
+    #[arg(
+        long,
         default_value = "baseline",
         ignore_case = true,
         help = "Which component to benchmark"
@@ -128,6 +137,7 @@ pub struct BenchmarkConfig {
     pub print_sample_tx: bool,
     pub skip_signing: bool,
     pub sequential: bool,
+    pub concurrency: usize,
     pub duration_secs: u64,
     pub db_path: Option<PathBuf>,
     pub enable_write_stall: bool,
@@ -142,6 +152,7 @@ impl Default for BenchmarkConfig {
             print_sample_tx: false,
             skip_signing: false,
             sequential: false,
+            concurrency: 0,
             duration_secs: 0,
             db_path: None,
             enable_write_stall: false,
