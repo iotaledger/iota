@@ -28,6 +28,13 @@ use super::{
 };
 use crate::{checkpoints::CheckpointStore, test_utils::executed_checkpoint};
 
+/// Prunes anchored on the store's newest history bucket, which is the epoch
+/// the node is entering when it prunes at a reconfiguration.
+fn prune_at_newest_epoch(store: &RpcIndexesStore) -> iota_types::error::IotaResult<Option<u64>> {
+    let newest = store.retained_history_epochs().last().copied().unwrap_or(0);
+    store.prune(newest)
+}
+
 /// Opens an `RpcIndexesStore` at `path` without running the rebuild path,
 /// serving every group.
 fn open_index_store(path: std::path::PathBuf) -> RpcIndexesStore {
@@ -486,7 +493,7 @@ async fn test_pruned_epochs_are_not_recreated() {
     // One historic epoch retained on top of the current one (epoch 2), so
     // three epochs must exist for the oldest, epoch 0, to fall out of it.
     seed_history_buckets(&index_store, 3);
-    assert_eq!(index_store.prune().unwrap(), Some(1));
+    assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
     assert!(index_store.ensure_history_bucket(0).is_err());
     assert!(index_store.ensure_history_bucket(1).is_ok());
 
@@ -505,12 +512,12 @@ async fn test_the_earliest_retained_epoch_never_moves_backwards() {
     let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
     index_store.epochs_to_retain = Some(2);
     seed_history_buckets(&index_store, 4);
-    assert_eq!(index_store.prune().unwrap(), Some(1));
+    assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
 
     let mut index_store = reopen_index_store(index_store, tmp_dir.path().to_path_buf()).await;
     index_store.epochs_to_retain = Some(52);
     assert_eq!(
-        index_store.prune().unwrap(),
+        prune_at_newest_epoch(&index_store).unwrap(),
         Some(1),
         "a retention reaching below the dropped epochs must not lower the floor"
     );
@@ -773,7 +780,7 @@ async fn test_history_epoch_buckets_chain_and_prune() {
     // Pruning with no historic epochs retained keeps the current epoch
     // only, dropping epoch 0's bucket wholesale; pruning again is a no-op.
     index_store.epochs_to_retain = Some(0);
-    assert_eq!(index_store.prune().unwrap(), Some(1));
+    assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
     assert_eq!(index_store.lookup_digest(&tx_0).unwrap(), None);
     assert_eq!(
         index_store
@@ -781,7 +788,7 @@ async fn test_history_epoch_buckets_chain_and_prune() {
             .unwrap(),
         vec![tx_1]
     );
-    assert_eq!(index_store.prune().unwrap(), Some(1));
+    assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
 
     // A cursor pointing into the pruned epoch reports the transaction as
     // gone instead of silently re-serving the first page.
@@ -1599,7 +1606,7 @@ async fn test_digest_pruning_drops_expired_epoch_buckets() {
     drop(old_bucket); // release the database handles before closing it below
     drop(new_bucket);
 
-    assert_eq!(index_store.prune().unwrap(), Some(1));
+    assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
     assert_eq!(index_store.lookup_digest(&old_digest).unwrap(), None);
     assert!(
         index_store.ensure_history_bucket(0).is_err(),
@@ -2637,7 +2644,7 @@ async fn test_prune_racing_a_reader_reports_an_error() {
     let snapshot = index_store.history.iter(false);
     assert_eq!(snapshot.len(), 2);
 
-    assert_eq!(index_store.prune().unwrap(), Some(1));
+    assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
 
     assert!(
         snapshot[0]
@@ -2696,7 +2703,7 @@ async fn test_a_failed_drop_still_removes_the_bucket() {
         .drop_cf(&super::history_cf_name(0))
         .unwrap();
 
-    assert_eq!(index_store.prune().unwrap(), Some(1));
+    assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
     assert_eq!(index_store.history.iter(false).len(), 1);
     assert_eq!(
         index_store
@@ -2717,7 +2724,7 @@ async fn test_a_bucket_below_the_floor_is_dropped_at_open() {
     let mut index_store = open_index_store(tmp_dir.path().to_path_buf());
     index_store.epochs_to_retain = Some(0);
     seed_history_buckets(&index_store, 2);
-    assert_eq!(index_store.prune().unwrap(), Some(1));
+    assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
 
     // Stands in for a drop that failed: the column family is on disk
     // below the persisted floor.
@@ -2827,7 +2834,10 @@ async fn test_concurrent_prune_and_queries_never_panic() {
     });
 
     for retained in (1..EPOCHS).rev() {
-        index_store.history.prune(retained, |_, _| Ok(())).unwrap();
+        index_store
+            .history
+            .prune(EPOCHS - 1, retained - 1, |_, _| Ok(()))
+            .unwrap();
     }
     stop.store(true, Ordering::Relaxed);
     for worker in workers {
@@ -2905,7 +2915,7 @@ async fn test_backfill_stops_at_pruned_epochs() {
     let mut index_store = open_index_store(index_dir.path().to_path_buf());
     index_store.epochs_to_retain = Some(0);
     seed_history_buckets(&index_store, 2);
-    assert_eq!(index_store.prune().unwrap(), Some(1));
+    assert_eq!(prune_at_newest_epoch(&index_store).unwrap(), Some(1));
     index_store
         .tables
         .history_watermark
@@ -3297,7 +3307,7 @@ async fn test_retention_of_one_epoch_keeps_the_previous_epoch() {
     for epoch in 0..4 {
         store.ensure_history_bucket(epoch).unwrap();
     }
-    assert_eq!(store.prune().unwrap(), Some(2));
+    assert_eq!(prune_at_newest_epoch(&store).unwrap(), Some(2));
     assert_eq!(store.history.earliest_retained(), 2);
 }
 
@@ -3311,7 +3321,7 @@ async fn test_retention_of_two_epochs_keeps_two_previous_epochs() {
     for epoch in 0..4 {
         store.ensure_history_bucket(epoch).unwrap();
     }
-    assert_eq!(store.prune().unwrap(), Some(1));
+    assert_eq!(prune_at_newest_epoch(&store).unwrap(), Some(1));
     assert_eq!(store.history.earliest_retained(), 1);
 }
 
@@ -3326,7 +3336,7 @@ async fn test_pruning_keeps_the_newest_bucket_whatever_the_retention() {
     for epoch in 0..3 {
         store.ensure_history_bucket(epoch).unwrap();
     }
-    assert_eq!(store.prune().unwrap(), Some(2));
+    assert_eq!(prune_at_newest_epoch(&store).unwrap(), Some(2));
     assert_eq!(store.history.newest_epoch(), Some(2));
 
     // The bucket ingest depends on is still usable after the prune.

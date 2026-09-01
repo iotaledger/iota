@@ -1160,10 +1160,10 @@ pub struct AuthorityStorePruningConfig {
     #[serde(default = "default_num_latest_epoch_dbs_to_retain")]
     pub num_latest_epoch_dbs_to_retain: usize,
     /// Number of historic epochs of object versions to keep, on top of the
-    /// current epoch's bucket.
-    ///   0        — keep the current epoch's bucket only (default).
-    ///   N        — keep the current epoch's bucket plus the N previous ones.
-    ///   u64::MAX — keep every bucket; object pruning is off.
+    /// epoch the node is in. Read through [`Self::num_epochs_to_retain`].
+    ///   0        — keep the epoch the node is in only (default).
+    ///   N        — keep the epoch the node is in plus the N epochs before it.
+    ///   u64::MAX — keep every epoch's bucket; object pruning is off.
     #[serde(default)]
     pub num_epochs_to_retain: u64,
     /// enables periodic background compaction for old SST files whose last
@@ -1181,17 +1181,31 @@ pub struct AuthorityStorePruningConfig {
     pub periodic_compaction_threshold_days: Option<usize>,
     /// Number of historic epochs of transactions, effects, events, and
     /// checkpoint data to keep, on top of the epoch the node is in. Controls
-    /// transaction pruning.
-    ///
-    /// Expiry counts back from the epoch the node has just finished
-    /// executing, one below the epoch it is entering, so during epoch `E` the
-    /// node holds the buckets of `[E - N, E]`.
-    ///   None    — keep every epoch's bucket; transaction pruning is off.
-    ///   N       — keep the epoch the node is in plus the N epochs before it.
-    ///   0 and 1 — identical: both keep the epoch the node is in plus the one
-    ///             before it.
+    /// transaction pruning. Read through
+    /// [`Self::num_epochs_to_retain_for_checkpoints`].
+    ///   0        — keep the epoch the node is in only.
+    ///   N        — keep the epoch the node is in plus the N epochs before it.
+    ///   u64::MAX — keep every epoch's bucket; transaction pruning is off.
+    ///   None     — the same as `u64::MAX`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
+    /// Number of historic epochs of RPC index history — the transaction and
+    /// event lookups behind `iotax_queryTransactionBlocks`, `iotax_queryEvents`
+    /// and their gRPC equivalents — to keep, on top of the epoch the node is
+    /// in. Read through [`Self::num_epochs_to_retain_for_indexes`].
+    ///
+    /// This covers the index *history* only. The index's live-state tables —
+    /// owned objects, dynamic fields, coin metadata — describe the objects
+    /// that currently exist and are not kept per epoch, so no retention
+    /// setting expires them.
+    ///   0        — keep the epoch the node is in only.
+    ///   N        — keep the epoch the node is in plus the N epochs before it.
+    ///   u64::MAX — keep every epoch's bucket; index pruning is off.
+    ///   None     — follow `num_epochs_to_retain_for_checkpoints`.
+    ///
+    /// Must not exceed the transaction retention, which
+    /// [`Self::check_index_retention_within_ledger`] enforces at startup: an
+    /// index entry for a transaction the node has dropped cannot be resolved.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub num_epochs_to_retain_for_indexes: Option<u64>,
 }
@@ -1229,40 +1243,60 @@ impl AuthorityStorePruningConfig {
         self.num_epochs_to_retain_for_checkpoints = num_epochs_to_retain;
     }
 
-    pub fn num_epochs_to_retain_for_checkpoints(&self) -> Option<u64> {
-        self.num_epochs_to_retain_for_checkpoints
+    /// Historic epochs of object versions to keep on top of the epoch the
+    /// node is in, `None` when object pruning is off.
+    pub fn num_epochs_to_retain(&self) -> Option<u64> {
+        (self.num_epochs_to_retain != u64::MAX).then_some(self.num_epochs_to_retain)
     }
 
-    /// Fails if the index retention could outlive the transaction retention
-    /// it is derived from, letting `iotax_queryTransactionBlocks` return a
-    /// digest the ledger has already dropped.
+    /// Historic epochs of transactions, effects, events and checkpoint data
+    /// to keep on top of the epoch the node is in, `None` when transaction
+    /// pruning is off.
+    pub fn num_epochs_to_retain_for_checkpoints(&self) -> Option<u64> {
+        self.num_epochs_to_retain_for_checkpoints
+            .filter(|&n| n != u64::MAX)
+    }
+
+    /// Historic epochs of RPC index history to keep on top of the epoch the
+    /// node is in, `None` when index pruning is off.
     ///
-    /// `None` on the ledger side keeps every epoch, so no index retention can
-    /// exceed it. `None` on the index side means the operator left index
-    /// pruning off rather than choosing a bound to compare, so it is not
-    /// treated as a violation either — only two explicit numbers where the
-    /// index outlives the ledger are.
+    /// Unset follows the transaction retention. The index history is a set of
+    /// pointers into the ledger, so a node that keeps index entries for
+    /// transactions it has dropped answers queries with digests it cannot
+    /// resolve; inheriting keeps the two in step without the operator
+    /// restating the number.
+    pub fn num_epochs_to_retain_for_indexes(&self) -> Option<u64> {
+        match self.num_epochs_to_retain_for_indexes {
+            Some(n) if n == u64::MAX => None,
+            Some(n) => Some(n),
+            None => self.num_epochs_to_retain_for_checkpoints(),
+        }
+    }
+
+    /// Fails if the index retention would outlive the transaction retention
+    /// it points into, letting `iotax_queryTransactionBlocks` return a digest
+    /// the ledger has already dropped.
     ///
-    /// Compares the *effective* retention rather than the raw configured
-    /// numbers: `epoch_buckets`'s `saturating_sub(n - 1)` and the RPC index
-    /// history's own `epochs_to_retain.max(1)` both keep just the anchor
-    /// epoch for either `0` or `1`, so the two configured values are
-    /// normalised through the same `max(1)` before they are compared —
-    /// otherwise `checkpoints: 0` with `indexes: 1`, which retains the same
-    /// single epoch on both sides, would be refused for no reason.
+    /// Compares the effective retentions, so an unset index retention — which
+    /// follows the ledger — can never be a violation. Only an explicit index
+    /// retention above the ledger's is, `u64::MAX` on the index side
+    /// included: that is index pruning off, which outlives any bounded
+    /// ledger.
     pub fn check_index_retention_within_ledger(&self) -> Result<()> {
-        let index = self.num_epochs_to_retain_for_indexes;
-        let ledger = self.num_epochs_to_retain_for_checkpoints();
-        if let (Some(index), Some(ledger)) = (index, ledger) {
-            if index.max(1) > ledger.max(1) {
-                anyhow::bail!(
-                    "num-epochs-to-retain-for-indexes ({index}) must not exceed \
-                     num-epochs-to-retain-for-checkpoints ({ledger}): a longer index retention \
-                     lets iotax_queryTransactionBlocks return a transaction digest whose ledger \
-                     data has already been pruned. Lower num-epochs-to-retain-for-indexes or \
-                     raise num-epochs-to-retain-for-checkpoints."
-                );
-            }
+        let Some(ledger) = self.num_epochs_to_retain_for_checkpoints() else {
+            // An unbounded ledger outlives every index retention.
+            return Ok(());
+        };
+        let index = self.num_epochs_to_retain_for_indexes();
+        if index.is_none_or(|index| index > ledger) {
+            let index = index.map_or("unlimited".to_owned(), |index| index.to_string());
+            anyhow::bail!(
+                "num-epochs-to-retain-for-indexes ({index}) must not exceed \
+                 num-epochs-to-retain-for-checkpoints ({ledger}): a longer index retention \
+                 lets iotax_queryTransactionBlocks return a transaction digest whose ledger \
+                 data has already been pruned. Lower num-epochs-to-retain-for-indexes or \
+                 raise num-epochs-to-retain-for-checkpoints."
+            );
         }
         Ok(())
     }
@@ -1846,28 +1880,25 @@ mod tests {
     }
 
     #[test]
-    fn a_zero_ledger_retention_accepts_a_one_index_retention() {
-        // Both keep exactly the anchor epoch: 0 and 1 are the same effective
-        // retention, so this must not be refused as "index exceeds ledger".
+    fn a_zero_ledger_retention_refuses_a_one_index_retention() {
+        // All three knobs count the same way: ledger 0 keeps the epoch the
+        // node is in alone, so an index retention of 1 genuinely outlives it.
         let config = AuthorityStorePruningConfig {
             num_epochs_to_retain_for_checkpoints: Some(0),
             num_epochs_to_retain_for_indexes: Some(1),
             ..Default::default()
         };
-        assert!(config.check_index_retention_within_ledger().is_ok());
+        assert!(config.check_index_retention_within_ledger().is_err());
     }
 
     #[test]
-    fn a_genuinely_larger_index_retention_is_still_refused_at_the_zero_one_boundary() {
-        // Ledger retention 0 is effectively 1 epoch, same as 1 would be; an
-        // index retention of 2 is still strictly larger than that and must
-        // still be refused.
+    fn equal_zero_retentions_are_accepted() {
         let config = AuthorityStorePruningConfig {
             num_epochs_to_retain_for_checkpoints: Some(0),
-            num_epochs_to_retain_for_indexes: Some(2),
+            num_epochs_to_retain_for_indexes: Some(0),
             ..Default::default()
         };
-        assert!(config.check_index_retention_within_ledger().is_err());
+        assert!(config.check_index_retention_within_ledger().is_ok());
     }
 
     #[test]
@@ -1881,13 +1912,43 @@ mod tests {
     }
 
     #[test]
-    fn unset_index_retention_is_never_a_violation() {
+    fn unset_index_retention_follows_the_ledger() {
         let config = AuthorityStorePruningConfig {
-            num_epochs_to_retain_for_checkpoints: Some(1),
+            num_epochs_to_retain_for_checkpoints: Some(3),
             num_epochs_to_retain_for_indexes: None,
             ..Default::default()
         };
+        assert_eq!(config.num_epochs_to_retain_for_indexes(), Some(3));
         assert!(config.check_index_retention_within_ledger().is_ok());
+    }
+
+    #[test]
+    fn index_pruning_turned_off_against_a_bounded_ledger_is_refused() {
+        // `u64::MAX` is index pruning off, which outlives any bounded ledger.
+        // Unset would have followed the ledger; this is an explicit choice.
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain_for_checkpoints: Some(2),
+            num_epochs_to_retain_for_indexes: Some(u64::MAX),
+            ..Default::default()
+        };
+        let err = config
+            .check_index_retention_within_ledger()
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("unlimited"), "{err}");
+    }
+
+    #[test]
+    fn max_retention_means_pruning_is_off_for_every_knob() {
+        let config = AuthorityStorePruningConfig {
+            num_epochs_to_retain: u64::MAX,
+            num_epochs_to_retain_for_checkpoints: Some(u64::MAX),
+            num_epochs_to_retain_for_indexes: Some(u64::MAX),
+            ..Default::default()
+        };
+        assert_eq!(config.num_epochs_to_retain(), None);
+        assert_eq!(config.num_epochs_to_retain_for_checkpoints(), None);
+        assert_eq!(config.num_epochs_to_retain_for_indexes(), None);
     }
 
     #[test]

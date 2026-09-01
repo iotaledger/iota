@@ -676,13 +676,12 @@ impl IotaNode {
             None
         } else {
             info!("creating index store");
-            if config
+            let epochs_to_retain = config
                 .authority_store_pruning_config
-                .num_epochs_to_retain_for_indexes
-                .is_none()
-            {
+                .num_epochs_to_retain_for_indexes();
+            if epochs_to_retain.is_none() {
                 warn!(
-                    "index pruning is off (num-epochs-to-retain-for-indexes is unset): the history index backing queries like iotax_getBalance(), dynamic-field lookups, event queries, and owned-object listings adds a column family per epoch and grows without bound"
+                    "index pruning is off: the history index backing queries like iotax_queryTransactionBlocks(), event queries and dynamic-field lookups adds a column family per epoch and grows without bound. Set num-epochs-to-retain-for-checkpoints, which num-epochs-to-retain-for-indexes follows, or num-epochs-to-retain-for-indexes itself"
                 );
             }
             Some(
@@ -693,9 +692,7 @@ impl IotaNode {
                     epoch_store
                         .protocol_config()
                         .max_move_identifier_len_as_option(),
-                    config
-                        .authority_store_pruning_config
-                        .num_epochs_to_retain_for_indexes,
+                    epochs_to_retain,
                     &store,
                     &checkpoint_store,
                     index_rebuild_cancelled,

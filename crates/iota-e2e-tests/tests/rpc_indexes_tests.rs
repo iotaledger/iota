@@ -222,9 +222,13 @@ async fn transaction_checkpoint_survives_a_shorter_index_window() {
     for _ in 0..=1 {
         cluster.force_new_epoch().await;
     }
+    let current_epoch = cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing().epoch());
     tokio::task::spawn_blocking({
         let indexes = indexes.clone();
-        move || indexes.prune()
+        move || indexes.prune(current_epoch)
     })
     .await
     .unwrap()

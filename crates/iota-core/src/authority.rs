@@ -3208,26 +3208,12 @@ impl AuthorityState {
             }
         }
 
-        // `num_epochs_to_retain` counts the historic epochs kept beyond the
-        // current one, while `prune` counts buckets including the newest.
-        let num_epochs_to_retain = self
-            .config
-            .authority_store_pruning_config
-            .num_epochs_to_retain;
-        let objects_to_retain =
-            (num_epochs_to_retain != u64::MAX).then(|| num_epochs_to_retain + 1);
-        // Counts the epoch it is measured from as one of the epochs kept.
-        let checkpoints_to_retain = self
-            .config
-            .authority_store_pruning_config
-            .num_epochs_to_retain_for_checkpoints();
-
-        // The ledger and checkpoint histories are counted back from the epoch
-        // this node has just finished executing, not from their newest
-        // bucket: state sync writes both ahead of execution and across epoch
-        // boundaries, so their newest bucket can belong to an epoch whose
-        // first checkpoint has yet to be executed.
-        let executed_epoch = new_epoch.saturating_sub(1);
+        // All three count the historic epochs kept on top of the epoch being
+        // entered, and `prune` counts the same way, so each value is passed
+        // through as configured. `None` is retention off.
+        let pruning_config = &self.config.authority_store_pruning_config;
+        let objects_to_retain = pruning_config.num_epochs_to_retain();
+        let checkpoints_to_retain = pruning_config.num_epochs_to_retain_for_checkpoints();
 
         // Expiry deletes the object buckets' tombstone heads and drops the
         // expiring column families, blocking for as long as that takes; it
@@ -3239,17 +3225,17 @@ impl AuthorityState {
         let metrics = self.metrics.clone();
         let expired = tokio::task::spawn_blocking(move || {
             if let Some(epochs_to_retain) = objects_to_retain {
-                if let Err(err) = historic_objects.prune(epochs_to_retain) {
+                if let Err(err) = historic_objects.prune(new_epoch, epochs_to_retain) {
                     error!("Failed to expire historic object buckets: {err:?}");
                 }
             }
             if let Some(epochs_to_retain) = checkpoints_to_retain {
-                if let Err(err) = historic_ledger.prune(executed_epoch, epochs_to_retain) {
+                if let Err(err) = historic_ledger.prune(new_epoch, epochs_to_retain) {
                     error!("Failed to expire historic ledger buckets: {err:?}");
                 }
                 match checkpoint_store
                     .historic_checkpoints
-                    .prune(executed_epoch, epochs_to_retain)
+                    .prune(new_epoch, epochs_to_retain)
                 {
                     // What the node still holds is what it may advertise:
                     // dropping an epoch's contents makes every checkpoint
@@ -3266,10 +3252,9 @@ impl AuthorityState {
                     Err(err) => error!("Failed to expire historic checkpoint buckets: {err:?}"),
                 }
             }
-            // The index history has its own retention, and dropping a bucket
-            // blocks the queries reading it.
+            // Dropping an index bucket blocks the queries reading it.
             if let Some(indexes) = rpc_indexes_store {
-                match indexes.prune() {
+                match indexes.prune(new_epoch) {
                     Ok(Some(earliest_retained_epoch)) => metrics
                         .earliest_retained_indexes_epoch
                         .set(earliest_retained_epoch as i64),
