@@ -77,7 +77,7 @@ use crate::{
         historic_objects::{get_transaction_input_objects, get_transaction_output_objects},
     },
     checkpoints::CheckpointStore,
-    epoch_buckets::{self, EpochBuckets},
+    epoch_buckets::{self, BucketReopen, EpochBuckets},
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
     par_index_live_object_set::par_index_live_object_set,
     progress_logger::{PROGRESS_REPORT_INTERVAL, progress_line},
@@ -974,7 +974,6 @@ impl RpcIndexesStore {
             history_cf_options,
             tables.earliest_retained_epoch.clone(),
             history,
-            HistoryBucket::reopen,
         )?;
         let metrics = RpcIndexesMetrics::new(registry);
         let jsonrpc_metrics = JsonRpcMetrics::new(registry);
