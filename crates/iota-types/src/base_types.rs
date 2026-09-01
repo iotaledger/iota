@@ -469,7 +469,7 @@ impl TxContext {
     ) -> Self {
         Self {
             sender: AccountAddress::new(sender.into_bytes()),
-            digest: digest.into_inner().to_vec(),
+            digest: digest.into_bytes().to_vec(),
             epoch: *epoch_id,
             epoch_timestamp_ms,
             ids_created: 0,

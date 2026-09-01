@@ -195,7 +195,7 @@ impl Epoch {
             let EpochCommitment::EcmhLiveObjectSet { digest } = commitment else {
                 panic!("a new CheckpointCommitment variant was added and must be handled")
             };
-            Base58::encode(digest.into_inner())
+            Base58::encode(digest.into_bytes())
         });
 
         Ok(digest)

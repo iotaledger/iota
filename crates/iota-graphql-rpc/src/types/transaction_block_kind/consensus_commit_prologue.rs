@@ -39,6 +39,6 @@ impl ConsensusCommitPrologueTransaction {
 
     /// Digest of consensus output, encoded as a Base58 string.
     async fn consensus_commit_digest(&self) -> String {
-        Base58::encode(self.native.consensus_commit_digest.inner())
+        Base58::encode(self.native.consensus_commit_digest.bytes())
     }
 }

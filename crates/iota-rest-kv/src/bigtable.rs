@@ -177,7 +177,7 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
+                let keys = digests.iter().map(|tx| Some(tx.bytes().to_vec())).collect();
 
                 self.fetch_from_bigtable(TRANSACTIONS_TABLE, keys, TRANSACTION_COLUMN_QUALIFIER)
                     .await
@@ -188,7 +188,7 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
+                let keys = digests.iter().map(|tx| Some(tx.bytes().to_vec())).collect();
 
                 self.fetch_from_bigtable(TRANSACTIONS_TABLE, keys, EFFECTS_COLUMN_QUALIFIER)
                     .await
@@ -237,7 +237,7 @@ impl KvStoreClient {
 
                 let digest_keys = checkpoint_digests
                     .iter()
-                    .map(|digest| Some(digest.inner().to_vec()))
+                    .map(|digest| Some(digest.bytes().to_vec()))
                     .collect::<Vec<Option<Vec<u8>>>>();
 
                 self.checkpoint_summary_by_digests(digest_keys).await
@@ -248,7 +248,7 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
+                let keys = digests.iter().map(|tx| Some(tx.bytes().to_vec())).collect();
 
                 self.fetch_from_bigtable(TRANSACTIONS_TABLE, keys, TRANSACTION_TO_CHECKPOINT)
                     .await
@@ -273,7 +273,7 @@ impl KvStoreClient {
                     _ => None,
                 })?;
 
-                let keys = digests.iter().map(|tx| Some(tx.inner().to_vec())).collect();
+                let keys = digests.iter().map(|tx| Some(tx.bytes().to_vec())).collect();
 
                 let response = self
                     .fetch_from_bigtable(TRANSACTIONS_TABLE, keys, EVENTS_COLUMN_QUALIFIER)
