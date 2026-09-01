@@ -50,7 +50,7 @@ pub mod test_utils;
 pub mod transaction_driver;
 mod transaction_input_loader;
 pub mod transaction_orchestrator;
-mod transaction_outputs;
+pub mod transaction_outputs;
 pub(crate) mod validator_client_monitor;
 pub mod validator_tx_finalizer;
 pub mod verify_indexes;
