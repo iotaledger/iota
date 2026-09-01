@@ -401,7 +401,6 @@ mod checked {
                     (
                         authenticator.authenticator.clone(),
                         authenticator.function_ref.clone(),
-                        authenticator.account_object_version,
                         authenticator.input_objects.inner().clone(),
                     )
                 })
@@ -419,7 +418,6 @@ mod checked {
                     let MoveAuthenticatorForExecution {
                         authenticator,
                         function_ref,
-                        account_object_version: _,
                         input_objects,
                     } = authenticator;
                     let AuthenticatorFunctionRefForExecution {
@@ -488,25 +486,17 @@ mod checked {
             (Err(error), Some(reauth_authenticators), Some(verdict_context)) => {
                 let executed_versions: BTreeMap<ObjectId, Version> = reauth_authenticators
                     .iter()
-                    .flat_map(
-                        |(authenticator, function_ref, account_version, input_objects)| {
-                            input_objects
-                                .iter()
-                                .map(|object| (object.id(), object.version()))
-                                .chain(function_ref.as_ref().map(|function_ref| {
-                                    (
-                                        function_ref.loaded_object_id,
-                                        function_ref.loaded_object_metadata.version,
-                                    )
-                                }))
-                                .chain(
-                                    authenticator
-                                        .object_to_authenticate_components()
-                                        .ok()
-                                        .map(|(account_id, _, _)| (account_id, *account_version)),
+                    .flat_map(|(_, function_ref, input_objects)| {
+                        input_objects
+                            .iter()
+                            .map(|object| (object.id(), object.version()))
+                            .chain(function_ref.as_ref().map(|function_ref| {
+                                (
+                                    function_ref.loaded_object_id,
+                                    function_ref.loaded_object_metadata.version,
                                 )
-                        },
-                    )
+                            }))
+                    })
                     .collect();
 
                 let attestation_unrefuted = verdict_context
@@ -606,7 +596,6 @@ mod checked {
         authenticators: Vec<(
             MoveAuthenticator,
             Option<AuthenticatorFunctionRefForExecution>,
-            Version,
             InputObjects,
         )>,
         attested_object_versions: &[ObjectReference],
@@ -640,7 +629,7 @@ mod checked {
         // rebuilt auth context carries the same function refs the re-run
         // executes.
         let mut resolved = Vec::with_capacity(authenticators.len());
-        for (authenticator, function_ref, _account_version, input_objects) in authenticators {
+        for (authenticator, function_ref, input_objects) in authenticators {
             let Some(reloaded_input_objects) = reload_input_objects_at_attested_versions(
                 &input_objects,
                 &attested_versions,

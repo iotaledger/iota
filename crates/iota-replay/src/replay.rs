@@ -858,7 +858,6 @@ impl LocalExec {
                         Ok(MoveAuthenticatorForExecution {
                             authenticator: move_authenticator.to_owned(),
                             function_ref: Some(authenticator_function_ref),
-                            account_object_version: account_version,
                             input_objects: CheckedInputObjects::new_for_replay(
                                 authenticator_inputs,
                             ),
@@ -1144,10 +1143,7 @@ impl LocalExec {
                         )
                         .unwrap();
 
-                        Ok((
-                            authenticator_inputs,
-                            (account_version, authenticator_function_ref),
-                        ))
+                        Ok((authenticator_inputs, authenticator_function_ref))
                     },
                 )
                 .collect::<Result<Vec<_>, ReplayEngineError>>()?;
@@ -1179,19 +1175,13 @@ impl LocalExec {
                 .into_iter()
                 .zip(per_authenticator_inputs)
                 .zip(per_authenticator_checked_input_objects)
-                .map(
-                    |(
-                        (move_authenticator, (_, (account_object_version, function_ref))),
+                .map(|((move_authenticator, (_, function_ref)), input_objects)| {
+                    MoveAuthenticatorForExecution {
+                        authenticator: move_authenticator.to_owned(),
+                        function_ref: Some(function_ref),
                         input_objects,
-                    )| {
-                        MoveAuthenticatorForExecution {
-                            authenticator: move_authenticator.to_owned(),
-                            function_ref: Some(function_ref),
-                            account_object_version,
-                            input_objects,
-                        }
-                    },
-                )
+                    }
+                })
                 .collect::<Vec<_>>();
 
             let (kind, signer, gas_data) = executable.transaction().execution_parts();

@@ -1218,7 +1218,6 @@ impl AuthorityState {
                             .as_object()
                             .filter(|object| !object.is_immutable())
                             .map(|object| object.object_ref());
-                        let account_object_version = account_object.version();
                         let (id, seq, digest) = ma.object_to_authenticate_components()?;
                         let signer_addr = ma.address();
                         self.check_move_account_for_validation(
@@ -1228,9 +1227,7 @@ impl AuthorityState {
                             account_object,
                             &signer_addr,
                         )
-                        .map(|function_ref| {
-                            (account_object_ref, (account_object_version, function_ref))
-                        })
+                        .map(|function_ref| (account_object_ref, function_ref))
                     })
                     .collect::<IotaResult<Vec<_>>>()?
                     .into_iter()
@@ -1254,16 +1251,13 @@ impl AuthorityState {
                     .into_iter()
                     .zip(funcs_for_exec)
                     .zip(per_authenticator_checked_inputs)
-                    .map(
-                        |((ma, (account_object_version, function_ref)), (input_objects, _))| {
-                            MoveAuthenticatorForExecution {
-                                authenticator: ma.to_owned(),
-                                function_ref: Some(function_ref),
-                                account_object_version,
-                                input_objects,
-                            }
-                        },
-                    )
+                    .map(|((ma, function_ref), (input_objects, _))| {
+                        MoveAuthenticatorForExecution {
+                            authenticator: ma.to_owned(),
+                            function_ref: Some(function_ref),
+                            input_objects,
+                        }
+                    })
                     .collect::<Vec<_>>();
 
                 let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
@@ -2148,15 +2142,13 @@ impl AuthorityState {
                 "Move authenticators amount must match the number of authenticator inputs"
             );
 
-            // Resolve each authenticator's account function ref, keeping the
-            // loaded account version as the baseline for judging attestations.
+            // Resolve each authenticator's account function ref.
             let (per_authenticator_input_objects, resolutions): (Vec<_>, Vec<_>) =
                 move_authenticators
                     .iter()
                     .zip(per_authenticator_inputs)
                     .map(
                         |(move_authenticator, (authenticator_input_objects, account_object))| {
-                            let account_object_version = account_object.version();
                             let function_ref = move_authenticator
                                 .object_to_authenticate_components()
                                 .map_err(IotaError::from)
@@ -2169,10 +2161,7 @@ impl AuthorityState {
                                         &move_authenticator.address(),
                                     )
                                 });
-                            (
-                                authenticator_input_objects,
-                                (account_object_version, function_ref),
-                            )
+                            (authenticator_input_objects, function_ref)
                         },
                     )
                     .unzip();
@@ -2212,11 +2201,9 @@ impl AuthorityState {
             // authenticators to hand to execution.
             let mut pre_authentication_error = None;
             let mut function_refs = Vec::with_capacity(resolutions.len());
-            for (account_object_version, function_ref) in resolutions {
+            for function_ref in resolutions {
                 match function_ref {
-                    Ok(function_ref) => {
-                        function_refs.push((account_object_version, Some(function_ref)))
-                    }
+                    Ok(function_ref) => function_refs.push(Some(function_ref)),
                     Err(error) if protocol_config.enable_validator_attestation() => {
                         if pre_authentication_error.is_none() {
                             pre_authentication_error = Some(ExecutionError::new_with_source(
@@ -2224,7 +2211,7 @@ impl AuthorityState {
                                 error,
                             ));
                         }
-                        function_refs.push((account_object_version, None));
+                        function_refs.push(None);
                     }
                     Err(error) => {
                         // Without the attestation flow these structural checks are
@@ -2244,19 +2231,13 @@ impl AuthorityState {
                 .into_iter()
                 .zip(function_refs)
                 .zip(per_authenticator_checked_input_objects)
-                .map(
-                    |(
-                        (move_authenticator, (account_object_version, function_ref)),
+                .map(|((move_authenticator, function_ref), input_objects)| {
+                    MoveAuthenticatorForExecution {
+                        authenticator: move_authenticator.to_owned(),
+                        function_ref,
                         input_objects,
-                    )| {
-                        MoveAuthenticatorForExecution {
-                            authenticator: move_authenticator.to_owned(),
-                            function_ref,
-                            account_object_version,
-                            input_objects,
-                        }
-                    },
-                )
+                    }
+                })
                 .collect::<Vec<_>>();
 
             let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =

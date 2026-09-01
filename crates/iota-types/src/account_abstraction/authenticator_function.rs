@@ -124,8 +124,6 @@ pub struct MoveAuthenticatorForExecution {
     /// `None` when resolution failed before execution; the failure travels as
     /// the pre-authentication error.
     pub function_ref: Option<AuthenticatorFunctionRefForExecution>,
-    /// Version of the account object loaded for this execution.
-    pub account_object_version: Version,
     pub input_objects: CheckedInputObjects,
 }
 
