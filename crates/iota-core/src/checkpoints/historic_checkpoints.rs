@@ -214,13 +214,13 @@ impl HistoricCheckpoints {
     /// take, so a caller on an async runtime must use `spawn_blocking`.
     pub fn prune(
         &self,
-        executed_epoch: EpochId,
+        current_epoch: EpochId,
         epochs_to_retain: u64,
     ) -> Result<Option<EpochId>, TypedStoreError> {
         // Nothing here lives in a live table, so a drop has no side effect to
         // prepare.
         self.buckets
-            .prune_from_epoch(executed_epoch, epochs_to_retain, |_, _| Ok(()))
+            .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
     }
 
     /// The contents stored under `digest`, newest bucket first, `None` if no

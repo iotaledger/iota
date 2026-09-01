@@ -1803,8 +1803,12 @@ impl AuthorityStore {
     /// have started a later epoch first.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn expire_historic_objects_and_compact_for_testing(&self) {
+        let current_epoch = self
+            .historic_objects
+            .newest_bucket_epoch()
+            .expect("a store with no bucket has nothing to expire");
         self.historic_objects
-            .prune(1)
+            .prune(current_epoch, 0)
             .expect("expiring the historic buckets should not fail");
         self.perpetual_tables
             .compact()
