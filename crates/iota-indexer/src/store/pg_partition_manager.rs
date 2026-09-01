@@ -96,22 +96,15 @@ impl EpochPartitionData {
 }
 
 impl PgPartitionManager {
-    pub fn new(cp: ConnectionPool) -> Result<Self, IndexerError> {
+    pub fn new(cp: ConnectionPool) -> Self {
         let mut partition_strategies = HashMap::new();
         partition_strategies.insert("events", PgPartitionStrategy::TxSequenceNumber);
         partition_strategies.insert("transactions", PgPartitionStrategy::TxSequenceNumber);
         partition_strategies.insert("objects_version", PgPartitionStrategy::ObjectId);
-        let manager = Self {
+        Self {
             cp,
             partition_strategies,
-        };
-        let tables = manager.get_table_partitions()?;
-        info!(
-            "Found {} tables with partitions : [{:?}]",
-            tables.len(),
-            tables
-        );
-        Ok(manager)
+        }
     }
 
     pub fn get_table_partitions(&self) -> Result<BTreeMap<String, (u64, u64)>, IndexerError> {

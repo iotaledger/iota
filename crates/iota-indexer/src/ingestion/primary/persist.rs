@@ -257,9 +257,15 @@ impl PrimaryWriter {
                 .await
                 .expect("failed to get chain identifier")
                 .expect("chain identifier should have been indexed at this point");
-            let _ = self
+            if let Err(e) = self
                 .state
-                .persist_protocol_configs_and_feature_flags(chain_id);
+                .execute_in_blocking_worker(move |this| {
+                    this.persist_protocol_configs_and_feature_flags(chain_id)
+                })
+                .await
+            {
+                error!("failed to persist protocol configs and feature flags: {e}");
+            }
         }
 
         self.state

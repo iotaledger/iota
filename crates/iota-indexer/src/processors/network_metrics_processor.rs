@@ -6,7 +6,9 @@ use tap::tap::TapFallible;
 use tracing::{error, info};
 
 use crate::{
-    errors::IndexerError, metrics::IndexerMetrics, store::IndexerAnalyticalStore,
+    errors::IndexerError,
+    metrics::IndexerMetrics,
+    store::{IndexerAnalyticalStore, diesel_macro::spawn_blocking_task},
     types::IndexerResult,
 };
 
@@ -111,7 +113,7 @@ where
                     (chunk_start_cp + step_size as i64).min(last_processed_cp_seq + batch_size + 1);
 
                 let store = self.store.clone();
-                persist_tasks.push(tokio::task::spawn_blocking(move || {
+                persist_tasks.push(spawn_blocking_task(move || {
                     store.persist_tx_count_metrics(chunk_start_cp, chunk_end_cp)
                 }));
             }

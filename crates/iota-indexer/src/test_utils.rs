@@ -154,7 +154,13 @@ pub async fn start_test_indexer_impl(
         crate::db::reset_database(&mut store.blocking_cp().get().unwrap()).unwrap();
     }
     if let Some(db_init_hook) = db_init_hook {
-        db_init_hook(&store);
+        store
+            .execute_in_blocking_worker(move |this| {
+                db_init_hook(&this);
+                Ok(())
+            })
+            .await
+            .expect("failed to run the DB init hook");
     }
 
     let registry = prometheus_filtered::Registry::default();

@@ -21,18 +21,42 @@ pub mod diesel_macro {
 
     /// Marks the current thread as being in a blocking pool.
     ///
-    /// Call this at the start of any `spawn_blocking` closure that will perform
-    /// blocking DB operations.
+    /// Prefer [`spawn_blocking_task`], which spawns the closure and marks the
+    /// thread in one step.
     pub fn mark_in_blocking_pool() {
         CALLED_FROM_BLOCKING_POOL.with(|in_blocking_pool| *in_blocking_pool.borrow_mut() = true);
     }
 
+    /// Spawns a closure on the blocking thread pool and marks the thread as
+    /// being in a blocking pool, so the closure can run blocking DB
+    /// operations. The current tracing span is propagated into the closure.
+    pub fn spawn_blocking_task<F, R>(f: F) -> tokio::task::JoinHandle<R>
+    where
+        F: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
+    {
+        let current_span = tracing::Span::current();
+        tokio::task::spawn_blocking(move || {
+            mark_in_blocking_pool();
+            let _guard = current_span.enter();
+            f()
+        })
+    }
+
+    /// Runs a read-only, repeatable-read SQL transaction, blocking the
+    /// calling thread until it completes.
+    ///
+    /// # Panics
+    ///
+    /// Panics when called on an async runtime thread; run it on a blocking
+    /// thread instead, e.g. via `spawn_blocking_task`.
     #[macro_export]
     macro_rules! read_only_repeatable_blocking {
         ($pool:expr, $query:expr) => {{
             use downcast::Any;
             use $crate::db::{PoolConnection, get_pool_connection};
 
+            $crate::blocking_call_is_ok_or_panic!();
             let mut pool_conn = get_pool_connection($pool)?;
             pool_conn
                 .as_any_mut()
@@ -42,19 +66,24 @@ pub mod diesel_macro {
                 .read_only()
                 .repeatable_read()
                 .run($query)
-                .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+                .map_err(|e| $crate::errors::IndexerError::PostgresRead(e.to_string()))
         }};
     }
 
-    /// Runs a blocking SQL query.
+    /// Runs a read-only SQL transaction, blocking the calling thread until it
+    /// completes.
     ///
-    /// In an async context, it must be wrapped in an spawn blocking task.
+    /// # Panics
+    ///
+    /// Panics when called on an async runtime thread; run it on a blocking
+    /// thread instead, e.g. via `spawn_blocking_task`.
     #[macro_export]
     macro_rules! read_only_blocking {
         ($pool:expr, $query:expr) => {{
             use downcast::Any;
             use $crate::db::{PoolConnection, get_pool_connection};
 
+            $crate::blocking_call_is_ok_or_panic!();
             let mut pool_conn = get_pool_connection($pool)?;
             pool_conn
                 .as_any_mut()
@@ -63,13 +92,17 @@ pub mod diesel_macro {
                 .build_transaction()
                 .read_only()
                 .run($query)
-                .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+                .map_err(|e| $crate::errors::IndexerError::PostgresRead(e.to_string()))
         }};
     }
 
-    /// Runs a blocking SQL query.
+    /// Runs a read-write SQL transaction, blocking the calling thread until
+    /// it completes. Failures are retried with exponential backoff.
     ///
-    /// In an async context, it must be wrapped in an spawn blocking task.
+    /// # Panics
+    ///
+    /// Panics when called on an async runtime thread; run it on a blocking
+    /// thread instead, e.g. via `spawn_blocking_task`.
     #[macro_export]
     macro_rules! transactional_blocking_with_retry {
         ($pool:expr, $query:expr, $max_elapsed:expr) => {{
@@ -77,6 +110,7 @@ pub mod diesel_macro {
                 db::{PoolConnection, get_pool_connection},
                 errors::IndexerError,
             };
+            $crate::blocking_call_is_ok_or_panic!();
             let mut backoff = backoff::ExponentialBackoff::default();
             backoff.max_elapsed_time = Some($max_elapsed);
             let result = match backoff::retry(backoff, || {
@@ -109,9 +143,14 @@ pub mod diesel_macro {
         }};
     }
 
-    /// Runs a blocking SQL query.
+    /// Runs a read-write SQL transaction, blocking the calling thread until
+    /// it completes. Failures are retried with exponential backoff, except
+    /// for errors matching the abort condition, which stop the retries.
     ///
-    /// In an async context, it must be wrapped in an spawn blocking task.
+    /// # Panics
+    ///
+    /// Panics when called on an async runtime thread; run it on a blocking
+    /// thread instead, e.g. via `spawn_blocking_task`.
     #[macro_export]
     macro_rules! transactional_blocking_with_retry_with_conditional_abort {
         ($pool:expr, $query:expr, $abort_condition:expr, $max_elapsed:expr) => {{
@@ -119,6 +158,7 @@ pub mod diesel_macro {
                 db::{PoolConnection, get_pool_connection},
                 errors::IndexerError,
             };
+            $crate::blocking_call_is_ok_or_panic!();
             let mut backoff = backoff::ExponentialBackoff::default();
             backoff.max_elapsed_time = Some($max_elapsed);
             let result = match backoff::retry(backoff, || {
@@ -155,41 +195,16 @@ pub mod diesel_macro {
         }};
     }
 
-    /// Runs an async SQL query wrapped in a spawn blocking task.
+    /// Runs a read-only SQL transaction on a spawned blocking thread and
+    /// awaits its result. Safe to call from async code.
     #[macro_export]
     macro_rules! spawn_read_only_blocking {
         ($pool:expr, $query:expr, $repeatable_read:expr) => {{
-            use downcast::Any;
-            use $crate::{
-                db::{PoolConnection, get_pool_connection},
-                errors::IndexerError,
-                store::diesel_macro::mark_in_blocking_pool,
-            };
-            let current_span = tracing::Span::current();
-            tokio::task::spawn_blocking(move || {
-                mark_in_blocking_pool();
-                let _guard = current_span.enter();
-                let mut pool_conn = get_pool_connection($pool).unwrap();
-
+            $crate::store::diesel_macro::spawn_blocking_task(move || {
                 if $repeatable_read {
-                    pool_conn
-                        .as_any_mut()
-                        .downcast_mut::<PoolConnection>()
-                        .unwrap()
-                        .build_transaction()
-                        .read_only()
-                        .repeatable_read()
-                        .run($query)
-                        .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+                    $crate::read_only_repeatable_blocking!($pool, $query)
                 } else {
-                    pool_conn
-                        .as_any_mut()
-                        .downcast_mut::<PoolConnection>()
-                        .unwrap()
-                        .build_transaction()
-                        .read_only()
-                        .run($query)
-                        .map_err(|e| IndexerError::PostgresRead(e.to_string()))
+                    $crate::read_only_blocking!($pool, $query)
                 }
             })
             .await
@@ -241,35 +256,16 @@ pub mod diesel_macro {
         }};
     }
 
-    /// Runs a blocking SQL query.
+    /// Runs a read-only SQL transaction, blocking the calling thread until it
+    /// completes. Failures are retried with exponential backoff.
     ///
-    /// In an async context, it must be wrapped in an spawn blocking task.
-    #[macro_export]
-    macro_rules! run_query {
-        ($pool:expr, $query:expr) => {{
-            blocking_call_is_ok_or_panic!();
-            read_only_blocking!($pool, $query)
-        }};
-    }
-
-    /// Runs a blocking SQL query.
+    /// # Panics
     ///
-    /// In an async context, it must be wrapped in an spawn blocking task.
-    #[macro_export]
-    macro_rules! run_query_repeatable {
-        ($pool:expr, $query:expr) => {{
-            blocking_call_is_ok_or_panic!();
-            read_only_repeatable_blocking!($pool, $query)
-        }};
-    }
-
-    /// Runs a blocking SQL query.
-    ///
-    /// In an async context, it must be wrapped in an spawn blocking task.
+    /// Panics when called on an async runtime thread; run it on a blocking
+    /// thread instead, e.g. via `spawn_blocking_task`.
     #[macro_export]
     macro_rules! run_query_with_retry {
         ($pool:expr, $query:expr, $max_elapsed:expr) => {{
-            blocking_call_is_ok_or_panic!();
             let mut backoff = backoff::ExponentialBackoff::default();
             backoff.max_elapsed_time = Some($max_elapsed);
             let result = match backoff::retry(backoff, || {
@@ -290,12 +286,15 @@ pub mod diesel_macro {
         }};
     }
 
-    /// Runs an async SQL query wrapped in a spawn blocking task.
+    /// Runs a read-only SQL transaction on a spawned blocking thread and
+    /// awaits its result. Safe to call from async code.
     #[macro_export]
     macro_rules! run_query_async {
         ($pool:expr, $query:expr) => {{ spawn_read_only_blocking!($pool, $query, false) }};
     }
 
+    /// Runs a read-only, repeatable-read SQL transaction on a spawned
+    /// blocking thread and awaits its result. Safe to call from async code.
     #[macro_export]
     macro_rules! run_query_repeatable_async {
         ($pool:expr, $query:expr) => {{ spawn_read_only_blocking!($pool, $query, true) }};
@@ -307,8 +306,10 @@ pub mod diesel_macro {
     ///
     /// Or:
     /// - If we are inside a tokio runtime context, ensure that the call went
-    ///   through `IndexerReader::spawn_blocking` which properly moves the
-    ///   blocking call to a blocking thread pool.
+    ///   through a spawned blocking task that called `mark_in_blocking_pool`,
+    ///   such as `store::diesel_macro::spawn_blocking_task`,
+    ///   `IndexerReader::spawn_blocking` or
+    ///   `PgIndexerStore::execute_in_blocking_worker`.
     #[macro_export]
     macro_rules! blocking_call_is_ok_or_panic {
         () => {{
@@ -318,8 +319,10 @@ pub mod diesel_macro {
             {
                 panic!(
                     "you are calling a blocking DB operation directly on an async thread. \
-                        Please use IndexerReader::spawn_blocking instead to move the \
-                        operation to a blocking thread"
+                        Please move the operation to a blocking thread, e.g. with \
+                        store::diesel_macro::spawn_blocking_task, \
+                        IndexerReader::spawn_blocking or \
+                        PgIndexerStore::execute_in_blocking_worker"
                 );
             }
         }};
@@ -412,10 +415,45 @@ pub mod diesel_macro {
     pub use blocking_call_is_ok_or_panic;
     pub use read_only_blocking;
     pub use read_only_repeatable_blocking;
-    pub use run_query;
     pub use run_query_async;
-    pub use run_query_repeatable;
     pub use run_query_repeatable_async;
     pub use spawn_read_only_blocking;
     pub use transactional_blocking_with_retry;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::diesel_macro::{
+        blocking_call_is_ok_or_panic, mark_in_blocking_pool, spawn_blocking_task,
+    };
+
+    #[test]
+    fn blocking_call_is_allowed_outside_a_runtime() {
+        blocking_call_is_ok_or_panic!();
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "calling a blocking DB operation directly on an async thread")]
+    async fn blocking_call_panics_on_an_async_thread() {
+        blocking_call_is_ok_or_panic!();
+    }
+
+    #[tokio::test]
+    async fn blocking_call_is_allowed_on_a_marked_blocking_thread() {
+        tokio::task::spawn_blocking(|| {
+            mark_in_blocking_pool();
+            blocking_call_is_ok_or_panic!();
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn blocking_call_is_allowed_in_spawn_blocking_task() {
+        spawn_blocking_task(|| {
+            blocking_call_is_ok_or_panic!();
+        })
+        .await
+        .unwrap();
+    }
 }

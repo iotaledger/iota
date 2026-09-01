@@ -33,7 +33,7 @@ use crate::{
         transactions::{OptimisticTransaction, StoredTransaction},
     },
     read::{IndexerReader, InputObjectsStatus},
-    store::{IndexerStore, PgIndexerStore},
+    store::{IndexerStore, PgIndexerStore, diesel_macro::spawn_blocking_task},
     transactional_blocking_with_retry_with_conditional_abort,
     types::{IndexedDeletedObject, IndexedObject, IndexerResult, grpc_conversion},
 };
@@ -368,7 +368,7 @@ impl OptimisticTransactionExecutor {
         full_tx_data: &CheckpointTransaction,
     ) -> Result<Option<OptimisticTransaction>, IndexerError> {
         let db_write_timer = self.metrics.optimistic_tx_db_write_time.start_timer();
-        match tokio::task::spawn_blocking({
+        match spawn_blocking_task({
             let this: OptimisticTransactionExecutor = self.clone();
             let full_tx_data = full_tx_data.clone();
             move || this.index_transaction(&full_tx_data)

@@ -77,7 +77,11 @@ impl Indexer {
         // not yet in the db. Otherwise, we would do the persisting in
         // `commit_checkpoint` while the first cp is being indexed.
         if let Some(chain_id) = IndexerStore::get_chain_identifier(&store).await? {
-            store.persist_protocol_configs_and_feature_flags(chain_id)?;
+            store
+                .execute_in_blocking_worker(move |this| {
+                    this.persist_protocol_configs_and_feature_flags(chain_id)
+                })
+                .await?;
         }
 
         // Restore metric from the DB so it doesn't stay as 0 until next epoch change.
