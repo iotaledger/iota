@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, sync::Arc};
+use std::{collections::BTreeSet, path::PathBuf, sync::Arc};
 
 use fastcrypto::traits::KeyPair;
 use iota_config::{
@@ -44,8 +44,8 @@ use crate::{
     mock_consensus::{ConsensusMode, MockConsensusClient},
     module_cache_metrics::ResolverMetrics,
     rpc_indexes::{
-        IndexStore, JSONRPC_INDEXES_DIR,
-        grpc_api::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+        RpcIndexesStore,
+        schema::{IndexGroup, RPC_INDEXES_DIR},
     },
     signature_verifier::SignatureVerifierMetrics,
 };
@@ -331,13 +331,14 @@ impl<'a> TestAuthorityBuilder<'a> {
                 &epoch_store,
             );
         }
-        let index_store = if self.disable_indexer {
+        let rpc_indexes_store = if self.disable_indexer {
             None
         } else {
             Some(
-                IndexStore::new(
-                    storage_dir.join(JSONRPC_INDEXES_DIR),
+                RpcIndexesStore::new(
+                    storage_dir.join(RPC_INDEXES_DIR),
                     &registry,
+                    BTreeSet::from([IndexGroup::JsonRpc, IndexGroup::Grpc]),
                     epoch_store
                         .protocol_config()
                         .max_move_identifier_len_as_option(),
@@ -347,23 +348,7 @@ impl<'a> TestAuthorityBuilder<'a> {
                     Arc::default(),
                 )
                 .await
-                .expect("failed to open the JSON-RPC index store"),
-            )
-        };
-        let grpc_indexes_store = if self.disable_indexer {
-            None
-        } else {
-            Some(
-                GrpcIndexesStore::new(
-                    storage_dir.join(GRPC_INDEXES_DIR),
-                    &registry,
-                    None,
-                    Arc::clone(&authority_store),
-                    &checkpoint_store,
-                    Arc::default(),
-                )
-                .await
-                .expect("failed to open the gRPC index store"),
+                .expect("failed to open the RPC index store"),
             )
         };
 
@@ -389,8 +374,7 @@ impl<'a> TestAuthorityBuilder<'a> {
             cache_traits,
             epoch_store.clone(),
             committee_store,
-            index_store,
-            grpc_indexes_store,
+            rpc_indexes_store,
             checkpoint_store,
             &registry,
             config.clone(),

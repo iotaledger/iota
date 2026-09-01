@@ -28,9 +28,11 @@ use parking_lot::Mutex;
 use tracing::instrument;
 
 use crate::{
-    authority::AuthorityState, checkpoints::CheckpointStore,
-    epoch::committee_store::CommitteeStore, execution_cache::ExecutionCacheTraitPointers,
-    rpc_indexes::grpc_api::GrpcIndexesStore,
+    authority::AuthorityState,
+    checkpoints::CheckpointStore,
+    epoch::committee_store::CommitteeStore,
+    execution_cache::ExecutionCacheTraitPointers,
+    rpc_indexes::{RpcIndexesStore, schema::IndexGroup},
 };
 
 #[derive(Clone)]
@@ -455,10 +457,15 @@ impl GrpcReadStore {
         Self { state, rocks }
     }
 
-    fn grpc_indexes_store(&self) -> iota_types::storage::error::Result<&GrpcIndexesStore> {
-        self.state.grpc_indexes_store.as_deref().ok_or_else(|| {
-            iota_types::storage::error::Error::custom("gRPC index store is disabled")
-        })
+    /// The index store when this node maintains the gRPC group's tables.
+    fn grpc_indexes_store(&self) -> iota_types::storage::error::Result<&RpcIndexesStore> {
+        self.state
+            .rpc_indexes_store
+            .as_deref()
+            .filter(|store| store.serves(IndexGroup::Grpc))
+            .ok_or_else(|| {
+                iota_types::storage::error::Error::custom("gRPC index store is disabled")
+            })
     }
 }
 
