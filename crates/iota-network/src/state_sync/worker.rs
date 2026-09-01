@@ -15,7 +15,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointSequenceNumber, FullCheckpointContents,
         VerifiedCheckpoint, VerifiedCheckpointContents,
     },
-    storage::WriteStore,
+    storage::{CacheCheckpointResults, WriteStore},
 };
 use tracing::debug;
 
@@ -28,6 +28,10 @@ use crate::state_sync::metrics::Metrics;
 pub(crate) struct VerifiedArchiveCheckpoint {
     summary: CertifiedCheckpointSummary,
     contents: VerifiedCheckpointContents,
+    /// The downloaded payloads, kept so the results can be applied instead of
+    /// re-executed. Retained even when applying is off: dropping it would mean
+    /// re-downloading to turn the option on.
+    data: Arc<CheckpointData>,
     /// False when the committee for the checkpoint's epoch was not yet in the
     /// store, because the previous epoch's last checkpoint had not been
     /// committed; the reducer verifies the signatures for those instead.
@@ -53,6 +57,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
         checkpoint: Arc<CheckpointData>,
     ) -> anyhow::Result<Self::Message> {
         let summary = checkpoint.checkpoint_summary.clone();
+        let data = checkpoint.clone();
         let committee = self.0.get_committee(summary.epoch());
         // As many workers run as there are cores, so keep their CPU-bound
         // verification off the runtime's worker threads, where it would hold up
@@ -76,6 +81,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
             Ok(VerifiedArchiveCheckpoint {
                 summary,
                 contents,
+                data,
                 signatures_verified,
             })
         })
@@ -97,6 +103,10 @@ pub(crate) struct StateSyncReducer<S> {
     /// How far the synced watermark may run ahead of the executed one before
     /// insertion waits for execution to catch up.
     pub(crate) max_checkpoints_ahead_of_execution: u64,
+    /// Where a checkpoint's verified results are left for the executor to
+    /// commit instead of re-executing its transactions. `None` has every
+    /// checkpoint executed.
+    pub(crate) results_cache: Option<Arc<dyn CacheCheckpointResults>>,
 }
 
 /// How many checkpoints the reducer commits per store insertion at most,
@@ -117,6 +127,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
             let verified_checkpoint =
                 self.verify_against_previous(message, prev_checkpoint.as_ref())?;
             prev_checkpoint = Some(verified_checkpoint.clone());
+            self.offer_results(message);
             to_insert.push((verified_checkpoint, message.contents.clone()));
         }
 
@@ -151,6 +162,21 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
 }
 
 impl<S: WriteStore + Clone> StateSyncReducer<S> {
+    /// Leaves a checkpoint's verified results for the executor to commit.
+    ///
+    /// They are deliberately not written here. Object versions enter the
+    /// writeback cache under a monotonically-increasing invariant, and this
+    /// runs far ahead of execution, so writing would race the executor's own
+    /// writes for older checkpoints.
+    fn offer_results(&self, message: &VerifiedArchiveCheckpoint) {
+        let Some(cache) = &self.results_cache else {
+            return;
+        };
+        if !cache.cache_checkpoint_results(message.data.clone()) {
+            self.metrics.checkpoint_from_archive_left_to_the_executor();
+        }
+    }
+
     /// Waits until the whole batch fits within
     /// `max_checkpoints_ahead_of_execution` of the executed watermark.
     ///

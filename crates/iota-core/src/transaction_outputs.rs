@@ -8,7 +8,9 @@ use std::{
 };
 
 use iota_common::debug_fatal;
-use iota_sdk_types::{ObjectId, ObjectReference, ObjectVersion, Owner, TransactionEffects, TransactionEvents, Version};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, ObjectVersion, Owner, TransactionEffects, TransactionEvents, Version,
+};
 use iota_types::{
     base_types::VersionDigest,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
@@ -361,4 +363,4 @@ where
 
 #[cfg(test)]
 #[path = "unit_tests/transaction_outputs_tests.rs"]
-mod tests;
+pub(crate) mod tests;

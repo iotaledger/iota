@@ -1306,6 +1306,10 @@ pub struct MetricsConfig {
     pub groups: Option<MetricGroups>,
 }
 
+/// Default budget for retained checkpoint results, matching the limit the
+/// archive reader already applies to checkpoints it is downloading.
+pub const DEFAULT_CHECKPOINT_RESULTS_CACHE_SIZE_BYTES: usize = 256 * 1024 * 1024;
+
 fn default_checkpoint_archive_download_concurrency() -> NonZeroUsize {
     NonZeroUsize::new(10).unwrap()
 }
@@ -1328,6 +1332,36 @@ pub struct CheckpointArchiveConfig {
     /// Defaults to the number of CPU cores.
     #[serde(default = "default_checkpoint_archive_verify_concurrency")]
     pub verify_concurrency: NonZeroUsize,
+    /// Re-execute the transactions of checkpoints downloaded from the archive
+    /// instead of applying the results the archive already carries.
+    ///
+    /// Applying is much faster and relies on the same authority signatures the
+    /// node already trusts, so it is the default. Enable this to have the node
+    /// derive the effects itself, which detects a divergence between this
+    /// binary's execution and the history the network certified.
+    #[serde(default)]
+    pub re_execute_archived_checkpoints: bool,
+    /// Sync checkpoints from the archive regardless of what peers can serve,
+    /// and follow it for as long as it grows.
+    ///
+    /// Normally the archive only fills the gap below the lowest checkpoint the
+    /// peers still hold, so a node with no peers never reads from it. Set this
+    /// on a node whose only source is the archive.
+    #[serde(default)]
+    pub sync_from_archive_only: bool,
+    /// Approximate memory budget for checkpoint results held between being
+    /// downloaded and being committed by the checkpoint executor.
+    ///
+    /// Results beyond the budget are dropped and their checkpoints executed
+    /// instead, so this bounds how far ahead of execution the faster path
+    /// reaches. Raising `max_checkpoints_ahead_of_execution` past what this
+    /// budget covers gains nothing.
+    #[serde(default = "default_checkpoint_results_cache_size_bytes")]
+    pub results_cache_size_bytes: usize,
+}
+
+fn default_checkpoint_results_cache_size_bytes() -> usize {
+    DEFAULT_CHECKPOINT_RESULTS_CACHE_SIZE_BYTES
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.

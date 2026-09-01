@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+mod cache_checkpoint_results;
 pub mod error;
 mod object_store_trait;
 mod read_store;
@@ -16,6 +17,7 @@ use std::{
     sync::Arc,
 };
 
+pub use cache_checkpoint_results::CacheCheckpointResults;
 use iota_sdk_types::{
     MovePackage, ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest,
     TransactionEffects, Version, WriteKind,
