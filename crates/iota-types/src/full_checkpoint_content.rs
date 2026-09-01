@@ -59,6 +59,20 @@ impl CheckpointData {
         eventually_removed_object_refs.into_values().collect()
     }
 
+    /// Checks every transaction's objects and events against the digests its
+    /// effects record, so the results can be committed without re-executing
+    /// them.
+    ///
+    /// See [`CheckpointTransaction::verify_payload_digests`] for what this
+    /// does and does not establish; in particular the caller is still
+    /// responsible for verifying the summary's authority signatures and its
+    /// `contents_digest`.
+    pub fn verify_payload_digests(&self) -> Result<(), StorageError> {
+        self.transactions
+            .iter()
+            .try_for_each(CheckpointTransaction::verify_payload_digests)
+    }
+
     pub fn all_objects(&self) -> Vec<&Object> {
         self.transactions
             .iter()
@@ -224,6 +238,121 @@ impl CheckpointTransaction {
             transaction: self.transaction.clone(),
             effects: self.effects.clone(),
         }
+    }
+
+    /// Checks this transaction's objects and events against the digests its
+    /// effects record for them.
+    ///
+    /// The caller must separately have verified the effects themselves, by
+    /// checking the checkpoint's `contents_digest` against a summary carrying a
+    /// quorum of authority signatures. Only then do the digests read here mean
+    /// anything.
+    ///
+    /// Both directions are checked: a payload whose contents do not hash to the
+    /// recorded digest is rejected, and so is one the effects record but the
+    /// checkpoint does not carry. Anything less would let an object reach the
+    /// store unchecked.
+    pub fn verify_payload_digests(&self) -> Result<(), StorageError> {
+        let tx_digest = self.effects.transaction_digest();
+
+        let written: BTreeMap<ObjectId, ObjectReference> = self
+            .effects
+            .all_changed_objects()
+            .into_iter()
+            .map(|(owned, _)| (owned.reference.object_id, owned.reference))
+            .collect();
+
+        if written.len() != self.output_objects.len() {
+            return Err(StorageError::custom(format!(
+                "transaction {tx_digest} carries {} output objects but its effects record {} \
+                 writes",
+                self.output_objects.len(),
+                written.len()
+            )));
+        }
+
+        for object in &self.output_objects {
+            let Some(expected) = written.get(&object.id()) else {
+                return Err(StorageError::custom(format!(
+                    "transaction {tx_digest} carries output object {} which its effects do not \
+                     record as written",
+                    object.id()
+                )));
+            };
+            // Recomputes the object's digest from its contents, which is what
+            // makes the object itself trustworthy rather than just its id.
+            let actual = object.object_ref();
+            if actual.version != expected.version || actual.digest != expected.digest {
+                return Err(StorageError::custom(format!(
+                    "object mismatch for {} in transaction {tx_digest}: effects record version \
+                     {} digest {}, contents are version {} digest {}",
+                    object.id(),
+                    expected.version,
+                    expected.digest,
+                    actual.version,
+                    actual.digest
+                )));
+            }
+        }
+
+        // Every version the transaction superseded is relocated out of the live
+        // table when its results are committed, using the pre-image the
+        // checkpoint carries as an input object. Effects record the digest each
+        // of those versions had, so a pre-image is checked the same way an
+        // output object is: a missing one would be dropped rather than
+        // relocated, and a substituted one would reach the store unchecked.
+        let pre_images: BTreeMap<ObjectId, &Object> = self
+            .input_objects
+            .iter()
+            .map(|object| (object.id(), object))
+            .collect();
+        for old in self.effects.old_object_metadata() {
+            let expected = old.reference;
+            let Some(object) = pre_images.get(&expected.object_id) else {
+                return Err(StorageError::custom(format!(
+                    "transaction {tx_digest} supersedes version {} of object {} but the \
+                     checkpoint carries no input object for it",
+                    expected.version, expected.object_id
+                )));
+            };
+            let actual = object.object_ref();
+            if actual.version != expected.version || actual.digest != expected.digest {
+                return Err(StorageError::custom(format!(
+                    "input object mismatch for {} in transaction {tx_digest}: effects record \
+                     version {} digest {}, contents are version {} digest {}",
+                    expected.object_id,
+                    expected.version,
+                    expected.digest,
+                    actual.version,
+                    actual.digest
+                )));
+            }
+        }
+
+        match (self.effects.events_digest(), &self.events) {
+            (Some(expected), Some(events)) => {
+                let actual = events.digest();
+                if actual != *expected {
+                    return Err(StorageError::custom(format!(
+                        "events digest mismatch for transaction {tx_digest}: effects record \
+                         {expected}, contents hash to {actual}"
+                    )));
+                }
+            }
+            (Some(_), None) => {
+                return Err(StorageError::custom(format!(
+                    "transaction {tx_digest} declares events but the checkpoint carries none"
+                )));
+            }
+            (None, Some(events)) if !events.is_empty() => {
+                return Err(StorageError::custom(format!(
+                    "transaction {tx_digest} carries events but its effects declare none"
+                )));
+            }
+            _ => {}
+        }
+
+        Ok(())
     }
 }
 

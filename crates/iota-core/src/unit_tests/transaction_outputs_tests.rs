@@ -201,3 +201,86 @@ async fn build_from_checkpoint_transaction_matches_execution() {
         "the pre-images come from the checkpoint's input objects rather than \
          from execution, so this is where the two constructors can diverge"
     );
+}
+
+/// Well-formed checkpoint data must verify.
+#[tokio::test]
+async fn verify_payload_digests_accepts_untampered_data() {
+    let (_, checkpoint_tx) = execute_transfer_both_ways().await;
+
+    checkpoint_tx
+        .verify_payload_digests()
+        .expect("data produced by execution must verify against its own effects");
+}
+
+/// An output object whose contents do not hash to the digest its effects record
+/// must be rejected. This is the check that lets a node trust objects it did
+/// not compute itself.
+#[tokio::test]
+async fn verify_payload_digests_rejects_tampered_object() {
+    let (_, mut checkpoint_tx) = execute_transfer_both_ways().await;
+    let mut tampered = checkpoint_tx.output_objects[0].as_inner().clone();
+    tampered.storage_rebate += 1;
+    checkpoint_tx.output_objects[0] = tampered.into();
+
+    let err = checkpoint_tx
+        .verify_payload_digests()
+        .expect_err("a tampered object must be rejected");
+    assert!(
+        format!("{err}").contains("object mismatch"),
+        "the error must name the failure, got: {err}"
+    );
+}
+
+/// An input object whose contents do not hash to the digest its effects record
+/// must be rejected. The pre-images of superseded versions are relocated into
+/// the historic buckets on commit, so an unchecked one would put fabricated
+/// history in the store.
+#[tokio::test]
+async fn verify_payload_digests_rejects_tampered_input_object() {
+    let (_, mut checkpoint_tx) = execute_transfer_both_ways().await;
+    let mut tampered = checkpoint_tx.input_objects[0].as_inner().clone();
+    tampered.storage_rebate += 1;
+    checkpoint_tx.input_objects[0] = tampered.into();
+
+    let err = checkpoint_tx
+        .verify_payload_digests()
+        .expect_err("a tampered input object must be rejected");
+    assert!(
+        format!("{err}").contains("input object mismatch"),
+        "the error must name the failure, got: {err}"
+    );
+}
+
+/// A superseded version whose pre-image the checkpoint omits must be rejected;
+/// committing such a checkpoint would drop the version instead of relocating
+/// it.
+#[tokio::test]
+async fn verify_payload_digests_rejects_missing_input_object() {
+    let (_, mut checkpoint_tx) = execute_transfer_both_ways().await;
+    checkpoint_tx
+        .input_objects
+        .pop()
+        .expect("a transfer modifies at least one object");
+
+    assert!(
+        checkpoint_tx.verify_payload_digests().is_err(),
+        "a checkpoint missing a superseded version's pre-image must be rejected"
+    );
+}
+
+/// An object the effects record as written but the checkpoint does not carry
+/// must be rejected; applying such a checkpoint would silently drop a write.
+#[tokio::test]
+async fn verify_payload_digests_rejects_missing_output_object() {
+    let (_, mut checkpoint_tx) = execute_transfer_both_ways().await;
+    checkpoint_tx
+        .output_objects
+        .pop()
+        .expect("a transfer writes at least one object");
+
+    assert!(
+        checkpoint_tx.verify_payload_digests().is_err(),
+        "a checkpoint missing a recorded write must be rejected"
+    );
+}
