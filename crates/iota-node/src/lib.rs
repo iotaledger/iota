@@ -5,7 +5,7 @@
 #[cfg(msim)]
 use std::sync::atomic::Ordering;
 use std::{
-    collections::HashMap,
+    collections::{BTreeSet, HashMap},
     fmt,
     future::Future,
     num::NonZeroUsize,
@@ -70,9 +70,8 @@ use iota_core::{
     module_cache_metrics::ResolverMetrics,
     overload_monitor::{consensus_queue_overload_monitor, overload_monitor},
     rpc_indexes::{
-        IndexStore, JSONRPC_INDEXES_DIR,
-        grpc_api::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-        remove_legacy_jsonrpc_indexes_dir,
+        RpcIndexesStore, remove_legacy_index_dirs,
+        schema::{IndexGroup, RPC_INDEXES_DIR},
     },
     safe_client::SafeClientMetricsBase,
     signature_verifier::SignatureVerifierMetrics,
@@ -602,15 +601,24 @@ impl IotaNode {
             checkpoint_store.clone(),
         );
 
-        // The legacy database can no longer be adopted, so remove it whether
-        // or not indexing stays enabled: left in place it holds on to
-        // potentially hundreds of gigabytes.
+        // The index databases of earlier releases can no longer be adopted,
+        // so remove them whether or not indexing stays enabled: left in place
+        // they hold on to potentially hundreds of gigabytes.
         if is_full_node {
-            if let Err(e) = remove_legacy_jsonrpc_indexes_dir(&config.db_path()) {
-                warn!("failed to remove the legacy JSON-RPC index database: {e}");
+            if let Err(e) = remove_legacy_index_dirs(&config.db_path()) {
+                warn!("failed to remove a legacy index database: {e}");
             }
         }
-        let index_store = if is_full_node && config.enable_index_processing {
+        let mut index_groups = BTreeSet::new();
+        if is_full_node && config.enable_index_processing {
+            index_groups.insert(IndexGroup::JsonRpc);
+        }
+        if is_full_node && config.enable_grpc_api {
+            index_groups.insert(IndexGroup::Grpc);
+        }
+        let rpc_indexes_store = if index_groups.is_empty() {
+            None
+        } else {
             info!("creating index store");
             if config
                 .authority_store_pruning_config
@@ -622,9 +630,10 @@ impl IotaNode {
                 );
             }
             Some(
-                IndexStore::new(
-                    config.db_path().join(JSONRPC_INDEXES_DIR),
+                RpcIndexesStore::new(
+                    config.db_path().join(RPC_INDEXES_DIR),
                     &prometheus_registry,
+                    index_groups,
                     epoch_store
                         .protocol_config()
                         .max_move_identifier_len_as_option(),
@@ -633,30 +642,10 @@ impl IotaNode {
                         .num_epochs_to_retain_for_indexes,
                     &store,
                     &checkpoint_store,
-                    index_rebuild_cancelled.clone(),
+                    index_rebuild_cancelled,
                 )
                 .await?,
             )
-        } else {
-            None
-        };
-
-        let grpc_indexes_store = if is_full_node && config.enable_grpc_api {
-            Some(
-                GrpcIndexesStore::new(
-                    config.db_path().join(GRPC_INDEXES_DIR),
-                    &prometheus_registry,
-                    config
-                        .authority_store_pruning_config
-                        .num_epochs_to_retain_for_checkpoints(),
-                    Arc::clone(&store),
-                    &checkpoint_store,
-                    index_rebuild_cancelled.clone(),
-                )
-                .await?,
-            )
-        } else {
-            None
         };
 
         // Seed the open epoch's `epoch_info` row before services start.
@@ -722,8 +711,7 @@ impl IotaNode {
             cache_traits.clone(),
             epoch_store.clone(),
             committee_store.clone(),
-            index_store.clone(),
-            grpc_indexes_store,
+            rpc_indexes_store,
             checkpoint_store.clone(),
             &prometheus_registry,
             config.clone(),
@@ -772,7 +760,7 @@ impl IotaNode {
             .expensive_safety_check_config
             .enable_secondary_index_checks()
         {
-            if let Some(indexes) = state.jsonrpc_indexes_store.clone() {
+            if let Some(indexes) = state.rpc_indexes_store.clone() {
                 iota_core::verify_indexes::verify_indexes(
                     state.get_global_state_hash_store().as_ref(),
                     indexes,
@@ -2209,13 +2197,8 @@ impl IotaNode {
 
         // Stop the background index backfill so shutdown does not block on
         // a full history replay.
-        if let Some(indexes) = &self.state.jsonrpc_indexes_store {
+        if let Some(indexes) = &self.state.rpc_indexes_store {
             indexes.shutdown().await;
-        }
-
-        // Stop the gRPC digest history backfill the same way.
-        if let Some(grpc_indexes_store) = &self.state.grpc_indexes_store {
-            grpc_indexes_store.shutdown().await;
         }
 
         // Shutdown the gRPC server if it's running

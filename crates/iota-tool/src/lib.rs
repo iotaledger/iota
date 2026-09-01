@@ -4,7 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     fmt::Write,
     fs,
     num::NonZeroUsize,
@@ -35,8 +35,8 @@ use iota_core::{
     epoch::committee_store::CommitteeStore,
     execution_cache::build_execution_cache_from_env,
     rpc_indexes::{
-        JSONRPC_INDEXES_DIR, JsonRpcIndexRestorer,
-        grpc_api::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+        live_scan::RpcIndexesRestorer,
+        schema::{IndexGroup, RPC_INDEXES_DIR},
     },
     storage::RocksDbStore,
 };
@@ -83,7 +83,6 @@ use tokio::{
     sync::{mpsc, oneshot},
     time::Instant,
 };
-use typed_store::rocks::bulk_ingestion_options;
 
 pub mod commands;
 pub mod db_tool;
@@ -914,23 +913,25 @@ pub async fn download_formal_snapshot(
         epoch,
     )?;
 
-    // Unless the matching `--skip-...-indexes` flag is passed, the gRPC and
-    // JSON-RPC index stores are built from the same object stream that
-    // restores the perpetual tables, so a fullnode started with gRPC or
-    // `enable-index-processing` opens them in place instead of re-indexing
-    // the whole restored state.
+    // Unless the matching `--skip-...-indexes` flag is passed, the index
+    // group is built from the same object stream that restores the perpetual
+    // tables, so a fullnode started with gRPC or `enable-index-processing`
+    // opens the store in place instead of re-indexing the whole restored
+    // state.
     //
-    // Like every other store of this restore, they live under `staging/`,
-    // which replaces `live/` wholesale at the end — so pre-existing index
-    // stores (whatever their watermarks claim) can never survive into the
-    // restored node and compete with the ones built here.
-    let grpc_indexes = (!skip_grpc_indexes).then(|| {
-        Arc::new(GrpcIndexesStore::new_without_init(
-            path.join(GRPC_INDEXES_DIR),
-        ))
-    });
-    let jsonrpc_indexes = (!skip_jsonrpc_indexes)
-        .then(|| JsonRpcIndexRestorer::open(path.join(JSONRPC_INDEXES_DIR)))
+    // Like every other store of this restore, it lives under `staging/`,
+    // which replaces `live/` wholesale at the end — so a pre-existing index
+    // store (whatever its watermarks claim) can never survive into the
+    // restored node and compete with the one built here.
+    let mut index_groups = BTreeSet::new();
+    if !skip_jsonrpc_indexes {
+        index_groups.insert(IndexGroup::JsonRpc);
+    }
+    if !skip_grpc_indexes {
+        index_groups.insert(IndexGroup::Grpc);
+    }
+    let rpc_indexes = (!index_groups.is_empty())
+        .then(|| RpcIndexesRestorer::open(path.join(RPC_INDEXES_DIR), index_groups))
         .transpose()?
         .map(Arc::new);
 
@@ -941,31 +942,19 @@ pub async fn download_formal_snapshot(
     // not pass in a channel to the reader
     let (sender, mut receiver) = mpsc::channel(num_parallel_downloads.get());
     let (accumulation_done_sender, accumulation_done_receiver) = oneshot::channel();
-    let grpc_indexes_clone = grpc_indexes.clone();
-    let jsonrpc_indexes_clone = jsonrpc_indexes.clone();
+    let rpc_indexes_clone = rpc_indexes.clone();
 
     let snapshot_handle = tokio::spawn(async move {
         let accumulator = Some(StateAccumulatorSender {
             partials: sender,
             completion: accumulation_done_sender,
         });
-        let grpc_restorer = grpc_indexes_clone.as_ref().map(|grpc_indexes| {
-            grpc_indexes.live_object_restorer(bulk_ingestion_options().batch_size_limit)
-        });
-        let restore_target = RestoreWithIndexes::new(
-            &perpetual_db_clone,
-            grpc_restorer.as_ref(),
-            jsonrpc_indexes_clone.as_deref(),
-        );
+        let restore_target =
+            RestoreWithIndexes::new(&perpetual_db_clone, rpc_indexes_clone.as_deref());
         reader
             .read_to_db(&restore_target, abort_registration, accumulator)
             .await
             .context("Failed to read snapshot")?;
-        if let Some(grpc_restorer) = grpc_restorer {
-            grpc_restorer
-                .finish()
-                .context("Failed to flush the gRPC coin index")?;
-        }
 
         Ok::<(), anyhow::Error>(())
     });
@@ -1074,30 +1063,16 @@ pub async fn download_formal_snapshot(
         AuthorityStore::open_no_genesis(perpetual_db.clone(), false, &Registry::default())?;
     checkpoint_store.ensure_current_epoch_info(&authority_store)?;
 
-    // Finalize the gRPC live-state index store so the node opens it in place
-    // instead of re-indexing. All RocksDB handles close before the rename
-    // below.
-    if let Some(grpc_indexes) = grpc_indexes {
-        grpc_indexes
-            .finalize_and_verify_restore(
-                &path.join(GRPC_INDEXES_DIR),
-                last_checkpoint.sequence_number,
-                num_live_objects,
-            )
-            .await?;
-    }
-
-    // Finalize the JSON-RPC index store so the node opens it in place
-    // instead of re-indexing. All RocksDB handles close before the rename
-    // below.
-    if let Some(jsonrpc_indexes) = jsonrpc_indexes {
-        let jsonrpc_indexes_path = path.join(JSONRPC_INDEXES_DIR);
-        Arc::into_inner(jsonrpc_indexes)
+    // Finalize the RPC index store so the node opens it in place instead of
+    // re-indexing. All RocksDB handles close before the rename below.
+    if let Some(rpc_indexes) = rpc_indexes {
+        let rpc_indexes_path = path.join(RPC_INDEXES_DIR);
+        Arc::into_inner(rpc_indexes)
             .expect("the snapshot task is awaited, so its restorer handle is gone")
             .finalize(last_checkpoint.sequence_number)
             .await?;
-        JsonRpcIndexRestorer::verify_restored(
-            &jsonrpc_indexes_path,
+        RpcIndexesRestorer::verify_restored(
+            &rpc_indexes_path,
             last_checkpoint.sequence_number,
             num_live_objects,
         )
