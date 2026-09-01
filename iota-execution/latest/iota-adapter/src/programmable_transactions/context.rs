@@ -1721,7 +1721,7 @@ mod checked {
                     continue;
                 }
 
-                let module = package.get_module(&identifier_core_to_sdk(module_id.name()));
+                let module = package.module(&identifier_core_to_sdk(module_id.name()));
 
                 if module.is_some() {
                     return module;

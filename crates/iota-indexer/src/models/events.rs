@@ -50,7 +50,7 @@ impl From<IndexedEvent> for StoredEvent {
         Self {
             tx_sequence_number: event.tx_sequence_number as i64,
             event_sequence_number: event.event_sequence_number as i64,
-            transaction_digest: event.transaction_digest.into_inner().to_vec(),
+            transaction_digest: event.transaction_digest.into_bytes().to_vec(),
             senders: event
                 .senders
                 .into_iter()

@@ -35,7 +35,7 @@ async fn assert_get_transactions_request(
                 .map(|d| {
                     TransactionRequest::default().with_digest({
                         iota_grpc_types::v1::types::Digest::default()
-                            .with_digest(d.inner().to_vec())
+                            .with_digest(d.bytes().to_vec())
                     })
                 })
                 .collect(),
@@ -481,11 +481,11 @@ async fn get_transactions_nonexistent() {
         TransactionRequests::default().with_requests(vec![
             TransactionRequest::default().with_digest({
                 iota_grpc_types::v1::types::Digest::default()
-                    .with_digest(fake_digest1.inner().to_vec())
+                    .with_digest(fake_digest1.bytes().to_vec())
             }),
             TransactionRequest::default().with_digest({
                 iota_grpc_types::v1::types::Digest::default()
-                    .with_digest(fake_digest2.inner().to_vec())
+                    .with_digest(fake_digest2.bytes().to_vec())
             }),
         ]),
     );
@@ -554,12 +554,12 @@ async fn get_transactions_mixed_valid_invalid() {
             // Valid digest first
             TransactionRequest::default().with_digest({
                 iota_grpc_types::v1::types::Digest::default()
-                    .with_digest(real_digest.inner().to_vec())
+                    .with_digest(real_digest.bytes().to_vec())
             }),
             // Invalid digest
             TransactionRequest::default().with_digest({
                 iota_grpc_types::v1::types::Digest::default()
-                    .with_digest(fake_digest.inner().to_vec())
+                    .with_digest(fake_digest.bytes().to_vec())
             }),
         ]))
         .with_read_mask(FieldMask::from_paths(["transaction.digest"]));

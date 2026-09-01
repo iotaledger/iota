@@ -453,7 +453,7 @@ impl OptimisticTransactionExecutor {
         conn: &mut PgConnection,
         tx_digest: &TransactionDigest,
     ) -> Result<AssignedGlobalOrder, IndexerError> {
-        let tx_digest_bytes = tx_digest.inner().to_vec();
+        let tx_digest_bytes = tx_digest.bytes().to_vec();
 
         sql_query(
             r#"

@@ -342,7 +342,7 @@ impl PgIndexerStore {
             .map(|(indexed_object, tx_digest)| {
                 (
                     StoredObject::from(indexed_object),
-                    tx_digest.into_inner().to_vec(),
+                    tx_digest.into_bytes().to_vec(),
                 )
             })
             .unzip();
@@ -406,7 +406,7 @@ impl PgIndexerStore {
                 (
                     removed_object.object_id().as_bytes().to_vec(),
                     removed_object.version() as i64,
-                    removed_object.transaction_digest.into_inner().to_vec(),
+                    removed_object.transaction_digest.into_bytes().to_vec(),
                 )
             })
             .multiunzip();
@@ -605,7 +605,7 @@ impl PgIndexerStore {
         // If the first checkpoint has sequence number 0, we need to persist the digest
         // as chain identifier.
         if first_checkpoint.sequence_number == 0 {
-            let checkpoint_digest = first_checkpoint.checkpoint_digest.into_inner().to_vec();
+            let checkpoint_digest = first_checkpoint.checkpoint_digest.into_bytes().to_vec();
             self.persist_protocol_configs_and_feature_flags(checkpoint_digest.clone())?;
             self.persist_chain_identifier(StoredChainIdentifier { checkpoint_digest })?;
         }

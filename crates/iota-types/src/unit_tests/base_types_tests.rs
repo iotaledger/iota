@@ -289,7 +289,7 @@ fn test_transaction_digest_serde_not_human_readable() {
     let bcs_serialized = bcs::to_bytes(&digest).unwrap();
     // bincode use 8 bytes for BYTES len and bcs use 1 byte
     assert_eq!(serialized[8..], bcs_serialized[1..]);
-    assert_eq!(digest.inner(), &serialized[8..]);
+    assert_eq!(digest.bytes(), &serialized[8..]);
     let deserialized: TransactionDigest = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, digest);
 }
@@ -299,7 +299,7 @@ fn test_transaction_digest_serde_human_readable() {
     let digest = TransactionDigest::random();
     let serialized = serde_json::to_string(&digest).unwrap();
     assert_eq!(
-        format!("\"{}\"", Base58::encode(digest.inner())),
+        format!("\"{}\"", Base58::encode(digest.bytes())),
         serialized
     );
     let deserialized: TransactionDigest = serde_json::from_str(&serialized).unwrap();
