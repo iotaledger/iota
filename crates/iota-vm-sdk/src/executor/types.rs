@@ -74,9 +74,25 @@ impl ChainContext {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub enum ExecutionMode {
-    /// Relaxed Move VM checks; the store is never modified.
+    /// Relaxed input and Move VM checks; the store is never modified.
+    ///
+    /// Mirrors the node's `simulate_transaction` with `VmChecks::Disabled`:
+    /// inputs go through `check_dev_inspect_input`, and the VM allows arbitrary
+    /// function calls and arbitrary values and skips the conservation checks.
+    /// The declared gas budget is ignored in favour of `max_tx_gas`, capped at
+    /// the balance of a real gas payment.
+    ///
+    /// The VM-level relaxations do not reach a transaction that authorizes via
+    /// a [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator): its engine
+    /// entry point always runs under full VM semantics, so only the input
+    /// checks and the gas budget relax there. A run in this mode also captures
+    /// no execution trace — see [`supports_tracing`](Self::supports_tracing).
     DevInspect,
     /// Full sign-time checks; the store is never modified. The default.
+    ///
+    /// Mirrors the node's `simulate_transaction` with `VmChecks::Enabled`:
+    /// inputs go through `check_transaction_input` and the VM applies the same
+    /// checks as a certified execution.
     ///
     /// Object references in the transaction (gas payments and owned inputs)
     /// are resolved against whatever versions the store holds, so a stale
@@ -95,6 +111,25 @@ pub enum ExecutionMode {
     /// across multiple runs the store does not reflect a node's post-abort
     /// state.
     Execute,
+}
+
+impl ExecutionMode {
+    /// Whether a plain PTB run in this mode can capture an execution trace.
+    ///
+    /// `false` for [`DevInspect`](Self::DevInspect): the engine entry point
+    /// that applies its relaxed checks takes no trace builder, and the entry
+    /// point that takes one runs under full VM semantics, so the relaxed checks
+    /// and a trace cannot be had together. Rather than run under rules the mode
+    /// did not ask for, a `DevInspect` run keeps its relaxed checks and leaves
+    /// [`DebugArtifacts::trace`](crate::DebugArtifacts::trace) `None`.
+    ///
+    /// A transaction that authorizes via a
+    /// [`MoveAuthenticator`](iota_sdk_types::MoveAuthenticator) is traced in
+    /// every mode — its entry point takes a trace builder — but it also always
+    /// runs under full VM semantics, so nothing is traded away there.
+    pub const fn supports_tracing(self) -> bool {
+        !matches!(self, Self::DevInspect)
+    }
 }
 
 /// The outcome of signature verification for a run.
@@ -206,9 +241,10 @@ pub struct ExecutionResult {
     pub events: Option<TransactionEvents>,
     /// Per-PTB-command `(mutable_reference_outputs, return_values)`.
     ///
-    /// Empty for `MoveAuthenticator`-signed runs (the authenticator engine
-    /// entry point does not return per-command results) and for failed runs
-    /// (the engine reports them only for a successful execution).
+    /// Empty for `MoveAuthenticator`-signed runs and for any traced run (the
+    /// engine entry points that accept a trace builder do not return
+    /// per-command results), and for failed runs (the engine reports them only
+    /// for a successful execution).
     pub command_results: Vec<CommandResult>,
     /// Objects read as inputs to the run.
     pub input_objects: Vec<Object>,

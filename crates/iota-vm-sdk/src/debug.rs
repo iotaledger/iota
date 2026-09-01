@@ -20,8 +20,8 @@ pub struct DebugConfig {
     /// Enable the Move VM gas profiler and choose where the Speedscope JSON
     /// ends up.
     pub profile: Option<ProfileSink>,
-    /// Enable instruction-level execution tracing. Only captured on the
-    /// `MoveAuthenticator` path; see [`with_tracing`](Self::with_tracing).
+    /// Enable instruction-level execution tracing. Not captured for every run;
+    /// see [`with_tracing`](Self::with_tracing).
     pub trace: bool,
 }
 
@@ -41,13 +41,18 @@ impl DebugConfig {
     /// Requires the crate's `tracing` feature; without it
     /// [`DebugArtifacts::trace`] stays `None`.
     ///
-    /// Tracing is only captured for signed transactions that authorize via a
-    /// `MoveAuthenticator`. The unsigned
-    /// [`LocalVm::execute`](crate::LocalVm::execute) path and
-    /// standard-signature transactions run through the engine's dev-inspect
-    /// entry point, which accepts no trace builder; for those,
-    /// [`DebugArtifacts::trace`] stays `None` even when tracing was
-    /// requested.
+    /// Not captured for a plain PTB in
+    /// [`ExecutionMode::DevInspect`](crate::ExecutionMode): a traced run uses
+    /// the engine entry point that runs under full (non-dev-inspect) VM
+    /// semantics, so dev-inspect's relaxed checks and tracing cannot be had
+    /// together and the relaxed checks win —
+    /// [`DebugArtifacts::trace`] stays `None`. A transaction authorizing via a
+    /// `MoveAuthenticator` is traced in every mode. See
+    /// [`ExecutionMode::supports_tracing`](crate::ExecutionMode::supports_tracing).
+    ///
+    /// A traced run reports no
+    /// [`command_results`](crate::ExecutionResult::command_results) — the
+    /// entry points that accept a trace builder do not collect them.
     #[must_use]
     pub fn with_tracing(mut self) -> Self {
         self.trace = true;
@@ -188,7 +193,7 @@ impl std::fmt::Debug for ExecutionTrace {
 pub struct DebugArtifacts {
     /// Gas profile output, if [`DebugConfig::profile`] was set.
     pub profile: Option<ProfileOutput>,
-    /// Instruction-level execution trace. `None` unless the run went through
-    /// the `MoveAuthenticator` path (see [`DebugConfig::with_tracing`]).
+    /// Instruction-level execution trace, if [`DebugConfig::trace`] was set and
+    /// the run could be traced (see [`DebugConfig::with_tracing`]).
     pub trace: Option<ExecutionTrace>,
 }

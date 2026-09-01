@@ -140,13 +140,12 @@ impl LocalVm {
                 opts.check_coin_deny_list,
             )?
         };
+        let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
         let sim = {
             let backend = StoreBackend::new(self.store.as_ref());
-            execute_prepared(&env, &backend, prepared, opts.mode)?
+            execute_prepared(&env, &backend, prepared, opts.mode, &mut trace_builder)?
         };
-        // The dev-inspect entry point accepts no `MoveTraceBuilder`, so this path
-        // never captures a trace; pass `None`. See `DebugConfig::with_tracing`.
-        let artifacts = env.collect_artifacts(None)?;
+        let artifacts = env.collect_artifacts(trace_builder.map(ExecutionTrace::from_builder))?;
         self.finish(sim, opts.mode, SignatureStatus::NotChecked, artifacts)
     }
 
@@ -160,9 +159,11 @@ impl LocalVm {
     ///
     /// `opts.mode` governs input-check relaxation
     /// ([`ExecutionMode::DevInspect`]) and commit
-    /// ([`ExecutionMode::Execute`]) as for [`execute`](Self::execute),
-    /// but the authenticators and transaction body always execute under full
-    /// (non-dev-inspect) VM semantics.
+    /// ([`ExecutionMode::Execute`]) as for [`execute`](Self::execute). When a
+    /// `MoveAuthenticator` is present, the authenticators and the transaction
+    /// body always execute under full (non-dev-inspect) VM semantics: in
+    /// [`ExecutionMode::DevInspect`] only the input checks and the gas budget
+    /// relax, and the VM-level relaxations do not apply.
     ///
     /// Signatures are verified against the transaction as supplied. Gas and
     /// owned-input references are then resolved against the store's versions,
@@ -222,16 +223,19 @@ impl LocalVm {
             let backend = StoreBackend::new(self.store.as_ref());
             if move_authenticators.is_empty() {
                 // Standard schemes were verified cryptographically above; the
-                // run's outcome cannot retroactively invalidate them. Runs
-                // through the dev-inspect entry point, so no trace is captured.
+                // run's outcome cannot retroactively invalidate them.
+                let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
+                let sim =
+                    execute_prepared(&env, &backend, prepared, opts.mode, &mut trace_builder)?;
                 (
-                    execute_prepared(&env, &backend, prepared, opts.mode)?,
+                    sim,
                     SignatureStatus::Verified,
-                    None,
+                    trace_builder.map(ExecutionTrace::from_builder),
                 )
             } else {
-                // Only the authenticator path threads a `MoveTraceBuilder`
-                // through the engine, so a trace is built only here.
+                // The authenticator entry point takes a trace builder in every
+                // mode and always runs under full VM semantics, so
+                // `ExecutionMode::supports_tracing` does not apply here.
                 let mut trace_builder = env.trace_enabled().then(MoveTraceBuilder::new);
 
                 let (sim, authenticator_outcome) = execute_with_move_authenticators(

@@ -351,7 +351,9 @@ fn move_authenticator_dry_run_meters_body_at_full_budget() {
 }
 
 /// The authenticator path threads a trace builder and a gas profiler through
-/// the engine, so a run with both enabled returns the captured artifacts.
+/// the engine, so a run with both enabled returns the captured artifacts —
+/// including in `DevInspect`, where a plain PTB captures no trace, because this
+/// entry point always runs under full VM semantics anyway.
 #[cfg(feature = "tracing")]
 #[test]
 fn move_authenticator_run_captures_trace_and_profile() {

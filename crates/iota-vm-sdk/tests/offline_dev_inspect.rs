@@ -72,7 +72,8 @@ fn dev_inspect_runs_offline_and_leaves_store_unchanged() {
 
 /// Dev-inspect meters at `max_tx_gas`, not the transaction's declared budget,
 /// so a zero-budget transaction (gas not yet settled — the common dev-inspect
-/// case) still runs, matching the node. Metering at the budget would abort this
+/// case) still runs, as it does through the node's
+/// `dev_inspect_transaction_block`. Metering at the budget would abort this
 /// with `InsufficientGas`.
 #[test]
 fn dev_inspect_succeeds_with_zero_gas_budget() {
