@@ -160,9 +160,9 @@ pub trait StateRead: Send + Sync {
     fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: (String, ObjectId),
+        cursor: Option<ObjectId>,
+        coin_type: Option<TypeTag>,
         limit: usize,
-        one_coin_type_only: bool,
     ) -> StateReadResult<Vec<IotaCoin>>;
     async fn get_executed_transaction_and_effects(
         &self,
@@ -383,14 +383,15 @@ impl StateRead for AuthorityState {
     fn get_owned_coins(
         &self,
         owner: Address,
-        cursor: (String, ObjectId),
+        cursor: Option<ObjectId>,
+        coin_type: Option<TypeTag>,
         limit: usize,
-        one_coin_type_only: bool,
     ) -> StateReadResult<Vec<IotaCoin>> {
         Ok(self
-            .get_owned_coins_iterator_with_cursor(owner, cursor, limit, one_coin_type_only)?
+            .get_owned_coins_page(owner, cursor, coin_type, limit)?
+            .into_iter()
             .map(|(coin_type, coin_object_id, coin)| IotaCoin {
-                coin_type,
+                coin_type: coin_type.to_string(),
                 coin_object_id,
                 version: coin.version,
                 digest: coin.digest,
@@ -415,7 +416,7 @@ impl StateRead for AuthorityState {
         owner: Address,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
-        let indexes = self.jsonrpc_indexes_store.clone();
+        let indexes = self.rpc_indexes_store.clone();
         Ok(tokio::task::spawn_blocking(move || {
             indexes
                 .as_ref()
@@ -430,7 +431,7 @@ impl StateRead for AuthorityState {
         &self,
         owner: Address,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
-        let indexes = self.jsonrpc_indexes_store.clone();
+        let indexes = self.rpc_indexes_store.clone();
         Ok(tokio::task::spawn_blocking(move || {
             indexes
                 .as_ref()
