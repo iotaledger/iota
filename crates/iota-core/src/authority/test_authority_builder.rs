@@ -41,10 +41,12 @@ use crate::{
         committee_store::CommitteeStore, epoch_metrics::EpochMetrics, randomness::RandomnessManager,
     },
     execution_cache::build_execution_cache,
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::{IndexStore, JSONRPC_INDEXES_DIR},
     mock_consensus::{ConsensusMode, MockConsensusClient},
     module_cache_metrics::ResolverMetrics,
+    rpc_indexes::{
+        IndexStore, JSONRPC_INDEXES_DIR,
+        grpc_api::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+    },
     signature_verifier::SignatureVerifierMetrics,
 };
 

@@ -34,8 +34,10 @@ use iota_core::{
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
     execution_cache::build_execution_cache_from_env,
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::{JSONRPC_INDEXES_DIR, JsonRpcIndexRestorer},
+    rpc_indexes::{
+        JSONRPC_INDEXES_DIR, JsonRpcIndexRestorer,
+        grpc_api::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+    },
     storage::RocksDbStore,
 };
 use iota_data_ingestion_core::history::reader::{
