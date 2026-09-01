@@ -3812,7 +3812,7 @@ async fn test_jsonrpc_index_rebuild_on_open() {
     // An empty index database on a node with executed checkpoints triggers
     // the rebuild.
     let index_dir = iota_common::tempdir();
-    let index_store = crate::jsonrpc_index::IndexStore::new(
+    let index_store = crate::rpc_indexes::IndexStore::new(
         index_dir.path().to_path_buf(),
         &prometheus_filtered::Registry::default(),
         Some(128),
@@ -3906,7 +3906,7 @@ async fn test_jsonrpc_index_rebuild_replays_object_pruned_checkpoints() {
         .unwrap();
 
     let index_dir = iota_common::tempdir();
-    let index_store = crate::jsonrpc_index::IndexStore::new(
+    let index_store = crate::rpc_indexes::IndexStore::new(
         index_dir.path().to_path_buf(),
         &prometheus_filtered::Registry::default(),
         Some(128),
@@ -3961,7 +3961,7 @@ async fn test_jsonrpc_index_rebuild_skips_contents_pruned_checkpoints() {
         .unwrap();
 
     let index_dir = iota_common::tempdir();
-    let index_store = crate::jsonrpc_index::IndexStore::new(
+    let index_store = crate::rpc_indexes::IndexStore::new(
         index_dir.path().to_path_buf(),
         &prometheus_filtered::Registry::default(),
         Some(128),
@@ -4364,7 +4364,7 @@ async fn test_dynamic_object_field_child_is_read_at_its_latest_version() {
     let resolve =
         |object_store: &dyn iota_types::storage::ObjectStore,
          layout_resolver: &mut dyn iota_types::layout_resolver::LayoutResolver| {
-            crate::jsonrpc_index::try_create_dynamic_field_info(
+            crate::rpc_indexes::try_create_dynamic_field_info(
                 &wrapper,
                 object_store,
                 layout_resolver,
