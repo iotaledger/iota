@@ -32,6 +32,7 @@ use crate::{
         big_int::BigInt,
         cursor::{JsonCursor, Page},
         epoch::Epoch,
+        int::try_into_int,
         iota_address::IotaAddress,
         move_object::MoveObject,
         object::Object,
@@ -247,15 +248,19 @@ impl Validator {
     }
 
     /// Number of exchange rates in the table.
-    async fn exchange_rates_size(&self) -> Option<UInt53> {
-        Some(self.validator_summary.exchange_rates_size.into())
+    async fn exchange_rates_size(&self) -> Result<Option<UInt53>> {
+        Ok(Some(
+            UInt53::try_from(self.validator_summary.exchange_rates_size).extend()?,
+        ))
     }
 
     /// The epoch at which this pool became active.
-    async fn staking_pool_activation_epoch(&self) -> Option<UInt53> {
+    async fn staking_pool_activation_epoch(&self) -> Result<Option<UInt53>> {
         self.validator_summary
             .staking_pool_activation_epoch
-            .map(UInt53::from)
+            .map(UInt53::try_from)
+            .transpose()
+            .extend()
     }
 
     /// The total number of IOTA tokens in this pool.
@@ -299,8 +304,10 @@ impl Validator {
 
     /// The voting power of this validator in basis points (e.g., 100 = 1%
     /// voting power).
-    async fn voting_power(&self) -> Option<u64> {
-        Some(self.validator_summary.voting_power)
+    async fn voting_power(&self) -> Result<Option<i32>> {
+        Ok(Some(
+            try_into_int(self.validator_summary.voting_power).extend()?,
+        ))
     }
 
     // TODO async fn stake_units(&self) -> Option<u64>{}
@@ -311,15 +318,17 @@ impl Validator {
     }
 
     /// The fee set by the validator for providing staking services.
-    async fn commission_rate(&self) -> Option<u64> {
-        Some(self.validator_summary.commission_rate)
+    async fn commission_rate(&self) -> Result<Option<i32>> {
+        Ok(Some(
+            try_into_int(self.validator_summary.commission_rate).extend()?,
+        ))
     }
 
     /// The effective fee charged by the validator for staking services.
     ///
     /// This is evaluated according to [IIP8](https://github.com/iotaledger/IIPs/blob/main/iips/IIP-0008/IIP-0008.md)
     /// for epochs with protocol version >= 20.
-    async fn effective_commission_rate(&self, ctx: &Context<'_>) -> Result<Option<u64>> {
+    async fn effective_commission_rate(&self, ctx: &Context<'_>) -> Result<Option<i32>> {
         let summary = &self.validator_summary;
         let epoch = Epoch::query(
             ctx,
@@ -331,10 +340,12 @@ impl Validator {
         if let Some(epoch) = epoch {
             if epoch.protocol_version() < PROTOCOL_VERSION_IIP8 {
                 // Pre IIP8
-                return Ok(Some(summary.commission_rate));
+                return Ok(Some(try_into_int(summary.commission_rate).extend()?));
             }
         }
-        Ok(Some(summary.commission_rate.max(summary.voting_power)))
+        Ok(Some(
+            try_into_int(summary.commission_rate.max(summary.voting_power)).extend()?,
+        ))
     }
 
     /// The total number of IOTA tokens in this pool plus
@@ -349,14 +360,16 @@ impl Validator {
     }
 
     /// The proposed next epoch fee for the validator's staking services.
-    async fn next_epoch_commission_rate(&self) -> Option<u64> {
-        Some(self.validator_summary.next_epoch_commission_rate)
+    async fn next_epoch_commission_rate(&self) -> Result<Option<i32>> {
+        Ok(Some(
+            try_into_int(self.validator_summary.next_epoch_commission_rate).extend()?,
+        ))
     }
 
     /// The number of epochs for which this validator has been below the
     /// low stake threshold.
-    async fn at_risk(&self) -> Option<UInt53> {
-        self.at_risk.map(UInt53::from)
+    async fn at_risk(&self) -> Result<Option<UInt53>> {
+        self.at_risk.map(UInt53::try_from).transpose().extend()
     }
 
     /// The addresses of other validators this validator has reported.
@@ -399,7 +412,7 @@ impl Validator {
 
     /// The APY of this validator in basis points. To get the APY in
     /// percentage, divide by 100.
-    async fn apy(&self, ctx: &Context<'_>) -> Result<Option<u64>, Error> {
+    async fn apy(&self, ctx: &Context<'_>) -> Result<Option<i32>, Error> {
         let DataLoader(loader) = ctx.data_unchecked();
         let exchange_rates = loader
             .load_one(self.requested_for_epoch)
@@ -416,9 +429,9 @@ impl Validator {
             .iter()
             .map(|(_, exchange_rate)| exchange_rate);
 
-        let avg_apy = Some(mean_apy_from_exchange_rates(rates));
+        let apy_basis_points = mean_apy_from_exchange_rates(rates) * 10000.0;
 
-        Ok(avg_apy.map(|x| (x * 10000.0) as u64))
+        Ok(Some(try_into_int(apy_basis_points as i64)?))
     }
 }
 
