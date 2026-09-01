@@ -15,6 +15,7 @@ use crate::{
         primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
     },
     models::{
+        account_key_links::StoredAccountKeyLink,
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
         objects::StoredBackwardHistoryObject,
@@ -73,6 +74,17 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn persist_displays(
         &self,
         display_updates: BTreeMap<String, StoredDisplay>,
+    ) -> Result<(), IndexerError>;
+
+    /// Upserts the latest state of each `(key_id, account_id)` link.
+    ///
+    /// `links` must hold at most one row per pair — see
+    /// `collapse_account_key_link_ops` — and each row must be the newest state
+    /// known for that pair, since an upsert only takes effect when it does not
+    /// move a link backwards in transaction order.
+    async fn persist_account_key_links(
+        &self,
+        links: Vec<StoredAccountKeyLink>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_packages(&self, packages: Vec<IndexedPackage>) -> Result<(), IndexerError>;

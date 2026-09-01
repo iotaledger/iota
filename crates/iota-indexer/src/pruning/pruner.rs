@@ -42,6 +42,11 @@ pub struct Pruner {
 /// string literals. This enum is also meant to facilitate the process of
 /// determining which unit (epoch, cp, or tx) should be used for the
 /// table's range. Pruner will ignore any table that is not listed here.
+///
+/// Tables holding state derived from history rather than history itself must
+/// stay off this list. `account_key_links`, in particular, is a fold of the
+/// event stream: pruning a row would drop a live key-to-account link that could
+/// only be recovered by replaying events this node may itself have pruned.
 #[derive(
     Debug,
     Eq,

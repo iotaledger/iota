@@ -43,6 +43,7 @@ use crate::{
     insert_or_ignore_into,
     metrics::IndexerMetrics,
     models::{
+        account_key_links::StoredAccountKeyLink,
         checkpoints::{StoredChainIdentifier, StoredCheckpoint, StoredCpTx},
         display::StoredDisplay,
         epoch::{StoredEpochInfo, StoredFeatureFlag, StoredProtocolConfig},
@@ -62,10 +63,10 @@ use crate::{
     pruning::pruner::PrunableTable,
     read_only_blocking, run_query, run_query_with_retry,
     schema::{
-        chain_identifier, checkpointed_objects, checkpoints, display, epochs, event_emit_module,
-        event_emit_package, event_senders, event_struct_instantiation, event_struct_module,
-        event_struct_name, event_struct_package, events, feature_flags, objects,
-        objects_backward_history, objects_version, optimistic_transactions, packages,
+        account_key_links, chain_identifier, checkpointed_objects, checkpoints, display, epochs,
+        event_emit_module, event_emit_package, event_senders, event_struct_instantiation,
+        event_struct_module, event_struct_name, event_struct_package, events, feature_flags,
+        objects, objects_backward_history, objects_version, optimistic_transactions, packages,
         protocol_configs, pruner_cp_watermark, transactions, tx_calls_fun, tx_calls_mod,
         tx_calls_pkg, tx_changed_objects, tx_digests, tx_global_order, tx_input_objects, tx_kinds,
         tx_recipients, tx_senders, tx_wrapped_or_deleted_objects, watermarks,
@@ -836,6 +837,52 @@ impl PgIndexerStore {
         })
         .tap_err(|e| {
             tracing::error!("failed to persist packages with error: {e}");
+        })
+    }
+
+    fn persist_account_key_links_chunk(
+        &self,
+        links: Vec<StoredAccountKeyLink>,
+    ) -> Result<(), IndexerError> {
+        use diesel::upsert::excluded;
+
+        let len = links.len();
+
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                for links_chunk in links.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                    // The guard makes the fold monotonic: a replayed or
+                    // out-of-order checkpoint can never move a link back to an
+                    // older state. Re-ingesting the same checkpoint writes the
+                    // same values, so it stays idempotent.
+                    on_conflict_do_update_with_condition!(
+                        account_key_links::table,
+                        links_chunk,
+                        (account_key_links::key_id, account_key_links::account_id),
+                        (
+                            account_key_links::scheme.eq(excluded(account_key_links::scheme)),
+                            account_key_links::source.eq(excluded(account_key_links::source)),
+                            account_key_links::status.eq(excluded(account_key_links::status)),
+                            account_key_links::last_change_tx_sequence_number
+                                .eq(excluded(account_key_links::last_change_tx_sequence_number)),
+                            account_key_links::last_change_epoch
+                                .eq(excluded(account_key_links::last_change_epoch)),
+                        ),
+                        excluded(account_key_links::last_change_tx_sequence_number)
+                            .ge(account_key_links::last_change_tx_sequence_number),
+                        conn
+                    );
+                }
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            info!("Persisted {len} chunked account key links");
+        })
+        .tap_err(|e| {
+            tracing::error!("failed to persist account key links with error: {e}");
         })
     }
 
@@ -1937,6 +1984,41 @@ impl IndexerStore for PgIndexerStore {
             })?;
         let elapsed = guard.stop_and_record();
         info!(elapsed, "Persisted {} events", len);
+        Ok(())
+    }
+
+    async fn persist_account_key_links(
+        &self,
+        links: Vec<StoredAccountKeyLink>,
+    ) -> Result<(), IndexerError> {
+        if links.is_empty() {
+            return Ok(());
+        }
+        let len = links.len();
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_account_key_links
+            .start_timer();
+        let chunks = chunk!(links, self.config.parallel_chunk_size);
+        let futures = chunks
+            .into_iter()
+            .map(|c| self.spawn_blocking_task(move |this| this.persist_account_key_links_chunk(c)));
+
+        futures::future::try_join_all(futures)
+            .await
+            .map_err(|e| {
+                tracing::error!("failed to join persist_account_key_links_chunk futures: {e}");
+                IndexerError::from(e)
+            })?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                IndexerError::PostgresWrite(format!(
+                    "Failed to persist all account key links chunks: {e:?}"
+                ))
+            })?;
+        let elapsed = guard.stop_and_record();
+        info!(elapsed, "Persisted {} account key links", len);
         Ok(())
     }
 

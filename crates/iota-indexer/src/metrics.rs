@@ -127,6 +127,7 @@ pub struct IndexerMetrics {
     pub checkpoint_db_commit_latency_events_chunks: Histogram,
     pub checkpoint_db_commit_latency_event_indices: Histogram,
     pub checkpoint_db_commit_latency_event_indices_chunks: Histogram,
+    pub checkpoint_db_commit_latency_account_key_links: Histogram,
     pub checkpoint_db_commit_latency_packages: Histogram,
     pub checkpoint_db_commit_latency_tx_indices: Histogram,
     pub checkpoint_db_commit_latency_tx_indices_chunks: Histogram,
@@ -493,6 +494,13 @@ impl IndexerMetrics {
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
+            checkpoint_db_commit_latency_account_key_links: register_histogram_with_registry!(
+                "checkpoint_db_commit_latency_account_key_links",
+                "Time spent committing account key links",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
             checkpoint_db_commit_latency_events: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_events",
                 "Time spent committing events",

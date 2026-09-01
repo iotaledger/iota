@@ -32,6 +32,7 @@ use itertools::Itertools;
 use tracing::{info, warn};
 
 use crate::{
+    account_key_events::{AccountKeyLinkOp, account_key_link_ops},
     db::ConnectionPool,
     errors::IndexerError,
     ingestion::{
@@ -248,21 +249,35 @@ impl PrimaryWorker {
         let object_versions = Self::index_object_versions(data);
         let backward_history_changes = Self::index_objects_backward_history(data)?;
 
-        let (checkpoint, db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) = {
+        let (
+            checkpoint,
+            db_transactions,
+            db_events,
+            db_tx_indices,
+            db_event_indices,
+            db_displays,
+            db_account_key_link_ops,
+        ) = {
             let CheckpointData {
                 transactions,
                 checkpoint_summary,
                 checkpoint_contents,
             } = data;
 
-            let (db_transactions, db_events, db_tx_indices, db_event_indices, db_displays) =
-                Self::index_transactions(
-                    transactions,
-                    checkpoint_summary,
-                    checkpoint_contents,
-                    &metrics,
-                )
-                .await?;
+            let (
+                db_transactions,
+                db_events,
+                db_tx_indices,
+                db_event_indices,
+                db_displays,
+                db_account_key_link_ops,
+            ) = Self::index_transactions(
+                transactions,
+                checkpoint_summary,
+                checkpoint_contents,
+                &metrics,
+            )
+            .await?;
 
             let successful_tx_num: u64 = db_transactions.iter().map(|t| t.successful_tx_num).sum();
             (
@@ -276,6 +291,7 @@ impl PrimaryWorker {
                 db_tx_indices,
                 db_event_indices,
                 db_displays,
+                db_account_key_link_ops,
             )
         };
         let time_now_ms = chrono::Utc::now().timestamp_millis();
@@ -300,6 +316,7 @@ impl PrimaryWorker {
             tx_indices: db_tx_indices,
             event_indices: db_event_indices,
             display_updates: db_displays,
+            account_key_link_ops: db_account_key_link_ops,
             object_changes,
             backward_history_changes,
             object_versions,
@@ -319,8 +336,10 @@ impl PrimaryWorker {
         Vec<TxIndex>,
         Vec<EventIndex>,
         BTreeMap<String, StoredDisplay>,
+        Vec<AccountKeyLinkOp>,
     )> {
         let checkpoint_seq = checkpoint_summary.sequence_number();
+        let checkpoint_epoch = checkpoint_summary.epoch as i64;
 
         let mut tx_seq_num_iter = checkpoint_contents
             .enumerate_transactions(checkpoint_summary)
@@ -339,6 +358,7 @@ impl PrimaryWorker {
         let mut db_displays = BTreeMap::new();
         let mut db_tx_indices = Vec::new();
         let mut db_event_indices = Vec::new();
+        let mut db_account_key_link_ops = Vec::new();
 
         for tx in transactions {
             // Unwrap safe - we checked they have equal length above
@@ -364,6 +384,14 @@ impl PrimaryWorker {
             db_events.extend(indexed_events);
             db_event_indices.extend(events_indices);
             db_displays.extend(stored_displays);
+            // Events arrive in emission order within a transaction, and
+            // transactions in checkpoint order, so the ops accumulate in exactly
+            // the total order the discoverability fold is defined over.
+            db_account_key_link_ops.extend(tx.events.iter().flat_map(|events| {
+                events.iter().flat_map(|event| {
+                    account_key_link_ops(event, tx_sequence_number as i64, checkpoint_epoch)
+                })
+            }));
         }
         Ok((
             db_transactions,
@@ -371,6 +399,7 @@ impl PrimaryWorker {
             db_tx_indices,
             db_event_indices,
             db_displays,
+            db_account_key_link_ops,
         ))
     }
 

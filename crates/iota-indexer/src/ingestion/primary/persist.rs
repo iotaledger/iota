@@ -1,6 +1,6 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 use futures::{StreamExt, stream::ReadyChunks};
 use iota_metrics::metered_channel::ReceiverStream;
@@ -8,12 +8,14 @@ use tap::tap::TapFallible;
 use tracing::{error, info, instrument};
 
 use crate::{
+    account_key_events::AccountKeyLinkOp,
     ingestion::common::{
         persist::{CHECKPOINT_COMMIT_BATCH_SIZE, CommitterTables, CommitterWatermark},
         prepare::CheckpointObjectChanges,
     },
     metrics::IndexerMetrics,
     models::{
+        account_key_links::StoredAccountKeyLink,
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
@@ -33,6 +35,7 @@ pub(crate) struct CheckpointDataToCommit {
     pub(crate) event_indices: Vec<EventIndex>,
     pub(crate) tx_indices: Vec<TxIndex>,
     pub(crate) display_updates: BTreeMap<String, StoredDisplay>,
+    pub(crate) account_key_link_ops: Vec<AccountKeyLinkOp>,
     pub(crate) object_changes: CheckpointObjectChanges,
     pub(crate) backward_history_changes: Vec<StoredBackwardHistoryObject>,
     pub(crate) object_versions: Vec<StoredObjectVersion>,
@@ -105,6 +108,7 @@ impl PrimaryWriter {
         let mut tx_indices_batch = Vec::with_capacity(batch_len);
         let mut event_indices_batch = Vec::with_capacity(batch_len);
         let mut display_updates_batch = BTreeMap::new();
+        let mut account_key_link_ops_batch = Vec::new();
         let mut object_changes_batch = Vec::with_capacity(batch_len);
         let mut backward_history_batch = Vec::new();
         let mut object_versions_batch = Vec::with_capacity(batch_len);
@@ -118,6 +122,7 @@ impl PrimaryWriter {
                 event_indices,
                 tx_indices,
                 display_updates,
+                account_key_link_ops,
                 object_changes,
                 backward_history_changes,
                 object_versions,
@@ -130,6 +135,7 @@ impl PrimaryWriter {
             tx_indices_batch.push(tx_indices);
             event_indices_batch.push(event_indices);
             display_updates_batch.extend(display_updates.into_iter());
+            account_key_link_ops_batch.extend(account_key_link_ops);
             object_changes_batch.push(object_changes);
             backward_history_batch.extend(backward_history_changes);
             object_versions_batch.push(object_versions);
@@ -154,6 +160,7 @@ impl PrimaryWriter {
             .flatten()
             .collect::<Vec<_>>();
         let packages_batch = packages_batch.into_iter().flatten().collect::<Vec<_>>();
+        let account_key_links_batch = collapse_account_key_link_ops(&account_key_link_ops_batch);
         let checkpoint_num = checkpoint_batch.len();
         let tx_count = tx_batch.len();
 
@@ -169,6 +176,8 @@ impl PrimaryWriter {
                 self.state.persist_event_indices(event_indices_batch),
                 self.state.persist_displays(display_updates_batch),
                 self.state.persist_packages(packages_batch),
+                self.state
+                    .persist_account_key_links(account_key_links_batch),
                 self.state
                     .persist_object_versions(object_versions_batch.clone()),
                 Box::pin({
@@ -299,5 +308,102 @@ impl PrimaryWriter {
         self.metrics
             .thousand_transaction_avg_db_commit_latency
             .observe(elapsed * 1000.0 / tx_count as f64);
+    }
+}
+
+/// Reduces a batch of discoverability fold steps to one row per
+/// `(key_id, account_id)` pair.
+///
+/// `ops` must be in fold order — `(checkpoint, transaction, event)` — because
+/// the last op for a pair is the one that survives. Collapsing here rather than
+/// relying on the order of the upsert statements keeps the written state
+/// independent of how the batch is chunked or of any intra-batch write order.
+fn collapse_account_key_link_ops(ops: &[AccountKeyLinkOp]) -> Vec<StoredAccountKeyLink> {
+    let mut latest: HashMap<(&[u8], &[u8]), StoredAccountKeyLink> = HashMap::new();
+    for op in ops {
+        latest.insert(
+            (op.key_id.as_slice(), op.account_id.as_slice()),
+            StoredAccountKeyLink::from(op),
+        );
+    }
+    latest.into_values().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        account_key_events::{AccountKeyLinkOp, LinkOpKind, LinkSource},
+        models::account_key_links::{LINK_STATUS_ACTIVE, LINK_STATUS_UNLINKED},
+    };
+
+    fn op(
+        key_id: u8,
+        account_id: u8,
+        source: LinkSource,
+        kind: LinkOpKind,
+        tx_sequence_number: i64,
+    ) -> AccountKeyLinkOp {
+        AccountKeyLinkOp {
+            key_id: vec![key_id; 32],
+            account_id: vec![account_id; 32],
+            scheme: 0,
+            source,
+            kind,
+            tx_sequence_number,
+            epoch: 0,
+        }
+    }
+
+    #[test]
+    fn collapsing_keeps_the_last_op_per_pair() {
+        // A key attached, then rotated away, all within one batch: only the
+        // tombstone should be written.
+        let ops = vec![
+            op(0xAA, 0x11, LinkSource::Attach, LinkOpKind::Link, 1),
+            op(0xAA, 0x11, LinkSource::Rotate, LinkOpKind::Unlink, 2),
+        ];
+
+        let rows = collapse_account_key_link_ops(&ops);
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].status, LINK_STATUS_UNLINKED);
+        assert_eq!(rows[0].source, LinkSource::Rotate as i16);
+        assert_eq!(rows[0].last_change_tx_sequence_number, 2);
+    }
+
+    #[test]
+    fn collapsing_keeps_distinct_pairs_apart() {
+        let ops = vec![
+            op(0xAA, 0x11, LinkSource::Claim, LinkOpKind::Link, 1),
+            op(0xAA, 0x22, LinkSource::Attach, LinkOpKind::Link, 2),
+            op(0xBB, 0x11, LinkSource::Attach, LinkOpKind::Link, 3),
+        ];
+
+        let mut rows = collapse_account_key_link_ops(&ops);
+        rows.sort_by(|a, b| (&a.key_id, &a.account_id).cmp(&(&b.key_id, &b.account_id)));
+
+        assert_eq!(rows.len(), 3);
+        assert!(rows.iter().all(|row| row.status == LINK_STATUS_ACTIVE));
+    }
+
+    #[test]
+    fn collapsing_a_rotation_back_to_the_same_key_leaves_it_active() {
+        // `PublicKeyRotated { from: k, to: k }` emits unlink(k) then link(k);
+        // the fold order is what makes the link survive.
+        let ops = vec![
+            op(0xAA, 0x11, LinkSource::Rotate, LinkOpKind::Unlink, 5),
+            op(0xAA, 0x11, LinkSource::Rotate, LinkOpKind::Link, 5),
+        ];
+
+        let rows = collapse_account_key_link_ops(&ops);
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].status, LINK_STATUS_ACTIVE);
+    }
+
+    #[test]
+    fn collapsing_an_empty_batch_writes_nothing() {
+        assert!(collapse_account_key_link_ops(&[]).is_empty());
     }
 }
