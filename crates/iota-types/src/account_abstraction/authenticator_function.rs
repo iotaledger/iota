@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     account_abstraction::account::AuthenticatorFunctionRefV1Key,
     dynamic_field::{self, Field},
-    error::{IotaError, UserInputError, UserInputResult},
+    error::{ExecutionError, IotaError, UserInputError, UserInputResult},
     execution::DynamicallyLoadedObjectMetadata,
     move_authenticator::MoveAuthenticator,
     object::Object,
@@ -118,13 +118,36 @@ impl AuthenticatorFunctionRefForExecution {
 }
 
 /// A `MoveAuthenticator` with the inputs and account resolution it executes
-/// with.
-pub struct MoveAuthenticatorForExecution {
+/// with. `FunctionRef` is `Option`al only inside
+/// [`MoveAuthenticatorsForExecution::ResolutionFailed`].
+pub struct MoveAuthenticatorForExecution<FunctionRef = AuthenticatorFunctionRefForExecution> {
     pub authenticator: MoveAuthenticator,
-    /// `None` when resolution failed before execution; the failure travels as
-    /// the pre-authentication error.
-    pub function_ref: Option<AuthenticatorFunctionRefForExecution>,
+    pub function_ref: FunctionRef,
     pub input_objects: CheckedInputObjects,
+}
+
+impl From<MoveAuthenticatorForExecution>
+    for MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>
+{
+    fn from(authenticator: MoveAuthenticatorForExecution) -> Self {
+        Self {
+            authenticator: authenticator.authenticator,
+            function_ref: Some(authenticator.function_ref),
+            input_objects: authenticator.input_objects,
+        }
+    }
+}
+
+/// The Move authenticators a transaction executes with: either every
+/// authenticator's function ref resolved, or resolution failed before
+/// execution and the failure travels with the authenticators so an
+/// attestation can still be judged at the recorded versions.
+pub enum MoveAuthenticatorsForExecution {
+    Resolved(Vec<MoveAuthenticatorForExecution>),
+    ResolutionFailed {
+        authenticators: Vec<MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>>,
+        error: ExecutionError,
+    },
 }
 
 /// Checks that a loaded account object can authenticate `signer` and returns

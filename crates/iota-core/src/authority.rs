@@ -63,7 +63,8 @@ use iota_types::committee::CommitteeTrait;
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
-        MoveAuthenticatorForExecution, authenticator_function_ref_v1_from_dynamic_field_object,
+        MoveAuthenticatorForExecution, MoveAuthenticatorsForExecution,
+        authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
         validate_account_object,
     },
@@ -1254,7 +1255,7 @@ impl AuthorityState {
                     .map(|((ma, function_ref), (input_objects, _))| {
                         MoveAuthenticatorForExecution {
                             authenticator: ma.to_owned(),
-                            function_ref: Some(function_ref),
+                            function_ref,
                             input_objects,
                         }
                     })
@@ -1265,8 +1266,7 @@ impl AuthorityState {
                         authenticators_for_exec
                             .iter()
                             .find(|a| a.authenticator.address() == address)
-                            .and_then(|a| a.function_ref.as_ref())
-                            .map(|f| f.authenticator_function_ref.clone())
+                            .map(|a| a.function_ref.authenticator_function_ref.clone())
                     });
 
                 let (sender_auth_digest, sponsor_auth_digest) =
@@ -1296,13 +1296,12 @@ impl AuthorityState {
                         epoch_start_timestamp,
                         gas_data,
                         gas_status,
-                        authenticators_for_exec,
+                        MoveAuthenticatorsForExecution::Resolved(authenticators_for_exec),
                         auth_and_tx_checked,
                         kind,
                         signer,
                         tx_digest,
                         auth_context_data,
-                        None,
                         None,
                         &mut None,
                     );
@@ -2257,6 +2256,28 @@ impl AuthorityState {
                 sponsor_authenticator_function_ref,
             };
 
+            let move_authenticators = match pre_authentication_error {
+                Some(error) => MoveAuthenticatorsForExecution::ResolutionFailed {
+                    authenticators: move_authenticators,
+                    error,
+                },
+                None => MoveAuthenticatorsForExecution::Resolved(
+                    move_authenticators
+                        .into_iter()
+                        .map(|authenticator| {
+                            let function_ref = authenticator.function_ref.expect(
+                                "no pre-authentication error, so every function ref resolved",
+                            );
+                            MoveAuthenticatorForExecution {
+                                authenticator: authenticator.authenticator,
+                                function_ref,
+                                input_objects: authenticator.input_objects,
+                            }
+                        })
+                        .collect(),
+                ),
+            };
+
             // Only attested transactions can have their Move-authentication
             // failure attributed, and only they carry recorded versions to judge.
             let attested_object_versions =
@@ -2299,7 +2320,6 @@ impl AuthorityState {
                     signer,
                     tx_digest,
                     auth_context_data,
-                    pre_authentication_error,
                     attestation_verdict_context,
                     &mut None,
                 );

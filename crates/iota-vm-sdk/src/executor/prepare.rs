@@ -16,7 +16,7 @@ use iota_sdk_types::{Address, Digest, Event, ObjectId, ObjectReference};
 use iota_types::{
     account_abstraction::authenticator_function::{
         AuthenticatorFunctionRefForExecution, MoveAuthenticatorForExecution,
-        authenticator_function_ref_v1_from_dynamic_field_object,
+        MoveAuthenticatorsForExecution, authenticator_function_ref_v1_from_dynamic_field_object,
         derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
     },
     auth_context::AuthContextData,
@@ -370,7 +370,7 @@ pub(super) fn execute_with_move_authenticators(
         .iter()
         .map(|(a, fn_ref, inputs)| MoveAuthenticatorForExecution {
             authenticator: a.clone(),
-            function_ref: Some(fn_ref.clone()),
+            function_ref: fn_ref.clone(),
             input_objects: CheckedInputObjects::new_with_checked_transaction_inputs(
                 inputs.clone(),
             ),
@@ -389,13 +389,12 @@ pub(super) fn execute_with_move_authenticators(
             env.epoch_timestamp_ms,
             gas_data,
             gas_status,
-            exec_authenticators,
+            MoveAuthenticatorsForExecution::Resolved(exec_authenticators),
             union_checked,
             kind,
             signer,
             transaction.digest(),
             auth_context_data.clone(),
-            None,
             None,
             trace_builder_opt,
         );

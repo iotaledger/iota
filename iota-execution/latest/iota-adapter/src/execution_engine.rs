@@ -29,6 +29,7 @@ mod checked {
         account_abstraction::authenticator_function::{
             AuthenticatorFunctionRef, AuthenticatorFunctionRefForExecution,
             AuthenticatorFunctionRefV1, MoveAuthenticatorForExecution,
+            MoveAuthenticatorsForExecution,
             authenticator_function_ref_v1_from_dynamic_field_object,
             derive_authenticator_function_ref_v1_dynamic_field_id, extract_auth_fun_refs,
             validate_account_object,
@@ -310,15 +311,13 @@ mod checked {
         gas_data: GasPayment,
         gas_status: IotaGasStatus,
         // Authentication
-        authenticators: Vec<MoveAuthenticatorForExecution>,
+        authenticators: MoveAuthenticatorsForExecution,
         authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: Address,
         transaction_digest: TransactionDigest,
         auth_context_data: AuthContextData,
-        // A structural Move-authentication failure resolved before execution.
-        pre_authentication_error: Option<ExecutionError>,
         // The attestor's recorded object versions, for attested transactions.
         attestation_verdict_context: Option<AttestationVerdictContext<'_>>,
         // Tracing
@@ -392,105 +391,76 @@ mod checked {
         );
         let tx_ctx = Rc::new(RefCell::new(tx_ctx));
 
-        // Retain the authenticators so a Move-authentication failure can be
-        // judged at the versions the attestor recorded.
-        let authenticators_for_reauth = attestation_verdict_context.as_ref().map(|_| {
-            authenticators
-                .iter()
-                .map(|authenticator| {
-                    (
-                        authenticator.authenticator.clone(),
-                        authenticator.function_ref.clone(),
-                        authenticator.input_objects.inner().clone(),
-                    )
-                })
-                .collect::<Vec<_>>()
-        });
-
-        // Prepare the authenticators for execution, storing each loaded
-        // function-ref field object's metadata in the `TemporaryStore` first.
-        let authenticators = if pre_authentication_error.is_some() {
-            Vec::new()
-        } else {
-            authenticators
-                .into_iter()
-                .map(|authenticator| {
-                    let MoveAuthenticatorForExecution {
-                        authenticator,
-                        function_ref,
-                        input_objects,
-                    } = authenticator;
-                    let AuthenticatorFunctionRefForExecution {
-                        authenticator_function_ref,
-                        loaded_object_id,
-                        loaded_object_metadata,
-                    } = function_ref.expect(
-                        "function refs are resolved unless a pre-authentication error is set",
-                    );
-
-                    temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
-                        loaded_object_id,
-                        loaded_object_metadata,
-                    )]));
-
-                    (authenticator, authenticator_function_ref, input_objects)
-                })
-                .collect::<Vec<_>>()
-        };
-
         // Authentication execution.
         // It does not alter the state, if not for command execution gas charging, and
         // produces no effects other than possible errors.
 
-        // Run each authenticator in sequence; the first failure aborts the chain.
-        let authentication_execution_result = authenticators.into_iter().try_for_each(
-            |(authenticator, authenticator_function_ref, authenticator_input_objects)| {
-                match authenticator_function_ref {
-                    AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
-                        authenticate_transaction_inner(
-                            &mut temporary_store,
-                            protocol_config,
-                            metrics.clone(),
-                            &mut gas_charger,
-                            authenticator,
-                            authenticator_function_ref_v1,
-                            &authenticator_input_objects.into_inner(),
-                            transaction_kind.clone(),
-                            transaction_digest,
-                            auth_context_data.clone(),
-                            tx_ctx.clone(),
-                            trace_builder_opt,
-                            move_vm,
-                        )
+        // Run each authenticator in sequence; the first failure aborts the
+        // chain. The authenticators are only borrowed, so a failure can be
+        // judged at the versions the attestor recorded without cloning the
+        // input objects up front. A resolution failure skips the run and
+        // carries its error instead.
+        let (authenticators, authentication_execution_result, is_structural_failure) =
+            match authenticators {
+                MoveAuthenticatorsForExecution::Resolved(authenticators) => {
+                    // Store each loaded function-ref field object's metadata
+                    // in the `TemporaryStore` before any authenticator runs.
+                    for authenticator in &authenticators {
+                        temporary_store.save_loaded_runtime_objects(BTreeMap::from([(
+                            authenticator.function_ref.loaded_object_id,
+                            authenticator.function_ref.loaded_object_metadata.clone(),
+                        )]));
                     }
+                    let result = authenticators.iter().try_for_each(|authenticator| {
+                        match &authenticator.function_ref.authenticator_function_ref {
+                            AuthenticatorFunctionRef::V1(authenticator_function_ref_v1) => {
+                                authenticate_transaction_inner(
+                                    &mut temporary_store,
+                                    protocol_config,
+                                    metrics.clone(),
+                                    &mut gas_charger,
+                                    authenticator.authenticator.clone(),
+                                    authenticator_function_ref_v1.clone(),
+                                    authenticator.input_objects.inner(),
+                                    transaction_kind.clone(),
+                                    transaction_digest,
+                                    auth_context_data.clone(),
+                                    tx_ctx.clone(),
+                                    trace_builder_opt,
+                                    move_vm,
+                                )
+                            }
+                        }
+                    });
+                    let result = report_authentication_error(result, protocol_config);
+                    (
+                        authenticators.into_iter().map(Into::into).collect(),
+                        result,
+                        false,
+                    )
                 }
-            },
-        );
-
-        let authentication_execution_result =
-            report_authentication_error(authentication_execution_result, protocol_config);
-
-        let is_structural_failure = pre_authentication_error.is_some();
-        let authentication_execution_result = match pre_authentication_error {
-            Some(error) => Err(error),
-            None => authentication_execution_result,
-        };
+                MoveAuthenticatorsForExecution::ResolutionFailed {
+                    authenticators,
+                    error,
+                } => (authenticators, Err(error), true),
+            };
 
         // Judge a failed attested authentication: re-run at the recorded
         // versions unless the attestation is already refuted.
         let authentication_execution_result = match (
             authentication_execution_result,
-            authenticators_for_reauth,
             &attestation_verdict_context,
         ) {
-            (Err(error), Some(reauth_authenticators), Some(verdict_context)) => {
-                let executed_versions: BTreeMap<ObjectId, Version> = reauth_authenticators
+            (Err(error), Some(verdict_context)) => {
+                let executed_versions: BTreeMap<ObjectId, Version> = authenticators
                     .iter()
-                    .flat_map(|(_, function_ref, input_objects)| {
-                        input_objects
+                    .flat_map(|authenticator| {
+                        authenticator
+                            .input_objects
+                            .inner()
                             .iter()
                             .map(|object| (object.id(), object.version()))
-                            .chain(function_ref.as_ref().map(|function_ref| {
+                            .chain(authenticator.function_ref.as_ref().map(|function_ref| {
                                 (
                                     function_ref.loaded_object_id,
                                     function_ref.loaded_object_metadata.version,
@@ -513,7 +483,7 @@ mod checked {
                         rgp,
                         gas_budget,
                         verdict_context.computation_units,
-                        reauth_authenticators,
+                        authenticators,
                         verdict_context.object_versions,
                         &transaction_kind,
                         transaction_digest,
@@ -533,7 +503,7 @@ mod checked {
                     )),
                 }
             }
-            (result, _, _) => result,
+            (result, _) => result,
         };
 
         // TODO: enhance the way the authenticator error is propagated https://github.com/iotaledger/iota/issues/11986
@@ -593,11 +563,7 @@ mod checked {
         reference_gas_price: u64,
         gas_budget: u64,
         attested_computation_units: u64,
-        authenticators: Vec<(
-            MoveAuthenticator,
-            Option<AuthenticatorFunctionRefForExecution>,
-            InputObjects,
-        )>,
+        authenticators: Vec<MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>>,
         attested_object_versions: &[ObjectReference],
         transaction_kind: &TransactionKind,
         transaction_digest: TransactionDigest,
@@ -629,7 +595,13 @@ mod checked {
         // rebuilt auth context carries the same function refs the re-run
         // executes.
         let mut resolved = Vec::with_capacity(authenticators.len());
-        for (authenticator, function_ref, input_objects) in authenticators {
+        for authenticator in authenticators {
+            let MoveAuthenticatorForExecution {
+                authenticator,
+                function_ref,
+                input_objects,
+            } = authenticator;
+            let input_objects = input_objects.into_inner();
             let Some(reloaded_input_objects) = reload_input_objects_at_attested_versions(
                 &input_objects,
                 &attested_versions,
