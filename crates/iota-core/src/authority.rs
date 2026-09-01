@@ -1252,13 +1252,13 @@ impl AuthorityState {
                     .into_iter()
                     .zip(funcs_for_exec)
                     .zip(per_authenticator_checked_inputs)
-                    .map(|((ma, function_ref), (input_objects, _))| {
-                        MoveAuthenticatorForExecution {
+                    .map(
+                        |((ma, function_ref), (input_objects, _))| MoveAuthenticatorForExecution {
                             authenticator: ma.to_owned(),
                             function_ref,
                             input_objects,
-                        }
-                    })
+                        },
+                    )
                     .collect::<Vec<_>>();
 
                 let (sender_authenticator_function_ref, sponsor_authenticator_function_ref) =
@@ -1965,9 +1965,7 @@ impl AuthorityState {
             transaction.clone().into_unsigned(),
             effects.clone(),
             inner_temporary_store,
-            epoch_store
-                .protocol_config()
-                .enable_validator_attestation(),
+            epoch_store.protocol_config().enable_validator_attestation(),
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;

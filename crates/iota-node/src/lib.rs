@@ -2253,10 +2253,7 @@ impl IotaNode {
             );
         state
             .try_execute_immediately(
-                &iota_core::transaction_manager::VerifiedExecutableAttestedTransaction::new(
-                    transaction,
-                    None,
-                ),
+                &iota_core::VerifiedExecutableAttestedTransaction::new(transaction, None),
                 None,
                 epoch_store,
             )

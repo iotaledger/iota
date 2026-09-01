@@ -8,6 +8,7 @@ use std::{
 };
 
 use iota_core::{
+    VerifiedExecutableAttestedTransaction,
     authority::{
         AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore,
         test_authority_builder::TestAuthorityBuilder,
@@ -19,7 +20,6 @@ use iota_core::{
     },
     global_state_hasher::GlobalStateHasher,
     mock_consensus::{ConsensusMode, MockConsensusClient},
-    transaction_manager::VerifiedExecutableAttestedTransaction,
 };
 use iota_sdk_types::{Address, ObjectReference, TransactionDigest};
 use iota_test_transaction_builder::{PublishData, TestTransactionBuilder};

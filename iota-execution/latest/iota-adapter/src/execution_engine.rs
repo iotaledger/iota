@@ -563,7 +563,9 @@ mod checked {
         reference_gas_price: u64,
         gas_budget: u64,
         attested_computation_units: u64,
-        authenticators: Vec<MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>>,
+        authenticators: Vec<
+            MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>,
+        >,
         attested_object_versions: &[ObjectReference],
         transaction_kind: &TransactionKind,
         transaction_digest: TransactionDigest,
@@ -598,7 +600,7 @@ mod checked {
         for authenticator in authenticators {
             let MoveAuthenticatorForExecution {
                 authenticator,
-                function_ref,
+                function_ref: _,
                 input_objects,
             } = authenticator;
             let input_objects = input_objects.into_inner();
@@ -616,78 +618,46 @@ mod checked {
                 return false;
             };
 
-            let function_ref_for_execution = match function_ref {
-                // Resolved at execution; reload the function-ref field at its
-                // recorded version when it drifted.
-                Some(function_ref_for_execution) => {
-                    let field_object_id = function_ref_for_execution.loaded_object_id;
-                    match attested_versions.get(&field_object_id) {
-                        Some(object_ref)
-                            if object_ref.version()
-                                != function_ref_for_execution.loaded_object_metadata.version =>
-                        {
-                            let Some(field_object) =
-                                store.get_object_by_key(&field_object_id, object_ref.version())
-                            else {
-                                return true;
-                            };
-                            match authenticator_function_ref_v1_from_dynamic_field_object(
-                                account_id,
-                                &field_object,
-                            ) {
-                                Ok(resolved) => resolved,
-                                Err(_) => return false,
-                            }
-                        }
-                        _ => function_ref_for_execution,
-                    }
-                }
-                // A structural failure left the function ref unresolved:
-                // resolve it from the recorded state, anchored at the account
-                // object exactly like execution resolves it.
-                None => {
-                    let Some(attested_account) = attested_versions.get(&account_id) else {
-                        return false;
-                    };
-                    let Some(account_object) =
-                        store.get_object_by_key(&account_id, attested_account.version())
-                    else {
-                        return true;
-                    };
-                    let Ok(account_version) = validate_account_object(
-                        account_id,
-                        pinned_version,
-                        pinned_digest,
-                        &authenticator.address(),
-                        &account_object,
-                    ) else {
-                        return false;
-                    };
-                    let Ok(field_object_id) =
-                        derive_authenticator_function_ref_v1_dynamic_field_id(account_id)
-                    else {
-                        return false;
-                    };
-                    let field_object = match store.read_child_object(
-                        &account_id,
-                        &field_object_id,
-                        account_version,
-                    ) {
-                        Ok(Some(field_object)) => field_object,
-                        // The structural failure reproduces at the recorded
-                        // state.
-                        Ok(None) => return false,
-                        Err(_) => return true,
-                    };
-                    match authenticator_function_ref_v1_from_dynamic_field_object(
-                        account_id,
-                        &field_object,
-                    ) {
-                        Ok(resolved) => resolved,
-                        Err(_) => return false,
-                    }
-                }
+            // The function ref is resolved from the recorded state, anchored
+            // at the account exactly like execution resolves it: deriving the
+            // field from the account version means a recorded account/field
+            // pair that never coexisted cannot be judged at.
+            let Some(account_object) = reloaded_input_objects
+                .iter()
+                .find(|object| object.id() == account_id)
+                .and_then(|object| object.as_object())
+            else {
+                return false;
             };
+            let Ok(account_version) = validate_account_object(
+                account_id,
+                pinned_version,
+                pinned_digest,
+                &authenticator.address(),
+                account_object,
+            ) else {
+                return false;
+            };
+            let Ok(field_object_id) =
+                derive_authenticator_function_ref_v1_dynamic_field_id(account_id)
+            else {
+                return false;
+            };
+            let field_object =
+                match store.read_child_object(&account_id, &field_object_id, account_version) {
+                    Ok(Some(field_object)) => field_object,
+                    // The structural failure reproduces at the recorded state.
+                    Ok(None) => return false,
+                    Err(_) => return true,
+                };
+            let function_ref_for_execution =
+                match authenticator_function_ref_v1_from_dynamic_field_object(
+                    account_id,
+                    &field_object,
+                ) {
+                    Ok(resolved) => resolved,
+                    Err(_) => return false,
+                };
 
             resolved.push((
                 authenticator,

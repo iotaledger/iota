@@ -145,7 +145,8 @@ impl From<MoveAuthenticatorForExecution>
 pub enum MoveAuthenticatorsForExecution {
     Resolved(Vec<MoveAuthenticatorForExecution>),
     ResolutionFailed {
-        authenticators: Vec<MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>>,
+        authenticators:
+            Vec<MoveAuthenticatorForExecution<Option<AuthenticatorFunctionRefForExecution>>>,
         error: ExecutionError,
     },
 }

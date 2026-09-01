@@ -371,9 +371,7 @@ pub(super) fn execute_with_move_authenticators(
         .map(|(a, fn_ref, inputs)| MoveAuthenticatorForExecution {
             authenticator: a.clone(),
             function_ref: fn_ref.clone(),
-            input_objects: CheckedInputObjects::new_with_checked_transaction_inputs(
-                inputs.clone(),
-            ),
+            input_objects: CheckedInputObjects::new_with_checked_transaction_inputs(inputs.clone()),
         })
         .collect::<Vec<_>>();
 
