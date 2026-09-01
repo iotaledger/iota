@@ -7,9 +7,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use fastcrypto::encoding::Base64;
 use futures::{FutureExt, TryFutureExt};
-use iota_grpc_client::{
-    Client as GrpcClient, Error as GrpcClientError, read_mask_fields::SimulateField,
-};
+use iota_grpc_client::{Client as GrpcClient, read_mask_fields::SimulateField};
 use iota_json::IotaJsonValue;
 use iota_json_rpc::IotaRpcModule;
 use iota_json_rpc_api::WriteApiServer;
@@ -45,6 +43,7 @@ const DRY_RUN_TRANSACTION_READ_MASK: &[SimulateField] = &[
     SimulateField::EXECUTED_TRANSACTION_TRANSACTION_BCS,
     SimulateField::EXECUTED_TRANSACTION_SIGNATURES_BCS,
     SimulateField::EXECUTED_TRANSACTION_EFFECTS_BCS,
+    // Needed to resolve types against a package the simulated transaction published.
     SimulateField::EXECUTED_TRANSACTION_OUTPUT_OBJECTS_BCS,
     SimulateField::EXECUTED_TRANSACTION_EVENTS_EVENTS_BCS,
     SimulateField::EXECUTED_TRANSACTION_BALANCE_CHANGES,
@@ -97,23 +96,7 @@ impl WriteApi {
         let simulate_tx_response = self
             .fullnode_grpc_client
             .simulate_transaction(tx.clone(), false, DRY_RUN_TRANSACTION_READ_MASK)
-            .await
-            .map_err(|err| match err {
-                // The fullnode fails with FAILED_PRECONDITION when it cannot derive the
-                // requested balance/object changes because a required object is
-                // unavailable (e.g. pruned).
-                GrpcClientError::Grpc(status)
-                    if status.code() == tonic::Code::FailedPrecondition =>
-                {
-                    IndexerError::DataPruned(status.message().to_string())
-                }
-                GrpcClientError::Server(status)
-                    if status.code == tonic::Code::FailedPrecondition as i32 =>
-                {
-                    IndexerError::DataPruned(status.message)
-                }
-                err => err.into(),
-            })?
+            .await?
             .into_inner();
 
         let executed_transaction = simulate_tx_response.executed_transaction()?;
