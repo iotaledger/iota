@@ -15,6 +15,7 @@
 module iota::claim_registry;
 
 use iota::dynamic_field as df;
+use iota::event;
 use iota::public_key::PublicKey;
 
 // === Errors ===
@@ -34,6 +35,31 @@ const ENotSystemAddress: vector<u8> = b"ClaimRegistry can only be created in a s
 /// Singleton shared object tracking claimed addresses via dynamic fields.
 public struct ClaimRegistry has key {
     id: UID,
+}
+
+/// The value stored under each claimed-address dynamic field, recording which
+/// key performed the claim.
+public struct ClaimData has copy, drop, store {
+    /// Canonical identity hash of the claiming key (`public_key::key_id`).
+    key_id: address,
+}
+
+// === Events ===
+
+/// Emitted when an address is claimed.
+///
+/// Part of the account-discoverability event stream: indexers fold this event
+/// into a `key_id -> accounts` reverse index. The field layout is a public,
+/// replayable contract and evolves additively only.
+public struct ClaimedAddress has copy, drop {
+    /// The claimed address, which is also the id of the account object built on it.
+    addr: address,
+    /// Signature scheme flag of the claiming key.
+    scheme: u8,
+    /// Canonical identity hash of the claiming key (`public_key::key_id`).
+    key_id: address,
+    /// Epoch in which the claim happened.
+    epoch: u64,
 }
 
 // === Genesis ===
@@ -66,7 +92,17 @@ public(package) fun claim(
     let derived_addr = public_key.to_iota_address();
     assert!(derived_addr == ctx.sender(), EAddressMismatch);
     assert!(!is_claimed(registry, derived_addr), EAlreadyClaimed);
-    df::add(&mut registry.id, derived_addr, true);
+
+    let key_id = public_key.key_id();
+    df::add(&mut registry.id, derived_addr, ClaimData { key_id });
+
+    event::emit(ClaimedAddress {
+        addr: derived_addr,
+        scheme: public_key.scheme().flag(),
+        key_id,
+        epoch: ctx.epoch(),
+    });
+
     object::new_uid_from_hash(derived_addr)
 }
 
@@ -74,6 +110,16 @@ public(package) fun claim(
 
 public fun is_claimed(registry: &ClaimRegistry, addr: address): bool {
     df::exists_(&registry.id, addr)
+}
+
+/// Returns the `key_id` (see `public_key::key_id`) of the key that claimed
+/// `addr`, or `None` if `addr` was never claimed.
+public fun claimed_key_id(registry: &ClaimRegistry, addr: address): Option<address> {
+    if (df::exists_with_type<address, ClaimData>(&registry.id, addr)) {
+        option::some(df::borrow<address, ClaimData>(&registry.id, addr).key_id)
+    } else {
+        option::none()
+    }
 }
 
 // === Test only ===

@@ -2449,6 +2449,12 @@ receive_impl
 ClaimRegistry
 	public struct
 	0x2::claim_registry
+ClaimData
+	public struct
+	0x2::claim_registry
+ClaimedAddress
+	public struct
+	0x2::claim_registry
 create
 	fun
 	0x2::claim_registry
@@ -2456,6 +2462,9 @@ claim
 	public(package) fun
 	0x2::claim_registry
 is_claimed
+	public fun
+	0x2::claim_registry
+claimed_key_id
 	public fun
 	0x2::claim_registry
 Clock

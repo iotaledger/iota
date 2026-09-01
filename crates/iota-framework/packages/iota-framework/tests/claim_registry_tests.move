@@ -4,7 +4,8 @@
 #[test_only]
 module iota::claim_registry_tests;
 
-use iota::claim_registry::{Self, ClaimRegistry};
+use iota::claim_registry::{Self, ClaimRegistry, ClaimedAddress};
+use iota::event;
 use iota::public_key;
 use iota::signature_scheme;
 use iota::test_scenario::{Self, Scenario};
@@ -346,6 +347,69 @@ fun test_is_not_claimed_initially() {
     scenario.next_tx(@0x0);
     let registry = scenario.take_shared<ClaimRegistry>();
     assert!(!claim_registry::is_claimed(&registry, @0xcafe));
+    test_scenario::return_shared(registry);
+    test_scenario::end(scenario);
+}
+
+// ============================================================
+// claim — recorded key_id and emitted event
+// ============================================================
+
+#[test]
+fun test_claim_records_key_id_and_emits_event() {
+    let mut scenario = setup();
+    let sender = ED25519_ADDR;
+
+    scenario.next_tx(sender);
+    {
+        let mut registry = scenario.take_shared<ClaimRegistry>();
+        let public_key = public_key::from_prefixed_bytes(ED25519_PK);
+        let expected_key_id = public_key.key_id();
+        let ctx = test_scenario::ctx(&mut scenario);
+        claim_registry::claim(&mut registry, public_key, ctx).delete();
+
+        let recorded = claim_registry::claimed_key_id(&registry, sender);
+        assert!(recorded.is_some());
+        assert!(recorded.destroy_some() == expected_key_id);
+
+        let events = event::events_by_type<ClaimedAddress>();
+        assert!(events.length() == 1);
+
+        test_scenario::return_shared(registry);
+    };
+
+    test_scenario::end(scenario);
+}
+
+#[test]
+fun test_claim_records_key_id_per_scheme() {
+    let mut scenario = setup();
+
+    scenario.next_tx(SECP256K1_ADDR);
+    {
+        let mut registry = scenario.take_shared<ClaimRegistry>();
+        let public_key = public_key::from_prefixed_bytes(SECP256K1_PK);
+        let expected_key_id = public_key.key_id();
+        let ctx = test_scenario::ctx(&mut scenario);
+        claim_registry::claim(&mut registry, public_key, ctx).delete();
+
+        assert!(
+            claim_registry::claimed_key_id(&registry, SECP256K1_ADDR).destroy_some() ==
+            expected_key_id,
+        );
+
+        test_scenario::return_shared(registry);
+    };
+
+    test_scenario::end(scenario);
+}
+
+#[test]
+fun test_claimed_key_id_none_for_unclaimed() {
+    let mut scenario = setup();
+    scenario.next_tx(@0x0);
+    let registry = scenario.take_shared<ClaimRegistry>();
+    assert!(claim_registry::claimed_key_id(&registry, @0xcafe).is_none());
     test_scenario::return_shared(registry);
     test_scenario::end(scenario);
 }
