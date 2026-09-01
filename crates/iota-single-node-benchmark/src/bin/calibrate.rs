@@ -64,6 +64,15 @@ struct Calibrate {
     enable_write_stall: bool,
     #[arg(long, help = "One JSON line per sustained-mode round")]
     stats_output: Option<PathBuf>,
+    #[arg(
+        long,
+        default_value_t = 0,
+        help = "Capture mode: number of transactions executing at once. 0 (the \
+        default) forces one-at-a-time, uncontended timing; N >= 1 measures \
+        per-transaction wall-clock under N-way contention for the concurrency \
+        contrast runs."
+    )]
+    concurrency: usize,
     #[command(subcommand)]
     workload: WorkloadKind,
 }
@@ -90,7 +99,11 @@ async fn main() {
             checkpoint_size: 100,
             print_sample_tx: false,
             skip_signing: true,
-            sequential: !sustained,
+            // Capture mode is one-at-a-time by default (uncontended); a
+            // nonzero --concurrency hands control to the semaphore cap instead,
+            // for the concurrency contrast runs. Sustained mode is unaffected.
+            sequential: !sustained && args.concurrency == 0,
+            concurrency: if sustained { 0 } else { args.concurrency },
             duration_secs: args.duration_secs,
             db_path: args.db_path,
             enable_write_stall: args.enable_write_stall,

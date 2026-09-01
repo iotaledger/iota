@@ -6,25 +6,33 @@
 # remote machine under tmux/nohup: every stage skips work already on disk,
 # so re-running after an interruption continues where it stopped.
 #
-#   run_all.sh OUT_DIR [--write-duration SECS] [--skip-cold] [--skip-write] [--turbo on|off]
+#   run_all.sh OUT_DIR [--write-duration SECS] [--skip-cold] [--skip-write] [--turbo on|off] [--concurrency-runs]
 #
 # --turbo defaults to off (the fitting protocol: base clock, repeatable). A
 # second full run with --turbo on, into its own OUT_DIR, measures how much the
 # base-clock fit over-prices a machine running boosted; the turbo state is
 # recorded in every dataset manifest, so the two cannot be confused.
 #
+# --concurrency-runs adds the concurrency contrast stage: the same workloads
+# re-run at worker counts 1,2,4,8 to measure per-transaction inflation as
+# lanes contend. Run it under both turbo states (each into its own OUT_DIR) so
+# the 1->N inflation captures the all-core clock descent alongside cache and
+# bandwidth contention.
+#
 # Stages: build → Stage 1 sweeps → mixed workload → cold reads (page cache
 # dropped when root/sudo is available) → optional sustained write run →
-# fit → validation score. Logs to OUT_DIR/run_all.log.
+# fit → validation score → optional concurrency contrast. Logs to
+# OUT_DIR/run_all.log.
 set -euo pipefail
-out="${1:?usage: run_all.sh OUT_DIR [--write-duration SECS] [--skip-cold] [--skip-write] [--turbo on|off]}"; shift
-write_duration=0; skip_cold=0; skip_write=1; turbo="off"
+out="${1:?usage: run_all.sh OUT_DIR [--write-duration SECS] [--skip-cold] [--skip-write] [--turbo on|off] [--concurrency-runs]}"; shift
+write_duration=0; skip_cold=0; skip_write=1; turbo="off"; concurrency_runs=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --write-duration) write_duration="$2"; skip_write=0; shift 2;;
     --skip-cold) skip_cold=1; shift;;
     --skip-write) skip_write=1; shift;;
     --turbo) turbo="$2"; shift 2;;
+    --concurrency-runs) concurrency_runs=1; shift;;
     *) echo "unknown arg $1" >&2; exit 2;;
   esac
 done
@@ -93,5 +101,10 @@ python3 "$here/validate.py" score --artifact "$out/calibration-artifact.json" \
   --data "$out/sweeps" --report "$out/score-sweeps.json" || true
 python3 "$here/validate.py" score --artifact "$out/calibration-artifact.json" \
   --data "$out/mixed" --report "$out/score-mixed.json" || true
+
+if [ "$concurrency_runs" -eq 1 ]; then
+  stage "concurrency contrast (turbo $turbo)"
+  python3 "$here/concurrency.py" --out "$out"
+fi
 
 echo; echo "=== run_all done $(date -u +%FT%TZ) — results in $out ==="
