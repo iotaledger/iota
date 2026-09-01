@@ -15,7 +15,7 @@ use iota_sdk_types::{
     Address, ObjectDigest, ObjectId, ObjectReference, Transaction, TransactionDigest, Version,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::{TransactionAPI, TransactionEnvelope},
 };
@@ -174,8 +174,8 @@ async fn start_mock_node(
 
 /// A syntactically valid signed transaction. The mock node never inspects it.
 fn sample_transaction() -> TransactionEnvelope {
-    let (sender, keypair): (Address, AccountKeyPair) = get_key_pair();
-    let (recipient, _): (Address, AccountKeyPair) = get_key_pair();
+    let (sender, keypair): (Address, AccountPrivateKey) = get_key_pair();
+    let (recipient, _): (Address, AccountPrivateKey) = get_key_pair();
     let gas = ObjectReference::new(
         ObjectId::random(),
         Version::from_u64(1),
