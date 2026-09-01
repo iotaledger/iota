@@ -1218,7 +1218,7 @@ fn convert_private_key_to_bech32(value: String) -> Result<ConvertOutput, anyhow:
 /// `SignatureScheme`'s `Display` renders the CamelCase variant name; the
 /// `keyScheme` and `scheme` fields of the keytool JSON are lowercase, and
 /// `SignatureScheme::from_str` accepts that spelling.
-fn scheme_name(scheme: SignatureScheme) -> String {
+pub(crate) fn scheme_name(scheme: SignatureScheme) -> String {
     scheme.to_string().to_lowercase()
 }
 

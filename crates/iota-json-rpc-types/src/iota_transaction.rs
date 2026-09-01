@@ -1886,7 +1886,11 @@ pub struct IotaConsensusCommitPrologueV1 {
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
 #[schemars(rename = "ConsensusDeterminedVersionAssignments")]
 pub enum IotaConsensusDeterminedVersionAssignments {
-    // Cancelled transaction version assignment.
+    // Canceled transaction version assignment. The JSON name predates the
+    // US-English spelling used in the Rust variant and is part of the
+    // `iota_getTransactionBlock` response shape, so it stays as it is.
+    #[serde(rename = "CancelledTransactions")]
+    #[schemars(rename = "CancelledTransactions")]
     CanceledTransactions(
         #[serde_as(as = "Vec<(Base58Schema, Vec<(ObjectIdSchema, serde_with::Same)>)>")]
         #[schemars(with = "Vec<(Base58Schema, Vec<(ObjectIdSchema, SequenceNumberU64)>)>")]

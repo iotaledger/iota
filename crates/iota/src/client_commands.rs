@@ -108,7 +108,7 @@ use crate::{
     client_ptb::ptb::{PTB, PTBCommandResult},
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address, get_identity_address_from_keystore},
-    keytool::Key,
+    keytool::{Key, scheme_name},
     signing::{SignData, get_shared_object_version, sign_secure, sign_transaction},
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
@@ -2860,16 +2860,16 @@ pub struct NewAddressOutput {
     pub address: Address,
     pub public_base64_key: String,
     pub public_base64_key_with_flag: String,
-    #[serde(serialize_with = "serialize_as_display")]
+    #[serde(serialize_with = "serialize_scheme_name")]
     pub key_scheme: SignatureScheme,
     pub recovery_phrase: String,
 }
 
-fn serialize_as_display<S: serde::Serializer>(
-    value: &impl Display,
+fn serialize_scheme_name<S: serde::Serializer>(
+    scheme: &SignatureScheme,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
-    serializer.collect_str(value)
+    serializer.serialize_str(&scheme_name(*scheme))
 }
 
 #[derive(Serialize)]
