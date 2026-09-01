@@ -10,7 +10,7 @@ use iota_types::{
     storage::{ApplyCheckpointResults, error::Error as StorageError},
     transaction::{SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction},
 };
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::{
     authority::AuthorityState, execution_cache::ExecutionCacheWrite,
@@ -44,7 +44,7 @@ impl ApplyCheckpointResults for CheckpointResultsApplier {
             if current >= epoch {
                 return;
             }
-            info!(
+            debug!(
                 current_epoch = current,
                 waiting_for = epoch,
                 "pausing archive sync until the node reaches the epoch of the checkpoints it \
