@@ -265,10 +265,10 @@ impl TransactionBlockEffects {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         let mut connection = Connection::new(false, false);
 
-        let object_changes = self.native().object_changes();
+        let changed_objects = &self.native().as_v1().changed_objects;
 
         let Some(consistent_page) =
-            page.paginate_consistent_indices(object_changes.len(), self.checkpoint_viewed_at)?
+            page.paginate_consistent_indices(changed_objects.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
@@ -285,7 +285,8 @@ impl TransactionBlockEffects {
 
         for c in consistent_page.cursors {
             let object_change = ObjectChange {
-                native: object_changes[c.ix],
+                native: changed_objects[c.ix].clone(),
+                lamport_version: self.native().lamport_version(),
                 checkpoint_viewed_at: c.c,
                 source: source.clone(),
             };
