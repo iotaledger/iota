@@ -24,8 +24,10 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStoreTables,
-    grpc_indexes::{GRPC_INDEXES_DIR, GrpcIndexesStore},
-    jsonrpc_index::IndexStoreTables,
+    rpc_indexes::{
+        IndexStoreTables,
+        grpc_api::{GRPC_INDEXES_DIR, GrpcIndexesStore},
+    },
 };
 use iota_sdk_types::ObjectId;
 use iota_types::base_types::EpochId;

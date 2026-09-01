@@ -11,8 +11,7 @@ use bytes::Bytes;
 use iota_core::{
     authority::{AuthorityStore, authority_store_tables::AuthorityPerpetualTables},
     checkpoints::CheckpointStore,
-    grpc_indexes::GrpcLiveObjectRestorer,
-    jsonrpc_index::JsonRpcIndexRestorer,
+    rpc_indexes::{JsonRpcIndexRestorer, grpc_api::GrpcLiveObjectRestorer},
 };
 use iota_storage::SHA3_BYTES;
 use iota_types::storage::{EpochInfoV2, error::Error as StorageError};
