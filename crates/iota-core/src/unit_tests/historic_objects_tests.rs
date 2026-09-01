@@ -254,11 +254,11 @@ async fn test_expiry_deletes_the_epochs_tombstone_heads() {
     drop(bucket);
 
     historic.ensure(2).unwrap();
-    assert_eq!(historic.prune(1).unwrap(), Some(2));
+    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
     assert!(perpetual.objects.get(&deleted).unwrap().is_none());
     assert_eq!(historic.get(&relocated).unwrap(), None);
 
-    assert_eq!(historic.prune(1).unwrap(), Some(2));
+    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
 }
 
 /// An epoch holding more tombstone heads than fit in one write batch has all
@@ -290,7 +290,7 @@ async fn test_expiry_deletes_heads_past_the_batch_boundary() {
     drop(bucket);
 
     historic.ensure(2).unwrap();
-    assert_eq!(historic.prune(1).unwrap(), Some(2));
+    assert_eq!(historic.prune(2, 0).unwrap(), Some(2));
     for key in &deleted {
         assert!(
             perpetual.objects.get(key).unwrap().is_none(),

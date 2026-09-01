@@ -833,8 +833,8 @@ impl AuthorityStore {
     /// table in this same batch and arrive in `epoch_id`'s historic bucket, so
     /// a reader always finds them in one of the two.
     ///
-    /// Each transaction's own record — its body, effects, execution record,
-    /// events and loaded runtime objects — goes into `epoch_id`'s ledger
+    /// Each transaction's own record (its body, effects, execution record
+    /// and events) goes into `epoch_id`'s ledger
     /// bucket, all of it in this same batch, so a reader that has resolved the
     /// epoch for a digest finds every part of it there.
     ///
@@ -1777,8 +1777,12 @@ impl AuthorityStore {
     /// have started a later epoch first.
     #[cfg(any(test, feature = "test-utils"))]
     pub fn expire_historic_objects_and_compact_for_testing(&self) {
+        let current_epoch = self
+            .historic_objects
+            .newest_bucket_epoch()
+            .expect("a store with no bucket has nothing to expire");
         self.historic_objects
-            .prune(1)
+            .prune(current_epoch, 0)
             .expect("expiring the historic buckets should not fail");
         self.perpetual_tables
             .compact()

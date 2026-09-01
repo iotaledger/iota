@@ -609,6 +609,32 @@ impl IotaNode {
             checkpoint_store.mark_checkpoint_backlog_migrated()?;
         }
 
+        // Before any service starts: the ledger and checkpoint history written
+        // before this build is in the flat tables until this returns, where
+        // nothing reads it, so a checkpoint written then cannot be resolved by
+        // digest and the checkpoint executor would panic on it.
+        //
+        // Before the sweep below, too: that pass resolves each checkpoint's
+        // contents through the historic buckets, so until this has filled them
+        // it would find nothing to relocate and record itself done.
+        // TODO(https://github.com/iotaledger/iota/issues/12763): remove
+        // this call once every database has migrated its pre-bucket ledger and
+        // checkpoint history.
+        ledger_backlog_migration::migrate(
+            store.clone(),
+            checkpoint_store.clone(),
+            epoch_store.epoch(),
+            config
+                .authority_store_pruning_config
+                .num_epochs_to_retain_for_checkpoints(),
+        )
+        .await
+        .map_err(|e| {
+            anyhow!(
+                "failed to migrate the ledger and checkpoint history written before this build: {e}"
+            )
+        })?;
+
         // Before any service that could expire a historic bucket starts, and
         // before the index rebuild below scans the live `objects` table for
         // its latest versions.
@@ -631,28 +657,6 @@ impl IotaNode {
             anyhow!("failed to sweep the object versions superseded before this build: {e}")
         })?;
 
-        // Before any service starts: the ledger and checkpoint history written
-        // before this build is in the flat tables until this returns, where
-        // nothing reads it, so a checkpoint written then cannot be resolved by
-        // digest and the checkpoint executor would panic on it.
-        // TODO(https://github.com/iotaledger/iota/issues/12763): remove
-        // this call once every database has migrated its pre-bucket ledger and
-        // checkpoint history.
-        ledger_backlog_migration::migrate(
-            store.clone(),
-            checkpoint_store.clone(),
-            epoch_store.epoch(),
-            config
-                .authority_store_pruning_config
-                .num_epochs_to_retain_for_checkpoints(),
-        )
-        .await
-        .map_err(|e| {
-            anyhow!(
-                "failed to migrate the ledger and checkpoint history written before this build: {e}"
-            )
-        })?;
-
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(
             cache_traits.clone(),
@@ -671,13 +675,12 @@ impl IotaNode {
             None
         } else {
             info!("creating index store");
-            if config
+            let epochs_to_retain = config
                 .authority_store_pruning_config
-                .num_epochs_to_retain_for_indexes
-                .is_none()
-            {
+                .num_epochs_to_retain_for_indexes();
+            if epochs_to_retain.is_none() {
                 warn!(
-                    "index pruning is off (num-epochs-to-retain-for-indexes is unset): the history index backing queries like iotax_getBalance(), dynamic-field lookups, event queries, and owned-object listings adds a column family per epoch and grows without bound"
+                    "index pruning is off: the history index backing queries like iotax_queryTransactionBlocks(), event queries and dynamic-field lookups adds a column family per epoch and grows without bound. Set num-epochs-to-retain-for-checkpoints, which num-epochs-to-retain-for-indexes follows, or num-epochs-to-retain-for-indexes itself"
                 );
             }
             Some(
@@ -688,9 +691,7 @@ impl IotaNode {
                     epoch_store
                         .protocol_config()
                         .max_move_identifier_len_as_option(),
-                    config
-                        .authority_store_pruning_config
-                        .num_epochs_to_retain_for_indexes,
+                    epochs_to_retain,
                     &store,
                     &checkpoint_store,
                     index_rebuild_cancelled,

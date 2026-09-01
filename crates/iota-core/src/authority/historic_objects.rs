@@ -36,7 +36,10 @@ use typed_store::{
 
 use crate::{
     authority::authority_store_types::StoreObjectWrapper,
-    epoch_buckets::{EpochBuckets, bucket_cf_epoch, bucket_cf_name},
+    epoch_buckets::{
+        EpochBuckets, bucket_cf_epoch, bucket_cf_name, bucket_cf_options,
+        extra_column_family_options,
+    },
 };
 
 /// Column-family prefix of the historic object buckets; a bucket's family
@@ -175,43 +178,20 @@ impl HistoricObjects {
     ///
     /// `db_options` are the perpetual database's base options; build this
     /// once and clone it per column family.
-    fn cf_options(db_options: &DBOptions) -> DBOptions {
-        db_options
-            .clone()
-            .optimize_for_write_throughput_no_deletion()
-    }
-
     /// The `(name, options)` pairs of the column families this store needs,
-    /// for the perpetual store's open path to list alongside its own tables:
-    /// a column family left for auto-discovery would otherwise be reopened
-    /// with default options and a block cache of its own. The buckets already
-    /// on disk under `perpetual_path` are listed together with the
-    /// retention-floor column family, which the open path creates when it is
-    /// missing.
-    ///
-    /// A path with no database yet, or one whose column families cannot be
-    /// listed, yields the retention floor alone — the perpetual store's own
-    /// open then either creates the database fresh or fails on the same
-    /// listing problem.
+    /// for the perpetual store's open path to list alongside its own tables.
+    /// See
+    /// [`extra_column_family_options`](crate::epoch_buckets::extra_column_family_options).
     pub fn extra_column_family_options(
         perpetual_path: &Path,
         db_options: &DBOptions,
     ) -> Vec<(String, DBOptions)> {
-        let cf_options = Self::cf_options(db_options);
-        let mut options = vec![(EARLIEST_RETAINED_CF.to_string(), cf_options.clone())];
-        if !perpetual_path.join("CURRENT").exists() {
-            return options;
-        }
-        let Ok(existing_cfs) = list_tables(perpetual_path.to_path_buf()) else {
-            return options;
-        };
-        options.extend(
-            existing_cfs
-                .into_iter()
-                .filter(|name| bucket_cf_epoch(HISTORIC_OBJECTS_CF_PREFIX, name).is_some())
-                .map(|name| (name, cf_options.clone())),
-        );
-        options
+        extra_column_family_options(
+            perpetual_path,
+            db_options,
+            HISTORIC_OBJECTS_CF_PREFIX,
+            EARLIEST_RETAINED_CF,
+        )
     }
 
     /// Opens the historic-object buckets already present among `db`'s
@@ -244,7 +224,7 @@ impl HistoricObjects {
             }
         }
 
-        let cf_options = Self::cf_options(db_options).options;
+        let cf_options = bucket_cf_options(db_options).options;
         if db.cf_handle(EARLIEST_RETAINED_CF).is_none() {
             db.create_cf(EARLIEST_RETAINED_CF, &cf_options)?;
         }
@@ -317,6 +297,13 @@ impl HistoricObjects {
     /// the retention says.
     pub fn earliest_bucket_epoch(&self) -> Option<EpochId> {
         self.buckets.earliest_epoch()
+    }
+
+    /// The newest epoch this store holds a bucket for, `None` when it holds
+    /// none at all.
+    #[cfg(any(test, feature = "test-utils"))]
+    pub fn newest_bucket_epoch(&self) -> Option<EpochId> {
+        self.buckets.newest_epoch()
     }
 
     /// The bucket holding `epoch`'s relocated versions, created if absent.
@@ -422,9 +409,13 @@ impl HistoricObjects {
     ///
     /// Blocks queries for the duration, so an async caller must use
     /// `spawn_blocking`.
-    pub fn prune(&self, epochs_to_retain: u64) -> IotaResult<Option<EpochId>> {
+    pub fn prune(
+        &self,
+        current_epoch: EpochId,
+        epochs_to_retain: u64,
+    ) -> IotaResult<Option<EpochId>> {
         self.buckets
-            .prune(epochs_to_retain, |epoch, bucket| {
+            .prune(current_epoch, epochs_to_retain, |epoch, bucket| {
                 Self::expire_bucket(&self.objects, epoch, bucket).map_err(|e| {
                     TypedStoreError::RocksDB(format!("expiring the bucket of epoch {epoch}: {e}"))
                 })
