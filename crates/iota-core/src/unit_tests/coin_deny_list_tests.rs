@@ -49,8 +49,11 @@ async fn test_regulated_coin_v1_types() {
     let mut metadata_object = None;
     let mut regulated_metadata_object = None;
     let mut package_id = None;
-    for (oref, _owner) in env.publish_effects.created() {
-        let object = env.authority.get_object(&oref.object_id).unwrap();
+    for created in env.publish_effects.created() {
+        let object = env
+            .authority
+            .get_object(&created.reference.object_id)
+            .unwrap();
         if object.is_package() {
             package_id = Some(object.id());
             continue;
@@ -437,15 +440,18 @@ impl RegulatedCoinEnv {
         let mut deny_cap_id = None;
         let mut coin_id = None;
 
-        for (oref, _owner) in env.publish_effects.created() {
-            let object = env.authority.get_object(&oref.object_id).unwrap();
+        for created in env.publish_effects.created() {
+            let object = env
+                .authority
+                .get_object(&created.reference.object_id)
+                .unwrap();
             if object.is_package() {
                 package_id = Some(object.id());
                 continue;
             }
             if object.data.opt_object_type().unwrap().is_deny_cap_v1() {
                 deny_cap_id = Some(object.id());
-            } else if !object.is_gas_coin() && object.coin_type_opt().is_some() {
+            } else if !object.is_gas_coin() && object.opt_coin_type().is_some() {
                 coin_id = Some(object.id());
             }
         }

@@ -259,8 +259,8 @@ async fn create_test_env() -> TestEnv {
     let mut coin_type = None;
     let mut coin_owner = None;
     let mut deny_cap = None;
-    for (obj_ref, owner) in effects.created() {
-        let object_id = obj_ref.object_id;
+    for created in effects.created() {
+        let object_id = created.reference.object_id;
         let object = test_cluster
             .get_object_from_fullnode_store(&object_id)
             .await
@@ -269,8 +269,8 @@ async fn create_test_env() -> TestEnv {
             continue;
         } else if object.is_coin() {
             coin_id = Some(object_id);
-            coin_type = object.coin_type_opt().cloned();
-            coin_owner = Some(*owner.as_address());
+            coin_type = object.opt_coin_type().cloned();
+            coin_owner = Some(*created.owner.as_address());
         } else if object.data.opt_object_type().unwrap().is_deny_cap_v1() {
             deny_cap = Some(object_id);
         }

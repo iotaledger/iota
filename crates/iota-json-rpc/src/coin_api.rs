@@ -131,7 +131,7 @@ impl CoinReadApiServer for CoinReadApi {
                     let obj = self.internal.get_object(&object_id).await?;
                     match obj {
                         Some(obj) => {
-                            if let Some(coin_type) = obj.coin_type_opt() {
+                            if let Some(coin_type) = obj.opt_coin_type() {
                                 Ok((coin_type.to_string(), object_id))
                             } else {
                                 Err(IotaRpcInputError::GenericInvalid(
@@ -351,11 +351,11 @@ async fn find_package_object_id(
             .get_executed_transaction_and_effects(publish_txn_digest, kv_store)
             .await?;
 
-        for (created, _) in effect.created() {
-            if let Ok(object_read) = state.get_object_read(&created.object_id) {
+        for created in effect.created() {
+            if let Ok(object_read) = state.get_object_read(&created.reference.object_id) {
                 if let Ok(object) = object_read.into_object() {
                     if matches!(object.data.opt_object_type(), Some(object_type) if object_type == &object_struct_tag) {
-                        return Ok(created.object_id);
+                        return Ok(created.reference.object_id);
                     }
                 }
             }

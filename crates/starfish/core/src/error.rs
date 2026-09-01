@@ -433,6 +433,13 @@ pub(crate) enum ConsensusError {
         size: usize,
         limit: usize,
     },
+
+    #[error("Peer {peer} relayed a second shard for slot (author {author}, round {round})")]
+    SecondShardForSlot {
+        peer: AuthorityIndex,
+        author: AuthorityIndex,
+        round: Round,
+    },
 }
 
 impl ConsensusError {

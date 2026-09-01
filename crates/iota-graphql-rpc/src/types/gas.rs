@@ -161,7 +161,7 @@ impl GasEffects {
     /// `GasEffects` so that when viewing that entity's state, it will be as
     /// if it was read at the same checkpoint.
     pub(crate) fn from(effects: &NativeTransactionEffects, checkpoint_viewed_at: u64) -> Self {
-        let (object_ref, _owner) = effects.gas_object();
+        let object_ref = effects.gas_object().reference;
         Self {
             summary: GasCostSummary::from(effects.gas_cost_summary()),
             object_id: IotaAddress::from(object_ref.object_id),
@@ -176,21 +176,23 @@ impl GasInput {
     /// which this `GasInput` was queried for. This is stored on `GasInput`
     /// so that when viewing that entity's state, it will be as if it was
     /// read at the same checkpoint.
-    pub(crate) fn from(s: &GasPayment, checkpoint_viewed_at: u64) -> Self {
-        Self {
+    pub(crate) fn try_from(s: &GasPayment, checkpoint_viewed_at: u64) -> Result<Self, Error> {
+        Ok(Self {
             owner: s.owner.into(),
             price: s.price,
             budget: s.budget,
             payment_obj_keys: s
                 .objects
                 .iter()
-                .map(|o| ObjectKey {
-                    object_id: o.object_id.into(),
-                    version: o.version.as_u64().into(),
+                .map(|o| {
+                    Ok(ObjectKey {
+                        object_id: o.object_id.into(),
+                        version: o.version.as_u64().try_into()?,
+                    })
                 })
-                .collect(),
+                .collect::<Result<_, Error>>()?,
             checkpoint_viewed_at,
-        }
+        })
     }
 }
 

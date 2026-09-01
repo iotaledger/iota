@@ -106,6 +106,8 @@ iota-node:
   - "crates/iota-node/**"
 iota-node-storage:
   - "crates/iota-node-storage/**"
+iota-node-transaction-builder:
+  - "crates/iota-node-transaction-builder/**"
 iota-open-rpc:
   - "crates/iota-open-rpc/**"
 iota-open-rpc-macros:

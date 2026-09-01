@@ -27,7 +27,7 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
     input_objs: Vec<InputObjectKind>,
     mocked_coin: Option<ObjectId>,
 ) -> Result<Vec<BalanceChange>, E> {
-    let (_, gas_owner) = effects.gas_object();
+    let gas_owner = effects.gas_object().owner;
 
     // Only charge gas when tx fails, skip all object parsing
     if effects.status() != &ExecutionStatus::Success {
@@ -41,7 +41,8 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
     let all_mutated = effects
         .all_changed_objects()
         .into_iter()
-        .filter_map(|(object_ref, _, _)| {
+        .filter_map(|(changed, _)| {
+            let object_ref = changed.reference;
             if matches!(mocked_coin, Some(coin) if object_ref.object_id == coin) {
                 return None;
             }
@@ -70,7 +71,8 @@ pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
         &effects
             .modified_at_versions()
             .into_iter()
-            .filter_map(|(id, version)| {
+            .filter_map(|modified| {
+                let (id, version) = (modified.object_id, modified.version);
                 if matches!(mocked_coin, Some(coin) if id == coin) {
                     return None;
                 }

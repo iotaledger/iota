@@ -18,7 +18,7 @@ use std::{
 
 use iota_sdk_types::{
     ObjectId, ObjectReference, SenderSignedTransaction, TransactionDigest, TransactionEffects,
-    Version, move_package::MovePackage,
+    Version, WriteKind, move_package::MovePackage,
 };
 use itertools::Itertools;
 use move_binary_format::CompiledModule;
@@ -88,17 +88,6 @@ impl From<&Object> for InputKey {
             }
         }
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
-pub enum WriteKind {
-    /// The object was in storage already but has been modified
-    Mutate,
-    /// The object was created in this transaction
-    Create,
-    /// The object was previously wrapped in another object, but has been
-    /// restored to storage
-    Unwrap,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, Serialize, Deserialize)]
@@ -582,7 +571,7 @@ pub fn get_transaction_input_objects(
     let input_object_keys = effects
         .modified_at_versions()
         .into_iter()
-        .map(|(object_id, version)| ObjectKey(object_id, version))
+        .map(|modified| ObjectKey(modified.object_id, modified.version))
         .collect::<Vec<_>>();
 
     let input_objects = object_store
@@ -609,7 +598,7 @@ pub fn get_transaction_output_objects(
     let output_object_keys = effects
         .all_changed_objects()
         .into_iter()
-        .map(|(object_ref, _owner, _kind)| ObjectKey::from(object_ref))
+        .map(|(changed, _kind)| ObjectKey::from(changed.reference))
         .collect::<Vec<_>>();
 
     let output_objects = object_store
@@ -638,7 +627,11 @@ pub fn extend_input_objects_with_loaded_runtime_objects(
     loaded_runtime_objects: &BTreeMap<ObjectId, DynamicallyLoadedObjectMetadata>,
     object_store: &dyn ObjectStore,
 ) {
-    let modified_at: BTreeMap<_, _> = effects.modified_at_versions().into_iter().collect();
+    let modified_at: BTreeMap<_, _> = effects
+        .modified_at_versions()
+        .into_iter()
+        .map(|modified| (modified.object_id, modified.version))
+        .collect();
     for (id, metadata) in loaded_runtime_objects {
         if input_objects.contains_key(id) || modified_at.get(id) != Some(&metadata.version) {
             continue;

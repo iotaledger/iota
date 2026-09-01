@@ -119,8 +119,8 @@ impl TransactionBlockEffects {
     /// created or modified by this transaction, immediately following this
     /// transaction.
     #[graphql(complexity = 0)]
-    async fn lamport_version(&self) -> UInt53 {
-        self.native().lamport_version().as_u64().into()
+    async fn lamport_version(&self) -> Result<UInt53> {
+        UInt53::try_from(self.native().lamport_version().as_u64()).extend()
     }
 
     /// The reason for a transaction failure, if it did fail.
@@ -239,15 +239,13 @@ impl TransactionBlockEffects {
         connection.has_next_page = consistent_page.has_next_page;
 
         for c in consistent_page.cursors {
-            let result = UnchangedSharedObject::try_from(input_shared_objects[c.ix], c.c);
-            match result {
-                Ok(unchanged_shared_object) => {
-                    connection
-                        .edges
-                        .push(Edge::new(c.encode_cursor(), unchanged_shared_object));
-                }
-                Err(_shared_object_changed) => continue, /* Only add unchanged shared objects to
-                                                          * the connection. */
+            // Only unchanged shared objects are added to the connection.
+            if let Some(unchanged_shared_object) =
+                UnchangedSharedObject::try_from(input_shared_objects[c.ix], c.c).extend()?
+            {
+                connection
+                    .edges
+                    .push(Edge::new(c.encode_cursor(), unchanged_shared_object));
             }
         }
 
@@ -443,7 +441,7 @@ impl TransactionBlockEffects {
 
         Checkpoint::query(
             ctx,
-            CheckpointId::by_seq_num(stored_tx.checkpoint_sequence_number as u64),
+            CheckpointId::by_seq_num(stored_tx.checkpoint_sequence_number as u64).extend()?,
             self.checkpoint_viewed_at,
         )
         .await

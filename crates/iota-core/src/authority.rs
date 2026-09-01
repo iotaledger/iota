@@ -40,10 +40,10 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
-    ExecutionStatus, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
-    RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
+    ExecutionStatus, InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference,
+    Owner, RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
     TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
-    TransactionKind, TypeTag, Version,
+    TransactionKind, TypeTag, Version, WriteKind,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentScope},
     gas::GasCostSummary,
@@ -72,7 +72,7 @@ use iota_types::{
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
-        InputSharedObject, SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
+        SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
         VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
@@ -106,9 +106,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticatorExt,
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
-    storage::{
-        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
-    },
+    storage::{BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore},
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
@@ -1740,7 +1738,7 @@ impl AuthorityState {
         params: TrafficControlReconfigParams,
     ) -> Result<TrafficControlReconfigParams, IotaError> {
         if let Some(traffic_controller) = self.traffic_controller.as_ref() {
-            traffic_controller.admin_reconfigure(params).await
+            traffic_controller.admin_reconfigure(params)
         } else {
             Err(IotaError::InvalidAdminRequest(
                 "Traffic controller is not configured on this node".to_string(),
@@ -2418,7 +2416,7 @@ impl AuthorityState {
             effects
                 .all_changed_objects()
                 .into_iter()
-                .map(|(obj_ref, owner, _kind)| (obj_ref, owner)),
+                .map(|(changed, _kind)| (changed.reference, changed.owner)),
             transaction
                 .data()
                 .transaction()
@@ -2486,6 +2484,7 @@ impl AuthorityState {
         let modified_at_version = effects
             .modified_at_versions()
             .into_iter()
+            .map(|modified| (modified.object_id, modified.version))
             .collect::<HashMap<_, _>>();
 
         let tx_digest = effects.transaction_digest();
@@ -2509,7 +2508,8 @@ impl AuthorityState {
         let mut new_owners = vec![];
         let mut new_dynamic_fields = vec![];
 
-        for (oref, owner, kind) in effects.all_changed_objects() {
+        for (changed, kind) in effects.all_changed_objects() {
+            let (oref, owner) = (changed.reference, changed.owner);
             let id = &oref.object_id;
             // For mutated objects, retrieve old owner and delete old index if there is a
             // owner change.
@@ -3026,18 +3026,13 @@ impl AuthorityState {
         let rgp = epoch_store.reference_gas_price();
         let traffic_controller_metrics =
             Arc::new(TrafficControllerMetrics::new(prometheus_registry));
-        let traffic_controller = if let Some(policy_config) = policy_config {
-            Some(Arc::new(
-                TrafficController::init(
-                    policy_config,
-                    traffic_controller_metrics,
-                    firewall_config.clone(),
-                )
-                .await,
+        let traffic_controller = policy_config.map(|policy_config| {
+            Arc::new(TrafficController::init(
+                policy_config,
+                traffic_controller_metrics,
+                firewall_config.clone(),
             ))
-        } else {
-            None
-        };
+        });
         let state = Arc::new(AuthorityState {
             name,
             secret,
@@ -4782,7 +4777,8 @@ impl AuthorityState {
         // execution. Their updated version will already showup in
         // "written_coins" but their input isn't included in the set of input
         // objects in a inner_temporary_store.
-        for (object_id, version) in effects.modified_at_versions() {
+        for modified in effects.modified_at_versions() {
+            let (object_id, version) = (modified.object_id, modified.version);
             if inner_temporary_store
                 .loaded_runtime_objects
                 .contains_key(&object_id)
@@ -6375,8 +6371,8 @@ impl NodeStateDump {
                 }
                 InputSharedObject::ReadDeleted(..)
                 | InputSharedObject::MutateDeleted(..)
-                | InputSharedObject::Cancelled(..) => (), /* TODO: consider record congested
-                                                           * objects. */
+                | InputSharedObject::Canceled(..) => (), /* TODO: consider record congested
+                                                          * objects. */
             }
         }
 
@@ -6391,7 +6387,8 @@ impl NodeStateDump {
 
         // Record all modified objects
         let mut modified_at_versions = Vec::new();
-        for (id, ver) in effects.modified_at_versions() {
+        for modified in effects.modified_at_versions() {
+            let (id, ver) = (modified.object_id, modified.version);
             if let Some(w) = object_store.try_get_object_by_key(&id, ver)? {
                 modified_at_versions.push(ObjDumpFormat::new(w))
             }

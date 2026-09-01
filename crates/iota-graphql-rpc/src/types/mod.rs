@@ -23,6 +23,7 @@ pub(crate) mod epoch;
 pub(crate) mod event;
 pub(crate) mod execution_result;
 pub(crate) mod gas;
+pub(crate) mod int;
 pub(crate) mod intersect;
 pub(crate) mod iota_address;
 pub(crate) mod iota_names_registration;

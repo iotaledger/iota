@@ -23,11 +23,8 @@ mod ingestion_tests {
             obj_indices::StoredObjectVersion,
             objects::{StoredCheckpointedObject, StoredObject},
             transactions::{StoredTransaction, TxGlobalOrder},
-            tx_indices::StoredTxDigest,
         },
-        schema::{
-            checkpointed_objects, checkpoints, objects, transactions, tx_digests, tx_global_order,
-        },
+        schema::{checkpointed_objects, checkpoints, objects, transactions, tx_global_order},
         store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
         types::{EventIndex, ObjectStatus, TxIndex},
@@ -220,14 +217,6 @@ mod ingestion_tests {
 
         let digest = effects.transaction_digest();
 
-        let stored_tx_digest = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
-            tx_digests::table
-                .filter(tx_digests::tx_digest.eq(digest.inner().to_vec()))
-                .select(StoredTxDigest::as_select())
-                .first::<StoredTxDigest>(conn)
-        })
-        .context("failed reading `tx_global_order` from PostgresDB")?;
-
         let stored_global_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             tx_global_order::table
                 .filter(tx_global_order::tx_digest.eq(digest.inner().to_vec()))
@@ -236,10 +225,7 @@ mod ingestion_tests {
         })
         .context("failed reading `tx_global_order` from PostgresDB")?;
 
-        assert_eq!(
-            stored_global_order.global_sequence_number,
-            stored_tx_digest.tx_sequence_number
-        );
+        assert!(stored_global_order.tx_sequence_number.is_some());
         let expected_optimistic_sequence_number = -1;
         assert_eq!(
             stored_global_order.optimistic_sequence_number,
@@ -264,7 +250,6 @@ mod ingestion_tests {
         sim.create_checkpoint();
         let digest = *effects.transaction_digest();
 
-        let global_sequence_number = 123;
         let emulate_insertion_order_set_earlier_by_optimistic_indexing =
             move |pg_store: &PgIndexerStore| {
                 transactional_blocking_with_retry!(
@@ -272,9 +257,8 @@ mod ingestion_tests {
                     |conn| {
                         let insertable = TxGlobalOrder {
                             tx_digest: digest.inner().to_vec(),
-                            global_sequence_number,
                             optimistic_sequence_number: None,
-                            chk_tx_sequence_number: None,
+                            tx_sequence_number: None,
                         };
                         insert_or_ignore_into!(tx_global_order::table, insertable, conn);
                         Ok::<(), IndexerError>(())
@@ -305,7 +289,9 @@ mod ingestion_tests {
         })
         .context("failed reading `tx_global_order` from PostgresDB")?;
 
-        assert_eq!(stored.global_sequence_number, global_sequence_number);
+        // The checkpoint upsert must fill in the sequence number without
+        // replacing the row inserted by the optimistic path.
+        assert!(stored.tx_sequence_number.is_some());
         let expected_optimistic_sequence_number = 1;
         assert_eq!(
             stored.optimistic_sequence_number,
@@ -649,7 +635,7 @@ mod ingestion_tests {
         let created1: Vec<_> = effects1
             .created()
             .into_iter()
-            .map(|(r, _)| (r.object_id, r.version))
+            .map(|created| (created.reference.object_id, created.reference.version))
             .collect();
         assert_eq!(
             created1.len(),
@@ -672,7 +658,7 @@ mod ingestion_tests {
         let created2: Vec<_> = effects2
             .created()
             .into_iter()
-            .map(|(r, _)| (r.object_id, r.version))
+            .map(|created| (created.reference.object_id, created.reference.version))
             .collect();
         assert_eq!(created2.len(), 1);
         let (created_coin_2, created_coin_2_version) = created2[0];
@@ -689,7 +675,7 @@ mod ingestion_tests {
         let created3: Vec<_> = effects3
             .created()
             .into_iter()
-            .map(|(r, _)| (r.object_id, r.version))
+            .map(|created| (created.reference.object_id, created.reference.version))
             .collect();
         assert_eq!(created3.len(), 1);
         let (created_coin_3, created_coin_3_version) = created3[0];
@@ -789,11 +775,11 @@ mod ingestion_tests {
         let gas_after_tx1 = effects1
             .mutated()
             .into_iter()
-            .find(|(r, _)| r.object_id == gas_object_id)
+            .find(|mutated| mutated.reference.object_id == gas_object_id)
             .expect("gas must be mutated by tx1")
-            .0
+            .reference
             .version;
-        let created_coin_1 = effects1.created()[0].0;
+        let created_coin_1 = effects1.created()[0].reference;
 
         let (tx2, _) = sim.transfer_txn(Address::random());
         let (effects2, err) = sim.execute_transaction(tx2).unwrap();
@@ -801,11 +787,11 @@ mod ingestion_tests {
         let gas_after_tx2 = effects2
             .mutated()
             .into_iter()
-            .find(|(r, _)| r.object_id == gas_object_id)
+            .find(|mutated| mutated.reference.object_id == gas_object_id)
             .expect("gas must be mutated by tx2")
-            .0
+            .reference
             .version;
-        let created_coin_2 = effects2.created()[0].0;
+        let created_coin_2 = effects2.created()[0].reference;
 
         sim.create_checkpoint();
 
@@ -816,11 +802,11 @@ mod ingestion_tests {
         let gas_after_tx3 = effects3
             .mutated()
             .into_iter()
-            .find(|(r, _)| r.object_id == gas_object_id)
+            .find(|mutated| mutated.reference.object_id == gas_object_id)
             .expect("gas must be mutated by tx3")
-            .0
+            .reference
             .version;
-        let created_coin_3 = effects3.created()[0].0;
+        let created_coin_3 = effects3.created()[0].reference;
         sim.create_checkpoint();
 
         let (_, pg_store, _) = start_simulacrum_grpc_with_write_indexer(
@@ -913,9 +899,9 @@ mod ingestion_tests {
         let package_id = publish_fx
             .created()
             .into_iter()
-            .find(|(_, owner)| matches!(owner, Owner::Immutable))
+            .find(|created| matches!(created.owner, Owner::Immutable))
             .expect("publish must create an immutable package")
-            .0
+            .reference
             .object_id;
         sim.create_checkpoint();
 
@@ -940,9 +926,9 @@ mod ingestion_tests {
         let sword_v0 = mint_sword_fx
             .created()
             .into_iter()
-            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner, Owner::Address(_)))
             .expect("mint must create the sword")
-            .0;
+            .reference;
         sim.create_checkpoint();
 
         // cp3: mint a Warrior + equip sword
@@ -973,9 +959,9 @@ mod ingestion_tests {
         let warrior_v0 = equip_fx
             .created()
             .into_iter()
-            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner, Owner::Address(_)))
             .expect("equip tx must create the warrior")
-            .0;
+            .reference;
         let sword_wrapped_version = equip_fx
             .wrapped()
             .into_iter()
@@ -1005,15 +991,15 @@ mod ingestion_tests {
         let sword_unwrapped_ref = unequip_fx
             .unwrapped()
             .into_iter()
-            .find(|(r, _)| r.object_id == sword_v0.object_id)
+            .find(|unwrapped| unwrapped.reference.object_id == sword_v0.object_id)
             .expect("sword must be unwrapped in the unequip tx")
-            .0;
+            .reference;
         let warrior_after_unequip = unequip_fx
             .mutated()
             .into_iter()
-            .find(|(r, _)| r.object_id == warrior_v0.object_id)
+            .find(|mutated| mutated.reference.object_id == warrior_v0.object_id)
             .expect("warrior must be mutated by unequip")
-            .0;
+            .reference;
         sim.create_checkpoint();
 
         // cp5: equip sword
@@ -1047,9 +1033,9 @@ mod ingestion_tests {
         let warrior_after_reequip = reequip_fx
             .mutated()
             .into_iter()
-            .find(|(r, _)| r.object_id == warrior_v0.object_id)
+            .find(|mutated| mutated.reference.object_id == warrior_v0.object_id)
             .expect("warrior must be mutated by re-equip")
-            .0;
+            .reference;
         sim.create_checkpoint();
 
         // cp6: destroy warrior

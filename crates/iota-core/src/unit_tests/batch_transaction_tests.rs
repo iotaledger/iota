@@ -79,14 +79,14 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         effects
             .created()
             .iter()
-            .all(|(_, owner)| owner == &Owner::Address(sender))
+            .all(|created| created.owner == Owner::Address(sender))
     );
     // N of the objects should now be owned by recipient.
     assert_eq!(
         effects
             .mutated()
             .iter()
-            .filter(|(_, owner)| owner == &Owner::Address(recipient))
+            .filter(|mutated| mutated.owner == Owner::Address(recipient))
             .count(),
         N
     );

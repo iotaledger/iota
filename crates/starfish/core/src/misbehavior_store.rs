@@ -223,8 +223,9 @@ impl MisbehaviorStore {
     ///   distributing a block they could have verified themselves.
     /// - Unprovable faults (bad/missing signature): charged to `peer` only — we
     ///   can't verify the author field, but we know who sent it to us.
-    /// - Bundle-part faults (corrupt framing, metadata, or shard): charged to
-    ///   `peer` only, under the dedicated bundle-part counter.
+    /// - Bundle-part faults (corrupt framing, metadata, or shard, or a shard
+    ///   the peer had no right to relay): charged to `peer` only, under the
+    ///   dedicated bundle-part counter.
     pub(crate) fn record_faulty_block(
         &self,
         peer: AuthorityIndex,
@@ -300,8 +301,9 @@ enum FaultType {
     /// (epoch / genesis / author-vs-peer mismatch) so its `author` field
     /// can't be trusted. Charged to the sending peer, not the claimed author.
     Unprovable,
-    /// Corrupt or invalid relayed bundle part (framing, metadata, or shard)
-    /// that isn't tied to a verified author. Charged to the sending peer.
+    /// Relayed bundle part (framing, metadata, or shard) that is corrupt,
+    /// invalid, or one the peer had no right to relay, and isn't tied to a
+    /// verified author. Charged to the sending peer.
     BundlePart,
     /// Not counted as misbehavior.
     Untracked,
@@ -328,15 +330,17 @@ fn classify_block_error(error: &ConsensusError) -> FaultType {
         | ConsensusError::UnexpectedBlockHeaderForCommit { .. }
         | ConsensusError::TooManyFetchedHeadersReturned { .. } => FaultType::Unprovable,
 
-        // Corrupt or invalid relayed bundle parts (framing, additional-header
-        // round, and shard structure/proof). We know which peer relayed them
-        // but can't tie them to a verified author.
+        // Relayed bundle parts that are corrupt or invalid (framing,
+        // additional-header round, shard structure/proof) or that the peer had
+        // no right to relay (a second shard for one slot). We know which peer
+        // relayed them but can't tie them to a verified author.
         ConsensusError::MalformedShard(_)
         | ConsensusError::TooBigHeaderRoundInABundle { .. }
         | ConsensusError::TooBigShardRoundInABundle { .. }
         | ConsensusError::IncorrectShardProof { .. }
         | ConsensusError::UnrequestedHeaderOutOfWindow { .. }
-        | ConsensusError::SerializedShardTooLarge { .. } => FaultType::BundlePart,
+        | ConsensusError::SerializedShardTooLarge { .. }
+        | ConsensusError::SecondShardForSlot { .. } => FaultType::BundlePart,
 
         // Checks that run only after the author's signature is verified, so the
         // signed header itself proves the author produced a block that violates
@@ -1182,6 +1186,11 @@ mod tests {
                 peer: AuthorityIndex::new_for_test(0),
                 size: 100,
                 limit: 50,
+            },
+            ConsensusError::SecondShardForSlot {
+                peer: AuthorityIndex::new_for_test(0),
+                author: AuthorityIndex::new_for_test(1),
+                round: 10,
             },
         ];
         for e in cases {

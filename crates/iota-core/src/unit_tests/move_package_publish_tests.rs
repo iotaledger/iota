@@ -8,7 +8,8 @@ use expect_test::expect;
 use iota_framework::BuiltInFramework;
 use iota_move_build::{BuildConfig, check_unpublished_dependencies, gather_published_ids};
 use iota_sdk_types::{
-    ExecutionError, ExecutionStatus, Identifier, ObjectData, ObjectId, Owner, Transaction,
+    ExecutionError, ExecutionStatus, Identifier, ObjectData, ObjectId, OwnedObjectReference, Owner,
+    Transaction,
 };
 use iota_types::{
     crypto::{AccountPrivateKey, get_key_pair},
@@ -85,7 +86,10 @@ async fn test_publishing_with_unpublished_deps() {
 
     assert!(effects.status().is_success());
     assert_eq!(effects.created().len(), 1);
-    let (object_ref, owner) = effects.created()[0];
+    let OwnedObjectReference {
+        reference: object_ref,
+        owner,
+    } = effects.created()[0];
     let v = object_ref.version;
 
     // Check that calling the function does what we expect

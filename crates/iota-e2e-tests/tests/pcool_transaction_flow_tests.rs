@@ -44,9 +44,9 @@ use std::str::FromStr;
 
 use iota_macros::sim_test;
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk_types::{ObjectId, TypeTag};
+use iota_sdk_types::{ObjectId, StructTag, TypeTag};
 use iota_test_transaction_builder::TestTransactionBuilder;
-use iota_types::{base_types::dbg_addr, transaction::CallArg};
+use iota_types::{base_types::dbg_addr, coin::CoinMetadata, transaction::CallArg};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 /// Applies a thread-local protocol-config override that enables the P-COOL
@@ -265,17 +265,22 @@ async fn run_immutable_object_read_twice(test_cluster: &TestCluster) {
     let sender = test_cluster.get_address_0();
     let rgp = test_cluster.get_reference_gas_price().await;
 
+    // Resolved from the genesis objects rather than through `coin_read_api`:
+    // the RPC's package-object lookup sits behind a process-global cache
+    // (keyed only by package id and struct tag), which under MSIM_TEST_NUM > 1
+    // serves the object id from a previous iteration's genesis.
     let metadata_id = test_cluster
-        .wallet
-        .get_client()
-        .await
-        .unwrap()
-        .coin_read_api()
-        .get_coin_metadata("0x2::iota::IOTA".to_string())
-        .await
-        .unwrap()
-        .and_then(|metadata| metadata.id)
-        .expect("the IOTA coin metadata object exists at genesis");
+        .get_genesis()
+        .objects()
+        .iter()
+        .find(|object| {
+            object.data.as_opt_struct().is_some_and(|move_struct| {
+                CoinMetadata::is_coin_metadata_with_coin_type(move_struct.struct_tag())
+                    .is_some_and(StructTag::is_gas)
+            })
+        })
+        .expect("the IOTA coin metadata object exists at genesis")
+        .id();
     let metadata_ref = test_cluster.get_latest_object_ref(&metadata_id).await;
 
     // Sequential, not concurrent: the point is that the first read leaves no

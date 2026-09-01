@@ -295,7 +295,7 @@ impl TestCheckpointDataBuilder {
             .get(&object_id)
             .cloned()
             .expect("Mutating an object that does not exist");
-        let coin_type = object.coin_type_opt().cloned().unwrap();
+        let coin_type = object.opt_coin_type().cloned().unwrap();
         // Withdraw balance from coin object.
         let move_object = object.data.as_opt_mut_struct().unwrap();
         let old_balance = move_object.get_coin_value_unchecked();
@@ -782,8 +782,8 @@ mod tests {
             tx.effects
                 .created()
                 .iter()
-                .any(|(object_ref, owner)| object_ref.object_id == created_obj_id
-                    && owner.address_or_object().unwrap()
+                .any(|created| created.reference.object_id == created_obj_id
+                    && created.owner.address_or_object().unwrap()
                         == &TestCheckpointDataBuilder::derive_address(0))
         );
     }
@@ -811,7 +811,7 @@ mod tests {
             tx.effects
                 .mutated()
                 .iter()
-                .any(|(object_ref, _)| object_ref.object_id == obj_id)
+                .any(|changed| changed.reference.object_id == obj_id)
         );
     }
 
@@ -882,7 +882,7 @@ mod tests {
             tx.effects
                 .unwrapped()
                 .iter()
-                .any(|(object_ref, _owner)| object_ref.object_id == obj_id)
+                .any(|changed| changed.reference.object_id == obj_id)
         );
     }
 
@@ -909,8 +909,8 @@ mod tests {
             tx.effects
                 .mutated()
                 .iter()
-                .any(|(object_ref, owner)| object_ref.object_id == obj_id
-                    && owner.address_or_object().unwrap()
+                .any(|changed| changed.reference.object_id == obj_id
+                    && changed.owner.address_or_object().unwrap()
                         == &TestCheckpointDataBuilder::derive_address(1))
         );
     }
@@ -1008,12 +1008,12 @@ mod tests {
 
         // Verify the original coin now has 90 balance after the transfer.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
-            && obj.coin_type_opt() == Some(&type_tag)
+            && obj.opt_coin_type() == Some(&type_tag)
             && obj.data.as_opt_struct().unwrap().get_coin_value_unchecked() == 90));
 
         // Verify the split out coin has 10 balance, with the same type tag.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id1
-            && obj.coin_type_opt() == Some(&type_tag)
+            && obj.opt_coin_type() == Some(&type_tag)
             && obj.data.as_opt_struct().unwrap().get_coin_value_unchecked() == 10));
     }
 

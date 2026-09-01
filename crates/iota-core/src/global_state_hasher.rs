@@ -109,7 +109,7 @@ fn accumulate_effects(effects: &[TransactionEffects]) -> GlobalStateHash {
             .flat_map(|fx| {
                 fx.all_changed_objects()
                     .into_iter()
-                    .map(|(object_ref, _, _)| object_ref.digest)
+                    .map(|(changed, _)| changed.reference.digest)
             })
             .collect::<Vec<ObjectDigest>>(),
     );
@@ -121,7 +121,7 @@ fn accumulate_effects(effects: &[TransactionEffects]) -> GlobalStateHash {
             .flat_map(|fx| {
                 fx.old_object_metadata()
                     .into_iter()
-                    .map(|(object_ref, _owner)| object_ref.digest)
+                    .map(|old| old.reference.digest)
             })
             .collect::<Vec<ObjectDigest>>(),
     );

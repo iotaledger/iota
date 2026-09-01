@@ -322,7 +322,7 @@ impl MoveStructExt for MoveStruct {
         layout_resolver: &mut dyn LayoutResolver,
     ) -> Result<BTreeMap<TypeTag, u64>, IotaError> {
         // Fast path without deserialization.
-        if let Some(type_tag) = self.object_type().coin_type_opt() {
+        if let Some(type_tag) = self.object_type().opt_coin_type() {
             let balance = self.get_coin_value_unchecked();
             Ok(if balance > 0 {
                 BTreeMap::from([(type_tag.clone(), balance)])

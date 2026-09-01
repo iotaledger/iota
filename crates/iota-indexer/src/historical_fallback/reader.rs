@@ -109,12 +109,16 @@ impl HistoricalFallbackReader {
         &self,
         transaction_effects: &TransactionEffects,
     ) -> IndexerResult<(InputObjects, OutputObjects)> {
-        let input_object_keys = transaction_effects.modified_at_versions();
+        let input_object_keys = transaction_effects
+            .modified_at_versions()
+            .into_iter()
+            .map(|modified| (modified.object_id, modified.version))
+            .collect::<Vec<(ObjectId, Version)>>();
 
         let output_object_keys = transaction_effects
             .all_changed_objects()
             .into_iter()
-            .map(|(object_ref, _owner, _kind)| (object_ref.object_id, object_ref.version))
+            .map(|(changed, _kind)| (changed.reference.object_id, changed.reference.version))
             .collect::<Vec<(ObjectId, Version)>>();
 
         let (raw_input_objects, raw_output_objects) = tokio::try_join!(

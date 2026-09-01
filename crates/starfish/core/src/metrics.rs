@@ -236,6 +236,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_skipped_transactions: IntCounterVec,
     pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
     pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
+    pub(crate) cordial_knowledge_missing_authors: IntGauge,
     pub(crate) dag_state_recent_transactions: IntGauge,
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
@@ -326,6 +327,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) dropped_far_future_headers_total: IntCounterVec,
     pub(crate) threshold_clock_round: IntGauge,
     pub(crate) subscriber_connection_attempts: IntCounterVec,
+    pub(crate) block_stream_resets: IntCounterVec,
     pub(crate) subscribed_to: IntGaugeVec,
     pub(crate) subscribed_by: IntGaugeVec,
     pub(crate) commit_sync_inflight_fetches: IntGaugeVec,
@@ -782,6 +784,12 @@ impl NodeMetrics {
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),
+            cordial_knowledge_missing_authors: register_int_gauge_with_registry!(
+                "cordial_knowledge_missing_authors",
+                "Authors whose blocks are currently missing and whose headers peers are asked to push",
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
             synchronizer_requested_block_headers_by_peer: register_int_counter_vec_with_registry!(
                 "synchronizer_requested_block_headers_by_peer",
                 "Number of requested block headers per peer authority via the synchronizer and also by block authority",
@@ -1197,6 +1205,12 @@ impl NodeMetrics {
                 "subscriber_connection_attempts",
                 "The number of connection attempts per peer",
                 &["authority", "status"],
+                registry,
+            ).unwrap(),
+            block_stream_resets: register_int_counter_vec_with_registry!(
+                "block_stream_resets",
+                "The number of block stream subscriptions reset after fast sync, per peer",
+                &["authority"],
                 registry,
             ).unwrap(),
             subscribed_to: register_int_gauge_vec_with_registry!(

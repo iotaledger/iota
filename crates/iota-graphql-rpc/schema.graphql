@@ -2419,7 +2419,7 @@ type MovePackage implements IObject & IOwner {
 	Fetch another version of this package (the package that shares this
 	package's original ID, but has the specified `version`).
 	"""
-	packageAtVersion(version: Int!): MovePackage
+	packageAtVersion(version: UInt53!): MovePackage
 	"""
 	Fetch all versions of this package (packages that share this package's
 	original ID), optionally bounding the versions exclusively from

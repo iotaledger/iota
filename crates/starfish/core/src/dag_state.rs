@@ -2533,6 +2533,17 @@ impl DagState {
         self.gc_round(last_commit_round)
     }
 
+    /// The round to resume a peer's block stream from. Never below the GC
+    /// round, since blocks at or below it can no longer be sequenced and would
+    /// be dropped on arrival.
+    pub(crate) fn resume_round_for_authority(&self, authority: AuthorityIndex) -> Round {
+        self.recent_headers_refs_by_authority[authority]
+            .last()
+            .map(|block_ref| block_ref.round)
+            .unwrap_or(GENESIS_ROUND)
+            .max(self.gc_round_for_last_commit())
+    }
+
     /// Return the garbage collection round with respect a given round.
     pub(crate) fn gc_round(&self, round: Round) -> Round {
         round.saturating_sub(self.context.protocol_config.gc_depth() * 2)

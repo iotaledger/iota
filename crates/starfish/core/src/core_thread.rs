@@ -605,6 +605,8 @@ pub(crate) mod tests {
         last_known_proposed_round: Mutex<Vec<Round>>,
         new_block_calls: Arc<Mutex<Vec<(Round, ReasonToCreateBlock, Instant)>>>,
         quorum_subscribers_exists: Mutex<bool>,
+        reinitialize_components_calls: Mutex<usize>,
+        reinitialize_components_should_fail: Mutex<bool>,
     }
 
     impl MockCoreThreadDispatcher {
@@ -644,6 +646,14 @@ pub(crate) mod tests {
             let mut binding = self.new_block_calls.lock();
             let all_calls = binding.drain(0..);
             all_calls.into_iter().collect()
+        }
+
+        pub(crate) fn set_reinitialize_components_should_fail(&self, should_fail: bool) {
+            *self.reinitialize_components_should_fail.lock() = should_fail;
+        }
+
+        pub(crate) fn reinitialize_components_calls(&self) -> usize {
+            *self.reinitialize_components_calls.lock()
         }
     }
 
@@ -727,7 +737,12 @@ pub(crate) mod tests {
             &self,
             _block_headers: Vec<VerifiedBlockHeader>,
         ) -> Result<(), CoreError> {
-            unimplemented!()
+            *self.reinitialize_components_calls.lock() += 1;
+            if *self.reinitialize_components_should_fail.lock() {
+                Err(CoreError::Shutdown("test failure".to_owned()))
+            } else {
+                Ok(())
+            }
         }
 
         async fn new_block(

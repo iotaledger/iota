@@ -403,86 +403,85 @@ impl CheckpointStore {
         self.tables.checkpoint_content.multi_get(contents_digest)
     }
 
+    /// The row `watermark` holds — a sequence number and a digest — and `None`
+    /// when it has never been written.
+    ///
+    /// Only the verified, synced and executed rows name a checkpoint. The
+    /// pruner writes a random digest for `HighestPruned`, since nothing reads
+    /// it, so that row's sequence number is the only part worth having.
+    fn get_watermark(
+        &self,
+        watermark: CheckpointWatermark,
+    ) -> Result<Option<(CheckpointSequenceNumber, CheckpointDigest)>, TypedStoreError> {
+        self.tables.watermarks.get(&watermark)
+    }
+
+    /// The checkpoint `watermark` names.
+    ///
+    /// Resolved by digest, so it costs a lookup the row itself does not, and
+    /// answers `None` for a checkpoint the store no longer holds. A caller
+    /// that only compares positions wants [`Self::get_watermark_seq_number`].
+    fn get_watermark_checkpoint(
+        &self,
+        watermark: CheckpointWatermark,
+    ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
+        let Some((_sequence_number, digest)) = self.get_watermark(watermark)? else {
+            return Ok(None);
+        };
+        self.get_checkpoint_by_digest(&digest)
+    }
+
+    /// The sequence number of the checkpoint `watermark` names, read from the
+    /// row rather than from the checkpoint.
+    fn get_watermark_seq_number(
+        &self,
+        watermark: CheckpointWatermark,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        Ok(self
+            .get_watermark(watermark)?
+            .map(|(sequence_number, _digest)| sequence_number))
+    }
+
     pub fn get_highest_verified_checkpoint(
         &self,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
-        let highest_verified = if let Some(highest_verified) = self
-            .tables
-            .watermarks
-            .get(&CheckpointWatermark::HighestVerified)?
-        {
-            highest_verified
-        } else {
-            return Ok(None);
-        };
-        self.get_checkpoint_by_digest(&highest_verified.1)
+        self.get_watermark_checkpoint(CheckpointWatermark::HighestVerified)
+    }
+
+    pub fn get_highest_verified_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        self.get_watermark_seq_number(CheckpointWatermark::HighestVerified)
     }
 
     pub fn get_highest_synced_checkpoint(
         &self,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
-        let highest_synced = if let Some(highest_synced) = self
-            .tables
-            .watermarks
-            .get(&CheckpointWatermark::HighestSynced)?
-        {
-            highest_synced
-        } else {
-            return Ok(None);
-        };
-        self.get_checkpoint_by_digest(&highest_synced.1)
+        self.get_watermark_checkpoint(CheckpointWatermark::HighestSynced)
     }
 
     pub fn get_highest_synced_checkpoint_seq_number(
         &self,
     ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
-        if let Some(highest_synced) = self
-            .tables
-            .watermarks
-            .get(&CheckpointWatermark::HighestSynced)?
-        {
-            Ok(Some(highest_synced.0))
-        } else {
-            Ok(None)
-        }
-    }
-
-    pub fn get_highest_executed_checkpoint_seq_number(
-        &self,
-    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
-        if let Some(highest_executed) = self
-            .tables
-            .watermarks
-            .get(&CheckpointWatermark::HighestExecuted)?
-        {
-            Ok(Some(highest_executed.0))
-        } else {
-            Ok(None)
-        }
+        self.get_watermark_seq_number(CheckpointWatermark::HighestSynced)
     }
 
     pub fn get_highest_executed_checkpoint(
         &self,
     ) -> Result<Option<VerifiedCheckpoint>, TypedStoreError> {
-        let highest_executed = if let Some(highest_executed) = self
-            .tables
-            .watermarks
-            .get(&CheckpointWatermark::HighestExecuted)?
-        {
-            highest_executed
-        } else {
-            return Ok(None);
-        };
-        self.get_checkpoint_by_digest(&highest_executed.1)
+        self.get_watermark_checkpoint(CheckpointWatermark::HighestExecuted)
+    }
+
+    pub fn get_highest_executed_checkpoint_seq_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        self.get_watermark_seq_number(CheckpointWatermark::HighestExecuted)
     }
 
     pub fn get_highest_pruned_checkpoint_seq_number(
         &self,
     ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
-        self.tables
-            .watermarks
-            .get(&CheckpointWatermark::HighestPruned)
-            .map(|watermark| watermark.map(|w| w.0))
+        self.get_watermark_seq_number(CheckpointWatermark::HighestPruned)
     }
 
     pub fn get_checkpoint_contents(
@@ -662,11 +661,7 @@ impl CheckpointStore {
         &self,
         checkpoint: &VerifiedCheckpoint,
     ) -> Result<(), TypedStoreError> {
-        if Some(checkpoint.sequence_number())
-            > self
-                .get_highest_verified_checkpoint()?
-                .map(|x| x.sequence_number())
-        {
+        if Some(checkpoint.sequence_number()) > self.get_highest_verified_checkpoint_seq_number()? {
             debug!(
                 checkpoint_seq = checkpoint.sequence_number(),
                 "Updating highest verified checkpoint",
@@ -688,8 +683,9 @@ impl CheckpointStore {
     }
 
     /// Marks a consecutive run of checkpoints as synced: writes the watermark
-    /// once, for the last checkpoint, but notifies waiters of every
-    /// checkpoint in the run.
+    /// once, for the last checkpoint, and notifies the waiters that write
+    /// releases. Does nothing when another writer has already carried the
+    /// watermark past the run.
     pub fn multi_update_highest_synced_checkpoint(
         &self,
         checkpoints: &[VerifiedCheckpoint],
@@ -697,17 +693,28 @@ impl CheckpointStore {
         let Some(last) = checkpoints.last() else {
             return Ok(());
         };
-        debug!(
-            checkpoint_seq = last.sequence_number(),
-            "Updating highest synced checkpoint",
-        );
-        self.tables.watermarks.insert(
-            &CheckpointWatermark::HighestSynced,
-            &(last.sequence_number(), *last.digest()),
-        )?;
-        for checkpoint in checkpoints {
-            self.synced_checkpoint_notify_read
-                .notify(&checkpoint.sequence_number(), checkpoint);
+
+        // Only ever forwards, like the other two: another writer advances this
+        // as well, and moving it back offers contents that may not be there.
+        let previous = self.get_highest_synced_checkpoint_seq_number()?;
+        if previous.is_none_or(|previous_seq_number| previous_seq_number < last.sequence_number()) {
+            debug!(
+                checkpoint_seq = last.sequence_number(),
+                "Updating highest synced checkpoint",
+            );
+            self.tables.watermarks.insert(
+                &CheckpointWatermark::HighestSynced,
+                &(last.sequence_number(), *last.digest()),
+            )?;
+
+            // A reader parks only below the watermark, so only what this
+            // write has just passed can have anyone waiting on it.
+            for checkpoint in checkpoints.iter().filter(|c| {
+                previous.is_none_or(|previous_seq_number| previous_seq_number < c.sequence_number())
+            }) {
+                self.synced_checkpoint_notify_read
+                    .notify(&checkpoint.sequence_number(), checkpoint);
+            }
         }
         Ok(())
     }
@@ -800,6 +807,38 @@ impl CheckpointStore {
     ) -> Result<(), TypedStoreError> {
         self.tables.watermarks.insert(
             &CheckpointWatermark::HighestPruned,
+            &(checkpoint.sequence_number(), *checkpoint.digest()),
+        )
+    }
+
+    /// Sets the verified watermark to `checkpoint` whether or not that moves
+    /// it forwards.
+    ///
+    /// Only for tooling that deliberately rewinds it. The node writes this row
+    /// through [`Self::update_highest_verified_checkpoint`], which declines to
+    /// move it backwards, under a lock its callers share.
+    pub fn set_highest_verified_checkpoint_subtle(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<(), TypedStoreError> {
+        self.tables.watermarks.insert(
+            &CheckpointWatermark::HighestVerified,
+            &(checkpoint.sequence_number(), *checkpoint.digest()),
+        )
+    }
+
+    /// Sets the synced watermark to `checkpoint` whether or not that moves it
+    /// forwards.
+    ///
+    /// Only for tooling that deliberately rewinds it. The node writes this row
+    /// through [`Self::multi_update_highest_synced_checkpoint`], which declines
+    /// to move it backwards, under a lock its callers share.
+    pub fn set_highest_synced_checkpoint_subtle(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+    ) -> Result<(), TypedStoreError> {
+        self.tables.watermarks.insert(
+            &CheckpointWatermark::HighestSynced,
             &(checkpoint.sequence_number(), *checkpoint.digest()),
         )
     }
@@ -2888,10 +2927,8 @@ impl CheckpointServiceNotify for CheckpointService {
         let sequence = info.summary.sequence_number;
         let signer = info.summary.auth_sig().authority.concise();
 
-        if let Some(highest_verified_checkpoint) = self
-            .tables
-            .get_highest_verified_checkpoint()?
-            .map(|x| x.sequence_number())
+        if let Some(highest_verified_checkpoint) =
+            self.tables.get_highest_verified_checkpoint_seq_number()?
         {
             if sequence <= highest_verified_checkpoint {
                 trace!(

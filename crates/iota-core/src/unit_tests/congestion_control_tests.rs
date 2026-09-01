@@ -10,14 +10,14 @@ use iota_protocol_config::{
     Chain, PerObjectCongestionControlMode, ProtocolConfig, ProtocolVersion,
 };
 use iota_sdk_types::{
-    Address, ExecutionError, ExecutionStatus, Identifier, ObjectId, ObjectReference,
-    RandomnessRound, SharedObjectReference, Transaction, TransactionDigest, TransactionEffects,
-    TransactionKind, Version,
+    Address, ExecutionError, ExecutionStatus, Identifier, InputSharedObject, ObjectId,
+    ObjectReference, ObjectVersion, RandomnessRound, SharedObjectReference, Transaction,
+    TransactionDigest, TransactionEffects, TransactionKind, Version,
 };
 use iota_types::{
     base_types::dbg_addr,
     crypto::{AccountPrivateKey, get_key_pair},
-    effects::{InputSharedObject, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     executable_transaction::VerifiedExecutableTransaction,
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
     object::Object,
@@ -154,7 +154,7 @@ impl TestSetup {
             create_shared_object_effects.status()
         );
         assert_eq!(create_shared_object_effects.created().len(), 1);
-        create_shared_object_effects.created()[0].0
+        create_shared_object_effects.created()[0].reference
     }
 
     // Creates a owned object in `setup_authority_state` and returns the object
@@ -183,7 +183,7 @@ impl TestSetup {
             create_owned_object_effects.status()
         );
         assert_eq!(create_owned_object_effects.created().len(), 1);
-        create_owned_object_effects.created()[0].0
+        create_owned_object_effects.created()[0].reference
     }
 
     // Converts an object to a genesis object by setting its previous_transaction to
@@ -474,14 +474,14 @@ async fn congestion_control_execution_cancellation(use_execution_scheduler: bool
     assert_eq!(
         effects.input_shared_objects(),
         vec![
-            InputSharedObject::Cancelled(
+            InputSharedObject::Canceled(ObjectVersion::new(
                 shared_object_1.object_id,
                 Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
-            ),
-            InputSharedObject::Cancelled(
+            )),
+            InputSharedObject::Canceled(ObjectVersion::new(
                 shared_object_2.object_id,
                 Version::new_congested_with_suggested_gas_price(suggested_gas_price).unwrap()
-            )
+            ))
         ]
     );
 
@@ -690,10 +690,10 @@ async fn test_congestion_control_debt_tracking() {
     // Tests shared object versions in effects are set correctly.
     assert_eq!(
         effects.input_shared_objects(),
-        vec![InputSharedObject::Cancelled(
+        vec![InputSharedObject::Canceled(ObjectVersion::new(
             shared_object_2.object_id,
             Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price).unwrap()
-        ),]
+        )),]
     );
 
     // Check that the debt stored in consensus quarantine is correct. Shared object
@@ -830,16 +830,16 @@ async fn test_congestion_control_debt_tracking() {
     assert_eq!(
         effects.input_shared_objects(),
         vec![
-            InputSharedObject::Cancelled(
+            InputSharedObject::Canceled(ObjectVersion::new(
                 shared_object_1.object_id,
                 Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
                     .unwrap()
-            ),
-            InputSharedObject::Cancelled(
+            )),
+            InputSharedObject::Canceled(ObjectVersion::new(
                 shared_object_2.object_id,
                 Version::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
                     .unwrap()
-            )
+            ))
         ]
     );
 
@@ -1333,7 +1333,7 @@ async fn test_execution_worker_congestion_cancels_owned_object_only_tx() {
         effects
             .mutated()
             .iter()
-            .any(|(obj_ref, _)| obj_ref.object_id == gas_object_id)
+            .any(|mutated| mutated.reference.object_id == gas_object_id)
     );
     assert!(effects.input_shared_objects().is_empty());
 
@@ -1498,11 +1498,11 @@ async fn test_execution_worker_congestion_cancels_shared_object_tx() {
                 assert!(*suggested_gas_price > 0);
                 assert_eq!(
                     effects.input_shared_objects(),
-                    vec![InputSharedObject::Cancelled(
+                    vec![InputSharedObject::Canceled(ObjectVersion::new(
                         shared_input,
                         Version::new_congested_with_suggested_gas_price(*suggested_gas_price)
                             .unwrap()
-                    )]
+                    ))]
                 );
                 cancellations += 1;
             }
@@ -1651,7 +1651,7 @@ async fn test_execution_worker_congestion_cancels_tx_with_multiple_gas_coins() {
         effects
             .mutated()
             .iter()
-            .any(|(obj_ref, _)| obj_ref.object_id == gas_coins[0].object_id)
+            .any(|mutated| mutated.reference.object_id == gas_coins[0].object_id)
     );
     assert!(
         effects
