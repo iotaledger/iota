@@ -14,6 +14,7 @@ use iota_sdk_types::{
 use iota_types::{
     base_types::VersionDigest,
     effects::{TransactionEffectsAPI, TransactionEffectsExt},
+    full_checkpoint_content::CheckpointTransaction,
     inner_temporary_store::{InnerTemporaryStore, WrittenObjects},
     object::{Object, ObjectSet},
     storage::{MarkerValue, ObjectKey},
@@ -97,6 +98,93 @@ impl TransactionOutputs {
         metrics
             .superseded_capture_misses
             .inc_by(capture_misses as u64);
+
+        TransactionOutputs {
+            transaction: Arc::new(transaction),
+            effects,
+            events,
+            superseded,
+            markers: updates.markers,
+            wrapped: updates.wrapped,
+            deleted: updates.deleted,
+            live_object_markers_to_delete: updates.live_object_markers_to_delete,
+            new_live_object_markers_to_init: updates.new_live_object_markers_to_init,
+            written,
+        }
+    }
+
+    /// Converts the results a checkpoint carries for one transaction into the
+    /// exact set of updates to the store, without executing it.
+    ///
+    /// The caller must already have checked the transaction's payloads against
+    /// the digests the checkpoint commits to, with
+    /// [`CheckpointData::verify_payload_digests`](iota_types::full_checkpoint_content::CheckpointData::verify_payload_digests);
+    /// the effects and objects given here are trusted.
+    pub fn build_from_checkpoint_transaction(tx: &CheckpointTransaction) -> TransactionOutputs {
+        let transaction = VerifiedTransaction::new_unchecked(tx.transaction.clone());
+        let effects = tx.effects.clone();
+        let lamport_version = effects.lamport_version();
+
+        // The version, digest and owner every changed object had before the
+        // transaction ran, which is what execution records as `mutable_inputs`.
+        // Objects that did not exist beforehand are absent, matching the input
+        // objects execution would have loaded.
+        let inputs: BTreeMap<ObjectId, (VersionDigest, Owner)> = effects
+            .old_object_metadata()
+            .into_iter()
+            .map(|old| {
+                (
+                    old.reference.object_id,
+                    ((old.reference.version, old.reference.digest), old.owner),
+                )
+            })
+            .collect();
+
+        let shared_inputs: HashSet<ObjectId> = inputs
+            .iter()
+            .filter_map(|(id, (_, owner))| owner.is_shared().then_some(*id))
+            .collect();
+
+        let written: WrittenObjects = tx
+            .output_objects
+            .iter()
+            .map(|object| (object.id(), object.clone()))
+            .collect();
+
+        // A transaction that emitted no events has no events blob in checkpoint
+        // data, where the store keeps an empty one.
+        let events = tx.events.clone().unwrap_or_default();
+
+        let updates = derive_store_updates(
+            &transaction,
+            &effects,
+            &written,
+            inputs,
+            |id| shared_inputs.contains(id),
+            lamport_version,
+        );
+
+        // Checkpoint data carries one input object per modified version — the
+        // same set the superseded pre-images are keyed by — so unlike
+        // execution there is nothing to fall back to and nothing to miss.
+        // `verify_payload_digests` has already rejected any checkpoint whose
+        // input objects don't cover that set.
+        let pre_images: BTreeMap<ObjectKey, &Object> = tx
+            .input_objects
+            .iter()
+            .map(|object| (ObjectKey(object.id(), object.version()), object))
+            .collect();
+        let superseded = effects
+            .modified_at_versions()
+            .into_iter()
+            .map(|modified| {
+                let key = ObjectKey(modified.object_id, modified.version);
+                let pre_image = pre_images
+                    .get(&key)
+                    .expect("verified checkpoint data carries every superseded version");
+                (key, (*pre_image).clone())
+            })
+            .collect();
 
         TransactionOutputs {
             transaction: Arc::new(transaction),
