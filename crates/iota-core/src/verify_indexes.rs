@@ -12,7 +12,7 @@ use typed_store::traits::Map;
 
 use crate::{
     global_state_hasher::GlobalStateHashStore,
-    jsonrpc_index::{CoinInfo, IndexStore},
+    rpc_indexes::{CoinInfo, IndexStore},
 };
 
 /// This is a very expensive function that verifies some of the secondary
