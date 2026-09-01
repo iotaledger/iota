@@ -4,12 +4,13 @@
 use std::sync::Arc;
 
 use iota_types::{
+    committee::EpochId,
     executable_transaction::VerifiedExecutableTransaction,
     full_checkpoint_content::CheckpointData,
     storage::{ApplyCheckpointResults, error::Error as StorageError},
     transaction::{SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction},
 };
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::{
     authority::AuthorityState, execution_cache::ExecutionCacheWrite,
@@ -33,7 +34,26 @@ impl CheckpointResultsApplier {
     }
 }
 
+#[async_trait::async_trait]
 impl ApplyCheckpointResults for CheckpointResultsApplier {
+    async fn wait_for_epoch(&self, epoch: EpochId) {
+        loop {
+            // Cloned out of the guard so it is not held across the await.
+            let epoch_store = self.state.load_epoch_store_one_call_per_task().clone();
+            let current = epoch_store.epoch();
+            if current >= epoch {
+                return;
+            }
+            info!(
+                current_epoch = current,
+                waiting_for = epoch,
+                "pausing archive sync until the node reaches the epoch of the checkpoints it \
+                 is applying"
+            );
+            epoch_store.wait_epoch_terminated().await;
+        }
+    }
+
     fn try_apply_checkpoint_results(
         &self,
         checkpoint: &CheckpointData,
@@ -48,10 +68,9 @@ impl ApplyCheckpointResults for CheckpointResultsApplier {
 
         // Object markers and shared version assignments are stored per epoch, so
         // a checkpoint's results can only be written while its own epoch is the
-        // current one. Archive sync inserts up to
-        // `max_checkpoints_ahead_of_execution` checkpoints ahead of execution,
-        // which regularly reaches into the next epoch before reconfiguration has
-        // happened. Those are left to the executor.
+        // current one. Callers wait for the epoch with `wait_for_epoch`, so this
+        // normally holds; it can still fail for a checkpoint from an epoch the
+        // node has already left, which cannot be applied at all.
         if checkpoint_epoch != epoch_store.epoch() {
             debug!(
                 ?sequence_number,

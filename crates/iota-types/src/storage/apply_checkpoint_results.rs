@@ -1,14 +1,31 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{full_checkpoint_content::CheckpointData, storage::error::Error as StorageError};
+use crate::{
+    committee::EpochId, full_checkpoint_content::CheckpointData,
+    storage::error::Error as StorageError,
+};
 
 /// Commits the results a checkpoint carries, so its transactions do not have to
 /// be executed again to reproduce them.
 ///
 /// Defined here rather than in `iota-core` so that state sync, which cannot
 /// depend on `iota-core`, can drive it.
-pub trait ApplyCheckpointResults {
+#[async_trait::async_trait]
+pub trait ApplyCheckpointResults: Send + Sync {
+    /// Waits until `epoch` is no longer ahead of the node's current epoch.
+    ///
+    /// Object markers and shared object version assignments are stored per
+    /// epoch, so a checkpoint's results can only be written while its own epoch
+    /// is current. Archive sync inserts checkpoints ahead of execution and so
+    /// regularly reaches into the next epoch before reconfiguration has
+    /// happened; waiting here keeps those checkpoints on the applying path
+    /// instead of handing them back to the executor.
+    ///
+    /// Callers must have inserted the previous epoch's last checkpoint before
+    /// waiting on the next epoch, or the epoch can never advance.
+    async fn wait_for_epoch(&self, epoch: EpochId);
+
     /// Verifies the checkpoint's payloads against the digests its effects
     /// record and writes the results to the store.
     ///

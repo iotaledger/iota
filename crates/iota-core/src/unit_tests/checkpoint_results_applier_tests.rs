@@ -128,3 +128,19 @@ async fn rejects_tampered_data_without_writing() {
         "a rejected checkpoint must not have written anything"
     );
 }
+
+/// Waiting for an epoch the node has already reached must return at once, so
+/// archive sync is never paused for checkpoints it can apply straight away.
+/// The waiting path itself needs a reconfiguration and is covered end to end.
+#[tokio::test]
+async fn wait_for_epoch_returns_immediately_when_already_current() {
+    let (authority, applier, _) = applier_with_transfer().await;
+    let current = authority.epoch_store_for_testing().epoch();
+
+    tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        applier.wait_for_epoch(current),
+    )
+    .await
+    .expect("must not pause for an epoch the node is already in");
+}
