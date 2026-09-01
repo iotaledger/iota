@@ -371,4 +371,4 @@ where
 
 #[cfg(test)]
 #[path = "unit_tests/transaction_outputs_tests.rs"]
-mod tests;
+pub(crate) mod tests;
