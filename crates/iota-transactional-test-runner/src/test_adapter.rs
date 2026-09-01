@@ -539,7 +539,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
             let pt = builder.finish();
             let payments = self.get_payments(sender_acc, vec![]);
 
-            let transaction = TransactionData::new_programmable(
+            let transaction = Transaction::new_programmable(
                 sender_acc.address,
                 payments.clone(),
                 pt,
@@ -1761,7 +1761,9 @@ impl IotaTestAdapter {
 
         let pt = builder.finish();
 
-        let summary = if dry_run {
+        // A dry run creates no objects to look up afterwards, so it reports the
+        // summary directly instead of resolving the upgraded package below.
+        if dry_run {
             let transaction = Transaction::new_programmable(
                 self.get_sender(Some(sender)).address,
                 vec![],
@@ -1769,13 +1771,14 @@ impl IotaTestAdapter {
                 gas_budget,
                 gas_price,
             );
-            self.dry_run(transaction).await?
-        } else {
-            let tx =
-                |sender, gas| Transaction::new_programmable(sender, gas, pt, gas_budget, gas_price);
-            let transaction = self.sign_txn(Some(sender), tx);
-            self.execute_txn(transaction).await?
-        };
+            let summary = self.dry_run(transaction).await?;
+            return Ok(self.object_summary_output(&summary, false));
+        }
+
+        let tx =
+            |sender, gas| Transaction::new_programmable(sender, gas, pt, gas_budget, gas_price);
+        let transaction = self.sign_txn(Some(sender), tx);
+        let summary = self.execute_txn(transaction).await?;
         let created_package = summary
             .created
             .iter()
