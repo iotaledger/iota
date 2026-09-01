@@ -295,7 +295,7 @@ impl TestCheckpointDataBuilder {
             .get(&object_id)
             .cloned()
             .expect("Mutating an object that does not exist");
-        let coin_type = object.coin_type_opt().cloned().unwrap();
+        let coin_type = object.opt_coin_type().cloned().unwrap();
         // Withdraw balance from coin object.
         let move_object = object.data.as_opt_mut_struct().unwrap();
         let old_balance = move_object.get_coin_value_unchecked();
@@ -1008,12 +1008,12 @@ mod tests {
 
         // Verify the original coin now has 90 balance after the transfer.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id0
-            && obj.coin_type_opt() == Some(&type_tag)
+            && obj.opt_coin_type() == Some(&type_tag)
             && obj.data.as_opt_struct().unwrap().get_coin_value_unchecked() == 90));
 
         // Verify the split out coin has 10 balance, with the same type tag.
         assert!(tx.output_objects.iter().any(|obj| obj.id() == obj_id1
-            && obj.coin_type_opt() == Some(&type_tag)
+            && obj.opt_coin_type() == Some(&type_tag)
             && obj.data.as_opt_struct().unwrap().get_coin_value_unchecked() == 10));
     }
 

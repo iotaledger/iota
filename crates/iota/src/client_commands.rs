@@ -52,7 +52,7 @@ use iota_sdk::{
     iota_client_config::{IotaClientConfig, IotaEnv},
     wallet_context::WalletContext,
 };
-use iota_sdk_transaction_builder::{TransactionBuilderClient, unresolved};
+use iota_sdk_transaction_builder::{TransactionBuilderLedgerClient, unresolved};
 use iota_sdk_types::{
     Address, Identifier, MoveAuthenticatorV1, MovePackageData, ObjectId, ObjectReference, Owner,
     SenderSignedTransaction, SharedObjectReference, SignatureScheme, StructTag, Transaction,
@@ -3332,7 +3332,7 @@ async fn grpc_coin(
         .await?
         .ok_or_else(|| anyhow!("Coin {coin_id} does not exist"))?;
     let coin_type = object
-        .coin_type_opt()
+        .opt_coin_type()
         .ok_or_else(|| anyhow!("Object {coin_id} is not a coin"))?
         .clone();
 

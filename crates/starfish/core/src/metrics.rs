@@ -236,6 +236,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_skipped_transactions: IntCounterVec,
     pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
     pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
+    pub(crate) cordial_knowledge_missing_authors: IntGauge,
     pub(crate) dag_state_recent_transactions: IntGauge,
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
@@ -780,6 +781,12 @@ impl NodeMetrics {
                 "cordial_knowledge_useful_shards_authors",
                 "Useful authors for pushing shards to the local node",
                 &["author"],
+                registry;
+                MetricLevel::Warn,
+            ).unwrap(),
+            cordial_knowledge_missing_authors: register_int_gauge_with_registry!(
+                "cordial_knowledge_missing_authors",
+                "Authors whose blocks are currently missing and whose headers peers are asked to push",
                 registry;
                 MetricLevel::Warn,
             ).unwrap(),

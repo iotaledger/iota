@@ -619,8 +619,7 @@ pub(crate) async fn backfill_checkpoint_summaries(
         &RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
 
     let highest_synced = checkpoint_store
-        .get_highest_synced_checkpoint()?
-        .map(|c| c.sequence_number)
+        .get_highest_synced_checkpoint_seq_number()?
         .ok_or_else(|| {
             anyhow!("checkpoint store at {node_db_path:?} is empty; restore the node first")
         })?;

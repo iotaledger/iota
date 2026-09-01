@@ -5,7 +5,6 @@
 use std::{
     net::{IpAddr, SocketAddr},
     sync::Arc,
-    time::SystemTime,
 };
 
 use axum::{
@@ -201,23 +200,14 @@ async fn process_raw_request<L: Logger>(
         }
         None => None,
     };
-    if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
-        // check if either IP is blocked, in which case return early
-        if let Some(traffic_controller) = &service.traffic_controller {
-            if let Err(blocked_response) =
-                handle_traffic_req(traffic_controller.clone(), &client).await
-            {
-                return blocked_response;
-            }
+    // check if either IP is blocked, in which case return early
+    if let Some(traffic_controller) = &service.traffic_controller {
+        if let Err(blocked_response) = handle_traffic_req(traffic_controller.clone(), &client) {
+            return blocked_response;
         }
-
-        // handle response tallying
-        let response = process_request(request, api_version, service.call_data()).await;
-        if let Some(traffic_controller) = &service.traffic_controller {
-            handle_traffic_resp(traffic_controller.clone(), client, &response);
-        }
-
-        response
+    }
+    let response = if let Ok(request) = serde_json::from_str::<Request>(raw_request) {
+        process_request(request, api_version, service.call_data()).await
     } else if let Ok(_batch) = serde_json::from_str::<Vec<&RawValue>>(raw_request) {
         MethodResponse::error(
             Id::Null,
@@ -226,14 +216,20 @@ async fn process_raw_request<L: Logger>(
     } else {
         let (id, code) = prepare_error(raw_request);
         MethodResponse::error(id, ErrorObject::from(code))
+    };
+    // A request the node cannot parse is tallied like any other request, so
+    // that a client cannot send malformed requests without a limit.
+    if let Some(traffic_controller) = &service.traffic_controller {
+        handle_traffic_resp(traffic_controller.clone(), client, &response);
     }
+    response
 }
 
-async fn handle_traffic_req(
+fn handle_traffic_req(
     traffic_controller: Arc<TrafficController>,
     client: &Option<IpAddr>,
 ) -> Result<(), MethodResponse> {
-    if !traffic_controller.check(client, &None).await {
+    if !traffic_controller.check(client, &None) {
         // Entity in blocklist
         let err_obj =
             ErrorObject::borrowed(ErrorCode::ServerIsBusy.code(), TOO_MANY_REQUESTS_MSG, None);
@@ -265,14 +261,15 @@ fn handle_traffic_resp(
         // suitable rpc provider (or run their own). Later we may want
         // to provide a weight distribution based on the method being called.
         spam_weight: Weight::one(),
-        timestamp: SystemTime::now(),
     });
 }
 
 // TODO: refine error matching here
 fn normalize(err: ErrorCode) -> Weight {
     match err {
-        ErrorCode::InvalidRequest | ErrorCode::InvalidParams => Weight::one(),
+        ErrorCode::ParseError | ErrorCode::InvalidRequest | ErrorCode::InvalidParams => {
+            Weight::one()
+        }
         ErrorCode::ServerError(i) if i == TRANSACTION_NOT_FOUND_ERROR_CODE => Weight::zero(),
         // e.g. invalid client signature
         ErrorCode::ServerError(i) if i == TRANSACTION_EXECUTION_CLIENT_ERROR_CODE => Weight::one(),
@@ -300,6 +297,7 @@ mod tests {
 
     #[test]
     fn client_errors_have_full_error_weight() {
+        assert_eq!(normalize(ErrorCode::ParseError), Weight::one());
         assert_eq!(normalize(ErrorCode::InvalidParams), Weight::one());
         assert_eq!(
             normalize(ErrorCode::ServerError(

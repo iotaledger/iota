@@ -77,18 +77,6 @@ The Indexer pulls checkpoint data from the full node and populates the tables sh
 | objects_package_module_name_full_type       | object_type_package, object_type_module, object_type_name, object_type           |                                                           |
 | objects_owner_package_module_name_full_type | owner_id, object_type_package, object_type_module, object_type_name, object_type |                                                           |
 
-### Table `objects_snapshot`
-
-| Index name                                           | Keys                                                                              | Condition                                                 |
-| ---------------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------- |
-| objects_snapshot_checkpoint_sequence_number          | checkpoint_sequence_number                                                        |                                                           |
-| objects_snapshot_owner                               | owner_type, owner_id, object_id                                                   | WHERE owner_type BETWEEN 1 AND 2 AND owner_id IS NOT NULL |
-| objects_snapshot_coin_owner                          | owner_id, coin_type, object_id                                                    | WHERE coin_type IS NOT NULL AND owner_type = 1            |
-| objects_snapshot_coin_only                           | coin_type, object_id                                                              | WHERE coin_type IS NOT NULL                               |
-| objects_snapshot_type_id                             | object_type_package, object_type_module, object_type_name, object_type, object_id |                                                           |
-| objects_snapshot_id_type                             | object_id, object_type_package, object_type_module, object_type_name, object_type |                                                           |
-| objects_snapshot_owner_package_module_name_full_type | owner_id, object_type_package, object_type_module, object_type_name, object_type  |                                                           |
-
 ### Table `transactions`
 
 | Index name                              | Keys                       | Condition                  |
