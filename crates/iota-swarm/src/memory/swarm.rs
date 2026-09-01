@@ -885,7 +885,7 @@ mod test {
     #[test]
     fn the_validator_policy_config_applies_before_the_overrides() {
         let policy_config = PolicyConfig {
-            channel_capacity: 4242,
+            connection_blocklist_ttl_sec: 4242,
             ..PolicyConfig::default()
         };
         let swarm = Swarm::builder()
@@ -901,7 +901,7 @@ mod test {
                 .policy_config
                 .as_ref()
                 .unwrap()
-                .channel_capacity,
+                .connection_blocklist_ttl_sec,
             4242
         );
     }
