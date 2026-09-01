@@ -9,7 +9,7 @@ use std::{
     fmt,
     future::Future,
     num::NonZeroUsize,
-    sync::{Arc, Weak, atomic::AtomicBool},
+    sync::{Arc, OnceLock, Weak, atomic::AtomicBool},
     time::Duration,
 };
 
@@ -44,6 +44,7 @@ use iota_core::{
         ValidatorService, ValidatorServiceMetrics, soft_lock::PreConsensusSoftLocks,
     },
     checkpoint_progress_tracker::CheckpointProgressTracker,
+    checkpoint_results_applier::CheckpointResultsApplier,
     checkpoints::{
         CheckpointMetrics, CheckpointService, CheckpointStore, FullCheckpointContentsCache,
         FullCheckpointContentsCacheMetrics, SendCheckpointToStateSync, SubmitCheckpointToConsensus,
@@ -677,6 +678,14 @@ impl IotaNode {
             checkpoint_store.clone(),
         );
 
+        // State sync starts before the authority state exists, so the applier
+        // is handed a cell the state is dropped into once it is built.
+        let authority_state_for_applier = Arc::new(OnceLock::new());
+        let checkpoint_results_applier = Arc::new(CheckpointResultsApplier::new(
+            authority_state_for_applier.clone(),
+            cache_traits.cache_writer.clone(),
+        ));
+
         let mut index_groups = BTreeSet::new();
         if is_full_node && config.enable_jsonrpc_api {
             index_groups.insert(IndexGroup::JsonRpc);
@@ -736,6 +745,7 @@ impl IotaNode {
             Self::create_p2p_network(
                 &config,
                 state_sync_store.clone(),
+                checkpoint_results_applier,
                 chain_identifier,
                 trusted_peer_change_rx,
                 randomness_tx,
@@ -786,6 +796,13 @@ impl IotaNode {
             config.firewall_config.clone(),
         )
         .await;
+
+        // Lets archive sync apply checkpoint results from here on; until now it
+        // has been leaving them to the checkpoint executor.
+        authority_state_for_applier
+            .set(state.clone())
+            .ok()
+            .expect("the authority state is set exactly once");
 
         // ensure genesis and migration txs were executed
         if epoch_store.epoch() == 0 {
@@ -1098,6 +1115,7 @@ impl IotaNode {
     fn create_p2p_network(
         config: &NodeConfig,
         state_sync_store: RocksDbStore,
+        checkpoint_results_applier: Arc<CheckpointResultsApplier>,
         chain_identifier: ChainIdentifier,
         trusted_peer_change_rx: watch::Receiver<TrustedPeerChangeEvent>,
         randomness_tx: mpsc::Sender<(EpochId, RandomnessRound, Vec<u8>)>,
@@ -1111,6 +1129,7 @@ impl IotaNode {
         let (state_sync, state_sync_server) = state_sync::Builder::new()
             .config(config.p2p_config.state_sync.clone().unwrap_or_default())
             .store(state_sync_store)
+            .results_applier(Some(checkpoint_results_applier))
             .checkpoint_archive_config(config.checkpoint_archive_config().cloned())
             .with_metrics(prometheus_registry)
             .build();

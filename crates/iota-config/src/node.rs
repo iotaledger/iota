@@ -1335,6 +1335,15 @@ pub struct CheckpointArchiveConfig {
     /// Defaults to the number of CPU cores.
     #[serde(default = "default_checkpoint_archive_verify_concurrency")]
     pub verify_concurrency: NonZeroUsize,
+    /// Re-execute the transactions of checkpoints downloaded from the archive
+    /// instead of applying the results the archive already carries.
+    ///
+    /// Applying is much faster and relies on the same authority signatures the
+    /// node already trusts, so it is the default. Enable this to have the node
+    /// derive the effects itself, which detects a divergence between this
+    /// binary's execution and the history the network certified.
+    #[serde(default)]
+    pub re_execute_archived_checkpoints: bool,
 }
 
 /// Configuration for the per-epoch state-snapshot publisher.

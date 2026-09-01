@@ -15,7 +15,7 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointSequenceNumber, FullCheckpointContents,
         VerifiedCheckpoint, VerifiedCheckpointContents,
     },
-    storage::WriteStore,
+    storage::{ApplyCheckpointResults, WriteStore},
 };
 use tracing::debug;
 
@@ -28,6 +28,10 @@ use crate::state_sync::metrics::Metrics;
 pub(crate) struct VerifiedArchiveCheckpoint {
     summary: CertifiedCheckpointSummary,
     contents: VerifiedCheckpointContents,
+    /// The downloaded payloads, kept so the results can be applied instead of
+    /// re-executed. Retained even when applying is off: dropping it would mean
+    /// re-downloading to turn the option on.
+    data: Arc<CheckpointData>,
     /// False when the committee for the checkpoint's epoch was not yet in the
     /// store, because the previous epoch's last checkpoint had not been
     /// committed; the reducer verifies the signatures for those instead.
@@ -53,6 +57,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
         checkpoint: Arc<CheckpointData>,
     ) -> anyhow::Result<Self::Message> {
         let summary = checkpoint.checkpoint_summary.clone();
+        let data = checkpoint.clone();
         let committee = self.0.get_committee(summary.epoch());
         // As many workers run as there are cores, so keep their CPU-bound
         // verification off the runtime's worker threads, where it would hold up
@@ -77,6 +82,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Worker for StateSyncWorker<S
             Ok(VerifiedArchiveCheckpoint {
                 summary,
                 contents,
+                data,
                 signatures_verified,
             })
         })
@@ -98,6 +104,9 @@ pub(crate) struct StateSyncReducer<S> {
     /// How far the synced watermark may run ahead of the executed one before
     /// insertion waits for execution to catch up.
     pub(crate) max_checkpoints_ahead_of_execution: u64,
+    /// Writes each checkpoint's verified results so its transactions do not
+    /// have to be executed. `None` leaves them all to the checkpoint executor.
+    pub(crate) results_applier: Option<Arc<dyn ApplyCheckpointResults>>,
 }
 
 /// How many checkpoints the reducer commits per store insertion at most,
@@ -111,6 +120,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
     async fn commit(&self, batch: &[VerifiedArchiveCheckpoint]) -> anyhow::Result<()> {
         self.verify_deferred_signatures(batch).await?;
         self.wait_for_execution_to_catch_up(batch).await;
+        self.wait_for_batch_epoch(batch).await;
 
         let mut to_insert = Vec::with_capacity(batch.len());
         let mut prev_checkpoint = None;
@@ -118,6 +128,7 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
             let verified_checkpoint =
                 self.verify_against_previous(message, prev_checkpoint.as_ref())?;
             prev_checkpoint = Some(verified_checkpoint.clone());
+            self.apply_results(message)?;
             to_insert.push((verified_checkpoint, message.contents.clone()));
         }
 
@@ -152,6 +163,42 @@ impl<S: WriteStore + Clone + Send + Sync + 'static> Reducer<StateSyncWorker<S>>
 }
 
 impl<S: WriteStore + Clone> StateSyncReducer<S> {
+    /// Waits until the node has reached the epoch of the checkpoints in
+    /// `batch`, since their results can only be written while that epoch is
+    /// current. Batches never span epochs — `should_close_batch` closes them at
+    /// every boundary — so the first checkpoint's epoch is the batch's.
+    ///
+    /// The previous epoch's last checkpoint was inserted by an earlier batch,
+    /// so the executor can always reach it and reconfigure while this waits.
+    async fn wait_for_batch_epoch(&self, batch: &[VerifiedArchiveCheckpoint]) {
+        let (Some(applier), Some(first)) = (&self.results_applier, batch.first()) else {
+            return;
+        };
+        applier
+            .wait_for_epoch(first.data.checkpoint_summary.data().epoch)
+            .await;
+    }
+
+    /// Writes a checkpoint's results so its transactions do not have to be
+    /// executed.
+    ///
+    /// Runs before the summary is inserted, so the executor never sees a
+    /// checkpoint whose results are still missing. The other order would also
+    /// be correct — the executor falls back to executing — but would waste the
+    /// work.
+    fn apply_results(&self, message: &VerifiedArchiveCheckpoint) -> anyhow::Result<()> {
+        let Some(applier) = &self.results_applier else {
+            return Ok(());
+        };
+        let applied = applier
+            .try_apply_checkpoint_results(&message.data)
+            .map_err(|e| anyhow!("failed to apply checkpoint results: {e}"))?;
+        if !applied {
+            self.metrics.checkpoint_from_archive_left_to_the_executor();
+        }
+        Ok(())
+    }
+
     /// Waits until the whole batch fits within
     /// `max_checkpoints_ahead_of_execution` of the executed watermark.
     ///

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use iota_swarm_config::test_utils::{CommitteeFixture, empty_contents};
 use iota_types::{
@@ -55,8 +55,12 @@ async fn applier_with_transfer() -> (
     CheckpointTransaction,
 ) {
     let (authority, _, checkpoint_tx) = execute_transfer_both_ways_on().await;
-    let applier =
-        CheckpointResultsApplier::new(authority.clone(), authority.get_cache_writer().clone());
+    let state = Arc::new(OnceLock::new());
+    state
+        .set(authority.clone())
+        .ok()
+        .expect("the cell is fresh");
+    let applier = CheckpointResultsApplier::new(state, authority.get_cache_writer().clone());
     (authority, applier, checkpoint_tx)
 }
 

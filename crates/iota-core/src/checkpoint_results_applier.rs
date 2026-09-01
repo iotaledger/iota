@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use iota_types::{
     committee::EpochId,
@@ -21,12 +21,20 @@ use crate::{
 /// does not have to wait for the checkpoint executor to reproduce them by
 /// executing the transactions.
 pub struct CheckpointResultsApplier {
-    state: Arc<AuthorityState>,
+    /// Filled in once the node has built its authority state.
+    ///
+    /// State sync starts before that happens, so the applier has to be handed
+    /// to it beforehand. Until the state arrives, checkpoints are left to the
+    /// checkpoint executor, which is always correct.
+    state: Arc<OnceLock<Arc<AuthorityState>>>,
     cache_writer: Arc<dyn ExecutionCacheWrite>,
 }
 
 impl CheckpointResultsApplier {
-    pub fn new(state: Arc<AuthorityState>, cache_writer: Arc<dyn ExecutionCacheWrite>) -> Self {
+    pub fn new(
+        state: Arc<OnceLock<Arc<AuthorityState>>>,
+        cache_writer: Arc<dyn ExecutionCacheWrite>,
+    ) -> Self {
         Self {
             state,
             cache_writer,
@@ -37,9 +45,14 @@ impl CheckpointResultsApplier {
 #[async_trait::async_trait]
 impl ApplyCheckpointResults for CheckpointResultsApplier {
     async fn wait_for_epoch(&self, epoch: EpochId) {
+        // Without the authority state there is no epoch to wait for: these
+        // checkpoints go to the executor either way.
+        let Some(state) = self.state.get() else {
+            return;
+        };
         loop {
             // Cloned out of the guard so it is not held across the await.
-            let epoch_store = self.state.load_epoch_store_one_call_per_task().clone();
+            let epoch_store = state.load_epoch_store_one_call_per_task().clone();
             let current = epoch_store.epoch();
             if current >= epoch {
                 return;
@@ -64,7 +77,14 @@ impl ApplyCheckpointResults for CheckpointResultsApplier {
         // checkpoint, but it is the summary's epoch that decides which epoch's
         // marker tables these writes belong in.
         let checkpoint_epoch = checkpoint.checkpoint_summary.data().epoch;
-        let epoch_store = self.state.load_epoch_store_one_call_per_task();
+        let Some(state) = self.state.get() else {
+            debug!(
+                ?sequence_number,
+                "leaving checkpoint results to the executor: the authority state is not ready yet"
+            );
+            return Ok(false);
+        };
+        let epoch_store = state.load_epoch_store_one_call_per_task();
 
         // Object markers and shared version assignments are stored per epoch, so
         // a checkpoint's results can only be written while its own epoch is the
@@ -105,7 +125,7 @@ impl ApplyCheckpointResults for CheckpointResultsApplier {
                     .acquire_shared_version_assignments_from_effects(
                         &executable,
                         &tx.effects,
-                        self.state.get_object_cache_reader().as_ref(),
+                        state.get_object_cache_reader().as_ref(),
                     )
                     .map_err(StorageError::custom)?;
             }
