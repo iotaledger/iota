@@ -107,6 +107,7 @@ pub trait AttestedObjectVersionReader: Send + Sync {
 /// transaction fails Move authentication at execution.
 pub struct AttestationVerdictContext<'a> {
     pub object_versions: &'a [ObjectReference],
+    pub computation_units: u64,
     pub version_reader: &'a dyn AttestedObjectVersionReader,
 }
 
@@ -172,6 +173,7 @@ mod tests {
     ) -> AttestationVerdictContext<'a> {
         AttestationVerdictContext {
             object_versions,
+            computation_units: 1_000_000,
             version_reader: reader,
         }
     }

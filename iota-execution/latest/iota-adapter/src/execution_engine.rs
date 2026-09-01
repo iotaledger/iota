@@ -522,6 +522,7 @@ mod checked {
                         gas_price,
                         rgp,
                         gas_budget,
+                        verdict_context.computation_units,
                         reauth_authenticators,
                         verdict_context.object_versions,
                         &transaction_kind,
@@ -601,6 +602,7 @@ mod checked {
         gas_price: u64,
         reference_gas_price: u64,
         gas_budget: u64,
+        attested_computation_units: u64,
         authenticators: Vec<(
             MoveAuthenticator,
             Option<AuthenticatorFunctionRefForExecution>,
@@ -618,10 +620,18 @@ mod checked {
             .map(|object_ref| (*object_ref.object_id(), object_ref))
             .collect();
 
-        let Ok(gas_status) =
-            IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)
-        else {
-            return true;
+        // The re-run is metered on its own charger, capped by the attestor's
+        // claimed computation units: exceeding them refutes the attestation by
+        // its own claim, and the cost never reaches the transaction's gas or
+        // effects.
+        let attested_budget = attested_computation_units.saturating_mul(gas_price);
+        let Ok(gas_status) = IotaGasStatus::new(
+            attested_budget,
+            gas_price,
+            reference_gas_price,
+            protocol_config,
+        ) else {
+            return false;
         };
         let mut gas_charger =
             GasCharger::new(transaction_digest, vec![], gas_status, protocol_config);
@@ -804,9 +814,7 @@ mod checked {
     fn is_authentication_rejection(kind: &ExecutionErrorKind) -> bool {
         !matches!(
             kind,
-            ExecutionErrorKind::InsufficientGas
-                | ExecutionErrorKind::InvariantViolation
-                | ExecutionErrorKind::VmInvariantViolation
+            ExecutionErrorKind::InvariantViolation | ExecutionErrorKind::VmInvariantViolation
         )
     }
 

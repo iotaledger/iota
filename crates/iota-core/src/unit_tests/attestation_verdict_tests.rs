@@ -78,7 +78,7 @@ async fn attestation_that_fails_at_its_own_versions_is_invalid() {
     // both at the current version and at the claimed one.
     let (_, unrelated_key) = get_account_key_pair();
     let tx = env.account_transaction_signed_with(&unrelated_key);
-    let attestation = env.claim_versions(vec![claimed_version]);
+    let attestation = env.attest_with_versions(vec![claimed_version]);
     let effects = env.submit(tx, Some(attestation)).await;
 
     let ExecutionStatus::Failure { error, .. } = effects.status() else {

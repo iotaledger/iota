@@ -470,14 +470,10 @@ impl AbstractAccountTestEnv {
 
     /// An attestation vouching for the transaction at the given versions, as a
     /// dishonest attestor would produce. The computation estimate is the
-    /// smallest one consensus accepts, since only the recorded versions matter
-    /// here.
-    pub fn claim_versions(&self, object_versions: Vec<ObjectReference>) -> Attestation {
-        let epoch_store = self.authority.epoch_store_for_testing();
-        let protocol_config = epoch_store.protocol_config();
-        let computation_units = protocol_config
-            .base_tx_cost_fixed()
-            .min(protocol_config.gas_rounding_step());
+    /// largest one consensus accepts, so the verdict on the recorded versions
+    /// is never preempted by the attested-units cap on the re-run.
+    pub fn attest_with_versions(&self, object_versions: Vec<ObjectReference>) -> Attestation {
+        let computation_units = self.budget() / self.rgp();
         Attestation::Validator {
             payload: AttestationData::V1 {
                 computation_units,
