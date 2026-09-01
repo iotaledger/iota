@@ -37,7 +37,7 @@ use typed_store::{
 use crate::{
     authority::authority_store_types::{StoreObject, StoreObjectWrapper},
     epoch_buckets::{
-        EpochBuckets, bucket_cf_epoch, bucket_cf_name, bucket_cf_options,
+        BucketReopen, EpochBuckets, bucket_cf_epoch, bucket_cf_name, bucket_cf_options,
         extra_column_family_options,
     },
 };
@@ -97,7 +97,7 @@ pub struct HistoricObjectsBucket {
     expiring_marked: AtomicBool,
 }
 
-impl HistoricObjectsBucket {
+impl BucketReopen for HistoricObjectsBucket {
     fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
         let expiring: TaggedDBMap<(), ()> = TaggedDBMap::reopen(
             db,
@@ -126,7 +126,9 @@ impl HistoricObjectsBucket {
             expiring_marked,
         })
     }
+}
 
+impl HistoricObjectsBucket {
     /// Whether this bucket has been marked expiring, in which case its rows
     /// must no longer be served: the tombstone heads it recorded may already
     /// be deleted from the live `objects` table, and a version served from
@@ -268,7 +270,6 @@ impl HistoricObjects {
             cf_options,
             earliest_retained_table,
             buckets,
-            HistoricObjectsBucket::reopen,
         )?;
         Ok(Self {
             buckets,

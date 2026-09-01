@@ -9,7 +9,7 @@
 //! replaces was cleared with a range tombstone that the execution path then
 //! read across until compaction caught up.
 
-use std::{collections::BTreeMap, fmt::Debug, path::Path, sync::Arc};
+use std::{collections::BTreeMap, fmt::Debug, ops::Bound, path::Path, sync::Arc};
 
 use iota_sdk_types::ObjectId;
 use iota_types::{
@@ -26,7 +26,7 @@ use typed_store::{
 };
 
 use crate::{
-    epoch_buckets::{EpochBuckets, bucket_cf_epoch},
+    epoch_buckets::{BucketReopen, EpochBuckets, bucket_cf_epoch},
     progress_logger::ProgressLogger,
 };
 
@@ -55,7 +55,7 @@ pub struct EpochMarkersBucket {
     pub(crate) markers: DBMap<ObjectKey, MarkerValue>,
 }
 
-impl EpochMarkersBucket {
+impl BucketReopen for EpochMarkersBucket {
     fn reopen(db: &Arc<Database>, cf_name: &str) -> Result<Self, TypedStoreError> {
         Ok(Self {
             markers: DBMap::reopen(db, Some(cf_name), &ReadWriteOptions::default(), true)?,
@@ -140,7 +140,6 @@ impl EpochMarkers {
                 cf_options,
                 earliest_retained_table,
                 buckets,
-                EpochMarkersBucket::reopen,
             )?,
         })
     }
@@ -256,10 +255,19 @@ impl EpochMarkers {
     ) -> IotaResult<()> {
         let mut progress =
             ProgressLogger::new("epoch marker migration", "markers", flat.estimated_len()?);
+        // Every slice deletes the rows it read, and those deletions stay in
+        // the way as tombstones: a scan that restarts at the front walks all
+        // of them again, which is quadratic in the rows migrated. Resuming
+        // above the last key read steps over them once.
+        let mut resume_above = None;
         loop {
             let mut moved = Vec::new();
             let mut keys = Vec::new();
-            for row in flat.safe_iter().take(KEYS_PER_SLICE) {
+            let slice = match resume_above {
+                Some(last) => flat.safe_range_iter((Bound::Excluded(last), Bound::Unbounded)),
+                None => flat.safe_iter(),
+            };
+            for row in slice.take(KEYS_PER_SLICE) {
                 let ((row_epoch, key), marker) = row?;
                 if row_epoch == epoch {
                     moved.push((key, marker));
@@ -276,6 +284,7 @@ impl EpochMarkers {
                 batch.insert_batch(&bucket.markers, moved)?;
             }
             let read = keys.len();
+            resume_above = keys.last().copied();
             batch.delete_batch(flat, keys)?;
             batch.write()?;
             progress.advance(read as u64);
