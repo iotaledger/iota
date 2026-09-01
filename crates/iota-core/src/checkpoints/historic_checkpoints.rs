@@ -12,7 +12,7 @@
 
 use std::{collections::BTreeMap, fmt::Debug, path::Path, sync::Arc};
 
-use iota_sdk_types::{CheckpointContentsDigest, CheckpointDigest, checkpoint::CheckpointContents};
+use iota_sdk_types::{CheckpointContents, CheckpointContentsDigest, CheckpointDigest};
 use iota_types::{committee::EpochId, messages_checkpoint::TrustedCheckpoint};
 use typed_store::{
     DbIterator, TypedStoreError,
@@ -21,7 +21,9 @@ use typed_store::{
     traits::Map,
 };
 
-use crate::epoch_buckets::{EpochBuckets, bucket_cf_epoch};
+use crate::epoch_buckets::{
+    EpochBuckets, bucket_cf_epoch, bucket_cf_options, extra_column_family_options,
+};
 
 /// Column-family prefix of the historic checkpoint buckets; a bucket's
 /// family is `{prefix}{epoch}`.
@@ -84,11 +86,9 @@ impl HistoricCheckpointsBucket {
 /// property, for the same reason.
 ///
 /// Anything that decides how much history to keep must therefore count from
-/// the epoch being executed, not from the newest bucket:
-/// [`crate::epoch_buckets::EpochBuckets::prune`] derives its floor from the
-/// newest bucket, so retaining N epochs that way would spend part of N on
-/// epochs synced but not yet executed and drop the history of an epoch still
-/// being served. [`Self::prune`] takes the executed epoch for that reason.
+/// the epoch being executed rather than from the newest bucket, which may be
+/// one state sync has run ahead into. [`Self::prune`] is where that counting
+/// lives.
 pub struct HistoricCheckpoints {
     buckets: EpochBuckets<HistoricCheckpointsBucket>,
 }
@@ -103,35 +103,20 @@ impl HistoricCheckpoints {
     /// [`crate::authority::historic_objects::HistoricObjects::cf_options`]
     /// does: the clones share the base options' block cache instead of each
     /// allocating one of their own.
-    fn cf_options(db_options: &DBOptions) -> DBOptions {
-        db_options
-            .clone()
-            .optimize_for_write_throughput_no_deletion()
-    }
-
     /// The `(name, options)` pairs of the column families this store needs,
-    /// for the checkpoint store's open path to list alongside its own
-    /// tables: a column family left for auto-discovery would otherwise be
-    /// reopened with default options and a block cache of its own.
+    /// for the checkpoint store's open path to list alongside its own tables.
+    /// See
+    /// [`extra_column_family_options`](crate::epoch_buckets::extra_column_family_options).
     pub fn extra_column_family_options(
         checkpoint_db_path: &Path,
         db_options: &DBOptions,
     ) -> Vec<(String, DBOptions)> {
-        let cf_options = Self::cf_options(db_options);
-        let mut options = vec![(EARLIEST_RETAINED_CF.to_string(), cf_options.clone())];
-        if !checkpoint_db_path.join("CURRENT").exists() {
-            return options;
-        }
-        let Ok(existing_cfs) = list_tables(checkpoint_db_path.to_path_buf()) else {
-            return options;
-        };
-        options.extend(
-            existing_cfs
-                .into_iter()
-                .filter(|name| bucket_cf_epoch(HISTORIC_CHECKPOINTS_CF_PREFIX, name).is_some())
-                .map(|name| (name, cf_options.clone())),
-        );
-        options
+        extra_column_family_options(
+            checkpoint_db_path,
+            db_options,
+            HISTORIC_CHECKPOINTS_CF_PREFIX,
+            EARLIEST_RETAINED_CF,
+        )
     }
 
     /// Opens the historic-checkpoint buckets already present among `db`'s
@@ -152,7 +137,7 @@ impl HistoricCheckpoints {
             }
         }
 
-        let cf_options = Self::cf_options(db_options).options;
+        let cf_options = bucket_cf_options(db_options).options;
         if db.cf_handle(EARLIEST_RETAINED_CF).is_none() {
             db.create_cf(EARLIEST_RETAINED_CF, &cf_options)?;
         }
@@ -214,13 +199,13 @@ impl HistoricCheckpoints {
     /// take, so a caller on an async runtime must use `spawn_blocking`.
     pub fn prune(
         &self,
-        executed_epoch: EpochId,
+        current_epoch: EpochId,
         epochs_to_retain: u64,
     ) -> Result<Option<EpochId>, TypedStoreError> {
         // Nothing here lives in a live table, so a drop has no side effect to
         // prepare.
         self.buckets
-            .prune_from_epoch(executed_epoch, epochs_to_retain, |_, _| Ok(()))
+            .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
     }
 
     /// The contents stored under `digest`, newest bucket first, `None` if no

@@ -27,7 +27,10 @@ use typed_store::{
     traits::Map,
 };
 
-use crate::epoch_buckets::{EpochBuckets, bucket_cf_epoch};
+use crate::epoch_buckets::{
+    EpochBuckets, absent_if_dropped, bucket_cf_epoch, bucket_cf_options,
+    extra_column_family_options,
+};
 
 /// Column-family prefix of the historic ledger buckets; a bucket's family
 /// is `{prefix}{epoch}`.
@@ -122,11 +125,9 @@ impl HistoricLedgerBucket {
 /// bucket, since its rows only ever appear at commit.
 ///
 /// Anything that decides how much history to keep must therefore count from
-/// the epoch being executed, not from the newest bucket:
-/// [`crate::epoch_buckets::EpochBuckets::prune`] derives its floor from the
-/// newest bucket, so retaining N epochs that way would spend part of N on
-/// epochs synced but not yet executed and drop the history of an epoch still
-/// being served. [`Self::prune`] takes the executed epoch for that reason.
+/// the epoch being executed rather than from the newest bucket, which may be
+/// one state sync has run ahead into. [`Self::prune`] is where that counting
+/// lives.
 pub struct HistoricLedger {
     buckets: EpochBuckets<HistoricLedgerBucket>,
 
@@ -146,36 +147,20 @@ impl HistoricLedger {
     /// [`crate::authority::historic_objects::HistoricObjects::cf_options`]
     /// does: the clones share the base options' block cache instead of each
     /// allocating one of their own.
-    fn cf_options(db_options: &DBOptions) -> DBOptions {
-        db_options
-            .clone()
-            .optimize_for_write_throughput_no_deletion()
-    }
-
     /// The `(name, options)` pairs of the column families this store needs,
-    /// for the perpetual store's open path to list alongside its own tables
-    /// and the historic-object buckets: a column family left for
-    /// auto-discovery would otherwise be reopened with default options and a
-    /// block cache of its own.
+    /// for the perpetual store's open path to list alongside its own tables.
+    /// See
+    /// [`extra_column_family_options`](crate::epoch_buckets::extra_column_family_options).
     pub fn extra_column_family_options(
         perpetual_path: &Path,
         db_options: &DBOptions,
     ) -> Vec<(String, DBOptions)> {
-        let cf_options = Self::cf_options(db_options);
-        let mut options = vec![(EARLIEST_RETAINED_CF.to_string(), cf_options.clone())];
-        if !perpetual_path.join("CURRENT").exists() {
-            return options;
-        }
-        let Ok(existing_cfs) = list_tables(perpetual_path.to_path_buf()) else {
-            return options;
-        };
-        options.extend(
-            existing_cfs
-                .into_iter()
-                .filter(|name| bucket_cf_epoch(HISTORIC_LEDGER_CF_PREFIX, name).is_some())
-                .map(|name| (name, cf_options.clone())),
-        );
-        options
+        extra_column_family_options(
+            perpetual_path,
+            db_options,
+            HISTORIC_LEDGER_CF_PREFIX,
+            EARLIEST_RETAINED_CF,
+        )
     }
 
     /// Opens the historic-ledger buckets already present among `db`'s
@@ -193,7 +178,7 @@ impl HistoricLedger {
             }
         }
 
-        let cf_options = Self::cf_options(db_options).options;
+        let cf_options = bucket_cf_options(db_options).options;
         if db.cf_handle(EARLIEST_RETAINED_CF).is_none() {
             db.create_cf(EARLIEST_RETAINED_CF, &cf_options)?;
         }
@@ -276,13 +261,13 @@ impl HistoricLedger {
     /// so a caller on an async runtime must use `spawn_blocking`.
     pub fn prune(
         &self,
-        executed_epoch: EpochId,
+        current_epoch: EpochId,
         epochs_to_retain: u64,
     ) -> IotaResult<Option<EpochId>> {
         self.buckets
             // Nothing here lives in a live table, so a drop has no side
             // effect to prepare.
-            .prune_from_epoch(executed_epoch, epochs_to_retain, |_, _| Ok(()))
+            .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
@@ -307,9 +292,7 @@ impl HistoricLedger {
         #[cfg(test)]
         self.count_walk();
         for (epoch, bucket) in self.buckets.iter_with_epoch(true) {
-            if bucket
-                .executed_effects
-                .contains_key(digest)
+            if absent_if_dropped(bucket.executed_effects.contains_key(digest))
                 .map_err(|e| IotaError::Storage(e.to_string()))?
             {
                 return Ok(Some((epoch, bucket)));
@@ -331,11 +314,9 @@ impl HistoricLedger {
         let Some((_, bucket)) = self.find_epoch(digest)? else {
             return Ok(None);
         };
-        let effects = bucket
-            .executed_effects
-            .get(digest)
+        let effects = absent_if_dropped(bucket.executed_effects.get(digest))
             .map_err(|e| IotaError::Storage(e.to_string()))?
-            .map(|effects_digest| bucket.effects.get(&effects_digest))
+            .map(|effects_digest| absent_if_dropped(bucket.effects.get(&effects_digest)))
             .transpose()
             .map_err(|e| IotaError::Storage(e.to_string()))?
             .flatten();
@@ -354,9 +335,7 @@ impl HistoricLedger {
         };
         // The bucket's epoch is the epoch of the checkpoint, which is why the
         // row itself holds only the sequence number.
-        Ok(bucket
-            .tx_to_checkpoint
-            .get(digest)
+        Ok(absent_if_dropped(bucket.tx_to_checkpoint.get(digest))
             .map_err(|e| IotaError::Storage(e.to_string()))?
             .map(|sequence| (epoch, sequence)))
     }
@@ -376,9 +355,7 @@ impl HistoricLedger {
         #[cfg(test)]
         self.count_walk();
         for bucket in self.buckets.iter(true) {
-            if let Some(transaction) = bucket
-                .transactions
-                .get(digest)
+            if let Some(transaction) = absent_if_dropped(bucket.transactions.get(digest))
                 .map_err(|e| IotaError::Storage(e.to_string()))?
             {
                 return Ok(Some(transaction));
@@ -401,9 +378,7 @@ impl HistoricLedger {
         #[cfg(test)]
         self.count_walk();
         for bucket in self.buckets.iter(true) {
-            if let Some(effects) = bucket
-                .effects
-                .get(digest)
+            if let Some(effects) = absent_if_dropped(bucket.effects.get(digest))
                 .map_err(|e| IotaError::Storage(e.to_string()))?
             {
                 return Ok(Some(effects));
@@ -417,9 +392,7 @@ impl HistoricLedger {
         #[cfg(test)]
         self.count_walk();
         for bucket in self.buckets.iter(true) {
-            if bucket
-                .effects
-                .contains_key(digest)
+            if absent_if_dropped(bucket.effects.contains_key(digest))
                 .map_err(|e| IotaError::Storage(e.to_string()))?
             {
                 return Ok(true);

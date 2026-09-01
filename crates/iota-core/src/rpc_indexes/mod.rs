@@ -975,17 +975,12 @@ impl RpcIndexesStore {
     /// rows; a retry no longer sees the bucket. Queries block for the
     /// duration of the drops, so callers on an async runtime must use
     /// `spawn_blocking`.
-    pub fn prune(&self) -> IotaResult<Option<EpochId>> {
+    pub fn prune(&self, current_epoch: EpochId) -> IotaResult<Option<EpochId>> {
         let Some(epochs_to_retain) = self.epochs_to_retain else {
             return Ok(None);
         };
-        // `EpochBuckets::prune` keeps its newest bucket plus `n - 1` below
-        // it, so retaining the current epoch plus `epochs_to_retain` historic
-        // ones takes `n = epochs_to_retain + 1`. Saturating avoids overflow
-        // at `u64::MAX`, where it still means "never prune": the resulting
-        // window covers everything there is.
         self.history
-            .prune(epochs_to_retain.saturating_add(1), |_, _| Ok(()))
+            .prune(current_epoch, epochs_to_retain, |_, _| Ok(()))
             .map_err(|e| IotaError::Storage(e.to_string()))
     }
 
