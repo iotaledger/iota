@@ -209,10 +209,11 @@ For a generic view, pass the type arguments in `typeArgs`. This call reads `vaul
 
 The gRPC `TransactionExecutionService` exposes views as its `ViewFunctionCalls` method, which runs a batch of view calls in one request. The `iota_grpc_client::Client::view_function_call` helper wraps a single call, taking the same fully qualified name, type arguments, and JSON value arguments, and returning the view's outputs — the return values, or an execution error if the view aborted:
 
-```rust file=<rootDir>/crates/iota-sdk/examples/read_api/grpc_view_function_call.rs#L110-L128
+```rust reference
+https://github.com/iotaledger/iota-rust-sdk/blob/1b0213c2065f0b922ca3c75e52e047e7963bde32/crates/iota-sdk/examples/move_view_call_grpc.rs#L43-L61
 ```
 
-The example runs against a local network with the gRPC API enabled (`iota-localnet start --force-regenesis --with-faucet --with-grpc`).
+The example runs against the `view_demo` package published on testnet.
 
 Argument encoding over gRPC has a few constraints that the JSON-RPC and GraphQL paths do not:
 
@@ -227,4 +228,4 @@ The complete, runnable examples live in the IOTA repository:
 - [Rust SDK example](https://github.com/iotaledger/iota/blob/develop/crates/iota-sdk/examples/read_api/move_view_function_call.rs) — publishes the package and calls the views.
 - [TypeScript SDK example](https://github.com/iotaledger/iota/blob/develop/docs/examples/typescript/src/view-functions/call-view-function.ts) — same flow with `@iota/iota-sdk`.
 - [Shell script](https://github.com/iotaledger/iota/blob/develop/docs/examples/shell/call-view-function.sh) — publishes with the `iota` CLI and calls each view over JSON-RPC with `curl`.
-- [gRPC example](https://github.com/iotaledger/iota/blob/develop/crates/iota-sdk/examples/read_api/grpc_view_function_call.rs) — publishes the package and calls a view over the `ViewFunctionCalls` gRPC endpoint (requires a local network with gRPC enabled).
+- [gRPC example](https://github.com/iotaledger/iota-rust-sdk/blob/1b0213c2065f0b922ca3c75e52e047e7963bde32/crates/iota-sdk/examples/move_view_call_grpc.rs) — calls views on the `view_demo` package on testnet over the `ViewFunctionCalls` gRPC endpoint, singly and batched.
