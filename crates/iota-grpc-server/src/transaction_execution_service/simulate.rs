@@ -29,7 +29,7 @@ use iota_types::{
 use super::TransactionReadSource;
 use crate::{
     error::RpcError, merge::Merge, transaction_execution_service::CommandResultsReadSource,
-    types::GrpcReader,
+    types::GrpcReader, validation::validate_read_mask,
 };
 
 /// Simulate a batch of transactions sequentially.
@@ -154,7 +154,7 @@ pub async fn simulate_transactions(
         request.transactions.len(),
         config.max_simulate_transaction_batch_size as usize,
     )?;
-    let read_mask = super::parse_read_mask::<SimulatedTransaction>(
+    let read_mask = validate_read_mask::<SimulatedTransaction>(
         request.read_mask,
         SIMULATE_TRANSACTIONS_READ_MASK,
     )?;

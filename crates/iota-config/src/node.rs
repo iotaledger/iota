@@ -376,6 +376,11 @@ pub struct GrpcApiConfig {
     #[serde(default = "default_grpc_api_max_get_transactions_batch_size")]
     pub max_get_transactions_batch_size: u32,
 
+    /// Maximum number of view function calls allowed in a single
+    /// ViewFunctionCalls batch request.
+    #[serde(default = "default_grpc_api_max_view_function_call_batch_size")]
+    pub max_view_function_call_batch_size: u32,
+
     /// Maximum allowed timeout in milliseconds for waiting for checkpoint
     /// inclusion in ExecuteTransactions requests. Client-specified timeouts
     /// are clamped to this value.
@@ -419,6 +424,10 @@ fn default_grpc_api_max_get_transactions_batch_size() -> u32 {
     1000
 }
 
+fn default_grpc_api_max_view_function_call_batch_size() -> u32 {
+    20
+}
+
 fn default_grpc_api_max_checkpoint_inclusion_timeout_ms() -> u64 {
     60_000 // 60 seconds
 }
@@ -438,6 +447,7 @@ impl Default for GrpcApiConfig {
                 default_grpc_api_max_simulate_transaction_batch_size(),
             max_get_objects_batch_size: default_grpc_api_max_get_objects_batch_size(),
             max_get_transactions_batch_size: default_grpc_api_max_get_transactions_batch_size(),
+            max_view_function_call_batch_size: default_grpc_api_max_view_function_call_batch_size(),
             max_checkpoint_inclusion_timeout_ms:
                 default_grpc_api_max_checkpoint_inclusion_timeout_ms(),
         }
