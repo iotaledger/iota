@@ -8,7 +8,9 @@ use std::{
 };
 
 use iota_common::debug_fatal;
-use iota_sdk_types::{ObjectId, ObjectReference, ObjectVersion, Owner, TransactionEffects, TransactionEvents, Version};
+use iota_sdk_types::{
+    ObjectId, ObjectReference, ObjectVersion, Owner, TransactionEffects, TransactionEvents, Version,
+};
 use iota_types::{
     attestation::AttestationRecord,
     base_types::VersionDigest,
@@ -124,7 +126,17 @@ impl TransactionOutputs {
     /// the digests the checkpoint commits to, with
     /// [`CheckpointData::verify_payload_digests`](iota_types::full_checkpoint_content::CheckpointData::verify_payload_digests);
     /// the effects and objects given here are trusted.
-    pub fn build_from_checkpoint_transaction(tx: &CheckpointTransaction) -> TransactionOutputs {
+    /// `record_superseded_versions` and `attestation_record` have no
+    /// counterpart in the checkpoint payload to derive them from: the first is
+    /// a protocol setting the caller reads, the second the verdict the
+    /// checkpoint itself certifies. Both must carry the value executing this
+    /// transaction would have produced, or the committed state differs from
+    /// the executed one.
+    pub fn build_from_checkpoint_transaction(
+        tx: &CheckpointTransaction,
+        record_superseded_versions: bool,
+        attestation_record: Option<AttestationRecord>,
+    ) -> TransactionOutputs {
         let transaction = VerifiedTransaction::new_unchecked(tx.transaction.clone());
         let effects = tx.effects.clone();
         let lamport_version = effects.lamport_version();
@@ -204,6 +216,8 @@ impl TransactionOutputs {
             live_object_markers_to_delete: updates.live_object_markers_to_delete,
             new_live_object_markers_to_init: updates.new_live_object_markers_to_init,
             written,
+            record_superseded_versions,
+            attestation_record,
         }
     }
 }
@@ -370,4 +384,4 @@ where
 
 #[cfg(test)]
 #[path = "unit_tests/transaction_outputs_tests.rs"]
-mod tests;
+pub(crate) mod tests;

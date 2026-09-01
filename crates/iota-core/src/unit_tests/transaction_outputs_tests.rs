@@ -1,7 +1,7 @@
 // Copyright (c) 2026 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use iota_sdk_types::{Address, ObjectId, ObjectVersion};
 use iota_types::{
@@ -18,11 +18,16 @@ use iota_types::{
 use super::{build_superseded, build_superseded_counting};
 use crate::{
     authority::{
+        AuthorityState,
         authority_per_epoch_store::TxLockGuard,
         authority_test_utils::{init_state_with_ids, init_transfer_transaction},
     },
     transaction_outputs::TransactionOutputs,
 };
+
+/// Both constructors are given the same value, or the comparison below would
+/// be between two different settings rather than between two paths.
+const RECORD_SUPERSEDED_VERSIONS: bool = true;
 
 /// A version superseded by a mutation of a runtime-loaded object, such as a
 /// dynamic field, is captured from the read objects, as it is never in
@@ -78,11 +83,16 @@ fn test_superseded_counts_what_it_cannot_capture() {
 
     assert!(superseded.is_empty());
     assert_eq!(misses, 1);
+}
 
-/// Executes a transfer without committing it, and returns the outputs
-/// execution produced alongside the checkpoint data a node would receive for
-/// the same transaction.
-async fn execute_transfer_both_ways() -> (TransactionOutputs, CheckpointTransaction) {
+/// Executes a transfer without committing it, and returns the authority it ran
+/// on, the outputs execution produced, and the checkpoint data a node would
+/// receive for the same transaction.
+pub(crate) async fn execute_transfer_both_ways_on() -> (
+    Arc<AuthorityState>,
+    TransactionOutputs,
+    CheckpointTransaction,
+) {
     let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let (recipient, _): (_, AccountPrivateKey) = get_key_pair();
     let object_id = ObjectId::random();
@@ -140,8 +150,16 @@ async fn execute_transfer_both_ways() -> (TransactionOutputs, CheckpointTransact
         // recovers no pre-image from the objects it read.
         ObjectSet::default(),
         &authority.metrics,
+        RECORD_SUPERSEDED_VERSIONS,
+        None,
     );
 
+    (authority, executed, checkpoint_tx)
+}
+
+/// The two constructors' results for a transfer, without the authority.
+async fn execute_transfer_both_ways() -> (TransactionOutputs, CheckpointTransaction) {
+    let (_, executed, checkpoint_tx) = execute_transfer_both_ways_on().await;
     (executed, checkpoint_tx)
 }
 
@@ -169,7 +187,11 @@ fn sorted_markers(mut v: Vec<(ObjectKey, MarkerValue)>) -> Vec<(ObjectKey, Marke
 async fn build_from_checkpoint_transaction_matches_execution() {
     let (executed, checkpoint_tx) = execute_transfer_both_ways().await;
 
-    let applied = TransactionOutputs::build_from_checkpoint_transaction(&checkpoint_tx);
+    let applied = TransactionOutputs::build_from_checkpoint_transaction(
+        &checkpoint_tx,
+        RECORD_SUPERSEDED_VERSIONS,
+        None,
+    );
 
     assert_eq!(applied.transaction.digest(), executed.transaction.digest());
     assert_eq!(applied.effects, executed.effects);

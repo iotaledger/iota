@@ -49,6 +49,16 @@ impl Metrics {
         }
     }
 
+    /// Counts a checkpoint from the archive whose results were not applied, so
+    /// its transactions fall back to being executed. Expected around epoch
+    /// boundaries the node has not reached yet; a steadily rising count means
+    /// applying is not taking effect.
+    pub fn checkpoint_from_archive_left_to_the_executor(&self) {
+        if let Some(inner) = &self.0 {
+            inner.checkpoints_from_archive_left_to_the_executor.inc();
+        }
+    }
+
     pub fn update_checkpoints_synced_from_checkpoint_archive(&self) {
         if let Some(inner) = &self.0 {
             inner.checkpoints_synced_from_checkpoint_archive.inc();
@@ -68,6 +78,7 @@ struct Inner {
     highest_verified_checkpoint: IntGauge,
     highest_synced_checkpoint: IntGauge,
     checkpoints_synced_from_checkpoint_archive: IntCounter,
+    checkpoints_from_archive_left_to_the_executor: IntCounter,
     checkpoint_summary_age: Histogram,
 }
 
@@ -101,6 +112,15 @@ impl Inner {
             checkpoints_synced_from_checkpoint_archive: register_int_counter_with_registry!(
                 "checkpoints_synced_from_checkpoint_archive",
                 "Checkpoints synced from checkpoint archive",
+                registry;
+                MetricLevel::Warn,
+            )
+            .unwrap(),
+
+            checkpoints_from_archive_left_to_the_executor: register_int_counter_with_registry!(
+                "checkpoints_from_archive_left_to_the_executor",
+                "Checkpoints from the archive whose results were not applied, leaving their \
+                 transactions to be executed",
                 registry;
                 MetricLevel::Warn,
             )
