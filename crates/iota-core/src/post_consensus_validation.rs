@@ -422,6 +422,13 @@ pub async fn validate_and_resolve_conflicts(
             // Input existence at the referenced versions (owned and gas
             // objects, shared objects or their deletion markers, authenticator
             // accounts).
+            //
+            // TODO: this drop is a known fork source — the read follows this
+            // validator's execution progress, so an input created by an
+            // earlier not-yet-executed transaction is missed here but seen by
+            // an up-to-date validator. Kept as a placeholder against the
+            // never-existing-input stall until the PCOOL redesign decides
+            // input availability against consensus-derived state.
             if let Err(e) =
                 authority_state.check_transaction_inputs_exist(&verified_tx, epoch_store.epoch())
             {
