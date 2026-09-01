@@ -237,6 +237,85 @@ Tables not listed here are never pruned by the indexer.
 
 Several tables hold data that is retained for the full lifetime of the database. They are not affected by any retention setting and will not shrink when pruning is enabled. The largest contributors are `objects_version`, `objects_snapshot`, and `objects`.
 
+`account_key_links` is also never pruned, and deliberately so — see [Account discoverability index](#account-discoverability-index).
+
+## Account discoverability index
+
+The writer maintains `account_key_links`, a reverse index from a public key to the accounts that key controls. It lets a wallet holding nothing but a seed recover its accounts with a single query, without scanning the chain.
+
+The index is served by the JSON-RPC reader as `iotax_getAccountsByPublicKey`, which takes the scheme-flag-prefixed public key bytes (`flag || raw key bytes`, base64-encoded) and returns the account addresses. Pass `includeUnlinked: true` to also get accounts the key used to control before it was rotated away or detached.
+
+### Key identity
+
+Keys are indexed under a `key_id`:
+
+```text
+key_id = Blake2b256(scheme_flag_byte || raw_key_bytes)
+```
+
+The scheme flag is part of the hash input for **every** scheme, Ed25519 included. This differs on purpose from address derivation, where Ed25519 omits its flag, so a key's `key_id` and its Ed25519 address are never the same value. The derivation is defined in `iota::public_key::key_id` (Move) and `iota_types::claim_registry::key_id` (Rust); both are pinned against the same test vectors.
+
+### Event schema
+
+The index is derived entirely from framework events. This is the public contract: a third party who wants their own copy of the index implements this table and nothing else.
+
+| Event                                                       | Fields                                             |
+| ----------------------------------------------------------- | -------------------------------------------------- |
+| `0x2::claim_registry::ClaimedAddress`                        | `addr: address, scheme: u8, key_id: address, epoch: u64` |
+| `0x2::builtin_authenticator_functions::PublicKeyAttached`    | `account_id: ID, public_key: PublicKey`             |
+| `0x2::builtin_authenticator_functions::PublicKeyDetached`    | `account_id: ID, public_key: PublicKey`             |
+| `0x2::builtin_authenticator_functions::PublicKeyRotated`     | `account_id: ID, from: PublicKey, to: PublicKey`    |
+
+`PublicKey` carries the scheme flag and the raw key bytes, so a `key_id` can be computed from any of these events without extra chain lookups.
+
+Account lifecycle events for accounts backed by custom authenticators (`0x2::account::MutableAccountCreated`, `ImmutableAccountCreated`, `AuthenticatorFunctionRefV1Rotated`) are not consumed: such accounts have no standard key binding to index.
+
+Once the feature is active on a public network the schema evolves additively only — new event types may be added; the fields of an existing event never change.
+
+### Fold semantics
+
+The table is a pure left-fold of that event stream, applied in the total order `(checkpoint sequence, transaction sequence in checkpoint, event sequence in transaction)`:
+
+| Event                             | Effect                                                                                  |
+| --------------------------------- | --------------------------------------------------------------------------------------- |
+| `ClaimedAddress(addr, …, key_id)` | Link `(key_id, addr)`, source `claim`, status active.                                     |
+| `PublicKeyAttached(account, pk)`  | Link `(key_id(pk), account)`, source `attach`, status active.                             |
+| `PublicKeyRotated(account, a, b)` | Tombstone `(key_id(a), account)`, then link `(key_id(b), account)` with source `rotate`. |
+| `PublicKeyDetached(account, pk)`  | Tombstone `(key_id(pk), account)`, source `detach`.                                       |
+
+Tombstoned links are kept rather than deleted, so a wallet can still find an account it has rotated a key away from.
+
+Two properties follow, and both are what make an independently run index verifiable against this one:
+
+- **Deterministic.** Replaying the same checkpoints in the same order always produces the same rows.
+- **Idempotent and monotonic.** Re-ingesting a checkpoint rewrites identical values, and an out-of-order or replayed write can never move a link back to an older state.
+
+Every one of these events is emitted only by an authenticated on-chain operation — a claim requires the sender to be the address derived from the key; attach, detach and rotate require the sender to be the account. No one can forge a link between someone else's address and their own key. What is possible is an honest but unwanted link: anyone can create and fund a throwaway account whose authenticator is your key, and that link is genuinely true. Filtering those out is a wallet-side concern, the same class of problem as dust-token spam; sorting results by balance or activity handles it.
+
+### Retention and bootstrapping
+
+`account_key_links` is materialized state, not history, and is never pruned. A pruned row would drop a live key-to-account link that could only be rebuilt by replaying events this node may itself have already pruned.
+
+Event retention therefore only affects **bootstrapping**. An indexer that syncs from genesis builds the table as it goes, with no backfill step — the fold simply starts at the first emitted event. An indexer starting from a point where events have already been pruned cannot rebuild the table from that source; it needs either an unpruned archive fullnode or a copy of the table imported from a peer it trusts (or has verified).
+
+### Self-hosting
+
+No extra configuration is needed. A standard writer deployment (see [Running the writer](#running-the-writer)) builds and maintains the index, and the JSON-RPC reader serves it.
+
+### Wallet integration
+
+To recover accounts from a seed:
+
+1. Derive the candidate keys for every scheme and derivation path you support.
+2. For each key, check whether its derived address exists on chain. This is the indexer-free baseline and finds plain claimed addresses.
+3. For each key, call `iotax_getAccountsByPublicKey` with its flag-prefixed bytes. This finds everything else — accounts the key was attached to or rotated onto.
+4. Optionally verify each returned account against a fullnode (the account exists, and its attached built-in key is the key you asked about). This is what turns the indexer into a hint rather than a trust anchor.
+5. Deduplicate and present.
+
+For live updates, subscribe to the four event types on a fullnode with `iota_subscribeEvent` and a `MoveEventType` filter.
+
+Because the index derives from public events, a `key_id` is computable by anyone replaying the chain. Discoverability is public: an observer can build the same key-to-accounts map you can. Making the mapping private would require salted key ids in the claim payload, which is a protocol change and is not part of this design.
+
 ## Appendix: PostgreSQL configuration
 
 The `postgresql.conf` below is the recommended configuration for an indexer host with roughly 96 GB of RAM and NVMe storage (mainnet-class hardware). Scale memory and parallelism values to your hardware.
