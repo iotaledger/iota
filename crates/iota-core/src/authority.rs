@@ -145,7 +145,6 @@ use crate::{
         authority_per_epoch_store::{AuthorityPerEpochStore, TxGuard},
         authority_per_epoch_store_pruner::AuthorityPerEpochStorePruner,
         authority_store::{ExecutionLockReadGuard, ObjectLockStatus},
-        epoch_markers::EpochMarkers,
         epoch_start_configuration::{EpochStartConfigTrait, EpochStartConfiguration},
         historic_ledger::HistoricLedger,
         historic_objects::HistoricObjects,
@@ -943,7 +942,6 @@ pub struct AuthorityState {
     /// The object versions superseded by executed transactions, bucketed by
     /// the epoch that superseded them.
     historic_objects: Arc<HistoricObjects>,
-    epoch_markers: Arc<EpochMarkers>,
 
     /// The checkpoint-keyed transaction history, bucketed by the epoch that
     /// executed it.
@@ -2834,7 +2832,6 @@ impl AuthorityState {
             execution_cache_trait_pointers,
             rpc_indexes_store,
             historic_objects: store.get_historic_objects().clone(),
-            epoch_markers: store.get_epoch_markers().clone(),
             historic_ledger: store.get_historic_ledger().clone(),
             subscription_handler: Arc::new(SubscriptionHandler::new(prometheus_registry)),
             checkpoint_store,
@@ -3181,6 +3178,17 @@ impl AuthorityState {
             }
         }
         *execution_lock = new_epoch;
+        // Only now, with the scheduler on the new epoch and the lock reading
+        // it: a transaction of an earlier epoch is refused before it executes,
+        // so no read of that epoch's markers follows this. Doing it earlier
+        // raced `try_execute_immediately`, which reads a receiving object's
+        // marker before it takes the execution lock.
+        if let Err(err) = self
+            .get_reconfig_api()
+            .expire_epoch_markers(new_epoch, &execution_lock)
+        {
+            error!("Failed to expire the epoch marker buckets: {err:?}");
+        }
         // drop execution_lock after epoch store was updated
         // see also assert in AuthorityState::process_transaction
         // on the epoch store and execution lock epoch match
@@ -3233,17 +3241,10 @@ impl AuthorityState {
         // must not run on an async worker.
         let historic_objects = self.historic_objects.clone();
         let historic_ledger = self.historic_ledger.clone();
-        let epoch_markers = self.epoch_markers.clone();
         let checkpoint_store = self.checkpoint_store.clone();
         let rpc_indexes_store = self.rpc_indexes_store.clone();
         let metrics = self.metrics.clone();
         let expired = tokio::task::spawn_blocking(move || {
-            // Not configurable: a marker guards a race inside the epoch that
-            // wrote it, so the epoch being entered is the only one whose
-            // markers answer anything.
-            if let Err(err) = epoch_markers.expire(new_epoch) {
-                error!("Failed to expire the epoch marker buckets: {err:?}");
-            }
             if let Some(epochs_to_retain) = objects_to_retain {
                 if let Err(err) = historic_objects.prune(new_epoch, epochs_to_retain) {
                     error!("Failed to expire historic object buckets: {err:?}");
