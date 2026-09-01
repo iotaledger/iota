@@ -17,6 +17,7 @@ use crate::{
         base64::Base64,
         cursor::{JsonCursor, Page},
         datatype::MoveDatatype,
+        int::try_into_int,
         iota_address::IotaAddress,
         move_enum::MoveEnum,
         move_function::MoveFunction,
@@ -67,8 +68,8 @@ impl MoveModule {
     }
 
     /// Format version of this module's bytecode.
-    async fn file_format_version(&self) -> u32 {
-        self.parsed.bytecode().version
+    async fn file_format_version(&self) -> Result<i32> {
+        try_into_int(self.parsed.bytecode().version).extend()
     }
 
     /// Modules that this module considers friends (these modules can access

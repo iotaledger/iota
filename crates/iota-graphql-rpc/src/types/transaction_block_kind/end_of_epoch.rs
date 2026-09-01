@@ -225,8 +225,8 @@ impl ChangeEpochTransaction {
     }
 
     /// The protocol version in effect in the new epoch.
-    async fn protocol_version(&self) -> UInt53 {
-        self.native.protocol_version.into()
+    async fn protocol_version(&self) -> Result<UInt53> {
+        UInt53::try_from(self.native.protocol_version).extend()
     }
 
     /// The total amount of gas charged for storage during the previous epoch
@@ -329,8 +329,8 @@ impl ChangeEpochTransactionV2 {
     }
 
     /// The protocol version in effect in the new epoch.
-    async fn protocol_version(&self) -> UInt53 {
-        self.protocol_version.as_u64().into()
+    async fn protocol_version(&self) -> Result<UInt53> {
+        UInt53::try_from(self.protocol_version.as_u64()).extend()
     }
 
     /// The total amount of gas charged for storage during the previous epoch

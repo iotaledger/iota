@@ -205,7 +205,7 @@ impl TryFrom<StoredBalance> for Balance {
             .transpose()
             .map_err(|_| Error::Internal("Failed to read balance.".to_string()))?;
 
-        let coin_object_count = count.map(|c| UInt53::from(c as u64));
+        let coin_object_count = count.map(|c| UInt53::try_from(c as u64)).transpose()?;
 
         let coin_type = TypeTag::from_str(&coin_type)
             .map_err(|e| Error::Internal(format!("Failed to parse coin type: {e}")))?

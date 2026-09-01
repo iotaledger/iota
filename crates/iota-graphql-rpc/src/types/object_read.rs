@@ -24,8 +24,8 @@ impl ObjectRead {
     }
 
     /// Version of the object being read.
-    async fn version(&self) -> UInt53 {
-        self.version_impl().into()
+    async fn version(&self) -> Result<UInt53> {
+        UInt53::try_from(self.version_impl()).extend()
     }
 
     /// 32-byte hash that identifies the object's contents at this version,
