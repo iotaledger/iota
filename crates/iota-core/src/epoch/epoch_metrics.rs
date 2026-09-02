@@ -141,6 +141,13 @@ pub struct EpochMetrics {
     /// The number of injected deny-rule update transactions whose execution
     /// failed — always an invariant violation.
     pub deny_rule_update_execution_failures: IntCounter,
+
+    /// The number of times seeding a claimed account's version chain displaced
+    /// an existing entry. A non-zero value means some transaction declared the
+    /// claimed address as a shared input before the claim was scheduled, which
+    /// is only possible adversarially - the claim's seed is authoritative and
+    /// overwrites it, so this is observability rather than an error.
+    pub claim_seed_displaced_version_entry: IntCounter,
 }
 
 impl EpochMetrics {
@@ -299,6 +306,12 @@ impl EpochMetrics {
             deny_rule_update_execution_failures: register_int_counter_with_registry!(
                 "deny_rule_update_execution_failures",
                 "The number of injected deny-rule update transactions whose execution failed",
+                registry
+            )
+            .unwrap(),
+            claim_seed_displaced_version_entry: register_int_counter_with_registry!(
+                "claim_seed_displaced_version_entry",
+                "Number of times a claim's version-chain seed displaced an existing entry",
                 registry
             )
             .unwrap(),

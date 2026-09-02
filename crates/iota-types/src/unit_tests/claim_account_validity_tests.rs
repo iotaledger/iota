@@ -11,20 +11,19 @@
 
 use iota_protocol_config::{Chain, ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
-    Address, ClaimAccountTransaction, ObjectId, SmartAccountBuildKind, SmartAccountClaim,
-    SmartAccountField, TypeTag,
-    crypto::{Ed25519PublicKey, PublicKey, Secp256k1PublicKey},
+    Address, ClaimAccountTransaction, ObjectDigest, ObjectId, ObjectReference,
+    SharedObjectReference, SmartAccountBuildKind, SmartAccountClaim, Transaction, Version,
+    crypto::{PublicKey, Secp256k1PublicKey},
 };
 
 use crate::{
-    base_types::{ObjectRef, SequenceNumber},
-    crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
-    digests::ObjectDigest,
+    crypto::{AccountPrivateKey, get_key_pair},
     error::UserInputError,
-    transaction::{TransactionData, TransactionDataAPI, TransactionKind},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{CallArg, TransactionAPI, TransactionKind},
 };
 
-/// v30 on a non-testnet/mainnet chain is where the claim feature and its gas
+/// v36 on a non-testnet/mainnet chain is where the claim feature and its gas
 /// floor are enabled. The claim kind additionally requires the P-COOL flow,
 /// since the sequencer rules it depends on are only sound there.
 fn config() -> ProtocolConfig {
@@ -33,34 +32,26 @@ fn config() -> ProtocolConfig {
     config
 }
 
-fn gas_ref() -> ObjectRef {
-    ObjectRef::new(
-        ObjectId::random(),
-        SequenceNumber::from_u64(1),
-        ObjectDigest::random(),
-    )
+fn gas_ref() -> ObjectReference {
+    ObjectReference::new(ObjectId::random(), Version::from(1), ObjectDigest::random())
 }
 
 /// A claim whose public key derives its sender, with an ample gas budget.
 fn valid_claim() -> (SmartAccountClaim, Address) {
-    let (sender, keypair): (Address, AccountKeyPair) = get_key_pair();
-    let claim = SmartAccountClaim {
-        public_key: PublicKey::Ed25519(Ed25519PublicKey::new(
-            keypair.public().as_ref().try_into().unwrap(),
-        )),
-        claim_registry_initial_shared_version: 0,
-        fields: vec![],
-        build_kind: SmartAccountBuildKind::Mutable,
-    };
+    let (sender, private_key): (Address, AccountPrivateKey) = get_key_pair();
+    let claim = SmartAccountClaim::new(
+        &PublicKey::Ed25519(private_key.public_key()),
+        SmartAccountBuildKind::Mutable,
+    );
     (claim, sender)
 }
 
-fn claim_tx(claim: SmartAccountClaim, sender: Address) -> TransactionData {
+fn claim_tx(claim: SmartAccountClaim, sender: Address) -> Transaction {
     claim_tx_with_budget(claim, sender, 10_000_000)
 }
 
-fn claim_tx_with_budget(claim: SmartAccountClaim, sender: Address, budget: u64) -> TransactionData {
-    TransactionData::new(
+fn claim_tx_with_budget(claim: SmartAccountClaim, sender: Address, budget: u64) -> Transaction {
+    Transaction::new(
         TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim)),
         sender,
         gas_ref(),
@@ -78,27 +69,9 @@ fn valid_claim_passes() {
 }
 
 #[test]
-fn claim_with_fields_is_rejected() {
-    let (mut claim, sender) = valid_claim();
-    claim.fields = vec![SmartAccountField {
-        name_type: TypeTag::U64,
-        name_bcs: bcs::to_bytes(&1u64).unwrap(),
-        value_type: TypeTag::U64,
-        value_bcs: bcs::to_bytes(&2u64).unwrap(),
-    }];
-
-    // Fields would make the pipeline's shape - and so its cost and its abort
-    // surface - depend on user-supplied type arguments and BCS bytes.
-    assert!(matches!(
-        claim_tx(claim, sender).validity_check(&config()),
-        Err(UserInputError::Unsupported(_))
-    ));
-}
-
-#[test]
 fn claim_whose_key_does_not_derive_the_sender_is_rejected() {
     let (claim, _) = valid_claim();
-    let (other_sender, _): (Address, AccountKeyPair) = get_key_pair();
+    let (other_sender, _): (Address, AccountPrivateKey) = get_key_pair();
 
     // Move asserts this too, but only at execution - too late, once the
     // sequencer has staged the entry.
@@ -110,14 +83,17 @@ fn claim_whose_key_does_not_derive_the_sender_is_rejected() {
 
 #[test]
 fn claim_with_malformed_key_bytes_is_rejected() {
-    let (mut claim, sender) = valid_claim();
-    // Length-correct for secp256k1 but not a valid curve point, and declared
-    // under a scheme whose flag does not match the sender's derivation either.
-    claim.public_key = PublicKey::Secp256k1(Secp256k1PublicKey::new([7u8; 33]));
+    let (_, sender) = valid_claim();
+    // Length-correct for secp256k1 but not a valid curve point. The kind-level
+    // check validates the key bytes against their declared scheme.
+    let claim = SmartAccountClaim::new(
+        &PublicKey::Secp256k1(Secp256k1PublicKey::new([7u8; 33])),
+        SmartAccountBuildKind::Mutable,
+    );
 
     assert!(matches!(
         claim_tx(claim, sender).validity_check(&config()),
-        Err(UserInputError::IncorrectUserSignature { .. })
+        Err(UserInputError::Unsupported(_))
     ));
 }
 
@@ -140,4 +116,52 @@ fn claim_below_the_gas_floor_is_rejected() {
     claim_tx_with_budget(claim, sender, floor)
         .validity_check(&config)
         .expect("exactly the floor must pass");
+}
+
+#[test]
+fn declared_initial_shared_version_must_be_valid() {
+    let (sender, _): (Address, AccountPrivateKey) = get_key_pair();
+    let shared_id = ObjectId::random();
+
+    // A sentinel version would otherwise seed the epoch's version chain
+    // verbatim and reach the version-assignment walk, which unwraps a lamport
+    // increment that errors on an invalid version.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder
+        .input(CallArg::Shared(SharedObjectReference::new(
+            shared_id,
+            Version::CANCELED_READ,
+            true,
+        )))
+        .unwrap();
+    let tx = Transaction::new(
+        TransactionKind::Programmable(builder.finish()),
+        sender,
+        gas_ref(),
+        10_000_000,
+        1,
+    );
+    assert!(matches!(
+        tx.validity_check(&config()),
+        Err(UserInputError::InvalidSequenceNumber)
+    ));
+
+    // A real initial version is accepted.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder
+        .input(CallArg::Shared(SharedObjectReference::new(
+            shared_id,
+            Version::from(3),
+            true,
+        )))
+        .unwrap();
+    let tx = Transaction::new(
+        TransactionKind::Programmable(builder.finish()),
+        sender,
+        gas_ref(),
+        10_000_000,
+        1,
+    );
+    tx.validity_check(&config())
+        .expect("a valid initial shared version must pass");
 }

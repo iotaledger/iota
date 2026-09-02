@@ -538,16 +538,6 @@ pub enum IotaError {
         obj_ref: ObjectReference,
         pending_transaction: TransactionDigest,
     },
-    #[error("Account {address} is already explicit; it cannot be claimed again")]
-    AccountAlreadyExplicit { address: Address },
-    #[error(
-        "Account {address} is explicit; a transaction for it must authenticate with a MoveAuthenticator instead of a plain signature"
-    )]
-    PlainSignatureForExplicitAccount { address: Address },
-    #[error(
-        "Transaction depends on account {address} whose claim was cancelled in the same commit"
-    )]
-    DependencyOnCancelledClaim { address: Address },
     #[error(
         "Objects {obj_refs:?} are already locked by a transaction from a future epoch {locked_epoch:?}), attempt to override with a transaction from epoch {new_epoch:?}"
     )]
@@ -739,6 +729,17 @@ pub enum IotaError {
         id: ObjectId,
         key: String,
     },
+
+    #[error("Account {address} is already explicit; it cannot be claimed again")]
+    AccountAlreadyExplicit { address: Address },
+    #[error(
+        "Account {address} is explicit; a transaction for it must authenticate with a MoveAuthenticator instead of a plain signature"
+    )]
+    PlainSignatureForExplicitAccount { address: Address },
+    #[error(
+        "Transaction depends on account {address} whose claim was cancelled in the same commit"
+    )]
+    DependencyOnCancelledClaim { address: Address },
 }
 
 #[repr(u64)]

@@ -95,3 +95,6 @@
 93: InvalidAdminRequest
 94: TransactionEffectsNotFound
 95: DynamicFieldNotExists
+96: AccountAlreadyExplicit
+97: PlainSignatureForExplicitAccount
+98: DependencyOnCancelledClaim
