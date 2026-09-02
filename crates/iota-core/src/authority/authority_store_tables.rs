@@ -217,6 +217,14 @@ pub struct AuthorityPerpetualTables {
     /// TODO: remove this table once every database has swept the pre-bucket
     /// backlog, <https://github.com/iotaledger/iota/issues/12712>
     pub(crate) object_backlog_sweep_bound: DBMap<(), CheckpointSequenceNumber>,
+
+    /// The last checkpoint whose superseded versions the bounded sweep has
+    /// relocated. Empty until that sweep first writes a slice, and unused by
+    /// the unbounded walk, which records its place in
+    /// `object_backlog_sweep_progress` instead.
+    /// TODO: remove this table once every database has swept the pre-bucket
+    /// backlog, <https://github.com/iotaledger/iota/issues/12712>
+    pub(crate) object_backlog_sweep_checkpoint: DBMap<(), CheckpointSequenceNumber>,
 }
 
 /// The total IOTA supply used during conservation checks.
@@ -960,13 +968,10 @@ mod tests {
         assert_eq!(reconstructed.object_ref(), object_ref);
     }
 
-    /// A formal-snapshot restore has no backlog of superseded versions to
-    /// walk, so it records the sweep as done directly rather than paying for
-    /// a walk over the live object set it just wrote.
-    /// The hook must carry the objects pruner's watermark into the table the
-    /// sweep reads, since the column family it was written to is dropped on
-    /// the same open. Without it the sweep loses its bound and falls back to
-    /// walking the whole live table.
+    /// `rescue_objects_pruner_watermark` copies the objects pruner's watermark
+    /// into the table the sweep reads, since the column family it was written
+    /// to is dropped on the same open; without it the sweep loses its bound
+    /// and walks the whole live table.
     #[tokio::test]
     async fn the_objects_pruner_watermark_is_carried_over() {
         let tmp_dir = iota_common::tempdir();
