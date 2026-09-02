@@ -51,7 +51,10 @@ type TxUpdateItem = Result<((TransactionDigest, TxStatusUpdate), Weight), tonic:
 use iota_metrics::spawn_monitored_task;
 
 use crate::{
-    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
+    authority::{
+        AuthorityState, ValidationCheckMode,
+        authority_per_epoch_store::AuthorityPerEpochStore,
+    },
     authority_server::{StreamResponse, ValidatorService, ValidatorServiceMetrics, normalize},
     consensus_adapter::ConsensusAdapter,
 };
@@ -214,7 +217,11 @@ impl ValidatorService {
 
         // Content validation: deny checks + owned object version validation.
         let owned_objects = match state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
+            .handle_transaction_validation_checks(
+                &verified_tx,
+                epoch_store,
+                ValidationCheckMode::PreConsensus,
+            )
             .await
         {
             Ok(objs) => objs,

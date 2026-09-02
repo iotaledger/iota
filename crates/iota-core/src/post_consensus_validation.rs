@@ -49,7 +49,7 @@ use tracing::{debug, warn};
 
 use crate::{
     authority::{
-        AuthorityState,
+        AuthorityState, ValidationCheckMode,
         authority_per_epoch_store::{AuthorityPerEpochStore, LockDetails},
     },
     consensus_handler::{
@@ -259,7 +259,11 @@ pub async fn validate_and_resolve_conflicts(
         // diverging from other honest validators.
         let verified_tx = VerifiedTransaction::new_from_verified((**transaction).clone());
         if let Err(e) = authority_state
-            .handle_transaction_validation_checks(&verified_tx, epoch_store)
+            .handle_transaction_validation_checks(
+                &verified_tx,
+                epoch_store,
+                ValidationCheckMode::PostConsensus,
+            )
             .await
         {
             if e.is_storage_or_epoch_error() {

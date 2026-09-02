@@ -227,6 +227,20 @@ pub mod auth_unit_test_utils;
 
 pub mod authority_test_utils;
 
+/// Which pipeline stage is running the validation checks.
+///
+/// The two stages may act on a failure differently, so they may not consult the same
+/// inputs. Pre-consensus a rejection is advisory — the transaction is not sequenced, and
+/// declining only means declining to sign. Post-consensus the transaction is already
+/// ordered, so a rejection *drops* it, and every validator has to reach the same verdict;
+/// a check that reads state which reflects local execution progress cannot be allowed to
+/// decide.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub(crate) enum ValidationCheckMode {
+    PreConsensus,
+    PostConsensus,
+}
+
 pub(crate) mod account_rules;
 pub mod authority_per_epoch_store;
 pub mod authority_per_epoch_store_pruner;
@@ -912,6 +926,72 @@ impl AuthorityState {
         self.checkpoint_store.get_epoch_state_commitments(epoch)
     }
 
+    /// Decides whether the `MoveAuthenticator` half of the validation checks must be
+    /// skipped, and rejects a transaction whose declared account version can never exist.
+    ///
+    /// Only ever skips post-consensus, and only when *every* authenticator in the
+    /// transaction names an account with a claim entry of this epoch at the version the
+    /// signature declares. In that case the account object is guaranteed to come into
+    /// existence at that version - the claim is scheduled and, by the pre-execution checks
+    /// on the claim itself, cannot fail - so the transaction simply waits for it, and
+    /// authentication is enforced at execution against the assigned version.
+    ///
+    /// A declared version that disagrees with the staged claim entry can never exist, so
+    /// the transaction is rejected here rather than parked until reconfiguration, which
+    /// would stall checkpoints. Both judgements read consensus state only, so they are
+    /// identical on every validator.
+    ///
+    /// Skipping cannot turn a drop into a crash. `check_move_account` still runs at
+    /// execution, and every rejection it can produce is unreachable for a claim-created
+    /// account named by a shared reference: the reference is versionless
+    /// (`object_to_authenticate_components` yields `(id, None, None)` for
+    /// `CallArg::Shared`), so the version and digest checks do not apply; `signer` is
+    /// derived from the same id it is compared against; a claim always creates the object
+    /// shared or immutable with its authenticator function ref attached; and a claimed
+    /// account has no deletion path. The one reachable rejection, an account object
+    /// belonging to a congestion-cancelled transaction, predates this change.
+    ///
+    /// Residual: an authenticator whose account has no claim entry keeps today's
+    /// store-dependent path, since existence is not consensus-derivable for an account
+    /// created inside ordinary execution. So does a transaction that mixes the two.
+    /// Tracked with the wider post-consensus determinism work.
+    fn skip_authenticator_validation(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+        mode: ValidationCheckMode,
+    ) -> IotaResult<bool> {
+        if mode == ValidationCheckMode::PreConsensus {
+            return Ok(false);
+        }
+        let authenticators = transaction.move_authenticators();
+        if authenticators.is_empty() {
+            return Ok(false);
+        }
+
+        let mut all_claimed = true;
+        for authenticator in authenticators {
+            let account_id = ObjectId::from(authenticator.address()?);
+            let Some((_, claimed_at)) = epoch_store.get_claimed_account(&account_id)? else {
+                all_claimed = false;
+                continue;
+            };
+            let declared = match authenticator.object_to_authenticate() {
+                CallArg::Shared(shared) => Some(shared.initial_shared_version),
+                _ => None,
+            };
+            if declared != Some(claimed_at) {
+                return Err(UserInputError::AccountObjectVersionMismatch {
+                    object_id: account_id,
+                    expected_version: claimed_at,
+                    actual_version: declared.unwrap_or_default(),
+                }
+                .into());
+            }
+        }
+        Ok(all_claimed)
+    }
+
     /// Runs deny list, input object validation, gas checks, coin deny list, and
     /// MoveAuthenticator checks. Returns the owned object refs for optional
     /// version validation. Does NOT acquire locks or sign the transaction.
@@ -920,6 +1000,7 @@ impl AuthorityState {
         &self,
         transaction: &VerifiedTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
+        mode: ValidationCheckMode,
     ) -> IotaResult<Vec<ObjectRef>> {
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
@@ -927,6 +1008,15 @@ impl AuthorityState {
         let epoch = epoch_store.epoch();
 
         let tx_data = transaction.data().transaction_data();
+
+        // Post-consensus, an account claimed earlier in this epoch may not exist locally
+        // yet: the claim is sequenced but its execution lags, and it lags differently on
+        // every validator. Deciding this transaction's fate from whether the account object
+        // is readable here would therefore diverge. The claim entry the sequencer staged is
+        // consensus state and is uniform, so it answers instead, and the authentication
+        // itself is left to execution, which runs against the assigned version.
+        let skip_authenticators =
+            self.skip_authenticator_validation(transaction, epoch_store, mode)?;
 
         // Note: the deny checks may do redundant package loads but:
         // - they only load packages when there is an active package deny map
@@ -944,10 +1034,31 @@ impl AuthorityState {
         // `MoveAuthenticator`. Loading all objects eagerly means that any invalid
         // reference — missing object, wrong version, inaccessible object — causes a
         // pre-consensus rejection.
+        //
+        // When the authenticator half is skipped, only the transaction's own inputs are
+        // read: the account objects are exactly what may not exist locally yet, so reading
+        // them is what would make this stage lag-dependent.
         let (tx_input_objects, tx_receiving_objects, per_authenticator_inputs) =
-            self.read_objects_for_validation(transaction, epoch)?;
+            if skip_authenticators {
+                let (tx_input_objects, tx_receiving_objects) =
+                    self.input_loader.read_objects_for_signing(
+                        Some(transaction.digest()),
+                        &tx_data.input_objects()?,
+                        &tx_data.receiving_objects(),
+                        epoch,
+                    )?;
+                (tx_input_objects, tx_receiving_objects, Vec::new())
+            } else {
+                self.read_objects_for_validation(transaction, epoch)?
+            };
 
-        let move_authenticators = transaction.move_authenticators();
+        // Skipping leaves the authenticator list empty, which every step below already
+        // degrades cleanly on.
+        let move_authenticators = if skip_authenticators {
+            Vec::new()
+        } else {
+            transaction.move_authenticators()
+        };
 
         // Check the inputs for signing.
         // If there are `MoveAuthenticator` signatures, their input objects and the
@@ -1108,7 +1219,11 @@ impl AuthorityState {
         let _execution_lock = self.execution_lock_for_signing()?;
 
         let owned_objects = self
-            .handle_transaction_validation_checks(&transaction, epoch_store)
+            .handle_transaction_validation_checks(
+                &transaction,
+                epoch_store,
+                ValidationCheckMode::PreConsensus,
+            )
             .await?;
 
         let epoch = epoch_store.epoch();
