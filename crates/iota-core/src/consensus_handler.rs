@@ -1261,7 +1261,10 @@ mod tests {
             shared_effects
                 .input_shared_objects()
                 .into_iter()
-                .map(|iso| iso.id_and_version())
+                .map(|iso| {
+                    let oref = iso.object_reference();
+                    (oref.object_id, oref.version)
+                })
                 .collect::<Vec<_>>(),
             vec![(shared_object.id(), shared_object.version())]
         );
