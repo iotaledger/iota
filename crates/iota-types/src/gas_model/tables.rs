@@ -125,6 +125,7 @@ pub struct GasStatus {
     event_count: u64,
     event_bytes: u64,
     values_constructed: u64,
+    hash_input_bytes: u64,
 }
 
 impl GasStatus {
@@ -188,6 +189,7 @@ impl GasStatus {
             event_count: 0,
             event_bytes: 0,
             values_constructed: 0,
+            hash_input_bytes: 0,
         }
     }
 
@@ -240,6 +242,7 @@ impl GasStatus {
             event_count: 0,
             event_bytes: 0,
             values_constructed: 0,
+            hash_input_bytes: 0,
         }
     }
 
@@ -589,6 +592,23 @@ impl GasStatus {
         self.pending_native_function.push_str(function_name);
     }
 
+    /// True when the pending native (set by `set_pending_native_function`)
+    /// is one whose input is streamed byte-by-byte: the `0x1::hash` and
+    /// `0x2::hash` families and `0x2::hmac`. System addresses, so no user
+    /// package can alias these module ids.
+    pub fn pending_native_streams_input(&self) -> bool {
+        ["0x1::hash::", "0x2::hash::", "0x2::hmac::"]
+            .iter()
+            .any(|m| self.pending_native_function.starts_with(m))
+    }
+
+    /// Record the abstract size of a hashing native's arguments, for the
+    /// memory-bandwidth component of [`ResourceProfile`]. Profile-only;
+    /// charges nothing.
+    pub fn record_hash_input_bytes(&mut self, bytes: u64) {
+        self.hash_input_bytes = self.hash_input_bytes.saturating_add(bytes);
+    }
+
     /// Attribute the internal gas deducted for a native call to the pending
     /// native function. Call with the `gas_left` reading captured *before*
     /// the native's charges; the delta is the gas actually deducted (tiering-
@@ -697,6 +717,7 @@ impl GasStatus {
             event_count: self.event_count,
             event_bytes: self.event_bytes,
             values_constructed: self.values_constructed,
+            hash_input_bytes: self.hash_input_bytes,
         }
     }
 }
@@ -1002,5 +1023,31 @@ mod tests {
         }
         assert_eq!(status.gas_used_pre_gas_price(), before);
         assert_eq!(status.resource_profile().values_constructed, 3);
+    }
+
+    #[test]
+    fn hash_input_bytes_counted_for_hashing_natives_only() {
+        let cost_table = initial_cost_schedule_v1();
+        let mut status = GasStatus::new(cost_table, 1_000_000, 1, 1);
+        let before = status.gas_used_pre_gas_price();
+
+        status.set_pending_native_function("0x2::hash", "keccak256");
+        assert!(status.pending_native_streams_input());
+        status.record_hash_input_bytes(512);
+        status.set_pending_native_function("0x1::hash", "sha2_256");
+        assert!(status.pending_native_streams_input());
+        status.record_hash_input_bytes(256);
+        status.set_pending_native_function("0x2::hmac", "hmac_sha3_256");
+        assert!(status.pending_native_streams_input());
+
+        // Non-hashing natives — including a user module named `hash` at a
+        // non-system address — do not stream.
+        status.set_pending_native_function("0x2::bls12381", "bls12381_min_sig_verify");
+        assert!(!status.pending_native_streams_input());
+        status.set_pending_native_function("0xabc::hash", "keccak256");
+        assert!(!status.pending_native_streams_input());
+
+        assert_eq!(status.gas_used_pre_gas_price(), before);
+        assert_eq!(status.resource_profile().hash_input_bytes, 768);
     }
 }
