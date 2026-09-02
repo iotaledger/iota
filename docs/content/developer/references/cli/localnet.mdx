@@ -55,6 +55,7 @@ iota-localnet start [OPTIONS]
 | `--no-full-node` | Start the network without a fullnode. |
 | `--disable-fullnode-pruning` | Keep the fullnode's full history instead of pruning old object versions and checkpoints. Cannot be combined with `--no-full-node`. |
 | `--node-config-override <[SCOPE:]PATH=VALUE>` | Override a node config field for this run. Repeatable; later overrides win. See [Node config overrides](#node-config-overrides). |
+| `--write-config <DIR>` | Write the node config of every node this run would start to `DIR`, then exit without starting the network. See [Node config files](#node-config-files). |
 | `--local-migration-snapshots <PATH>...` | Paths to local migration snapshot files. |
 | `--remote-migration-snapshots <URL>...` | Remotely stored migration snapshot URLs. |
 | `--delegator <ADDRESS>` | Specify the delegator address. |
@@ -126,6 +127,21 @@ The following are rejected:
 
 A field set inside a section the config leaves at its default starts from that section's own per-field defaults, which for `policy-config` are not the traffic control policy the node config defaults to. Set the whole section when the rest of it matters.
 
+### Node config files {#node-config-files}
+
+`iota-localnet start` derives the config of every node it starts from `network.yaml` in the config directory, which holds the key pairs, addresses and genesis parameters of the network — not the node configs themselves. Two runs against the same config directory therefore start the same nodes, with the same databases.
+
+`--write-config <DIR>` writes those derived configs to `DIR` as YAML files and exits without starting anything. The files are the ones the run would have used, `--node-config-override` and the indexer and GraphQL wiring included, and each one starts under `iota-node --config-path`:
+
+```shell
+iota-localnet start --write-config ./node-configs
+iota-node --config-path ./node-configs/fullnode.yaml
+```
+
+The fullnode is written as `fullnode.yaml` and each validator as `validator-<index>.yaml`, for example `validator-0.yaml`. Nothing reads these files back: editing one does not change what `iota-localnet start` runs, so pass `--node-config-override` for that. They contain the nodes' key pairs, as `network.yaml` already does.
+
+A config directory created by an older version of `iota-localnet` is rejected, since its `network.yaml` holds node configs rather than the state they are derived from. Re-create it with `iota-localnet genesis --force`.
+
 :::info Indexer options
 
 When built with the `indexer` feature, additional options are available:
@@ -183,6 +199,8 @@ iota-localnet start --force-regenesis --with-faucet --epoch-duration-ms 30000 --
 
 Use `iota-localnet genesis` to generate a genesis configuration for a local network. The resulting config can then
 be used with `iota-localnet start --network.config <DIR>` to start a persisted network.
+
+It writes the genesis blob, the network state every node config is derived from (`network.yaml`), the client config and the keystore. It does not write the node config files of a local network; `iota-localnet start --write-config <DIR>` does, see [Node config files](#node-config-files). A genesis config passed with `--from-config` names the validators of a deployment, and a run that is given one also writes a config file per validator, and per state sync fullnode it names.
 
 ### Usage
 

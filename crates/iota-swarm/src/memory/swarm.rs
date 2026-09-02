@@ -69,6 +69,7 @@ pub struct SwarmBuilder<R = OsRng> {
     execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     fullnode_run_with_range: Option<RunWithRange>,
+    validator_policy_config: Option<PolicyConfig>,
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_fw_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
@@ -80,7 +81,7 @@ pub struct SwarmBuilder<R = OsRng> {
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     disable_address_verification_cooldown: bool,
     deterministic_validator_port_base: Option<u16>,
-    deterministic_fullnode_port_base: Option<u16>,
+    fullnode_genesis_config: Option<ValidatorGenesisConfig>,
     node_config_overrides: Vec<NodeConfigOverride>,
 }
 
@@ -107,6 +108,7 @@ impl SwarmBuilder {
             execution_cache_config: None,
             data_ingestion_dir: None,
             fullnode_run_with_range: None,
+            validator_policy_config: None,
             fullnode_policy_config: None,
             fullnode_fw_config: None,
             max_submit_position: None,
@@ -118,7 +120,7 @@ impl SwarmBuilder {
             fullnode_grpc_api_config: None,
             disable_address_verification_cooldown: false,
             deterministic_validator_port_base: None,
-            deterministic_fullnode_port_base: None,
+            fullnode_genesis_config: None,
             node_config_overrides: vec![],
         }
     }
@@ -147,6 +149,7 @@ impl<R> SwarmBuilder<R> {
             execution_cache_config: self.execution_cache_config,
             data_ingestion_dir: self.data_ingestion_dir,
             fullnode_run_with_range: self.fullnode_run_with_range,
+            validator_policy_config: self.validator_policy_config,
             fullnode_policy_config: self.fullnode_policy_config,
             fullnode_fw_config: self.fullnode_fw_config,
             max_submit_position: self.max_submit_position,
@@ -158,7 +161,7 @@ impl<R> SwarmBuilder<R> {
             fullnode_grpc_api_config: self.fullnode_grpc_api_config,
             disable_address_verification_cooldown: self.disable_address_verification_cooldown,
             deterministic_validator_port_base: self.deterministic_validator_port_base,
-            deterministic_fullnode_port_base: self.deterministic_fullnode_port_base,
+            fullnode_genesis_config: self.fullnode_genesis_config,
             node_config_overrides: self.node_config_overrides,
         }
     }
@@ -198,13 +201,17 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    /// Lay the first fullnode out as
-    /// [`FullnodeConfigBuilder::with_deterministic_ports`] describes.
+    /// Take the first fullnode's key pairs and addresses from
+    /// `fullnode_genesis_config` instead of generating them. This gives it the
+    /// same config, and the same db path, on every build.
     ///
-    /// Further fullnodes keep currently-free ports, since the three addresses
-    /// can only be used once.
-    pub fn with_deterministic_fullnode_ports(mut self, port_base: u16) -> Self {
-        self.deterministic_fullnode_port_base = Some(port_base);
+    /// Further fullnodes keep generated key pairs and addresses, since an
+    /// address can only be used once.
+    pub fn with_fullnode_genesis_config(
+        mut self,
+        fullnode_genesis_config: ValidatorGenesisConfig,
+    ) -> Self {
+        self.fullnode_genesis_config = Some(fullnode_genesis_config);
         self
     }
 
@@ -350,6 +357,13 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
+    /// Set the traffic control policy of every validator, whether the
+    /// committee is generated here or taken from a network config.
+    pub fn with_validator_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
+        self.validator_policy_config = config;
+        self
+    }
+
     pub fn with_fullnode_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
         self.fullnode_policy_config = config;
         self
@@ -448,7 +462,8 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     /// directory, saving the genesis blob, parsing a generated network address,
     /// and building the genesis (e.g. on invalid genesis parameters or a
     /// validator below the minimum stake).
-    pub fn try_build(self) -> Result<Swarm> {
+    pub fn try_build(mut self) -> Result<Swarm> {
+        let mut fullnode_genesis_config = self.fullnode_genesis_config.take();
         let dir = if let Some(dir) = self.dir {
             SwarmDirectory::Persistent(dir)
         } else {
@@ -528,6 +543,12 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             }
             network_config
         });
+
+        if let Some(policy_config) = self.validator_policy_config {
+            for validator in &mut network_config.validator_configs {
+                validator.policy_config = Some(policy_config.clone());
+            }
+        }
 
         if self.disable_address_verification_cooldown {
             for validator in &mut network_config.validator_configs {
@@ -614,22 +635,26 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
 
         for idx in 0..self.fullnode_count {
             let mut builder = fullnode_config_builder.clone();
-            if idx == 0 {
-                // Only the first fullnode is used as the rpc fullnode, we can only use the
-                // same address once.
+            // Only the first fullnode is used as the rpc fullnode, and only it
+            // takes the given genesis config: an address can only be used once.
+            let genesis_config = if idx == 0 {
                 if let Some(rpc_addr) = self.fullnode_rpc_addr {
                     builder = builder.with_rpc_addr(rpc_addr);
                 }
                 if let Some(rpc_port) = self.fullnode_rpc_port {
                     builder = builder.with_rpc_port(rpc_port);
                 }
-                if let Some(port_base) = self.deterministic_fullnode_port_base {
-                    builder = builder.with_deterministic_ports(port_base);
+                fullnode_genesis_config.take()
+            } else {
+                None
+            };
+            let mut config = match genesis_config {
+                Some(genesis_config) => {
+                    builder.try_build_with_genesis_config(genesis_config, &network_config)
                 }
+                None => builder.try_build(&mut OsRng, &network_config),
             }
-            let mut config = builder
-                .try_build(&mut OsRng, &network_config)
-                .context("failed to build the fullnode config")?;
+            .context("failed to build the fullnode config")?;
             apply_node_config_overrides(
                 overrides_for_fullnode(&self.node_config_overrides),
                 &mut config,
@@ -845,15 +870,41 @@ impl AsRef<Path> for SwarmDirectory {
 
 #[cfg(test)]
 mod test {
-    use std::{collections::BTreeSet, net::SocketAddr, num::NonZeroUsize};
+    use std::{collections::BTreeSet, num::NonZeroUsize};
 
     use iota_swarm_config::{
+        genesis_config::ValidatorGenesisConfigBuilder,
         network_config::NetworkConfig,
         network_config_builder::ConfigBuilder,
         node_config_override::{NodeConfigOverride, apply_node_config_overrides},
     };
+    use iota_types::traffic_control::PolicyConfig;
 
     use super::Swarm;
+
+    #[test]
+    fn the_validator_policy_config_applies_before_the_overrides() {
+        let policy_config = PolicyConfig {
+            connection_blocklist_ttl_sec: 4242,
+            ..PolicyConfig::default()
+        };
+        let swarm = Swarm::builder()
+            .committee_size(NonZeroUsize::new(2).unwrap())
+            .with_validator_policy_config(Some(policy_config))
+            .with_node_config_overrides(vec!["validator-0:policy-config=".parse().unwrap()])
+            .build();
+
+        let validators = swarm.config().validator_configs();
+        assert!(validators[0].policy_config.is_none());
+        assert_eq!(
+            validators[1]
+                .policy_config
+                .as_ref()
+                .unwrap()
+                .connection_blocklist_ttl_sec,
+            4242
+        );
+    }
 
     #[test]
     fn node_config_overrides() {
@@ -1175,8 +1226,6 @@ mod test {
         let swarm = Swarm::builder()
             .committee_size(NonZeroUsize::new(2).unwrap())
             .with_deterministic_validator_ports(9200)
-            .with_fullnode_count(1)
-            .with_deterministic_fullnode_ports(9184)
             .build();
 
         let validator_ports = swarm
@@ -1191,14 +1240,45 @@ mod test {
             })
             .collect::<BTreeSet<_>>();
         assert_eq!(validator_ports, BTreeSet::from([9200, 9210]));
+    }
 
-        let fullnode = swarm.fullnodes().next().unwrap().config();
-        let ip = fullnode.network_address.to_socket_addr().unwrap().ip();
-        assert_eq!(fullnode.metrics_address, SocketAddr::new(ip, 9184));
-        assert_eq!(fullnode.admin_interface_address, SocketAddr::new(ip, 9185));
+    #[test]
+    fn the_first_fullnode_takes_the_given_genesis_config() {
+        let mut fullnode_genesis_config = ValidatorGenesisConfigBuilder::new()
+            .with_ip("127.0.0.1".to_owned())
+            .build(&mut rand::rngs::OsRng);
+        fullnode_genesis_config.metrics_address = ([127, 0, 0, 1], 19184).into();
+        fullnode_genesis_config.admin_interface_address = ([127, 0, 0, 1], 19185).into();
+        fullnode_genesis_config.p2p_address = "/ip4/127.0.0.1/udp/19186/http".parse().unwrap();
+        let db_path_of = |swarm: &Swarm| swarm.fullnodes().next().unwrap().config().db_path.clone();
+
+        let swarm = Swarm::builder()
+            .with_fullnode_count(1)
+            .with_fullnode_genesis_config(fullnode_genesis_config.copy_with_private_keys())
+            .build();
+
+        {
+            let fullnode = swarm.fullnodes().next().unwrap().config();
+            assert_eq!(fullnode.metrics_address.to_string(), "127.0.0.1:19184");
+            assert_eq!(
+                fullnode.admin_interface_address.to_string(),
+                "127.0.0.1:19185"
+            );
+            assert_eq!(
+                fullnode.p2p_config.listen_address.to_string(),
+                "127.0.0.1:19186"
+            );
+        }
+
+        // The same entry gives the fullnode the same db path in a second
+        // network, which is what lets a persisted network reuse its database.
+        let same_swarm = Swarm::builder()
+            .with_fullnode_count(1)
+            .with_fullnode_genesis_config(fullnode_genesis_config)
+            .build();
         assert_eq!(
-            fullnode.p2p_config.listen_address,
-            SocketAddr::new(ip, 9186)
+            db_path_of(&swarm).file_name(),
+            db_path_of(&same_swarm).file_name()
         );
     }
 }
