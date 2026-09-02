@@ -4,17 +4,18 @@
 Reads <results>/summary.csv (written by aggregate.py, which owns all the
 pooling arithmetic) and renders into <results>/summary_plots/:
 
-  modes_knee.png      checkpoint lag p95 and cancelled fraction against the
+  modes_knee.png      checkpoint lag and cancelled fraction against the
                       admitted rate (tx/commit x commits/s), one curve per
                       cost point. Run A is the same admitted rate in every
                       cell, so it collapses to one vertical line — where that
                       line sits right of a curve's knee the count limit
                       over-admits, left of it under-admits.
   modes_heatmaps.png  the read-any-cell view: annotated values (success tps,
-                      cancelled fraction, lag p95) for Run A and every Run B
+                      cancelled fraction, lag mean, lag >30s share) for Run A
+                      and every Run B
                       cell, colored by magnitude on one scale per panel so
                       equal values are equal colors everywhere.
-  modes_tradeoff.png  success tps vs lag p95 per cell; Run A starred. The
+  modes_tradeoff.png  success tps vs lag mean per cell; Run A starred. The
                       lower-right frontier is "fast and stable". Success tps
                       is executed - cancelled - commits (aggregate.py owns
                       the definition), so it excludes both the transactions
@@ -28,6 +29,11 @@ Needs matplotlib — run from a venv such as ../h1/.venv (like
 plot_calibration.py); everything else is stdlib. Deliberately NOT a
 dashboard replay like ../h1/plot.py: these are cross-label figures with
 derived axes, in the spirit of plot_calibration.py.
+
+Lag is the exact histogram mean throughout, not p95: the buckets step
+25, 30, 60, 90, so a p95 landing past 30s is an interpolation across a
+30-second bucket and two such values cannot be compared. The mean (from
+the histogram _sum) and the >30s share carry no bucket error.
 
 Usage: plot.py [results_dir]   (default .; expects summary.csv inside)
 """
@@ -106,7 +112,13 @@ class Point:
         # Run A is one measurement per cell of the same config; average them.
         self.a = {
             k: self._mean(f"a_{k}")
-            for k in ("succ_tps", "cancelled_per_s", "lag_p95_s", "commit_rate")
+            for k in (
+                "succ_tps",
+                "cancelled_per_s",
+                "lag_mean_s",
+                "lag_over_30s_share",
+                "commit_rate",
+            )
         }
 
     def _mean(self, key):
@@ -172,7 +184,7 @@ def plot_knee(points, outdir):
         colors = ramp(len(grp))
         for p, c in zip(grp, colors):
             xs = [adm for adm, _ in p.curve()]
-            lag = [cell["b_lag_p95_s"] for _, cell in p.curve()]
+            lag = [cell["b_lag_mean_s"] for _, cell in p.curve()]
             frac = [
                 cell["b_cancelled_per_s"] / cell["target_qps"] for _, cell in p.curve()
             ]
@@ -192,11 +204,11 @@ def plot_knee(points, outdir):
             if d:
                 top.axvline(d, color=c, ls=":", lw=1, alpha=0.6)
             # Run A: same config measured in every cell of this point.
-            if p.a["commit_rate"] and p.a["lag_p95_s"] is not None:
+            if p.a["commit_rate"] and p.a["lag_mean_s"] is not None:
                 xa = 10 * p.a["commit_rate"]
                 top.plot(
                     xa,
-                    p.a["lag_p95_s"],
+                    p.a["lag_mean_s"],
                     "*",
                     color=c,
                     ms=13,
@@ -225,7 +237,7 @@ def plot_knee(points, outdir):
         style_axes(bot)
         bot.set_xlabel("admitted rate (tx/s = tx/commit x commits/s, log)")
         if j == 0:
-            top.set_ylabel("checkpoint lag p95 (s, log)")
+            top.set_ylabel("checkpoint lag mean (s, log)")
             bot.set_ylabel("cancelled fraction of offered")
         bot.legend(
             *top.get_legend_handles_labels(),
@@ -254,7 +266,8 @@ def plot_knee(points, outdir):
 HEAT_PANELS = [
     ("b_succ_tps", "success tps", "{:.0f}", "linear"),
     ("canc_frac", "cancelled fraction of offered", "{:.2f}", "unit"),
-    ("b_lag_p95_s", "checkpoint lag p95 (s)", "{:.2f}", "log"),
+    ("b_lag_mean_s", "checkpoint lag mean (s)", "{:.2f}", "log"),
+    ("b_lag_over_30s_share", "checkpoint lag: share over 30s", "{:.2f}", "unit"),
 ]
 
 # Sequential blue, light -> dark (the reference ramp's 100..700 steps).
@@ -362,8 +375,8 @@ def plot_heatmaps(points, outdir):
         for side in ax.spines.values():
             side.set_visible(False)
     fig.suptitle(
-        "Per-cell values; color = magnitude, one scale per panel\n"
-        "(lag on a log scale); dark outline = admits 10/commit like Run A",
+        "Per-cell values; color = magnitude, one scale per panel (lag mean\n"
+        "on a log scale); dark outline = admits 10/commit like Run A",
         fontsize=11,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.965))
@@ -388,16 +401,16 @@ def plot_tradeoff(points, outdir):
                 cell["b_succ_tps"] for cell in p.cells if cell["b_succ_tps"] is not None
             ]
             ys = [
-                cell["b_lag_p95_s"]
+                cell["b_lag_mean_s"]
                 for cell in p.cells
                 if cell["b_succ_tps"] is not None
             ]
             ax.plot(xs, ys, "-", color=c, lw=1, alpha=0.5)
             ax.plot(xs, ys, "o", color=c, ms=6, label=p.name)
-            if p.a["succ_tps"] is not None and p.a["lag_p95_s"] is not None:
+            if p.a["succ_tps"] is not None and p.a["lag_mean_s"] is not None:
                 ax.plot(
                     p.a["succ_tps"],
-                    p.a["lag_p95_s"],
+                    p.a["lag_mean_s"],
                     "*",
                     color=c,
                     ms=14,
@@ -408,7 +421,7 @@ def plot_tradeoff(points, outdir):
         style_axes(ax)
         ax.set_xlabel("success tps (executed - cancelled - commits)")
         if j == 0:
-            ax.set_ylabel("checkpoint lag p95 (s, log)")
+            ax.set_ylabel("checkpoint lag mean (s, log)")
         ax.legend(frameon=False, fontsize=8, loc="upper right")
         ax.set_title(
             "lower right = fast and stable", loc="left", color=INK2, fontsize=9
@@ -436,7 +449,7 @@ def plot_utilization(points, outdir):
     colors = ramp(len(withd))
     for (p, d), c in zip(withd, colors):
         xs = [adm / d for adm, _ in p.curve()]
-        ys = [cell["b_lag_p95_s"] for _, cell in p.curve()]
+        ys = [cell["b_lag_mean_s"] for _, cell in p.curve()]
         ax.plot(xs, ys, "-o", color=c, lw=2, ms=5, label=p.name)
     ax.axvline(1.0, color=INK2, ls="--", lw=1.2)
     ax.set_xscale("log")
@@ -447,7 +460,7 @@ def plot_utilization(points, outdir):
     ax.minorticks_off()
     style_axes(ax)
     ax.set_xlabel("admitted rate / drain rate (utilization, log)")
-    ax.set_ylabel("checkpoint lag p95 (s, log)")
+    ax.set_ylabel("checkpoint lag mean (s, log)")
     ax.legend(frameon=False, fontsize=8, loc="upper left")
     ax.set_title(
         "dashed = utilization 1; curves coinciding means lag"

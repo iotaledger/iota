@@ -185,8 +185,9 @@ results/<LABEL>/
 - `aggregate.py` — pools every label's iterations into one A-vs-B table per
   mode pair (`results/summary.md`): success tps (executed − cancelled −
   commits, the user transactions that did real work), the finalized
-  checkpoint-inclusion rate, cancelled rate, pooled checkpoint-lag
-  quantiles, skipped leader rounds, and the safety verdict (counters +
+  checkpoint-inclusion rate, cancelled rate, checkpoint lag (the exact
+  histogram mean and the exact share over 30s, plus the pooled p95),
+  skipped leader rounds, and the safety verdict (counters +
   validator crash scan). The same rows land as scalars in
   `results/summary.csv` for `plot.py`. Standard library only; the machinery
   shared with `../h1/aggregate.py` lives in `../aggregate.py`.
@@ -222,9 +223,9 @@ The results so far are written up in `probe-test.md`.
   `probe.sh` needs to start the network with a limit no probe transaction can
   reach (e.g. `MAX_ACCUMULATED_TXN_COST=50000000`), then the sweep re-run and
   the `drains` column in `matrix.sh` filled in.
-- **Per-cell time series for the marginal cells.** The pooled lag p95 cannot
-  distinguish a queue that is high but stable from one growing without
-  bound — a lag-over-time curve can. Worth adapting `../h1/plot.py`'s
+- **Per-cell time series for the marginal cells.** A pooled lag statistic
+  cannot distinguish a queue that is high but stable from one growing
+  without bound — a lag-over-time curve can. Worth adapting `../h1/plot.py`'s
   dashboard replay as a drill-down for a few chosen cells (the knife-edge
   ones), not for the whole grid. Also still unplotted:
   `consensus_handler_transaction_deferral_rounds` and

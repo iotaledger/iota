@@ -2,10 +2,13 @@
 """aggregate.py — shared aggregation machinery for h1/h2 aggregate.py.
 
 Statistics over the raw timeseries JSONs that dump_timeseries.py writes:
-cumulative-counter deltas, histogram-bucket pooling across runs and the
-Prometheus-style quantile over the pooled buckets. Percentiles are computed
-by POOLING the raw histogram buckets across runs — the statistically correct
-way to combine percentiles (you cannot average per-run quantiles).
+cumulative-counter deltas, histogram-bucket pooling across runs, and over
+the pooled histogram a Prometheus-style quantile, an exact mean and an exact
+tail share. Percentiles are computed by POOLING the raw histogram buckets
+across runs — the statistically correct way to combine percentiles (you
+cannot average per-run quantiles). Where the bucket edges are too coarse for
+a quantile to mean anything, the mean and the tail share still do: both come
+from exact quantities rather than an interpolation inside a bucket.
 
 What each experiment measures and how its summary.md is laid out stays in the
 experiment's own aggregate.py; only the experiment-agnostic pieces live here.
@@ -88,6 +91,41 @@ def pooled_buckets(series_per_run, base):
                 continue
             acc[le] = acc.get(le, 0.0) + delta(s.get("values", []))
     return acc
+
+
+def hmean(series_per_run, base):
+    """Exact mean of a histogram: pooled delta(_sum) / delta(_count).
+
+    Unlike a quantile this carries NO bucket error — `_sum` accumulates the
+    real observed values — so it stays meaningful where the bucket edges are
+    coarse (e.g. LATENCY_SEC_BUCKETS steps straight from 30s to 60s, and a
+    p95 landing in that bucket is only an interpolation).
+    """
+    num = den = 0.0
+    for series in series_per_run:
+        for s in series_list(series, f"{base}_sum"):
+            num += delta(s.get("values", []))
+        for s in series_list(series, f"{base}_count"):
+            den += delta(s.get("values", []))
+    return num / den if den > 0 else None
+
+
+def htail_share(buckets, edge):
+    """Fraction of observations ABOVE a bucket edge, from pooled buckets.
+
+    Exact, because a bucket boundary is exact — only interpolation inside a
+    bucket is an estimate. Returns None if `edge` is not one of the bucket
+    boundaries, so a silent mismatch cannot pass for a measurement.
+    """
+    if not buckets:
+        return None
+    total = buckets.get("+Inf")
+    if not total:
+        return None
+    for le, cum in buckets.items():
+        if le != "+Inf" and float(le) == float(edge):
+            return 1.0 - cum / total
+    return None
 
 
 def hquantile(q, buckets):

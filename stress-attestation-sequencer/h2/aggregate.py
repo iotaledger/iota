@@ -52,13 +52,21 @@ from aggregate import (  # noqa: E402
     crash_incidents,
     delta,
     fmt,
+    hmean,
     hquantile,
+    htail_share,
     load,
     mean,
     pooled_buckets,
     series_list,
     series_max,
 )
+
+# The bucket edge above which a checkpoint-lag quantile stops being a
+# measurement: LATENCY_SEC_BUCKETS (iota-metrics) steps 25, 30, 60, 90, so a
+# quantile landing past 30s is an interpolation across a 30-second-wide
+# bucket. The exact mean and the share above this edge carry no such error.
+LAG_COARSE_EDGE = 30.0
 
 CRASH_RUN_DIRS = (("run-a-node-logs", "A"), ("run-b-node-logs", "B"))
 
@@ -101,16 +109,9 @@ def rate_mean(runs, metric):
 
 
 def units_per_tx(runs):
-    """Measured attested computation units per transaction: pooled
-    delta(sum)/delta(count) of the attested_computation_units histogram."""
-    num = den = 0.0
-    for r in runs:
-        s = r.get("series", {})
-        for x in series_list(s, "attested_computation_units_sum"):
-            num += delta(x.get("values", []))
-        for x in series_list(s, "attested_computation_units_count"):
-            den += delta(x.get("values", []))
-    return num / den if den > 0 else None
+    """Measured attested computation units per transaction — the exact mean of
+    the attested_computation_units histogram."""
+    return hmean([r.get("series", {}) for r in runs], "attested_computation_units")
 
 
 def v1_delta(run, metric):
@@ -165,6 +166,7 @@ def aggregate_arm(runs):
         [r.get("series", {}) for r in runs], "checkpoint_creation_latency"
     )
     succ = execd - canc - commits if None not in (execd, canc, commits) else None
+    series = [r.get("series", {}) for r in runs]
     return {
         "succ": succ,
         # Finalized rate as scraped, prologues included: comparable to the
@@ -173,6 +175,10 @@ def aggregate_arm(runs):
         "canc": canc,
         "lag50": hquantile(0.5, lag),
         "lag95": hquantile(0.95, lag),
+        # Exact, unlike the quantiles above LAG_COARSE_EDGE: the mean comes
+        # from the histogram's _sum, the share from a bucket boundary.
+        "lag_mean": hmean(series, "checkpoint_creation_latency"),
+        "lag_gt_coarse": htail_share(lag, LAG_COARSE_EDGE),
         "skips": skipped_rounds(runs),
         # consensus commits per second — what turns a per-commit limit into an
         # admitted rate (tx/commit x commits/s), so plot.py needs it per arm.
@@ -233,10 +239,23 @@ def fmt_rate(x):
     return "—" if x is None else f"{x:.1f}"
 
 
-def fmt_lag(a50, a95):
-    if a50 is None or a95 is None:
+def fmt_q(v):
+    """A quantile past LAG_COARSE_EDGE is an interpolation across a
+    30-second bucket, so print the bound rather than a number nobody
+    should compare."""
+    if v is None:
         return "—"
-    return f"{a50:.2f} / {a95:.2f}"
+    return f">{LAG_COARSE_EDGE:.0f}" if v > LAG_COARSE_EDGE else f"{v:.2f}"
+
+
+def fmt_secs(v):
+    if v is None:
+        return "—"
+    return f"{v:.2f}" if v < 10 else f"{v:.1f}"
+
+
+def fmt_share(v):
+    return "—" if v is None else f"{100 * v:.0f}%"
 
 
 def ab(x, y, f=fmt_rate):
@@ -274,8 +293,9 @@ def main():
         "  that did real work. Cancelled ones execute but do nothing, and",
         "  every commit carries one consensus commit prologue, which the",
         "  transaction counters count as a transaction.",
-        "- checkpoint lag above 30s has about one histogram bucket of",
-        '  resolution — read those as "30 to 60s", not as exact values.',
+        "- checkpoint lag: the mean and the >30s share are exact; the p95",
+        "  is not past 30s, where the buckets jump 30 to 60, so it prints",
+        '  as ">30" there. Compare the mean and the share, not that bound.',
         "- units/tx is measured from Run B's attested computation units;",
         "  B tx/commit = LIMIT_B / units-per-tx, what Run B admits where",
         "  Run A always admits LIMIT_A transactions.",
@@ -297,9 +317,9 @@ def main():
         L += [
             f"## A = {mode_a}, B = {mode_b}\n",
             "| label | units/tx | B tx/cmt | iters | success tps A → B |"
-            " cancelled/s A → B | ckpt lag s p50/p95 A | p50/p95 B |"
-            " skips A → B | safety |",
-            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+            " cancelled/s A → B | ckpt lag mean s A → B |"
+            " lag >30s A → B | lag p95 s A → B | skips A → B | safety |",
+            "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
         ]
         for r in grp:
             a, b = r["a"], r["b"]
@@ -307,8 +327,9 @@ def main():
                 f"| {r['label']} | {fmt(r['units'])} | {fmt(r['txcmt'])} |"
                 f" {r['iters']} | {ab(a['succ'], b['succ'])} |"
                 f" {ab(a['canc'], b['canc'])} |"
-                f" {fmt_lag(a['lag50'], a['lag95'])} |"
-                f" {fmt_lag(b['lag50'], b['lag95'])} |"
+                f" {ab(a['lag_mean'], b['lag_mean'], fmt_secs)} |"
+                f" {ab(a['lag_gt_coarse'], b['lag_gt_coarse'], fmt_share)} |"
+                f" {ab(a['lag95'], b['lag95'], fmt_q)} |"
                 f" {ab(a['skips'], b['skips'])} |"
                 f" {'FAIL ✗' if safety_failed(r) else 'ok'} |"
             )
@@ -354,13 +375,25 @@ def main():
         "succ_tps",
         "ckpt_tps",
         "cancelled_per_s",
+        "lag_mean_s",
+        "lag_over_30s_share",
         "lag_p50_s",
         "lag_p95_s",
         "commit_rate",
         "skipped_rounds",
         "over_max_deferrals",
     )
-    arm_keys = ("succ", "ckpt_tps", "canc", "lag50", "lag95", "commit_rate", "skips")
+    arm_keys = (
+        "succ",
+        "ckpt_tps",
+        "canc",
+        "lag_mean",
+        "lag_gt_coarse",
+        "lag50",
+        "lag95",
+        "commit_rate",
+        "skips",
+    )
 
     def cell(v):
         return "" if v is None else f"{v:.6g}"
