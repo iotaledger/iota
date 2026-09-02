@@ -1069,7 +1069,7 @@ async fn transaction_manager_releases_each_parked_key_with_its_own_env() {
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 #[should_panic(expected = "Shared object version should have been assigned")]
 async fn transaction_manager_missing_shared_version_assignment_panics() {
-    let (owner, _keypair) = deterministic_random_account_key();
+    let (owner, _keypair) = deterministic_random_account_private_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let shared_object = Object::shared_for_testing();
     let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;
@@ -1121,7 +1121,7 @@ async fn transaction_manager_schedules_already_resolved_randomness_key() {
 /// disables fork detection; losing assigned versions panics execution.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn transaction_manager_propagates_execution_env() {
-    let (owner, _keypair) = deterministic_random_account_key();
+    let (owner, _keypair) = deterministic_random_account_private_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let state = init_state_with_objects(vec![gas_object.clone()]).await;
     let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);

@@ -23,8 +23,8 @@ use iota_sdk_types::{
     Address, Argument, CanceledTransaction, CheckpointSequenceNumber, Command,
     ConsensusDeterminedVersionAssignments, Digest, EpochId, ExecutionError, ExecutionStatus,
     GasPayment, Identifier, MoveStruct, ObjectData, ObjectDigest, ObjectId, ObjectReference,
-    OwnedObjectReference, Owner, ProgrammableTransaction, RandomnessRound, SharedObjectReference, StructTag,
-    Transaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
+    OwnedObjectReference, Owner, ProgrammableTransaction, RandomnessRound, SharedObjectReference,
+    StructTag, Transaction, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
     TransactionExpiration, TransactionKind, TransactionV1, TypeTag, Version, VersionAssignment,
     crypto::{Intent, IntentScope},
 };

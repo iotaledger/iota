@@ -34,7 +34,6 @@ use iota_sdk_types::{
     Address, CanceledTransaction, CheckpointTimestamp, DenyRuleSet, ObjectId, ObjectReference,
     RandomnessRound, SenderSignedTransaction, TransactionDenyRulesUpdate, TransactionDigest,
     TransactionEffects, TransactionEffectsDigest, TransactionKind, UserSignature, Version,
-    VersionAssignment,
     checkpoint::{CheckpointContents, CheckpointSummary},
 };
 use iota_storage::mutex_table::{MutexGuard, MutexTable};
@@ -4255,7 +4254,7 @@ impl AuthorityPerEpochStore {
     pub(crate) fn add_deny_rule_update_transactions(
         &self,
         output: &mut ConsensusCommitOutput,
-        transactions: &mut VecDeque<VerifiedExecutableTransaction>,
+        transactions: &mut VecDeque<Schedulable>,
         roots: &mut BTreeSet<TransactionKey>,
         consensus_commit_info: &ConsensusCommitInfo,
     ) -> IotaResult<()> {
@@ -4326,7 +4325,7 @@ impl AuthorityPerEpochStore {
                     start_time: _,
                 } => {
                     roots.insert(transaction.key());
-                    transactions.push_front(transaction);
+                    transactions.push_front(Schedulable::Transaction(transaction));
                 }
                 ConsensusTransactionResult::IgnoredSystem => {
                     all_scheduled = false;

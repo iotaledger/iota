@@ -940,7 +940,7 @@ mod tests {
     use iota_types::{
         base_types::{AuthorityName, random_object_ref},
         committee::Committee,
-        crypto::{AccountPrivateKey, deterministic_random_account_key, get_key_pair},
+        crypto::{AccountPrivateKey, deterministic_random_account_private_key, get_key_pair},
         effects::TransactionEffectsAPI,
         messages_consensus::{
             AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
@@ -1125,7 +1125,7 @@ mod tests {
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn test_consensus_handler_mixed_owned_and_shared_commit() {
         // GIVEN
-        let (sender, keypair) = deterministic_random_account_key();
+        let (sender, keypair) = deterministic_random_account_private_key();
         let mut objects = test_gas_objects();
         let shared_object = Object::shared_for_testing();
         let owned_object = Object::with_id_owner_for_testing(ObjectId::random(), sender);
@@ -1217,7 +1217,7 @@ mod tests {
                 TestBlockHeader::new(100 + i as u32, (i % consensus_committee.size()) as u8)
                     .build(),
             );
-            let tx_batch = VerifiedTransactions::new_for_test(
+            let tx_batch = CommitmentVerifiedTransactions::new_for_test(
                 &header,
                 vec![starfish_core::Transaction::new(transaction_bytes)],
             );

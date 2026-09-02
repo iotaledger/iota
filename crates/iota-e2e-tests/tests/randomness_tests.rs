@@ -105,7 +105,7 @@ async fn run_randomness_using_transaction_reaches_finality(use_execution_schedul
     assert_eq!(1, events.data.len(), "expected 1 event: {:?}", events.data);
     assert_eq!(
         "RandomU128Event",
-        events.data[0].type_.name().to_string().as_str()
+        events.data[0].struct_tag.name().to_string().as_str()
     );
 }
 

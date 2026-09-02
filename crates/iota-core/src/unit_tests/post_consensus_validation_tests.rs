@@ -2119,7 +2119,7 @@ impl ImmutableInputSetup {
             1,
         );
         self.authority
-            .try_execute_immediately(&executable, None, &self.epoch_store)
+            .try_execute_immediately(&executable, ExecutionEnv::new(), &self.epoch_store)
             .unwrap();
     }
 

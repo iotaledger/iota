@@ -122,7 +122,6 @@ pub struct EpochMetrics {
     /// The number of consensus output items in the quarantine.
     pub consensus_quarantine_queue_size: IntGauge,
 
-
     /// The number of consensus commits that injected deny-rule update
     /// transactions.
     pub deny_rule_updates_injected: IntCounter,

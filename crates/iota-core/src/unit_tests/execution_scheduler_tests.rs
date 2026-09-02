@@ -828,7 +828,7 @@ async fn execution_scheduler_schedules_already_resolved_randomness_key() {
 /// transaction of the commit behind the randomness round.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn execution_scheduler_mixed_batch_dispatches_plain_transaction_immediately() {
-    let (owner, _keypair) = deterministic_random_account_key();
+    let (owner, _keypair) = deterministic_random_account_private_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let state = init_state_with_objects(vec![gas_object.clone()]).await;
     let epoch_store = state.epoch_store_for_testing();
@@ -877,7 +877,7 @@ async fn execution_scheduler_mixed_batch_dispatches_plain_transaction_immediatel
 /// error, this test must change with it.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn execution_scheduler_missing_shared_version_assignment_drops_transaction() {
-    let (owner, _keypair) = deterministic_random_account_key();
+    let (owner, _keypair) = deterministic_random_account_private_key();
     let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
     let shared_object = Object::shared_for_testing();
     let state = init_state_with_objects(vec![gas_object.clone(), shared_object.clone()]).await;

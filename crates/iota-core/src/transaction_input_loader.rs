@@ -156,19 +156,13 @@ impl TransactionInputLoader {
         let mut object_keys = Vec::with_capacity(input_object_kinds.len());
         let mut fetches = Vec::with_capacity(input_object_kinds.len());
         let mut gas_object_cancellation = None;
-        // A gas-object cancellation version can only exist when
-        // execution-worker congestion control is active, and only for
-        // transactions without shared inputs (version assignment puts the
-        // cancellation on the shared inputs otherwise). Skip the
-        // assigned-versions probe for all other transactions so they stay on
-        // the pre-existing fast path.
-        let check_gas_object_cancellation = epoch_store
-            .protocol_config()
-            .concurrent_execution_workers()
-            .is_some()
-            && !input_object_kinds
-                .iter()
-                .any(|kind| matches!(kind, InputObjectKind::SharedMoveObject { .. }));
+        // A gas-object cancellation version can only exist for a transaction
+        // without shared inputs (version assignment puts the cancellation on
+        // the shared inputs otherwise), so only those look their owned inputs
+        // up in the assignments.
+        let check_gas_object_cancellation = !input_object_kinds
+            .iter()
+            .any(|kind| matches!(kind, InputObjectKind::SharedMoveObject { .. }));
 
         for (i, input) in input_object_kinds.iter().enumerate() {
             match input {
@@ -191,28 +185,14 @@ impl TransactionInputLoader {
                     // cancelled shared input, the object is still read
                     // normally: the cancelled execution charges gas to it.
                     if check_gas_object_cancellation {
-                        if let Some(assigned_versions) = assigned_shared_versions_cell
-                            .get_or_init(|| {
-                                epoch_store.get_assigned_shared_object_versions(tx_key).map(
-                                    |versions| {
-                                        versions
-                                            .into_iter()
-                                            .map(|v| (v.object_id, v.version))
-                                            .collect()
-                                    },
-                                )
-                            })
-                            .as_ref()
-                        {
-                            if let Some(version) = assigned_versions.get(&objref.object_id) {
-                                assert!(
-                                    version.is_canceled(),
-                                    "non-shared input {} of {tx_key:?} has a non-cancellation \
-                                        assigned version {version:?}",
-                                    objref.object_id,
-                                );
-                                gas_object_cancellation = Some((objref.object_id, *version));
-                            }
+                        if let Some(version) = assigned_shared_versions.get(&objref.object_id) {
+                            assert!(
+                                version.is_canceled(),
+                                "non-shared input {} of {tx_key:?} has a non-cancellation \
+                                    assigned version {version:?}",
+                                objref.object_id,
+                            );
+                            gas_object_cancellation = Some((objref.object_id, *version));
                         }
                     }
                     object_keys.push(objref.into());

@@ -1048,7 +1048,7 @@ mod tests {
         let suggested_gas_price = 1_000;
         let cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusTransactionReason> = [(
             *cancelled_tx.digest(),
-            CancelConsensusTransactionReason::CongestionOnObjects {
+            CancelConsensusTransactionReason::Congested {
                 congested_objects: vec![id],
                 suggested_gas_price: Some(suggested_gas_price),
             },
@@ -1281,6 +1281,7 @@ mod tests {
         )
         .unwrap();
         assert!(assigned_versions.0.is_empty());
+    }
 
     /// Shared objects read by a transaction's `MoveAuthenticator`s are shared
     /// inputs of that transaction even though they are absent from its own

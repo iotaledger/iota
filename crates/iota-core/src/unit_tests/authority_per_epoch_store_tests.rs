@@ -1093,7 +1093,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         .unwrap();
     assert_eq!(transactions.len(), 1);
     let TransactionKind::TransactionDenyRulesUpdate(update) =
-        transactions[0].data().transaction().kind()
+        transactions[0].as_tx().unwrap().data().transaction().kind()
     else {
         panic!("expected a deny-rules update transaction");
     };
@@ -1148,7 +1148,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
         .unwrap();
     assert_eq!(transactions.len(), 1);
     let TransactionKind::TransactionDenyRulesUpdate(update) =
-        transactions[0].data().transaction().kind()
+        transactions[0].as_tx().unwrap().data().transaction().kind()
     else {
         panic!("expected a deny-rules update transaction");
     };

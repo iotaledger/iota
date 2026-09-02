@@ -41,7 +41,7 @@ use iota_types::{
         CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
         FullCheckpointContents, VerifiedCheckpoint,
     },
-    transaction::{TransactionAPI, VerifiedTransaction},
+    transaction::{SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction},
 };
 use parking_lot::Mutex;
 use tap::{TapFallible, TapOptional};
