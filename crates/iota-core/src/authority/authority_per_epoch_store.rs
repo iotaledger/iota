@@ -3471,6 +3471,7 @@ impl AuthorityPerEpochStore {
                 &end_of_publish_transactions,
                 checkpoint_service,
                 cache_reader,
+                tx_reader,
                 consensus_commit_info,
                 &mut roots,
                 &mut randomness_roots,
@@ -3865,6 +3866,7 @@ impl AuthorityPerEpochStore {
         end_of_publish_transactions: &[VerifiedSequencedConsensusTransaction],
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
+        tx_reader: &dyn TransactionCacheRead,
         consensus_commit_info: &ConsensusCommitInfo,
         non_randomness_roots: &mut BTreeSet<TransactionKey>,
         randomness_roots: &mut BTreeSet<TransactionKey>,
@@ -3970,6 +3972,7 @@ impl AuthorityPerEpochStore {
                     tx,
                     checkpoint_service,
                     cache_reader,
+                    tx_reader,
                     consensus_commit_info.round,
                     &previously_deferred_tx_digests,
                     randomness_manager.as_deref_mut(),
@@ -4319,6 +4322,7 @@ impl AuthorityPerEpochStore {
         transaction: &VerifiedSequencedConsensusTransaction,
         checkpoint_service: &Arc<C>,
         cache_reader: &dyn ObjectCacheRead,
+        tx_reader: &dyn TransactionCacheRead,
         commit_round: CommitRound,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         mut randomness_manager: Option<&mut RandomnessManager>,
@@ -4642,17 +4646,35 @@ impl AuthorityPerEpochStore {
                     ),
                 );
 
+                // An already-executed transaction is a committee-agreed winner: it is
+                // retained rather than dropped, exactly as in post-consensus validation
+                // (issue #11649). Dropping it would make this pass disagree with the one
+                // that originally scheduled it - the case that arises when unflushed
+                // commits are replayed after a crash, or when checkpoint execution has run
+                // ahead of consensus processing and the object store already shows the
+                // account. Retaining it also keeps a claim on the path to the
+                // version-assignment walk, so it still contributes its claim entry and
+                // version seed.
+                //
+                // Store-ahead visibility only comes from checkpoint execution, which is
+                // prefix-ordered: every transaction sequenced before the state that would
+                // poison this check is itself executed, and so is exempt too.
+                let already_executed =
+                    tx_reader.try_is_tx_already_executed(executable_tx.digest())?;
+
                 // The account rules run before the scheduling decision, so a
                 // violating transaction never takes scheduling capacity.
-                if let Some(error) = account_rules_state.check_transaction(
-                    self,
-                    cache_reader,
-                    executable_tx.data(),
-                )? {
-                    return Ok(ConsensusTransactionResult::DroppedByAccountRules {
-                        digest: *executable_tx.digest(),
-                        error,
-                    });
+                if !already_executed {
+                    if let Some(error) = account_rules_state.check_transaction(
+                        self,
+                        cache_reader,
+                        executable_tx.data(),
+                    )? {
+                        return Ok(ConsensusTransactionResult::DroppedByAccountRules {
+                            digest: *executable_tx.digest(),
+                            error,
+                        });
+                    }
                 }
 
                 let scheduling_result = self.try_schedule(
