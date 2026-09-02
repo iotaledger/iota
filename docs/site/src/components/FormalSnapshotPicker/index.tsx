@@ -38,7 +38,7 @@ function buildCommand(
         '  /bin/sh -c "/usr/local/bin/iota-tool download-formal-snapshot \\',
         `    ${epochArg} \\`,
         '    --genesis /opt/iota/config/genesis.blob \\',
-        '    --path /opt/iota/db \\',
+        '    --path /opt/iota/db/authorities_db \\',
         '    --verify normal \\',
         '    --no-sign-request \\',
         `    --network ${network} \\`,
