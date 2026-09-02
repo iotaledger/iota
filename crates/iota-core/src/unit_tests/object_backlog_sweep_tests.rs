@@ -33,6 +33,7 @@ use crate::{
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
     },
     checkpoints::CheckpointStore,
+    test_utils::executed_checkpoint,
 };
 
 /// The epoch that is current while the sweep runs, and whose bucket it
@@ -574,6 +575,43 @@ async fn a_pruner_database_refuses_the_bounded_walk() {
     );
 }
 
+/// A watermark the checkpoint pruner has itself overtaken names checkpoints
+/// the store no longer holds, so it cannot be used to find the backlog and
+/// the whole table is walked instead. An earlier build could leave this by
+/// holding fewer epochs of checkpoints than of object versions, or by having
+/// object pruning turned off after it had once run.
+#[tokio::test]
+async fn a_watermark_below_the_retained_checkpoints_refuses_the_bounded_walk() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let checkpoint_store = empty_checkpoint_store(&dir);
+
+    seed(&store);
+    // The objects pruner stopped at 5; the checkpoint pruner went on to 9, so
+    // the summaries that would name the backlog are gone.
+    seed_pruner_watermark(&store, 5);
+    checkpoint_store
+        .update_highest_pruned_checkpoint(&executed_checkpoint(0, 9))
+        .unwrap();
+
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+        .await
+        .unwrap();
+
+    // The unbounded walk's outcome, which the bounded one could not have
+    // reached from a watermark of 5.
+    assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        vec![
+            ObjectKey(live_id(), 1.into()),
+            ObjectKey(live_id(), 2.into()),
+            ObjectKey(deleted_id(), 1.into()),
+            ObjectKey(deleted_id(), 2.into()),
+            ObjectKey(wrapped_id(), 1.into()),
+        ]
+    );
+}
+
 /// The bounded walk resumes at the checkpoint after the last slice it wrote,
 /// so an interrupted run neither repeats a slice nor skips one.
 #[tokio::test]
@@ -637,4 +675,53 @@ async fn no_watermark_walks_the_whole_table() {
             ObjectKey(wrapped_id(), 1.into()),
         ]
     );
+}
+
+/// A checkpoint whose effects are committed but whose execution watermark was
+/// never bumped — an earlier build crashed between the two — is still walked.
+/// Stopping at the executed watermark would leave its superseded versions in
+/// the live table for good, since the sweep records itself done regardless.
+#[tokio::test]
+async fn the_walk_reaches_a_committed_checkpoint_above_the_executed_watermark() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let checkpoint_store = empty_checkpoint_store(&dir);
+
+    store
+        .perpetual_tables
+        .objects
+        .multi_insert([value(live_id(), 1), value(live_id(), 2)])
+        .unwrap();
+    seed_pruner_watermark(&store, 7);
+    let executed = seed_checkpoint(&store, &checkpoint_store, 8, &[], &[]);
+    seed_checkpoint(&store, &checkpoint_store, 9, &[(live_id(), 1)], &[]);
+    let _ = executed;
+
+    // Checkpoint 9's effects are committed and it is synced, but the crash
+    // left the executed watermark at 8.
+    let eight = checkpoint_store
+        .get_checkpoint_by_sequence_number(8)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .set_highest_executed_checkpoint_subtle(&eight)
+        .unwrap();
+    let nine = checkpoint_store
+        .get_checkpoint_by_sequence_number(9)
+        .unwrap()
+        .unwrap();
+    checkpoint_store
+        .update_highest_synced_checkpoint(&nine)
+        .unwrap();
+
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        vec![ObjectKey(live_id(), 1.into())],
+        "the version checkpoint 9 superseded must be relocated, not left behind",
+    );
+    assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
 }
