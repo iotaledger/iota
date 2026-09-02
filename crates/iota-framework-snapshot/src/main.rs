@@ -17,7 +17,11 @@ fn main() {
     let mut files = Vec::new();
     for package in BuiltInFramework::iter_system_package_metadata() {
         write_package_to_file(version, &package.compiled);
-        files.push(SnapshotPackage::from_system_package_metadata(package));
+        files.push(SnapshotPackage {
+            name: package.name.clone(),
+            path: package.path.clone(),
+            id: package.compiled.id,
+        });
     }
     update_bytecode_snapshot_manifest(GIT_REVISION, version, files);
 }

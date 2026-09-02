@@ -12,8 +12,8 @@ use crate::{
         BaseCommitter, BaseCommitterOptions, base_committer_builder::BaseCommitterBuilder,
     },
     block_header::{
-        BlockHeader, BlockHeaderV2, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
-        StrongVote, TransactionsCommitment, VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeader, BlockHeaderV2, BlockRef, BlockTimestampMs, CommitmentVerifiedTransactions,
+        GENESIS_ROUND, Round, Slot, StrongVote, TransactionsCommitment, VerifiedBlockHeader,
         genesis_block_headers,
     },
     commit::{CommitMetastate, DecidedLeader, LeaderStatus},
@@ -88,7 +88,7 @@ fn pin_strong_vote(
 /// Marks `header`'s transactions as locally available, so
 /// `DagState::are_transactions_available` returns true for that ref.
 fn add_transactions_for(dag_state: &Arc<RwLock<DagState>>, header: &VerifiedBlockHeader) {
-    let verified = VerifiedTransactions::new_for_test(header, vec![]);
+    let verified = CommitmentVerifiedTransactions::new_for_test(header, vec![]);
     dag_state
         .write()
         .add_transactions(verified, DataSource::Test);

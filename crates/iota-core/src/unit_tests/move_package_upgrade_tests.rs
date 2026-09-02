@@ -13,11 +13,11 @@ use iota_move_build::BuildConfig;
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
     Address, Argument, CommandArgumentError, Digest, ExecutionError, ExecutionStatus, Identifier,
-    ObjectId, ObjectReference, Owner, PackageUpgradeError, ProgrammableTransaction, StructTag,
-    TransactionEffects,
+    ObjectId, ObjectReference, OwnedObjectReference, Owner, PackageUpgradeError,
+    ProgrammableTransaction, StructTag, TransactionEffects,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     effects::TransactionEffectsAPI,
     error::{IotaError, UserInputError},
     execution_config_utils::to_binary_config,
@@ -167,7 +167,7 @@ pub fn build_upgrade_txn(
 
 struct UpgradeStateRunner {
     pub sender: Address,
-    pub sender_key: AccountKeyPair,
+    pub sender_key: AccountPrivateKey,
     pub gas_object_id: ObjectId,
     pub authority_state: Arc<AuthorityState>,
     pub package: ObjectReference,
@@ -178,7 +178,7 @@ struct UpgradeStateRunner {
 impl UpgradeStateRunner {
     pub async fn new(base_package_name: &str) -> Self {
         telemetry_subscribers::init_for_testing();
-        let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let gas_object_id = ObjectId::random();
         let gas_object = Object::with_id_owner_for_testing(gas_object_id, sender);
         let authority_state = TestAuthorityBuilder::new().build().await;
@@ -226,10 +226,10 @@ impl UpgradeStateRunner {
         let cap = effects
             .created()
             .into_iter()
-            .find(|(_, owner)| matches!(owner, Owner::Address(_)))
+            .find(|created| matches!(created.owner, Owner::Address(_)))
             .unwrap();
 
-        (package, cap.0)
+        (package, cap.reference)
     }
 
     pub async fn upgrade(
@@ -279,11 +279,9 @@ impl UpgradeStateRunner {
         .await
         .unwrap();
 
-        if let Some(updated_cap) = effects
-            .mutated()
-            .into_iter()
-            .find_map(|(cap, _)| (cap.object_id == self.upgrade_cap.object_id).then_some(cap))
-        {
+        if let Some(updated_cap) = effects.mutated().into_iter().find_map(|mutated| {
+            (mutated.reference.object_id == self.upgrade_cap.object_id).then_some(mutated.reference)
+        }) {
             self.upgrade_cap = updated_cap;
         }
 
@@ -412,7 +410,7 @@ async fn test_upgrade_introduces_type_then_uses_it() {
     let created = effects
         .created()
         .into_iter()
-        .find_map(|(b, owner)| matches!(owner, Owner::Address(_)).then_some(b))
+        .find_map(|created| matches!(created.owner, Owner::Address(_)).then_some(created.reference))
         .unwrap();
 
     let b = runner
@@ -852,9 +850,9 @@ async fn test_multiple_upgrades(
     let package_v2 = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
-        .0
+        .reference
         .object_id;
 
     // Second upgrade: May also adds a dep on the iota framework and stdlib.
@@ -919,9 +917,9 @@ async fn test_interleaved_upgrades() {
     let dep_v2_package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
-        .0;
+        .reference;
 
     let pt2 = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -986,9 +984,9 @@ async fn test_publish_override_happy_path() {
     let dep_v2_package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
-        .0;
+        .reference;
 
     // Publish P that depends on both `dep_on_upgrading_package` and
     // `stage1_basic_compatibility_valid` Dependency graph for dep_on_dep:
@@ -1132,9 +1130,9 @@ async fn test_publish_transitive_override_happy_path() {
     let base_v2_package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
-        .0;
+        .reference;
 
     // publish a root package that depends on the dependent package and on version 2
     // of the base package (overriding base package dependency of the dependent
@@ -1238,7 +1236,7 @@ async fn test_upgraded_types_in_one_txn() {
     let created_b = effects
         .created()
         .into_iter()
-        .find_map(|(b, owner)| matches!(owner, Owner::Address(_)).then_some(b))
+        .find_map(|created| matches!(created.owner, Owner::Address(_)).then_some(created.reference))
         .unwrap();
 
     // Create an instance of the type introduced at version 3 using function from
@@ -1255,7 +1253,12 @@ async fn test_upgraded_types_in_one_txn() {
     let created_c = effects
         .created()
         .into_iter()
-        .find_map(|(c, owner)| matches!(owner, Owner::Address(_)).then_some(c))
+        .find_map(
+            |OwnedObjectReference {
+                 reference: c,
+                 owner,
+             }| matches!(owner, Owner::Address(_)).then_some(c),
+        )
         .unwrap();
 
     // modify objects created of types introduced at versions 2 and 3 and emit
@@ -1283,10 +1286,15 @@ async fn test_upgraded_types_in_one_txn() {
         .authority_state
         .get_transaction_events(effects.transaction_digest())
         .unwrap();
-    events.sort_by(|a, b| a.type_.name().as_str().cmp(b.type_.name().as_str()));
+    events.sort_by(|a, b| {
+        a.struct_tag
+            .name()
+            .as_str()
+            .cmp(b.struct_tag.name().as_str())
+    });
     assert!(events.len() == 2);
-    assert_eq!(events[0].type_, e1_type);
-    assert_eq!(events[1].type_, e2_type);
+    assert_eq!(events[0].struct_tag, e1_type);
+    assert_eq!(events[1].struct_tag, e2_type);
 }
 
 #[tokio::test]
@@ -1299,9 +1307,9 @@ async fn test_different_versions_across_calls() {
     let package_v3 = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
-        .0
+        .reference
         .object_id;
 
     // call the same function twice within the same block but from two different
@@ -1348,9 +1356,9 @@ async fn test_conflicting_versions_across_calls() {
     let base_v2_package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
-        .0;
+        .reference;
 
     // publish a dependent package at version 2 that depends on the base package at
     // version 2
@@ -1394,9 +1402,9 @@ async fn test_conflicting_versions_across_calls() {
     let dependent_v2_package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap()
-        .0;
+        .reference;
 
     // call the same function twice within the same block but from two different
     // module versions that differ only by having different dependencies
@@ -1502,7 +1510,7 @@ async fn test_upgrade_cross_module_refs() {
 
 #[tokio::test]
 async fn test_upgrade_max_packages() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 
@@ -1556,7 +1564,7 @@ async fn test_upgrade_max_packages() {
 
 #[tokio::test]
 async fn test_upgrade_more_than_max_packages_error() {
-    let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
+    let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
     let gas_object_id = ObjectId::random();
     let authority = init_state_with_ids(vec![(sender, gas_object_id)]).await;
 

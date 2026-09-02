@@ -15,7 +15,7 @@ use iota_sdk::{
     wallet_context::WalletContext,
 };
 use iota_sdk_crypto::Signer;
-use iota_sdk_transaction_builder::{PTBArgumentList, TransactionBuilder};
+use iota_sdk_transaction_builder::PTBArgumentList;
 use iota_sdk_types::{
     Address, Identifier, Input, ObjectId, ObjectReference, Owner, ProgrammableTransaction,
     SharedObjectReference, StructTag, Transaction, TransactionDigest, TransactionKind, TypeTag,
@@ -23,7 +23,7 @@ use iota_sdk_types::{
     crypto::{BitmapUnit, MultisigAggregatedSignature, MultisigCommittee, SimpleSignature},
 };
 use iota_types::{
-    crypto::AccountKeyPair,
+    crypto::AccountPrivateKey,
     transaction::{
         CallArg, DEFAULT_VALIDATOR_GAS_PRICE, TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
         TEST_ONLY_GAS_UNIT_FOR_TRANSFER, TransactionAPI, TransactionEnvelope,
@@ -700,7 +700,7 @@ pub async fn emit_new_random_u128(
 pub async fn publish_example_package(
     context: &WalletContext,
     example_subpath: &'static str,
-    sender_key_pair: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     sender: Address,
     gas: ObjectReference,
 ) -> (ObjectId, TransactionDigest) {
@@ -709,7 +709,7 @@ pub async fn publish_example_package(
         TestTransactionBuilder::new(sender, gas, gas_price)
             .publish_examples(example_subpath)
             .build(),
-        sender_key_pair,
+        sender_key,
     );
 
     let resp = context.execute_transaction_must_succeed(tx).await;
@@ -739,11 +739,11 @@ pub async fn publish_nfts_package(
 /// the package id and the digest of the transaction.
 pub async fn publish_simple_warrior_package(
     context: &WalletContext,
-    sender_key_pair: &AccountKeyPair,
+    sender_key: &AccountPrivateKey,
     sender: Address,
     gas: ObjectReference,
 ) -> (ObjectId, TransactionDigest) {
-    publish_example_package(context, "simple_warrior", sender_key_pair, sender, gas).await
+    publish_example_package(context, "simple_warrior", sender_key, sender, gas).await
 }
 
 /// Pre-requisite: `publish_nfts_package` must be called before this function.
@@ -799,7 +799,8 @@ pub async fn delete_nft(
 
 /// Fetch one IOTA coin owned by `sender` to use as an explicit gas coin.
 ///
-/// Without an explicit gas coin, [`TransactionBuilder::finish`] auto-adds
+/// Without an explicit gas coin,
+/// [`TransactionBuilder::finish`](iota_sdk_transaction_builder::TransactionBuilder::finish) auto-adds
 /// every IOTA coin the sender owns as gas inputs and merges the leftover into
 /// one output coin, breaking tests that observe the sender's coin count.
 pub async fn select_gas_coin(grpc_client: &iota_grpc_client::Client, sender: Address) -> ObjectId {
@@ -840,7 +841,7 @@ pub async fn move_call_tx<A: PTBArgumentList>(
     args: A,
     gas_budget: u64,
 ) -> Transaction {
-    let mut builder = TransactionBuilder::new(sender).with_client(grpc_client);
+    let mut builder = grpc_client.transaction_builder(sender);
 
     builder
         .move_call(package_id, module, function)
@@ -888,12 +889,12 @@ pub async fn split_coin_equal_tx(
     let amount_per_split = coin_balance / num_coins;
     let split_amounts: Vec<u64> = vec![amount_per_split; (num_coins - 1) as usize];
 
-    let mut builder = TransactionBuilder::new(sender).with_client(grpc_client);
+    let mut builder = grpc_client.transaction_builder(sender);
 
     // Split off the new coin and transfer it back to the sender; an untransferred
     // `Coin` would be an unused PTB value (coins have no `drop`) and the
     // transaction would be rejected.
-    let new_coin = builder.split_coins(coin_to_split, split_amounts).arg();
+    let new_coin = builder.split_coins(coin_to_split, split_amounts).result();
     builder.transfer_objects(sender, [new_coin]);
 
     if let Some(gas) = gas_coin {

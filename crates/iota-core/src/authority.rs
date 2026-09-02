@@ -40,10 +40,10 @@ use iota_metrics::{
 };
 use iota_sdk_types::{
     Address, CheckpointContentsDigest, CheckpointDigest, Digest, EndOfEpochTransactionKind,
-    ExecutionStatus, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference, Owner,
-    RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
-    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents, TypeTag,
-    Version,
+    ExecutionStatus, InputSharedObject, MoveAuthenticator, ObjectDigest, ObjectId, ObjectReference,
+    Owner, RandomnessRound, SenderSignedTransaction, StructTag, SystemPackage, Transaction,
+    TransactionDigest, TransactionEffects, TransactionEffectsDigest, TransactionEvents,
+    TransactionKind, TypeTag, Version, WriteKind,
     checkpoint::{CheckpointCommitment, CheckpointContents, CheckpointSummary},
     crypto::{Intent, IntentScope},
     gas::GasCostSummary,
@@ -54,6 +54,7 @@ use iota_storage::{
     },
     key_value_store_metrics::KeyValueStoreMetrics,
 };
+use iota_traffic_controller::{TrafficController, metrics::TrafficControllerMetrics};
 #[cfg(msim)]
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
@@ -71,7 +72,7 @@ use iota_types::{
     digests::ChainIdentifier,
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
-        InputSharedObject, SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
+        SignedTransactionEffects, TransactionEffectsAPI, TransactionEffectsExt,
         VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
@@ -105,9 +106,7 @@ use iota_types::{
     metrics::{BytecodeVerifierMetrics, LimitsMetrics},
     move_authenticator::MoveAuthenticatorExt,
     object::{Object, ObjectRead, PastObjectRead, bounded_visitor::BoundedVisitor},
-    storage::{
-        BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
-    },
+    storage::{BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore},
     supported_protocol_versions::{
         ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
     },
@@ -176,7 +175,6 @@ use crate::{
     },
     stake_aggregator::StakeAggregator,
     subscription_handler::SubscriptionHandler,
-    traffic_controller::{TrafficController, metrics::TrafficControllerMetrics},
     transaction_input_loader::TransactionInputLoader,
     transaction_outputs::TransactionOutputs,
     validator_tx_finalizer::ValidatorTxFinalizer,
@@ -1039,10 +1037,19 @@ impl AuthorityState {
 
         // Get the input objects for the authenticators, if there are
         // `MoveAuthenticator`s.
-        let per_authenticator_checked_input_objects = per_authenticator_checked_inputs
+        let per_authenticator_checked_input_objects: Vec<_> = per_authenticator_checked_inputs
             .iter()
             .map(|i| &i.0)
             .collect();
+
+        // Move authenticators cannot use owned objects, so their inputs never
+        // acquire owned-object locks.
+        debug_assert!(
+            per_authenticator_checked_input_objects
+                .iter()
+                .all(|objects| objects.inner().filter_owned_objects().is_empty()),
+            "Move authenticator input objects must not contain owned objects"
+        );
 
         // Check if any of the sender, the transaction input objects, the receiving
         // objects and the authenticator input objects are in the coin deny
@@ -1073,6 +1080,13 @@ impl AuthorityState {
         // of deferral.
         let pre_consensus_move_authenticators =
             pre_consensus_move_authenticators(transaction, protocol_config);
+        // Asserted before the zip below pairs them positionally; the two lists
+        // come from independent computations.
+        debug_assert_eq!(
+            move_authenticators.len(),
+            per_authenticator_checked_inputs.len(),
+            "Move authenticators amount must match the number of checked authenticator inputs"
+        );
         let (move_authenticators, per_authenticator_checked_inputs): (Vec<_>, Vec<_>) =
             move_authenticators
                 .into_iter()
@@ -1091,12 +1105,6 @@ impl AuthorityState {
                 iota_transaction_checks::aggregate_authenticator_input_objects(
                     &per_authenticator_checked_input_objects,
                 )?;
-
-            debug_assert_eq!(
-                move_authenticators.len(),
-                per_authenticator_checked_inputs.len(),
-                "Move authenticators amount must match the number of checked authenticator inputs"
-            );
 
             let move_authenticators = move_authenticators
                 .into_iter()
@@ -1712,6 +1720,7 @@ impl AuthorityState {
             &effects,
             tx_guard,
             execution_guard,
+            expected_effects_digest,
             epoch_store,
         )?;
 
@@ -1745,6 +1754,7 @@ impl AuthorityState {
         effects: &TransactionEffects,
         tx_guard: TxGuard,
         _execution_guard: ExecutionLockReadGuard<'_>,
+        expected_effects_digest: Option<TransactionEffectsDigest>,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult {
         let _scope: Option<iota_metrics::MonitoredScopeGuard> =
@@ -1781,6 +1791,13 @@ impl AuthorityState {
         );
         self.get_cache_writer()
             .try_write_transaction_outputs(epoch_store.epoch(), transaction_outputs.into())?;
+
+        self.report_failed_deny_rule_update_execution(
+            transaction,
+            effects,
+            expected_effects_digest,
+            epoch_store,
+        );
 
         if transaction.transaction().is_end_of_epoch_tx() {
             // At the end of epoch, since system packages may have been upgraded, force
@@ -2328,8 +2345,16 @@ impl AuthorityState {
             checks.disabled(),
         );
 
+        let mut input_objects = inner_temp_store.input_objects;
+        iota_types::storage::extend_input_objects_with_loaded_runtime_objects(
+            &mut input_objects,
+            &effects,
+            &inner_temp_store.loaded_runtime_objects,
+            self.get_backing_store().as_object_store(),
+        );
+
         Ok(SimulateTransactionResult {
-            input_objects: inner_temp_store.input_objects,
+            input_objects,
             output_objects: inner_temp_store.written,
             events: effects.events_digest().map(|_| inner_temp_store.events),
             effects,
@@ -2391,7 +2416,7 @@ impl AuthorityState {
             effects
                 .all_changed_objects()
                 .into_iter()
-                .map(|(obj_ref, owner, _kind)| (obj_ref, owner)),
+                .map(|(changed, _kind)| (changed.reference, changed.owner)),
             transaction
                 .data()
                 .transaction()
@@ -2459,6 +2484,7 @@ impl AuthorityState {
         let modified_at_version = effects
             .modified_at_versions()
             .into_iter()
+            .map(|modified| (modified.object_id, modified.version))
             .collect::<HashMap<_, _>>();
 
         let tx_digest = effects.transaction_digest();
@@ -2482,7 +2508,8 @@ impl AuthorityState {
         let mut new_owners = vec![];
         let mut new_dynamic_fields = vec![];
 
-        for (oref, owner, kind) in effects.all_changed_objects() {
+        for (changed, kind) in effects.all_changed_objects() {
+            let (oref, owner) = (changed.reference, changed.owner);
             let id = &oref.object_id;
             // For mutated objects, retrieve old owner and delete old index if there is a
             // owner change.
@@ -2530,9 +2557,10 @@ impl AuthorityState {
                         oref.version
                     );
 
-                    let type_ = new_object
-                        .type_()
-                        .map(|type_| ObjectType::Struct(type_.clone()))
+                    let object_type = new_object
+                        .data
+                        .opt_object_type()
+                        .map(|ty| ObjectType::Struct(ty.clone()))
                         .unwrap_or(ObjectType::Package);
 
                     new_owners.push((
@@ -2541,7 +2569,7 @@ impl AuthorityState {
                             object_id: *id,
                             version: oref.version,
                             digest: oref.digest,
-                            type_,
+                            object_type,
                             owner,
                             previous_transaction: *effects.transaction_digest(),
                         },
@@ -2638,7 +2666,7 @@ impl AuthorityState {
             })?;
 
         let name = DynamicFieldName {
-            type_: name_type,
+            type_tag: name_type,
             value: IotaMoveValue::from(name_value).to_json_value(),
         };
 
@@ -3261,6 +3289,111 @@ impl AuthorityState {
         self.execution_lock.write().await
     }
 
+    /// Reports a mirror that diverged from the object at the epoch boundary,
+    /// where the two must agree. Reporting is the remedy: reconfiguration
+    /// re-seeds the mirror from the object, so failing here would only pin
+    /// the node to the diverged state. A missing object is fatal instead.
+    /// Objects cannot be deleted, so the local store lost it and there is
+    /// nothing to re-seed from. Nodes outside the closing committee are
+    /// exempt. So is an epoch this node's consensus did not close. A
+    /// checkpoint catch-up leaves the mirror legitimately behind until the
+    /// re-seed.
+    pub(crate) fn check_transaction_deny_rules_consistency(
+        &self,
+        cur_epoch_store: &AuthorityPerEpochStore,
+        epoch_start_configuration: &EpochStartConfiguration,
+    ) {
+        if self.is_fullnode(cur_epoch_store) {
+            return;
+        }
+        let Some(walked_deny_rules) = epoch_start_configuration.transaction_deny_rules_state()
+        else {
+            if cur_epoch_store
+                .epoch_start_config()
+                .transaction_deny_rules_obj_initial_shared_version()
+                .is_some()
+            {
+                fatal!(
+                    "TransactionDenyRules object existed in epoch {} but is missing from the \
+                     state walked for the next epoch — the local store is corrupted; restore or \
+                     state-sync before rejoining",
+                    cur_epoch_store.epoch(),
+                );
+            }
+            return;
+        };
+        // RejectAllTx proves this node's consensus processed every commit of
+        // the epoch, so the mirror is complete. Otherwise the tail came from
+        // synced checkpoints and the mirror's lag carries no signal.
+        if cur_epoch_store
+            .get_reconfig_state_read_lock_guard()
+            .should_accept_tx()
+        {
+            info!(
+                "skipping the deny-rule mirror comparison: consensus did not close epoch {} on \
+                 this node",
+                cur_epoch_store.epoch(),
+            );
+            return;
+        }
+        let mirrored_deny_rules = cur_epoch_store.get_mirrored_transaction_deny_rules();
+        if *walked_deny_rules != *mirrored_deny_rules {
+            debug_fatal!(
+                "TransactionDenyRules object diverged from the mirrored state at the end of \
+                 epoch {}; continuing from the object (walked: {walked_deny_rules:?}, mirrored: \
+                 {mirrored_deny_rules:?})",
+                cur_epoch_store.epoch(),
+            );
+            cur_epoch_store.metrics.deny_rule_mirror_divergence.set(1);
+        }
+    }
+
+    /// Reports a `TransactionDenyRulesUpdate` whose execution failed — an
+    /// invariant violation, the update is built to exclude every expected
+    /// failure. The object misses the delta until the epoch boundary re-seeds
+    /// the mirror. Identification is by kind, so the report needs no tracking
+    /// state and holds across restarts and replays.
+    ///
+    /// `expected_effects_digest` is `Some` when these effects were handed to
+    /// this node with the transaction, which is the case while executing a
+    /// certified checkpoint: the failure is then part of agreed history, so it
+    /// is reported without asserting. Effects the node derived itself assert,
+    /// because only then is the broken invariant its own.
+    pub(crate) fn report_failed_deny_rule_update_execution(
+        &self,
+        transaction: &VerifiedExecutableTransaction,
+        effects: &TransactionEffects,
+        expected_effects_digest: Option<TransactionEffectsDigest>,
+        epoch_store: &AuthorityPerEpochStore,
+    ) {
+        if !matches!(
+            transaction.transaction().kind(),
+            TransactionKind::TransactionDenyRulesUpdate(_)
+        ) || effects.status().is_success()
+        {
+            return;
+        }
+        epoch_store
+            .metrics
+            .deny_rule_update_execution_failures
+            .inc();
+        if expected_effects_digest.is_some() {
+            error!(
+                digest = ?transaction.digest(),
+                status = ?effects.status(),
+                "TransactionDenyRulesUpdate failed execution; the object misses its delta until \
+                 the epoch boundary re-seeds the mirror"
+            );
+            return;
+        }
+        debug_fatal!(
+            "TransactionDenyRulesUpdate failed execution; the object misses its delta until the \
+             epoch boundary re-seeds the mirror (digest: {:?}, status: {:?})",
+            transaction.digest(),
+            effects.status(),
+        );
+    }
+
     #[instrument(level = "error", skip_all)]
     pub async fn reconfigure(
         &self,
@@ -3335,6 +3468,8 @@ impl AuthorityState {
             expensive_safety_check_config,
             epoch_supply_change,
         )?;
+        self.check_transaction_deny_rules_consistency(cur_epoch_store, &epoch_start_configuration);
+
         self.get_reconfig_api()
             .try_set_epoch_start_configuration(&epoch_start_configuration)?;
         // When state snapshots are published, a RocksDB checkpoint of the
@@ -3383,16 +3518,27 @@ impl AuthorityState {
     /// It doesn't properly reconfigure the node, hence should be only used for
     /// testing.
     pub async fn reconfigure_for_testing(&self) {
+        self.reconfigure_for_testing_impl(None).await;
+    }
+
+    /// Like [`Self::reconfigure_for_testing`], but the next epoch uses the
+    /// given protocol config.
+    pub async fn reconfigure_for_testing_with_protocol_config(
+        &self,
+        protocol_config: ProtocolConfig,
+    ) {
+        self.reconfigure_for_testing_impl(Some(protocol_config))
+            .await;
+    }
+
+    async fn reconfigure_for_testing_impl(&self, protocol_config: Option<ProtocolConfig>) {
         let mut execution_lock = self.execution_lock_for_reconfiguration().await;
         let epoch_store = self.epoch_store_for_testing().clone();
-        let protocol_config = epoch_store.protocol_config().clone();
-        // The current protocol config used in the epoch store may have been overridden
-        // and diverged from the protocol config definitions. That override may
-        // have now been dropped when the initial guard was dropped. We reapply
-        // the override before creating the new epoch store, to make sure that
-        // the new epoch store has the same protocol config as the current one.
-        // Since this is for testing only, we mostly like to keep the protocol config
-        // the same across epochs.
+        // Default to the epoch store's config, whose override guard may have
+        // been dropped. Read it under the lock so config and epoch store are
+        // one snapshot.
+        let protocol_config =
+            protocol_config.unwrap_or_else(|| epoch_store.protocol_config().clone());
         let _guard =
             ProtocolConfig::apply_overrides_for_testing(move |_, _| protocol_config.clone());
         let new_epoch_store = epoch_store.new_at_next_epoch_for_testing(
@@ -3921,7 +4067,7 @@ impl AuthorityState {
     {
         let object_ids = self
             .get_owner_objects_iterator(owner, None, None)?
-            .filter(|o| match &o.type_ {
+            .filter(|o| match &o.object_type {
                 ObjectType::Struct(s) => *s == tag,
                 ObjectType::Package => false,
             })
@@ -4401,7 +4547,7 @@ impl AuthorityState {
                 tx_digest,
                 event_seq as u64,
                 Some(timestamp),
-                layout_resolver.get_annotated_layout(&e.type_)?,
+                layout_resolver.get_annotated_layout(&e.struct_tag)?,
             )?)
         }
         Ok(events)
@@ -4636,7 +4782,8 @@ impl AuthorityState {
         // execution. Their updated version will already showup in
         // "written_coins" but their input isn't included in the set of input
         // objects in a inner_temporary_store.
-        for (object_id, version) in effects.modified_at_versions() {
+        for modified in effects.modified_at_versions() {
+            let (object_id, version) = (modified.object_id, modified.version);
             if inner_temporary_store
                 .loaded_runtime_objects
                 .contains_key(&object_id)
@@ -5123,6 +5270,22 @@ impl AuthorityState {
     )> {
         let mut txns = Vec::new();
 
+        // Create the TransactionDenyRules object once: the epoch-start
+        // configuration is identical on every validator, so the whole
+        // committee injects (or skips) the kind together. If this epoch
+        // change falls into safe mode the creation is dropped with it, the
+        // object stays absent, and the next epoch end injects it again.
+        if epoch_store
+            .protocol_config()
+            .deny_rule_governance_on_chain()
+            && epoch_store
+                .epoch_start_config()
+                .transaction_deny_rules_obj_initial_shared_version()
+                .is_none()
+        {
+            txns.push(EndOfEpochTransactionKind::TransactionDenyRulesCreate);
+        }
+
         let next_epoch = epoch_store.epoch() + 1;
 
         let buffer_stake_bps = epoch_store.get_effective_buffer_stake_bps();
@@ -5566,7 +5729,7 @@ impl AuthorityState {
             // If the account object is not loaded because the transaction was canceled, we return
             // the error in the case in which we are not executing the transaction right
             // after.
-            (ObjectReadResultKind::CancelledTransactionSharedObject(version), false) => {
+            (ObjectReadResultKind::CancelledTransactionObject(version), false) => {
                 Err(UserInputError::AccountObjectInCanceledTransaction {
                     account_id: account_object.id(),
                     account_version: *version,
@@ -5582,7 +5745,7 @@ impl AuthorityState {
             // after. This version is used to read the authenticator function ref
             // dynamic field because it is greater than the version of the child dynamic
             // field.
-            (ObjectReadResultKind::CancelledTransactionSharedObject(version), true) => Ok(*version),
+            (ObjectReadResultKind::CancelledTransactionObject(version), true) => Ok(*version),
         }?;
 
         let authenticator_function_ref_field_id =
@@ -6213,8 +6376,8 @@ impl NodeStateDump {
                 }
                 InputSharedObject::ReadDeleted(..)
                 | InputSharedObject::MutateDeleted(..)
-                | InputSharedObject::Cancelled(..) => (), /* TODO: consider record congested
-                                                           * objects. */
+                | InputSharedObject::Canceled(..) => (), /* TODO: consider record congested
+                                                          * objects. */
             }
         }
 
@@ -6229,7 +6392,8 @@ impl NodeStateDump {
 
         // Record all modified objects
         let mut modified_at_versions = Vec::new();
-        for (id, ver) in effects.modified_at_versions() {
+        for modified in effects.modified_at_versions() {
+            let (id, ver) = (modified.object_id, modified.version);
             if let Some(w) = object_store.try_get_object_by_key(&id, ver)? {
                 modified_at_versions.push(ObjDumpFormat::new(w))
             }

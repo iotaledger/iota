@@ -20,8 +20,8 @@ use tracing::debug;
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, Round, SERIALIZED_BLOCK_REF_BYTES, Slot,
-        VerifiedBlockHeader, VerifiedTransactions, format_block_digests, uleb128_len,
+        BlockHeaderAPI, BlockRef, BlockTimestampMs, CommitmentVerifiedTransactions, Round,
+        SERIALIZED_BLOCK_REF_BYTES, Slot, VerifiedBlockHeader, format_block_digests, uleb128_len,
     },
     context::Context,
     error::{ConsensusError, ConsensusResult},
@@ -497,14 +497,14 @@ impl CertifiedCommits {
 pub(crate) struct CertifiedCommit {
     commit: Arc<TrustedCommit>,
     verified_block_headers: Vec<VerifiedBlockHeader>,
-    verified_transactions: Vec<VerifiedTransactions>,
+    verified_transactions: Vec<CommitmentVerifiedTransactions>,
 }
 
 impl CertifiedCommit {
     pub(crate) fn new_certified(
         commit: TrustedCommit,
         verified_block_headers: Vec<VerifiedBlockHeader>,
-        verified_transactions: Vec<VerifiedTransactions>,
+        verified_transactions: Vec<CommitmentVerifiedTransactions>,
     ) -> Self {
         Self {
             commit: Arc::new(commit),
@@ -517,7 +517,7 @@ impl CertifiedCommit {
         &self.verified_block_headers
     }
 
-    pub fn transactions(&self) -> &[VerifiedTransactions] {
+    pub fn transactions(&self) -> &[CommitmentVerifiedTransactions] {
         &self.verified_transactions
     }
 }
@@ -704,7 +704,7 @@ pub struct CommittedSubDag {
     /// Common fields shared with PendingSubDag
     pub base: SubDagBase,
     /// All the committed blocks that are part of this sub-dag
-    pub transactions: Vec<VerifiedTransactions>,
+    pub transactions: Vec<CommitmentVerifiedTransactions>,
     /// Absolute per-authority misbehavior counts (`persisted + in_memory`)
     /// snapshotted from `MisbehaviorStore` at emission. Indexed by
     /// `AuthorityIndex`; consumers diff for deltas.
@@ -717,7 +717,7 @@ impl CommittedSubDag {
         leader: BlockRef,
         headers: Vec<VerifiedBlockHeader>,
         committed_header_refs: Vec<BlockRef>,
-        transactions: Vec<VerifiedTransactions>,
+        transactions: Vec<CommitmentVerifiedTransactions>,
         timestamp_ms: BlockTimestampMs,
         commit_ref: CommitRef,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,

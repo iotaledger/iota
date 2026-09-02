@@ -79,6 +79,7 @@ members = [
   "crates/iota-faucet",
   "crates/iota-framework",
   "crates/iota-framework-snapshot",
+  "crates/iota-framework-snapshot-manifest",
   "crates/iota-framework-tests",
   "crates/iota-genesis-builder",
   "crates/iota-genesis-common",
@@ -117,6 +118,7 @@ members = [
   "crates/iota-network-stack",
   "crates/iota-node",
   "crates/iota-node-storage",
+  "crates/iota-node-transaction-builder",
   "crates/iota-open-rpc",
   "crates/iota-open-rpc-macros",
   "crates/iota-package-alt",
@@ -144,6 +146,7 @@ members = [
   "crates/iota-test-transaction-builder",
   "crates/iota-tls",
   "crates/iota-tool",
+  "crates/iota-traffic-controller",
   "crates/iota-transaction-builder",
   "crates/iota-transaction-checks",
   "crates/iota-transactional-test-runner",
@@ -174,7 +177,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.30.1-rc"
+version = "1.31.1-rc"
 
 [workspace.metadata.cargo-udeps.ignore]
 normal = ["move-package-alt"]
@@ -228,9 +231,9 @@ uninlined_format_args = "warn"
 [workspace.dependencies]
 # external dependencies
 # anemo dependencies
-anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
-anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
-anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "f8b708601d002a75955dafebae4f75628c6f42b4" }
+anemo = { git = "https://github.com/mystenlabs/anemo.git", rev = "68adc31d4ea1f4573f08c2c75317fcb205b823de" }
+anemo-build = { git = "https://github.com/mystenlabs/anemo.git", rev = "68adc31d4ea1f4573f08c2c75317fcb205b823de" }
+anemo-tower = { git = "https://github.com/mystenlabs/anemo.git", rev = "68adc31d4ea1f4573f08c2c75317fcb205b823de" }
 anyhow = "1.0.103"
 arc-swap = { version = "1.7.1", features = ["serde"] }
 async-graphql = { version = "7.1.0", default-features = false }
@@ -391,6 +394,7 @@ iota-execution = { path = "iota-execution" }
 iota-faucet = { path = "crates/iota-faucet" }
 iota-framework = { path = "crates/iota-framework" }
 iota-framework-snapshot = { path = "crates/iota-framework-snapshot" }
+iota-framework-snapshot-manifest = { path = "crates/iota-framework-snapshot-manifest" }
 iota-framework-tests = { path = "crates/iota-framework-tests" }
 iota-genesis-builder = { path = "crates/iota-genesis-builder" }
 iota-genesis-common = { path = "crates/iota-genesis-common" }
@@ -398,9 +402,9 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "e4e5e09b690f0ac63698f252382b4423470debd6" }
+iota-grpc-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-client", rev = "0311cac8b35fa2301c40c2cb088765a2c6185e7f" }
 iota-grpc-server = { path = "crates/iota-grpc-server" }
-iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "e4e5e09b690f0ac63698f252382b4423470debd6" }
+iota-grpc-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", package = "iota-sdk-grpc-types", rev = "0311cac8b35fa2301c40c2cb088765a2c6185e7f" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -428,6 +432,7 @@ iota-network = { path = "crates/iota-network" }
 iota-network-stack = { path = "crates/iota-network-stack" }
 iota-node = { path = "crates/iota-node" }
 iota-node-storage = { path = "crates/iota-node-storage" }
+iota-node-transaction-builder = { path = "crates/iota-node-transaction-builder" }
 iota-open-rpc = { path = "crates/iota-open-rpc" }
 iota-open-rpc-macros = { path = "crates/iota-open-rpc-macros" }
 iota-package-dump = { path = "crates/iota-package-dump" }
@@ -440,10 +445,10 @@ iota-replay = { path = "crates/iota-replay" }
 iota-rest-kv = { path = "crates/iota-rest-kv" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
-iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e4e5e09b690f0ac63698f252382b4423470debd6", default-features = false }
-iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e4e5e09b690f0ac63698f252382b4423470debd6", default-features = false }
-iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e4e5e09b690f0ac63698f252382b4423470debd6", default-features = false }
-iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "e4e5e09b690f0ac63698f252382b4423470debd6", default-features = false }
+iota-sdk-crypto = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0311cac8b35fa2301c40c2cb088765a2c6185e7f", default-features = false }
+iota-sdk-graphql-client = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0311cac8b35fa2301c40c2cb088765a2c6185e7f", default-features = false }
+iota-sdk-transaction-builder = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0311cac8b35fa2301c40c2cb088765a2c6185e7f", default-features = false }
+iota-sdk-types = { git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0311cac8b35fa2301c40c2cb088765a2c6185e7f", default-features = false }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
@@ -455,6 +460,7 @@ iota-synthetic-ingestion = { path = "crates/iota-synthetic-ingestion" }
 iota-test-transaction-builder = { path = "crates/iota-test-transaction-builder" }
 iota-tls = { path = "crates/iota-tls" }
 iota-tool = { path = "crates/iota-tool" }
+iota-traffic-controller = { path = "crates/iota-traffic-controller" }
 iota-transaction-builder = { path = "crates/iota-transaction-builder" }
 iota-transaction-checks = { path = "crates/iota-transaction-checks" }
 iota-transactional-test-runner = { path = "crates/iota-transactional-test-runner" }

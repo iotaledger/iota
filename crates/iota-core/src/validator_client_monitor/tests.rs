@@ -42,12 +42,16 @@ fn now() -> Instant {
     Instant::from_std(std::time::Instant::now())
 }
 
-/// Feed all 4 operations interleaved at each timestep.
+/// Feed all 4 operations interleaved at each timestep, so every operation's
+/// estimator advances together.
 ///
-/// Operations must be interleaved (not sequential per-op) because
 /// `record_interaction_result` calls `performance_score` internally with
-/// `feedback.timestamp`, querying all op EWMAs. If op B starts at t0 while
-/// op A was last updated at t0+n*dt, the assert `now >= last_update` fails.
+/// `feedback.timestamp`, querying all op EWMAs — so feeding one operation ahead
+/// of the others leaves the rest being read at timestamps older than their last
+/// update. That is tolerated (see
+/// `out_of_order_feedback_is_tolerated_and_preserves_the_clock`); interleaving
+/// just keeps the intervals uniform, which is what these tests want to assert
+/// on.
 fn feed_all(
     stats: &mut ClientObservedStats,
     v: AuthorityName,
@@ -149,6 +153,91 @@ mod scoring {
             "fast validator should score lower; fast={:.2} slow={:.2}",
             last_fast.0,
             last_slow.0
+        );
+    }
+
+    /// Covers both ways feedback reaches the stats out of order, and what the
+    /// estimator must do about it.
+    ///
+    /// Two recorders reporting on the same validator and operation can reach
+    /// the stats in the opposite order to their timestamps. Separately —
+    /// needing no concurrency at all — `record_interaction_result` scores a
+    /// validator by querying *every* operation's estimator with the incoming
+    /// feedback's timestamp, while each operation advances on its own
+    /// schedule, so a health check stamped behind a submission reads the
+    /// submit estimator at an older timestamp. Both must be tolerated.
+    ///
+    /// A late sample must also not drag the estimator's clock backwards, or
+    /// the samples that already landed would look newer than they are and
+    /// later intervals would be inflated. The weight given to a subsequent
+    /// observation is what makes that visible, so it is asserted against a
+    /// control that saw no late sample.
+    #[test]
+    fn out_of_order_feedback_is_tolerated_and_preserves_the_clock() {
+        let config = ValidatorClientMonitorConfig::default();
+        let mut late = ClientObservedStats::new(config.clone());
+        let mut ordered = ClientObservedStats::new(config);
+        let v = gen_validator();
+        let t0 = now();
+        let dt = Duration::from_millis(100);
+
+        // Advance Submit well past t0 on both.
+        for i in 0..10u32 {
+            for stats in [&mut late, &mut ordered] {
+                stats.record_interaction_result(&make_fb(
+                    v,
+                    OperationType::Submit,
+                    Ok(Duration::from_millis(100)),
+                    t0 + dt * (i + 1),
+                ));
+            }
+        }
+
+        // Cross-operation: a health check stamped back at t0 + dt still has to
+        // score the validator, which reads the Submit estimator at that older
+        // timestamp. Applied to both so the two stay comparable below.
+        for stats in [&mut late, &mut ordered] {
+            let score = stats.record_interaction_result(&make_fb(
+                v,
+                OperationType::HealthCheck,
+                Ok(Duration::from_millis(100)),
+                t0 + dt,
+            ));
+            assert!(
+                score.0.is_finite() && score.1.is_finite(),
+                "cross-operation ordering must yield a usable score; got {score:?}"
+            );
+        }
+
+        // Same operation, stamped before the samples above but arriving after
+        // them. Only one of the two sees it.
+        late.record_interaction_result(&make_fb(
+            v,
+            OperationType::Submit,
+            Ok(Duration::from_millis(100)),
+            t0,
+        ));
+
+        // A slow observation last, so the weight the estimator gives it — which
+        // is derived from the interval since its last update — is visible in
+        // the score. Had the late sample rewound the clock to t0, this interval
+        // would look twice as long and the slow sample would count for more.
+        let after_late = late.record_interaction_result(&make_fb(
+            v,
+            OperationType::Submit,
+            Ok(Duration::from_millis(500)),
+            t0 + dt * 20,
+        ));
+        let after_ordered = ordered.record_interaction_result(&make_fb(
+            v,
+            OperationType::Submit,
+            Ok(Duration::from_millis(500)),
+            t0 + dt * 20,
+        ));
+
+        assert!(
+            (after_late.0 - after_ordered.0).abs() < 1e-9,
+            "late feedback rewound the clock: {after_late:?} vs {after_ordered:?}"
         );
     }
 }
@@ -271,7 +360,7 @@ mod data_management {
         }
         assert_eq!(stats.num_validators(), 5);
         // More observations for an existing validator must not change the count.
-        // Start after t0 + 5*dt so timestamps remain non-decreasing for v[0].
+        // Start after t0 + 5*dt so v[0]'s intervals stay uniform.
         let t1 = t0 + dt * 6;
         feed_all(&mut stats, v[0], Ok(100), 10, t1, dt);
         assert_eq!(stats.num_validators(), 5);

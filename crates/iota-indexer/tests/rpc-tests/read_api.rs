@@ -30,7 +30,7 @@ use iota_test_transaction_builder::{
     publish_simple_warrior_package,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountPrivateKey, get_key_pair},
     digests::ChainIdentifier,
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     transaction::CallArg,
@@ -942,7 +942,7 @@ fn get_newly_indexed_optimistic_transaction() -> Result<(), anyhow::Error> {
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -953,15 +953,15 @@ fn get_newly_indexed_optimistic_transaction() -> Result<(), anyhow::Error> {
             .await;
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
-        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_key, client, &package_id).await?;
+        let basic_obj_2 = create_basic_object(sender, &sender_key, client, &package_id).await?;
 
         // Update the object to generate new event
         let res = crate::coin_api::execute_move_call(
             client,
             sender,
-            &sender_kp,
+            &sender_key,
             package_id,
             "object_basics".to_string(),
             "update".to_string(),
@@ -1032,7 +1032,7 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
     } = ApiTestSetup::get_or_init();
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
-        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
 
         let gas_ref = cluster
             .fund_address_and_return_gas(
@@ -1043,15 +1043,15 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
             .await;
         indexer_wait_for_object(client, gas_ref.object_id, gas_ref.version).await;
 
-        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
-        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
-        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_key, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_key, client, &package_id).await?;
+        let basic_obj_2 = create_basic_object(sender, &sender_key, client, &package_id).await?;
 
         // Update the object to generate new event
         let res = crate::coin_api::execute_move_call(
             client,
             sender,
-            &sender_kp,
+            &sender_key,
             package_id,
             "object_basics".to_string(),
             "update".to_string(),
@@ -1082,7 +1082,7 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
             &result_optimistic[0].package_id,
             &result_optimistic[0].transaction_module,
             &result_optimistic[0].sender,
-            &result_optimistic[0].type_,
+            &result_optimistic[0].struct_tag,
             &result_optimistic[0].parsed_json,
             &result_optimistic[0].bcs,
         );
@@ -1097,7 +1097,7 @@ fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error>
             &result_checkpointed[0].package_id,
             &result_checkpointed[0].transaction_module,
             &result_checkpointed[0].sender,
-            &result_checkpointed[0].type_,
+            &result_checkpointed[0].struct_tag,
             &result_checkpointed[0].parsed_json,
             &result_checkpointed[0].bcs,
         );
@@ -1860,7 +1860,7 @@ fn try_get_object_before_version() {
     runtime.block_on(async move {
         indexer_wait_for_checkpoint(store, 1).await;
 
-        let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (sender, sender_key): (_, AccountPrivateKey) = get_key_pair();
         let receiver = Address::random();
 
         let gas_ref = cluster
@@ -1891,7 +1891,7 @@ fn try_get_object_before_version() {
             )
             .await
             .expect("transfer should succeed");
-        execute_tx_and_wait_for_indexer_checkpoint(client, store, tx_bytes, &keypair).await;
+        execute_tx_and_wait_for_indexer_checkpoint(client, store, tx_bytes, &sender_key).await;
 
         let object_ref = cluster.get_latest_object_ref(&gas_ref.object_id).await;
 
@@ -2030,7 +2030,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
     runtime.block_on(async move {
         // 1) Set up wallet and fund it
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -2043,7 +2043,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
 
         // 2) Publish the `Warrior` package
         let (package_id, tx_digest) =
-            publish_simple_warrior_package(&cluster.wallet, &keypair, address, gas).await;
+            publish_simple_warrior_package(&cluster.wallet, &key, address, gas).await;
         indexer_wait_for_transaction(tx_digest, store, client).await;
 
         // 3) Mint a `Sword`
@@ -2068,7 +2068,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2119,7 +2119,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let wrap_transaction_res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2205,7 +2205,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let unwrap_then_delete_transaction_res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2293,7 +2293,7 @@ fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error>
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let delete_warrior_transaction_res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2358,7 +2358,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
 
     runtime.block_on(async move {
         // 1) Set up the wallet and fund it with gas
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
@@ -2371,7 +2371,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
 
         // 2) Publish the `Warrior` package
         let (package_id, tx_digest) =
-            publish_simple_warrior_package(&cluster.wallet, &keypair, address, gas).await;
+            publish_simple_warrior_package(&cluster.wallet, &key, address, gas).await;
         indexer_wait_for_transaction(tx_digest, store, client).await;
 
         // 3) In a single PTB: create and wrap Sword
@@ -2418,7 +2418,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let create_and_wrap_tx_res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2464,7 +2464,7 @@ fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> 
         let gas = cluster.get_latest_object_ref(&gas_object_id).await;
         let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
         let tx_data = tx_builder.programmable(pt).build();
-        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let signed_transaction = to_sender_signed_transaction(tx_data, &key);
         let unwrap_transaction_res = cluster
             .wallet
             .execute_transaction_must_succeed(signed_transaction)
@@ -2529,7 +2529,7 @@ fn is_transaction_not_present() {
 
     runtime.block_on(async {
         let rng = StdRng::from_seed([1; 32]);
-        let digest = TransactionDigest::generate(rng);
+        let digest = TransactionDigest::random_with(rng);
 
         indexer_wait_for_checkpoint(store, 1).await;
 
@@ -2585,8 +2585,8 @@ fn get_transaction_block_with_unwrapped_object_changes() -> Result<(), anyhow::E
     } = ApiTestSetup::get_or_init();
 
     runtime.block_on(async move {
-        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
-        let keypair = SimpleKeypair::from(keypair);
+        let (address, key): (_, AccountPrivateKey) = get_key_pair();
+        let keypair = SimpleKeypair::from(key);
         let gas = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,

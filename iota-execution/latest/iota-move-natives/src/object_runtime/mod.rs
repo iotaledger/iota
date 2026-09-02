@@ -14,6 +14,7 @@ use indexmap::{map::IndexMap, set::IndexSet};
 use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
 use iota_sdk_types::{Address, MoveStruct, ObjectId, Owner, StructTag, Version};
 use iota_types::{
+    IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
     committee::EpochId,
     error::{ExecutionError, ExecutionErrorKind, VMMemoryLimitExceededSubStatusCode},
     execution::DynamicallyLoadedObjectMetadata,
@@ -263,6 +264,7 @@ impl<'a> ObjectRuntime<'a> {
             ObjectId::AUTHENTICATOR_STATE,
             ObjectId::RANDOMNESS_STATE,
             ObjectId::DENY_LIST,
+            IOTA_TRANSACTION_DENY_RULES_OBJECT_ID,
             ObjectId::GENESIS_IOTA_BRIDGE,
         ]
         .contains(&id);

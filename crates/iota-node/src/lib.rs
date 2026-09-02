@@ -98,6 +98,7 @@ use iota_network::{
     randomness, state_sync,
 };
 use iota_network_stack::server::{IOTA_TLS_SERVER_NAME, ServerBuilder};
+use iota_node_transaction_builder::NodeTransactionBuilderLedgerClient;
 use iota_protocol_config::{ProtocolConfig, ProtocolVersion};
 use iota_sdk_types::{
     RandomnessRound,
@@ -113,7 +114,6 @@ use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
     crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits},
-    deny_rule_governance::DenyRuleSet,
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -233,6 +233,7 @@ pub struct IotaNode {
     state_sync_handle: state_sync::Handle,
     randomness_handle: randomness::Handle,
     checkpoint_store: Arc<CheckpointStore>,
+    state_sync_store: RocksDbStore,
     global_state_hasher: Mutex<Option<Arc<GlobalStateHasher>>>,
     connection_monitor_status: Arc<ConnectionMonitorStatus>,
 
@@ -903,6 +904,7 @@ impl IotaNode {
             state_sync_handle,
             randomness_handle,
             checkpoint_store,
+            state_sync_store,
             global_state_hasher: Mutex::new(Some(global_state_hasher)),
             end_of_epoch_channel,
             connection_monitor_status,
@@ -1083,9 +1085,12 @@ impl IotaNode {
                 .into_inner();
 
             let mut anemo_config = config.p2p_config.anemo_config.clone().unwrap_or_default();
-            // Set the max_frame_size to be 1 GB to work around the issue of there being too
-            // many staking events in the epoch change txn.
-            anemo_config.max_frame_size = Some(1 << 30);
+            // Inbound requests on this network are small (signatures, queries, summaries).
+            // Cap request frames at 1 MiB.
+            anemo_config.max_request_frame_size = Some(1 << 20);
+            // Responses can be larger (checkpoint contents).
+            // Cap response frames at 128 MiB.
+            anemo_config.max_response_frame_size = Some(128 << 20);
 
             // Set a higher default value for socket send/receive buffers if not already
             // configured.
@@ -1119,7 +1124,7 @@ impl IotaNode {
                 quic_config.crypto_buffer_size = Some(1 << 20);
             }
             if quic_config.max_idle_timeout_ms.is_none() {
-                quic_config.max_idle_timeout_ms = Some(30_000);
+                quic_config.max_idle_timeout_ms = Some(10_000);
             }
             if quic_config.keep_alive_interval_ms.is_none() {
                 quic_config.keep_alive_interval_ms = Some(5_000);
@@ -1731,11 +1736,9 @@ impl IotaNode {
     // self.state.db()
     // }
 
-    /// Clone the AuthorityAggregator currently used by this node's
-    /// transaction orchestrator, if the node is a fullnode. After reconfig,
-    /// the active driver builds a new AuthorityAggregator. The caller
-    /// of this function will mostly likely want to call this again
-    /// to get a fresh one.
+    /// Clone an AuthorityAggregator from the transaction orchestrator, if
+    /// this is a fullnode. The snapshot goes stale after an epoch change;
+    /// call again for a fresh one.
     pub fn clone_authority_aggregator(
         &self,
     ) -> Option<Arc<AuthorityAggregator<NetworkAuthorityClient>>> {
@@ -1750,6 +1753,18 @@ impl IotaNode {
         self.transaction_orchestrator.clone()
     }
 
+    /// Read-only client for the SDK's `TransactionBuilder` backed by this
+    /// node's local state instead of a remote endpoint.
+    pub fn transaction_builder_ledger_client(&self) -> NodeTransactionBuilderLedgerClient {
+        let reader = Arc::new(GrpcReadStore::new(
+            self.state.clone(),
+            self.state_sync_store.clone(),
+        ));
+        NodeTransactionBuilderLedgerClient::new(reader)
+    }
+
+    /// Subscribe to the quorum driver's effects stream; errors while the
+    /// quorum driver is not the currently served flow on this node.
     pub fn subscribe_to_transaction_orchestrator_effects(
         &self,
     ) -> Result<tokio::sync::broadcast::Receiver<QuorumDriverEffectsQueueResult>> {
@@ -1759,7 +1774,12 @@ impl IotaNode {
                 anyhow::anyhow!("Transaction Orchestrator is not enabled in this node.")
             })?
             .subscribe_to_effects_queue()
-            .ok_or_else(|| anyhow::anyhow!("Effects queue is not available under the P-COOL flow."))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Effects queue is not available: the quorum driver is not the currently \
+                     served flow on this node."
+                )
+            })
     }
 
     /// This function awaits the completion of checkpoint execution of the
@@ -1843,33 +1863,26 @@ impl IotaNode {
 
                 // Announce the local deny rules. Recorded proposals are
                 // epoch-scoped, so this re-announces on every epoch change.
-                // An empty set is still submitted when a non-empty proposal
-                // is recorded this epoch: in the full-state model that
-                // withdraws the earlier rules after an operator cleared the
-                // local config and restarted.
+                // The empty set is announced too: every committee member
+                // attests its configuration each epoch, so silence means
+                // offline rather than "no rules".
                 if config.deny_rule_governance() {
                     let proposed_rules = self.config.transaction_deny_config.to_deny_rule_set();
                     let recorded = cur_epoch_store.recorded_deny_rule_proposal(&self.state.name);
-                    let should_submit = proposed_rules != DenyRuleSet::default()
-                        || recorded
-                            .as_ref()
-                            .is_some_and(|p| p.proposed_rules != DenyRuleSet::default());
-                    if should_submit {
-                        let transaction = ConsensusTransaction::new_transaction_deny_rule_proposal(
-                            TransactionDenyRuleProposal::new(
-                                self.state.name,
-                                proposed_rules,
-                                recorded.map(|p| p.generation),
-                            ),
-                        );
-                        info!(
-                            tracking_id = ?transaction.get_tracking_id(),
-                            "submitting deny rule proposal to consensus"
-                        );
-                        components
-                            .consensus_adapter
-                            .submit(transaction, None, &cur_epoch_store)?;
-                    }
+                    let transaction = ConsensusTransaction::new_transaction_deny_rule_proposal(
+                        TransactionDenyRuleProposal::new(
+                            self.state.name,
+                            proposed_rules,
+                            recorded.map(|p| p.generation),
+                        ),
+                    );
+                    info!(
+                        tracking_id = ?transaction.get_tracking_id(),
+                        "submitting deny rule proposal to consensus"
+                    );
+                    components
+                        .consensus_adapter
+                        .submit(transaction, None, &cur_epoch_store)?;
                 }
             } else if self.state.is_active_validator(&cur_epoch_store)
                 && cur_epoch_store

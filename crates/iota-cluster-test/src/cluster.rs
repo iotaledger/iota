@@ -23,7 +23,7 @@ use iota_swarm_config::{
     genesis_config::GenesisConfig,
     network_config::{NetworkConfig, NetworkConfigLight},
 };
-use iota_types::crypto::AccountKeyPair;
+use iota_types::crypto::AccountPrivateKey;
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tracing::info;
@@ -60,14 +60,14 @@ pub trait Cluster {
     /// gRPC endpoint of the fullnode, when one is available (local clusters).
     fn grpc_url(&self) -> Option<&str>;
 
-    fn user_key(&self) -> AccountKeyPair;
+    fn user_key(&self) -> AccountPrivateKey;
     fn indexer_url(&self) -> &Option<String>;
 
     /// Returns faucet url in a remote cluster.
     fn remote_faucet_url(&self) -> Option<&str>;
 
     /// Returns faucet key in a local cluster.
-    fn local_faucet_key(&self) -> Option<&AccountKeyPair>;
+    fn local_faucet_key(&self) -> Option<&AccountPrivateKey>;
 
     /// Place to put config for the wallet, and any locally running services.
     fn config_directory(&self) -> &Path;
@@ -128,15 +128,15 @@ impl Cluster for RemoteRunningCluster {
         &None
     }
 
-    fn user_key(&self) -> AccountKeyPair {
-        AccountKeyPair::random()
+    fn user_key(&self) -> AccountPrivateKey {
+        AccountPrivateKey::random()
     }
 
     fn remote_faucet_url(&self) -> Option<&str> {
         Some(&self.faucet_url)
     }
 
-    fn local_faucet_key(&self) -> Option<&AccountKeyPair> {
+    fn local_faucet_key(&self) -> Option<&AccountPrivateKey> {
         None
     }
 
@@ -151,7 +151,7 @@ pub struct LocalNewCluster {
     fullnode_url: String,
     grpc_url: String,
     indexer_url: Option<String>,
-    faucet_key: AccountKeyPair,
+    faucet_key: AccountPrivateKey,
     config_directory: tempfile::TempDir,
 }
 
@@ -313,15 +313,15 @@ impl Cluster for LocalNewCluster {
         &self.indexer_url
     }
 
-    fn user_key(&self) -> AccountKeyPair {
-        AccountKeyPair::random()
+    fn user_key(&self) -> AccountPrivateKey {
+        AccountPrivateKey::random()
     }
 
     fn remote_faucet_url(&self) -> Option<&str> {
         None
     }
 
-    fn local_faucet_key(&self) -> Option<&AccountKeyPair> {
+    fn local_faucet_key(&self) -> Option<&AccountPrivateKey> {
         Some(&self.faucet_key)
     }
 
@@ -348,7 +348,7 @@ impl Cluster for Box<dyn Cluster + Send + Sync> {
         (**self).indexer_url()
     }
 
-    fn user_key(&self) -> AccountKeyPair {
+    fn user_key(&self) -> AccountPrivateKey {
         (**self).user_key()
     }
 
@@ -356,7 +356,7 @@ impl Cluster for Box<dyn Cluster + Send + Sync> {
         (**self).remote_faucet_url()
     }
 
-    fn local_faucet_key(&self) -> Option<&AccountKeyPair> {
+    fn local_faucet_key(&self) -> Option<&AccountPrivateKey> {
         (**self).local_faucet_key()
     }
 
@@ -367,7 +367,7 @@ impl Cluster for Box<dyn Cluster + Send + Sync> {
 
 pub fn new_wallet_context_from_cluster(
     cluster: &(dyn Cluster + Sync + Send),
-    key_pair: AccountKeyPair,
+    private_key: AccountPrivateKey,
 ) -> WalletContext {
     let config_dir = cluster.config_directory();
     let wallet_config_path = config_dir.join("client.yaml");
@@ -375,8 +375,8 @@ pub fn new_wallet_context_from_cluster(
     info!("Use RPC: {fullnode_url}");
     let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    let address = key_pair.public_key().derive_address();
-    keystore.add_key(None, key_pair).unwrap();
+    let address = private_key.public_key().derive_address();
+    keystore.add_key(None, private_key).unwrap();
     IotaClientConfig::new(keystore)
         .with_envs([IotaEnv::new("localnet", fullnode_url)])
         .with_active_address(address)

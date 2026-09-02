@@ -16,7 +16,9 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     CommitIndex,
-    block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions},
+    block_header::{
+        BlockRef, CommitmentVerifiedTransactions, Round, VerifiedBlock, VerifiedBlockHeader,
+    },
     commit::{CommitDigest, CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
     misbehavior_store::MisbehaviorCounts,
@@ -48,7 +50,7 @@ pub(crate) trait Store: Send + Sync {
     fn read_verified_transactions(
         &self,
         refs: &[GenericTransactionRef],
-    ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>>;
+    ) -> ConsensusResult<Vec<Option<CommitmentVerifiedTransactions>>>;
 
     /// Read and get serialized transactions for the given refs.
     fn read_serialized_transactions(
@@ -102,7 +104,7 @@ pub(crate) trait Store: Send + Sync {
         &self,
         author: AuthorityIndex,
         start_round: Round,
-    ) -> ConsensusResult<Vec<VerifiedTransactions>> {
+    ) -> ConsensusResult<Vec<CommitmentVerifiedTransactions>> {
         let refs = self
             .scan_transaction_references_by_author(author, start_round)?
             .into_iter()
@@ -186,7 +188,7 @@ pub(crate) trait Store: Send + Sync {
 /// Represents data to be written to the store together atomically.
 #[derive(Debug, Default)]
 pub(crate) struct WriteBatch {
-    pub(crate) transactions: Vec<VerifiedTransactions>,
+    pub(crate) transactions: Vec<CommitmentVerifiedTransactions>,
     pub(crate) block_headers: Vec<VerifiedBlockHeader>,
     pub(crate) commits: Vec<TrustedCommit>,
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
@@ -199,7 +201,10 @@ impl WriteBatch {
     // Test setters.
 
     #[cfg(test)]
-    pub(crate) fn transactions(mut self, transactions: Vec<VerifiedTransactions>) -> Self {
+    pub(crate) fn transactions(
+        mut self,
+        transactions: Vec<CommitmentVerifiedTransactions>,
+    ) -> Self {
         self.transactions = transactions;
         self
     }

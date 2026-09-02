@@ -12,7 +12,7 @@ use iota_sdk_types::{
     Address, ObjectId, ObjectReference, Owner, Transaction, TransactionEffects, Version,
 };
 use iota_types::{
-    crypto::{AccountKeyPair, AuthorityKeyPair},
+    crypto::{AccountPrivateKey, AuthorityKeyPair},
     effects::SignedTransactionEffects,
     error::{ExecutionError, IotaError},
     executable_transaction::VerifiedExecutableTransaction,
@@ -278,7 +278,7 @@ pub async fn init_state_with_ids_and_expensive_checks<
 pub fn init_transfer_transaction(
     authority_state: &AuthorityState,
     sender: Address,
-    secret: &AccountKeyPair,
+    secret: &AccountPrivateKey,
     recipient: Address,
     object_ref: ObjectReference,
     gas_object_ref: ObjectReference,
@@ -302,7 +302,7 @@ pub fn init_transfer_transaction(
 
 pub fn init_certified_transfer_transaction(
     sender: Address,
-    secret: &AccountKeyPair,
+    secret: &AccountPrivateKey,
     recipient: Address,
     object_ref: ObjectReference,
     gas_object_ref: ObjectReference,

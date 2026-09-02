@@ -764,7 +764,7 @@ pub async fn get_validator_summary(
 
     // Check candidates
     let name = DynamicFieldName {
-        type_: TypeTag::Address,
+        type_tag: TypeTag::Address,
         value: IotaMoveValue::Address(validator_address).to_json_value(),
     };
     let res = client

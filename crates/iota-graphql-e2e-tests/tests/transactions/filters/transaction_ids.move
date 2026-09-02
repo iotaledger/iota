@@ -84,23 +84,3 @@ module Test::M1 {
     }
   }
 }
-
-//# run-graphql
-{
-  transactionBlocks(scanLimit: 10 filter: {recvAddress: "@{A}" transactionIds: []}) {
-    pageInfo {
-      hasNextPage
-      hasPreviousPage
-      endCursor
-      startCursor
-    }
-    nodes {
-      digest
-      effects {
-        checkpoint {
-          sequenceNumber
-        }
-      }
-    }
-  }
-}

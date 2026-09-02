@@ -3,9 +3,7 @@
 
 use std::fmt::Display;
 
-use iota_sdk_types::TypeTag;
-
-use crate::gas_coin::GAS;
+use iota_sdk_types::{StructTag, TypeTag};
 
 /// The type tag for the outputs used in the migration.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -16,7 +14,7 @@ pub enum CoinType {
 impl CoinType {
     pub fn to_type_tag(&self) -> TypeTag {
         match self {
-            Self::Iota => GAS::type_tag(),
+            Self::Iota => TypeTag::from(StructTag::new_gas()),
         }
     }
 }

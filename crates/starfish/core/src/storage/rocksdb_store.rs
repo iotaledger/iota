@@ -18,8 +18,8 @@ use super::{CommitInfo, Store, WriteBatch};
 use crate::{
     Transaction,
     block_header::{
-        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, TransactionsCommitment,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, CommitmentVerifiedTransactions, Round,
+        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
@@ -328,7 +328,7 @@ impl Store for RocksDBStore {
     fn read_verified_transactions(
         &self,
         refs: &[GenericTransactionRef],
-    ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
+    ) -> ConsensusResult<Vec<Option<CommitmentVerifiedTransactions>>> {
         if !check_ref_consistency(refs) {
             return Err(ConsensusError::InconsistentTransactionRefVariants);
         }
@@ -349,8 +349,12 @@ impl Store for RocksDBStore {
                     .map_err(ConsensusError::MalformedTransactions)?;
                 // We don't check the transactions commitment from the header as it's loaded
                 // from storage. Assemble verified transactions
-                let verified_transactions =
-                    VerifiedTransactions::new(transactions, *tx_ref, None, serialized_transactions);
+                let verified_transactions = CommitmentVerifiedTransactions::new(
+                    transactions,
+                    *tx_ref,
+                    None,
+                    serialized_transactions,
+                );
                 result.push(Some(verified_transactions));
             } else {
                 result.push(None);

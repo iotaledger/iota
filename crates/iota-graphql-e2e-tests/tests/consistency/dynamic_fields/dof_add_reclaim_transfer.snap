@@ -1,7 +1,7 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 9 tasks
+processed 10 tasks
 
 init:
 A: object(0,0)
@@ -213,6 +213,18 @@ Response: {
         "edges": []
       },
       "dynamicObjectField": null
+    }
+  }
+}
+
+task 9, lines 189-202:
+//# run-graphql
+Response: {
+  "data": {
+    "wrapper_at_deletion_version": null,
+    "wrapper_before_deletion": {
+      "status": "INDEXED",
+      "version": 3
     }
   }
 }

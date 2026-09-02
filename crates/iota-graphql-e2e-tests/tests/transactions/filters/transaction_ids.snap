@@ -1,7 +1,7 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 9 tasks
+processed 8 tasks
 
 init:
 A: object(0,0)
@@ -71,37 +71,14 @@ Response: {
 task 7, lines 68-86:
 //# run-graphql
 Response: {
-  "data": null,
-  "errors": [
-    {
-      "message": "A scan limit must be specified for the given filter combination",
-      "locations": [
-        {
-          "line": 2,
-          "column": 3
-        }
-      ],
-      "path": [
-        "transactionBlocks"
-      ],
-      "extensions": {
-        "code": "BAD_USER_INPUT"
-      }
-    }
-  ]
-}
-
-task 8, lines 88-106:
-//# run-graphql
-Response: {
   "data": {
     "transactionBlocks": {
       "nodes": [],
       "pageInfo": {
-        "endCursor": "eyJjIjoyLCJ0IjoyLCJpIjp0cnVlfQ",
+        "endCursor": null,
         "hasNextPage": false,
         "hasPreviousPage": false,
-        "startCursor": "eyJjIjoyLCJ0IjowLCJpIjp0cnVlfQ"
+        "startCursor": null
       }
     }
   }

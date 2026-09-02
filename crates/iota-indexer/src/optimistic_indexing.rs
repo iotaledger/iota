@@ -2,7 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::{collections::BTreeMap, time::Duration};
 
-use diesel::{PgConnection, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types};
+use diesel::{
+    PgConnection, QueryableByName, RunQueryDsl, result::DatabaseErrorKind, sql_query, sql_types,
+};
 use downcast::Any;
 use fastcrypto::encoding::Base64;
 use iota_grpc_client::{Client as GrpcClient, read_mask_fields::TransactionField};
@@ -28,7 +30,7 @@ use crate::{
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
-        transactions::{OptimisticTransaction, StoredTransaction, TxGlobalOrder},
+        transactions::{OptimisticTransaction, StoredTransaction},
     },
     read::{IndexerReader, InputObjectsStatus},
     store::{IndexerStore, PgIndexerStore},
@@ -51,6 +53,19 @@ type TransactionDataToCommit = (
     BTreeMap<String, StoredDisplay>,
     TransactionObjectChangesToCommit,
 );
+
+/// Sequence numbers assigned to an optimistic transaction when its
+/// `tx_global_order` row is created.
+#[derive(QueryableByName)]
+struct AssignedGlobalOrder {
+    /// Auto-generated sequence number by the insert.
+    #[diesel(sql_type = sql_types::BigInt)]
+    optimistic_sequence_number: i64,
+    /// The latest checkpointed `tx_sequence_number` at insertion time.
+    /// It is `None` when no checkpointed transaction has been indexed yet.
+    #[diesel(sql_type = sql_types::Nullable<sql_types::BigInt>)]
+    global_sequence_number: Option<i64>,
+}
 
 /// Represents the ingestion path taken after execution.
 ///
@@ -302,6 +317,7 @@ impl OptimisticTransactionExecutor {
             .multi_get_transactions(&[tx_digest])
             .await?
             .pop()
+            .map(StoredTransaction::from)
             .ok_or_else(|| {
                 IndexerError::PersistentStorageDataCorruption(format!(
                     "transaction {tx_digest} not found in the DB after being marked as indexed."
@@ -405,7 +421,6 @@ impl OptimisticTransactionExecutor {
                     full_tx_data,
                     assigned_global_order
                         .optimistic_sequence_number
-                        .expect("optimistic sequence number is always set for data read from DB")
                         .try_into()
                         .map_err(|e| {
                             IndexerError::PersistentStorageDataCorruption(format!(
@@ -415,8 +430,16 @@ impl OptimisticTransactionExecutor {
                     &self.metrics,
                 );
 
-                let tx_data_to_commit = extractor
-                    .to_transaction_data_to_commit(assigned_global_order.global_sequence_number)?;
+                let global_sequence_number =
+                    assigned_global_order.global_sequence_number.ok_or_else(|| {
+                        IndexerError::PostgresRead(
+                            "cannot assign global order, no checkpointed transactions in tx_global_order"
+                                .into(),
+                        )
+                    })?;
+
+                let tx_data_to_commit =
+                    extractor.to_transaction_data_to_commit(global_sequence_number)?;
 
                 let optimistic_tx = self.persist_optimistic_tx(conn, tx_data_to_commit)?;
                 Ok(Some(optimistic_tx))
@@ -429,18 +452,19 @@ impl OptimisticTransactionExecutor {
     fn assign_optimistic_tx_global_order(
         conn: &mut PgConnection,
         tx_digest: &TransactionDigest,
-    ) -> Result<TxGlobalOrder, IndexerError> {
+    ) -> Result<AssignedGlobalOrder, IndexerError> {
         let tx_digest_bytes = tx_digest.inner().to_vec();
 
         sql_query(
             r#"
-                INSERT INTO tx_global_order (tx_digest, global_sequence_number, chk_tx_sequence_number)
-                SELECT $1, MAX(tx_sequence_number), NULL FROM tx_digests
-                RETURNING *;
+                INSERT INTO tx_global_order (tx_digest, tx_sequence_number)
+                VALUES ($1, NULL)
+                RETURNING optimistic_sequence_number,
+                    (SELECT MAX(tx_sequence_number) FROM tx_global_order) AS global_sequence_number;
             "#,
         )
         .bind::<sql_types::Bytea, _>(&tx_digest_bytes)
-        .get_result::<TxGlobalOrder>(conn)
+        .get_result::<AssignedGlobalOrder>(conn)
         .map_err(|e| match e {
             diesel::result::Error::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
                 IndexerError::PostgresUniqueTxGlobalOrderViolation(e.to_string())

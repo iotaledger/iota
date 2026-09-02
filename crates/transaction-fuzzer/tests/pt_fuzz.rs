@@ -41,15 +41,15 @@ fn publish_coin_factory(
     let package = effects
         .created()
         .into_iter()
-        .find(|(_, owner)| matches!(owner, Owner::Immutable))
+        .find(|created| matches!(created.owner, Owner::Immutable))
         .unwrap();
     let cap = effects
         .created()
         .into_iter()
-        .find(|(obj_ref, _)| {
+        .find(|created| {
             if let Some(stag) = exec
                 .state
-                .get_object(&obj_ref.object_id)
+                .get_object(&created.reference.object_id)
                 .unwrap()
                 .data
                 .opt_struct_tag()
@@ -61,7 +61,7 @@ fn publish_coin_factory(
         })
         .unwrap();
 
-    (package.0, cap.0)
+    (package.reference, cap.reference)
 }
 
 /// This function runs programmable transaction block and checks if it executed
@@ -103,10 +103,10 @@ pub fn run_pt_success(
     let new_cap = effects
         .mutated()
         .into_iter()
-        .find(|(obj_ref, _)| {
+        .find(|mutated| {
             if let Some(stag) = exec
                 .state
-                .get_object(&obj_ref.object_id)
+                .get_object(&mutated.reference.object_id)
                 .unwrap()
                 .data
                 .opt_struct_tag()
@@ -118,7 +118,7 @@ pub fn run_pt_success(
         })
         .unwrap();
 
-    new_cap.0
+    new_cap.reference
 }
 
 #[test]

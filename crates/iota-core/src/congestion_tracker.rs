@@ -4,9 +4,11 @@
 
 use std::collections::{HashMap, hash_map::Entry};
 
-use iota_sdk_types::{ExecutionError, ExecutionStatus, ObjectId, Transaction, TransactionEffects};
+use iota_sdk_types::{
+    ExecutionError, ExecutionStatus, InputSharedObject, ObjectId, Transaction, TransactionEffects,
+};
 use iota_types::{
-    effects::{InputSharedObject, TransactionEffectsAPI},
+    effects::TransactionEffectsAPI,
     messages_checkpoint::{CheckpointTimestamp, VerifiedCheckpoint},
     transaction::TransactionAPI,
 };
@@ -149,6 +151,15 @@ fn get_congested_objects_and_feedback_suggested_gas_price(
                 },
             ..
         } => Some((congested_objects, Some(*suggested_gas_price))),
+        // Execution-worker congestion names no object, so there is no
+        // per-object congestion info to update.
+        ExecutionStatus::Failure {
+            error:
+                ExecutionError::ExecutionCanceledDueToExecutionWorkerCongestion {
+                    suggested_gas_price,
+                },
+            ..
+        } => Some((&[], Some(*suggested_gas_price))),
         _ => None,
     }
 }

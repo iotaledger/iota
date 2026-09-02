@@ -190,17 +190,15 @@ impl CheckpointTransaction {
         self.effects
             .all_changed_objects()
             .into_iter()
-            .map(|(object_ref, ..)| {
+            .map(|(changed, _)| {
+                let object_id = changed.reference.object_id;
                 let object = self
                     .output_objects
                     .iter()
-                    .find(|o| o.id() == object_ref.object_id)
+                    .find(|o| o.id() == object_id)
                     .expect("changed objects should show up in output objects");
 
-                let old_object = self
-                    .input_objects
-                    .iter()
-                    .find(|o| o.id() == object_ref.object_id);
+                let old_object = self.input_objects.iter().find(|o| o.id() == object_id);
 
                 (object, old_object)
             })
@@ -212,7 +210,8 @@ impl CheckpointTransaction {
             .created()
             .into_iter()
             // Lookup Objects in output Objects as well as old versions for mutated objects
-            .map(|(object_ref, _)| {
+            .map(|created| {
+                let object_ref = created.reference;
                 self.output_objects
                     .iter()
                     .find(|o| o.id() == object_ref.object_id && o.version() == object_ref.version)

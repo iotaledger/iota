@@ -45,6 +45,11 @@ impl From<&iota_sdk_types::TransactionKind> for TransactionKind {
             iota_sdk_types::TransactionKind::RandomnessStateUpdate(_) => {
                 TransactionKind::RandomnessStateUpdate
             }
+            // The filter proto has no dedicated value for this kind yet; the
+            // `System` filter still matches it.
+            iota_sdk_types::TransactionKind::TransactionDenyRulesUpdate(_) => {
+                TransactionKind::System
+            }
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -353,7 +358,7 @@ impl TransactionFilter {
                 .mutated()
                 .iter()
                 .chain(item.effects.unwrapped().iter())
-                .any(|(_, owner)| matches!(owner, Owner::Address(addr) if *addr == *a)),
+                .any(|changed| matches!(changed.owner, Owner::Address(addr) if addr == *a)),
 
             TransactionFilter::AffectedObject(o) => item
                 .effects

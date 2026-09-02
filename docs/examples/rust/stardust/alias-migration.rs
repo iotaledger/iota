@@ -15,7 +15,6 @@ use iota_sdk::{
     IotaClientBuilder,
     rpc_types::{IotaData, IotaObjectDataOptions, IotaTransactionBlockResponseOptions},
     types::{
-        gas_coin::GAS,
         programmable_transaction_builder::ProgrammableTransactionBuilder,
         quorum_driver_types::ExecuteTransactionRequestType,
         stardust::output::AliasOutput,
@@ -23,7 +22,8 @@ use iota_sdk::{
     },
 };
 use iota_sdk_types::{
-    Argument, Identifier, ObjectId, SignatureScheme, Transaction, TypeTag, crypto::Intent,
+    Argument, Identifier, ObjectId, SignatureScheme, StructTag, Transaction, TypeTag,
+    crypto::Intent,
 };
 use iota_types::transaction::TransactionAPI;
 
@@ -133,7 +133,7 @@ async fn main() -> Result<(), anyhow::Error> {
             ObjectId::STARDUST,
             Identifier::from_static("alias_output"),
             Identifier::from_static("extract_assets"),
-            vec![GAS::type_tag()],
+            vec![TypeTag::from(StructTag::new_gas())],
             arguments,
         ) {
             // The alias output can always be unlocked by the governor address. So the
@@ -204,7 +204,7 @@ async fn main() -> Result<(), anyhow::Error> {
                 ObjectId::FRAMEWORK,
                 Identifier::COIN_MODULE,
                 Identifier::from_static("from_balance"),
-                vec![GAS::type_tag()],
+                vec![TypeTag::from(StructTag::new_gas())],
                 vec![extracted_base_token],
             );
 

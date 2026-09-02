@@ -86,9 +86,8 @@ where
 
         let highest_verified_checkpoint = self
             .store
-            .try_get_highest_verified_checkpoint()
-            .map_err(|e| Status::internal(e.to_string()))?
-            .sequence_number();
+            .try_get_highest_verified_checkpoint_seq_number()
+            .map_err(|e| Status::internal(e.to_string()))?;
 
         // If this checkpoint is higher than our highest verified checkpoint notify the
         // event loop to potentially sync it
