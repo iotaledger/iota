@@ -10,15 +10,21 @@ is independent of what the other lanes run.
 
 Expectation the runs check:
   - compute-bound workloads (signatures, tight arithmetic) stay near x1;
-  - memory-traffic-bound workloads (held-memory trees, large moves, big
+  - memory-bandwidth-bound workloads (held-memory trees, large moves, big
     reads/writes) inflate above it, from shared memory bandwidth, last-level
     cache, and the allocator.
+
+The summary also reports each point's aggregate moved-bytes rate — the bytes
+moved through the memory/store path per second, summed over all lanes — whose
+plateau across worker counts is the bandwidth ceiling `B_mem` the
+memory-bandwidth dimension needs (the per-lane inflation knee and the moved-bytes
+plateau should coincide).
 
 Layout:
   <out>/concurrency/<workload>/concurrency=<N>/run-*.jsonl
   <out>/concurrency/manifest.json                machine, commit, binary, cpus
   <out>/concurrency/summary.jsonl                one row per (workload, N)
-  <out>/concurrency/inflation.json               per-workload inflation vs N=1
+  <out>/concurrency/inflation.json               per-workload inflation and moved-bytes rate vs N
 
 Clock policy is part of this experiment (see the plan): fit-time collections
 run turbo off, but these contrast runs are taken under both turbo states so the
@@ -58,7 +64,7 @@ WORKLOADS = {
         "args": ["--num-hashes", "256", "--hash-family", "sha2-256"],
         "tx_count": 48,
     },
-    # memory-traffic-bound: inflation above x1 expected
+    # memory-bandwidth-bound: inflation above x1 expected
     "memory-tree-width": {
         "class": "memory",
         "args": ["--tree-width", "32", "--tree-depth", "3"],
@@ -79,7 +85,7 @@ WORKLOADS = {
         "args": ["--num-transfers", "16"],
         "tx_count": 48,
     },
-    # the real traffic mix admission must survive
+    # the real transaction mix admission must survive
     "mixed": {
         "class": "mixed",
         "subcommand": "mixed",
@@ -90,8 +96,23 @@ WORKLOADS = {
 
 DEFAULT_LEVELS = [1, 2, 4, 8]
 
+# Bytes a transaction moves through the shared memory/store path: reads,
+# working-set growth (the held-bytes peaks), and hashing-native input. The
+# per-commit sum of these is what the memory-bandwidth dimension caps.
+MOVED_BYTES_FIELDS = [
+    "input_object_bytes",
+    "child_object_read_bytes",
+    "stack_size_high_water_mark",
+    "locals_size_high_water_mark",
+    "object_runtime_cached_bytes",
+    "hash_input_bytes",
+]
+
 
 def run_point(binary, workload, spec, level, runs, out_dir, cooldown):
+    # Keep every lane busy for several waves at high worker counts; the
+    # workload tx_counts were sized for the 1..8 levels.
+    tx_count = max(spec.get("tx_count", 48), 4 * level)
     point_dir = out_dir / workload / f"concurrency={level}"
     point_dir.mkdir(parents=True, exist_ok=True)
     run_files = []
@@ -102,7 +123,7 @@ def run_point(binary, workload, spec, level, runs, out_dir, cooldown):
             continue  # resume
         cmd = [
             str(binary),
-            "--tx-count", str(spec.get("tx_count", 48)),
+            "--tx-count", str(tx_count),
             "--concurrency", str(level),
             "--profile-output", str(rf),
             "--rss-output", str(rf.with_suffix(".rss.json")),
@@ -126,6 +147,9 @@ def summarize_point(workload, spec, level, run_files):
     pooled = []
     per_run_medians = []
     n_txs = 0
+    sum_ns = 0
+    sum_moved = 0
+    moved_per_tx = []
     for rf in run_files:
         rows = sweep.load_rows(rf)
         if not rows:
@@ -134,9 +158,17 @@ def summarize_point(workload, spec, level, run_files):
         pooled.extend(ns)
         per_run_medians.append(statistics.median(ns))
         n_txs += len(ns)
+        sum_ns += sum(ns)
+        for r in rows:
+            t = sum(r["profile"].get(f, 0) for f in MOVED_BYTES_FIELDS)
+            moved_per_tx.append(t)
+            sum_moved += t
     if not per_run_medians:
         return None
     pooled.sort()
+    # With all lanes busy, phase wall-clock ~= total lane-time / worker count,
+    # so the aggregate rate the memory/store path sustained is:
+    aggregate_bps = sum_moved / (sum_ns / 1e9 / max(level, 1)) if sum_ns else 0
     return {
         "workload": workload,
         "class": spec["class"],
@@ -146,6 +178,8 @@ def summarize_point(workload, spec, level, run_files):
         "measured_ns": statistics.median(per_run_medians),
         "measured_ns_p50_pooled": pooled[len(pooled) // 2],
         "measured_ns_p95_pooled": pooled[int(0.95 * (len(pooled) - 1))],
+        "moved_bytes_per_tx_median": statistics.median(moved_per_tx),
+        "aggregate_moved_bytes_per_sec": round(aggregate_bps),
     }
 
 
@@ -205,6 +239,7 @@ def main():
         spec = WORKLOADS[w]
         base = None
         per_level = {}
+        moved_by_level = {}
         for level in levels:
             run_files = [
                 out / w / f"concurrency={level}" / f"run-{i}.jsonl"
@@ -216,6 +251,7 @@ def main():
                 continue
             summary_rows.append(s)
             per_level[level] = s["measured_ns"]
+            moved_by_level[level] = s["aggregate_moved_bytes_per_sec"]
             if level == 1:
                 base = s["measured_ns"]
         if base:
@@ -224,6 +260,9 @@ def main():
                 "baseline_ns_at_1": base,
                 "ratio_by_workers": {
                     str(l): round(v / base, 4) for l, v in sorted(per_level.items())
+                },
+                "moved_mb_per_sec_by_workers": {
+                    str(l): round(v / 1e6, 1) for l, v in sorted(moved_by_level.items())
                 },
             }
 
@@ -239,6 +278,14 @@ def main():
     for w, d in inflation.items():
         cells = " ".join(
             f"{d['ratio_by_workers'].get(str(l), float('nan')):<7.3f}" for l in hdr_levels
+        )
+        print(f"  {w:{width}} {d['class']:7} {cells}")
+    print("\nAggregate moved-bytes rate, MB/s (plateau across workers = the bandwidth ceiling B_mem):")
+    print(f"  {'workload':{width}} {'class':7} " + " ".join(f"@{l:<7}" for l in hdr_levels))
+    for w, d in inflation.items():
+        cells = " ".join(
+            f"{d['moved_mb_per_sec_by_workers'].get(str(l), float('nan')):<8.1f}"
+            for l in hdr_levels
         )
         print(f"  {w:{width}} {d['class']:7} {cells}")
     print(f"\nwrote {out}/summary.jsonl, {out}/inflation.json")
