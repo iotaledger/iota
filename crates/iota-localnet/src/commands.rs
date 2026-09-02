@@ -53,6 +53,8 @@ use rand::rngs::OsRng;
 use tempfile::tempdir;
 use tracing::info;
 
+use crate::ports::{BoundAddress, addresses_bound_at_launch, check_ports_are_free};
+
 const CONCURRENCY_LIMIT: usize = 30;
 const DEFAULT_COMMITTEE_SIZE: usize = 1;
 const DEFAULT_EPOCH_DURATION_MS: u64 = 60_000;
@@ -97,7 +99,8 @@ pub struct IndexerFeatureArgs {
     /// and value: `--with-graphql=6124` or `--with-graphql=0.0.0.0`, or
     /// `--with-graphql=0.0.0.0:9125` Note that GraphQL requires a running
     /// indexer, which will be enabled by default if the `--with-indexer`
-    /// flag is not set.
+    /// flag is not set. GraphQL serves its metrics on the next port, 9126 by
+    /// default.
     #[arg(
             long,
             default_missing_value = "0.0.0.0:9125",
@@ -516,6 +519,48 @@ async fn start(
         );
     }
 
+    // The service addresses are resolved here rather than where each service
+    // starts. An unparsable one then fails before genesis, and the port check
+    // knows every address this run binds.
+    let faucet_address = with_faucet
+        .map(|input| service_address(input, DEFAULT_FAUCET_PORT, "faucet"))
+        .transpose()?;
+    // The faucet builds its config from an `Ipv4Addr`.
+    ensure!(
+        faucet_address.is_none_or(|address| address.is_ipv4()),
+        "Invalid faucet host and port: the faucet needs an IPv4 address"
+    );
+    #[cfg(feature = "indexer")]
+    let (indexer_address, graphql_address, graphql_metrics_address) = {
+        let indexer_address = with_indexer
+            .map(|input| service_address(input, DEFAULT_INDEXER_PORT, "indexer"))
+            .transpose()?;
+        let graphql_address = with_graphql
+            .map(|input| service_address(input, DEFAULT_GRAPHQL_PORT, "graphql"))
+            .transpose()?;
+        // The GraphQL service binds a Prometheus listener beside its main
+        // port. Its own default is the fullnode metrics port, so the address
+        // is pinned here, where the port check also reads it.
+        let graphql_metrics_address = graphql_address
+            .map(|_| -> Result<SocketAddr, anyhow::Error> {
+                let address = parse_host_port_with_default_host(
+                    graphql_metrics_address.unwrap_or_default(),
+                    &Ipv4Addr::LOCALHOST.to_string(),
+                    DEFAULT_GRAPHQL_METRICS_PORT,
+                )
+                .map_err(|_| anyhow!("Invalid graphql metrics host and port"))?;
+                // The service rebuilds the address as `host:port`, which an
+                // IPv6 host needs brackets to survive.
+                ensure!(
+                    address.is_ipv4(),
+                    "graphql metrics configuration requires an IPv4 address"
+                );
+                Ok(address)
+            })
+            .transpose()?;
+        (indexer_address, graphql_address, graphql_metrics_address)
+    };
+
     if epoch_duration_ms.is_some() && genesis_blob_exists(config_dir.clone()) && !force_regenesis {
         bail!(
             "epoch duration can only be set when passing the `--force-regenesis` flag, or when \
@@ -641,7 +686,7 @@ async fn start(
     // the indexer and GraphQL services communicate with the fullnode via gRPC, we
     // must enable it by default.
     #[cfg(feature = "indexer")]
-    if with_indexer.is_some() || with_graphql.is_some() {
+    if indexer_address.is_some() || graphql_address.is_some() {
         // The gRPC API config is given rather than left out. The builder
         // would otherwise put the API on a free port, which differs on every
         // run. A `--node-config-override` still wins over it.
@@ -657,7 +702,7 @@ async fn start(
     // The directory is owned here until the network launches, so that
     // `--write-config`, which starts nothing, leaves none behind.
     #[cfg(feature = "indexer")]
-    let data_ingestion_tempdir = if with_indexer.is_some() && data_ingestion_dir.is_none() {
+    let data_ingestion_tempdir = if indexer_address.is_some() && data_ingestion_dir.is_none() {
         let tempdir = tempdir()?;
         data_ingestion_dir = Some(tempdir.path().to_path_buf());
         Some(tempdir)
@@ -693,6 +738,40 @@ async fn start(
     if let Some(directory) = write_config {
         return write_node_configs(&swarm, &directory);
     }
+
+    let mut addresses = addresses_bound_at_launch(&swarm);
+    if let Some(faucet_address) = faucet_address {
+        addresses.push(BoundAddress::service(
+            "faucet",
+            "--with-faucet",
+            faucet_address,
+        ));
+    }
+    #[cfg(feature = "indexer")]
+    {
+        if let Some(indexer_address) = indexer_address {
+            addresses.push(BoundAddress::service(
+                "indexer",
+                "--with-indexer",
+                indexer_address,
+            ));
+        }
+        if let Some(graphql_address) = graphql_address {
+            addresses.push(BoundAddress::service(
+                "GraphQL",
+                "--with-graphql",
+                graphql_address,
+            ));
+        }
+        if let Some(graphql_metrics_address) = graphql_metrics_address {
+            addresses.push(BoundAddress::service(
+                "GraphQL metrics",
+                "--graphql-metrics-address",
+                graphql_metrics_address,
+            ));
+        }
+    }
+    check_ports_are_free(&addresses)?;
 
     // The fullnode writes to the data ingestion directory for as long as it
     // runs, so it outlives this function from here on.
@@ -751,9 +830,7 @@ async fn start(
     };
 
     #[cfg(feature = "indexer")]
-    if let Some(input) = with_indexer {
-        let indexer_address = parse_host_port(input, DEFAULT_INDEXER_PORT)
-            .map_err(|_| anyhow!("Invalid indexer host and port"))?;
+    if let Some(indexer_address) = indexer_address {
         tracing::info!("Starting the indexer service at {indexer_address}");
         // Start in writer mode
         start_test_indexer(
@@ -794,31 +871,18 @@ async fn start(
     }
 
     #[cfg(feature = "indexer")]
-    if let Some(input) = with_graphql {
-        let graphql_address = parse_host_port(input, DEFAULT_GRAPHQL_PORT)
-            .map_err(|_| anyhow!("Invalid graphql host and port"))?;
+    if let Some(graphql_address) = graphql_address {
         tracing::info!("Starting the GraphQL service at {graphql_address}");
-        // The metrics address the service picks by default collides with the
-        // fullnode metrics endpoint, which binds `FULLNODE_PORT_BASE` before
-        // this runs.
-        let graphql_metrics_address = parse_host_port_with_default_host(
-            graphql_metrics_address.unwrap_or_default(),
-            &Ipv4Addr::LOCALHOST.to_string(),
-            DEFAULT_GRAPHQL_METRICS_PORT,
-        )
-        .map_err(|_| anyhow!("Invalid graphql metrics host and port"))?;
-        // The service rebuilds the address as `host:port`, which an IPv6 host
-        // needs brackets to survive.
-        ensure!(
-            graphql_metrics_address.is_ipv4(),
-            "graphql metrics configuration requires an IPv4 address"
-        );
+        let graphql_metrics_address =
+            graphql_metrics_address.expect("resolved with the GraphQL address");
         tracing::info!("Serving the GraphQL metrics at {graphql_metrics_address}");
         let graphql_connection_config = ConnectionConfig {
             port: graphql_address.port(),
-            host: graphql_address.ip().to_string(),
+            // The server joins host and port with `format!`, so an IPv6 host
+            // needs its brackets.
+            host: graphql_host(graphql_address),
             db_url: pg_address,
-            prom_host: graphql_metrics_address.ip().to_string(),
+            prom_host: graphql_host(graphql_metrics_address),
             prom_port: graphql_metrics_address.port(),
             ..Default::default()
         };
@@ -832,9 +896,7 @@ async fn start(
         info!("GraphQL started");
     }
 
-    if let Some(input) = with_faucet {
-        let faucet_address = parse_host_port(input, DEFAULT_FAUCET_PORT)
-            .map_err(|_| anyhow!("Invalid faucet host and port"))?;
+    if let Some(faucet_address) = faucet_address {
         tracing::info!("Starting the faucet service at {faucet_address}");
         let faucet_config_dir = if force_regenesis {
             // tempdir is used so the faucet file is cleaned up afterwards
@@ -845,6 +907,7 @@ async fn start(
 
         let host_ip = match faucet_address {
             SocketAddr::V4(addr) => *addr.ip(),
+            // Rejected where the address is parsed, before genesis.
             _ => bail!("faucet configuration requires an IPv4 address"),
         };
 
@@ -1071,8 +1134,7 @@ async fn genesis(
     let admin_interface_address_with_port = admin_interface_address
         .map(|input| {
             let default_port = iota_config::node::default_admin_interface_address().port();
-            parse_host_port(input, default_port)
-                .map_err(|_| anyhow!("Invalid admin interface host and port"))
+            service_address(input, default_port, "admin interface")
         })
         .transpose()?;
 
@@ -1346,8 +1408,7 @@ fn write_node_config(config: &NodeConfig, path: &Path) -> Result<(), anyhow::Err
 /// replaces the whole section. The fields that value does not mention come
 /// out at their default.
 fn with_grpc_overrides(input: String) -> Result<[NodeConfigOverride; 2], anyhow::Error> {
-    let grpc_address = parse_host_port(input, DEFAULT_GRPC_PORT)
-        .map_err(|_| anyhow!("Invalid gRPC host and port"))?;
+    let grpc_address = service_address(input, DEFAULT_GRPC_PORT, "gRPC")?;
     Ok([
         "fullnode:enable-grpc-api=true".parse()?,
         // Quoted: an IPv6 address like `[::1]:50051` is YAML structure
@@ -1413,6 +1474,26 @@ fn log_applied_overrides_for_node<'a>(
     );
 }
 
+/// The host half of `address` in the form the GraphQL server accepts: it
+/// joins host and port with `format!("{host}:{port}")`, so an IPv6 host
+/// needs its brackets.
+#[cfg(feature = "indexer")]
+fn graphql_host(address: SocketAddr) -> String {
+    match address.ip() {
+        IpAddr::V6(ip) => format!("[{ip}]"),
+        ip => ip.to_string(),
+    }
+}
+
+/// Parse a service address, with `default_port` when the input has none.
+fn service_address(
+    input: String,
+    default_port: u16,
+    service: &str,
+) -> Result<SocketAddr, anyhow::Error> {
+    parse_host_port(input, default_port).map_err(|_| anyhow!("Invalid {service} host and port"))
+}
+
 /// Parse the input string into a SocketAddr, with a default port if none is
 /// provided.
 pub fn parse_host_port(
@@ -1462,6 +1543,23 @@ mod tests {
         // `all:` reaches the validators, so it stays allowed either way.
         let all_scoped: NodeConfigOverride = "all:enable-index-processing=false".parse().unwrap();
         check_fullnode_override_scopes(std::slice::from_ref(&all_scoped), false).unwrap();
+    }
+
+    /// The GraphQL service binds a Prometheus listener beside its main port.
+    /// The port check reads the same address the service is given, so the run
+    /// cannot check one address and bind another.
+    #[cfg(feature = "indexer")]
+    #[test]
+    fn the_graphql_metrics_address_defaults_beside_the_fullnode_metrics_port() {
+        let localhost = Ipv4Addr::LOCALHOST.to_string();
+        let address = parse_host_port_with_default_host(
+            String::new(),
+            &localhost,
+            DEFAULT_GRAPHQL_METRICS_PORT,
+        )
+        .unwrap();
+        assert_eq!(address, SocketAddr::from(([127, 0, 0, 1], 9126)));
+        assert_ne!(address.port(), FULLNODE_PORT_BASE);
     }
 
     #[test]
