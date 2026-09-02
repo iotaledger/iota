@@ -27,11 +27,9 @@ Proof of Inclusion currently builds from the Notarization repository source. Add
 
 ```toml title="Cargo.toml"
 [dependencies]
-poi-rs = { git = "https://github.com/iotaledger/notarization" }
+poi-rs = { git = "https://github.com/iotaledger/notarization", tag = "beta" }
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 ```
-
-Pin a Git revision in production so dependency updates remain reproducible.
 
 ## Construct a Transaction Proof
 

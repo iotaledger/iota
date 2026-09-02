@@ -39,6 +39,8 @@ Trusted-node resolution accepts committee data returned directly by the connecte
 
 Use this mode only when the node is already inside the application's trust boundary, such as a node operated and secured by the verifier's organization. Do not describe this mode as trustless verification.
 
+See [Verify a Proof Using a Trusted Node](../how-tos/examples/advanced/trusted-node.mdx) for a complete Rust and TypeScript example.
+
 ## Verification Checks
 
 The verifier performs the following checks:
@@ -70,3 +72,5 @@ Anchored verification can require many epoch transitions on an established netwo
 The Rust API also accepts a caller-provided `CommitteeCache` for persistence. Shared cache entries are scoped by the trusted genesis checkpoint digest and epoch, which prevents committees from different networks from colliding.
 
 The Wasm Package keeps a fresh in-memory cache inside each anchored verifier. It does not accept a caller-provided cache, so retain the verifier for as long as the application needs to reuse authenticated committees.
+
+See [Persist Authenticated Committees in a File-Based Cache](../how-tos/examples/advanced/committee-cache.mdx) to build and configure a persistent Rust cache.
