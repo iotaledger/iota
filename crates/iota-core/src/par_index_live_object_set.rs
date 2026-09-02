@@ -14,7 +14,7 @@ use tracing::{info, warn};
 use crate::{
     authority::AuthorityStore,
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
-    progress_logger::PROGRESS_REPORT_INTERVAL,
+    progress_logger::{PROGRESS_REPORT_INTERVAL, progress_line},
 };
 
 /// Make `LiveObjectIndexer`s for parallel indexing of the live object set
@@ -215,14 +215,24 @@ fn report_scan_progress_until_done(
 
         let fraction = scan_fraction(bits, positions);
         let scanned = objects_scanned.load(Ordering::Relaxed);
-        let elapsed = start_time.elapsed();
-        let rate = progress_rate(scanned, elapsed);
-        let eta = eta_display(elapsed, fraction);
+        // The scan measures its position in the object id space, not against a
+        // row count, so the total is what that position implies rather than
+        // something read from the table.
+        let total = if fraction > 0.0 {
+            (scanned as f64 / fraction) as u64
+        } else {
+            0
+        };
         info!(
-            "Indexing live object set: ~{:.1}% done, {} objects scanned ({} objects/s), ETA ~{eta}",
-            fraction * 100.0,
-            format_count(scanned),
-            format_count(rate as u64),
+            "{}",
+            progress_line(
+                "Indexing live object set",
+                "objects",
+                fraction,
+                scanned,
+                total,
+                start_time.elapsed(),
+            )
         );
     }
 }
@@ -261,54 +271,6 @@ fn id_position(id: &ObjectId) -> u64 {
         .iter()
         .take(8)
         .fold(0u64, |acc, byte| (acc << 8) | *byte as u64)
-}
-
-/// Extrapolates how much longer the work will take, assuming the rate so far
-/// holds. Returns `None` when no progress was made yet.
-fn estimated_time_remaining(elapsed: Duration, fraction_done: f64) -> Option<Duration> {
-    if fraction_done <= 0.0 || fraction_done > 1.0 {
-        return None;
-    }
-    Duration::try_from_secs_f64(elapsed.as_secs_f64() * (1.0 - fraction_done) / fraction_done).ok()
-}
-
-/// Items processed per second since the work started.
-pub(crate) fn progress_rate(items: u64, elapsed: Duration) -> f64 {
-    items as f64 / elapsed.as_secs_f64().max(f64::EPSILON)
-}
-
-/// The estimated time remaining formatted for progress lines, or "unknown"
-/// when no progress was made yet.
-pub(crate) fn eta_display(elapsed: Duration, fraction_done: f64) -> String {
-    estimated_time_remaining(elapsed, fraction_done)
-        .map(format_duration)
-        .unwrap_or_else(|| "unknown".to_string())
-}
-
-/// Formats a duration for progress lines, e.g. "1h 42m", "3m 20s", or "45s".
-fn format_duration(duration: Duration) -> String {
-    let secs = duration.as_secs();
-    let (hours, minutes, seconds) = (secs / 3600, (secs % 3600) / 60, secs % 60);
-    if hours > 0 {
-        format!("{hours}h {minutes}m")
-    } else if minutes > 0 {
-        format!("{minutes}m {seconds}s")
-    } else {
-        format!("{seconds}s")
-    }
-}
-
-/// Formats a count for progress lines, e.g. "123.4M" or "1.2k".
-fn format_count(count: u64) -> String {
-    if count >= 1_000_000_000 {
-        format!("{:.1}B", count as f64 / 1e9)
-    } else if count >= 1_000_000 {
-        format!("{:.1}M", count as f64 / 1e6)
-    } else if count >= 1_000 {
-        format!("{:.1}k", count as f64 / 1e3)
-    } else {
-        count.to_string()
-    }
 }
 
 #[cfg(test)]
@@ -384,39 +346,5 @@ mod tests {
         bytes[..8].copy_from_slice(&[0x12, 0x34, 0x56, 0x78, 0x9a, 0xbc, 0xde, 0xf0]);
         bytes[8] = 0xff;
         assert_eq!(id_position(&ObjectId::new(bytes)), 0x1234_5678_9abc_def0);
-    }
-
-    #[test]
-    fn estimated_time_remaining_extrapolates_the_average_rate() {
-        let eta = estimated_time_remaining(Duration::from_secs(100), 0.25).unwrap();
-        assert_eq!(eta, Duration::from_secs(300));
-
-        assert_eq!(
-            estimated_time_remaining(Duration::from_secs(100), 1.0),
-            Some(Duration::ZERO)
-        );
-        assert_eq!(
-            estimated_time_remaining(Duration::from_secs(100), 0.0),
-            None
-        );
-        assert_eq!(
-            estimated_time_remaining(Duration::from_secs(100), -0.5),
-            None
-        );
-    }
-
-    #[test]
-    fn format_duration_picks_the_two_largest_units() {
-        assert_eq!(format_duration(Duration::from_secs(45)), "45s");
-        assert_eq!(format_duration(Duration::from_secs(200)), "3m 20s");
-        assert_eq!(format_duration(Duration::from_secs(6120)), "1h 42m");
-    }
-
-    #[test]
-    fn format_count_abbreviates_large_numbers() {
-        assert_eq!(format_count(999), "999");
-        assert_eq!(format_count(1_200), "1.2k");
-        assert_eq!(format_count(123_400_000), "123.4M");
-        assert_eq!(format_count(2_500_000_000), "2.5B");
     }
 }
