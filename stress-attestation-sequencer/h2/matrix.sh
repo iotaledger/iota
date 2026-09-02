@@ -119,47 +119,47 @@ configs=(
   #      matches Run A; lim50k admits exactly the 1000 qps offered; lim100k
   #      is the unconstrained reference — higher rungs can never bind and
   #      were dropped.
-  # "cu1k-lim10k-qps1000    | $SLOW1 $REF LIMIT_B=10000    TARGET_QPS=1000"
-  # "cu1k-lim20k-qps1000    | $SLOW1 $REF LIMIT_B=20000    TARGET_QPS=1000"
-  # "cu1k-lim50k-qps1000    | $SLOW1 $REF LIMIT_B=50000    TARGET_QPS=1000"
-  # "cu1k-lim100k-qps1000   | $SLOW1 $REF LIMIT_B=100000   TARGET_QPS=1000"
+  "cu1k-lim10k-qps1000    | $SLOW1 $REF LIMIT_B=10000    TARGET_QPS=1000"
+  "cu1k-lim20k-qps1000    | $SLOW1 $REF LIMIT_B=20000    TARGET_QPS=1000"
+  "cu1k-lim50k-qps1000    | $SLOW1 $REF LIMIT_B=50000    TARGET_QPS=1000"
+  "cu1k-lim100k-qps1000   | $SLOW1 $REF LIMIT_B=100000   TARGET_QPS=1000"
   #
   # ---- cu2k, 2,000 units/tx (slow_n=70). Each rung admits half of cu1k's:
   #      lim20k matches Run A; lim100k admits exactly the 1000 qps offered;
   #      lim200k is the unconstrained reference — higher rungs were dropped.
-  # "cu2k-lim10k-qps1000    | $SLOW70 $REF LIMIT_B=10000    TARGET_QPS=1000"
-  # "cu2k-lim20k-qps1000    | $SLOW70 $REF LIMIT_B=20000    TARGET_QPS=1000"
-  # "cu2k-lim50k-qps1000    | $SLOW70 $REF LIMIT_B=50000    TARGET_QPS=1000"
-  # "cu2k-lim100k-qps1000   | $SLOW70 $REF LIMIT_B=100000   TARGET_QPS=1000"
+  "cu2k-lim10k-qps1000    | $SLOW70 $REF LIMIT_B=10000    TARGET_QPS=1000"
+  "cu2k-lim20k-qps1000    | $SLOW70 $REF LIMIT_B=20000    TARGET_QPS=1000"
+  "cu2k-lim50k-qps1000    | $SLOW70 $REF LIMIT_B=50000    TARGET_QPS=1000"
+  "cu2k-lim100k-qps1000   | $SLOW70 $REF LIMIT_B=100000   TARGET_QPS=1000"
   "cu2k-lim200k-qps1000   | $SLOW70 $REF LIMIT_B=200000   TARGET_QPS=1000"
   #
   # ---- cu5k, 5,000 units/tx (slow_n=120). lim50k matches Run A. The
   #      exactly-offered point (250k) is not a rung: lim200k is the last that
   #      can bind, lim500k the unconstrained reference — higher rungs were
   #      dropped.
-  # "cu5k-lim10k-qps1000    | $SLOW120 $REF LIMIT_B=10000    TARGET_QPS=1000"
-  # "cu5k-lim20k-qps1000    | $SLOW120 $REF LIMIT_B=20000    TARGET_QPS=1000"
-  # "cu5k-lim50k-qps1000    | $SLOW120 $REF LIMIT_B=50000    TARGET_QPS=1000"
-  # "cu5k-lim100k-qps1000   | $SLOW120 $REF LIMIT_B=100000   TARGET_QPS=1000"
+  "cu5k-lim10k-qps1000    | $SLOW120 $REF LIMIT_B=10000    TARGET_QPS=1000"
+  "cu5k-lim20k-qps1000    | $SLOW120 $REF LIMIT_B=20000    TARGET_QPS=1000"
+  "cu5k-lim50k-qps1000    | $SLOW120 $REF LIMIT_B=50000    TARGET_QPS=1000"
+  "cu5k-lim100k-qps1000   | $SLOW120 $REF LIMIT_B=100000   TARGET_QPS=1000"
   "cu5k-lim200k-qps1000   | $SLOW120 $REF LIMIT_B=200000   TARGET_QPS=1000"
   "cu5k-lim500k-qps1000   | $SLOW120 $REF LIMIT_B=500000   TARGET_QPS=1000"
   #
   # ---- cu10k, 10,000 units/tx (slow_n=160). lim10k is the floor of one per
   #      commit; lim100k matches Run A.
-  # "cu10k-lim10k-qps1000   | $SLOW160 $REF LIMIT_B=10000    TARGET_QPS=1000"
-  # "cu10k-lim20k-qps1000   | $SLOW160 $REF LIMIT_B=20000    TARGET_QPS=1000"
-  # "cu10k-lim50k-qps1000   | $SLOW160 $REF LIMIT_B=50000    TARGET_QPS=1000"
-  # "cu10k-lim100k-qps1000  | $SLOW160 $REF LIMIT_B=100000   TARGET_QPS=1000"
+  "cu10k-lim10k-qps1000   | $SLOW160 $REF LIMIT_B=10000    TARGET_QPS=1000"
+  "cu10k-lim20k-qps1000   | $SLOW160 $REF LIMIT_B=20000    TARGET_QPS=1000"
+  "cu10k-lim50k-qps1000   | $SLOW160 $REF LIMIT_B=50000    TARGET_QPS=1000"
+  "cu10k-lim100k-qps1000  | $SLOW160 $REF LIMIT_B=100000   TARGET_QPS=1000"
   "cu10k-lim200k-qps1000  | $SLOW160 $REF LIMIT_B=200000   TARGET_QPS=1000"
   "cu10k-lim500k-qps1000  | $SLOW160 $REF LIMIT_B=500000   TARGET_QPS=1000"
   "cu10k-lim1m-qps1000    | $SLOW160 $REF LIMIT_B=1000000  TARGET_QPS=1000"
   #
   # ---- cu20k, 20,000 units/tx (slow_n=217). lim10k admits nothing;
   #      lim200k matches Run A.
-  # "cu20k-lim10k-qps1000   | $SLOW217 $REF LIMIT_B=10000    TARGET_QPS=1000"
-  # "cu20k-lim20k-qps1000   | $SLOW217 $REF LIMIT_B=20000    TARGET_QPS=1000"
-  # "cu20k-lim50k-qps1000   | $SLOW217 $REF LIMIT_B=50000    TARGET_QPS=1000"
-  # "cu20k-lim100k-qps1000  | $SLOW217 $REF LIMIT_B=100000   TARGET_QPS=1000"
+  "cu20k-lim10k-qps1000   | $SLOW217 $REF LIMIT_B=10000    TARGET_QPS=1000"
+  "cu20k-lim20k-qps1000   | $SLOW217 $REF LIMIT_B=20000    TARGET_QPS=1000"
+  "cu20k-lim50k-qps1000   | $SLOW217 $REF LIMIT_B=50000    TARGET_QPS=1000"
+  "cu20k-lim100k-qps1000  | $SLOW217 $REF LIMIT_B=100000   TARGET_QPS=1000"
   "cu20k-lim200k-qps1000  | $SLOW217 $REF LIMIT_B=200000   TARGET_QPS=1000"
   "cu20k-lim500k-qps1000  | $SLOW217 $REF LIMIT_B=500000   TARGET_QPS=1000"
   "cu20k-lim1m-qps1000    | $SLOW217 $REF LIMIT_B=1000000  TARGET_QPS=1000"
