@@ -3691,8 +3691,8 @@ builder_v1
 builtin_auth_builder_v1
 	public fun
 	0x2::smart_account
-claim_builder_v1
-	public fun
+claim_account_v1
+	fun
 	0x2::smart_account
 with_field
 	public fun

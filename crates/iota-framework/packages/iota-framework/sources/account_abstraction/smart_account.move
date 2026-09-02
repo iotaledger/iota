@@ -12,9 +12,10 @@
 ///   `AuthenticatorFunctionRefV1`.
 /// - `builtin_auth_builder_v1`: allocates a new object ID; selects the built-in
 ///   authenticator matching the provided `PublicKey`'s signature scheme.
-/// - `claim_builder_v1`: for addresses that already exist on-chain. The new
-///   account object's ID matches the sender's address; double-claiming is
-///   prevented by the sequencer before execution.
+///
+/// Claiming an existing address is not part of that API: it happens through the
+/// `ClaimAccount` transaction kind, which drives the private `claim_account_v1`
+/// below. Double-claiming is prevented by the sequencer before execution.
 ///
 /// After optionally adding fields with `with_field`, finalize with
 /// `build_v1` (mutable) or `build_immutable_v1` (immutable).
@@ -36,7 +37,8 @@ use iota::authenticator_function::AuthenticatorFunctionRefV1;
 use iota::builtin_authenticator_functions;
 use iota::claim_registry;
 use iota::dynamic_field;
-use iota::public_key::PublicKey;
+use iota::public_key::{Self, PublicKey};
+use iota::signature_scheme;
 
 // === Errors ===
 
@@ -48,9 +50,9 @@ const ETransactionSenderIsNotTheSmartAccount: vector<u8> =
 
 /// General-purpose on-chain account object.
 ///
-/// `SmartAccount`s can only be created via `SmartAccountBuilder` — use `builder_v1`,
-/// `builtin_auth_builder_v1`, or `claim_builder_v1` to obtain one, optionally
-/// add fields with `with_field`, then finalize with `build_v1` or `build_immutable_v1`.
+/// `SmartAccount`s can only be created via `SmartAccountBuilder` — use `builder_v1`
+/// or `builtin_auth_builder_v1` to obtain one, optionally add fields with
+/// `with_field`, then finalize with `build_v1` or `build_immutable_v1`.
 ///
 /// All data is stored as dynamic fields, keeping the struct stable across
 /// upgrades and allowing arbitrary extensions.
@@ -109,25 +111,50 @@ public fun builtin_auth_builder_v1(
     }
 }
 
-/// Creates a `SmartAccountBuilder` for an existing on-chain address backed by the
-/// built-in authenticator for `public_key`'s signature scheme.
+/// Claims the sender's address and creates the `SmartAccount` at it, backed by
+/// the built-in authenticator for the given signature scheme.
 ///
-/// The new account object's ID matches the sender's address. Double-claiming
-/// is prevented by the sequencer, which rejects a claim for an address that
-/// is already explicit before it reaches execution.
+/// This is the whole `ClaimAccount` pipeline. It is **private on purpose**: the
+/// account object it creates has an ID equal to a signature-derivable address,
+/// and the sequencer's account rules are only sound while `ClaimAccount` is the
+/// one and only way such an object can come into existence. A private function
+/// is reachable from the node's own PTB, which runs in an execution mode that
+/// bypasses visibility, and from nowhere else — not from a user PTB, and not
+/// from another package, which could otherwise wrap a public entry point.
+/// See the `iota::clock::consensus_commit_prologue` and
+/// `iota::claim_registry::create` functions for the same idiom.
 ///
-/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event on success.
+/// Takes primitives rather than a `PublicKey` so the node's PTB needs no other
+/// framework call to build its arguments.
 ///
-/// Aborts if `public_key` does not correspond to the sender's address.
-/// Aborts if `public_key`'s signature scheme is not supported.
-public fun claim_builder_v1(public_key: PublicKey, ctx: &mut TxContext): SmartAccountBuilder {
+/// Emits a `builtin_authenticator_functions::PublicKeyAttached` event, and an
+/// `account::MutableAccountCreated` or `account::ImmutableAccountCreated` event.
+///
+/// Aborts if `scheme_flag` is not a known signature scheme, if `pk_bytes` is not
+/// a valid key for it, or if the key does not derive the sender's address. A
+/// claim the sequencer has scheduled can reach none of those: they are all
+/// rejected by the transaction's validity check, before it is sequenced.
+#[allow(unused_function)]
+fun claim_account_v1(
+    scheme_flag: u8,
+    pk_bytes: vector<u8>,
+    immutable: bool,
+    ctx: &TxContext,
+) {
+    let public_key = public_key::create(signature_scheme::from_flag(scheme_flag), pk_bytes);
     let mut account = SmartAccount { id: claim_registry::claim(public_key, ctx) };
     builtin_authenticator_functions::attach_public_key(&mut account.id, public_key);
 
-    SmartAccountBuilder {
+    let builder = SmartAccountBuilder {
         account,
         authenticator: builtin_authenticator_functions::from_signature_scheme(public_key.scheme()),
-    }
+    };
+
+    if (immutable) {
+        builder.build_immutable_v1();
+    } else {
+        builder.build_v1();
+    };
 }
 
 /// Adds a `Value` as a dynamic field to the account being built.
@@ -348,3 +375,15 @@ fun ensure_tx_sender_is_smart_account(self: &SmartAccount, ctx: &TxContext) {
 }
 
 // === Test Functions ===
+
+/// Test-only entry to `claim_account_v1`, which is private so that only the
+/// node's `ClaimAccount` pipeline can reach it.
+#[test_only]
+public fun claim_account_v1_for_testing(
+    scheme_flag: u8,
+    pk_bytes: vector<u8>,
+    immutable: bool,
+    ctx: &TxContext,
+) {
+    claim_account_v1(scheme_flag, pk_bytes, immutable, ctx)
+}

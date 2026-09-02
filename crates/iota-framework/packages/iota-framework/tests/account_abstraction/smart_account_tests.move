@@ -61,16 +61,28 @@ fun builtin_auth_builder_v1_attaches_public_key_and_authenticator() {
     });
 }
 
-// === claim_builder_v1 ===
+// === claim_account_v1 ===
 
 #[test]
-fun claim_builder_v1_account_address_matches_sender() {
+fun claim_account_v1_account_address_matches_sender() {
     let public_key = ed25519_public_key();
     let sender = public_key.to_iota_address();
 
     claim_account_test!(sender, |scenario| {
-        let addr = smart_account::claim_builder_v1(public_key, scenario.ctx()).build_v1();
-        assert_eq(addr, sender);
+        smart_account::claim_account_v1_for_testing(
+            public_key.scheme().flag(),
+            *public_key.raw_bytes(),
+            false,
+            scenario.ctx(),
+        );
+
+        // The account object exists, is shared, and its id is the sender's
+        // address - which is the whole point of claiming.
+        scenario.next_tx(sender);
+        let account = scenario.take_shared<SmartAccount>();
+        assert_eq(account.account_address(), sender);
+        assert_eq(account.has_builtin_auth_public_key(), true);
+        test_scenario::return_shared(account);
     });
 }
 
@@ -78,11 +90,16 @@ fun claim_builder_v1_account_address_matches_sender() {
 // address that is already explicit before it reaches execution.
 #[test]
 #[expected_failure(abort_code = iota::claim_registry::EAddressMismatch)]
-fun claim_builder_v1_aborts_on_address_mismatch() {
+fun claim_account_v1_aborts_on_address_mismatch() {
     let public_key = ed25519_public_key();
 
     claim_account_test!(@0x1, |scenario| {
-        smart_account::claim_builder_v1(public_key, scenario.ctx()).build_v1();
+        smart_account::claim_account_v1_for_testing(
+            public_key.scheme().flag(),
+            *public_key.raw_bytes(),
+            false,
+            scenario.ctx(),
+        );
     });
 }
 
