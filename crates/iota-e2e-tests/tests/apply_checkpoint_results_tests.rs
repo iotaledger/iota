@@ -305,7 +305,10 @@ fn executed_transactions(node: &test_cluster::FullNodeHandle) -> u64 {
 ///
 /// With `re_execute` unset the results are applied, so the driver should run
 /// almost nothing; with it set every transaction goes through execution.
-async fn sync_archive_only_fullnode(re_execute: bool) -> (u64, usize, usize) {
+async fn sync_archive_only_fullnode(
+    re_execute: bool,
+    results_cache_size_bytes: Option<usize>,
+) -> (u64, usize, usize) {
     let ingestion = tempfile::tempdir().unwrap();
     let archive = tempfile::tempdir().unwrap();
     let mut cluster = TestClusterBuilder::new()
@@ -362,9 +365,9 @@ async fn sync_archive_only_fullnode(re_execute: bool) -> (u64, usize, usize) {
             url: format!("file://{}", archive.path().display()),
             download_concurrency: NonZeroUsize::new(4).unwrap(),
             verify_concurrency: NonZeroUsize::new(2).unwrap(),
-            max_checkpoints_ahead_of_execution: NonZeroUsize::new(1_000_000).unwrap(),
             re_execute_archived_checkpoints: re_execute,
             sync_from_archive_only: true,
+            results_cache_size_bytes: results_cache_size_bytes.unwrap_or(256 * 1024 * 1024),
         })
         .build(&mut rand::rngs::OsRng, cluster.swarm.config());
     // With no peers the archive is the node's only source, so reaching the
@@ -432,7 +435,7 @@ async fn sync_archive_only_fullnode(re_execute: bool) -> (u64, usize, usize) {
 /// nothing to do: only the end-of-epoch transactions stay on its path.
 #[sim_test]
 async fn archive_only_fullnode_applies_without_executing() {
-    let (executed, total, boundaries) = sync_archive_only_fullnode(false).await;
+    let (executed, total, boundaries) = sync_archive_only_fullnode(false, None).await;
     // Only the end-of-epoch transactions are left to the executor, one per
     // boundary in the range.
     assert!(
@@ -447,7 +450,7 @@ async fn archive_only_fullnode_applies_without_executing() {
 /// shows the flag has an effect rather than being inert.
 #[sim_test]
 async fn archive_only_fullnode_re_executes_when_configured() {
-    let (executed, total, _) = sync_archive_only_fullnode(true).await;
+    let (executed, total, _) = sync_archive_only_fullnode(true, None).await;
     // Genesis is already executed when the node starts, so it never reaches the
     // driver; everything else in the range must.
     assert!(
@@ -543,5 +546,29 @@ async fn shared_object_deletion_is_marked_the_same_way() {
     assert!(
         checked,
         "the shared object deletion never reached a checkpoint, so nothing was checked"
+    );
+}
+
+/// A budget too small to hold every checkpoint's results forces some to be
+/// committed from the archive and the rest executed, interleaved.
+///
+/// That mix is what a node upgrading into this feature sees, and it is the
+/// case that used to crash: results written when state sync downloaded them
+/// raced the executor's writes for older checkpoints, and object versions
+/// reached the writeback cache out of order. Committing them in the executor's
+/// ordered stage is what makes one writer of them again.
+#[sim_test]
+async fn interleaved_committed_and_executed_checkpoints_stay_ordered() {
+    // Enough for a couple of checkpoints, so most results are dropped.
+    let (executed, total, boundaries) = sync_archive_only_fullnode(false, Some(64 * 1024)).await;
+
+    assert!(
+        executed > boundaries as u64,
+        "the budget must have been too small to commit everything, or this proves nothing: \
+         executed {executed} of {total} with {boundaries} boundaries"
+    );
+    assert!(
+        executed < total as u64,
+        "some results must still have been committed: executed {executed} of {total}"
     );
 }

@@ -12,7 +12,7 @@ use anemo_tower::{inflight_limit, rate_limit};
 use iota_config::{node::CheckpointArchiveConfig, p2p::StateSyncConfig};
 use iota_types::{
     messages_checkpoint::VerifiedCheckpoint,
-    storage::{ApplyCheckpointResults, WriteStore},
+    storage::{CacheCheckpointResults, WriteStore},
 };
 use tap::Pipe;
 use tokio::{
@@ -31,7 +31,7 @@ pub struct Builder<S> {
     config: Option<StateSyncConfig>,
     metrics: Option<Metrics>,
     checkpoint_archive_config: Option<CheckpointArchiveConfig>,
-    results_applier: Option<Arc<dyn ApplyCheckpointResults>>,
+    results_cache: Option<Arc<dyn CacheCheckpointResults>>,
 }
 
 impl Builder<()> {
@@ -42,7 +42,7 @@ impl Builder<()> {
             config: None,
             metrics: None,
             checkpoint_archive_config: None,
-            results_applier: None,
+            results_cache: None,
         }
     }
 }
@@ -54,7 +54,7 @@ impl<S> Builder<S> {
             config: self.config,
             metrics: self.metrics,
             checkpoint_archive_config: self.checkpoint_archive_config,
-            results_applier: self.results_applier,
+            results_cache: self.results_cache,
         }
     }
 
@@ -76,14 +76,11 @@ impl<S> Builder<S> {
         self
     }
 
-    /// Sets what writes the results of checkpoints downloaded from the archive,
-    /// so their transactions do not have to be executed. Leave unset to have
-    /// the checkpoint executor produce the results instead.
-    pub fn results_applier(
-        mut self,
-        results_applier: Option<Arc<dyn ApplyCheckpointResults>>,
-    ) -> Self {
-        self.results_applier = results_applier;
+    /// Sets where the results of checkpoints downloaded from the archive are
+    /// left for the checkpoint executor to commit. Leave unset to have every
+    /// checkpoint's transactions executed.
+    pub fn results_cache(mut self, results_cache: Option<Arc<dyn CacheCheckpointResults>>) -> Self {
+        self.results_cache = results_cache;
         self
     }
 }
@@ -146,7 +143,7 @@ where
             config,
             metrics,
             checkpoint_archive_config,
-            results_applier,
+            results_cache,
         } = self;
         let store = store.unwrap();
         let config = config.unwrap_or_default();
@@ -194,7 +191,7 @@ where
                 checkpoint_event_sender,
                 metrics,
                 checkpoint_archive_config,
-                results_applier,
+                results_cache,
                 genesis_checkpoint,
             },
             server,
@@ -212,7 +209,7 @@ pub struct UnstartedStateSync<S> {
     pub(super) checkpoint_event_sender: broadcast::Sender<VerifiedCheckpoint>,
     pub(super) metrics: Metrics,
     pub(super) checkpoint_archive_config: Option<CheckpointArchiveConfig>,
-    pub(super) results_applier: Option<Arc<dyn ApplyCheckpointResults>>,
+    pub(super) results_cache: Option<Arc<dyn CacheCheckpointResults>>,
     /// Cached genesis checkpoint, shared with the RPC server.
     pub(super) genesis_checkpoint: Arc<VerifiedCheckpoint>,
 }
@@ -232,7 +229,7 @@ where
             checkpoint_event_sender,
             metrics,
             checkpoint_archive_config,
-            results_applier,
+            results_cache,
             genesis_checkpoint,
         } = self;
 
@@ -251,7 +248,7 @@ where
                 network,
                 metrics,
                 checkpoint_archive_config,
-                results_applier,
+                results_cache,
                 sync_checkpoint_from_archive_task: None,
                 genesis_checkpoint,
             },

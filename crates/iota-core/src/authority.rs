@@ -83,7 +83,7 @@ use iota_types::{
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     gas::IotaGasStatus,
     gas_coin::mock_simulation_gas_coin,
-    inner_temporary_store::InnerTemporaryStore,
+    inner_temporary_store::{InnerTemporaryStore, derive_output_keys},
     iota_system_state::{
         IotaSystemState, IotaSystemStateTrait,
         epoch_start_iota_system_state::EpochStartSystemStateTrait, get_iota_system_state,
@@ -1927,6 +1927,44 @@ impl AuthorityState {
 
         self.update_metrics(transaction, input_object_count, shared_object_count);
 
+        Ok(())
+    }
+
+    /// Commits the results a checkpoint carries for one transaction, instead of
+    /// executing it.
+    ///
+    /// Mirrors what `commit_certificate` does once execution has produced the
+    /// outputs: they are written, and the execution scheduler is told which
+    /// objects became available so transactions waiting on them can run.
+    /// Without that notification a dependent transaction would wait forever.
+    pub fn commit_checkpoint_transaction_outputs(
+        &self,
+        outputs: TransactionOutputs,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult {
+        let tx_digest = *outputs.transaction.digest();
+        let shared_inputs: HashSet<ObjectId> = outputs
+            .effects
+            .old_object_metadata()
+            .into_iter()
+            .filter_map(|old| old.owner.is_shared().then_some(old.reference.object_id))
+            .collect();
+        let output_keys = derive_output_keys(
+            &outputs.written,
+            &outputs.effects,
+            |id| shared_inputs.contains(id),
+            outputs.effects.lamport_version(),
+        );
+
+        self.get_cache_writer()
+            .try_write_transaction_outputs(epoch_store.epoch(), Arc::new(outputs))?;
+
+        match self.execution_scheduler.as_ref() {
+            ExecutionSchedulerWrapper::ExecutionScheduler(_) => {}
+            ExecutionSchedulerWrapper::TransactionManager(tm) => {
+                tm.notify_commit(&tx_digest, output_keys, epoch_store);
+            }
+        }
         Ok(())
     }
 

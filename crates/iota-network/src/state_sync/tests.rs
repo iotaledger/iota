@@ -348,6 +348,7 @@ async fn test_state_sync_using_checkpoint_archive() -> anyhow::Result<()> {
         // applier to hand it; the flag's value makes no difference here.
         re_execute_archived_checkpoints: false,
         sync_from_archive_only: false,
+        results_cache_size_bytes: 0,
     };
     // Build and connect two nodes where Node 1 will be given access to an archive
     // store Node 2 will prune older checkpoints, so Node 1 is forced to

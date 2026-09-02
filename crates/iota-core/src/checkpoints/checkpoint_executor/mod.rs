@@ -46,7 +46,7 @@ use iota_types::{
 };
 use parking_lot::Mutex;
 use tap::{TapFallible, TapOptional};
-use tracing::{debug, info, instrument};
+use tracing::{debug, info, instrument, warn};
 
 use crate::{
     authority::{
@@ -55,10 +55,12 @@ use crate::{
         shared_object_version_manager::gas_object_cancellation_version_from_effects,
     },
     checkpoint_progress_tracker::CheckpointProgressTracker,
+    checkpoint_results_cache::{CheckpointResultsCache, may_commit_from_checkpoint},
     checkpoints::CheckpointStore,
     execution_cache::{ObjectCacheRead, TransactionCacheRead},
     execution_scheduler::{ExecutionSchedulerAPI, ExecutionSchedulerWrapper},
     global_state_hasher::GlobalStateHasher,
+    transaction_outputs::TransactionOutputs,
 };
 
 mod data_ingestion_handler;
@@ -139,6 +141,8 @@ pub struct CheckpointExecutor {
     tps_estimator: Mutex<TPSEstimator>,
     checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
     data_sender: Option<CheckpointDataSender>,
+    /// Results state sync downloaded, to commit instead of executing.
+    checkpoint_results_cache: Option<Arc<CheckpointResultsCache>>,
 }
 
 impl CheckpointExecutor {
@@ -152,6 +156,7 @@ impl CheckpointExecutor {
         metrics: Arc<CheckpointExecutorMetrics>,
         data_sender: Option<CheckpointDataSender>,
         checkpoint_progress_tracker: Option<Arc<CheckpointProgressTracker>>,
+        checkpoint_results_cache: Option<Arc<CheckpointResultsCache>>,
     ) -> Self {
         Self {
             epoch_store,
@@ -167,6 +172,7 @@ impl CheckpointExecutor {
             tps_estimator: Mutex::new(TPSEstimator::default()),
             checkpoint_progress_tracker,
             data_sender,
+            checkpoint_results_cache,
         }
     }
 
@@ -186,6 +192,7 @@ impl CheckpointExecutor {
             CheckpointExecutorMetrics::new_for_tests(),
             None, // No callback for data
             None, // No progress tracker for tests
+            None, // Tests execute rather than commit downloaded results
         )
     }
 
@@ -590,14 +597,46 @@ impl CheckpointExecutor {
     ) -> CheckpointExecutionState {
         let sequence_number = ckpt_state.data.checkpoint.sequence_number;
 
+        // Results state sync already downloaded and verified, if any. Checked
+        // here rather than at commit time: a checkpoint whose payloads do not
+        // verify has to go back to being executed, and by then its
+        // transactions would no longer be scheduled.
+        let committable_results = self
+            .checkpoint_results_cache
+            .as_ref()
+            .and_then(|cache| cache.take(sequence_number))
+            .filter(|results| match results.verify_payload_digests() {
+                Ok(()) => true,
+                Err(error) => {
+                    warn!(
+                        ?sequence_number,
+                        "executing checkpoint instead of committing its results: {error}"
+                    );
+                    false
+                }
+            });
+
         let (unexecuted_tx_digests, unexecuted_expected_fx_digests) = {
             let _scope = iota_metrics::monitored_scope("CheckpointExecutor::execute_transactions");
-            self.schedule_transaction_execution(&ckpt_state, &tx_data)
+            self.schedule_transaction_execution(
+                &ckpt_state,
+                &tx_data,
+                committable_results.is_none(),
+            )
         };
 
         finish_stage!(pipeline_handle, ExecuteTransactions);
 
-        {
+        if let Some(results) = committable_results {
+            // Committed in this stage, not when state sync downloaded them.
+            // Entering here means the previous checkpoint finished this stage,
+            // so all of its object writes are done and versions stay in the
+            // increasing order the writeback cache requires.
+            //
+            // No fork check: the effects being written are the certified ones,
+            // so there is nothing to compare them against.
+            self.commit_checkpoint_results(&results, &unexecuted_tx_digests);
+        } else {
             let actual_fx_digests = self
                 .transaction_cache_reader
                 .notify_read_executed_effects_digests(
@@ -935,14 +974,41 @@ impl CheckpointExecutor {
         }
     }
 
+    /// Commits the results a checkpoint carries for every transaction in
+    /// `to_commit`, so they do not have to be executed.
+    ///
+    /// Only transactions the caller found unexecuted are written: committing a
+    /// version the writeback cache already holds would break its
+    /// increasing-version invariant.
+    fn commit_checkpoint_results(&self, results: &CheckpointData, to_commit: &[TransactionDigest]) {
+        let _scope = iota_metrics::monitored_scope("CheckpointExecutor::commit_checkpoint_results");
+        for tx in &results.transactions {
+            if !may_commit_from_checkpoint(tx) {
+                continue;
+            }
+            if !to_commit.contains(tx.effects.transaction_digest()) {
+                continue;
+            }
+            let outputs = TransactionOutputs::build_from_checkpoint_transaction(tx);
+            self.state
+                .commit_checkpoint_transaction_outputs(outputs, &self.epoch_store)
+                .expect("storage access failed");
+        }
+    }
+
     /// Enqueues the checkpoint's not-yet-executed transactions, and returns
     /// their digests together with the effects digest the checkpoint expects
     /// for each, so the caller can check for a fork once they execute.
+    ///
+    /// `enqueue_for_execution` is false when the caller will commit the
+    /// checkpoint's own results instead; the transactions still need their
+    /// shared versions assigned, but must not be executed.
     #[instrument(level = "info", skip_all)]
     fn schedule_transaction_execution(
         &self,
         ckpt_state: &CheckpointExecutionState,
         tx_data: &CheckpointTransactionData,
+        enqueue_for_execution: bool,
     ) -> (Vec<TransactionDigest>, Vec<TransactionEffectsDigest>) {
         // Which transactions have already been executed must be read here, in
         // the ordered pipeline stage, and not when the checkpoint data is
@@ -1007,9 +1073,12 @@ impl CheckpointExecutor {
             ),
         );
 
-        // Enqueue unexecuted transactions with their expected effects digests
-        self.execution_scheduler
-            .enqueue_transactions(unexecuted_txns, &self.epoch_store);
+        // Transactions whose results are committed from the checkpoint still
+        // need their shared versions assigned above, but must not be executed.
+        if enqueue_for_execution {
+            self.execution_scheduler
+                .enqueue_transactions(unexecuted_txns, &self.epoch_store);
+        }
 
         (unexecuted_tx_digests, unexecuted_expected_fx_digests)
     }

@@ -42,8 +42,37 @@ pub struct InnerTemporaryStore {
 
 impl InnerTemporaryStore {
     pub fn get_output_keys(&self, effects: &TransactionEffects) -> Vec<InputKey> {
-        let mut output_keys: Vec<_> = self
-            .written
+        derive_output_keys(
+            &self.written,
+            effects,
+            |id| {
+                self.input_objects
+                    .get(id)
+                    .is_some_and(|object| object.is_shared())
+            },
+            self.lamport_version,
+        )
+    }
+}
+
+/// Derives the object keys a transaction makes available, which the execution
+/// scheduler needs in order to release transactions that were waiting on them.
+///
+/// `input_was_shared` answers whether a deleted object was shared before the
+/// transaction ran. A caller that executed it answers from the input objects it
+/// loaded; a caller committing results carried by a checkpoint answers from the
+/// input state recorded in the effects.
+pub fn derive_output_keys<F>(
+    written: &WrittenObjects,
+    effects: &TransactionEffects,
+    input_was_shared: F,
+    lamport_version: Version,
+) -> Vec<InputKey>
+where
+    F: Fn(&ObjectId) -> bool,
+{
+    {
+        let mut output_keys: Vec<_> = written
             .iter()
             .map(|(id, obj)| {
                 if obj.is_package() {
@@ -65,23 +94,20 @@ impl InnerTemporaryStore {
 
         // add deleted shared objects to the outputkeys that then get sent to
         // notify_commit
-        let deleted_output_keys = deleted
-            .iter()
-            .filter(|(id, _)| {
-                self.input_objects
-                    .get(id)
-                    .is_some_and(|obj| obj.is_shared())
-            })
-            .map(|(id, seq)| InputKey::VersionedObject {
-                id: *id,
-                version: *seq,
-            });
+        let deleted_output_keys =
+            deleted
+                .iter()
+                .filter(|(id, _)| input_was_shared(id))
+                .map(|(id, seq)| InputKey::VersionedObject {
+                    id: *id,
+                    version: *seq,
+                });
         output_keys.extend(deleted_output_keys);
 
         // For any previously deleted shared objects that appeared mutably in the
         // transaction, synthesize a notification for the next version of the
         // object.
-        let smeared_version = self.lamport_version;
+        let smeared_version = lamport_version;
         let deleted_accessed_objects = effects.deleted_mutably_accessed_shared_objects();
         for object_id in deleted_accessed_objects.into_iter() {
             let key = InputKey::VersionedObject {

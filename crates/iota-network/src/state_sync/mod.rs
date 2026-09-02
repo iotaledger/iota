@@ -84,7 +84,7 @@ use iota_types::{
         CertifiedCheckpointSummary as Checkpoint, CheckpointSequenceNumber, CheckpointSummaryExt,
         FullCheckpointContents, VerifiedCheckpoint, VerifiedCheckpointContents,
     },
-    storage::{ApplyCheckpointResults, WriteStore},
+    storage::{CacheCheckpointResults, WriteStore},
 };
 use prometheus_filtered::Registry;
 use rand::Rng;
@@ -488,7 +488,7 @@ struct StateSyncEventLoop<S> {
     metrics: Metrics,
 
     sync_checkpoint_from_archive_task: Option<AbortHandle>,
-    results_applier: Option<Arc<dyn ApplyCheckpointResults>>,
+    results_cache: Option<Arc<dyn CacheCheckpointResults>>,
     checkpoint_archive_config: Option<CheckpointArchiveConfig>,
     /// Cached genesis checkpoint, shared with the RPC server.
     genesis_checkpoint: Arc<VerifiedCheckpoint>,
@@ -559,7 +559,7 @@ where
             self.store.clone(),
             self.peer_heights.clone(),
             self.metrics.clone(),
-            self.results_applier.clone(),
+            self.results_cache.clone(),
         );
         let task_handle = self.tasks.spawn(task);
         self.sync_checkpoint_from_archive_task = Some(task_handle);
@@ -1381,7 +1381,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive<S>(
     store: S,
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
-    results_applier: Option<Arc<dyn ApplyCheckpointResults>>,
+    results_cache: Option<Arc<dyn CacheCheckpointResults>>,
 ) where
     S: WriteStore + Clone + Send + Sync + 'static,
 {
@@ -1393,7 +1393,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive<S>(
             store.clone(),
             peer_heights.clone(),
             metrics.clone(),
-            results_applier.clone(),
+            results_cache.clone(),
         )
         .await;
         tokio::time::sleep(Duration::from_secs(5)).await;
@@ -1407,7 +1407,7 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
     store: S,
     peer_heights: Arc<RwLock<PeerHeights>>,
     metrics: Metrics,
-    results_applier: Option<Arc<dyn ApplyCheckpointResults>>,
+    results_cache: Option<Arc<dyn CacheCheckpointResults>>,
 ) where
     S: WriteStore + Clone + Send + Sync + 'static,
 {
@@ -1490,10 +1490,10 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
                 max_checkpoints_ahead_of_execution,
                 // Configuring re-execution withholds the applier, leaving
                 // every transaction to the checkpoint executor.
-                results_applier: if checkpoint_archive_config.re_execute_archived_checkpoints {
+                results_cache: if checkpoint_archive_config.re_execute_archived_checkpoints {
                     None
                 } else {
-                    results_applier
+                    results_cache
                 },
             },
         );
