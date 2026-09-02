@@ -52,6 +52,9 @@ def predict(artifact, profile):
 def collect(args):
     if not args.binary.exists():
         sys.exit(f"binary not found: {args.binary}")
+    if getattr(args, "concurrency", 0):
+        # keep every lane busy for several waves under contention
+        args.tx_count = max(args.tx_count, 4 * args.concurrency)
     spec = args.spec if args.spec.exists() else CALIBRATION_DIR / args.spec
     point_dir = args.out / "mixed" / f"spec={spec.stem}"
     point_dir.mkdir(parents=True, exist_ok=True)
@@ -63,7 +66,9 @@ def collect(args):
             continue
         print(f"[mixed] run {i} ({args.tx_count} txs)", flush=True)
         cmd = [str(args.binary), "--tx-count", str(args.tx_count),
-               "--profile-output", str(out_file), "mixed", "--spec-file", str(spec)]
+               "--profile-output", str(out_file),
+               *(["--concurrency", str(args.concurrency)] if args.concurrency else []),
+               "mixed", "--spec-file", str(spec)]
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
             out_file.unlink(missing_ok=True)
@@ -144,6 +149,9 @@ def main():
     c.add_argument("--tx-count", type=int, default=200)
     c.add_argument("--cooldown", type=float, default=1.0)
     c.add_argument("--binary", type=Path, default=DEFAULT_BINARY)
+    c.add_argument("--concurrency", type=int, default=0,
+                   help="transactions executing at once (0 = one at a time); "
+                        "nonzero for the contended mixed collection")
     c.set_defaults(func=collect)
 
     v = sub.add_parser("score", help="score an artifact against datasets")
