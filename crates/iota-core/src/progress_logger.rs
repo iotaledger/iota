@@ -75,8 +75,10 @@ impl ProgressLogger {
         }
         if !self.announced {
             info!(
-                "{}: {} starting, about {} rows to go",
-                self.pass, self.step, self.total
+                "{}: starting, ~{} {} to go",
+                self.pass,
+                format_count(self.total),
+                self.step
             );
             self.announced = true;
         }
@@ -93,42 +95,142 @@ impl ProgressLogger {
             return;
         }
         info!(
-            "{}: {} finished, {} rows in {:.0?}",
+            "{}: done, {} {} in {}",
             self.pass,
+            format_count(self.done),
             self.step,
-            self.done,
-            self.started.elapsed()
+            format_duration(self.started.elapsed())
         );
     }
 
     fn write_line(&mut self) {
-        let now = Instant::now();
-        let since_last_line = self.done - self.done_at_last_line;
-        let elapsed = self.started.elapsed().as_secs_f64();
-        let percent = if self.total == 0 {
-            100.0
+        let elapsed = self.started.elapsed();
+        let fraction = if self.total == 0 {
+            1.0
         } else {
-            (self.done as f64 / self.total as f64 * 100.0).min(100.0)
-        };
-        // Measured over the whole step rather than the last second, so that
-        // one slow slice does not swing the estimate.
-        let rows_per_second = self.done as f64 / elapsed.max(f64::EPSILON);
-        let left = self.total.saturating_sub(self.done);
-        let seconds_left = if rows_per_second > 0.0 {
-            (left as f64 / rows_per_second).min(LONGEST_REPORTED_WAIT)
-        } else {
-            0.0
+            (self.done as f64 / self.total as f64).min(1.0)
         };
         info!(
-            "{}: {} {}/~{} ({percent:.1}%), +{since_last_line} in the last {:.0?}, about {:.0?} left",
-            self.pass,
-            self.step,
-            self.done,
-            self.total,
-            now - self.last_line,
-            Duration::from_secs_f64(seconds_left),
+            "{}",
+            progress_line(
+                self.pass, self.step, fraction, self.done, self.total, elapsed,
+            )
         );
         self.done_at_last_line = self.done;
-        self.last_line = now;
+        self.last_line = Instant::now();
+    }
+}
+
+/// One progress line, shared by every pass that reports so they all read the
+/// same: `"<pass>: ~2.9% done, 26.3M/80.3M objects scanned (4.4M objects/s),
+/// ETA ~3m 23s"`.
+///
+/// `fraction_done` is passed in rather than derived from `done / total`,
+/// because a pass that can measure its position more accurately than its
+/// row count — a scan over the object id space, say — should report that
+/// measure. `total` is only ever an estimate, so it is printed with a `~`.
+pub(crate) fn progress_line(
+    pass: &str,
+    unit: &str,
+    fraction_done: f64,
+    done: u64,
+    total: u64,
+    elapsed: Duration,
+) -> String {
+    let rate = progress_rate(done, elapsed);
+    format!(
+        "{pass}: ~{:.1}% done, {}/~{} {unit} scanned ({} {unit}/s), ETA ~{}",
+        fraction_done * 100.0,
+        format_count(done),
+        format_count(total),
+        format_count(rate as u64),
+        eta_display(elapsed, fraction_done),
+    )
+}
+
+/// Items processed per second since the work started.
+pub(crate) fn progress_rate(items: u64, elapsed: Duration) -> f64 {
+    items as f64 / elapsed.as_secs_f64().max(f64::EPSILON)
+}
+
+/// The estimated time remaining, or "unknown" when nothing has been done yet.
+pub(crate) fn eta_display(elapsed: Duration, fraction_done: f64) -> String {
+    if fraction_done <= 0.0 {
+        return "unknown".to_string();
+    }
+    let total = elapsed.as_secs_f64() / fraction_done;
+    let left = (total - elapsed.as_secs_f64()).clamp(0.0, LONGEST_REPORTED_WAIT);
+    format_duration(Duration::from_secs_f64(left))
+}
+
+/// Formats a duration for progress lines, e.g. "1h 42m", "3m 20s", or "45s".
+pub(crate) fn format_duration(duration: Duration) -> String {
+    let secs = duration.as_secs();
+    let (hours, minutes, seconds) = (secs / 3600, (secs % 3600) / 60, secs % 60);
+    if hours > 0 {
+        format!("{hours}h {minutes}m")
+    } else if minutes > 0 {
+        format!("{minutes}m {seconds}s")
+    } else {
+        format!("{seconds}s")
+    }
+}
+
+/// Formats a count for progress lines, e.g. "123.4M" or "1.2k".
+pub(crate) fn format_count(count: u64) -> String {
+    if count >= 1_000_000_000 {
+        format!("{:.1}B", count as f64 / 1e9)
+    } else if count >= 1_000_000 {
+        format!("{:.1}M", count as f64 / 1e6)
+    } else if count >= 1_000 {
+        format!("{:.1}k", count as f64 / 1e3)
+    } else {
+        count.to_string()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Every pass reports in one shape, so an operator reading a node's
+    /// startup does not have to learn three.
+    #[test]
+    fn a_progress_line_reads_the_same_for_every_pass() {
+        assert_eq!(
+            progress_line(
+                "Indexing live object set",
+                "objects",
+                0.029,
+                26_300_000,
+                803_000_000,
+                Duration::from_secs(210),
+            ),
+            "Indexing live object set: ~2.9% done, 26.3M/~803.0M objects scanned \
+             (125.2k objects/s), ETA ~1h 57m"
+        );
+    }
+
+    /// Nothing done yet says so rather than extrapolating from no data.
+    #[test]
+    fn an_eta_needs_progress_to_estimate_from() {
+        assert_eq!(eta_display(Duration::from_secs(100), 0.0), "unknown");
+        assert_eq!(eta_display(Duration::from_secs(100), 0.25), "5m 0s");
+        assert_eq!(eta_display(Duration::from_secs(100), 1.0), "0s");
+    }
+
+    #[test]
+    fn format_duration_picks_the_two_largest_units() {
+        assert_eq!(format_duration(Duration::from_secs(45)), "45s");
+        assert_eq!(format_duration(Duration::from_secs(200)), "3m 20s");
+        assert_eq!(format_duration(Duration::from_secs(6120)), "1h 42m");
+    }
+
+    #[test]
+    fn format_count_abbreviates_large_numbers() {
+        assert_eq!(format_count(999), "999");
+        assert_eq!(format_count(1_200), "1.2k");
+        assert_eq!(format_count(123_400_000), "123.4M");
+        assert_eq!(format_count(2_500_000_000), "2.5B");
     }
 }
