@@ -177,6 +177,76 @@ const notarization = [
             },
         ],
     },
+    {
+        type: 'category',
+        label: 'Proof of Inclusion',
+        link: {
+            type: 'doc',
+            id: 'developer/iota-notarization/proof-of-inclusion/index',
+        },
+        items: [
+            {
+                type: 'category',
+                label: 'Getting Started',
+                collapsed: false,
+                items: [
+                    'developer/iota-notarization/proof-of-inclusion/getting-started/rust',
+                    'developer/iota-notarization/proof-of-inclusion/getting-started/wasm',
+                    'developer/iota-notarization/proof-of-inclusion/getting-started/cli',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Explanations',
+                items: [
+                    'developer/iota-notarization/proof-of-inclusion/explanations/about-proof-of-inclusion',
+                    'developer/iota-notarization/proof-of-inclusion/explanations/proof-model',
+                    'developer/iota-notarization/proof-of-inclusion/explanations/trust-and-verification',
+                ],
+            },
+            {
+                type: 'category',
+                label: 'Examples',
+                items: [
+                    'developer/iota-notarization/proof-of-inclusion/how-tos/examples/transaction-proof',
+                    'developer/iota-notarization/proof-of-inclusion/how-tos/examples/multi-target-proof',
+                    'developer/iota-notarization/proof-of-inclusion/how-tos/examples/reuse-verifier',
+                    'developer/iota-notarization/proof-of-inclusion/how-tos/examples/object-proof',
+                    'developer/iota-notarization/proof-of-inclusion/how-tos/examples/event-proof',
+                    {
+                        type: 'category',
+                        label: 'Advanced',
+                        items: [
+                            'developer/iota-notarization/proof-of-inclusion/how-tos/examples/advanced/committee-cache',
+                            'developer/iota-notarization/proof-of-inclusion/how-tos/examples/advanced/trusted-node',
+                        ],
+                    },
+                ],
+            },
+            {
+                type: 'category',
+                label: 'References',
+                collapsed: true,
+                items: [
+                    {
+                        type: 'link',
+                        label: 'Rust API',
+                        href: 'https://iotaledger.github.io/notarization/poi_rs/index.html',
+                    },
+                    {
+                        type: 'link',
+                        label: 'Rust Package',
+                        href: 'https://github.com/iotaledger/notarization/tree/main/poi-rs',
+                    },
+                    {
+                        type: 'link',
+                        label: 'Wasm Package',
+                        href: 'https://github.com/iotaledger/notarization/tree/main/bindings/wasm/poi_wasm',
+                    },
+                ],
+            },
+        ],
+    },
     'developer/iota-notarization/contribute',
 ];
 

@@ -1,0 +1,128 @@
+---
+title: Create and Verify an Event Proof
+sidebar_label: Event Proof
+description: Start from an event ID and authenticate the selected event against its transaction effects.
+tags:
+  - notarization
+  - proof-of-inclusion
+  - how-to
+  - rust
+  - typescript
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Create and Verify an Event Proof
+
+An event ID contains the emitting transaction digest and the event's transaction-local sequence number. The builder can therefore select the execution without a separate transaction target.
+
+Event proofs carry the transaction's complete event list because the transaction effects commit to that list.
+
+## Prerequisites
+
+- Complete the [Rust](../../getting-started/rust.mdx) or [Wasm](../../getting-started/wasm.mdx) setup.
+- Select an active IOTA CLI environment and wallet with funds or faucet access.
+- Make sure the JSON-RPC and gRPC endpoints belong to the same network.
+- For local or custom networks, set `IOTA_GENESIS_PATH` to an independently trusted genesis blob.
+
+:::important
+
+The example creates a new Locked Notarization transaction. On mainnet, fund the active wallet and set `IOTA_NOTARIZATION_PKG_ID` to an existing Single Notarization Move Package before running it.
+
+:::
+
+## Steps
+
+### 1. Construct the Event Proof
+
+Create a transaction that emits an event and request a proof using only the resulting event ID. Event sequence numbers use `u64` in Rust and `bigint` in TypeScript.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/05_event_proof.rs#L29-L77
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/05_event_proof.ts#L23-L48
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Verify the Event
+
+Verification authenticates the complete event list and checks that the selected sequence exists within it. Read the event contents only from the verified result.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/05_event_proof.rs#L79-L90
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/05_event_proof.ts#L50-L60
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- The constructed proof contains one event target and no explicit transaction or object targets.
+- The proof carries the complete event data committed to by the transaction effects.
+- Successful verification returns the selected event identifier and its authenticated BCS contents.
+
+## Run the Example
+
+Run either implementation from the Notarization repository root:
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```bash
+cargo run --release -p poi-examples --example 05_event_proof
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```bash
+cd bindings/wasm/poi_wasm
+npm run example:node -- 05_event_proof
+```
+
+</TabItem>
+</Tabs>
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/05_event_proof.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/05_event_proof.ts
+```
+
+</TabItem>
+</Tabs>

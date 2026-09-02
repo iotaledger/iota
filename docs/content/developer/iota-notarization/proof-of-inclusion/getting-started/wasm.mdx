@@ -1,0 +1,103 @@
+---
+title: Getting Started with Wasm
+sidebar_label: Wasm
+description: Build the Node.js Proof of Inclusion Wasm Package and construct and verify proofs from TypeScript.
+tags:
+  - notarization
+  - proof-of-inclusion
+  - wasm
+  - typescript
+  - setup
+  - getting-started
+---
+
+# Getting Started with Wasm
+
+The `@iota/poi-wasm` Package provides a Node.js and TypeScript interface to the Rust proof builder and verifier compiled to WebAssembly. `PoiClient` connects to IOTA gRPC through ConnectRPC and keeps transport details outside the Wasm module.
+
+The Package is Node.js-only. It does not provide a browser bundle.
+
+## Requirements
+
+- [Node.js](https://nodejs.org/) 24 or later
+- [Rust](https://www.rust-lang.org/) 1.85 or later with the `wasm32-unknown-unknown` target
+- [`wasm-bindgen-cli`](https://rustwasm.github.io/wasm-bindgen/)
+- [`wasm-opt`](https://github.com/WebAssembly/binaryen)
+- Access to an IOTA gRPC endpoint
+- A trusted genesis blob or committee for anchored verification
+
+Install the Rust target and build tools before building the Package:
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo install wasm-bindgen-cli
+```
+
+Install `wasm-opt` through your platform's Binaryen package.
+
+## Build the Package
+
+The Wasm Package currently builds from the Notarization repository source:
+
+```bash
+git clone https://github.com/iotaledger/notarization.git
+cd notarization/bindings/wasm/poi_wasm
+npm install
+npm run build
+```
+
+The build generates the gRPC client, compiles Rust for `wasm32-unknown-unknown`, creates the Node.js package, and checks the TypeScript boundary. The generated package entry point is `node/index.js`.
+
+## Construct and Verify a Proof
+
+The following example constructs a testnet transaction proof and verifies it with a trusted testnet genesis blob:
+
+```ts
+import { readFile } from "node:fs/promises";
+
+import { fromBase58 } from "@iota/iota-sdk/utils";
+import { CommitteeResolution, PoiClient } from "@iota/poi-wasm";
+
+const client = PoiClient.testnet();
+const transaction = fromBase58(transactionDigest);
+const proof = await client.makeProof({ transaction });
+
+const genesis = await readFile("trusted-testnet-genesis.blob");
+const resolution = CommitteeResolution.fromGenesis(genesis);
+const verifier = client.verifier(resolution);
+const verified = await verifier.verify(proof);
+
+console.log(verified.transaction);
+console.log(verified.checkpointEpoch);
+```
+
+`makeProof()` accepts optional `transaction`, `objects`, and `events` fields. Digest and object ID inputs are byte arrays, and every 64-bit value uses JavaScript `bigint`.
+
+Treat the returned `Proof` as untrusted until verification succeeds. Read authenticated object bytes with `verified.objectBcs(index)` and event bytes with `verified.eventContents(index)`.
+
+## Run the Examples
+
+The Package includes transaction, multi-target, verifier-reuse, object, event, and trusted-node examples. They use the active IOTA CLI environment and wallet to create fresh proof targets.
+
+```bash
+npm run example:node -- 01_transaction_proof
+```
+
+Run `06_trusted_node` only against an endpoint inside your trust boundary:
+
+```bash
+npm run example:node -- 06_trusted_node
+```
+
+See the [Wasm examples README](https://github.com/iotaledger/notarization/tree/main/bindings/wasm/poi_wasm/examples) for network, wallet, Package ID, and genesis requirements.
+
+## Verify the Complete Package
+
+Run the package-local verification command after changing the Rust or TypeScript boundary:
+
+```bash
+npm run verify
+```
+
+This command regenerates the committed-schema client, builds the release Wasm bundle, type-checks the TypeScript code, and runs the Node.js unit tests.
+

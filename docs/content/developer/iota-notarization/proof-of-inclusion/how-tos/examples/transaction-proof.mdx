@@ -1,0 +1,172 @@
+---
+title: Create and Verify a Transaction Proof
+sidebar_label: Transaction Proof
+description: Create, serialize, transfer, and verify an IOTA transaction Proof of Inclusion.
+tags:
+  - notarization
+  - proof-of-inclusion
+  - how-to
+  - rust
+  - typescript
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Create and Verify a Transaction Proof
+
+A transaction proof authenticates a transaction and its effects against a certified checkpoint. The workflow keeps proof construction, transport, and verification separate so the received proof remains untrusted until verification succeeds.
+
+## Prerequisites
+
+- Complete the [Rust](../../getting-started/rust.mdx) or [Wasm](../../getting-started/wasm.mdx) setup.
+- Select an active IOTA CLI environment and wallet with funds or faucet access.
+- Make sure the JSON-RPC and gRPC endpoints belong to the same network.
+- For local or custom networks, set `IOTA_GENESIS_PATH` to an independently trusted genesis blob.
+
+:::important
+
+The example creates a new Locked Notarization transaction. On mainnet, fund the active wallet and set `IOTA_NOTARIZATION_PKG_ID` to an existing Single Notarization Move Package before running it.
+
+:::
+
+## Steps
+
+### 1. Establish Committee Trust
+
+Load the genesis blob independently from the ledger source and use it to create a genesis-anchored verifier. The genesis blob must belong to the proof's network.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/01_transaction_proof.rs#L37-L48
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/01_transaction_proof.ts#L32-L35
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Construct the Proof
+
+Create fresh transaction evidence and select only the transaction as the proof target. The builder fetches the transaction, effects, and certified checkpoint evidence.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/01_transaction_proof.rs#L51-L90
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/01_transaction_proof.ts#L37-L53
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Transfer the Proof
+
+Serialize the proof as JSON to model transfer through a file, API, message, or process boundary. Deserialization reconstructs the proof but does not authenticate it.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/01_transaction_proof.rs#L92-L104
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/01_transaction_proof.ts#L55-L62
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Verify the Received Proof
+
+Verify the received proof before accepting its transaction or checkpoint values. Genesis-anchored resolution authenticates the committee transitions required to reach the proof's epoch.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/01_transaction_proof.rs#L106-L119
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/01_transaction_proof.ts#L64-L70
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Expected Behavior
+
+- The constructed proof contains the requested transaction target and no object or event targets.
+- The proof format version, checkpoint epoch, and transaction target survive the JSON round trip.
+- Successful verification returns the requested transaction digest and its authenticated checkpoint sequence number.
+
+## Run the Example
+
+Run either implementation from the Notarization repository root:
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```bash
+cargo run --release -p poi-examples --example 01_transaction_proof
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```bash
+cd bindings/wasm/poi_wasm
+npm run example:node -- 01_transaction_proof
+```
+
+</TabItem>
+</Tabs>
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/01_transaction_proof.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/01_transaction_proof.ts
+```
+
+</TabItem>
+</Tabs>

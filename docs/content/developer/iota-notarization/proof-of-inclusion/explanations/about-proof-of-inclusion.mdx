@@ -1,0 +1,75 @@
+---
+title: About Proof of Inclusion
+description: Learn what IOTA Proof of Inclusion proves, how it differs from notarization, and which actors participate in the workflow.
+tags:
+  - explanation
+  - notarization
+  - proof-of-inclusion
+---
+
+# About Proof of Inclusion
+
+IOTA Proof of Inclusion lets one party package ledger evidence and another party verify it independently. The proof binds a transaction and selected object or event data to a committee-certified checkpoint.
+
+## Proof of Inclusion and Notarization
+
+Single Notarization and Audit Trails create application-specific objects and transactions on the IOTA ledger. Proof of Inclusion does not create ledger state. It proves that existing state changes or events are part of the certified ledger history.
+
+The components can work together without depending on each other:
+
+- A Single Notarization application can prove the transaction that created a notarization or the exact version of its object.
+- An Audit Trails application can prove a record-related event or an object version produced by a trail transaction.
+- Any IOTA application can prove its own transactions, object versions, and events without using a Notarization Move Package.
+
+## Actors
+
+### Ledger Source
+
+The ledger source returns the transaction, effects, objects, events, checkpoint contents, checkpoint summary, and committee-transition evidence needed by the workflow. Native Rust uses the IOTA gRPC client by default. The Wasm Package uses a generated `LedgerService` client over ConnectRPC.
+
+Treat source responses as untrusted. Proof construction checks that requested targets belong to one transaction, but only verification establishes authenticity relative to a trusted committee.
+
+### Prover
+
+The prover selects the values to prove and constructs a `Proof`. The prover may serialize the proof as JSON and send it through a file, API, message queue, object store, or another transport.
+
+The prover does not decide what the verifier trusts. Selecting mainnet, testnet, devnet, or a custom endpoint only selects a source of evidence.
+
+### Verifier
+
+The verifier receives the untrusted `Proof`, chooses a committee-resolution mode, and runs verification. The verifier must obtain its genesis blob or initial committee independently from the party that supplies the proof when using anchored resolution.
+
+Applications should read relying-party data from `VerifiedProof`, not directly from the untrusted `Proof` envelope.
+
+## Targets
+
+One proof can contain a transaction target, one or more object targets, and one or more event targets. Every target must belong to the same transaction.
+
+### Transaction Target
+
+A transaction target proves that the selected transaction, its user signatures, and its effects appear in the authenticated checkpoint contents. The verifier checks the transaction and effects digests and binds the packaged signature bytes to the signatures committed by the checkpoint.
+
+### Object Target
+
+An object target proves the exact object version and value written by the authenticated transaction. The proof does not establish ownership beyond what the object value contains, and it does not establish that the version remains current.
+
+Deleted and wrapped objects are not supported as object targets.
+
+### Event Target
+
+An event target consists of the emitting transaction digest and its transaction-local sequence number. The proof carries the transaction's complete event list because the effects commit to the digest of that list.
+
+Verification checks the event-list digest and then selects the requested event by sequence number.
+
+## What Proof of Inclusion Does Not Prove
+
+Proof of Inclusion does not prove that:
+
+- an object version remains the latest version;
+- the proof's informational `chain` label identifies the correct network;
+- a source endpoint is honest;
+- a trusted-node committee came from an independently authenticated lineage; or
+- off-chain data matches an on-chain hash unless the application performs that comparison.
+
+These boundaries keep the proof claim precise. Applications can add domain-specific checks after they obtain a `VerifiedProof`.
+

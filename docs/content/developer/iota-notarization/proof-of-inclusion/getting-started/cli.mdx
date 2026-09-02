@@ -1,0 +1,114 @@
+---
+title: Getting Started with the CLI
+sidebar_label: CLI
+description: Build the Proof of Inclusion CLI from source and create and verify portable JSON proofs.
+tags:
+  - notarization
+  - proof-of-inclusion
+  - cli
+  - setup
+  - getting-started
+---
+
+# Getting Started with the CLI
+
+The `poi` command creates JSON proofs from IOTA gRPC data and verifies them with genesis-anchored committee history. CLI verification does not provide trusted-node mode.
+
+## Requirements
+
+- [Rust](https://www.rust-lang.org/) 1.85 or later
+- [Cargo](https://doc.rust-lang.org/cargo/)
+- Access to an IOTA gRPC endpoint
+- A trusted genesis blob for devnet, localnet, or custom networks
+
+## Build from Source
+
+The project does not distribute pre-built `poi` binaries. Build the command from the Notarization repository:
+
+```bash
+git clone https://github.com/iotaledger/notarization.git
+cd notarization
+cargo build --release -p poi-rs --features cli --bin poi
+```
+
+Cargo writes the binary to `target/release/poi` on Linux and macOS or `target\release\poi.exe` on Windows.
+
+You can also install it into Cargo's binary directory from the checked-out source:
+
+```bash
+cargo install --path poi-rs --features cli --bin poi --locked
+```
+
+## Create a Proof
+
+Select a public network or pass a custom gRPC endpoint. At least one transaction, object, or event target is required.
+
+Create a transaction proof:
+
+```bash
+./target/release/poi create \
+  --network testnet \
+  --transaction <transaction-digest> \
+  --output proof.json
+```
+
+Create an object proof:
+
+```bash
+./target/release/poi create \
+  --network testnet \
+  --object <object-id> \
+  --output proof.json
+```
+
+Create an event proof. Format the event ID as `TRANSACTION_DIGEST:EVENT_SEQUENCE`:
+
+```bash
+./target/release/poi create \
+  --network testnet \
+  --event <transaction-digest>:<event-sequence> \
+  --output proof.json
+```
+
+Repeat `--object` or `--event` to select multiple targets from the same transaction. Omit `--output`, or set it to `-`, to write JSON to standard output.
+
+## Verify a Proof
+
+Mainnet and testnet verification download, validate, and cache the network genesis blob automatically:
+
+```bash
+./target/release/poi verify \
+  --network testnet \
+  proof.json
+```
+
+Pass an explicit trusted genesis blob to override the managed blob:
+
+```bash
+./target/release/poi verify \
+  --network testnet \
+  --genesis /path/to/trusted-genesis.blob \
+  proof.json
+```
+
+Custom endpoints require an explicit genesis blob:
+
+```bash
+./target/release/poi verify \
+  --grpc-url http://127.0.0.1:50051 \
+  --genesis /path/to/localnet/genesis.blob \
+  proof.json
+```
+
+Use `-` as the proof path to read JSON from standard input.
+
+## Genesis Handling
+
+The CLI pins the canonical mainnet and testnet genesis digests. It validates downloaded blobs before caching them and validates cached blobs on every load.
+
+Devnet has no stable genesis digest. Pass `--genesis` when verifying a devnet proof. Local and custom networks also require an independently obtained trusted blob.
+
+The selected endpoint supplies untrusted proof and committee-transition evidence. The genesis blob establishes verification trust, so obtain it independently from the party that supplies the proof.
+
+Run `./target/release/poi --help` for all options.
+

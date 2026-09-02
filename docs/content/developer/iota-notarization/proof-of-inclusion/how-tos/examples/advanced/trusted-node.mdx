@@ -1,0 +1,66 @@
+---
+title: Verify a Proof Using a Trusted Node
+sidebar_label: Trusted Node
+description: Verify a Proof of Inclusion by accepting the committee reported by a trusted IOTA node.
+tags:
+  - notarization
+  - proof-of-inclusion
+  - how-to
+  - rust
+  - typescript
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Verify a Proof Using a Trusted Node
+
+Trusted-node committee resolution accepts the committee reported by the connected node without authenticating its lineage from genesis. Use this mode only when the selected gRPC endpoint is already inside the verifier's trust boundary.
+
+This example can run against any network and does not require a genesis blob. Complete the [Rust](../../../getting-started/rust.mdx) or [Wasm](../../../getting-started/wasm.mdx) setup before running it.
+
+:::warning
+Trusted-node mode does not authenticate committee lineage. A malicious or compromised trusted node can choose the committee that the verifier accepts.
+:::
+
+## Construct and Verify the Proof
+
+Create a transaction proof, select trusted-node committee resolution, and verify the proof against the committee supplied by the connected node.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/02_trusted_node.rs#L22-L49
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/06_trusted_node.ts#L23-L38
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/examples/poi/advanced/02_trusted_node.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/feat/poi-implementation/bindings/wasm/poi_wasm/examples/src/06_trusted_node.ts
+```
+
+</TabItem>
+</Tabs>

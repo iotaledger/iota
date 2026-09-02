@@ -349,7 +349,11 @@ hierarchies:
 # Notarization
 notarization:
   label: Notarization
-  description: The IOTA Notarization Toolkit providing Single Notarization and Audit Trails.
+  description: The IOTA Notarization Toolkit providing Single Notarization, Audit Trails, and Proof of Inclusion.
+
+proof-of-inclusion:
+  label: Proof of Inclusion
+  description: Portable evidence that IOTA ledger activity is included in a certified checkpoint.
 
 single-notarization:
   label: Single Notarization
