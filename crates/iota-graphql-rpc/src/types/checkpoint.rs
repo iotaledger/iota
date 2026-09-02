@@ -636,7 +636,7 @@ impl Loader<DigestKey> for Db {
         let checkpoint_id_to_stored: BTreeMap<Vec<u8>, StoredCheckpoint> = digests
             .into_iter()
             .zip(rows)
-            .filter_map(|(digest, row)| row.map(|stored| (digest.inner().to_vec(), stored)))
+            .filter_map(|(digest, row)| row.map(|stored| (digest.bytes().to_vec(), stored)))
             .collect();
 
         Ok(keys

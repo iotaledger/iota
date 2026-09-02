@@ -270,7 +270,7 @@ mod tests {
 
     fn extract(e: Vec<TransactionEffects>) -> Vec<u8> {
         e.into_iter()
-            .map(|e| e.transaction_digest().inner()[0])
+            .map(|e| e.transaction_digest().bytes()[0])
             .collect()
     }
 

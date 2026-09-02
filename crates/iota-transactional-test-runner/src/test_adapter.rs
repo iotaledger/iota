@@ -1141,7 +1141,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     module_bytes.iter(),
                     &dependencies,
                 )
-                .into_inner()
+                .into_bytes()
                 .to_vec();
                 let staged = StagedPackage {
                     file: data,
@@ -1697,7 +1697,7 @@ impl IotaTestAdapter {
         let upgrade_arg = builder.pure(policy).unwrap();
         let digest: Vec<u8> =
             MovePackage::compute_digest_for_modules_and_deps(&modules_bytes, &dependencies)
-                .into_inner()
+                .into_bytes()
                 .to_vec();
         let digest_arg = builder.pure(digest).unwrap();
 
