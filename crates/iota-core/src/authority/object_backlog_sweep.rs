@@ -120,7 +120,7 @@ pub async fn sweep(
         if sweep.is_done()? {
             return IotaResult::Ok(());
         }
-        match sweep.bound(pruner_db_present)? {
+        match sweep.bound(&checkpoint_store, pruner_db_present)? {
             Some(bound) => {
                 info!(
                     bound,
@@ -174,7 +174,11 @@ impl ObjectBacklogSweep {
 
     /// The checkpoint above which the backlog can still hold a superseded
     /// version, `None` when the whole live table has to be walked instead.
-    fn bound(&self, pruner_db_present: bool) -> IotaResult<Option<CheckpointSequenceNumber>> {
+    fn bound(
+        &self,
+        checkpoint_store: &CheckpointStore,
+        pruner_db_present: bool,
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
         if pruner_db_present {
             warn!(
                 "the objects pruner of this database ran with the compaction filter, whose \
@@ -182,7 +186,29 @@ impl ObjectBacklogSweep {
             );
             return Ok(None);
         }
-        Ok(self.perpetual_tables.object_backlog_sweep_bound.get(&())?)
+        let Some(bound) = self.perpetual_tables.object_backlog_sweep_bound.get(&())? else {
+            return Ok(None);
+        };
+        // The checkpoints above the bound are what names the backlog, so they
+        // all have to still be here. The checkpoint pruner runs to its own
+        // retention, which an earlier build let outpace the objects pruner —
+        // by holding fewer epochs of checkpoints than of object versions, or
+        // by having object pruning turned off after it had once run. Either
+        // leaves summaries missing from the range, and a version no summary
+        // names is one this walk would silently leave behind.
+        let pruned = checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()?
+            .unwrap_or(0);
+        if bound < pruned {
+            warn!(
+                bound,
+                pruned,
+                "the checkpoints above the objects pruner's watermark have themselves been \
+                 pruned, so they no longer name the backlog; walking the whole live table"
+            );
+            return Ok(None);
+        }
+        Ok(Some(bound))
     }
 
     /// Relocates the versions the checkpoints above `bound` superseded, and
@@ -205,8 +231,22 @@ impl ObjectBacklogSweep {
         epoch: EpochId,
         bound: CheckpointSequenceNumber,
     ) -> IotaResult<()> {
-        let Some(highest) = checkpoint_store.get_highest_executed_checkpoint_seq_number()? else {
-            // Nothing has been executed, so nothing can have been superseded.
+        // Walked through the synced watermark, not the executed one. An
+        // earlier build commits a checkpoint's effects before it bumps
+        // `HighestExecuted`, so a crash in between leaves a checkpoint above
+        // that watermark whose superseded versions are already in the live
+        // table. Stopping at the executed watermark would leave them there
+        // for good, since this pass records itself done either way.
+        //
+        // Reading past execution costs nothing: a checkpoint whose effects
+        // are not committed yet contributes no superseded version, because
+        // `sweep_checkpoint_slice` relocates only what a committed effect
+        // names.
+        let executed = checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
+        let synced = checkpoint_store.get_highest_synced_checkpoint_seq_number()?;
+        let Some(highest) = synced.max(executed) else {
+            // Nothing has been executed or synced, so nothing can have been
+            // superseded.
             return self.mark_done();
         };
         let resumed = self
@@ -221,31 +261,44 @@ impl ObjectBacklogSweep {
         );
         while next <= highest {
             let last = highest.min(next.saturating_add(CHECKPOINTS_PER_SLICE - 1));
-            self.sweep_checkpoint_slice(checkpoint_store, epoch, next, last)?;
-            next = last.saturating_add(1);
+            let ended_at = self.sweep_checkpoint_slice(checkpoint_store, epoch, next, last)?;
+            next = ended_at.saturating_add(1);
         }
         self.mark_done()
     }
 
     /// Relocates the versions superseded by the checkpoints in `first..=last`,
     /// recording how far the walk got in the same batch, so an interrupted run
-    /// resumes at the checkpoint after the last one it wrote.
+    /// resumes at the checkpoint after the last one it wrote. Returns that
+    /// checkpoint, which is `last` unless the rows came faster than the cap.
     fn sweep_checkpoint_slice(
         &self,
         checkpoint_store: &CheckpointStore,
         epoch: EpochId,
         first: CheckpointSequenceNumber,
         last: CheckpointSequenceNumber,
-    ) -> IotaResult<()> {
+    ) -> IotaResult<CheckpointSequenceNumber> {
         let objects = &self.perpetual_tables.objects;
         let mut superseded = Vec::new();
         let mut tombstones = Vec::new();
+        // A checkpoint count alone does not bound what a slice holds: one
+        // checkpoint can supersede any number of versions. Stop at the first
+        // checkpoint boundary past the row cap, so memory is bounded by how
+        // fat a single checkpoint is rather than by how fat `last - first`
+        // checkpoints are. The boundary keeps the resume granularity the
+        // progress row can express.
+        let mut ended_at = last;
         for sequence_number in first..=last {
+            if superseded.len() + tombstones.len() >= self.keys_per_slice {
+                ended_at = sequence_number - 1;
+                break;
+            }
             let Some(summary) =
                 checkpoint_store.get_checkpoint_by_sequence_number(sequence_number)?
             else {
-                // Below the checkpoint store's own retention: its contents are
-                // gone, and so is anything they would have named.
+                // `bound` guarantees the range is retained, so a gap is a
+                // checkpoint the node never had rather than one it dropped —
+                // a sequence number skipped by a reverted transaction.
                 continue;
             };
             let Some(contents) =
@@ -258,7 +311,7 @@ impl ObjectBacklogSweep {
                     continue;
                 };
                 for modified in effects.modified_at_versions() {
-                    let key = ObjectKey(modified.object_id, modified.version);
+                    let key = ObjectKey(*modified.object_id(), modified.version());
                     let Some(row) = objects.get(&key)? else {
                         continue;
                     };
@@ -284,18 +337,18 @@ impl ObjectBacklogSweep {
         }
         batch.insert_batch(
             &self.perpetual_tables.object_backlog_sweep_checkpoint,
-            [((), last)],
+            [((), ended_at)],
         )?;
         batch.write()?;
 
         debug!(
             first,
-            last,
+            last = ended_at,
             relocated,
             tombstones = tombstones.len(),
             "swept the superseded versions of a slice of checkpoints"
         );
-        Ok(())
+        Ok(ended_at)
     }
 
     fn mark_done(&self) -> IotaResult<()> {
