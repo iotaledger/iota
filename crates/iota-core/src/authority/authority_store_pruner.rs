@@ -372,7 +372,7 @@ impl AuthorityStorePruner {
                 }
             }
 
-            wb.delete_batch(&perpetual_db.objects, object_keys_to_delete.clone())?;
+            wb.delete_batch(&perpetual_db.objects, object_keys_to_delete.iter())?;
             wb.delete_batch(
                 &perpetual_db.object_superseded_in_epoch,
                 object_keys_to_delete,
