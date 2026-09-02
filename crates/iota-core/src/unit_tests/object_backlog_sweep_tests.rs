@@ -3,17 +3,36 @@
 
 use std::sync::Arc;
 
-use iota_sdk_types::{ObjectId, Owner, Version};
-use iota_types::{committee::EpochId, object::Object, storage::ObjectKey};
+use iota_sdk_types::{
+    Address, CheckpointContents, CheckpointSummary, GasCostSummary, ObjectId, Owner,
+    TransactionEffects, Version,
+};
+use iota_test_transaction_builder::TestTransactionBuilder;
+use iota_types::{
+    base_types::{ExecutionDigests, random_object_ref},
+    committee::EpochId,
+    crypto::{
+        AccountPrivateKey, AuthorityStrongQuorumSignInfo, deterministic_random_account_private_key,
+    },
+    effects::{TestEffectsBuilder, TransactionEffectsExt},
+    message_envelope::Envelope,
+    messages_checkpoint::{CheckpointContentsExt, CheckpointSequenceNumber, VerifiedCheckpoint},
+    object::Object,
+    storage::ObjectKey,
+    transaction::VerifiedTransaction,
+};
 use prometheus_filtered::Registry;
 use tempfile::TempDir;
 use typed_store::{database::wait_for_database_close, traits::Map};
 
 use super::{KEYS_PER_SLICE, ObjectBacklogSweep, ObjectBacklogSweepProgress, sweep};
-use crate::authority::{
-    AuthorityStore,
-    authority_store_tables::AuthorityPerpetualTables,
-    authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
+use crate::{
+    authority::{
+        AuthorityStore,
+        authority_store_tables::AuthorityPerpetualTables,
+        authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
+    },
+    checkpoints::CheckpointStore,
 };
 
 /// The epoch that is current while the sweep runs, and whose bucket it
@@ -46,6 +65,11 @@ fn open_store(dir: &TempDir) -> Arc<AuthorityStore> {
         &Registry::new(),
     )
     .unwrap()
+}
+
+/// A checkpoint store with nothing in it, for the walks that never read one.
+fn empty_checkpoint_store(dir: &TempDir) -> Arc<CheckpointStore> {
+    CheckpointStore::new(&dir.path().join("checkpoints"))
 }
 
 fn value(id: ObjectId, version: u64) -> (ObjectKey, StoreObjectWrapper) {
@@ -135,6 +159,86 @@ fn progress(store: &AuthorityStore) -> Option<ObjectBacklogSweepProgress> {
         .object_backlog_sweep_progress
         .get(&())
         .unwrap()
+}
+
+/// Writes a checkpoint whose single transaction superseded `mutated` and
+/// wrote a tombstone over each of `deleted`, the way the build before the
+/// buckets recorded it: the summary and its contents in the checkpoint
+/// store, the effects in the flat perpetual table.
+fn seed_checkpoint(
+    store: &AuthorityStore,
+    checkpoint_store: &CheckpointStore,
+    sequence_number: CheckpointSequenceNumber,
+    mutated: &[(ObjectId, u64)],
+    deleted: &[(ObjectId, u64)],
+) -> TransactionEffects {
+    let (sender, keypair): (Address, AccountPrivateKey) =
+        deterministic_random_account_private_key();
+    let transaction = VerifiedTransaction::new_unchecked(
+        TestTransactionBuilder::new(sender, random_object_ref(), 100)
+            .transfer(random_object_ref(), sender)
+            .build_and_sign(&keypair),
+    );
+    let effects = TestEffectsBuilder::new(transaction.inner())
+        .with_mutated_objects(
+            mutated
+                .iter()
+                .map(|(id, version)| (*id, (*version).into(), Owner::Address(sender))),
+        )
+        .with_deleted_objects(deleted.iter().map(|(id, version)| (*id, (*version).into())))
+        .build();
+    let effects_digest = effects.digest();
+    store
+        .perpetual_tables
+        .effects
+        .insert(&effects_digest, &effects)
+        .unwrap();
+
+    let contents = CheckpointContents::new_with_digests_only_for_tests([ExecutionDigests::new(
+        *transaction.digest(),
+        effects_digest,
+    )]);
+    // Like `test_utils::certified_summary`, but naming the contents above:
+    // the sweep resolves them through the summary's digest.
+    let summary = CheckpointSummary {
+        epoch: 0,
+        sequence_number,
+        network_total_transactions: 0,
+        contents_digest: contents.digest(),
+        previous_digest: None,
+        epoch_rolling_gas_cost_summary: GasCostSummary::default(),
+        end_of_epoch_data: None,
+        timestamp_ms: 0,
+        version_specific_data: Vec::new(),
+        checkpoint_commitments: Vec::new(),
+    };
+    let checkpoint = VerifiedCheckpoint::new_unchecked(Envelope::new_from_data_and_sig(
+        summary,
+        AuthorityStrongQuorumSignInfo {
+            epoch: 0,
+            signature: Default::default(),
+            signers_map: Default::default(),
+        },
+    ));
+    checkpoint_store
+        .insert_verified_checkpoint(&checkpoint)
+        .unwrap();
+    checkpoint_store
+        .insert_checkpoint_contents(contents)
+        .unwrap();
+    checkpoint_store
+        .update_highest_executed_checkpoint(&checkpoint)
+        .unwrap();
+    effects
+}
+
+/// Records the watermark an earlier build's objects pruner would have left.
+fn seed_pruner_watermark(store: &AuthorityStore, watermark: CheckpointSequenceNumber) {
+    store
+        .perpetual_tables
+        .object_backlog_sweep_bound
+        .insert(&(), &watermark)
+        .unwrap();
 }
 
 /// The live table is left with the newest version of every object and with
@@ -246,7 +350,14 @@ async fn one_call_drives_the_walk_past_the_slice_boundary() {
         .multi_insert((1..=last_version).map(|version| value(live_id(), version)))
         .unwrap();
 
-    sweep(store.clone(), SWEEP_EPOCH).await.unwrap();
+    sweep(
+        store.clone(),
+        empty_checkpoint_store(&dir),
+        SWEEP_EPOCH,
+        false,
+    )
+    .await
+    .unwrap();
 
     assert_eq!(
         live_keys(&store),
@@ -339,5 +450,191 @@ async fn a_finished_sweep_leaves_later_starts_nothing_to_do() {
     assert!(
         !relocated_keys(&store, SWEEP_EPOCH).contains(&superseded),
         "a version superseded after the walk finished is the commit's to relocate"
+    );
+}
+
+/// With the earlier build's watermark to hand, the walk reads the effects of
+/// the checkpoints above it instead of the live table, and relocates exactly
+/// the versions those checkpoints superseded. The versions below the
+/// watermark are the pruner's business and are left alone — here, a
+/// superseded version deliberately left in the table stays put, which is what
+/// tells the bounded walk apart from the unbounded one.
+#[tokio::test]
+async fn the_bounded_walk_relocates_what_the_checkpoints_above_the_watermark_superseded() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let checkpoint_store = empty_checkpoint_store(&dir);
+
+    store
+        .perpetual_tables
+        .objects
+        .multi_insert([
+            // Superseded by checkpoint 8, above the watermark.
+            value(live_id(), 1),
+            value(live_id(), 2),
+            // Superseded before the watermark and never deleted, standing in
+            // for a row the unbounded walk would have moved.
+            value(deleted_id(), 1),
+            value(deleted_id(), 2),
+        ])
+        .unwrap();
+    seed_pruner_watermark(&store, 7);
+    seed_checkpoint(&store, &checkpoint_store, 8, &[(live_id(), 1)], &[]);
+
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        vec![ObjectKey(live_id(), 1.into())],
+        "only the version checkpoint 8 superseded is relocated"
+    );
+    assert_eq!(
+        live_keys(&store),
+        vec![
+            ObjectKey(live_id(), 2.into()),
+            ObjectKey(deleted_id(), 1.into()),
+            ObjectKey(deleted_id(), 2.into()),
+        ],
+        "the rows at or below the watermark are left where the pruner left them"
+    );
+    assert_eq!(progress(&store), Some(ObjectBacklogSweepProgress::Done));
+}
+
+/// A tombstone written above the watermark is recorded as a head in the
+/// bucket and left in the live table, so that a bounded read still answers
+/// "deleted" and retention can collect it later.
+#[tokio::test]
+async fn the_bounded_walk_records_the_tombstones_above_the_watermark() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let checkpoint_store = empty_checkpoint_store(&dir);
+
+    seed_pruner_watermark(&store, 3);
+    let effects = seed_checkpoint(&store, &checkpoint_store, 4, &[], &[(deleted_id(), 2)]);
+    // The tombstone sits at the transaction's lamport version, which the
+    // effects decide, so the live table is seeded from them rather than from
+    // a version guessed here.
+    let heads: Vec<ObjectKey> = effects
+        .all_tombstones()
+        .into_iter()
+        .map(|(id, version)| ObjectKey(id, version))
+        .collect();
+    store
+        .perpetual_tables
+        .objects
+        .multi_insert(
+            heads
+                .iter()
+                .map(|key| (*key, StoreObjectWrapper::from(StoreObject::Deleted))),
+        )
+        .unwrap();
+
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+        .await
+        .unwrap();
+
+    assert_eq!(recorded_tombstones(&store, SWEEP_EPOCH), heads);
+    for key in &heads {
+        assert!(
+            live_keys(&store).contains(key),
+            "the head stays in the live table until its bucket expires"
+        );
+    }
+}
+
+/// A database whose pruner ran with the compaction filter left rows beneath
+/// its watermark, so the watermark must not be trusted and the whole table is
+/// walked instead.
+#[tokio::test]
+async fn a_pruner_database_refuses_the_bounded_walk() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let checkpoint_store = empty_checkpoint_store(&dir);
+
+    seed(&store);
+    seed_pruner_watermark(&store, u64::MAX);
+
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, true)
+        .await
+        .unwrap();
+
+    // The unbounded walk's outcome: every superseded version relocated,
+    // which the bounded walk would not have done at this watermark.
+    assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        vec![
+            ObjectKey(live_id(), 1.into()),
+            ObjectKey(live_id(), 2.into()),
+            ObjectKey(deleted_id(), 1.into()),
+            ObjectKey(deleted_id(), 2.into()),
+            ObjectKey(wrapped_id(), 1.into()),
+        ]
+    );
+}
+
+/// The bounded walk resumes at the checkpoint after the last slice it wrote,
+/// so an interrupted run neither repeats a slice nor skips one.
+#[tokio::test]
+async fn the_bounded_walk_resumes_at_the_checkpoint_it_recorded() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let checkpoint_store = empty_checkpoint_store(&dir);
+
+    store
+        .perpetual_tables
+        .objects
+        .multi_insert([
+            value(live_id(), 1),
+            value(live_id(), 2),
+            value(live_id(), 3),
+        ])
+        .unwrap();
+    seed_pruner_watermark(&store, 0);
+    seed_checkpoint(&store, &checkpoint_store, 1, &[(live_id(), 1)], &[]);
+    seed_checkpoint(&store, &checkpoint_store, 2, &[(live_id(), 2)], &[]);
+
+    // Stand where a run interrupted after checkpoint 1 would have left it.
+    store
+        .perpetual_tables
+        .object_backlog_sweep_checkpoint
+        .insert(&(), &1)
+        .unwrap();
+
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        vec![ObjectKey(live_id(), 2.into())],
+        "checkpoint 1 is not walked again, and checkpoint 2 is not skipped"
+    );
+}
+
+/// Without a watermark there is nothing to bound the walk with, so the whole
+/// table is walked — the case of a database no objects pruner ever ran on.
+#[tokio::test]
+async fn no_watermark_walks_the_whole_table() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let checkpoint_store = empty_checkpoint_store(&dir);
+
+    seed(&store);
+
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        vec![
+            ObjectKey(live_id(), 1.into()),
+            ObjectKey(live_id(), 2.into()),
+            ObjectKey(deleted_id(), 1.into()),
+            ObjectKey(deleted_id(), 2.into()),
+            ObjectKey(wrapped_id(), 1.into()),
+        ]
     );
 }
