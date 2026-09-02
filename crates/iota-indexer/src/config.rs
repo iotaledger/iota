@@ -319,7 +319,8 @@ pub enum RestoreCommand {
         /// Epoch to download. Defaults to the latest available epoch.
         #[arg(long)]
         epoch: Option<u64>,
-        /// Number of parallel downloads. Defaults to the available parallelism.
+        /// Number of parallel downloads. Defaults to onelogical cores - 1,
+        /// capped at 8.
         ///
         /// Must be strictly positive.
         #[arg(long)]

@@ -88,13 +88,12 @@ A node restored from a formal snapshot holds only the end-of-epoch checkpoint su
 iota-tool backfill-checkpoint-summaries \
    --path "<PATH-TO-NODE-DB>/live" \
    --ingestion-url "https://checkpoints.<network>.iota.cafe/ingestion/historical" \
-   --num-parallel-downloads 50 \
    --verbose
 ```
 
    - `--path`: The node's live database directory (the one containing `checkpoints/`, `store/`, and `epochs/`).
    - `--ingestion-url`: URL of the checkpoint archive to download summaries from — the same archive the node's state-sync fallback reads from (for example `https://checkpoints.<network>.iota.cafe/ingestion/historical`).
-   - `--num-parallel-downloads`: Number of summaries to download in parallel. Defaults to a value based on the number of available cores.
+   - `--num-parallel-downloads`: Number of summaries to download in parallel. Defaults to a value based on the number of available cores, capped at 8.
    - `--verbose`: Enable verbose logging.
    - `--disable-progress-bar`: Reports progress as a status line logged once per second instead of drawing a progress bar.
 

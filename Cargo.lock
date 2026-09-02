@@ -8086,7 +8086,6 @@ dependencies = [
  "iota-types",
  "itertools 0.13.0",
  "move-core-types",
- "num_cpus",
  "prometheus-filtered",
  "rand 0.8.6",
  "ron",
