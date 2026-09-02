@@ -183,12 +183,13 @@ results/<LABEL>/
 - `matrix.sh` — runs `run.sh` over the config grid, one iteration of every
   config per round, `ITERS` rounds, with one log per config under `logs/`.
 - `aggregate.py` — pools every label's iterations into one A-vs-B table per
-  mode pair (`results/summary.md`): success tps (checkpoint-included minus
-  cancelled), cancelled rate, pooled checkpoint-lag quantiles, skipped leader
-  rounds, and the safety verdict (counters + validator crash scan). The same
-  rows land as scalars in `results/summary.csv` for `plot.py`. Standard
-  library only; the machinery shared with `../h1/aggregate.py` lives in
-  `../aggregate.py`.
+  mode pair (`results/summary.md`): success tps (executed − cancelled −
+  commits, the user transactions that did real work), the finalized
+  checkpoint-inclusion rate, cancelled rate, pooled checkpoint-lag
+  quantiles, skipped leader rounds, and the safety verdict (counters +
+  validator crash scan). The same rows land as scalars in
+  `results/summary.csv` for `plot.py`. Standard library only; the machinery
+  shared with `../h1/aggregate.py` lives in `../aggregate.py`.
 - `plot.py` — renders the mode-comparison figures from `summary.csv` into
   `results/summary_plots/`: checkpoint lag and cancelled fraction against the
   admitted rate (tx/commit × commits/s, with Run A as one vertical line),

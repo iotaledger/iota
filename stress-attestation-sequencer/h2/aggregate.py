@@ -7,11 +7,14 @@ on the same load. Labels whose runs used different mode pairs (e.g. a swap
 test) are grouped into separate tables.
 
 Reported per arm:
-  - success tps: transactions included in checkpoints MINUS cancelled ones.
-    Cancelled transactions are executed (as cancelled) and counted in the
-    checkpoint total, so the raw rate alone overstates useful throughput.
+  - success tps: user transactions that did real work, as executed minus
+    cancelled minus commits (see aggregate_arm for why each term is there).
+  - finalized tps: the checkpoint-inclusion rate as scraped, prologues
+    included — comparable to the client's own reported throughput.
   - cancelled/s: transactions dropped at max_deferral_rounds.
   - checkpoint lag p50/p95: pooled histogram quantiles across all iterations.
+    Above 30s these carry roughly one bucket of resolution (the histogram
+    steps 25, 30, 60, 90), so read anything past 30s as "30 to 60s".
   - deferral rounds above max_deferral_rounds: should be 0; every such
     observation is the signature of a skipped leader round (the deferral
     budget is a commit-round difference, so a skipped round spends budget
@@ -143,20 +146,37 @@ def over_max_deferrals(runs, max_rounds):
 
 
 def aggregate_arm(runs):
-    tps = rate_mean(runs, "transactions_included_in_checkpoint")
+    # Success throughput counts only user transactions that did real work:
+    #
+    #   executed - cancelled - commits
+    #
+    # Executed rather than checkpoint-included, because checkpoint building
+    # lags execution — once that lag approaches the run window, inclusion
+    # undercounts what the window actually processed (at the most expensive
+    # cost points it undercounts so far that included - cancelled goes
+    # negative). Minus cancelled, which execute but do no work. Minus the
+    # commit rate, since every commit carries one consensus commit prologue,
+    # a system transaction both counters count as a transaction.
+    execd = rate_mean(runs, "execution_driver_executed_transactions")
     canc = rate_mean(runs, "consensus_handler_cancelled_transactions")
+    commits = rate_mean(runs, "consensus_committed_subdags")
+    ckpt = rate_mean(runs, "transactions_included_in_checkpoint")
     lag = pooled_buckets(
         [r.get("series", {}) for r in runs], "checkpoint_creation_latency"
     )
+    succ = execd - canc - commits if None not in (execd, canc, commits) else None
     return {
-        "succ": (tps - canc) if (tps is not None and canc is not None) else tps,
+        "succ": succ,
+        # Finalized rate as scraped, prologues included: comparable to the
+        # client's reported tps, and the basis the succ formula replaced.
+        "ckpt_tps": ckpt,
         "canc": canc,
         "lag50": hquantile(0.5, lag),
         "lag95": hquantile(0.95, lag),
         "skips": skipped_rounds(runs),
         # consensus commits per second — what turns a per-commit limit into an
         # admitted rate (tx/commit x commits/s), so plot.py needs it per arm.
-        "commit_rate": rate_mean(runs, "consensus_committed_subdags"),
+        "commit_rate": commits,
         "safety": {
             m: series_max([r.get("series", {}) for r in runs], m)
             for m, _ in SAFETY_COUNTERS
@@ -250,8 +270,12 @@ def main():
         "# H2 — congestion mode comparison: aggregated results\n",
         "- One row per label; its iterations are pooled (histogram buckets",
         "  summed before taking quantiles; rates are means across runs).",
-        "- success tps = included in checkpoints − cancelled; cancelled",
-        "  transactions execute as cancelled and count toward the raw rate.",
+        "- success tps = executed − cancelled − commits: user transactions",
+        "  that did real work. Cancelled ones execute but do nothing, and",
+        "  every commit carries one consensus commit prologue, which the",
+        "  transaction counters count as a transaction.",
+        "- checkpoint lag above 30s has about one histogram bucket of",
+        '  resolution — read those as "30 to 60s", not as exact values.',
         "- units/tx is measured from Run B's attested computation units;",
         "  B tx/commit = LIMIT_B / units-per-tx, what Run B admits where",
         "  Run A always admits LIMIT_A transactions.",
@@ -327,10 +351,16 @@ def main():
     # The same rows as scalars, for plot.py.
     csv_path = os.path.splitext(out)[0] + ".csv"
     arm_cols = (
-        "succ_tps", "cancelled_per_s", "lag_p50_s", "lag_p95_s",
-        "commit_rate", "skipped_rounds", "over_max_deferrals",
+        "succ_tps",
+        "ckpt_tps",
+        "cancelled_per_s",
+        "lag_p50_s",
+        "lag_p95_s",
+        "commit_rate",
+        "skipped_rounds",
+        "over_max_deferrals",
     )
-    arm_keys = ("succ", "canc", "lag50", "lag95", "commit_rate", "skips")
+    arm_keys = ("succ", "ckpt_tps", "canc", "lag50", "lag95", "commit_rate", "skips")
 
     def cell(v):
         return "" if v is None else f"{v:.6g}"
@@ -338,8 +368,16 @@ def main():
     with open(csv_path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(
-            ["label", "units_per_tx", "limit_b", "tx_per_commit", "iters",
-             "mode_a", "mode_b", "target_qps"]
+            [
+                "label",
+                "units_per_tx",
+                "limit_b",
+                "tx_per_commit",
+                "iters",
+                "mode_a",
+                "mode_b",
+                "target_qps",
+            ]
             + [f"a_{c}" for c in arm_cols]
             + [f"b_{c}" for c in arm_cols]
             + ["safety_ok"]
@@ -350,9 +388,16 @@ def main():
                 vals += [cell(r[arm][k]) for k in arm_keys]
                 vals.append(cell(r["over_max"][arm]))
             w.writerow(
-                [r["label"], cell(r["units"]), cell(r["limit_b"]),
-                 cell(r["txcmt"]), r["iters"], r["cfg"].get("mode_a", ""),
-                 r["cfg"].get("mode_b", ""), r["cfg"].get("target_qps", "")]
+                [
+                    r["label"],
+                    cell(r["units"]),
+                    cell(r["limit_b"]),
+                    cell(r["txcmt"]),
+                    r["iters"],
+                    r["cfg"].get("mode_a", ""),
+                    r["cfg"].get("mode_b", ""),
+                    r["cfg"].get("target_qps", ""),
+                ]
                 + vals
                 + [int(not safety_failed(r))]
             )

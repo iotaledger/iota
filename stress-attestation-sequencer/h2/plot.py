@@ -15,7 +15,10 @@ pooling arithmetic) and renders into <results>/summary_plots/:
                       cell, colored by magnitude on one scale per panel so
                       equal values are equal colors everywhere.
   modes_tradeoff.png  success tps vs lag p95 per cell; Run A starred. The
-                      lower-right frontier is "fast and stable".
+                      lower-right frontier is "fast and stable". Success tps
+                      is executed - cancelled - commits (aggregate.py owns
+                      the definition), so it excludes both the transactions
+                      that were cancelled and the per-commit system ones.
 
 The x-axis collapse works because tx/commit = LIMIT_B / units-per-tx: the
 grid's two axes only act through their ratio, so cost points become curves
@@ -51,21 +54,23 @@ GRID = "#e1e0d9"
 AXIS = "#c3c2b7"
 RAMP5 = ["#86b6ef", "#5598e7", "#2a78d6", "#1c5cab", "#0d366b"]
 
-plt.rcParams.update({
-    "figure.facecolor": SURFACE,
-    "axes.facecolor": SURFACE,
-    "savefig.facecolor": SURFACE,
-    "text.color": INK,
-    "axes.labelcolor": INK2,
-    "axes.edgecolor": AXIS,
-    "xtick.color": MUTED,
-    "ytick.color": MUTED,
-    "grid.color": GRID,
-    "grid.linewidth": 0.8,
-    "font.family": "sans-serif",
-    "font.size": 9,
-    "axes.titlesize": 10,
-})
+plt.rcParams.update(
+    {
+        "figure.facecolor": SURFACE,
+        "axes.facecolor": SURFACE,
+        "savefig.facecolor": SURFACE,
+        "text.color": INK,
+        "axes.labelcolor": INK2,
+        "axes.edgecolor": AXIS,
+        "xtick.color": MUTED,
+        "ytick.color": MUTED,
+        "grid.color": GRID,
+        "grid.linewidth": 0.8,
+        "font.family": "sans-serif",
+        "font.size": 9,
+        "axes.titlesize": 10,
+    }
+)
 
 
 def fnum(s):
@@ -137,7 +142,7 @@ class Point:
 
 
 def facets(points, size=len(RAMP5)):
-    return [points[i:i + size] for i in range(0, len(points), size)]
+    return [points[i : i + size] for i in range(0, len(points), size)]
 
 
 def ramp(k):
@@ -156,8 +161,11 @@ def style_axes(ax):
 def plot_knee(points, outdir):
     cols = facets(points)
     fig, axes = plt.subplots(
-        2, len(cols), figsize=(6.4 * len(cols), 7.2),
-        sharex=True, squeeze=False,
+        2,
+        len(cols),
+        figsize=(6.4 * len(cols), 7.2),
+        sharex=True,
+        squeeze=False,
     )
     for j, grp in enumerate(cols):
         top, bot = axes[0][j], axes[1][j]
@@ -166,15 +174,18 @@ def plot_knee(points, outdir):
             xs = [adm for adm, _ in p.curve()]
             lag = [cell["b_lag_p95_s"] for _, cell in p.curve()]
             frac = [
-                cell["b_cancelled_per_s"] / cell["target_qps"]
-                for _, cell in p.curve()
+                cell["b_cancelled_per_s"] / cell["target_qps"] for _, cell in p.curve()
             ]
             top.plot(xs, lag, "-o", color=c, lw=2, ms=5, label=p.name)
             bot.plot(xs, frac, "-o", color=c, lw=2, ms=5)
             if xs:
                 top.annotate(
-                    p.name, (xs[-1], lag[-1]), xytext=(6, 0),
-                    textcoords="offset points", color=INK2, fontsize=8,
+                    p.name,
+                    (xs[-1], lag[-1]),
+                    xytext=(6, 0),
+                    textcoords="offset points",
+                    color=INK2,
+                    fontsize=8,
                     va="center",
                 )
             d = p.drain()
@@ -183,12 +194,26 @@ def plot_knee(points, outdir):
             # Run A: same config measured in every cell of this point.
             if p.a["commit_rate"] and p.a["lag_p95_s"] is not None:
                 xa = 10 * p.a["commit_rate"]
-                top.plot(xa, p.a["lag_p95_s"], "*", color=c, ms=13,
-                         markeredgecolor=INK, markeredgewidth=0.6)
+                top.plot(
+                    xa,
+                    p.a["lag_p95_s"],
+                    "*",
+                    color=c,
+                    ms=13,
+                    markeredgecolor=INK,
+                    markeredgewidth=0.6,
+                )
                 if p.a["cancelled_per_s"] is not None:
                     qps = p.cells[0]["target_qps"] or 1
-                    bot.plot(xa, p.a["cancelled_per_s"] / qps, "*", color=c,
-                             ms=13, markeredgecolor=INK, markeredgewidth=0.6)
+                    bot.plot(
+                        xa,
+                        p.a["cancelled_per_s"] / qps,
+                        "*",
+                        color=c,
+                        ms=13,
+                        markeredgecolor=INK,
+                        markeredgewidth=0.6,
+                    )
         xa_all = [10 * p.a["commit_rate"] for p in grp if p.a["commit_rate"]]
         if xa_all:
             xa = sum(xa_all) / len(xa_all)
@@ -204,15 +229,21 @@ def plot_knee(points, outdir):
             bot.set_ylabel("cancelled fraction of offered")
         bot.legend(
             *top.get_legend_handles_labels(),
-            frameon=False, fontsize=8, loc="upper right",
+            frameon=False,
+            fontsize=8,
+            loc="upper right",
         )
     axes[0][0].set_title(
         "stars = Run A; dashed = Run A's admitted rate; dotted = drain",
-        loc="left", color=INK2, fontsize=9,
+        loc="left",
+        color=INK2,
+        fontsize=9,
     )
     fig.suptitle(
         "What a per-object limit admits vs what the object can execute",
-        x=0.01, ha="left", fontsize=12,
+        x=0.01,
+        ha="left",
+        fontsize=12,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.96))
     fig.savefig(os.path.join(outdir, "modes_knee.png"), dpi=150)
@@ -227,8 +258,7 @@ HEAT_PANELS = [
 ]
 
 # Sequential blue, light -> dark (the reference ramp's 100..700 steps).
-SEQ_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5",
-            "#256abf", "#184f95", "#0d366b"]
+SEQ_RAMP = ["#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95", "#0d366b"]
 
 
 def heat_value(cell, key):
@@ -254,8 +284,7 @@ def seq_norm(x, lo, hi, scale):
         if hi <= lo:
             return 0.0
         x = max(x, lo)
-        return (math.log10(x) - math.log10(lo)) / (
-            math.log10(hi) - math.log10(lo))
+        return (math.log10(x) - math.log10(lo)) / (math.log10(hi) - math.log10(lo))
     return x / hi if hi > 0 else 0.0
 
 
@@ -264,28 +293,39 @@ def plot_heatmaps(points, outdir):
     cmap = LinearSegmentedColormap.from_list("seq", SEQ_RAMP)
     nrow, ncol = len(points), len(limits)
     fig, axes = plt.subplots(
-        len(HEAT_PANELS), 1,
+        len(HEAT_PANELS),
+        1,
         figsize=(1.1 * (ncol + 2.2), (0.62 * nrow + 1.25) * len(HEAT_PANELS)),
         squeeze=False,
     )
     for (ax,), (key, title, valfmt, scale) in zip(axes, HEAT_PANELS):
         # One color scale per panel, covering Run A and Run B alike, so equal
         # values are equal colors everywhere — including the Run A column.
-        vals = [v for p in points
-                for v in [heat_a_value(p, key)]
-                + [heat_value(c, key) for c in p.cells]
-                if v is not None and v > 0]
+        vals = [
+            v
+            for p in points
+            for v in [heat_a_value(p, key)] + [heat_value(c, key) for c in p.cells]
+            if v is not None and v > 0
+        ]
         lo, hi = (min(vals), max(vals)) if vals else (1.0, 1.0)
 
         def cell(ax, x, y, v):
             if v is None:
                 return
             t = seq_norm(v, lo, hi, scale)
-            ax.add_patch(Rectangle((x, y), 1, 1, facecolor=cmap(t),
-                                   edgecolor=SURFACE, lw=1.5))
+            ax.add_patch(
+                Rectangle((x, y), 1, 1, facecolor=cmap(t), edgecolor=SURFACE, lw=1.5)
+            )
             ink = "#ffffff" if t > 0.55 else INK
-            ax.text(x + 0.5, y + 0.5, valfmt.format(v), ha="center",
-                    va="center", color=ink, fontsize=8)
+            ax.text(
+                x + 0.5,
+                y + 0.5,
+                valfmt.format(v),
+                ha="center",
+                va="center",
+                color=ink,
+                fontsize=8,
+            )
 
         match_a = []  # ≡A cells, outlined last so neighbours can't clip them
         for i, p in enumerate(points):
@@ -297,29 +337,26 @@ def plot_heatmaps(points, outdir):
                 if c["tx_per_commit"] == 10:
                     match_a.append((x, y))
         for x, y in match_a:
-            ax.add_patch(Rectangle((x, y), 1, 1, facecolor="none",
-                                   edgecolor=INK, lw=1.6))
+            ax.add_patch(
+                Rectangle((x, y), 1, 1, facecolor="none", edgecolor=INK, lw=1.6)
+            )
         # Limits along the top (Run A's count limit is always 10); the arm
         # names sit centered underneath their columns.
         top_y = nrow + 0.2
-        ax.text(-1.7, top_y, "CUs/tx", ha="right", va="bottom", fontsize=8,
-                color=INK2)
-        ax.text(-1.0, top_y, "10", ha="center", va="bottom", fontsize=8,
-                color=INK2)
+        ax.text(-1.7, top_y, "CUs/tx", ha="right", va="bottom", fontsize=8, color=INK2)
+        ax.text(-1.0, top_y, "10", ha="center", va="bottom", fontsize=8, color=INK2)
         for x, v in enumerate(limits):
             lbl = kfmt(v) + (" CUs" if x == ncol - 1 else "")
-            ax.text(x + 0.5, top_y, lbl, ha="center", va="bottom",
-                    fontsize=8, color=INK2)
-        ax.text(-1.0, -0.25, "Run A", ha="center", va="top", fontsize=8,
-                color=INK2)
-        ax.text(ncol / 2, -0.25, "Run B", ha="center", va="top", fontsize=8,
-                color=INK2)
+            ax.text(
+                x + 0.5, top_y, lbl, ha="center", va="bottom", fontsize=8, color=INK2
+            )
+        ax.text(-1.0, -0.25, "Run A", ha="center", va="top", fontsize=8, color=INK2)
+        ax.text(ncol / 2, -0.25, "Run B", ha="center", va="top", fontsize=8, color=INK2)
         ax.set_xlim(-1.6, ncol)
         ax.set_ylim(-0.75, nrow + 0.8)
         ax.set_xticks([])
         ax.set_yticks([nrow - 1 - i + 0.5 for i in range(len(points))])
-        ax.set_yticklabels([kfmt(p.units) for p in points], fontsize=8,
-                           color=INK2)
+        ax.set_yticklabels([kfmt(p.units) for p in points], fontsize=8, color=INK2)
         ax.set_title(title, loc="left", fontsize=9)
         ax.tick_params(length=0)
         for side in ax.spines.values():
@@ -337,33 +374,50 @@ def plot_heatmaps(points, outdir):
 def plot_tradeoff(points, outdir):
     cols = facets(points)
     fig, axes = plt.subplots(
-        1, len(cols), figsize=(6.0 * len(cols), 5.2), squeeze=False,
+        1,
+        len(cols),
+        figsize=(6.0 * len(cols), 5.2),
+        squeeze=False,
         sharey=True,
     )
     for j, grp in enumerate(cols):
         ax = axes[0][j]
         colors = ramp(len(grp))
         for p, c in zip(grp, colors):
-            xs = [cell["b_succ_tps"] for cell in p.cells
-                  if cell["b_succ_tps"] is not None]
-            ys = [cell["b_lag_p95_s"] for cell in p.cells
-                  if cell["b_succ_tps"] is not None]
+            xs = [
+                cell["b_succ_tps"] for cell in p.cells if cell["b_succ_tps"] is not None
+            ]
+            ys = [
+                cell["b_lag_p95_s"]
+                for cell in p.cells
+                if cell["b_succ_tps"] is not None
+            ]
             ax.plot(xs, ys, "-", color=c, lw=1, alpha=0.5)
             ax.plot(xs, ys, "o", color=c, ms=6, label=p.name)
             if p.a["succ_tps"] is not None and p.a["lag_p95_s"] is not None:
-                ax.plot(p.a["succ_tps"], p.a["lag_p95_s"], "*", color=c,
-                        ms=14, markeredgecolor=INK, markeredgewidth=0.6)
+                ax.plot(
+                    p.a["succ_tps"],
+                    p.a["lag_p95_s"],
+                    "*",
+                    color=c,
+                    ms=14,
+                    markeredgecolor=INK,
+                    markeredgewidth=0.6,
+                )
         ax.set_yscale("log")
         style_axes(ax)
-        ax.set_xlabel("success tps (finalized minus cancelled)")
+        ax.set_xlabel("success tps (executed - cancelled - commits)")
         if j == 0:
             ax.set_ylabel("checkpoint lag p95 (s, log)")
         ax.legend(frameon=False, fontsize=8, loc="upper right")
-        ax.set_title("lower right = fast and stable", loc="left",
-                     color=INK2, fontsize=9)
+        ax.set_title(
+            "lower right = fast and stable", loc="left", color=INK2, fontsize=9
+        )
     fig.suptitle(
         "Throughput vs stability (dots = Run B limits, stars = Run A)",
-        x=0.01, ha="left", fontsize=12,
+        x=0.01,
+        ha="left",
+        fontsize=12,
     )
     fig.tight_layout(rect=(0, 0, 1, 0.94))
     fig.savefig(os.path.join(outdir, "modes_tradeoff.png"), dpi=150)
@@ -395,11 +449,14 @@ def plot_utilization(points, outdir):
     ax.set_xlabel("admitted rate / drain rate (utilization, log)")
     ax.set_ylabel("checkpoint lag p95 (s, log)")
     ax.legend(frameon=False, fontsize=8, loc="upper left")
-    ax.set_title("dashed = utilization 1; curves coinciding means lag"
-                 " depends only on utilization", loc="left", color=INK2,
-                 fontsize=9)
-    fig.suptitle("The same curves over admitted/drain",
-                 x=0.01, ha="left", fontsize=12)
+    ax.set_title(
+        "dashed = utilization 1; curves coinciding means lag"
+        " depends only on utilization",
+        loc="left",
+        color=INK2,
+        fontsize=9,
+    )
+    fig.suptitle("The same curves over admitted/drain", x=0.01, ha="left", fontsize=12)
     fig.tight_layout(rect=(0, 0, 1, 0.94))
     fig.savefig(os.path.join(outdir, "modes_knee_utilization.png"), dpi=150)
     plt.close(fig)
@@ -414,8 +471,7 @@ def main():
     rows = load_rows(path)
     unsafe = [r["label"] for r in rows if not r["safety_ok"]]
     if unsafe:
-        print(f"WARN: safety-flagged labels included: {unsafe}",
-              file=sys.stderr)
+        print(f"WARN: safety-flagged labels included: {unsafe}", file=sys.stderr)
     by_point = {}
     for r in rows:
         by_point.setdefault(r["point"], []).append(r)
@@ -429,8 +485,10 @@ def main():
     plot_heatmaps(points, outdir)
     plot_tradeoff(points, outdir)
     plot_utilization(points, outdir)
-    print(f"{len(points)} cost point(s), {len(rows)} cells -> "
-          f"{outdir}/modes_*.png", file=sys.stderr)
+    print(
+        f"{len(points)} cost point(s), {len(rows)} cells -> {outdir}/modes_*.png",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":
