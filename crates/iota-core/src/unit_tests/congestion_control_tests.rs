@@ -49,6 +49,7 @@ use crate::{
             CongestionPerObjectDebt,
             shared_object_test_utils::new_congestion_tracker_with_initial_value_for_test,
         },
+        shared_object_version_manager::Schedulable,
         suggested_gas_price_calculator::suggested_gas_price_calculator_test_utils::new_suggested_gas_price_calculator_with_initial_values_for_test,
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -1138,13 +1139,22 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
                 )
                 .await
                 .unwrap();
-            // The randomness queue starts with the round's state update, which
-            // has no transaction yet; only scheduled transactions are compared.
+            // The randomness queue starts with the round's state update, the
+            // one schedulable that is not a transaction yet; the regular queue
+            // must not carry it.
+            assert!(matches!(
+                randomness.first(),
+                Some(Schedulable::RandomnessStateUpdate(..))
+            ));
             (
                 non_randomness
                     .iter()
-                    .filter_map(|schedulable| schedulable.as_tx())
-                    .map(|tx| *tx.digest())
+                    .map(|schedulable| {
+                        *schedulable
+                            .as_tx()
+                            .expect("only transactions are scheduled outside the randomness queue")
+                            .digest()
+                    })
                     .collect::<Vec<_>>(),
                 randomness
                     .iter()

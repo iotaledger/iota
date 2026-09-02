@@ -159,7 +159,9 @@ impl TransactionInputLoader {
         // A gas-object cancellation version can only exist for a transaction
         // without shared inputs (version assignment puts the cancellation on
         // the shared inputs otherwise), so only those look their owned inputs
-        // up in the assignments.
+        // up in the assignments. It is only ever assigned under execution-worker
+        // congestion control, which requires P-COOL — and P-COOL disables the
+        // certificate path, the one that enqueues with no assignments at all.
         let check_gas_object_cancellation = !input_object_kinds
             .iter()
             .any(|kind| matches!(kind, InputObjectKind::SharedMoveObject { .. }));
