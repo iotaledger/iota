@@ -234,6 +234,10 @@ pub mod auth_unit_test_utils;
 pub mod abstract_account_test_utils;
 
 #[cfg(test)]
+#[path = "unit_tests/attestation_test_utils.rs"]
+pub mod attestation_test_utils;
+
+#[cfg(test)]
 #[path = "unit_tests/attestation_verdict_tests.rs"]
 mod attestation_verdict_tests;
 
