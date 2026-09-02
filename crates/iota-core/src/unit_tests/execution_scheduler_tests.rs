@@ -20,7 +20,7 @@ use std::{time::Duration, vec};
 use iota_config::node::AuthorityOverloadConfig;
 use iota_sdk_types::{
     MoveAuthenticatorV1, ObjectId, RandomnessRound, SenderSignedTransaction, SharedObjectReference,
-    TransactionEffectsDigest, UserSignature, VersionAssignment,
+    TransactionEffectsDigest, UserSignature, Version, VersionAssignment,
 };
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
@@ -33,7 +33,7 @@ use iota_types::{
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, unbounded_channel},
-    time::sleep,
+    time::{sleep, timeout},
 };
 
 use crate::{
@@ -930,4 +930,38 @@ async fn execution_scheduler_drops_unresolved_key_wait_on_epoch_termination() {
     resolve_randomness_round(&state, &epoch_store, 4);
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
+}
+
+/// A transaction without shared inputs that consensus cancelled for
+/// execution-worker congestion carries the cancellation version on its gas
+/// object, inside the env. The scheduler must not take that assignment for an
+/// input to wait on — the gas object sits at its real version — and must hand
+/// the env on intact, since only the loader turns it into the cancellation.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn execution_scheduler_dispatches_gas_object_cancellation_with_its_env() {
+    let (owner, _keypair) = deterministic_random_account_private_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (execution_scheduler, mut rx_ready_transactions) = make_execution_scheduler(&state);
+
+    let transaction = make_transaction(gas_object.clone(), vec![]);
+    let assigned_versions = vec![VersionAssignment::new(
+        gas_object.id(),
+        Version::new_congested_with_suggested_gas_price(101).unwrap(),
+    )];
+    execution_scheduler.enqueue(
+        vec![(
+            Schedulable::Transaction(transaction.clone()),
+            ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+        )],
+        &epoch_store,
+    );
+
+    let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("the assignment on the gas object must not be waited for as an input")
+        .unwrap();
+    assert_eq!(pending.transaction.digest(), transaction.digest());
+    assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
 }

@@ -18,7 +18,7 @@ use iota_types::{
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, error::TryRecvError, unbounded_channel},
-    time::{Instant, sleep},
+    time::{Instant, sleep, timeout},
 };
 
 use crate::{
@@ -1253,4 +1253,37 @@ async fn transaction_manager_reports_a_resolved_key_naming_nothing() {
         )],
         &epoch_store,
     );
+}
+
+/// A transaction without shared inputs that consensus cancelled for
+/// execution-worker congestion carries the cancellation version on its gas
+/// object, inside the env. The scheduler must not take that assignment for an
+/// input to wait on — the gas object sits at its real version — and must hand
+/// the env on intact, since only the loader turns it into the cancellation.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_dispatches_gas_object_cancellation_with_its_env() {
+    let (owner, _keypair) = deterministic_random_account_private_key();
+    let gas_object = Object::with_id_owner_for_testing(ObjectId::random(), owner);
+    let state = init_state_with_objects(vec![gas_object.clone()]).await;
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+
+    let transaction = make_transaction(gas_object.clone(), vec![]);
+    let assigned_versions = vec![VersionAssignment::new(
+        gas_object.id(),
+        Version::new_congested_with_suggested_gas_price(101).unwrap(),
+    )];
+    transaction_manager.enqueue_transactions(
+        vec![(
+            transaction.clone(),
+            ExecutionEnv::new().with_assigned_versions(assigned_versions.clone()),
+        )],
+        &state.epoch_store_for_testing(),
+    );
+
+    let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("the assignment on the gas object must not be waited for as an input")
+        .unwrap();
+    assert_eq!(pending.transaction.digest(), transaction.digest());
+    assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
 }
