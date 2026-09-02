@@ -3449,6 +3449,16 @@ impl AuthorityState {
         // Terminate all epoch-specific tasks (those started with within_alive_epoch).
         cur_epoch_store.epoch_terminated().await;
 
+        let highest_locally_built_checkpoint_seq = self
+            .checkpoint_store
+            .get_latest_locally_computed_checkpoint()?
+            .map(|c| c.sequence_number())
+            .unwrap_or(0);
+        assert!(
+            epoch_last_checkpoint >= highest_locally_built_checkpoint_seq,
+            "expected {epoch_last_checkpoint} >= {highest_locally_built_checkpoint_seq}"
+        );
+
         // Safe to reconfigure now. No transactions are being executed,
         // and no epoch-specific tasks are running.
 
