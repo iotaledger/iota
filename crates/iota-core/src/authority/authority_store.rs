@@ -1401,7 +1401,7 @@ impl AuthorityStore {
         let mut size = 0;
         let totals: IotaResult<(u64, u64)> = thread::scope(|s| {
             let pending_tasks = FuturesUnordered::new();
-            for o in self.perpetual_tables.iter_live_object_set() {
+            for o in self.iter_live_object_set() {
                 let object = o?.object;
                 size += object.object_size_for_gas_metering();
                 count += 1;
