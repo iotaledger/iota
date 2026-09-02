@@ -74,8 +74,8 @@ use crate::{
     checkpoints::CheckpointStore,
     epoch_buckets::{self, EpochBuckets},
     index_rebuild_cancellation::{RebuildCancelled, is_cancelled},
-    par_index_live_object_set::{eta_display, par_index_live_object_set, progress_rate},
-    progress_logger::PROGRESS_REPORT_INTERVAL,
+    par_index_live_object_set::par_index_live_object_set,
+    progress_logger::{PROGRESS_REPORT_INTERVAL, progress_line},
 };
 
 const ENV_VAR_HISTORY_BLOCK_CACHE_SIZE_MB: &str = "RPC_INDEX_HISTORY_BLOCK_CACHE_MB";
@@ -1256,15 +1256,17 @@ impl RpcIndexesStore {
                 .set(next as i64);
             if last_report.elapsed() >= PROGRESS_REPORT_INTERVAL {
                 last_report = Instant::now();
-                let remaining = next - lowest;
-                let fraction = replayed as f64 / (replayed + remaining) as f64;
-                let elapsed = start_time.elapsed();
-                let rate = progress_rate(replayed, elapsed);
-                let eta = eta_display(elapsed, fraction);
+                let total = replayed + (next - lowest);
                 info!(
-                    "Backfilling RPC index history: {:.1}% done (checkpoint {next} down to \
-                     {lowest}), {rate:.0} checkpoints/s, ETA ~{eta}",
-                    fraction * 100.0,
+                    "{}",
+                    progress_line(
+                        "Backfilling RPC index history",
+                        "checkpoints",
+                        replayed as f64 / total as f64,
+                        replayed,
+                        total,
+                        start_time.elapsed(),
+                    )
                 );
             }
             let Some(n) = next.checked_sub(1) else {
