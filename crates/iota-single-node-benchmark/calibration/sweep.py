@@ -383,6 +383,13 @@ def machine_manifest(binary: Path, argv):
 
 
 def run_point(binary, args, sweep_name, spec, value, out_dir):
+    concurrency = getattr(args, "concurrency", 0)
+    # Contended collection needs every lane busy for several waves; the
+    # per-sweep tx_counts were sized for sequential timing cost and can be
+    # far below the worker count (the struct tree uses 5).
+    tx_count = spec.get("tx_count", args.tx_count)
+    if concurrency:
+        tx_count = max(tx_count, 4 * concurrency)
     point_dir = out_dir / sweep_name / f"{spec['knob'].lstrip('-')}={value}"
     point_dir.mkdir(parents=True, exist_ok=True)
     run_files = []
@@ -393,9 +400,10 @@ def run_point(binary, args, sweep_name, spec, value, out_dir):
             continue  # resume support
         cmd = [
             str(binary),
-            "--tx-count", str(spec.get("tx_count", args.tx_count)),
+            "--tx-count", str(tx_count),
             "--profile-output", str(run_file),
             "--rss-output", str(run_file.with_suffix(".rss.json")),
+            *(["--concurrency", str(concurrency)] if concurrency else []),
             "ptb",
             spec["knob"], str(value),
             *spec["fixed"],
@@ -512,6 +520,11 @@ def main():
     ap.add_argument("--binary", type=Path, default=DEFAULT_BINARY)
     ap.add_argument("--cooldown", type=float, default=1.0,
                     help="seconds to sleep between runs (thermal settling)")
+    ap.add_argument("--concurrency", type=int, default=0,
+                    help="transactions executing at once (0 = one at a time, the "
+                         "uncontended fitting default). Nonzero collects the same "
+                         "sweeps under N-way contention, for the contended-"
+                         "coefficient refit at the production worker count.")
     ap.add_argument("--quick", action="store_true",
                     help="plumbing check: 3 values, 2 runs, 20 txs")
     ap.add_argument("--summarize-only", action="store_true",

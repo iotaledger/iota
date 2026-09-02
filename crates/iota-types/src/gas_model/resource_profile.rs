@@ -43,6 +43,12 @@ pub struct ResourceProfile {
     /// not carry: a transaction building many small values runs far slower
     /// per instruction than arithmetic does. Deterministic (bytecode events).
     pub values_constructed: u64,
+    /// Abstract size of the arguments passed to hashing natives
+    /// (`0x1::hash`, `0x2::hash`, `0x2::hmac`) — the bytes those natives
+    /// stream. Feeds the memory-bandwidth dimension's per-transaction moved-bytes sum;
+    /// recorded only, never a fit predictor (it is one half of an identity
+    /// pair with the per-function hash gas).
+    pub hash_input_bytes: u64,
     /// Internal gas deducted by native functions (tiering-correct: the gas
     /// actually charged, not the pre-tiering declared amount). Together with
     /// `interpreter_gas` and the per-byte charges, this sums to the total
