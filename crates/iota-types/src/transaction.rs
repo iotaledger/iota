@@ -17,7 +17,7 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
+    AccountClaimKind, Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
     ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
     GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner,
     ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate, SplitCoins,
@@ -38,10 +38,11 @@ use super::{base_types::*, error::*};
 use crate::{
     IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
     committee::{Committee, EpochId},
+    account_abstraction::public_key::MovePublicKey,
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
         AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
-        IotaSignatureInner, Signature, Signer, ToFromBytes,
+        IotaSignatureInner, Signature, SignatureScheme, Signer, ToFromBytes,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
@@ -75,6 +76,10 @@ const BLOCKED_MOVE_FUNCTIONS: [(ObjectId, &str, &str); 0] = [];
 #[cfg(test)]
 #[path = "unit_tests/messages_tests.rs"]
 mod messages_tests;
+
+#[cfg(test)]
+#[path = "unit_tests/claim_account_validity_tests.rs"]
+mod claim_account_validity_tests;
 
 /// Type alias for the SDK's `Input` type, used as transaction call arguments.
 pub type CallArg = Input;
@@ -1395,6 +1400,7 @@ impl TransactionDataAPI for TransactionData {
     #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
+        check_claim_account(self, config)?;
         self.check_sponsorship()
     }
 
@@ -1846,6 +1852,86 @@ impl TransactionDataAPI for TransactionData {
     fn execution_parts(&self) -> (TransactionKind, Address, GasData) {
         (self.kind().clone(), self.sender(), self.gas_data().clone())
     }
+}
+
+/// Validates a `ClaimAccount` transaction against everything decidable from the
+/// transaction bytes alone. A no-op for every other transaction kind.
+///
+/// The sequencer stages a claim entry for the address *before* the claim executes, so a
+/// claim it schedules must not be able to abort: the address would be treated as explicit
+/// with no account object behind it, rejecting plain signatures forever with nothing to
+/// authenticate against. Every way the constrained pipeline could abort is therefore ruled
+/// out here - an unsupported or malformed key, a key that does not derive the sender, extra
+/// fields, and a budget too small to pay for the fixed pipeline.
+fn check_claim_account(data: &TransactionData, config: &ProtocolConfig) -> UserInputResult {
+    let TransactionKind::ClaimAccount(claim) = data.kind() else {
+        return Ok(());
+    };
+    let AccountClaimKind::SmartAccount(claim) = &claim.kind else {
+        unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+    };
+
+    // Fields would make the pipeline's shape - and with it its cost and its abort surface -
+    // depend on user-supplied type arguments and BCS bytes. They can be added after
+    // claiming, through the admin functions.
+    fp_ensure!(
+        claim.fields.is_empty(),
+        UserInputError::Unsupported("claim account transactions must not carry fields".to_string())
+    );
+
+    // The scheme must be one the framework's claim pipeline accepts, so that
+    // `signature_scheme::from_flag` cannot abort. Note `from_flag` also accepts MultiSig,
+    // which is deliberately excluded here.
+    let scheme_flag = claim.public_key.scheme() as u8;
+    let scheme = SignatureScheme::from_flag_byte(&scheme_flag).map_err(|_| {
+        UserInputError::Unsupported(format!("unknown signature scheme flag {scheme_flag}"))
+    })?;
+    fp_ensure!(
+        matches!(
+            scheme,
+            SignatureScheme::ED25519
+                | SignatureScheme::Secp256k1
+                | SignatureScheme::Secp256r1
+                | SignatureScheme::PasskeyAuthenticator
+        ),
+        UserInputError::Unsupported(format!("signature scheme {scheme} cannot claim an account"))
+    );
+
+    // The claimed key must derive the sender, which is the id the claim mints the account
+    // object at. Move asserts this too, but only at execution - too late, once the entry is
+    // staged.
+    let public_key = MovePublicKey::new(scheme, claim.public_key.as_ref().to_vec()).map_err(
+        |error| UserInputError::IncorrectUserSignature {
+            error: format!("invalid claimed public key: {error}"),
+        },
+    )?;
+    let derived = public_key
+        .address()
+        .map_err(|error| UserInputError::IncorrectUserSignature {
+            error: format!("invalid claimed public key: {error}"),
+        })?;
+    fp_ensure!(
+        derived == data.sender(),
+        UserInputError::IncorrectUserSignature {
+            error: format!(
+                "claimed public key derives {} but the sender is {}",
+                derived,
+                data.sender()
+            ),
+        }
+    );
+
+    // A claim the sequencer schedules must not run out of gas.
+    let min_budget = config.claim_account_min_gas_budget();
+    fp_ensure!(
+        data.gas_budget() >= min_budget,
+        UserInputError::GasBudgetTooLow {
+            gas_budget: data.gas_budget(),
+            min_budget,
+        }
+    );
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]

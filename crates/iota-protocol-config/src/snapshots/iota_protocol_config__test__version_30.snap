@@ -352,3 +352,4 @@ builtin_move_authenticator_cost_base: 0
 ed25519_ed25519_validate_pubkey_cost_base: 52
 ecdsa_k1_secp256k1_validate_pubkey_cost_base: 52
 ecdsa_r1_secp256r1_validate_pubkey_cost_base: 52
+claim_account_min_gas_budget: 5000000
