@@ -604,7 +604,7 @@ impl IndexStoreTables {
     /// be trusted: nodes restored from a formal snapshot wrote a corrupted
     /// owner index and non-canonical transaction numbering into it.
     fn seed_meta(&self) -> IotaResult {
-        if !matches!(self.meta.get(&()), Ok(None)) {
+        if self.meta.get(&())?.is_some() {
             return Ok(());
         }
         if self.owner_index.is_empty() {
@@ -1957,18 +1957,19 @@ impl IndexStore {
         // The newest bucket can be present but empty (a crash between
         // `create_cf` and its first committed batch), so scan the buckets
         // newest to oldest for the last indexed row.
-        let next_sequence_number = history
-            .values()
-            .rev()
-            .find_map(|bucket| {
-                bucket
-                    .tx_order
-                    .safe_range_iter_reversed(..)
-                    .next()
-                    .transpose()
-                    .expect("failed to initialize indexes")
-                    .map(|(seq, _)| seq + 1)
-            })
+        let mut next_from_history = None;
+        for bucket in history.values().rev() {
+            if let Some((seq, _)) = bucket
+                .tx_order
+                .safe_range_iter_reversed(..)
+                .next()
+                .transpose()?
+            {
+                next_from_history = Some(seq + 1);
+                break;
+            }
+        }
+        let next_sequence_number = next_from_history
             .unwrap_or(0)
             .max(next_sequence_number_floor)
             .into();
