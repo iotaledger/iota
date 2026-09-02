@@ -120,7 +120,7 @@ pub async fn sweep(
         if sweep.is_done()? {
             return IotaResult::Ok(());
         }
-        match sweep.bound(pruner_db_present)? {
+        match sweep.bound(&checkpoint_store, pruner_db_present)? {
             Some(bound) => {
                 info!(
                     bound,
@@ -174,7 +174,11 @@ impl ObjectBacklogSweep {
 
     /// The checkpoint above which the backlog can still hold a superseded
     /// version, `None` when the whole live table has to be walked instead.
-    fn bound(&self, pruner_db_present: bool) -> IotaResult<Option<CheckpointSequenceNumber>> {
+    fn bound(
+        &self,
+        checkpoint_store: &CheckpointStore,
+        pruner_db_present: bool,
+    ) -> IotaResult<Option<CheckpointSequenceNumber>> {
         if pruner_db_present {
             warn!(
                 "the objects pruner of this database ran with the compaction filter, whose \
@@ -182,7 +186,29 @@ impl ObjectBacklogSweep {
             );
             return Ok(None);
         }
-        Ok(self.perpetual_tables.object_backlog_sweep_bound.get(&())?)
+        let Some(bound) = self.perpetual_tables.object_backlog_sweep_bound.get(&())? else {
+            return Ok(None);
+        };
+        // The checkpoints above the bound are what names the backlog, so they
+        // all have to still be here. The checkpoint pruner runs to its own
+        // retention, which an earlier build let outpace the objects pruner —
+        // by holding fewer epochs of checkpoints than of object versions, or
+        // by having object pruning turned off after it had once run. Either
+        // leaves summaries missing from the range, and a version no summary
+        // names is one this walk would silently leave behind.
+        let pruned = checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()?
+            .unwrap_or(0);
+        if bound < pruned {
+            warn!(
+                bound,
+                pruned,
+                "the checkpoints above the objects pruner's watermark have themselves been \
+                 pruned, so they no longer name the backlog; walking the whole live table"
+            );
+            return Ok(None);
+        }
+        Ok(Some(bound))
     }
 
     /// Relocates the versions the checkpoints above `bound` superseded, and
@@ -244,8 +270,9 @@ impl ObjectBacklogSweep {
             let Some(summary) =
                 checkpoint_store.get_checkpoint_by_sequence_number(sequence_number)?
             else {
-                // Below the checkpoint store's own retention: its contents are
-                // gone, and so is anything they would have named.
+                // `bound` guarantees the range is retained, so a gap is a
+                // checkpoint the node never had rather than one it dropped —
+                // a sequence number skipped by a reverted transaction.
                 continue;
             };
             let Some(contents) =

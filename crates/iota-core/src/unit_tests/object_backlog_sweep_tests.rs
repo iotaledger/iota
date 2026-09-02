@@ -33,6 +33,7 @@ use crate::{
         authority_store_types::{StoreObject, StoreObjectWrapper, get_store_object},
     },
     checkpoints::CheckpointStore,
+    test_utils::executed_checkpoint,
 };
 
 /// The epoch that is current while the sweep runs, and whose bucket it
@@ -562,6 +563,43 @@ async fn a_pruner_database_refuses_the_bounded_walk() {
 
     // The unbounded walk's outcome: every superseded version relocated,
     // which the bounded walk would not have done at this watermark.
+    assert_eq!(
+        relocated_keys(&store, SWEEP_EPOCH),
+        vec![
+            ObjectKey(live_id(), 1.into()),
+            ObjectKey(live_id(), 2.into()),
+            ObjectKey(deleted_id(), 1.into()),
+            ObjectKey(deleted_id(), 2.into()),
+            ObjectKey(wrapped_id(), 1.into()),
+        ]
+    );
+}
+
+/// A watermark the checkpoint pruner has itself overtaken names checkpoints
+/// the store no longer holds, so it cannot be used to find the backlog and
+/// the whole table is walked instead. An earlier build could leave this by
+/// holding fewer epochs of checkpoints than of object versions, or by having
+/// object pruning turned off after it had once run.
+#[tokio::test]
+async fn a_watermark_below_the_retained_checkpoints_refuses_the_bounded_walk() {
+    let dir = iota_common::tempdir();
+    let store = open_store(&dir);
+    let checkpoint_store = empty_checkpoint_store(&dir);
+
+    seed(&store);
+    // The objects pruner stopped at 5; the checkpoint pruner went on to 9, so
+    // the summaries that would name the backlog are gone.
+    seed_pruner_watermark(&store, 5);
+    checkpoint_store
+        .update_highest_pruned_checkpoint(&executed_checkpoint(0, 9))
+        .unwrap();
+
+    sweep(store.clone(), checkpoint_store, SWEEP_EPOCH, false)
+        .await
+        .unwrap();
+
+    // The unbounded walk's outcome, which the bounded one could not have
+    // reached from a watermark of 5.
     assert_eq!(
         relocated_keys(&store, SWEEP_EPOCH),
         vec![
