@@ -94,3 +94,4 @@
 92: NoCertificateProvided
 93: InvalidAdminRequest
 94: TransactionEffectsNotFound
+95: DynamicFieldNotExists

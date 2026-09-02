@@ -711,6 +711,13 @@ pub enum IotaError {
 
     #[error("Could not find the referenced transaction effects [{digest}]")]
     TransactionEffectsNotFound { digest: TransactionDigest },
+
+    #[error("Dynamic field with key={key} and ID={id} does not exist on parent {parent_id}")]
+    DynamicFieldNotExists {
+        parent_id: ObjectId,
+        id: ObjectId,
+        key: String,
+    },
 }
 
 #[repr(u64)]
