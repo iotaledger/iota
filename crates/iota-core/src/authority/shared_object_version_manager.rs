@@ -756,13 +756,10 @@ mod tests {
         );
     }
 
-    /// Cancellation is looked up by digest, but a randomness state update
-    /// transaction is keyed by `TransactionKey::RandomnessRound`, whose
-    /// `as_digest()` is `None` — so an entry in `cancelled_txns` holding the
-    /// update's own digest must be ignored: the update is assigned the
-    /// current randomness object version (not `RANDOMNESS_UNAVAILABLE`) and
-    /// still bumps it for subsequent readers. A refactor that reverts to a raw
-    /// digest lookup would start silently cancelling randomness state updates.
+    /// Cancellation is looked up by the digest of the transaction key, and a
+    /// randomness state update's key (`TransactionKey::RandomnessRound`) has
+    /// none, so an entry in `cancelled_txns` under the update's own digest
+    /// must not cancel it.
     #[tokio::test]
     async fn test_assign_versions_ignores_cancellation_for_randomness_round_keyed_transaction() {
         let authority = TestAuthorityBuilder::new().build().await;

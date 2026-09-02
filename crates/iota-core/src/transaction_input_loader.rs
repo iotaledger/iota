@@ -156,12 +156,8 @@ impl TransactionInputLoader {
         let mut object_keys = Vec::with_capacity(input_object_kinds.len());
         let mut fetches = Vec::with_capacity(input_object_kinds.len());
         let mut gas_object_cancellation = None;
-        // A gas-object cancellation version can only exist for a transaction
-        // without shared inputs (version assignment puts the cancellation on
-        // the shared inputs otherwise), so only those look their owned inputs
-        // up in the assignments. It is only ever assigned under execution-worker
-        // congestion control, which requires P-COOL — and P-COOL disables the
-        // certificate path, the one that enqueues with no assignments at all.
+        // Only a transaction without shared inputs can carry a cancellation
+        // version on its gas object; every other assignment names a shared object.
         let check_gas_object_cancellation = !input_object_kinds
             .iter()
             .any(|kind| matches!(kind, InputObjectKind::SharedMoveObject { .. }));

@@ -3454,6 +3454,7 @@ impl AuthorityState {
             .get_latest_locally_computed_checkpoint()?
             .map(|c| c.sequence_number())
             .unwrap_or(0);
+
         assert!(
             epoch_last_checkpoint >= highest_locally_built_checkpoint_seq,
             "expected {epoch_last_checkpoint} >= {highest_locally_built_checkpoint_seq}"
