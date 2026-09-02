@@ -66,11 +66,12 @@ rm -rf "$IOTA_CONFIG_DIR"
 
 "$WORKING_DIR/iota-localnet-release" genesis --epoch-duration-ms 20000 --committee-size 4
 
-# `genesis` wrote the node config files itself until the release that made
-# `start --write-config` write them instead. Asking for them only when they are
-# missing covers both, and can be made unconditional once RELEASE_COMMIT is at
-# or past that release.
-if [ -z "$(find "$IOTA_CONFIG_DIR" -name "127.0.0.1*.yaml" -print -quit)" ]; then
+# `genesis` wrote the node config files itself, named `<host>-<port>.yaml`,
+# until the release that made `start --write-config` write them instead, named
+# `validator-<index>.yaml`. Both names are matched here, so the check works
+# either side of that release.
+VALIDATOR_CONFIG_NAMES=(-name "127.0.0.1*.yaml" -o -name "validator-*.yaml")
+if [ -z "$(find "$IOTA_CONFIG_DIR" \( "${VALIDATOR_CONFIG_NAMES[@]}" \) -print -quit)" ]; then
   "$WORKING_DIR/iota-localnet-release" start --write-config "$IOTA_CONFIG_DIR"
 fi
 
@@ -82,7 +83,7 @@ mkdir -p "$LOG_DIR"
 CONFIGS=()
 while IFS= read -r -d '' file; do
   CONFIGS+=("$file")
-done < <(find "$IOTA_CONFIG_DIR" -name "127.0.0.1*.yaml" -print0)
+done < <(find "$IOTA_CONFIG_DIR" \( "${VALIDATOR_CONFIG_NAMES[@]}" \) -print0)
 
 export RUST_LOG=iota=debug,info
 
