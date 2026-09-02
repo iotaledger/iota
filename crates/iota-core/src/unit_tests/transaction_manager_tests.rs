@@ -971,6 +971,8 @@ async fn transaction_manager_parks_randomness_schedulable_until_key_resolves() {
     );
 
     // The transaction for the round does not exist yet: nothing must be emitted.
+    // Under `start_paused` the sleep only lets already-spawned tasks run and
+    // advances virtual time, so this asserts that nothing dispatches on its own.
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
 
@@ -978,7 +980,10 @@ async fn transaction_manager_parks_randomness_schedulable_until_key_resolves() {
     let digest = *transaction.digest();
     transaction_manager.notify_transaction_key(&epoch_store, key, digest);
 
-    let pending = rx_ready_transactions.recv().await.unwrap();
+    let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
     assert_eq!(pending.transaction.digest(), &digest);
     assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
 
@@ -1035,7 +1040,10 @@ async fn transaction_manager_releases_each_parked_key_with_its_own_env() {
         .insert_tx_key(key_1, *transaction_1.digest())
         .unwrap();
     transaction_manager.notify_transaction_key(&epoch_store, key_1, *transaction_1.digest());
-    let pending = rx_ready_transactions.recv().await.unwrap();
+    let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
     assert_eq!(pending.transaction.digest(), transaction_1.digest());
     assert_eq!(
         pending.execution_env.expected_effects_digest,
@@ -1053,7 +1061,10 @@ async fn transaction_manager_releases_each_parked_key_with_its_own_env() {
         .insert_tx_key(key_2, *transaction_2.digest())
         .unwrap();
     transaction_manager.notify_transaction_key(&epoch_store, key_2, *transaction_2.digest());
-    let pending = rx_ready_transactions.recv().await.unwrap();
+    let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
     assert_eq!(pending.transaction.digest(), transaction_2.digest());
     assert_eq!(
         pending.execution_env.expected_effects_digest,
@@ -1110,7 +1121,10 @@ async fn transaction_manager_schedules_already_resolved_randomness_key() {
         &epoch_store,
     );
 
-    let pending = rx_ready_transactions.recv().await.unwrap();
+    let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
     assert_eq!(pending.transaction.digest(), &digest);
     assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
 }
@@ -1136,7 +1150,10 @@ async fn transaction_manager_propagates_execution_env() {
         )],
         &state.epoch_store_for_testing(),
     );
-    let pending = rx_ready_transactions.recv().await.unwrap();
+    let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
     assert_eq!(pending.transaction.digest(), ready_tx.digest());
     assert_eq!(
         pending.execution_env.expected_effects_digest,
@@ -1165,7 +1182,10 @@ async fn transaction_manager_propagates_execution_env() {
         get_input_keys(&[missing_gas]),
         &state.epoch_store_for_testing(),
     );
-    let pending = rx_ready_transactions.recv().await.unwrap();
+    let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
     assert_eq!(pending.transaction.digest(), parked_tx.digest());
     assert_eq!(
         pending.execution_env.expected_effects_digest,
@@ -1177,7 +1197,9 @@ async fn transaction_manager_propagates_execution_env() {
 /// which case local randomness generation never runs for that round and
 /// `commit_transaction` is the only place left that can resolve the key its
 /// schedulable is parked under. This test drives the authority's own scheduler,
-/// since that is the one `commit_transaction` notifies.
+/// since that is the one `commit_transaction` notifies. Only the
+/// `TransactionManager` arm pins the release; under
+/// `ENABLE_EXECUTION_SCHEDULER=1` the test checks the key write alone.
 #[tokio::test]
 async fn transaction_manager_resolves_the_parked_key_from_commit_transaction() {
     let state = init_state_with_objects(vec![]).await;
@@ -1255,11 +1277,11 @@ async fn transaction_manager_reports_a_resolved_key_naming_nothing() {
     );
 }
 
-/// A transaction without shared inputs that consensus cancelled for
-/// execution-worker congestion carries the cancellation version on its gas
-/// object, inside the env. The scheduler must not take that assignment for an
-/// input to wait on — the gas object sits at its real version — and must hand
-/// the env on intact, since only the loader turns it into the cancellation.
+/// A transaction without shared inputs cancelled for execution-worker
+/// congestion carries the cancellation version on its gas object, as an
+/// assignment naming an owned input. The scheduler must neither reject such
+/// an assignment nor lose it: it reaches the ready transaction as assigned,
+/// and only the loader turns it into the cancellation.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn transaction_manager_dispatches_gas_object_cancellation_with_its_env() {
     let (owner, _keypair) = deterministic_random_account_private_key();
@@ -1282,8 +1304,61 @@ async fn transaction_manager_dispatches_gas_object_cancellation_with_its_env() {
 
     let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
         .await
-        .expect("the assignment on the gas object must not be waited for as an input")
+        .expect("dispatched within the deadline")
         .unwrap();
     assert_eq!(pending.transaction.digest(), transaction.digest());
     assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
+}
+
+/// The env parked under a key holds the only copy of that key's assigned
+/// versions, so the digest `notify_transaction_key` releases it for must name
+/// the key's own transaction; another round's digest would execute that round
+/// on the wrong versions.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+#[should_panic(expected = "digest naming another transaction")]
+async fn transaction_manager_rejects_a_digest_naming_another_transaction() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (transaction_manager, _rx_ready_transactions) = make_transaction_manager(&state);
+
+    let round_1 = RandomnessRound::new(1);
+    transaction_manager.enqueue(
+        vec![(
+            Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round_1),
+            ExecutionEnv::new().with_assigned_versions(randomness_assigned_versions(&epoch_store)),
+        )],
+        &epoch_store,
+    );
+
+    let transaction_2 = resolve_randomness_round(&state, &epoch_store, 2);
+    transaction_manager.notify_transaction_key(
+        &epoch_store,
+        TransactionKey::RandomnessRound(epoch_store.epoch(), round_1),
+        *transaction_2.digest(),
+    );
+}
+
+/// `commit_transaction` notifies for every committed transaction with a
+/// non-digest key, most of which were never parked here — a randomness state
+/// update executed from a synced checkpoint on a node that never enqueued the
+/// schedulable, for one. Such a key must be ignored.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_ignores_a_key_nothing_is_parked_under() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+
+    let transaction = resolve_randomness_round(&state, &epoch_store, 1);
+    transaction_manager.notify_transaction_key(
+        &epoch_store,
+        TransactionKey::RandomnessRound(epoch_store.epoch(), RandomnessRound::new(1)),
+        *transaction.digest(),
+    );
+
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+    assert_eq!(
+        transaction_manager.num_pending_transaction_keys_for_testing(),
+        0
+    );
 }

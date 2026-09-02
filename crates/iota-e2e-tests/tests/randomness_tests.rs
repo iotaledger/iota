@@ -69,12 +69,10 @@ async fn build_cluster_with_scheduler(use_execution_scheduler: bool) -> TestClus
 /// forever, so the wait is bounded.
 ///
 /// The delay injected into local randomness generation lets checkpoint
-/// execution win the race against it on some node, which is the state in which
-/// a round's transaction executes without that node having generated it. The
-/// checkpoint builder then needs the round key resolved by the execution path
-/// rather than by local generation; if that write is missing, the assertion in
-/// `CheckpointBuilder::make_checkpoint` reports the builder waiting on a root
-/// the executor is already past.
+/// execution win the race on some node, so a round's transaction may execute
+/// there without that node having generated it. Whether that happened is not
+/// asserted — the path is pinned by unit tests; this run has to reach finality
+/// either way.
 async fn run_randomness_using_transaction_reaches_finality(use_execution_scheduler: bool) {
     #[cfg(msim)]
     register_fail_point_async("randomness-delay", || async {

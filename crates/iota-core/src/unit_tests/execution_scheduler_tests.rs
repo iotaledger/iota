@@ -765,15 +765,23 @@ async fn execution_scheduler_resolves_schedulables_by_key_with_matching_envs() {
         &epoch_store,
     );
 
-    // Neither transaction exists yet: nothing must be dispatched.
+    // Neither transaction exists yet: nothing must be dispatched. Under
+    // `start_paused` the sleep only lets already-spawned tasks run and advances
+    // virtual time, so this asserts that nothing dispatches on its own.
     sleep(Duration::from_secs(1)).await;
     assert!(rx_ready_transactions.try_recv().is_err());
 
     let transaction_1 = resolve_randomness_round(&state, &epoch_store, 1);
     let transaction_2 = resolve_randomness_round(&state, &epoch_store, 2);
 
-    let first = rx_ready_transactions.recv().await.unwrap();
-    let second = rx_ready_transactions.recv().await.unwrap();
+    let first = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
+    let second = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
     // Without this, one round arriving twice while the other is lost would pass
     // the loop below.
     assert_ne!(first.transaction.digest(), second.transaction.digest());
@@ -814,7 +822,10 @@ async fn execution_scheduler_schedules_already_resolved_randomness_key() {
         &epoch_store,
     );
 
-    let pending = rx_ready_transactions.recv().await.unwrap();
+    let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
     assert_eq!(pending.transaction.digest(), &digest);
     assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
 }
@@ -852,7 +863,10 @@ async fn execution_scheduler_mixed_batch_dispatches_plain_transaction_immediatel
     );
 
     // The plain transaction is dispatched immediately...
-    let ready = rx_ready_transactions.recv().await.unwrap();
+    let ready = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
     assert_eq!(ready.transaction.digest(), transaction.digest());
 
     // ...while the schedulable stays parked on its unresolved key.
@@ -861,7 +875,10 @@ async fn execution_scheduler_mixed_batch_dispatches_plain_transaction_immediatel
 
     // Resolving the key releases it.
     let randomness_tx = resolve_randomness_round(&state, &epoch_store, 5);
-    let ready = rx_ready_transactions.recv().await.unwrap();
+    let ready = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
+        .await
+        .expect("dispatched within the deadline")
+        .unwrap();
     assert_eq!(ready.transaction.digest(), randomness_tx.digest());
 }
 
@@ -904,9 +921,9 @@ async fn execution_scheduler_missing_shared_version_assignment_drops_transaction
     assert!(rx_ready_transactions.try_recv().is_err());
 }
 
-/// The task waiting on a key runs under `within_alive_epoch`:
-/// terminating the epoch must cancel it, so a key resolved after the epoch
-/// ended dispatches nothing.
+/// A key that resolves only after the epoch ended must dispatch nothing,
+/// whichever of the two epoch guards stops it — the wait's `within_alive_epoch`
+/// or the epoch check in `enqueue_transactions`.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn execution_scheduler_drops_unresolved_key_wait_on_epoch_termination() {
     let state = init_state_with_objects(vec![]).await;
@@ -932,11 +949,11 @@ async fn execution_scheduler_drops_unresolved_key_wait_on_epoch_termination() {
     assert!(rx_ready_transactions.try_recv().is_err());
 }
 
-/// A transaction without shared inputs that consensus cancelled for
-/// execution-worker congestion carries the cancellation version on its gas
-/// object, inside the env. The scheduler must not take that assignment for an
-/// input to wait on — the gas object sits at its real version — and must hand
-/// the env on intact, since only the loader turns it into the cancellation.
+/// A transaction without shared inputs cancelled for execution-worker
+/// congestion carries the cancellation version on its gas object, as an
+/// assignment naming an owned input. The scheduler must neither reject such
+/// an assignment nor lose it: it reaches the ready transaction as assigned,
+/// and only the loader turns it into the cancellation.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn execution_scheduler_dispatches_gas_object_cancellation_with_its_env() {
     let (owner, _keypair) = deterministic_random_account_private_key();
@@ -960,7 +977,7 @@ async fn execution_scheduler_dispatches_gas_object_cancellation_with_its_env() {
 
     let pending = timeout(Duration::from_secs(10), rx_ready_transactions.recv())
         .await
-        .expect("the assignment on the gas object must not be waited for as an input")
+        .expect("dispatched within the deadline")
         .unwrap();
     assert_eq!(pending.transaction.digest(), transaction.digest());
     assert_eq!(pending.execution_env.assigned_versions, assigned_versions);
