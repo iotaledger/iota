@@ -43,6 +43,11 @@ for base in (
     "validator_attestation_async_resume_latency",  # V2 split: async reschedule after join
     "validator_transaction_execution_latency",  # validator-internal pipeline
     "authority_state_internal_execution_latency",  # pure VM execution
+    # Same, user transactions only. The unqualified metric above also counts
+    # the per-commit system transactions, which are far cheaper and outnumber
+    # user ones once a run's throughput drops, so its mean says little about
+    # what a user transaction actually cost to execute.
+    "authority_state_internal_execution_latency_user",
     "transaction_driver_settlement_finality_latency",  # client-side (fullnode)
     "transaction_driver_submit_transaction_latency",  # client-side (fullnode)
     "post_consensus_validation_latency",  # post-consensus validation pass

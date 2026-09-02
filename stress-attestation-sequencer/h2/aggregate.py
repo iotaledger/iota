@@ -13,7 +13,7 @@ Reported per arm:
     included — comparable to the client's own reported throughput.
   - cancelled/s: transactions dropped at max_deferral_rounds.
   - checkpoint lag p50/p95: pooled histogram quantiles across all iterations.
-    Above 30s these carry roughly one bucket of resolution (the histogram
+    Above 30s these carry roughly one bucket :f resolution (the histogram
     steps 25, 30, 60, 90), so read anything past 30s as "30 to 60s".
   - deferral rounds above max_deferral_rounds: should be 0; every such
     observation is the signature of a skipped leader round (the deferral
@@ -69,6 +69,45 @@ from aggregate import (  # noqa: E402
 LAG_COARSE_EDGE = 30.0
 
 CRASH_RUN_DIRS = (("run-a-node-logs", "A"), ("run-b-node-logs", "B"))
+
+# The latencies the stress plan asks H2 to report, with the host kind that
+# reports each. `authority_state_internal_execution_latency` is the one that
+# needs filtering: the fullnode reports it too, for its checkpoint replays,
+# which is a different population from the validators executing user
+# transactions. The client-facing driver metrics only exist on the fullnode
+# (the runs submit through it), so they must NOT be filtered to validators.
+LATENCIES = [
+    # (key, base metric, host prefix, display label)
+    (
+        "fin",
+        "transaction_driver_settlement_finality_latency",
+        "fullnode",
+        "settlement finality (client)",
+    ),
+    (
+        "recv",
+        "validator_transaction_execution_latency",
+        "validator",
+        "receipt to executed",
+    ),
+    (
+        "vm",
+        "authority_state_internal_execution_latency_user",
+        "validator",
+        "VM execution (user transactions)",
+    ),
+    # The unqualified variant, kept for runs dumped before the _user one was
+    # captured. It blends in the per-commit system transactions AND the
+    # cancelled transactions, which do no Move work — so in a cancel-heavy
+    # cell its mean describes the cancellations, not the workload. Never
+    # headline it; it is in the CSV for continuity only.
+    (
+        "vmall",
+        "authority_state_internal_execution_latency",
+        "validator",
+        "VM execution (all transactions)",
+    ),
+]
 
 # Safety counters that MUST stay 0 across every run; any non-zero one flags the
 # label's numbers as suspect. NOTE: past fork panics left these at 0 while the
@@ -179,6 +218,25 @@ def aggregate_arm(runs):
         # from the histogram's _sum, the share from a bucket boundary.
         "lag_mean": hmean(series, "checkpoint_creation_latency"),
         "lag_gt_coarse": htail_share(lag, LAG_COARSE_EDGE),
+        # Latency, per the stress plan's H2 ask. Reported as the exact mean
+        # plus p50/p95 pooled across iterations.
+        **{
+            f"{key}_{stat}": value
+            for key, base, host, _ in LATENCIES
+            for stat, value in (
+                ("mean", hmean(series, base, host)),
+                ("p50", hquantile(0.5, pooled_buckets(series, base, host))),
+                ("p95", hquantile(0.95, pooled_buckets(series, base, host))),
+            )
+        },
+        # Transactions this arm actually admitted to the hot object per commit
+        # — the check that each limit enforced what it was set to: Run A should
+        # sit at LIMIT_A, Run B at LIMIT_B / units-per-tx.
+        "admits": hmean(
+            series,
+            "consensus_handler_scheduled_transactions_per_object_per_commit",
+            "validator",
+        ),
         "skips": skipped_rounds(runs),
         # consensus commits per second — what turns a per-commit limit into an
         # admitted rate (tx/commit x commits/s), so plot.py needs it per arm.
@@ -258,6 +316,15 @@ def fmt_share(v):
     return "—" if v is None else f"{100 * v:.0f}%"
 
 
+def fmt_ms(v):
+    """Seconds in, milliseconds out — these latencies span microseconds to
+    seconds, and ms keeps both ends readable."""
+    if v is None:
+        return "—"
+    ms = v * 1000
+    return f"{ms:.2f}" if ms < 10 else f"{ms:.0f}"
+
+
 def ab(x, y, f=fmt_rate):
     return f"{f(x)} → {f(y)}"
 
@@ -296,6 +363,17 @@ def main():
         "- checkpoint lag: the mean and the >30s share are exact; the p95",
         "  is not past 30s, where the buckets jump 30 to 60, so it prints",
         '  as ">30" there. Compare the mean and the share, not that bound.',
+        "- admits/cmt is what each arm actually let onto the hot object per",
+        "  commit, so it is the check that a limit enforced what it was set",
+        "  to: Run A should sit at LIMIT_A, Run B at LIMIT_B / units-per-tx.",
+        "- settlement finality is the client-facing latency (measured on the",
+        "  fullnode the runs submit through); receipt-to-executed is the",
+        "  validator pipeline, which includes any time spent deferred; VM",
+        "  execution is the pure Move cost, and is filtered to validators",
+        "  because the fullnode reports its checkpoint replays under the same",
+        "  metric. It is blank for runs dumped before that metric was",
+        "  captured — better empty than the blended value, which in a",
+        "  cancel-heavy cell describes the cancellations, not the workload.",
         "- units/tx is measured from Run B's attested computation units;",
         "  B tx/commit = LIMIT_B / units-per-tx, what Run B admits where",
         "  Run A always admits LIMIT_A transactions.",
@@ -332,6 +410,25 @@ def main():
                 f" {ab(a['lag95'], b['lag95'], fmt_q)} |"
                 f" {ab(a['skips'], b['skips'])} |"
                 f" {'FAIL ✗' if safety_failed(r) else 'ok'} |"
+            )
+        L.append("")
+
+        L += [
+            f"### A = {mode_a}, B = {mode_b} — latency and admission\n",
+            "| label | admits/cmt A → B | settlement p50 ms A → B |"
+            " settlement p95 ms A → B | receipt→exec p95 ms A → B |"
+            " user VM exec mean ms A → B |",
+            "| --- | --- | --- | --- | --- | --- |",
+        ]
+        for r in grp:
+            a, b = r["a"], r["b"]
+            L.append(
+                f"| {r['label']} |"
+                f" {ab(a['admits'], b['admits'], fmt_secs)} |"
+                f" {ab(a['fin_p50'], b['fin_p50'], fmt_ms)} |"
+                f" {ab(a['fin_p95'], b['fin_p95'], fmt_ms)} |"
+                f" {ab(a['recv_p95'], b['recv_p95'], fmt_ms)} |"
+                f" {ab(a['vm_mean'], b['vm_mean'], fmt_ms)} |"
             )
         L.append("")
 
@@ -379,8 +476,14 @@ def main():
         "lag_over_30s_share",
         "lag_p50_s",
         "lag_p95_s",
+        "admits_per_commit",
         "commit_rate",
         "skipped_rounds",
+        *(
+            f"{key}_{stat}_s"
+            for key, _, _, _ in LATENCIES
+            for stat in ("mean", "p50", "p95")
+        ),
         "over_max_deferrals",
     )
     arm_keys = (
@@ -391,8 +494,14 @@ def main():
         "lag_gt_coarse",
         "lag50",
         "lag95",
+        "admits",
         "commit_rate",
         "skips",
+        *(
+            f"{key}_{stat}"
+            for key, _, _, _ in LATENCIES
+            for stat in ("mean", "p50", "p95")
+        ),
     )
 
     def cell(v):

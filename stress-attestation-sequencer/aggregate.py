@@ -77,23 +77,34 @@ def source_total(series_per_run, key, source):
     return total
 
 
-def pooled_buckets(series_per_run, base):
+def _host_matches(s, host_prefix):
+    if host_prefix is None:
+        return True
+    return s.get("metric", {}).get("host", "").startswith(host_prefix)
+
+
+def pooled_buckets(series_per_run, base, host_prefix=None):
     """Sum per-`le` bucket increments across hosts AND runs -> {le: count}.
 
     This is the pooled histogram: equivalent to PromQL `sum by (le) (...)` but
     combined over every run, so the quantile is taken on the union of samples.
+
+    `host_prefix` keeps only the hosts whose name starts with it — needed for
+    metrics that several kinds of node report, where pooling them all would
+    blend different populations (a fullnode replaying checkpoints alongside
+    validators executing user transactions, say).
     """
     acc = {}
     for series in series_per_run:
         for s in series_list(series, f"{base}_bucket"):
             le = s.get("metric", {}).get("le")
-            if le is None:
+            if le is None or not _host_matches(s, host_prefix):
                 continue
             acc[le] = acc.get(le, 0.0) + delta(s.get("values", []))
     return acc
 
 
-def hmean(series_per_run, base):
+def hmean(series_per_run, base, host_prefix=None):
     """Exact mean of a histogram: pooled delta(_sum) / delta(_count).
 
     Unlike a quantile this carries NO bucket error — `_sum` accumulates the
@@ -104,9 +115,11 @@ def hmean(series_per_run, base):
     num = den = 0.0
     for series in series_per_run:
         for s in series_list(series, f"{base}_sum"):
-            num += delta(s.get("values", []))
+            if _host_matches(s, host_prefix):
+                num += delta(s.get("values", []))
         for s in series_list(series, f"{base}_count"):
-            den += delta(s.get("values", []))
+            if _host_matches(s, host_prefix):
+                den += delta(s.get("values", []))
     return num / den if den > 0 else None
 
 
