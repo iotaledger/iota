@@ -15,7 +15,7 @@ use iota_types::{
     },
     transaction::{SenderSignedData, SharedObjectRef, TransactionKey},
 };
-use tracing::trace;
+use tracing::{trace, warn};
 
 use crate::{
     authority::{
@@ -74,13 +74,33 @@ impl SharedObjVerManager {
             // claim's lamport version; seeding the version chain here makes
             // that version available to the rest of the walk, so a
             // `MoveAuthenticator` use of the freshly claimed account chains
-            // correctly within the same commit. The seed must be a plain
-            // insert: the entry may not exist, or may hold a garbage value
-            // seeded by an adversarial declared input. A cancelled claim
-            // stages nothing — the address stays implicit and claimable.
+            // correctly within the same commit. A cancelled claim stages
+            // nothing — the address stays implicit and claimable.
+            //
+            // The seed only ever moves the chain forward because no scheduled
+            // transaction can have advanced it first: a mutable declared use of
+            // an address that does not exist yet is dropped when its inputs are
+            // loaded during post-consensus validation, and a `MoveAuthenticator`
+            // reference must be immutable. If those drops are ever removed,
+            // revisit this insert — it could then rewind the chain and hand the
+            // same version out twice.
             if let Some(address) = address_being_claimed {
                 if !cancelled_txns.contains_key(transaction.digest()) {
-                    shared_input_next_versions.insert(address, lamport_version);
+                    // The seed is authoritative, so it overwrites whatever is
+                    // there. An entry can only pre-exist adversarially; count it
+                    // so that case is visible.
+                    if let Some(previous) =
+                        shared_input_next_versions.insert(address, lamport_version)
+                    {
+                        warn!(
+                            ?address,
+                            ?previous,
+                            ?lamport_version,
+                            digest = ?transaction.digest(),
+                            "claim seed displaced an existing version-chain entry"
+                        );
+                        epoch_store.metrics.claim_seed_displaced_version_entry.inc();
+                    }
                     let previous =
                         claimed_accounts.insert(address, (*transaction.digest(), lamport_version));
                     assert!(

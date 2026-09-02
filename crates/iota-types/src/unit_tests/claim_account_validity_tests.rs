@@ -21,7 +21,8 @@ use crate::{
     crypto::{AccountKeyPair, KeypairTraits, get_key_pair},
     digests::ObjectDigest,
     error::UserInputError,
-    transaction::{TransactionData, TransactionDataAPI, TransactionKind},
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{CallArg, SharedObjectRef, TransactionData, TransactionDataAPI, TransactionKind},
 };
 
 /// v30 on a non-testnet/mainnet chain is where the claim feature and its gas
@@ -140,4 +141,52 @@ fn claim_below_the_gas_floor_is_rejected() {
     claim_tx_with_budget(claim, sender, floor)
         .validity_check(&config)
         .expect("exactly the floor must pass");
+}
+
+#[test]
+fn declared_initial_shared_version_must_be_valid() {
+    let (sender, _): (Address, AccountKeyPair) = get_key_pair();
+    let shared_id = ObjectId::random();
+
+    // A sentinel version would otherwise seed the epoch's version chain
+    // verbatim and reach the version-assignment walk, which unwraps a lamport
+    // increment that errors on an invalid version.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder
+        .input(CallArg::Shared(SharedObjectRef::new(
+            shared_id,
+            SequenceNumber::CANCELLED_READ,
+            true,
+        )))
+        .unwrap();
+    let tx = TransactionData::new(
+        TransactionKind::Programmable(builder.finish()),
+        sender,
+        gas_ref(),
+        10_000_000,
+        1,
+    );
+    assert!(matches!(
+        tx.validity_check(&config()),
+        Err(UserInputError::InvalidSequenceNumber)
+    ));
+
+    // A real initial version is accepted.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    builder
+        .input(CallArg::Shared(SharedObjectRef::new(
+            shared_id,
+            SequenceNumber::from_u64(3),
+            true,
+        )))
+        .unwrap();
+    let tx = TransactionData::new(
+        TransactionKind::Programmable(builder.finish()),
+        sender,
+        gas_ref(),
+        10_000_000,
+        1,
+    );
+    tx.validity_check(&config())
+        .expect("a valid initial shared version must pass");
 }

@@ -547,6 +547,16 @@ struct FeatureFlags {
     // Used to gate genesis creation and epoch-change creation for existing networks.
     #[serde(skip_serializing_if = "is_false")]
     enable_claim_registry: bool,
+
+    // If true, a declared `initial_shared_version` must be a valid version.
+    //
+    // For an object that does not exist yet the declared value is otherwise never checked
+    // against anything - it seeds the epoch's version chain verbatim - so a sentinel or
+    // out-of-range value reaches the version-assignment walk, which unwraps a
+    // `lamport_increment` that errors on invalid input. Tightens transaction validity, so it
+    // is version-gated.
+    #[serde(skip_serializing_if = "is_false")]
+    check_declared_initial_shared_versions: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1853,6 +1863,10 @@ impl ProtocolConfig {
         }
         enable_claim_registry
     }
+
+    pub fn check_declared_initial_shared_versions(&self) -> bool {
+        self.feature_flags.check_declared_initial_shared_versions
+    }
 }
 
 #[cfg(not(msim))]
@@ -3031,6 +3045,11 @@ impl ProtocolConfig {
                     cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(52);
                     cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(52);
                     cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
+
+                    // Reject declared initial shared versions that are not valid
+                    // versions, on every chain: an invalid one otherwise seeds a
+                    // version chain and reaches the assignment walk.
+                    cfg.feature_flags.check_declared_initial_shared_versions = true;
                 }
                 // Use this template when making changes:
                 //

@@ -316,7 +316,20 @@ impl CallArgExt for CallArg {
                     }
                 );
             }
-            CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
+            CallArg::Shared(shared) => {
+                // A declared initial shared version is never checked against anything for an
+                // object that does not exist yet: `get_or_init_next_object_versions` seeds the
+                // version chain from the declared value in that case. A sentinel or
+                // out-of-range value would then flow into the version-assignment walk, where
+                // `lamport_increment` errors on an invalid version and the walk unwraps it.
+                // Reject those here, where the check is a pure function of the bytes.
+                fp_ensure!(
+                    !config.check_declared_initial_shared_versions()
+                        || shared.initial_shared_version.is_valid(),
+                    UserInputError::InvalidSequenceNumber
+                );
+            }
+            CallArg::ImmutableOrOwned(_) | CallArg::Receiving(_) => {
                 // No validation needed for these variants
             }
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
