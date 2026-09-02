@@ -23,13 +23,14 @@
 
 use std::{future::Future, sync::Arc, time::Instant};
 
+use fastcrypto::hash::MultisetHash;
 use futures::StreamExt;
 use iota_common::{debug_fatal, fatal};
 use iota_config::node::{CheckpointExecutorConfig, RunWithRange};
 use iota_macros::fail_point;
 use iota_sdk_types::{
-    RandomnessRound, TransactionDigest, TransactionEffects, TransactionEffectsDigest,
-    TransactionKind, checkpoint::CheckpointContents,
+    CheckpointCommitment, RandomnessRound, TransactionDigest, TransactionEffects,
+    TransactionEffectsDigest, TransactionKind, checkpoint::CheckpointContents,
 };
 use iota_types::{
     base_types::ExecutionData,
@@ -39,7 +40,7 @@ use iota_types::{
     global_state_hash::GlobalStateHash,
     messages_checkpoint::{
         CheckpointContentsExt, CheckpointSequenceNumber, CheckpointSummaryExt,
-        FullCheckpointContents, VerifiedCheckpoint,
+        ECMHLiveObjectSetDigest, FullCheckpointContents, VerifiedCheckpoint,
     },
     transaction::{SenderSignedTransactionAPI, TransactionAPI, VerifiedTransaction},
 };
@@ -454,9 +455,11 @@ impl CheckpointExecutor {
                 .insert_epoch_last_checkpoint(self.epoch_store.epoch(), &ckpt_state.data.checkpoint)
                 .expect("Failed to insert epoch last checkpoint");
 
-            self.global_state_hasher
+            let running_root = self
+                .global_state_hasher
                 .accumulate_epoch(self.epoch_store.clone(), seq)
                 .expect("Accumulating epoch cannot fail");
+            self.verify_epoch_state_commitment(&ckpt_state.data.checkpoint, running_root);
 
             self.checkpoint_store
                 .prune_local_summaries()
@@ -661,6 +664,48 @@ impl CheckpointExecutor {
         finish_stage!(pipeline_handle, ProcessCheckpointData);
 
         ckpt_state
+    }
+
+    /// Checks the live object set this node accumulated over the epoch against
+    /// the commitment the epoch's last checkpoint carries.
+    ///
+    /// Not needed to trust the data — each object was already checked against
+    /// the digest its transaction's effects record, whether the results were
+    /// executed or applied. This is a check on this node's own bookkeeping: it
+    /// catches an object written under the wrong key, a missed deletion, or a
+    /// gap in that per-object verification.
+    fn verify_epoch_state_commitment(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+        running_root: GlobalStateHash,
+    ) {
+        let Some(end_of_epoch_data) = &checkpoint.end_of_epoch_data else {
+            return;
+        };
+        let computed = ECMHLiveObjectSetDigest::from(running_root.digest());
+        for commitment in &end_of_epoch_data.epoch_commitments {
+            // `CheckpointCommitment` is non-exhaustive; a kind this binary does
+            // not know how to recompute is left unchecked rather than treated
+            // as a mismatch.
+            let CheckpointCommitment::EcmhLiveObjectSet { digest } = commitment else {
+                continue;
+            };
+            if computed.digest != *digest {
+                // A live object set that disagrees with the committed one is not
+                // recoverable by carrying on, the same as a checkpoint fork.
+                fatal!(
+                    "Live object set mismatch at the end of epoch {}: this node accumulated \
+                     {:?}, the checkpoint commits to {:?}",
+                    self.epoch_store.epoch(),
+                    computed.digest,
+                    digest
+                );
+            }
+        }
+        debug!(
+            epoch = self.epoch_store.epoch(),
+            "live object set matches the checkpoint's commitment"
+        );
     }
 
     fn checkpoint_data_enabled(&self) -> bool {
