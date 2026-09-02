@@ -4,7 +4,10 @@
 
 use std::sync::Arc;
 
-use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
+use prometheus::{
+    IntCounter, IntGauge, Registry, register_int_counter_with_registry,
+    register_int_gauge_with_registry,
+};
 
 pub struct EpochMetrics {
     /// The current epoch ID. This is updated only when the AuthorityState
@@ -121,6 +124,13 @@ pub struct EpochMetrics {
 
     /// The number of shared object assignments in the quarantine.
     pub shared_object_assignments_size: IntGauge,
+
+    /// The number of times seeding a claimed account's version chain displaced
+    /// an existing entry. A non-zero value means some transaction declared the
+    /// claimed address as a shared input before the claim was scheduled, which
+    /// is only possible adversarially - the claim's seed is authoritative and
+    /// overwrites it, so this is observability rather than an error.
+    pub claim_seed_displaced_version_entry: IntCounter,
 }
 
 impl EpochMetrics {
@@ -248,6 +258,12 @@ impl EpochMetrics {
             shared_object_assignments_size: register_int_gauge_with_registry!(
                 "shared_object_assignments_size",
                 "The number of shared object assignments in the quarantine",
+                registry
+            )
+            .unwrap(),
+            claim_seed_displaced_version_entry: register_int_counter_with_registry!(
+                "claim_seed_displaced_version_entry",
+                "Number of times a claim's version-chain seed displaced an existing entry",
                 registry
             )
             .unwrap(),

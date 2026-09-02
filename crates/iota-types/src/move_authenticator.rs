@@ -353,10 +353,24 @@ impl MoveAuthenticatorV1 {
         // Check that the object to authenticate is valid.
         self.object_to_authenticate_components()?;
 
+        // `object_to_authenticate_components` ignores the declared initial shared version,
+        // but the authenticator's shared references still reach
+        // `get_or_init_next_object_versions`, which seeds the epoch's version chain from the
+        // declared value when the account does not exist yet. An invalid version would then
+        // flow into the version-assignment walk.
+        if config.check_declared_initial_shared_versions() {
+            if let CallArg::Shared(shared) = self.object_to_authenticate() {
+                fp_ensure!(
+                    shared.initial_shared_version.is_valid(),
+                    UserInputError::InvalidSequenceNumber
+                );
+            }
+        }
+
         // Inputs validity check.
         //
         // `validity_check` is not called for `object_to_authenticate` because it is
-        // already validated with a dedicated function.
+        // already validated with a dedicated function, plus the version check above.
 
         // `ProtocolConfig::max_function_parameters` is used to check the call arguments
         // because MoveAuthenticatorV1 is considered as a simple programmable call to a

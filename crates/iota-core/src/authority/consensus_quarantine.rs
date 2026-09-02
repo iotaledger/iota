@@ -52,6 +52,9 @@ pub(crate) struct ConsensusCommitOutput {
     // transaction scheduling state
     next_shared_object_versions: Option<HashMap<ObjectId, SequenceNumber>>,
 
+    // accounts claimed by `ClaimAccount` transactions scheduled in this commit
+    claimed_accounts: Option<HashMap<ObjectId, (TransactionDigest, SequenceNumber)>>,
+
     // congestion control state
     // debts for shared objects with no randomness
     congestion_control_object_debts: Vec<(ObjectId, u64)>,
@@ -176,6 +179,14 @@ impl ConsensusCommitOutput {
         self.next_shared_object_versions = Some(next_versions);
     }
 
+    pub fn set_claimed_accounts(
+        &mut self,
+        claimed_accounts: HashMap<ObjectId, (TransactionDigest, SequenceNumber)>,
+    ) {
+        assert!(self.claimed_accounts.is_none());
+        self.claimed_accounts = Some(claimed_accounts);
+    }
+
     pub fn defer_transactions(&mut self, key: DeferralKey, transactions: Vec<DeferredTransaction>) {
         self.deferred_txns.push((key, transactions));
     }
@@ -266,6 +277,10 @@ impl ConsensusCommitOutput {
 
         if let Some(next_versions) = self.next_shared_object_versions {
             batch.insert_batch(&tables.next_shared_object_versions, next_versions)?;
+        }
+
+        if let Some(claimed_accounts) = self.claimed_accounts {
+            batch.insert_batch(&tables.claimed_accounts, claimed_accounts)?;
         }
 
         if epoch_store
@@ -538,6 +553,9 @@ pub(crate) struct ConsensusOutputQuarantine {
     // Any un-committed next versions are stored here.
     shared_object_next_versions: RefCountedHashMap<ObjectId, SequenceNumber>,
 
+    // Any un-committed claimed accounts are stored here.
+    claimed_accounts: RefCountedHashMap<ObjectId, (TransactionDigest, SequenceNumber)>,
+
     // The most recent congestion control debts for objects. Uses a ref-count to track
     // which objects still exist in some element of output_queue.
     // These debts will be moved to the epoch store when the corresponding consensus commit
@@ -566,6 +584,7 @@ impl ConsensusOutputQuarantine {
             builder_checkpoint_summary: BTreeMap::new(),
             builder_digest_to_checkpoint: HashMap::new(),
             shared_object_next_versions: RefCountedHashMap::new(),
+            claimed_accounts: RefCountedHashMap::new(),
             congestion_control_object_debts: RefCountedHashMap::new(),
             congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
@@ -585,6 +604,7 @@ impl ConsensusOutputQuarantine {
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult {
         self.insert_shared_object_next_versions(&output);
+        self.insert_claimed_accounts(&output);
         self.insert_congestion_control_debts(&output);
         self.insert_processed_consensus_messages(&output);
         self.insert_owned_object_locks(&output);
@@ -723,6 +743,7 @@ impl ConsensusOutputQuarantine {
                 // the epoch store.
                 let output = self.output_queue.pop_front().unwrap();
                 self.remove_shared_object_next_versions(&output);
+                self.remove_claimed_accounts(&output);
                 self.remove_processed_consensus_messages(&output);
                 self.remove_congestion_control_debts(&output);
                 self.remove_owned_object_locks(&output);
@@ -814,6 +835,24 @@ impl ConsensusOutputQuarantine {
         }
     }
 
+    fn insert_claimed_accounts(&mut self, output: &ConsensusCommitOutput) {
+        if let Some(claimed_accounts) = output.claimed_accounts.as_ref() {
+            for (address, entry) in claimed_accounts.iter() {
+                self.claimed_accounts.insert(*address, *entry);
+            }
+        }
+    }
+
+    fn remove_claimed_accounts(&mut self, output: &ConsensusCommitOutput) {
+        if let Some(claimed_accounts) = output.claimed_accounts.as_ref() {
+            for address in claimed_accounts.keys() {
+                if !self.claimed_accounts.remove(address) {
+                    fatal!("Claimed account not found in quarantine: {:?}", address);
+                }
+            }
+        }
+    }
+
     fn insert_owned_object_locks(&mut self, output: &ConsensusCommitOutput) {
         for (obj_ref, lock_details) in &output.owned_object_locks {
             self.owned_object_locks.insert(*obj_ref, *lock_details);
@@ -862,6 +901,20 @@ impl ConsensusOutputQuarantine {
 
     pub(super) fn is_empty(&self) -> bool {
         self.output_queue.is_empty()
+    }
+
+    /// Returns the claim entry for `address` if a `ClaimAccount` transaction
+    /// for it has been scheduled in this epoch, reading the quarantined
+    /// commits first and falling back to the epoch table.
+    pub(super) fn get_claimed_account(
+        &self,
+        tables: &AuthorityEpochTables,
+        address: &ObjectId,
+    ) -> IotaResult<Option<(TransactionDigest, SequenceNumber)>> {
+        if let Some(entry) = self.claimed_accounts.get(address) {
+            return Ok(Some(*entry));
+        }
+        Ok(tables.claimed_accounts.get(address)?)
     }
 
     pub(super) fn get_next_shared_object_versions(

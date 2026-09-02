@@ -547,6 +547,16 @@ struct FeatureFlags {
     // Used to gate genesis creation and epoch-change creation for existing networks.
     #[serde(skip_serializing_if = "is_false")]
     enable_claim_registry: bool,
+
+    // If true, a declared `initial_shared_version` must be a valid version.
+    //
+    // For an object that does not exist yet the declared value is otherwise never checked
+    // against anything - it seeds the epoch's version chain verbatim - so a sentinel or
+    // out-of-range value reaches the version-assignment walk, which unwraps a
+    // `lamport_increment` that errors on invalid input. Tightens transaction validity, so it
+    // is version-gated.
+    #[serde(skip_serializing_if = "is_false")]
+    check_declared_initial_shared_versions: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1427,6 +1437,15 @@ pub struct ProtocolConfig {
     // Cost param for the Move native function `ecdsa_r1::secp256r1_validate_pubkey(public_key:
     // &vector<u8>): bool`
     ecdsa_r1_secp256r1_validate_pubkey_cost_base: Option<u64>,
+
+    // Smallest gas budget a `ClaimAccount` transaction may declare.
+    //
+    // The sequencer stages a claim entry for the address before the claim executes, so a
+    // claim it schedules must not be able to run out of gas: the address would be treated as
+    // explicit with no account object behind it. The claim runs a fixed pipeline with no user
+    // code, so its cost is bounded, and requiring the budget to clear that bound is a
+    // byte-only check.
+    claim_account_min_gas_budget: Option<u64>,
 }
 
 // feature flags
@@ -1835,7 +1854,18 @@ impl ProtocolConfig {
     }
 
     pub fn enable_claim_registry(&self) -> bool {
-        self.feature_flags.enable_claim_registry
+        let enable_claim_registry = self.feature_flags.enable_claim_registry;
+        if enable_claim_registry {
+            assert!(
+                self.claim_account_min_gas_budget.is_some(),
+                "enable_claim_registry requires claim_account_min_gas_budget to be set"
+            );
+        }
+        enable_claim_registry
+    }
+
+    pub fn check_declared_initial_shared_versions(&self) -> bool {
+        self.feature_flags.check_declared_initial_shared_versions
     }
 }
 
@@ -2445,6 +2475,8 @@ impl ProtocolConfig {
             ecdsa_k1_secp256k1_validate_pubkey_cost_base: None,
             ecdsa_r1_secp256r1_validate_pubkey_cost_base: None,
 
+            claim_account_min_gas_budget: None,
+
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -3005,11 +3037,19 @@ impl ProtocolConfig {
                         cfg.builtin_move_authenticator_cost_base = Some(0);
                         // Enable claim registry in devnet only.
                         cfg.feature_flags.enable_claim_registry = true;
+                        // Floor for a ClaimAccount gas budget, so a scheduled claim
+                        // cannot run out of gas.
+                        cfg.claim_account_min_gas_budget = Some(5_000_000);
                     }
 
                     cfg.ed25519_ed25519_validate_pubkey_cost_base = Some(52);
                     cfg.ecdsa_k1_secp256k1_validate_pubkey_cost_base = Some(52);
                     cfg.ecdsa_r1_secp256r1_validate_pubkey_cost_base = Some(52);
+
+                    // Reject declared initial shared versions that are not valid
+                    // versions, on every chain: an invalid one otherwise seeds a
+                    // version chain and reaches the assignment walk.
+                    cfg.feature_flags.check_declared_initial_shared_versions = true;
                 }
                 // Use this template when making changes:
                 //

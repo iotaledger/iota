@@ -17,13 +17,11 @@ use anyhow::bail;
 use fastcrypto::{encoding::Base64, hash::HashFunction};
 use iota_protocol_config::ProtocolConfig;
 use iota_sdk_types::{
-    AccountClaimKind, Address, Argument, CancelledTransaction, Command,
-    ConsensusCommitPrologueV1, ConsensusDeterminedVersionAssignments, Digest,
-    EndOfEpochTransactionKind, Event, GenesisObject, GenesisTransaction, Identifier, Input,
-    MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner, ProgrammableTransaction, Publish,
-    RandomnessRound, RandomnessStateUpdate, SplitCoins, TransactionExpiration, TransactionKind,
-    TransferObjects,
-    TypeTag, Upgrade,
+    AccountClaimKind, Address, Argument, CancelledTransaction, Command, ConsensusCommitPrologueV1,
+    ConsensusDeterminedVersionAssignments, Digest, EndOfEpochTransactionKind, Event, GenesisObject,
+    GenesisTransaction, Identifier, Input, MakeMoveVector, MergeCoins, MoveCall, ObjectId, Owner,
+    ProgrammableTransaction, Publish, RandomnessRound, RandomnessStateUpdate, SplitCoins,
+    TransactionExpiration, TransactionKind, TransferObjects, TypeTag, Upgrade,
     crypto::{Intent, IntentMessage, IntentScope},
 };
 pub use iota_sdk_types::{
@@ -40,10 +38,11 @@ use super::{base_types::*, error::*};
 use crate::{
     IOTA_CLOCK_OBJECT_SHARED_VERSION, IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
     committee::{Committee, EpochId},
+    account_abstraction::public_key::MovePublicKey,
     crypto::{
         AuthoritySignInfo, AuthoritySignInfoTrait, AuthoritySignature,
         AuthorityStrongQuorumSignInfo, DefaultHash, Ed25519IotaSignature, EmptySignInfo,
-        IotaSignatureInner, Signature, Signer, ToFromBytes,
+        IotaSignatureInner, Signature, SignatureScheme, Signer, ToFromBytes,
     },
     digests::{CertificateDigest, ConsensusCommitDigest, SenderSignedDataDigest},
     execution::SharedInput,
@@ -77,6 +76,10 @@ const BLOCKED_MOVE_FUNCTIONS: [(ObjectId, &str, &str); 0] = [];
 #[cfg(test)]
 #[path = "unit_tests/messages_tests.rs"]
 mod messages_tests;
+
+#[cfg(test)]
+#[path = "unit_tests/claim_account_validity_tests.rs"]
+mod claim_account_validity_tests;
 
 /// Type alias for the SDK's `Input` type, used as transaction call arguments.
 pub type CallArg = Input;
@@ -313,7 +316,20 @@ impl CallArgExt for CallArg {
                     }
                 );
             }
-            CallArg::ImmutableOrOwned(_) | CallArg::Shared(_) | CallArg::Receiving(_) => {
+            CallArg::Shared(shared) => {
+                // A declared initial shared version is never checked against anything for an
+                // object that does not exist yet: `get_or_init_next_object_versions` seeds the
+                // version chain from the declared value in that case. A sentinel or
+                // out-of-range value would then flow into the version-assignment walk, where
+                // `lamport_increment` errors on an invalid version and the walk unwraps it.
+                // Reject those here, where the check is a pure function of the bytes.
+                fp_ensure!(
+                    !config.check_declared_initial_shared_versions()
+                        || shared.initial_shared_version.is_valid(),
+                    UserInputError::InvalidSequenceNumber
+                );
+            }
+            CallArg::ImmutableOrOwned(_) | CallArg::Receiving(_) => {
                 // No validation needed for these variants
             }
             _ => unimplemented!("a new CallArg enum variant was added and needs to be handled"),
@@ -813,16 +829,11 @@ impl TransactionKindExt for TransactionKind {
                 txns.iter().flat_map(|txn| txn.shared_input_objects()),
             )),
             Self::Programmable(pt) => Either::Right(Either::Left(pt.shared_input_objects())),
-            Self::ClaimAccount(claim) => match &claim.kind {
-                AccountClaimKind::SmartAccount(smart) => {
-                    Either::Left(Either::Left(iter::once(SharedObjectRef::new(
-                        ObjectId::CLAIM_REGISTRY,
-                        smart.claim_registry_initial_shared_version.into(),
-                        true,
-                    ))))
-                }
-                _ => Either::Right(Either::Right(iter::empty())),
-            },
+            // ClaimAccount has no shared inputs: the account object it creates
+            // is not an input, and the version it is created at is the
+            // transaction's lamport version, computable from the gas payment
+            // alone. (`claim_registry_initial_shared_version` is a leftover of
+            // an earlier draft and is ignored.)
             _ => Either::Right(Either::Right(iter::empty())),
         }
     }
@@ -891,20 +902,9 @@ impl TransactionKindExt for TransactionKind {
                 after_dedup
             }
             Self::Programmable(p) => return p.input_objects(),
-            Self::ClaimAccount(claim) => match &claim.kind {
-                AccountClaimKind::SmartAccount(smart) => {
-                    vec![InputObjectKind::SharedMoveObject {
-                        id: ObjectId::CLAIM_REGISTRY,
-                        initial_shared_version: smart
-                            .claim_registry_initial_shared_version
-                            .into(),
-                        mutable: true,
-                    }]
-                }
-                _ => unimplemented!(
-                    "a new AccountClaimKind enum variant was added and needs to be handled"
-                ),
-            },
+            // ClaimAccount declares no input objects besides gas; see
+            // `shared_input_objects`.
+            Self::ClaimAccount(_) => vec![],
             _ => unimplemented!(
                 "a new TransactionKind enum variant was added and needs to be handled"
             ),
@@ -951,6 +951,19 @@ impl TransactionKindExt for TransactionKind {
                     config.enable_claim_registry(),
                     UserInputError::Unsupported(
                         "claim account transactions require the claim registry feature".to_string()
+                    )
+                );
+                // The account rules (the duplicate-claim guard that prevents a
+                // second object with the same id from being minted, and the
+                // claim staging) run in the sequencer and are only sound when
+                // every user transaction is sequenced before it can execute —
+                // i.e. under the P-COOL flow. In the certificate flow an
+                // owned-object transaction executes as soon as it is
+                // certified, so claims are not accepted there.
+                fp_ensure!(
+                    config.enable_pcool_flow(),
+                    UserInputError::Unsupported(
+                        "claim account transactions require the P-COOL flow".to_string()
                     )
                 );
             }
@@ -1400,6 +1413,7 @@ impl TransactionDataAPI for TransactionData {
     #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
+        check_claim_account(self, config)?;
         self.check_sponsorship()
     }
 
@@ -1851,6 +1865,86 @@ impl TransactionDataAPI for TransactionData {
     fn execution_parts(&self) -> (TransactionKind, Address, GasData) {
         (self.kind().clone(), self.sender(), self.gas_data().clone())
     }
+}
+
+/// Validates a `ClaimAccount` transaction against everything decidable from the
+/// transaction bytes alone. A no-op for every other transaction kind.
+///
+/// The sequencer stages a claim entry for the address *before* the claim executes, so a
+/// claim it schedules must not be able to abort: the address would be treated as explicit
+/// with no account object behind it, rejecting plain signatures forever with nothing to
+/// authenticate against. Every way the constrained pipeline could abort is therefore ruled
+/// out here - an unsupported or malformed key, a key that does not derive the sender, extra
+/// fields, and a budget too small to pay for the fixed pipeline.
+fn check_claim_account(data: &TransactionData, config: &ProtocolConfig) -> UserInputResult {
+    let TransactionKind::ClaimAccount(claim) = data.kind() else {
+        return Ok(());
+    };
+    let AccountClaimKind::SmartAccount(claim) = &claim.kind else {
+        unimplemented!("a new AccountClaimKind enum variant was added and needs to be handled")
+    };
+
+    // Fields would make the pipeline's shape - and with it its cost and its abort surface -
+    // depend on user-supplied type arguments and BCS bytes. They can be added after
+    // claiming, through the admin functions.
+    fp_ensure!(
+        claim.fields.is_empty(),
+        UserInputError::Unsupported("claim account transactions must not carry fields".to_string())
+    );
+
+    // The scheme must be one the framework's claim pipeline accepts, so that
+    // `signature_scheme::from_flag` cannot abort. Note `from_flag` also accepts MultiSig,
+    // which is deliberately excluded here.
+    let scheme_flag = claim.public_key.scheme() as u8;
+    let scheme = SignatureScheme::from_flag_byte(&scheme_flag).map_err(|_| {
+        UserInputError::Unsupported(format!("unknown signature scheme flag {scheme_flag}"))
+    })?;
+    fp_ensure!(
+        matches!(
+            scheme,
+            SignatureScheme::ED25519
+                | SignatureScheme::Secp256k1
+                | SignatureScheme::Secp256r1
+                | SignatureScheme::PasskeyAuthenticator
+        ),
+        UserInputError::Unsupported(format!("signature scheme {scheme} cannot claim an account"))
+    );
+
+    // The claimed key must derive the sender, which is the id the claim mints the account
+    // object at. Move asserts this too, but only at execution - too late, once the entry is
+    // staged.
+    let public_key = MovePublicKey::new(scheme, claim.public_key.as_ref().to_vec()).map_err(
+        |error| UserInputError::IncorrectUserSignature {
+            error: format!("invalid claimed public key: {error}"),
+        },
+    )?;
+    let derived = public_key
+        .address()
+        .map_err(|error| UserInputError::IncorrectUserSignature {
+            error: format!("invalid claimed public key: {error}"),
+        })?;
+    fp_ensure!(
+        derived == data.sender(),
+        UserInputError::IncorrectUserSignature {
+            error: format!(
+                "claimed public key derives {} but the sender is {}",
+                derived,
+                data.sender()
+            ),
+        }
+    );
+
+    // A claim the sequencer schedules must not run out of gas.
+    let min_budget = config.claim_account_min_gas_budget();
+    fp_ensure!(
+        data.gas_budget() >= min_budget,
+        UserInputError::GasBudgetTooLow {
+            gas_budget: data.gas_budget(),
+            min_budget,
+        }
+    );
+
+    Ok(())
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]

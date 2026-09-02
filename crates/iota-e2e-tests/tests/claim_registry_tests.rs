@@ -120,6 +120,14 @@ async fn test_claim_account_mutable_succeeds() {
 
     telemetry_subscribers::init_for_testing();
 
+    // The account design (and with it the ClaimAccount kind) is only enabled
+    // under the P-COOL flow.
+    let _protocol_guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(20000)
         .build()
@@ -209,6 +217,14 @@ async fn test_claim_account_immutable_succeeds() {
 
     telemetry_subscribers::init_for_testing();
 
+    // The account design (and with it the ClaimAccount kind) is only enabled
+    // under the P-COOL flow.
+    let _protocol_guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(20000)
         .build()
@@ -292,6 +308,14 @@ async fn test_claim_account_with_dynamic_field() {
     };
 
     telemetry_subscribers::init_for_testing();
+
+    // The account design (and with it the ClaimAccount kind) is only enabled
+    // under the P-COOL flow.
+    let _protocol_guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
 
     let test_cluster = TestClusterBuilder::new()
         .with_epoch_duration_ms(20000)
@@ -510,6 +534,244 @@ async fn test_claim_account_rejected_when_registry_disabled() {
             assert!(
                 status.is_err(),
                 "ClaimAccount must be rejected when claim_registry is disabled; got success",
+            );
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Sequencer account-rules tests (msim only)
+// ---------------------------------------------------------------------------
+
+/// Verify the account rules applied by the sequencer at version assignment:
+/// once a `ClaimAccount` for an address is scheduled, a plain-signed
+/// transaction for that address is rejected, and a second claim for the same
+/// address is rejected — both deterministically, before execution.
+#[cfg(msim)]
+#[sim_test]
+async fn test_account_rules_reject_plain_signature_and_duplicate_claim() {
+    use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+    use iota_keys::keystore::AccountKeystore;
+    use iota_sdk_types::{
+        Address, ClaimAccountTransaction, SmartAccountBuildKind, SmartAccountClaim, TransactionKind,
+    };
+    use iota_types::{
+        crypto::IotaKeyPair,
+        transaction::{
+            TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData, TransactionDataAPI,
+        },
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    // The account design (and with it the ClaimAccount kind) is only enabled
+    // under the P-COOL flow.
+    let _protocol_guard =
+        iota_protocol_config::ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+            config.set_enable_pcool_flow_for_testing(true);
+            config
+        });
+
+    let test_cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(20000)
+        .build()
+        .await;
+
+    let owner: Address = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter()
+        .next()
+        .expect("wallet must have at least one account");
+    let keypair: IotaKeyPair = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .get_key(&owner)
+        .expect("keypair must exist for owner")
+        .as_keypair()
+        .expect("stored key must be a keypair")
+        .clone();
+
+    let claim = SmartAccountClaim {
+        public_key: sdk_ed25519_public_key(&keypair),
+        // Leftover of an earlier draft of the transaction kind; ignored.
+        claim_registry_initial_shared_version: 0,
+        fields: vec![],
+        build_kind: SmartAccountBuildKind::Mutable,
+    };
+    let claim_kind =
+        TransactionKind::new_claim_account(ClaimAccountTransaction::new_smart_account(claim));
+    let rgp = test_cluster.get_reference_gas_price().await;
+
+    // Rejected transactions keep their owned-object locks for the rest of the
+    // epoch, so each transaction below pays with a coin no earlier rejected
+    // transaction has locked.
+    let mut gas_coins = test_cluster
+        .wallet
+        .get_gas_objects_owned_by_address(owner, None)
+        .await
+        .expect("gas lookup must succeed")
+        .into_iter();
+    let claim_gas = gas_coins.next().expect("owner must have a gas coin");
+    let duplicate_claim_gas = gas_coins.next().expect("owner must have a second gas coin");
+
+    // The claim itself succeeds and makes the address explicit.
+    let claim_tx_data = TransactionData::new(
+        claim_kind.clone(),
+        owner,
+        claim_gas,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        rgp,
+    );
+    let response = test_cluster
+        .sign_and_execute_transaction(&claim_tx_data)
+        .await;
+    let effects = response.effects.expect("response must include effects");
+    assert!(
+        effects.status().is_ok(),
+        "ClaimAccount transaction must succeed; got {:?}",
+        effects.status(),
+    );
+
+    // A plain-signed transaction from the claimed address is rejected: the
+    // explicit account must authenticate with a MoveAuthenticator. It pays
+    // with the claim's gas coin at its post-claim version.
+    let transfer_gas = effects.gas_object().reference;
+    let transfer_tx_data =
+        iota_test_transaction_builder::TestTransactionBuilder::new(owner, transfer_gas, rgp)
+            .transfer_iota(Some(1), owner)
+            .build();
+    let transfer_tx = test_cluster.sign_transaction(&transfer_tx_data);
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(transfer_tx)
+        .await
+        .expect_err("plain-signed transaction for an explicit account must be rejected")
+        .to_string();
+    assert!(
+        error.contains("must authenticate with a MoveAuthenticator"),
+        "unexpected rejection: {error}",
+    );
+
+    // A second claim for the same address is rejected by the duplicate-claim
+    // guard before it can reach execution.
+    let duplicate_tx_data = TransactionData::new(
+        claim_kind,
+        owner,
+        duplicate_claim_gas,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        rgp,
+    );
+    let duplicate_tx = test_cluster.sign_transaction(&duplicate_tx_data);
+    let error = test_cluster
+        .wallet
+        .execute_transaction_may_fail(duplicate_tx)
+        .await
+        .expect_err("a second claim for an explicit account must be rejected")
+        .to_string();
+    assert!(
+        error.contains("already explicit"),
+        "unexpected rejection: {error}",
+    );
+}
+
+/// An ordinary programmable transaction cannot mint an account object at a
+/// signature-derivable address.
+///
+/// This is the invariant the sequencer's account rules rest on: if a PTB could create such
+/// an object, the account would become explicit without any claim entry, and
+/// `resolve_explicit` would fall through to a store read whose answer depends on how far
+/// local execution has progressed — so validators would disagree about which transactions
+/// to drop.
+///
+/// The pipeline is out of reach because `smart_account::claim_account_v1` is private, and a
+/// PTB may only call `public` or `entry` functions. Note the stronger consequence, which
+/// this test does not need to exercise: a *package* that tried to wrap the call could not
+/// even publish, since it cannot link against a private function.
+#[cfg(msim)]
+#[sim_test]
+async fn test_ordinary_ptb_cannot_claim_an_address() {
+    use iota_protocol_config::ProtocolConfig;
+    use iota_sdk_types::{Command, Identifier, MoveCall};
+    use iota_types::{
+        programmable_transaction_builder::ProgrammableTransactionBuilder,
+        transaction::{TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, TransactionData},
+    };
+
+    telemetry_subscribers::init_for_testing();
+
+    let _guard = ProtocolConfig::apply_overrides_for_testing(|_, mut config| {
+        config.set_enable_pcool_flow_for_testing(true);
+        config
+    });
+    let test_cluster = TestClusterBuilder::new().build().await;
+    wait_for_claim_registry(&test_cluster).await;
+
+    let owner = test_cluster
+        .wallet
+        .config()
+        .keystore()
+        .addresses()
+        .into_iter()
+        .next()
+        .expect("wallet must have at least one account");
+    let rgp = test_cluster.get_reference_gas_price().await;
+
+    // A single command naming the private claim entry point. The arguments do not matter:
+    // the call is refused before they are ever inspected.
+    let mut builder = ProgrammableTransactionBuilder::new();
+    let scheme_arg = builder.pure(0u8).expect("pure arg");
+    let bytes_arg = builder.pure(vec![0u8; 32]).expect("pure arg");
+    let immutable_arg = builder.pure(false).expect("pure arg");
+    builder.command(Command::MoveCall(Box::new(MoveCall {
+        package: ObjectId::FRAMEWORK,
+        module: Identifier::from_static("smart_account"),
+        function: Identifier::from_static("claim_account_v1"),
+        type_arguments: vec![],
+        arguments: vec![scheme_arg, bytes_arg, immutable_arg],
+    })));
+
+    let tx_data = TransactionData::new(
+        iota_sdk_types::TransactionKind::Programmable(builder.finish()),
+        owner,
+        first_gas_coin(&test_cluster.wallet, owner).await,
+        rgp * TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE,
+        rgp,
+    );
+
+    let result = test_cluster
+        .wallet
+        .execute_transaction_may_fail(test_cluster.wallet.sign_transaction(&tx_data))
+        .await;
+
+    // Either the transaction is refused outright, or it executes and fails. Both are
+    // acceptable; what must never happen is a success that creates an account object.
+    match result {
+        Err(error) => {
+            let message = error.to_string();
+            assert!(
+                message.contains("entry")
+                    || message.contains("public")
+                    || message.contains("visib"),
+                "expected a visibility rejection, got: {message}",
+            );
+        }
+        Ok(response) => {
+            use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+            let object_changes = response
+                .object_changes
+                .expect("response must include object changes");
+            let effects = response.effects.expect("response must include effects");
+            assert!(
+                effects.status().is_err(),
+                "an ordinary PTB must not be able to run the claim pipeline",
+            );
+            assert!(
+                created_smart_accounts(&object_changes).is_empty(),
+                "no account object may be created by an ordinary PTB",
             );
         }
     }

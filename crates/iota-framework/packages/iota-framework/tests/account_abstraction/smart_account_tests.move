@@ -5,7 +5,6 @@
 module iota::smart_account_tests;
 
 use iota::authenticator_function;
-use iota::claim_registry;
 use iota::public_key;
 use iota::signature_scheme;
 use iota::smart_account::{Self, SmartAccount};
@@ -62,42 +61,45 @@ fun builtin_auth_builder_v1_attaches_public_key_and_authenticator() {
     });
 }
 
-// === claim_builder_v1 ===
+// === claim_account_v1 ===
 
 #[test]
-fun claim_builder_v1_account_address_matches_sender() {
+fun claim_account_v1_account_address_matches_sender() {
     let public_key = ed25519_public_key();
     let sender = public_key.to_iota_address();
 
-    claim_account_test!(sender, |registry, scenario| {
-        let addr = smart_account::claim_builder_v1(
-            registry,
-            public_key,
+    claim_account_test!(sender, |scenario| {
+        smart_account::claim_account_v1_for_testing(
+            public_key.scheme().flag(),
+            *public_key.raw_bytes(),
+            false,
             scenario.ctx(),
-        ).build_v1();
-        assert_eq(addr, sender);
+        );
+
+        // The account object exists, is shared, and its id is the sender's
+        // address - which is the whole point of claiming.
+        scenario.next_tx(sender);
+        let account = scenario.take_shared<SmartAccount>();
+        assert_eq(account.account_address(), sender);
+        assert_eq(account.has_builtin_auth_public_key(), true);
+        test_scenario::return_shared(account);
     });
 }
 
+// Double-claiming no longer aborts here: the sequencer rejects a claim for an
+// address that is already explicit before it reaches execution.
 #[test]
 #[expected_failure(abort_code = iota::claim_registry::EAddressMismatch)]
-fun claim_builder_v1_aborts_on_address_mismatch() {
+fun claim_account_v1_aborts_on_address_mismatch() {
     let public_key = ed25519_public_key();
 
-    claim_account_test!(@0x1, |registry, scenario| {
-        smart_account::claim_builder_v1(registry, public_key, scenario.ctx()).build_v1();
-    });
-}
-
-#[test]
-#[expected_failure(abort_code = iota::claim_registry::EAlreadyClaimed)]
-fun claim_builder_v1_aborts_on_double_claim() {
-    let public_key = ed25519_public_key();
-    let sender = public_key.to_iota_address();
-
-    claim_account_test!(sender, |registry, scenario| {
-        smart_account::claim_builder_v1(registry, public_key, scenario.ctx()).build_v1();
-        smart_account::claim_builder_v1(registry, public_key, scenario.ctx()).build_v1();
+    claim_account_test!(@0x1, |scenario| {
+        smart_account::claim_account_v1_for_testing(
+            public_key.scheme().flag(),
+            *public_key.raw_bytes(),
+            false,
+            scenario.ctx(),
+        );
     });
 }
 
@@ -456,21 +458,11 @@ macro fun account_test_wrong_sender($f: |&mut SmartAccount, &mut Scenario|) {
     scenario.end();
 }
 
-/// Creates a `ClaimRegistry`, advances to `$sender`, and runs `$f` with a mutable
-/// reference to the registry and the scenario.
-macro fun claim_account_test(
-    $sender: address,
-    $f: |&mut claim_registry::ClaimRegistry, &mut Scenario|,
-) {
-    let mut scenario = test_scenario::begin(@0x0);
+/// Starts a scenario with `$sender` as the transaction sender and runs `$f`.
+macro fun claim_account_test($sender: address, $f: |&mut Scenario|) {
+    let mut scenario = test_scenario::begin($sender);
 
-    claim_registry::create_for_testing(scenario.ctx());
+    $f(&mut scenario);
 
-    scenario.next_tx($sender);
-    let mut registry = scenario.take_shared<claim_registry::ClaimRegistry>();
-
-    $f(&mut registry, &mut scenario);
-
-    test_scenario::return_shared(registry);
     scenario.end();
 }
