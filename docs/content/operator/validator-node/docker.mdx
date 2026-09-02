@@ -69,12 +69,12 @@ Copy the `protocol.key`, `network.key` and `authority.key` you created previousl
 <Tabs groupId="network" queryString>
     <TabItem label="Mainnet" value="mainnet">
       ```bash
-      docker run --rm -v ./iotadb:/opt/iota/db -v ./genesis.blob:/opt/iota/config/genesis.blob iotaledger/iota-tools:mainnet /bin/sh -c "/usr/local/bin/iota-tool download-formal-snapshot --latest --genesis /opt/iota/config/genesis.blob --path /opt/iota/db/authorities_db --no-sign-request --verify normal --network mainnet --verbose"
+      docker run --rm -v ./iotadb:/opt/iota/db -v ./genesis.blob:/opt/iota/config/genesis.blob iotaledger/iota-node:mainnet /bin/sh -c "/usr/local/bin/iota-tool download-formal-snapshot --latest --genesis /opt/iota/config/genesis.blob --path /opt/iota/db/authorities_db --no-sign-request --verify normal --network mainnet --verbose"
       ```
     </TabItem>
     <TabItem label="Testnet" value="testnet">
       ```bash
-      docker run --rm -v ./iotadb:/opt/iota/db -v ./genesis.blob:/opt/iota/config/genesis.blob iotaledger/iota-tools:testnet /bin/sh -c "/usr/local/bin/iota-tool download-formal-snapshot --latest --genesis /opt/iota/config/genesis.blob --path /opt/iota/db/authorities_db --no-sign-request --verify normal --network testnet --verbose"
+      docker run --rm -v ./iotadb:/opt/iota/db -v ./genesis.blob:/opt/iota/config/genesis.blob iotaledger/iota-node:testnet /bin/sh -c "/usr/local/bin/iota-tool download-formal-snapshot --latest --genesis /opt/iota/config/genesis.blob --path /opt/iota/db/authorities_db --no-sign-request --verify normal --network testnet --verbose"
       ```
     </TabItem>
 </Tabs>
