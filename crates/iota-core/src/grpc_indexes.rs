@@ -963,6 +963,7 @@ impl GrpcIndexesStore {
         } = opened;
         let history = EpochBuckets::open(
             db,
+            "gRPC index history",
             HISTORY_CF_PREFIX,
             history_cf_options,
             tables.earliest_retained_epoch.clone(),
