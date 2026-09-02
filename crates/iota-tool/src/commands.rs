@@ -212,10 +212,10 @@ pub enum ToolCommand {
         /// `live` subdirectory of this path.
         #[arg(long)]
         path: PathBuf,
-        /// Number of parallel downloads to perform. Defaults to onelogical
-        /// cores - 1, capped at 8.
+        /// Number of parallel downloads to perform. Defaults to logical cores -
+        /// 1, capped at 8.
         #[arg(long)]
-        num_parallel_downloads: Option<usize>,
+        num_parallel_downloads: Option<NonZeroUsize>,
         /// Verification mode to employ.
         #[arg(long, default_value = "normal")]
         verify: Option<SnapshotVerifyMode>,
@@ -297,7 +297,7 @@ pub enum ToolCommand {
         /// Number of parallel downloads to perform. Defaults to logical cores -
         /// 1, capped at 8.
         #[arg(long)]
-        num_parallel_downloads: Option<usize>,
+        num_parallel_downloads: Option<NonZeroUsize>,
         /// If false (default), log level will be overridden to "off", and
         /// output will be reduced to necessary status information.
         #[arg(long)]
@@ -613,7 +613,7 @@ impl ToolCommand {
                         .expect("Failed to update log level");
                 }
                 let num_parallel_downloads = num_parallel_downloads
-                    .unwrap_or_else(|| iota_snapshot::default_download_concurrency().get());
+                    .unwrap_or_else(iota_snapshot::default_download_concurrency);
                 let snapshot_bucket =
                     snapshot_bucket.or_else(|| match (network, no_sign_request) {
                         (Network::Mainnet, false) => Some(
@@ -740,7 +740,6 @@ impl ToolCommand {
                         .expect("Failed to update log level");
                 }
                 let num_parallel_downloads = num_parallel_downloads
-                    .map(|n| NonZeroUsize::new(n).expect("num-parallel-downloads must be non-zero"))
                     .unwrap_or_else(iota_snapshot::default_download_concurrency);
                 backfill_checkpoint_summaries(
                     &path,
