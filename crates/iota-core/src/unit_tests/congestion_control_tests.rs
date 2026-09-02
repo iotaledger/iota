@@ -1116,7 +1116,7 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
                 _reconfig,
                 _final_round,
                 _root,
-                _assigned,
+                assigned,
             ) = epoch_store
                 .process_consensus_transactions(
                     &mut output,
@@ -1139,6 +1139,16 @@ async fn test_combined_tracker_schedules_randomness_with_regular_transactions() 
                 )
                 .await
                 .unwrap();
+            // The update is assigned under its round key, which is also the key
+            // the scheduler looks its env up by.
+            assert!(
+                assigned
+                    .into_map()
+                    .contains_key(&TransactionKey::RandomnessRound(
+                        epoch_store.epoch(),
+                        RandomnessRound::new(0),
+                    ))
+            );
             // The randomness queue starts with the round's state update, the
             // one schedulable that is not a transaction yet; the regular queue
             // must not carry it.

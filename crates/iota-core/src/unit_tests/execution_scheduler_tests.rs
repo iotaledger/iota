@@ -29,7 +29,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     object::Object,
     storage::InputKey,
-    transaction::{CallArg, TransactionEnvelope, TransactionKey, VerifiedTransaction},
+    transaction::{CallArg, TransactionEnvelope, VerifiedTransaction},
 };
 use tokio::{
     sync::mpsc::{UnboundedReceiver, unbounded_channel},
@@ -38,8 +38,10 @@ use tokio::{
 
 use crate::{
     authority::{
-        AuthorityState, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_tests::init_state_with_objects, epoch_start_configuration::EpochStartConfigTrait,
+        AuthorityState, ExecutionEnv,
+        authority_tests::{
+            init_state_with_objects, randomness_assigned_versions, resolve_randomness_round,
+        },
         shared_object_version_manager::Schedulable,
     },
     execution_scheduler::{
@@ -688,52 +690,6 @@ async fn schedulers_record_ready_transaction_accounting() {
     .await;
 }
 
-/// A randomness state update transaction for `round`, as
-/// `RandomnessRoundReceiver` would build it.
-fn make_randomness_state_update(
-    epoch_store: &AuthorityPerEpochStore,
-    round: u64,
-) -> VerifiedExecutableTransaction {
-    VerifiedExecutableTransaction::new_system(
-        VerifiedTransaction::new_randomness_state_update(
-            epoch_store.epoch(),
-            RandomnessRound::new(round),
-            vec![round as u8],
-            epoch_store
-                .epoch_start_config()
-                .randomness_obj_initial_shared_version(),
-        ),
-        epoch_store.epoch(),
-    )
-}
-
-/// Builds the randomness state update for `round`, persists it and records its
-/// key, which is what `RandomnessRoundReceiver` does before it notifies.
-fn resolve_randomness_round(
-    state: &AuthorityState,
-    epoch_store: &AuthorityPerEpochStore,
-    round: u64,
-) -> VerifiedExecutableTransaction {
-    let transaction = make_randomness_state_update(epoch_store, round);
-    state.get_cache_commit().persist_transaction(&transaction);
-    epoch_store
-        .insert_tx_key(
-            TransactionKey::RandomnessRound(epoch_store.epoch(), RandomnessRound::new(round)),
-            *transaction.digest(),
-        )
-        .unwrap();
-    transaction
-}
-
-fn randomness_assigned_versions(epoch_store: &AuthorityPerEpochStore) -> Vec<VersionAssignment> {
-    vec![VersionAssignment::new(
-        ObjectId::RANDOMNESS_STATE,
-        epoch_store
-            .epoch_start_config()
-            .randomness_obj_initial_shared_version(),
-    )]
-}
-
 /// A schedulable that has no transaction yet, only its `TransactionKey`, waits
 /// for that key's digest. Two rounds enqueued together must each be released
 /// with the env parked for it: the digests come back from
@@ -921,9 +877,9 @@ async fn execution_scheduler_missing_shared_version_assignment_drops_transaction
     assert!(rx_ready_transactions.try_recv().is_err());
 }
 
-/// A key that resolves only after the epoch ended must dispatch nothing,
-/// whichever of the two epoch guards stops it — the wait's `within_alive_epoch`
-/// or the epoch check in `enqueue_transactions`.
+/// A key that resolves only after the epoch ended must dispatch nothing: both
+/// the wait for the key and `schedule_transaction` run under
+/// `within_alive_epoch`, and the test can only see that neither dispatched.
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn execution_scheduler_drops_unresolved_key_wait_on_epoch_termination() {
     let state = init_state_with_objects(vec![]).await;

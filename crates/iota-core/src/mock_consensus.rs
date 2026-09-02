@@ -71,8 +71,8 @@ impl MockConsensusClient {
                 return;
             };
             let epoch_store = validator.epoch_store_for_testing();
-            let env = match consensus_mode {
-                ConsensusMode::Noop => ExecutionEnv::new(),
+            let assigned_versions = match consensus_mode {
+                ConsensusMode::Noop => None,
                 ConsensusMode::DirectSequencing => {
                     let (_, assigned_versions) = epoch_store
                         .process_consensus_transactions_for_tests(
@@ -85,27 +85,22 @@ impl MockConsensusClient {
                         )
                         .await
                         .unwrap();
-                    let assigned_versions = assigned_versions
-                        .0
-                        .into_iter()
-                        .next()
-                        .map(|(_, v)| v)
-                        .unwrap_or_default();
-                    ExecutionEnv::new().with_assigned_versions(assigned_versions)
+                    Some(assigned_versions.into_map())
                 }
             };
             if let ConsensusTransactionKind::CertifiedTransaction(tx) = tx.kind {
                 if tx.contains_shared_object() {
-                    validator.execution_scheduler().enqueue(
-                        vec![(
-                            VerifiedExecutableTransaction::new_from_certificate(
-                                VerifiedCertificate::new_unchecked(*tx),
-                            )
-                            .into(),
-                            env,
-                        )],
-                        &epoch_store,
+                    let transaction = VerifiedExecutableTransaction::new_from_certificate(
+                        VerifiedCertificate::new_unchecked(*tx),
                     );
+                    let env = ExecutionEnv::new().with_assigned_versions(
+                        assigned_versions
+                            .and_then(|mut map| map.remove(&transaction.key()))
+                            .unwrap_or_default(),
+                    );
+                    validator
+                        .execution_scheduler()
+                        .enqueue(vec![(transaction.into(), env)], &epoch_store);
                 }
             }
         }

@@ -9,7 +9,8 @@ use std::sync::Arc;
 use fastcrypto::{hash::MultisetHash, traits::KeyPair};
 use iota_config::{genesis::Genesis, node::ExpensiveSafetyCheckConfig};
 use iota_sdk_types::{
-    Address, ObjectId, ObjectReference, Owner, Transaction, TransactionEffects, Version,
+    Address, ObjectId, ObjectReference, Owner, RandomnessRound, Transaction, TransactionEffects,
+    Version, VersionAssignment,
 };
 use iota_types::{
     crypto::{AccountPrivateKey, AuthorityKeyPair},
@@ -20,13 +21,15 @@ use iota_types::{
     object::Object,
     transaction::{
         CertifiedTransaction, SenderSignedTransactionAPI, TEST_ONLY_GAS_UNIT_FOR_TRANSFER,
-        TransactionAPI, TransactionEnvelope, VerifiedCertificate, VerifiedSignedTransaction,
-        VerifiedTransaction,
+        TransactionAPI, TransactionEnvelope, TransactionKey, VerifiedCertificate,
+        VerifiedSignedTransaction, VerifiedTransaction,
     },
     utils::to_sender_signed_transaction,
 };
 
 use super::{
+    authority_per_epoch_store::AuthorityPerEpochStore,
+    epoch_start_configuration::EpochStartConfigTrait,
     shared_object_version_manager::{AssignedTxAndVersions, AssignedVersions, Schedulable},
     test_authority_builder::TestAuthorityBuilder,
 };
@@ -458,6 +461,7 @@ pub async fn send_consensus(
     assigned_versions
 }
 
+/// For a certificate with shared inputs: the commit must assign it versions.
 pub async fn send_consensus_no_execution(
     authority: &AuthorityState,
     cert: &VerifiedCertificate,
@@ -518,4 +522,52 @@ pub async fn send_batch_consensus_no_execution(
         )
         .await
         .unwrap()
+}
+
+/// Builds the randomness state update for `round`, persists it and records its
+/// key, which is what `RandomnessRoundReceiver` does before it notifies.
+pub fn resolve_randomness_round(
+    state: &AuthorityState,
+    epoch_store: &AuthorityPerEpochStore,
+    round: u64,
+) -> VerifiedExecutableTransaction {
+    let transaction = make_randomness_state_update(epoch_store, round);
+    state.get_cache_commit().persist_transaction(&transaction);
+    epoch_store
+        .insert_tx_key(
+            TransactionKey::RandomnessRound(epoch_store.epoch(), RandomnessRound::new(round)),
+            *transaction.digest(),
+        )
+        .unwrap();
+    transaction
+}
+
+pub fn randomness_assigned_versions(
+    epoch_store: &AuthorityPerEpochStore,
+) -> Vec<VersionAssignment> {
+    vec![VersionAssignment::new(
+        ObjectId::RANDOMNESS_STATE,
+        epoch_store
+            .epoch_start_config()
+            .randomness_obj_initial_shared_version(),
+    )]
+}
+
+/// A randomness state update transaction for `round`, as
+/// `RandomnessRoundReceiver` would build it.
+pub fn make_randomness_state_update(
+    epoch_store: &AuthorityPerEpochStore,
+    round: u64,
+) -> VerifiedExecutableTransaction {
+    VerifiedExecutableTransaction::new_system(
+        VerifiedTransaction::new_randomness_state_update(
+            epoch_store.epoch(),
+            RandomnessRound::new(round),
+            vec![round as u8],
+            epoch_store
+                .epoch_start_config()
+                .randomness_obj_initial_shared_version(),
+        ),
+        epoch_store.epoch(),
+    )
 }

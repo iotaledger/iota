@@ -1196,8 +1196,7 @@ async fn commit_injects_deny_rule_updates_and_advances_mirror() {
 
 /// `process_consensus_transactions` builds the commit queue with two
 /// `push_front`s, the deny-rule update first and the consensus commit prologue
-/// after it, so the prologue stays the first transaction of every commit; only
-/// a comment said so before.
+/// after it, so the prologue stays the first transaction of every commit.
 #[tokio::test]
 async fn deny_rule_update_is_scheduled_right_after_the_prologue() {
     use std::num::NonZeroUsize;

@@ -23,8 +23,11 @@ use tokio::{
 
 use crate::{
     authority::{
-        AuthorityState, ExecutionEnv, authority_per_epoch_store::AuthorityPerEpochStore,
-        authority_tests::init_state_with_objects, epoch_start_configuration::EpochStartConfigTrait,
+        AuthorityState, ExecutionEnv,
+        authority_tests::{
+            init_state_with_objects, make_randomness_state_update, randomness_assigned_versions,
+            resolve_randomness_round,
+        },
         shared_object_version_manager::Schedulable,
     },
     execution_scheduler::{
@@ -902,52 +905,6 @@ async fn transaction_manager_with_cancelled_transactions() {
     transaction_manager.check_empty_for_testing();
 }
 
-/// Builds the randomness state update for `round`, persists it and records its
-/// key, which is what `RandomnessRoundReceiver` does before it notifies.
-fn resolve_randomness_round(
-    state: &AuthorityState,
-    epoch_store: &AuthorityPerEpochStore,
-    round: u64,
-) -> VerifiedExecutableTransaction {
-    let transaction = make_randomness_state_update(epoch_store, round);
-    state.get_cache_commit().persist_transaction(&transaction);
-    epoch_store
-        .insert_tx_key(
-            TransactionKey::RandomnessRound(epoch_store.epoch(), RandomnessRound::new(round)),
-            *transaction.digest(),
-        )
-        .unwrap();
-    transaction
-}
-
-fn randomness_assigned_versions(epoch_store: &AuthorityPerEpochStore) -> Vec<VersionAssignment> {
-    vec![VersionAssignment::new(
-        ObjectId::RANDOMNESS_STATE,
-        epoch_store
-            .epoch_start_config()
-            .randomness_obj_initial_shared_version(),
-    )]
-}
-
-/// A randomness state update transaction for `round`, as
-/// `RandomnessRoundReceiver` would build it.
-fn make_randomness_state_update(
-    epoch_store: &AuthorityPerEpochStore,
-    round: u64,
-) -> VerifiedExecutableTransaction {
-    VerifiedExecutableTransaction::new_system(
-        VerifiedTransaction::new_randomness_state_update(
-            epoch_store.epoch(),
-            RandomnessRound::new(round),
-            vec![round as u8],
-            epoch_store
-                .epoch_start_config()
-                .randomness_obj_initial_shared_version(),
-        ),
-        epoch_store.epoch(),
-    )
-}
-
 /// A `Schedulable::RandomnessStateUpdate` enqueued before its transaction
 /// exists must be parked under its key with its `ExecutionEnv`, and
 /// `notify_transaction_key` must release exactly that transaction with the
@@ -1353,6 +1310,41 @@ async fn transaction_manager_ignores_a_key_nothing_is_parked_under() {
         &epoch_store,
         TransactionKey::RandomnessRound(epoch_store.epoch(), RandomnessRound::new(1)),
         *transaction.digest(),
+    );
+
+    sleep(Duration::from_secs(1)).await;
+    assert!(rx_ready_transactions.try_recv().is_err());
+    assert_eq!(
+        transaction_manager.num_pending_transaction_keys_for_testing(),
+        0
+    );
+}
+
+/// A resolved key whose transaction is not in the store but is recorded as
+/// executed in this epoch has nothing left to schedule: it is skipped without
+/// a report, and nothing is parked under it.
+#[tokio::test(flavor = "current_thread", start_paused = true)]
+async fn transaction_manager_skips_a_resolved_key_whose_transaction_executed() {
+    let state = init_state_with_objects(vec![]).await;
+    let epoch_store = state.epoch_store_for_testing();
+    let (transaction_manager, mut rx_ready_transactions) = make_transaction_manager(&state);
+
+    let round = RandomnessRound::new(1);
+    let transaction = make_randomness_state_update(&epoch_store, 1);
+    epoch_store
+        .insert_tx_key(
+            TransactionKey::RandomnessRound(epoch_store.epoch(), round),
+            *transaction.digest(),
+        )
+        .unwrap();
+    epoch_store.insert_executed_in_epoch(transaction.digest());
+
+    transaction_manager.enqueue(
+        vec![(
+            Schedulable::RandomnessStateUpdate(epoch_store.epoch(), round),
+            ExecutionEnv::new().with_assigned_versions(randomness_assigned_versions(&epoch_store)),
+        )],
+        &epoch_store,
     );
 
     sleep(Duration::from_secs(1)).await;
