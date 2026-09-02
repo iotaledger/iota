@@ -41,6 +41,10 @@ use iota_swarm_config::{
     network_config::{NetworkConfig, NetworkConfigLight},
     network_config_builder::ConfigBuilder,
     node_config_builder::FullnodeConfigBuilder,
+    node_config_override::{
+        NodeConfigOverride, OverrideScope, overrides_for_fullnode, overrides_for_validator,
+        winning_field_paths,
+    },
 };
 use iota_types::traffic_control::PolicyConfig;
 use rand::rngs::OsRng;
@@ -216,6 +220,10 @@ pub enum LocalnetCommand {
         /// request. Defaults to 5.
         #[arg(long)]
         faucet_coin_count: Option<usize>,
+        /// DEPRECATED: alias for `--node-config-override
+        /// fullnode:enable-grpc-api=true` plus `--node-config-override
+        /// fullnode:grpc-api-config={address: <HOST:PORT>}`.
+        ///
         /// Start the gRPC API server with default host and port: 0.0.0.0:50051.
         /// This flag accepts also a port, a host, or both (e.g.,
         /// 0.0.0.0:50051). When providing a specific value, please use
@@ -256,6 +264,29 @@ pub enum LocalnetCommand {
         /// versions and checkpoints.
         #[arg(long, conflicts_with = "no_full_node")]
         disable_fullnode_pruning: bool,
+        /// Override a value in the generated node configs for this run, e.g.
+        /// `fullnode:authority-store-pruning-config.num-epochs-to-retain=5`.
+        ///
+        /// Scope is `all` (default), `fullnode`, `validator` (all
+        /// validators), or `validator-<N>`. The path uses the field names
+        /// from the node config YAML. The option is repeatable, and later
+        /// overrides win.
+        ///
+        /// Values are YAML. Quote a value that would parse as structure
+        /// (e.g. `'[::1]:9000'`). An empty value or `null` clears the field.
+        /// A mapping merges with the section. A list replaces the section.
+        ///
+        /// A validator's `network-address`, `p2p-config.external-address`
+        /// and `primary-address` are in the genesis committee metadata and
+        /// cannot be overridden. Re-run genesis to change them.
+        ///
+        /// Warning: the network breaks if you override a per-node value
+        /// (e.g. `db-path`) for every node, or if you clear
+        /// `p2p-config.seed-peers`.
+        // Taken as a string and parsed in `start`: clap reports a rejected
+        // value by echoing the whole argument, which may carry a credential.
+        #[arg(long, value_name = "[SCOPE:]PATH=VALUE")]
+        node_config_override: Vec<String>,
         /// Set the number of validators in the network.
         /// If a genesis was already generated with a specific number of
         /// validators, this will not override it; the user should recreate the
@@ -333,6 +364,7 @@ impl LocalnetCommand {
                 data_ingestion_dir,
                 no_full_node,
                 disable_fullnode_pruning,
+                node_config_override,
                 committee_size,
                 epoch_duration_ms,
             } => {
@@ -351,6 +383,7 @@ impl LocalnetCommand {
                     data_ingestion_dir,
                     no_full_node,
                     disable_fullnode_pruning,
+                    node_config_override,
                     committee_size,
                 )
                 .await
@@ -401,8 +434,16 @@ async fn start(
     #[cfg(feature = "indexer")] mut data_ingestion_dir: Option<PathBuf>,
     no_full_node: bool,
     disable_fullnode_pruning: bool,
+    node_config_override: Vec<String>,
     committee_size: Option<usize>,
 ) -> Result<(), anyhow::Error> {
+    // Parsed here rather than by clap, whose error would echo the whole
+    // argument. These errors name the path only.
+    let mut node_config_overrides = node_config_override
+        .iter()
+        .map(|input| input.parse::<NodeConfigOverride>())
+        .collect::<Result<Vec<_>, _>>()?;
+
     if force_regenesis {
         ensure!(
             config_dir.is_none(),
@@ -450,6 +491,21 @@ async fn start(
 
     // Resolve the configuration directory.
     let config_path = config_dir.clone().map_or_else(iota_config_dir, Ok)?;
+
+    // Deprecated --with-grpc becomes node config overrides. They are
+    // prepended so that explicit --node-config-override values win.
+    if let Some(input) = with_grpc.clone() {
+        eprintln!(
+            "{}",
+            "[warning] The --with-grpc flag is deprecated. Use `--node-config-override \
+             fullnode:enable-grpc-api=true`, which serves the API at the default address, \
+             and add `--node-config-override fullnode:grpc-api-config={address: <HOST:PORT>}` \
+             to serve it elsewhere."
+                .yellow()
+                .bold()
+        );
+        node_config_overrides.splice(0..0, with_grpc_overrides(input)?);
+    }
 
     let mut swarm_builder = Swarm::builder();
 
@@ -598,16 +654,6 @@ async fn start(
             .with_network_config(network_config);
     }
 
-    if let Some(ref input) = with_grpc {
-        let grpc_address = parse_host_port(input.clone(), DEFAULT_GRPC_PORT)
-            .map_err(|_| anyhow!("Invalid gRPC host and port"))?;
-        swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(true);
-        swarm_builder = swarm_builder.with_fullnode_grpc_api_config(GrpcApiConfig {
-            address: grpc_address,
-            ..Default::default()
-        });
-    }
-
     // the indexer and GraphQL services communicate with the fullnode via gRPC, we
     // must enable it by default.
     #[cfg(feature = "indexer")]
@@ -630,6 +676,9 @@ async fn start(
         swarm_builder = swarm_builder.with_data_ingestion_dir(dir.clone());
     }
 
+    check_fullnode_override_scopes(&node_config_overrides, !no_full_node)?;
+    swarm_builder = swarm_builder.with_node_config_overrides(node_config_overrides);
+
     let mut fullnode_url = iota_config::node::default_json_rpc_address();
     fullnode_url.set_port(fullnode_rpc_port);
 
@@ -642,27 +691,36 @@ async fn start(
             .with_deterministic_fullnode_ports(FULLNODE_PORT_BASE);
     }
 
-    let mut swarm = tokio::task::spawn_blocking(move || swarm_builder.build()).await?;
+    let mut swarm = tokio::task::spawn_blocking(move || swarm_builder.try_build()).await??;
+    log_applied_node_config_overrides(&swarm);
     swarm.launch().await?;
     // Let nodes connect to one another
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
     info!("Cluster started");
 
+    // Taken off the built config rather than off `--fullnode-rpc-port`, since an
+    // override can move the address.
+    let fullnode_url = swarm
+        .fullnodes()
+        .next()
+        .map(|node| node.config().json_rpc_address)
+        .unwrap_or(fullnode_url);
     // the indexer requires a fullnode url with protocol specified
     let fullnode_url = format!("http://{fullnode_url}");
     info!("Fullnode URL: {}", fullnode_url);
 
-    if with_grpc.is_some() {
-        let grpc_url = swarm
-            .fullnodes()
-            .next()
-            .and_then(|node| {
-                node.config()
-                    .grpc_api_config
-                    .as_ref()
-                    .map(|grpc| grpc.address)
-            })
-            .unwrap_or_else(|| GrpcApiConfig::default().address);
+    // Reported off the built config rather than off `--with-grpc`, since an
+    // override can turn the API on too.
+    if let Some(grpc_url) = swarm.fullnodes().next().and_then(|node| {
+        let config = node.config();
+        config.enable_grpc_api.then(|| {
+            config
+                .grpc_api_config
+                .as_ref()
+                .map(|grpc| grpc.address)
+                .unwrap_or_else(|| GrpcApiConfig::default().address)
+        })
+    }) {
         info!("gRPC URL: http://{grpc_url}");
     }
 
@@ -1169,6 +1227,80 @@ async fn genesis(
     Ok(())
 }
 
+/// Translate the deprecated `--with-grpc` value into node config overrides.
+///
+/// The API is off on a generated fullnode, which leaves `grpc-api-config`
+/// an explicit `null`. The address is therefore set with a value that
+/// replaces the whole section. The fields that value does not mention come
+/// out at their default.
+fn with_grpc_overrides(input: String) -> Result<[NodeConfigOverride; 2], anyhow::Error> {
+    let grpc_address = parse_host_port(input, DEFAULT_GRPC_PORT)
+        .map_err(|_| anyhow!("Invalid gRPC host and port"))?;
+    Ok([
+        "fullnode:enable-grpc-api=true".parse()?,
+        // Quoted: an IPv6 address like `[::1]:50051` is YAML structure
+        // when unquoted.
+        format!("fullnode:grpc-api-config={{address: '{grpc_address}'}}").parse()?,
+    ])
+}
+
+/// Fails if a fullnode-scoped override is given for a network without a
+/// fullnode.
+fn check_fullnode_override_scopes(
+    node_config_overrides: &[NodeConfigOverride],
+    has_fullnode: bool,
+) -> Result<(), anyhow::Error> {
+    if !has_fullnode {
+        for config_override in node_config_overrides {
+            ensure!(
+                config_override.scope != OverrideScope::Fullnode,
+                "`{}` is fullnode-scoped, but this network has no fullnode",
+                config_override.scoped_field_path()
+            );
+        }
+    }
+    Ok(())
+}
+
+/// Log, per node the overrides reached, how many applied and which fields
+/// they set. Later overrides win per field.
+fn log_applied_node_config_overrides(swarm: &Swarm) {
+    let node_config_overrides = swarm.node_config_overrides();
+    for index in 0..swarm.config().validator_configs().len() {
+        log_applied_overrides_for_node(
+            &format!("validator-{index}"),
+            overrides_for_validator(node_config_overrides, index),
+        );
+    }
+    if swarm.fullnodes().next().is_some() {
+        log_applied_overrides_for_node("fullnode", overrides_for_fullnode(node_config_overrides));
+    }
+}
+
+fn log_applied_overrides_for_node<'a>(
+    name: &str,
+    node_config_overrides: impl IntoIterator<Item = &'a NodeConfigOverride>,
+) {
+    let node_config_overrides: Vec<&NodeConfigOverride> =
+        node_config_overrides.into_iter().collect();
+    if node_config_overrides.is_empty() {
+        return;
+    }
+    // The values are not echoed: they may carry a credential, and the
+    // fields alone say what the run deviates on.
+    let fields = winning_field_paths(node_config_overrides.iter().copied());
+    let noun = if node_config_overrides.len() == 1 {
+        "override"
+    } else {
+        "overrides"
+    };
+    info!(
+        "applied {} {noun} to {name}: {}",
+        node_config_overrides.len(),
+        fields.join(", ")
+    );
+}
+
 /// Parse the input string into a SocketAddr, with a default port if none is
 /// provided.
 pub fn parse_host_port(
@@ -1200,13 +1332,56 @@ pub fn parse_host_port_with_default_host(
     }
 }
 
-#[cfg(all(test, feature = "indexer"))]
+#[cfg(test)]
 mod tests {
+    use iota_swarm_config::node_config_override::apply_node_config_overrides;
+
     use super::*;
+
+    #[test]
+    fn fullnode_scoped_override_without_a_fullnode_fails() {
+        let config_override: NodeConfigOverride =
+            "fullnode:enable-index-processing=false".parse().unwrap();
+        assert!(
+            check_fullnode_override_scopes(std::slice::from_ref(&config_override), false).is_err()
+        );
+        check_fullnode_override_scopes(&[config_override], true).unwrap();
+
+        // `all:` reaches the validators, so it stays allowed either way.
+        let all_scoped: NodeConfigOverride = "all:enable-index-processing=false".parse().unwrap();
+        check_fullnode_override_scopes(std::slice::from_ref(&all_scoped), false).unwrap();
+    }
+
+    #[test]
+    fn with_grpc_overrides_turn_the_api_on_at_the_given_address() {
+        let dir = tempdir().unwrap();
+        for (input, expected) in [("[::1]:50051", "[::1]:50051"), ("50051", "0.0.0.0:50051")] {
+            let overrides = with_grpc_overrides(input.to_string()).unwrap();
+            let mut config = FullnodeConfigBuilder::new()
+                .with_config_directory(dir.path().to_path_buf())
+                .build_from_parts(&mut OsRng, &[], Genesis::new_empty());
+            // One batch, as `start` hands them to the swarm builder.
+            apply_node_config_overrides(&overrides, &mut config).unwrap();
+            assert!(config.enable_grpc_api, "{input}");
+            let grpc_api_config = config.grpc_api_config.unwrap();
+            assert_eq!(
+                grpc_api_config.address,
+                expected.parse::<SocketAddr>().unwrap(),
+                "{input}"
+            );
+            // Only the address deviates from the section's default.
+            assert_eq!(
+                grpc_api_config.max_message_size_bytes,
+                GrpcApiConfig::default().max_message_size_bytes,
+                "{input}"
+            );
+        }
+    }
 
     /// Every service port of a local network is fixed, so a collision is a
     /// startup failure rather than a test flake. The fullnode metrics
     /// endpoint and the GraphQL metrics endpoint shared `9184` once.
+    #[cfg(feature = "indexer")]
     #[test]
     fn service_ports_do_not_collide() {
         let mut ports = vec![
@@ -1228,6 +1403,7 @@ mod tests {
 
     /// An endpoint that keeps its host on localhost must stay there when only
     /// a port is given, and when nothing is given at all.
+    #[cfg(feature = "indexer")]
     #[test]
     fn a_metrics_address_defaults_to_localhost() {
         let localhost = Ipv4Addr::LOCALHOST.to_string();

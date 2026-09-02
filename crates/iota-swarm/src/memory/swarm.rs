@@ -30,6 +30,10 @@ use iota_swarm_config::{
         SupportedProtocolVersionsCallback,
     },
     node_config_builder::FullnodeConfigBuilder,
+    node_config_override::{
+        NodeConfigOverride, OverrideScope, apply_node_config_overrides,
+        check_validator_override_scopes, overrides_for_fullnode, overrides_for_validator,
+    },
 };
 use iota_types::{
     base_types::AuthorityName,
@@ -77,6 +81,7 @@ pub struct SwarmBuilder<R = OsRng> {
     disable_address_verification_cooldown: bool,
     deterministic_validator_port_base: Option<u16>,
     deterministic_fullnode_port_base: Option<u16>,
+    node_config_overrides: Vec<NodeConfigOverride>,
 }
 
 impl SwarmBuilder {
@@ -114,6 +119,7 @@ impl SwarmBuilder {
             disable_address_verification_cooldown: false,
             deterministic_validator_port_base: None,
             deterministic_fullnode_port_base: None,
+            node_config_overrides: vec![],
         }
     }
 }
@@ -153,6 +159,7 @@ impl<R> SwarmBuilder<R> {
             disable_address_verification_cooldown: self.disable_address_verification_cooldown,
             deterministic_validator_port_base: self.deterministic_validator_port_base,
             deterministic_fullnode_port_base: self.deterministic_fullnode_port_base,
+            node_config_overrides: self.node_config_overrides,
         }
     }
 
@@ -401,6 +408,18 @@ impl<R> SwarmBuilder<R> {
         self.disable_address_verification_cooldown = true;
         self
     }
+
+    /// Set overrides applied to every node config this builder produces, in
+    /// the given order, after all other configuration. Nodes spawned on the
+    /// built [`Swarm`] later get them too, except `validator-<N>` scoped
+    /// overrides, which refer to positions in the initial network config.
+    pub fn with_node_config_overrides(
+        mut self,
+        node_config_overrides: Vec<NodeConfigOverride>,
+    ) -> Self {
+        self.node_config_overrides = node_config_overrides;
+        self
+    }
 }
 
 impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
@@ -417,6 +436,9 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
     ///
     /// # Errors
     ///
+    /// - A `validator-<N>` override names a validator the network does not
+    ///   have.
+    /// - An override fails to apply to a built config.
     /// - The network has a fullnode and a validator config has no
     ///   `p2p-config.external-address`.
     ///
@@ -520,6 +542,20 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             }
         }
 
+        check_validator_override_scopes(
+            &self.node_config_overrides,
+            network_config.validator_configs.len(),
+        )?;
+        for (index, validator) in network_config.validator_configs.iter_mut().enumerate() {
+            apply_node_config_overrides(
+                overrides_for_validator(&self.node_config_overrides, index),
+                validator,
+            )
+            .with_context(|| {
+                format!("failed to apply node config overrides to validator {index}")
+            })?;
+        }
+
         let mut nodes: HashMap<_, _> = network_config
             .validator_configs()
             .iter()
@@ -591,9 +627,14 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
                     builder = builder.with_deterministic_ports(port_base);
                 }
             }
-            let config = builder
+            let mut config = builder
                 .try_build(&mut OsRng, &network_config)
                 .context("failed to build the fullnode config")?;
+            apply_node_config_overrides(
+                overrides_for_fullnode(&self.node_config_overrides),
+                &mut config,
+            )
+            .with_context(|| format!("failed to apply node config overrides to fullnode {idx}"))?;
             info!(
                 "SwarmBuilder configuring full node with name {}",
                 config.authority_public_key()
@@ -605,6 +646,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             network_config,
             nodes,
             fullnode_config_builder,
+            node_config_overrides: self.node_config_overrides,
         })
     }
 }
@@ -617,6 +659,8 @@ pub struct Swarm {
     nodes: HashMap<AuthorityName, Node>,
     // Save a copy of the fullnode config builder to build future fullnodes.
     fullnode_config_builder: FullnodeConfigBuilder,
+    // Applied to the configs of nodes spawned after the initial build too.
+    node_config_overrides: Vec<NodeConfigOverride>,
 }
 
 impl Drop for Swarm {
@@ -715,7 +759,16 @@ impl Swarm {
             .filter(|node| !node.config().is_validator())
     }
 
-    pub async fn spawn_new_node(&mut self, config: NodeConfig) -> IotaNodeHandle {
+    /// Start a node from `config` and add it to the swarm.
+    ///
+    /// The swarm's node config overrides are applied to the config first.
+    ///
+    /// # Panics
+    ///
+    /// Panics on an override that fails to apply and on a node that fails
+    /// to start.
+    pub async fn spawn_new_node(&mut self, mut config: NodeConfig) -> IotaNodeHandle {
+        self.apply_node_config_overrides_for_spawn(&mut config);
         let name = config.authority_public_key();
         let node = Node::new(config);
         node.start().await.unwrap();
@@ -724,8 +777,37 @@ impl Swarm {
         handle
     }
 
+    /// Apply the swarm's overrides to the config of a node spawned after the
+    /// initial build. `validator-<N>` scoped overrides refer to positions in
+    /// the initial network config, so they are skipped here.
+    ///
+    /// # Panics
+    ///
+    /// Panics on an override that fails to apply.
+    fn apply_node_config_overrides_for_spawn(&self, config: &mut NodeConfig) {
+        let overrides: Vec<&NodeConfigOverride> = if config.is_validator() {
+            self.node_config_overrides
+                .iter()
+                .filter(|config_override| {
+                    matches!(
+                        config_override.scope,
+                        OverrideScope::All | OverrideScope::AllValidators
+                    )
+                })
+                .collect()
+        } else {
+            overrides_for_fullnode(&self.node_config_overrides).collect()
+        };
+        apply_node_config_overrides(overrides, config).unwrap_or_else(|err| panic!("{err:#}"));
+    }
+
     pub fn get_fullnode_config_builder(&self) -> FullnodeConfigBuilder {
         self.fullnode_config_builder.clone()
+    }
+
+    /// The node config overrides the swarm was built with.
+    pub fn node_config_overrides(&self) -> &[NodeConfigOverride] {
+        &self.node_config_overrides
     }
 }
 
@@ -765,9 +847,285 @@ impl AsRef<Path> for SwarmDirectory {
 mod test {
     use std::{collections::BTreeSet, net::SocketAddr, num::NonZeroUsize};
 
-    use iota_swarm_config::network_config_builder::ConfigBuilder;
+    use iota_swarm_config::{
+        network_config::NetworkConfig,
+        network_config_builder::ConfigBuilder,
+        node_config_override::{NodeConfigOverride, apply_node_config_overrides},
+    };
 
     use super::Swarm;
+
+    #[test]
+    fn node_config_overrides() {
+        let swarm = Swarm::builder()
+            .committee_size(NonZeroUsize::new(2).unwrap())
+            .with_fullnode_count(1)
+            .with_node_config_overrides(vec![
+                "fullnode:authority-store-pruning-config.num-epochs-to-retain=18446744073709551615"
+                    .parse()
+                    .unwrap(),
+                "validator-0:authority-store-pruning-config.num-epochs-to-retain=5"
+                    .parse()
+                    .unwrap(),
+                "validator:enable-soft-locking=false".parse().unwrap(),
+            ])
+            .build();
+
+        let validators = swarm.config().validator_configs();
+        assert_eq!(
+            validators[0]
+                .authority_store_pruning_config
+                .num_epochs_to_retain,
+            5
+        );
+        assert_eq!(
+            validators[1]
+                .authority_store_pruning_config
+                .num_epochs_to_retain,
+            0
+        );
+        assert!(validators.iter().all(|config| !config.enable_soft_locking));
+
+        let fullnode = swarm.fullnodes().next().unwrap();
+        assert_eq!(
+            fullnode
+                .config()
+                .authority_store_pruning_config
+                .num_epochs_to_retain,
+            u64::MAX
+        );
+        assert!(fullnode.config().enable_soft_locking);
+    }
+
+    #[test]
+    fn node_config_overrides_apply_to_late_spawned_nodes() {
+        let swarm = Swarm::builder()
+            .committee_size(NonZeroUsize::new(2).unwrap())
+            .with_fullnode_count(1)
+            .with_node_config_overrides(vec![
+                "fullnode:authority-store-pruning-config.num-epochs-to-retain=18446744073709551615"
+                    .parse()
+                    .unwrap(),
+                "validator:enable-soft-locking=false".parse().unwrap(),
+                "validator-0:enable-index-processing=false".parse().unwrap(),
+            ])
+            .build();
+
+        let mut config = swarm
+            .get_fullnode_config_builder()
+            .build(&mut rand::rngs::OsRng, swarm.config());
+        assert_eq!(
+            config.authority_store_pruning_config.num_epochs_to_retain,
+            0
+        );
+        swarm.apply_node_config_overrides_for_spawn(&mut config);
+        assert_eq!(
+            config.authority_store_pruning_config.num_epochs_to_retain,
+            u64::MAX
+        );
+        // Validator-scoped overrides do not apply to a fullnode.
+        assert!(config.enable_soft_locking);
+
+        // A validator respawned from its own config: the batch it was built
+        // with applies again unchanged.
+        let mut config = swarm.config().validator_configs()[1].clone();
+        let num_epochs_to_retain = config.authority_store_pruning_config.num_epochs_to_retain;
+        assert!(!config.enable_soft_locking);
+        swarm.apply_node_config_overrides_for_spawn(&mut config);
+        assert!(!config.enable_soft_locking);
+        // The `validator-0` and fullnode scopes leave this validator alone.
+        assert!(config.enable_index_processing);
+        assert_eq!(
+            config.authority_store_pruning_config.num_epochs_to_retain,
+            num_epochs_to_retain
+        );
+    }
+
+    #[test]
+    fn try_build_rejects_a_consensus_override_that_reaches_the_fullnode() {
+        // `all:` applies cleanly to the validators and must still fail on
+        // the fullnode, which has no consensus config.
+        let err = Swarm::builder()
+            .with_fullnode_count(1)
+            .with_node_config_overrides(vec![
+                "all:consensus-config.db-retention-epochs=2"
+                    .parse()
+                    .unwrap(),
+            ])
+            .try_build()
+            .unwrap_err();
+        let err = format!("{err:#}");
+        assert!(
+            err.contains("all:consensus-config.db-retention-epochs"),
+            "{err}"
+        );
+        assert!(err.contains("on a fullnode"), "{err}");
+    }
+
+    #[test]
+    fn the_fullnodes_own_addresses_are_overridable() {
+        // A fullnode is not a committee member, so the addresses that are
+        // genesis data on a validator are ordinary config on it. The seed
+        // peers it derives from the validators are unaffected.
+        let swarm = Swarm::builder()
+            .committee_size(NonZeroUsize::new(1).unwrap())
+            .with_fullnode_count(1)
+            .with_node_config_overrides(vec![
+                "fullnode:p2p-config.external-address='/ip4/127.0.0.1/udp/19186'"
+                    .parse()
+                    .unwrap(),
+            ])
+            .try_build()
+            .unwrap();
+        let fullnode = swarm.fullnodes().next().unwrap();
+        let config = fullnode.config();
+        assert_eq!(
+            config
+                .p2p_config
+                .external_address
+                .as_ref()
+                .unwrap()
+                .to_string(),
+            "/ip4/127.0.0.1/udp/19186"
+        );
+        assert_eq!(
+            config.p2p_config.seed_peers[0].address,
+            swarm.config().validator_configs()[0]
+                .p2p_config
+                .external_address
+                .clone()
+                .unwrap()
+        );
+    }
+
+    /// A network config whose validator 0 carries a firewall section, which
+    /// its peers do not. Returns the config and the temporary directory it
+    /// must outlive.
+    fn network_config_with_a_firewall_on_validator_0(
+        committee_size: usize,
+    ) -> (NetworkConfig, tempfile::TempDir) {
+        let dir = tempfile::TempDir::new().unwrap();
+        let mut network_config = ConfigBuilder::new(dir.path())
+            .committee_size(NonZeroUsize::new(committee_size).unwrap())
+            .build();
+        let overrides: Vec<NodeConfigOverride> = [
+            "policy-config={}",
+            "firewall-config={remote-fw-url: 'http://127.0.0.1:65000', destination-port: 65000}",
+        ]
+        .iter()
+        .map(|input| input.parse().unwrap())
+        .collect();
+        apply_node_config_overrides(&overrides, &mut network_config.validator_configs[0]).unwrap();
+        (network_config, dir)
+    }
+
+    #[test]
+    fn validator_override_failures_name_the_validator() {
+        // A `validator:` scope carries no index, so only the error context
+        // can say which validator rejected the override.
+        let (network_config, _dir) = network_config_with_a_firewall_on_validator_0(2);
+
+        let err = Swarm::builder()
+            .with_network_config(network_config)
+            .with_node_config_overrides(vec![
+                "validator:firewall-config.destination-port=65001"
+                    .parse()
+                    .unwrap(),
+            ])
+            .try_build()
+            .unwrap_err();
+        // Validator 0 has the section, validator 1 does not. The dotted
+        // edit therefore leaves its required fields unset on validator 1.
+        let err = format!("{err:#}");
+        assert!(err.contains("validator 1"), "{err}");
+        assert!(err.contains("remote-fw-url"), "{err}");
+    }
+
+    #[test]
+    fn try_build_rejects_an_out_of_range_validator_scope_for_a_supplied_network_config() {
+        let dir = tempfile::TempDir::new().unwrap();
+        let network_config = ConfigBuilder::new(dir.path())
+            .committee_size(NonZeroUsize::new(1).unwrap())
+            .build();
+        let err = Swarm::builder()
+            .with_network_config(network_config)
+            .with_node_config_overrides(vec![
+                "validator-1:enable-soft-locking=false".parse().unwrap(),
+            ])
+            .try_build()
+            .unwrap_err();
+        let err = format!("{err:#}");
+        assert!(err.contains("validator-1:enable-soft-locking"), "{err}");
+        assert!(err.contains("only 1 validator"), "{err}");
+    }
+
+    #[test]
+    fn validator_scopes_may_set_the_consensus_config() {
+        let swarm = Swarm::builder()
+            .with_node_config_overrides(vec![
+                "validator:consensus-config.db-retention-epochs=2"
+                    .parse()
+                    .unwrap(),
+                "validator-0:consensus-config.db-pruner-period-secs=60"
+                    .parse()
+                    .unwrap(),
+            ])
+            .try_build()
+            .unwrap();
+        let consensus_config = swarm.config().validator_configs()[0]
+            .consensus_config
+            .as_ref()
+            .unwrap();
+        assert_eq!(consensus_config.db_retention_epochs, Some(2));
+        assert_eq!(consensus_config.db_pruner_period_secs, Some(60));
+    }
+
+    #[test]
+    fn overrides_apply_to_a_supplied_network_config() {
+        // The localnet feeds a network config loaded from disk. Overrides
+        // apply to those configs, not to freshly generated ones.
+        let (network_config, _dir) = network_config_with_a_firewall_on_validator_0(1);
+
+        let swarm = Swarm::builder()
+            .with_network_config(network_config)
+            .with_fullnode_count(1)
+            .with_node_config_overrides(vec![
+                "validator:firewall-config.destination-port=65001"
+                    .parse()
+                    .unwrap(),
+                "fullnode:enable-index-processing=false".parse().unwrap(),
+            ])
+            .try_build()
+            .unwrap();
+        assert_eq!(
+            swarm.config().validator_configs()[0]
+                .firewall_config
+                .as_ref()
+                .unwrap()
+                .destination_port,
+            65001
+        );
+        let fullnode = swarm.fullnodes().next().unwrap();
+        assert!(!fullnode.config().enable_index_processing);
+    }
+
+    #[test]
+    fn try_build_rejects_a_fullnode_override_no_node_could_start_with() {
+        let err = Swarm::builder()
+            .committee_size(NonZeroUsize::new(1).unwrap())
+            .with_fullnode_count(1)
+            .with_node_config_overrides(vec![
+                // A snapshot store without a backend: the node refuses to
+                // start with it.
+                "fullnode:state-snapshot-write-config.object-store-config.directory=/tmp/snapshots"
+                    .parse()
+                    .unwrap(),
+            ])
+            .try_build()
+            .unwrap_err();
+        let err = format!("{err:#}");
+        assert!(err.contains("storage backend"), "{err}");
+    }
 
     #[test]
     fn try_build_fails_when_a_validator_has_no_p2p_external_address() {
