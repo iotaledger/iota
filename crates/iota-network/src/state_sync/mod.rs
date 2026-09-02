@@ -1426,8 +1426,13 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
     // Only sync from checkpoint archive when there is at least one checkpoint in
     // the gap [highest_synced+1, lowest_peer). If highest_synced+1 ==
     // lowest_peer the archive range is empty and there is nothing to do.
-    let sync_from_checkpoint_archive =
-        if let Some(lowest_checkpoint_on_peers) = lowest_checkpoint_on_peers {
+    // A node configured to sync only from the archive has no peers to take over
+    // from, so it reads from the archive whatever the peers report.
+    let archive_only = checkpoint_archive_config
+        .as_ref()
+        .is_some_and(|config| config.sync_from_archive_only);
+    let sync_from_checkpoint_archive = archive_only
+        || if let Some(lowest_checkpoint_on_peers) = lowest_checkpoint_on_peers {
             highest_synced
                 .checked_add(1)
                 .is_some_and(|start| start < lowest_checkpoint_on_peers)
@@ -1450,14 +1455,19 @@ async fn sync_checkpoint_contents_from_checkpoint_archive_iteration<S>(
         // The archive should cover [start, end); we want everything up to end-1
         // and leave `end` onward to normal p2p sync. `MaxCheckpoint(last)`
         // makes the executor shut down on its own once it has processed that
-        // range.
-        let Some(last) = checkpoint_archive_sync_end(
-            start,
-            lowest_checkpoint_on_peers.expect("checked by sync_from_checkpoint_archive"),
-        ) else {
-            return;
+        // range. With no peers to hand off to there is no such boundary, so an
+        // archive-only node follows the archive for as long as it grows.
+        let ingestion_limit = if archive_only {
+            None
+        } else {
+            let Some(last) = checkpoint_archive_sync_end(
+                start,
+                lowest_checkpoint_on_peers.expect("checked by sync_from_checkpoint_archive"),
+            ) else {
+                return;
+            };
+            Some(IngestionLimit::MaxCheckpoint(last))
         };
-        let ingestion_limit = Some(IngestionLimit::MaxCheckpoint(last));
         let reader_options = ReaderOptions {
             batch_size: checkpoint_archive_config.download_concurrency.get(),
             // The reducer waits for execution before inserting, and downloaded

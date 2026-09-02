@@ -8,16 +8,32 @@
 //! and the end-of-epoch transaction. Those are the paths where applying a
 //! checkpoint's results could diverge from executing its transactions.
 
-use std::{fs, path::Path, time::Duration};
+use std::{
+    fs,
+    num::NonZeroUsize,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
+use bytes::Bytes;
+use iota_config::node::CheckpointArchiveConfig;
 use iota_core::{authority::AuthorityState, transaction_outputs::TransactionOutputs};
+use iota_data_ingestion_core::history::{
+    CHECKPOINT_FILE_MAGIC,
+    manifest::{Manifest, create_file_metadata_from_bytes, finalize_manifest},
+};
 use iota_macros::sim_test;
-use iota_sdk_types::{ObjectId, TransactionDigest, Version};
+use iota_sdk_types::{ObjectId, SharedObjectReference, TransactionDigest, Version};
+use iota_storage::{
+    FileCompression, StorageFormat,
+    blob::{Blob, BlobEncoding},
+};
+use iota_test_transaction_builder::publish_package;
 use iota_types::{
     committee::EpochId,
     effects::TransactionEffectsAPI,
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
-    transaction::TransactionAPI,
+    transaction::{CallArg, TransactionAPI},
 };
 use test_cluster::TestClusterBuilder;
 
@@ -234,5 +250,247 @@ async fn end_of_epoch_transaction_is_left_to_the_executor() {
     assert!(
         change_epoch.transaction.transaction().is_end_of_epoch_tx(),
         "the last transaction of a boundary checkpoint is the change-epoch one"
+    );
+}
+
+/// Writes `checkpoints` into a checkpoint archive at `dir`, in the batched,
+/// MANIFEST-indexed layout the archive reader expects.
+fn write_archive(dir: &Path, checkpoints: &[CheckpointData]) {
+    let last = checkpoints
+        .last()
+        .expect("an archive needs at least one checkpoint")
+        .checkpoint_summary
+        .sequence_number;
+
+    let mut buf: Vec<u8> = Vec::new();
+    buf.extend_from_slice(&CHECKPOINT_FILE_MAGIC.to_be_bytes());
+    buf.push(StorageFormat::Blob as u8);
+    buf.push(FileCompression::None as u8);
+    for checkpoint in checkpoints {
+        Blob::encode(checkpoint, BlobEncoding::Bcs)
+            .expect("checkpoint data must encode")
+            .write(&mut buf)
+            .expect("writing to a vec cannot fail");
+    }
+
+    let file_metadata = create_file_metadata_from_bytes(Bytes::from(buf.clone()), 0..last + 1)
+        .expect("file metadata must be derivable");
+    fs::write(dir.join("0.chk"), &buf).unwrap();
+
+    let mut manifest = Manifest::new(0);
+    manifest.update(last + 1, file_metadata);
+    fs::write(
+        dir.join("MANIFEST"),
+        &finalize_manifest(manifest).unwrap()[..],
+    )
+    .unwrap();
+}
+
+/// A fullnode whose only source is the archive must reach the archive's last
+/// checkpoint by applying the results it carries, without executing any of
+/// their transactions.
+#[sim_test]
+async fn archive_only_fullnode_applies_without_executing() {
+    let ingestion = tempfile::tempdir().unwrap();
+    let archive = tempfile::tempdir().unwrap();
+    let mut cluster = TestClusterBuilder::new()
+        .with_epoch_duration_ms(15_000)
+        .with_data_ingestion_dir(ingestion.path().to_path_buf())
+        .build()
+        .await;
+
+    let addresses = cluster.get_addresses();
+    let (sender, receiver) = (addresses[0], addresses[1]);
+    for _ in 0..5 {
+        cluster
+            .transfer_iota_must_exceed(sender, receiver, 1_000_000)
+            .await;
+    }
+    cluster.wait_for_epoch(Some(1)).await;
+    // More traffic after the change, so the archive reaches past the boundary
+    // into the next epoch rather than stopping on it.
+    for _ in 0..3 {
+        cluster
+            .transfer_iota_must_exceed(sender, receiver, 1_000_000)
+            .await;
+    }
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    // The archive is contiguous from genesis, so take a prefix of what the
+    // cluster wrote. It has to reach past an epoch boundary: that is what makes
+    // the reducer wait for the node to reach a checkpoint's epoch before
+    // applying its results.
+    let mut checkpoints = read_checkpoints(ingestion.path());
+    let boundary = checkpoints
+        .iter()
+        .position(|c| c.checkpoint_summary.end_of_epoch_data.is_some())
+        .expect("the cluster crossed an epoch, so a boundary checkpoint must be present");
+    checkpoints.truncate((boundary + 4).min(checkpoints.len()));
+    assert!(
+        checkpoints.len() > boundary + 1,
+        "the range must include checkpoints from the epoch after the boundary, or the epoch \
+         wait goes unexercised"
+    );
+    let target = checkpoints
+        .last()
+        .unwrap()
+        .checkpoint_summary
+        .sequence_number;
+    write_archive(archive.path(), &checkpoints);
+
+    let mut config = cluster
+        .fullnode_config_builder()
+        // The assertions below read historical object versions, which the
+        // pruner would otherwise remove once the node crosses the epoch.
+        .with_disable_pruning(true)
+        .with_checkpoint_archive_config(CheckpointArchiveConfig {
+            url: format!("file://{}", archive.path().display()),
+            download_concurrency: NonZeroUsize::new(4).unwrap(),
+            verify_concurrency: NonZeroUsize::new(2).unwrap(),
+            max_checkpoints_ahead_of_execution: NonZeroUsize::new(1_000_000).unwrap(),
+            re_execute_archived_checkpoints: false,
+            sync_from_archive_only: true,
+        })
+        .build(&mut rand::rngs::OsRng, cluster.swarm.config());
+    // With no peers the archive is the node's only source, so reaching the
+    // target proves the archive path did the work rather than p2p sync.
+    config.p2p_config.seed_peers = Vec::new();
+    let node = cluster.start_fullnode_from_config(config).await;
+
+    let deadline = std::time::Instant::now() + Duration::from_secs(120);
+    loop {
+        let highest = node
+            .iota_node
+            .with(|n| {
+                n.state()
+                    .get_checkpoint_store()
+                    .get_highest_executed_checkpoint_seq_number()
+            })
+            .unwrap()
+            .unwrap_or(0);
+        if highest >= target {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "archive-only node stalled at {highest}, target {target}"
+        );
+        tokio::time::sleep(Duration::from_millis(500)).await;
+    }
+
+    // The state it ended up with must match what the cluster produced.
+    let state = node.iota_node.state();
+    for checkpoint in &checkpoints {
+        for tx in &checkpoint.transactions {
+            let digest = tx.effects.transaction_digest();
+            for object in &tx.output_objects {
+                let Some(stored) = state
+                    .get_object_store()
+                    .get_object_by_key(&object.id(), object.version())
+                else {
+                    assert_superseded_since(&state, &object.id(), object.version(), digest);
+                    continue;
+                };
+                assert_eq!(
+                    stored.digest(),
+                    object.digest(),
+                    "archive-only node stored a different {}",
+                    object.id()
+                );
+            }
+        }
+    }
+    let total_transactions: usize = checkpoints.iter().map(|c| c.transactions.len()).sum();
+    println!(
+        "archive-only node reached checkpoint {target} covering {total_transactions} transactions"
+    );
+}
+
+/// Deleting a shared object is the one case where the two constructors resolve
+/// the input owner from different sources — execution reads it from the loaded
+/// input objects, applying reads it from the effects' recorded input state. The
+/// deletion must be marked `SharedDeleted`, not `OwnedDeleted`.
+#[sim_test]
+async fn shared_object_deletion_is_marked_the_same_way() {
+    let ingestion = tempfile::tempdir().unwrap();
+    let cluster = TestClusterBuilder::new()
+        .with_data_ingestion_dir(ingestion.path().to_path_buf())
+        .build()
+        .await;
+
+    let package = publish_package(
+        &cluster.wallet,
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/move_building_blocks"),
+    )
+    .await
+    .object_id;
+
+    let created = cluster
+        .sign_and_execute_transaction(
+            &cluster
+                .test_transaction_builder()
+                .await
+                .move_call(package, "objects", "create_shared_object", vec![])
+                .build(),
+        )
+        .await
+        .created()[0]
+        .reference;
+
+    let deletion = cluster
+        .sign_and_execute_transaction(
+            &cluster
+                .test_transaction_builder()
+                .await
+                .move_call(
+                    package,
+                    "objects",
+                    "delete",
+                    vec![CallArg::Shared(SharedObjectReference::new(
+                        created.object_id,
+                        created.version,
+                        true,
+                    ))],
+                )
+                .build(),
+        )
+        .await;
+    assert_eq!(
+        deletion.deleted().len(),
+        1,
+        "the call must delete the shared object"
+    );
+    let deleted_digest = *deletion.transaction_digest();
+
+    // Give the checkpoint carrying it time to be written out.
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
+    let state = cluster.fullnode_handle.iota_node.state();
+    let mut checked = false;
+    for checkpoint in read_checkpoints(ingestion.path()) {
+        let epoch = checkpoint.checkpoint_summary.data().epoch;
+        for tx in &checkpoint.transactions {
+            if *tx.effects.transaction_digest() != deleted_digest {
+                continue;
+            }
+            let applied = TransactionOutputs::build_from_checkpoint_transaction(tx);
+            assert!(
+                applied.markers.iter().any(|(_, marker)| matches!(
+                    marker,
+                    iota_types::storage::MarkerValue::SharedDeleted(_)
+                )),
+                "the deletion of a shared object must be marked SharedDeleted, got {:?}",
+                applied.markers
+            );
+            assert!(
+                assert_markers_match_the_store(&state, epoch, tx, &applied) > 0,
+                "the markers must have been compared against the store"
+            );
+            checked = true;
+        }
+    }
+    assert!(
+        checked,
+        "the shared object deletion never reached a checkpoint, so nothing was checked"
     );
 }

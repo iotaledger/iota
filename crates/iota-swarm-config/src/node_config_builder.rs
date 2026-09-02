@@ -18,9 +18,10 @@ use iota_config::{
     IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME, NodeConfig, local_ip_utils,
     node::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
-        CheckpointExecutorConfig, ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis,
-        GrpcApiConfig, KeyPairWithPath, RunWithRange, StateSnapshotConfig,
-        default_enable_jsonrpc_api, default_end_of_epoch_broadcast_channel_capacity,
+        CheckpointArchiveConfig, CheckpointExecutorConfig, ExecutionCacheConfig,
+        ExpensiveSafetyCheckConfig, Genesis, GrpcApiConfig, KeyPairWithPath, RunWithRange,
+        StateSnapshotConfig, default_enable_jsonrpc_api,
+        default_end_of_epoch_broadcast_channel_capacity,
         default_full_checkpoint_contents_cache_size_mb,
     },
     p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
@@ -306,6 +307,7 @@ pub struct FullnodeConfigBuilder {
     network_key_pair: Option<KeyPairWithPath>,
     run_with_range: Option<RunWithRange>,
     policy_config: Option<PolicyConfig>,
+    checkpoint_archive_config: Option<CheckpointArchiveConfig>,
     fw_config: Option<RemoteFirewallConfig>,
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
@@ -433,6 +435,13 @@ impl FullnodeConfigBuilder {
 
     pub fn with_policy_config(mut self, config: Option<PolicyConfig>) -> Self {
         self.policy_config = config;
+        self
+    }
+
+    /// Sets where the node backfills checkpoint contents from when peers no
+    /// longer serve the range it needs.
+    pub fn with_checkpoint_archive_config(mut self, config: CheckpointArchiveConfig) -> Self {
+        self.checkpoint_archive_config = Some(config);
         self
     }
 
@@ -669,7 +678,7 @@ impl FullnodeConfigBuilder {
             transaction_deny_config: Default::default(),
             certificate_deny_config: Default::default(),
             state_debug_dump_config: Default::default(),
-            checkpoint_archive_config: None,
+            checkpoint_archive_config: self.checkpoint_archive_config,
             state_snapshot_write_config: StateSnapshotConfig::default(),
             indexer_max_subscriptions: Default::default(),
             transaction_kv_store_read_config: Default::default(),
