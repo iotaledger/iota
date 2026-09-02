@@ -22,6 +22,10 @@ use crate::{
     messages_checkpoint::CheckpointSequenceNumber,
 };
 
+#[cfg(test)]
+#[path = "unit_tests/error_codec_tests.rs"]
+mod error_codec_tests;
+
 pub const TRANSACTION_NOT_FOUND_MSG_PREFIX: &str = "Could not find the referenced transaction";
 pub const TRANSACTIONS_NOT_FOUND_MSG_PREFIX: &str = "Could not find the referenced transactions";
 
@@ -83,6 +87,12 @@ macro_rules! assert_invariant {
     }};
 }
 
+/// Errors in the user-provided transaction input.
+///
+/// Embedded in [`IotaError::UserInput`], so it is also sent between nodes:
+/// add new variants only at the very end of the enum (see the WARNING on
+/// [`IotaError`]).
+#[cfg_attr(test, derive(iota_macros::EnumVariantOrder))]
 #[derive(
     Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr, IntoStaticStr,
 )]
@@ -362,6 +372,15 @@ pub enum UserInputError {
 }
 
 /// Custom error type for Iota.
+///
+/// WARNING: This enum is sent between nodes, and the code of a variant is its
+/// declaration index. Add new variants only at the very end of the enum, then
+/// re-run the unit tests and commit the updated variant-order snapshot from
+/// `tests/staged/` together with the change.
+///
+/// The same rules apply to enums embedded in variant fields, such as
+/// [`UserInputError`].
+#[cfg_attr(test, derive(iota_macros::EnumVariantOrder))]
 #[derive(
     Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr, IntoStaticStr,
 )]
