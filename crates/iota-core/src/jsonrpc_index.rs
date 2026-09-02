@@ -1915,6 +1915,7 @@ impl IndexStore {
         // excludes cannot seed the transaction numbering.
         let history = EpochBuckets::open(
             db,
+            "JSON-RPC index history",
             HISTORY_CF_PREFIX,
             history_cf_options,
             tables.earliest_retained_epoch.clone(),

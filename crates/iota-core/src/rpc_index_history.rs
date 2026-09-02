@@ -66,6 +66,10 @@ pub(crate) struct EpochBuckets<B> {
     /// The database holding the buckets' column families; used to create
     /// and drop them at runtime.
     db: Arc<Database>,
+    /// What this store is called in a log line, e.g. `"JSON-RPC index
+    /// history"`. Several stores drop a bucket of the same epoch from one
+    /// reconfiguration, so the events below have to say which one.
+    name: &'static str,
     cf_prefix: &'static str,
     /// Template options for the buckets' column families. All clones share
     /// one block cache through the cloned table factory.
@@ -90,6 +94,7 @@ impl<B> EpochBuckets<B> {
     /// store with no retention floor.
     pub(crate) fn open(
         db: Arc<Database>,
+        name: &'static str,
         cf_prefix: &'static str,
         cf_options: rocksdb::Options,
         earliest_retained_table: DBMap<(), EpochId>,
@@ -102,7 +107,7 @@ impl<B> EpochBuckets<B> {
             .map(|(&epoch, _)| epoch)
             .collect();
         for epoch in pruned {
-            info!(epoch, "dropping a pruned history column family at open");
+            info!(store = name, epoch, "dropping a pruned bucket at open");
             buckets.remove(&epoch);
             if let Err(e) = db.drop_cf(&bucket_cf_name(cf_prefix, epoch)) {
                 warn!(epoch, "failed to drop a pruned history column family: {e}");
@@ -110,6 +115,7 @@ impl<B> EpochBuckets<B> {
         }
         Ok(Self {
             db,
+            name,
             cf_prefix,
             cf_options,
             reopen,
@@ -153,7 +159,7 @@ impl<B> EpochBuckets<B> {
     pub(crate) fn ensure(&self, epoch: EpochId) -> Result<Arc<B>, TypedStoreError> {
         let refuse_pruned = |earliest_retained: EpochId| {
             if epoch < earliest_retained {
-                return Err(TypedStoreError::RocksDB(format!(
+                return Err(TypedStoreError::Pruned(format!(
                     "the history bucket of epoch {epoch} was pruned: only epochs from \
                      {earliest_retained} on are retained"
                 )));
@@ -248,7 +254,10 @@ impl<B> EpochBuckets<B> {
         // One column-family drop per epoch: constant time, no per-row
         // deletes and no compaction churn.
         for epoch in expired {
-            info!(epoch, "dropping the index history of an expired epoch");
+            info!(
+                store = self.name,
+                epoch, "dropping the bucket of an expired epoch"
+            );
             if let Err(e) = self.db.drop_cf(&bucket_cf_name(self.cf_prefix, epoch)) {
                 warn!(
                     epoch,
