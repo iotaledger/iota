@@ -602,11 +602,20 @@ impl IotaNode {
         // its latest versions.
         // TODO(https://github.com/iotaledger/iota/issues/12712): remove this
         // call once every database has swept the pre-bucket backlog.
-        object_backlog_sweep::sweep(store.clone(), epoch_store.epoch())
-            .await
-            .map_err(|e| {
-                anyhow!("failed to sweep the object versions superseded before this build: {e}")
-            })?;
+        // A `pruner` database is what an earlier build left when it ran the
+        // objects pruner with the compaction filter, which the sweep has to
+        // know about: see `object_backlog_sweep::sweep`.
+        let pruner_db_present = config.db_path().join("pruner").exists();
+        object_backlog_sweep::sweep(
+            store.clone(),
+            checkpoint_store.clone(),
+            epoch_store.epoch(),
+            pruner_db_present,
+        )
+        .await
+        .map_err(|e| {
+            anyhow!("failed to sweep the object versions superseded before this build: {e}")
+        })?;
 
         info!("creating state sync store");
         let state_sync_store = RocksDbStore::new(

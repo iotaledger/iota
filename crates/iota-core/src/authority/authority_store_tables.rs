@@ -232,6 +232,14 @@ pub struct AuthorityPerpetualTables {
     /// TODO: remove this table once every database has swept the pre-bucket
     /// backlog, <https://github.com/iotaledger/iota/issues/12712>
     pub(crate) object_backlog_sweep_bound: DBMap<(), CheckpointSequenceNumber>,
+
+    /// The last checkpoint whose superseded versions the bounded sweep has
+    /// relocated. Empty until that sweep first writes a slice, and unused by
+    /// the unbounded walk, which records its place in
+    /// `object_backlog_sweep_progress` instead.
+    /// TODO: remove this table once every database has swept the pre-bucket
+    /// backlog, <https://github.com/iotaledger/iota/issues/12712>
+    pub(crate) object_backlog_sweep_checkpoint: DBMap<(), CheckpointSequenceNumber>,
 }
 
 /// The total IOTA supply used during conservation checks.
