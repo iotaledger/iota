@@ -2371,7 +2371,7 @@ impl IotaNode {
 
     /// Returns the registry service holding the node's Prometheus registries
     /// and their shared exposure filter.
-    pub(crate) fn registry_service(&self) -> &RegistryService {
+    pub fn registry_service(&self) -> &RegistryService {
         &self.registry_service
     }
 

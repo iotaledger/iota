@@ -286,11 +286,26 @@ fn write_archive(dir: &Path, checkpoints: &[CheckpointData]) {
     .unwrap();
 }
 
-/// A fullnode whose only source is the archive must reach the archive's last
-/// checkpoint by applying the results it carries, without executing any of
-/// their transactions.
-#[sim_test]
-async fn archive_only_fullnode_applies_without_executing() {
+/// How many transactions the node's execution driver has run, read from the
+/// metric it publishes rather than the private counter behind it.
+fn executed_transactions(node: &test_cluster::FullNodeHandle) -> u64 {
+    node.iota_node.with(|n| {
+        n.registry_service()
+            .gather_all()
+            .iter()
+            .find(|family| family.name() == "execution_driver_executed_transactions")
+            .and_then(|family| family.get_metric().first())
+            .map(|metric| metric.get_counter().value() as u64)
+            .expect("the execution driver publishes its executed-transaction count")
+    })
+}
+
+/// Syncs a fullnode whose only source is a checkpoint archive, and reports how
+/// many of the archive's transactions its execution driver ran.
+///
+/// With `re_execute` unset the results are applied, so the driver should run
+/// almost nothing; with it set every transaction goes through execution.
+async fn sync_archive_only_fullnode(re_execute: bool) -> (u64, usize, usize) {
     let ingestion = tempfile::tempdir().unwrap();
     let archive = tempfile::tempdir().unwrap();
     let mut cluster = TestClusterBuilder::new()
@@ -348,7 +363,7 @@ async fn archive_only_fullnode_applies_without_executing() {
             download_concurrency: NonZeroUsize::new(4).unwrap(),
             verify_concurrency: NonZeroUsize::new(2).unwrap(),
             max_checkpoints_ahead_of_execution: NonZeroUsize::new(1_000_000).unwrap(),
-            re_execute_archived_checkpoints: false,
+            re_execute_archived_checkpoints: re_execute,
             sync_from_archive_only: true,
         })
         .build(&mut rand::rngs::OsRng, cluster.swarm.config());
@@ -401,8 +416,44 @@ async fn archive_only_fullnode_applies_without_executing() {
         }
     }
     let total_transactions: usize = checkpoints.iter().map(|c| c.transactions.len()).sum();
+    let boundaries = checkpoints
+        .iter()
+        .filter(|c| c.checkpoint_summary.end_of_epoch_data.is_some())
+        .count();
+    let executed = executed_transactions(&node);
     println!(
-        "archive-only node reached checkpoint {target} covering {total_transactions} transactions"
+        "archive-only node (re_execute={re_execute}) reached checkpoint {target}: executed \
+         {executed} of {total_transactions} transactions, {boundaries} epoch boundaries"
+    );
+    (executed, total_transactions, boundaries)
+}
+
+/// Applying the archive's results must leave the execution driver with almost
+/// nothing to do: only the end-of-epoch transactions stay on its path.
+#[sim_test]
+async fn archive_only_fullnode_applies_without_executing() {
+    let (executed, total, boundaries) = sync_archive_only_fullnode(false).await;
+    // Only the end-of-epoch transactions are left to the executor, one per
+    // boundary in the range.
+    assert!(
+        executed <= boundaries as u64,
+        "the node executed {executed} of {total} transactions with only {boundaries} epoch \
+         boundaries in range, so more than reconfiguration went through execution"
+    );
+}
+
+/// The same range with re-execution configured must put every transaction
+/// through the execution driver. Together with the test above this is what
+/// shows the flag has an effect rather than being inert.
+#[sim_test]
+async fn archive_only_fullnode_re_executes_when_configured() {
+    let (executed, total, _) = sync_archive_only_fullnode(true).await;
+    // Genesis is already executed when the node starts, so it never reaches the
+    // driver; everything else in the range must.
+    assert!(
+        executed + 2 >= total as u64,
+        "the node executed only {executed} of {total} transactions, so it did not re-execute \
+         the archive's contents"
     );
 }
 
